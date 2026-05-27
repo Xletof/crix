@@ -545,9 +545,9 @@ export class GameScene extends Phaser.Scene {
         Phaser.Math.DegToRad(PLAYER.pelletSpreadDeg),
         PLAYER.pelletRange,
         startGap,
-        0xffffff, // soft white-gray
-        0xffffff,
-        0.16
+        0xffb050, // warm fire-amber
+        0xffd888,
+        0.20
       );
     }
   }

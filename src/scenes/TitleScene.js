@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, COLORS } from '../config.js';
+import { VIEW } from '../config.js';
 import { SFX } from '../systems/FX.js';
 
 export class TitleScene extends Phaser.Scene {
@@ -8,54 +8,76 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#0b0d12');
+    this.cameras.main.setBackgroundColor('#1a0e06');
 
-    // Title artwork: layered text + a "brawler" portrait (player sprite)
     const cx = VIEW.width / 2;
 
-    // Background flourish
+    // Background: dusty horizon — sky band + ground band
     const g = this.add.graphics();
-    g.fillStyle(0x1c2436, 1);
-    g.fillRect(0, VIEW.height * 0.35, VIEW.width, VIEW.height * 0.5);
-    g.fillStyle(0x2a3856, 1);
-    g.fillTriangle(0, VIEW.height * 0.35, VIEW.width, VIEW.height * 0.35, VIEW.width, VIEW.height * 0.45);
+    // Sky / sun gradient bands
+    g.fillStyle(0x6a3a20, 1);
+    g.fillRect(0, 0, VIEW.width, VIEW.height * 0.5);
+    g.fillStyle(0x8a5828, 1);
+    g.fillRect(0, VIEW.height * 0.20, VIEW.width, VIEW.height * 0.18);
+    g.fillStyle(0xb07820, 1);
+    g.fillRect(0, VIEW.height * 0.30, VIEW.width, VIEW.height * 0.10);
+    // Sun
+    g.fillStyle(0xffd040, 1);
+    g.fillCircle(cx, VIEW.height * 0.34, 80);
+    g.fillStyle(0xff7020, 0.5);
+    g.fillCircle(cx, VIEW.height * 0.34, 110);
+    // Ground band (dirt)
+    g.fillStyle(0xd4a96a, 1);
+    g.fillRect(0, VIEW.height * 0.4, VIEW.width, VIEW.height * 0.6);
+    // Dirt darker band
+    g.fillStyle(0xa87848, 1);
+    g.fillRect(0, VIEW.height * 0.4, VIEW.width, 12);
 
-    // Title text
+    // Scatter dust pebbles on ground
+    for (let i = 0; i < 200; i++) {
+      const x = Math.random() * VIEW.width;
+      const y = VIEW.height * 0.42 + Math.random() * VIEW.height * 0.58;
+      const s = Math.random() < 0.7 ? 3 : 5;
+      g.fillStyle(Math.random() < 0.5 ? 0x6a3a20 : 0x4a2818, 0.7);
+      g.fillRect(x, y, s, s);
+    }
+
+    // Title text — chunky wood-burned western look
     const titleShadow = this.add
-      .text(cx + 6, 240 + 6, 'CRIX', {
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '160px',
+      .text(cx + 8, 230 + 8, 'CRIX', {
+        fontFamily: 'Georgia, "Times New Roman", serif',
+        fontSize: '180px',
         fontStyle: '900',
-        color: '#000000',
+        color: '#1a0a04',
       })
       .setOrigin(0.5);
-    titleShadow.setAlpha(0.5);
+    titleShadow.setAlpha(0.7);
     const title = this.add
-      .text(cx, 240, 'CRIX', {
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '160px',
+      .text(cx, 230, 'CRIX', {
+        fontFamily: 'Georgia, "Times New Roman", serif',
+        fontSize: '180px',
         fontStyle: '900',
-        color: '#ffe066',
-        stroke: '#7a4b00',
-        strokeThickness: 10,
+        color: '#ffd040',
+        stroke: '#5a3018',
+        strokeThickness: 12,
       })
       .setOrigin(0.5);
-    title.setAngle(-2);
+    title.setAngle(-3);
 
     const sub = this.add
-      .text(cx, 360, 'ARENA SHOWDOWN', {
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '32px',
+      .text(cx, 360, 'WANTED · DEAD OR ALIVE', {
+        fontFamily: 'Georgia, "Times New Roman", serif',
+        fontSize: '30px',
         fontStyle: 'bold',
-        color: '#ffffff',
-        stroke: '#000000',
-        strokeThickness: 4,
+        color: '#f0e0b8',
+        stroke: '#1a0a04',
+        strokeThickness: 5,
       })
       .setOrigin(0.5);
-    sub.setAlpha(0.85);
+    sub.setAlpha(0.95);
 
-    // Brawler portrait
-    const portrait = this.add.image(cx, VIEW.height * 0.58, 'player').setScale(3);
+    // Sheriff portrait
+    const portrait = this.add.image(cx, VIEW.height * 0.60, 'player').setScale(3);
     portrait.setRotation(0);
     this.tweens.add({
       targets: portrait,
@@ -66,29 +88,47 @@ export class TitleScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
-    // PLAY button
-    const btnY = VIEW.height * 0.82;
-    const btnW = 360;
+    // PLAY button — brass plate look
+    const btnY = VIEW.height * 0.83;
+    const btnW = 380;
     const btnH = 110;
     const btnBg = this.add.graphics();
-    const drawBtn = (color) => {
+    const drawBtn = (hover) => {
       btnBg.clear();
-      btnBg.fillStyle(0x000000, 0.4);
-      btnBg.fillRoundedRect(cx - btnW / 2 + 4, btnY - btnH / 2 + 6, btnW, btnH, 22);
-      btnBg.fillStyle(color, 1);
-      btnBg.fillRoundedRect(cx - btnW / 2, btnY - btnH / 2, btnW, btnH, 22);
-      btnBg.lineStyle(4, 0xffffff, 0.4);
-      btnBg.strokeRoundedRect(cx - btnW / 2, btnY - btnH / 2, btnW, btnH, 22);
+      // Dark drop shadow
+      btnBg.fillStyle(0x1a0a04, 0.55);
+      btnBg.fillRoundedRect(cx - btnW / 2 + 5, btnY - btnH / 2 + 7, btnW, btnH, 14);
+      // Wood backplate
+      btnBg.fillStyle(hover ? 0x6a3a20 : 0x4a2818, 1);
+      btnBg.fillRoundedRect(cx - btnW / 2, btnY - btnH / 2, btnW, btnH, 14);
+      // Brass plate inset
+      btnBg.fillStyle(hover ? 0xffd040 : 0xb07820, 1);
+      btnBg.fillRoundedRect(cx - btnW / 2 + 8, btnY - btnH / 2 + 8, btnW - 16, btnH - 16, 10);
+      // Inner highlight
+      btnBg.fillStyle(0xfff4b8, 0.35);
+      btnBg.fillRoundedRect(cx - btnW / 2 + 12, btnY - btnH / 2 + 12, btnW - 24, 18, 8);
+      // Rivets at corners
+      [
+        [cx - btnW / 2 + 18, btnY - btnH / 2 + 18],
+        [cx + btnW / 2 - 18, btnY - btnH / 2 + 18],
+        [cx - btnW / 2 + 18, btnY + btnH / 2 - 18],
+        [cx + btnW / 2 - 18, btnY + btnH / 2 - 18],
+      ].forEach(([x, y]) => {
+        btnBg.fillStyle(0x3a1a08, 1);
+        btnBg.fillCircle(x, y, 5);
+        btnBg.fillStyle(0xc0c0c0, 0.9);
+        btnBg.fillCircle(x - 1, y - 1, 2);
+      });
     };
-    drawBtn(0x4cd964);
+    drawBtn(false);
     const btnText = this.add
-      .text(cx, btnY, 'PLAY', {
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '54px',
+      .text(cx, btnY, 'DRAW!', {
+        fontFamily: 'Georgia, "Times New Roman", serif',
+        fontSize: '56px',
         fontStyle: '900',
-        color: '#ffffff',
-        stroke: '#0b3a14',
-        strokeThickness: 6,
+        color: '#1a0a04',
+        stroke: '#5a3018',
+        strokeThickness: 4,
       })
       .setOrigin(0.5);
 
@@ -96,19 +136,19 @@ export class TitleScene extends Phaser.Scene {
       .zone(cx, btnY, btnW, btnH)
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
-    zone.on('pointerover', () => drawBtn(0x66e078));
-    zone.on('pointerout', () => drawBtn(0x4cd964));
-    zone.on('pointerdown', () => drawBtn(0x3aab50));
+    zone.on('pointerover', () => drawBtn(true));
+    zone.on('pointerout', () => drawBtn(false));
+    zone.on('pointerdown', () => drawBtn(true));
     zone.on('pointerup', () => {
       SFX.uiClick();
       this.cameras.main.fadeOut(220, 0, 0, 0);
       this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Game'));
     });
 
-    // Pulse the button
+    // Pulse the button text
     this.tweens.add({
       targets: btnText,
-      scale: 1.05,
+      scale: 1.06,
       duration: 700,
       yoyo: true,
       repeat: -1,
@@ -117,10 +157,12 @@ export class TitleScene extends Phaser.Scene {
 
     // Tip line
     this.add
-      .text(cx, VIEW.height - 60, 'Left stick: move    Right stick: aim & fire    SUPER: tap star', {
-        fontFamily: 'system-ui, sans-serif',
+      .text(cx, VIEW.height - 60, 'Left stick: move    Right stick: aim & fire    Drag star: SUPER', {
+        fontFamily: 'Georgia, "Times New Roman", serif',
         fontSize: '18px',
-        color: '#9ab',
+        color: '#e8c898',
+        stroke: '#1a0a04',
+        strokeThickness: 3,
       })
       .setOrigin(0.5);
 
@@ -128,10 +170,12 @@ export class TitleScene extends Phaser.Scene {
     const stats = loadStats();
     if (stats.wins > 0 || stats.runs > 0) {
       this.add
-        .text(cx, 420, `Wins: ${stats.wins}   Runs: ${stats.runs}`, {
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: '20px',
-          color: '#ffd166',
+        .text(cx, 420, `Bounties: ${stats.wins}   Showdowns: ${stats.runs}`, {
+          fontFamily: 'Georgia, "Times New Roman", serif',
+          fontSize: '22px',
+          color: '#ffd040',
+          stroke: '#1a0a04',
+          strokeThickness: 4,
         })
         .setOrigin(0.5);
     }

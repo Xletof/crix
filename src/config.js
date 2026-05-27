@@ -8,11 +8,11 @@ export const VIEW = {
 export const WORLD = {
   width: 1600,
   height: 1600,
-  bg: 0xf2c878,        // sand
-  bgDark: 0xd9a85a,    // sand stripes
-  bushColor: 0x2f8a4e,
-  bushColorDark: 0x215f37,
-  wallColor: 0x7a5230,
+  bg: 0xd4a96a,        // dirt light (matches PAL.dirtLight)
+  bgDark: 0x8a5828,    // wood mid
+  bushColor: 0x6a3a20, // tumbleweed brown
+  bushColorDark: 0x2a1810,
+  wallColor: 0x5a3018, // wood crate
 };
 
 export const PLAYER = {
@@ -118,18 +118,26 @@ export const HUDCFG = {
   joystickBottom: 36,
 };
 
+// All numeric hex colors used by Phaser Graphics calls. Mirrors PAL in pixelArt.js
+// but as integers (Phaser.Graphics needs 0x-prefixed numbers).
 export const COLORS = {
-  player: 0x3a8bff,
-  playerOutline: 0x0b3e8c,
-  bullet: 0xffe066,
-  bulletSuper: 0xff9f1c,
-  enemyBullet: 0xff4d6d,
-  hpBack: 0x222933,
-  hpFront: 0x4cd964,
-  hpLow: 0xff3b30,
-  ammoOn: 0xffe066,
-  ammoOff: 0x444a55,
-  superGauge: 0xffae00,
-  superReady: 0xffe066,
-  textShadow: 0x000000,
+  // Player / friendly accents
+  player: 0xd4a96a,
+  playerOutline: 0x3a1a08,
+  // Bullets (warm tracers)
+  bullet: 0xffd040,
+  bulletSuper: 0xfff8d0,
+  enemyBullet: 0xcc2020,
+  // HP bar
+  hpBack: 0x2a1810,
+  hpFront: 0xd83838,
+  hpLow: 0x8a1010,
+  // Ammo pips (bullet shells)
+  ammoOn: 0xffd040,
+  ammoOff: 0x4a2818,
+  // Super gauge (gold)
+  superGauge: 0xb07820,
+  superReady: 0xffd040,
+  // Misc
+  textShadow: 0x1a0a04,
 };

@@ -12,45 +12,49 @@ export class HUDScene extends Phaser.Scene {
     this.gameScene = game;
     this.cameras.main.setRoundPixels(true);
 
-    // --- Top bar background ---
+    // --- Top bar background — leather strap look ---
     const top = this.add.graphics();
-    top.fillStyle(0x000000, 0.4);
+    top.fillStyle(0x2a1810, 0.78);       // dark leather
     top.fillRect(0, 0, VIEW.width, 84);
+    top.fillStyle(0xb07820, 0.5);        // brass band at bottom
+    top.fillRect(0, 80, VIEW.width, 3);
+    top.fillStyle(0x6a3a20, 0.6);        // mid-leather highlight
+    top.fillRect(0, 0, VIEW.width, 2);
 
     // HP bar
     this.hpBack = this.add.graphics();
     this.hpFront = this.add.graphics();
     this.hpText = this.add
       .text(VIEW.width / 2, 30, '', {
-        fontFamily: 'system-ui, sans-serif',
+        fontFamily: 'Georgia, "Times New Roman", serif',
         fontSize: '22px',
         fontStyle: 'bold',
-        color: '#ffffff',
-        stroke: '#000000',
-        strokeThickness: 3,
+        color: '#f0e0b8',
+        stroke: '#1a0a04',
+        strokeThickness: 4,
       })
       .setOrigin(0.5);
 
     // Wave label (right)
     this.waveText = this.add
       .text(VIEW.width - 20, 16, '', {
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '20px',
+        fontFamily: 'Georgia, "Times New Roman", serif',
+        fontSize: '22px',
         fontStyle: 'bold',
-        color: '#ffd166',
-        stroke: '#000000',
-        strokeThickness: 3,
+        color: '#ffd040',
+        stroke: '#1a0a04',
+        strokeThickness: 4,
       })
       .setOrigin(1, 0);
 
     // Banner (center, transient)
     this.banner = this.add
       .text(VIEW.width / 2, VIEW.height * 0.32, '', {
-        fontFamily: 'system-ui, sans-serif',
+        fontFamily: 'Georgia, "Times New Roman", serif',
         fontSize: '64px',
         fontStyle: 'bold',
-        color: '#ffe066',
-        stroke: '#000000',
+        color: '#ffd040',
+        stroke: '#1a0a04',
         strokeThickness: 8,
       })
       .setOrigin(0.5)
@@ -159,28 +163,42 @@ export class HUDScene extends Phaser.Scene {
   refreshAmmo() {
     const p = this.gameScene.player;
     if (!p) return;
+    // Draw each ammo slot as a bullet shell standing upright (rectangle + tip)
     for (let i = 0; i < this.ammoPips.length; i++) {
       const pip = this.ammoPips[i];
       pip.clear();
       const loaded = i < p.ammo;
       const reloading = !loaded && i === p.ammo && p.ammoTimers.length > 0;
-      pip.fillStyle(0x000000, 0.5);
-      pip.fillCircle(0, 0, 11);
+      // Dark holster slot (always visible)
+      pip.fillStyle(0x1a0a04, 0.85);
+      pip.fillRoundedRect(-7, -14, 14, 28, 3);
+      pip.lineStyle(2, 0x6a3a20, 0.9);
+      pip.strokeRoundedRect(-7, -14, 14, 28, 3);
       if (loaded) {
+        // Gold brass casing
         pip.fillStyle(COLORS.ammoOn, 1);
-        pip.fillCircle(0, 0, 9);
+        pip.fillRect(-5, -8, 10, 18);
+        // Copper tip
+        pip.fillStyle(0xff7020, 1);
+        pip.fillTriangle(-5, -8, 5, -8, 0, -14);
+        // Highlight stripe
+        pip.fillStyle(0xfff4b8, 0.7);
+        pip.fillRect(-4, -6, 1, 14);
       } else if (reloading) {
         const max = PLAYER.ammoReloadMs;
         const t = Math.max(0, max - p.ammoTimers[0]);
         const r = t / max;
-        pip.fillStyle(COLORS.ammoOff, 1);
-        pip.fillCircle(0, 0, 9);
+        // Empty silhouette
+        pip.fillStyle(0x2a1810, 1);
+        pip.fillRect(-5, -8, 10, 18);
+        // Filling shell from bottom up
+        const filled = Math.round(18 * r);
         pip.fillStyle(COLORS.ammoOn, 1);
-        pip.slice(0, 0, 9, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * r, false);
-        pip.fillPath();
+        pip.fillRect(-5, 10 - filled, 10, filled);
       } else {
-        pip.fillStyle(COLORS.ammoOff, 1);
-        pip.fillCircle(0, 0, 9);
+        // Empty
+        pip.fillStyle(0x2a1810, 1);
+        pip.fillRect(-5, -8, 10, 18);
       }
     }
   }

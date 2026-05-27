@@ -10,7 +10,7 @@ import { GameOverScene } from './scenes/GameOverScene.js';
 const config = {
   type: Phaser.AUTO,
   parent: 'game',
-  backgroundColor: '#0b0d12',
+  backgroundColor: '#1a0e06',
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -24,10 +24,11 @@ const config = {
       gravity: { x: 0, y: 0 },
     },
   },
+  // Pixel-art renderer: crisp chunky pixels at any zoom, no blur.
   render: {
-    pixelArt: false,
-    antialias: true,
-    roundPixels: false,
+    pixelArt: true,
+    antialias: false,
+    roundPixels: true,
   },
   input: {
     activePointers: 4,

@@ -50,6 +50,15 @@ export class Boss extends Enemy {
     this.setAlpha(this.hiddenInBush ? 0.55 : 1);
     if (!this.alive) return;
 
+    // Slow ominous idle/walking bob — gets faster in later phases.
+    // Skip while charging up an attack (that state runs its own scale pulse).
+    if (this.state === STATE.IDLE || this.state === STATE.CHARGING) {
+      this.bobT = (this.bobT || 0) + delta;
+      const speed = this.phase >= 3 ? 0.006 : this.phase >= 2 ? 0.0048 : 0.0036;
+      const amp   = this.phase >= 3 ? 0.06 : this.phase >= 2 ? 0.05 : 0.04;
+      this.setScale(1 + Math.sin(this.bobT * speed) * amp);
+    }
+
     // Phase transitions
     const ratio = this.hp / this.hpMax;
     if (this.phase < 3 && ratio <= BOSS.phase3) this.enterPhase(3);

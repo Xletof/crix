@@ -15,6 +15,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.hpMax = cfg.hp;
     this.alive = true;
     this.hiddenInBush = false;
+    // Animation state — see preUpdate
+    this.bobT = Math.random() * 1000;
+    this.recoilT = 0;
     this.shadow = scene.add.image(x, y + 14, 'shadow').setDepth(this.depth - 1).setAlpha(0.35);
 
     // HP bar (small, only shows when damaged)
@@ -75,6 +78,21 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.shadow.setPosition(this.x, this.y + 18);
     this.updateHpBar();
     this.setAlpha(this.hiddenInBush ? 0.55 : 1);
+
+    // Idle / walk bob — same system as Player
+    const speedSq = (this.body.velocity.x * this.body.velocity.x) + (this.body.velocity.y * this.body.velocity.y);
+    const isMoving = speedSq > 200;
+    const bobSpeed = isMoving ? 0.020 : 0.005;
+    const bobAmp = isMoving ? 0.065 : 0.025;
+    this.bobT += delta;
+    const bob = 1 + Math.sin(this.bobT * bobSpeed) * bobAmp;
+    let recoil = 1;
+    if (this.recoilT > 0) {
+      this.recoilT -= delta;
+      const t = Math.max(0, this.recoilT / 120);
+      recoil = 1 - t * 0.16;
+    }
+    this.setScale(bob * recoil);
   }
 }
 
@@ -189,6 +207,7 @@ export class EnemyShooter extends Enemy {
       this.fireCd -= delta;
       if (this.fireCd <= 0) {
         this.fireCd = this.cfg.fireCooldownMs;
+        this.recoilT = 120;
         this.scene.events.emit('shooter-fire', this, ang);
       }
       return;

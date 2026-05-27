@@ -25,6 +25,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.superAiming = false;
     this.alive = true;
     this.hiddenInBush = false;
+    // Smooth motion animation state — driven in preUpdate.
+    // bobT advances each frame; recoilT decays after firing.
+    this.bobT = Math.random() * 1000; // random phase so multiple actors don't sync
+    this.recoilT = 0;
 
     this.shadow = scene.add.image(x, y + 12, 'shadow').setDepth(this.depth - 1).setAlpha(0.35);
   }
@@ -96,6 +100,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.ammo -= 1;
     this.ammoTimers.push(PLAYER.ammoReloadMs);
     const dir = this.aiming ? this.aim : this.facing;
+    this.recoilT = 120; // ms of recoil punch
     this.scene.events.emit('player-fire', dir);
     SFX.shoot();
     return true;
@@ -111,6 +116,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         : this.aiming
         ? this.aim
         : this.facing;
+    this.recoilT = 280; // bigger, longer kick for super
     this.scene.events.emit('player-fire-super', dir);
     SFX.shootSuper();
     return true;
@@ -164,6 +170,23 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.shadow.setPosition(this.x, this.y + 18);
     // Bush alpha
     this.setAlpha(this.hiddenInBush ? PLAYER.bushAlpha : 1);
+
+    // ── Smooth motion animation ─────────────────────────────────────────
+    // Idle bob (breathing). Walking accelerates the bob.
+    const speedSq = (this.body.velocity.x * this.body.velocity.x) + (this.body.velocity.y * this.body.velocity.y);
+    const isMoving = speedSq > 100;
+    const bobSpeed = isMoving ? 0.018 : 0.006;
+    const bobAmp   = isMoving ? 0.055 : 0.03;
+    this.bobT += delta;
+    const bob = 1 + Math.sin(this.bobT * bobSpeed) * bobAmp;
+    // Recoil punch (scales DOWN slightly on fire — like the shot pushed the hero back)
+    let recoil = 1;
+    if (this.recoilT > 0) {
+      this.recoilT -= delta;
+      const t = Math.max(0, this.recoilT / 120);
+      recoil = 1 - t * 0.14;
+    }
+    this.setScale(bob * recoil);
   }
 
   destroy(fromScene) {
