@@ -342,7 +342,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
           this.y - (this._stuckRefY ?? this.y)
         );
         if (moved < 12) {
-          this._stuckSidestepMs = 280;
+          this._stuckSidestepMs = 600;
           this._stuckSideDir   = Math.random() < 0.5 ? 1 : -1;
         }
         this._stuckTimer = 0;
@@ -544,8 +544,13 @@ export class EnemyShooter extends Enemy {
     // No cover with LOS — go ADVANCE so we push forward instead of standing
     // pressed against a useless wall.
     if (!this.coverSpot || !this.standPos) {
-      this.state = ST.ADVANCE;
-      this._advanceTimer = 0;
+      this.state             = ST.ADVANCE;
+      this._advanceTimer     = 0;
+      this._advWallFollowMs  = 0;
+      this._advWallFollowDir = 0;
+      this._advStuckTimer    = 0;
+      this._advRefX          = undefined;
+      this._advRefY          = undefined;
       return;
     }
     const dist = this._moveToward(this.standPos.x, this.standPos.y, this.cfg.speed);
@@ -560,8 +565,13 @@ export class EnemyShooter extends Enemy {
     this._coverMoveStuckMs = (this._coverMoveStuckMs || 0) + delta;
     if (this._coverMoveStuckMs > LOS_LOST_ADVANCE) {
       this._coverMoveStuckMs = 0;
-      this.state = ST.ADVANCE;
-      this._advanceTimer = 0;
+      this.state             = ST.ADVANCE;
+      this._advanceTimer     = 0;
+      this._advWallFollowMs  = 0;
+      this._advWallFollowDir = 0;
+      this._advStuckTimer    = 0;
+      this._advRefX          = undefined;
+      this._advRefY          = undefined;
     }
   }
 
@@ -595,8 +605,13 @@ export class EnemyShooter extends Enemy {
       this._losLostMs = 0;
       this._claimCover(player);
       if (!this.standPos) {
-        this.state = ST.ADVANCE;
-        this._advanceTimer = 0;
+        this.state             = ST.ADVANCE;
+        this._advanceTimer     = 0;
+        this._advWallFollowMs  = 0;
+        this._advWallFollowDir = 0;
+        this._advStuckTimer    = 0;
+        this._advRefX          = undefined;
+        this._advRefY          = undefined;
       } else {
         this.state = ST.COVER_MOVE;
         this._coverMoveStuckMs = 0;
@@ -635,23 +650,63 @@ export class EnemyShooter extends Enemy {
 
   // ── ADVANCE: no cover with LOS — push toward the player until we regain LOS,
   // then try to claim cover again.
+  //
+  // Navigation strategy: straight-line toward target, but track progress every
+  // 500 ms. If we moved <10 px (wall in the way), commit to skirting the wall
+  // in a consistent perpendicular direction for 1 s — long enough to clear a
+  // corner. Direction flips on each new stuck episode so we don't stay trapped.
   _tickAdvance(delta, player) {
     this._advanceTimer = (this._advanceTimer || 0) + delta;
     const sees = this.canSee(player);
     if (sees) {
       this.lastKnownX = player.x;
       this.lastKnownY = player.y;
-      // Try to take cover at this new position
       this._claimCover(player);
       if (this.coverSpot && this.standPos) {
-        this.state = ST.COVER_MOVE;
+        this.state             = ST.COVER_MOVE;
         this._coverMoveStuckMs = 0;
+        this._advWallFollowMs  = 0;
+        this._advWallFollowDir = 0;
         return;
       }
     }
-    // Move toward the player at three-quarter speed, firing if LOS appears
-    this._moveToward(player.x, player.y, this.cfg.speed * 0.78);
     this._maybeFireAt(delta, player);
+
+    const tx = sees ? player.x : this.lastKnownX;
+    const ty = sees ? player.y : this.lastKnownY;
+
+    // Wall-following phase: move perpendicularly to slide around the obstacle.
+    if (this._advWallFollowMs > 0) {
+      this._advWallFollowMs -= delta;
+      const toTarget = Math.atan2(ty - this.y, tx - this.x);
+      const perp     = toTarget + this._advWallFollowDir * Math.PI / 2;
+      this.setVelocity(
+        Math.cos(perp) * this.cfg.speed * 0.9,
+        Math.sin(perp) * this.cfg.speed * 0.9,
+      );
+      this.setRotation(perp + Math.PI / 2);
+      return;
+    }
+
+    // Straight-line phase with progress tracking.
+    this._advStuckTimer = (this._advStuckTimer || 0) + delta;
+    this._advRefX = this._advRefX ?? this.x;
+    this._advRefY = this._advRefY ?? this.y;
+    if (this._advStuckTimer >= 500) {
+      const moved = Math.hypot(this.x - this._advRefX, this.y - this._advRefY);
+      if (moved < 10) {
+        // Flip direction on each episode to eventually find the way around.
+        this._advWallFollowDir = this._advWallFollowDir
+          ? -this._advWallFollowDir
+          : (Math.random() < 0.5 ? 1 : -1);
+        this._advWallFollowMs = 1000;
+      }
+      this._advStuckTimer = 0;
+      this._advRefX       = this.x;
+      this._advRefY       = this.y;
+    }
+
+    this._moveToward(tx, ty, this.cfg.speed * 0.78);
   }
 
   // ── FLANK: move to a perpendicular position and fire ───────────────────
