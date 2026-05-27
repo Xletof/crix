@@ -71,7 +71,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.fireCooldown = PLAYER.fireCooldownMs;
     this.ammo -= 1;
     this.ammoTimers.push(PLAYER.ammoReloadMs);
-    this.scene.events.emit('player-fire', this.aim);
+    const dir = this.aiming ? this.aim : this.facing;
+    this.scene.events.emit('player-fire', dir);
     SFX.shoot();
     return true;
   }
@@ -80,7 +81,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (!this.alive) return false;
     if (this.superCharge < PLAYER.superHitsToCharge) return false;
     this.superCharge = 0;
-    this.scene.events.emit('player-fire-super', this.aim);
+    const dir = this.aiming ? this.aim : this.facing;
+    this.scene.events.emit('player-fire-super', dir);
     SFX.shootSuper();
     return true;
   }

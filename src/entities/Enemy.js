@@ -82,6 +82,12 @@ export class EnemyGrunt extends Enemy {
   constructor(scene, x, y) {
     super(scene, x, y, 'grunt', ENEMY.grunt);
     this.lastMeleeAt = 0;
+    this.lastKnownX = x;
+    this.lastKnownY = y;
+    this.hasSeenPlayer = false;
+    this.wanderTimer = 0;
+    this.wanderVx = 0;
+    this.wanderVy = 0;
   }
 
   preUpdate(time, delta) {
@@ -93,25 +99,47 @@ export class EnemyGrunt extends Enemy {
       return;
     }
     const seesPlayer = this.canSee(player);
-    if (!seesPlayer) {
-      // Wander vaguely toward last known position (player position approx)
-      this.setVelocity(0, 0);
+    if (seesPlayer) {
+      this.lastKnownX = player.x;
+      this.lastKnownY = player.y;
+      this.hasSeenPlayer = true;
+      const dx = player.x - this.x;
+      const dy = player.y - this.y;
+      const d = Math.hypot(dx, dy);
+      const ang = Math.atan2(dy, dx);
+      this.setRotation(ang + Math.PI / 2);
+      if (d > this.cfg.meleeRange) {
+        this.setVelocity(Math.cos(ang) * this.cfg.speed, Math.sin(ang) * this.cfg.speed);
+      } else {
+        this.setVelocity(0, 0);
+        if (time - this.lastMeleeAt > this.cfg.meleeCooldownMs) {
+          this.lastMeleeAt = time;
+          player.damage(this.cfg.meleeDamage);
+          this.scene.events.emit('grunt-melee', this);
+        }
+      }
       return;
     }
-    const dx = player.x - this.x;
-    const dy = player.y - this.y;
-    const d = Math.hypot(dx, dy);
-    const ang = Math.atan2(dy, dx);
-    this.setRotation(ang + Math.PI / 2);
-    if (d > this.cfg.meleeRange) {
-      this.setVelocity(Math.cos(ang) * this.cfg.speed, Math.sin(ang) * this.cfg.speed);
+    // Lost sight — head to last known position, then wander.
+    const ldx = this.lastKnownX - this.x;
+    const ldy = this.lastKnownY - this.y;
+    const ld = Math.hypot(ldx, ldy);
+    if (this.hasSeenPlayer && ld > 36) {
+      const ang = Math.atan2(ldy, ldx);
+      this.setRotation(ang + Math.PI / 2);
+      const slow = 0.7;
+      this.setVelocity(Math.cos(ang) * this.cfg.speed * slow, Math.sin(ang) * this.cfg.speed * slow);
     } else {
-      this.setVelocity(0, 0);
-      if (time - this.lastMeleeAt > this.cfg.meleeCooldownMs) {
-        this.lastMeleeAt = time;
-        player.damage(this.cfg.meleeDamage);
-        this.scene.events.emit('grunt-melee', this);
+      this.wanderTimer -= delta;
+      if (this.wanderTimer <= 0) {
+        this.wanderTimer = Phaser.Math.Between(700, 1500);
+        const a = Math.random() * Math.PI * 2;
+        const spd = this.cfg.speed * 0.35;
+        this.wanderVx = Math.cos(a) * spd;
+        this.wanderVy = Math.sin(a) * spd;
+        this.setRotation(a + Math.PI / 2);
       }
+      this.setVelocity(this.wanderVx, this.wanderVy);
     }
   }
 }
@@ -120,6 +148,12 @@ export class EnemyShooter extends Enemy {
   constructor(scene, x, y) {
     super(scene, x, y, 'shooter', ENEMY.shooter);
     this.fireCd = Phaser.Math.Between(600, this.cfg.fireCooldownMs);
+    this.lastKnownX = x;
+    this.lastKnownY = y;
+    this.hasSeenPlayer = false;
+    this.wanderTimer = 0;
+    this.wanderVx = 0;
+    this.wanderVy = 0;
   }
 
   preUpdate(time, delta) {
@@ -131,31 +165,54 @@ export class EnemyShooter extends Enemy {
       return;
     }
     const seesPlayer = this.canSee(player);
-    if (!seesPlayer) {
-      this.setVelocity(0, 0);
+    if (seesPlayer) {
+      this.lastKnownX = player.x;
+      this.lastKnownY = player.y;
+      this.hasSeenPlayer = true;
+      const dx = player.x - this.x;
+      const dy = player.y - this.y;
+      const d = Math.hypot(dx, dy);
+      const ang = Math.atan2(dy, dx);
+      this.setRotation(ang + Math.PI / 2);
+      const desired = this.cfg.desiredRange;
+      if (d > desired + 40) {
+        this.setVelocity(Math.cos(ang) * this.cfg.speed, Math.sin(ang) * this.cfg.speed);
+      } else if (d < desired - 40) {
+        this.setVelocity(-Math.cos(ang) * this.cfg.speed, -Math.sin(ang) * this.cfg.speed);
+      } else {
+        // strafe
+        this.setVelocity(
+          Math.cos(ang + Math.PI / 2) * this.cfg.speed * 0.6,
+          Math.sin(ang + Math.PI / 2) * this.cfg.speed * 0.6
+        );
+      }
+      this.fireCd -= delta;
+      if (this.fireCd <= 0) {
+        this.fireCd = this.cfg.fireCooldownMs;
+        this.scene.events.emit('shooter-fire', this, ang);
+      }
       return;
     }
-    const dx = player.x - this.x;
-    const dy = player.y - this.y;
-    const d = Math.hypot(dx, dy);
-    const ang = Math.atan2(dy, dx);
-    this.setRotation(ang + Math.PI / 2);
-    const desired = this.cfg.desiredRange;
-    if (d > desired + 40) {
-      this.setVelocity(Math.cos(ang) * this.cfg.speed, Math.sin(ang) * this.cfg.speed);
-    } else if (d < desired - 40) {
-      this.setVelocity(-Math.cos(ang) * this.cfg.speed, -Math.sin(ang) * this.cfg.speed);
+    // Lost sight — head to last known, then wander (no firing while blind).
+    const ldx = this.lastKnownX - this.x;
+    const ldy = this.lastKnownY - this.y;
+    const ld = Math.hypot(ldx, ldy);
+    if (this.hasSeenPlayer && ld > 60) {
+      const ang = Math.atan2(ldy, ldx);
+      this.setRotation(ang + Math.PI / 2);
+      const slow = 0.6;
+      this.setVelocity(Math.cos(ang) * this.cfg.speed * slow, Math.sin(ang) * this.cfg.speed * slow);
     } else {
-      // strafe
-      this.setVelocity(
-        Math.cos(ang + Math.PI / 2) * this.cfg.speed * 0.6,
-        Math.sin(ang + Math.PI / 2) * this.cfg.speed * 0.6
-      );
-    }
-    this.fireCd -= delta;
-    if (this.fireCd <= 0) {
-      this.fireCd = this.cfg.fireCooldownMs;
-      this.scene.events.emit('shooter-fire', this, ang);
+      this.wanderTimer -= delta;
+      if (this.wanderTimer <= 0) {
+        this.wanderTimer = Phaser.Math.Between(900, 1700);
+        const a = Math.random() * Math.PI * 2;
+        const spd = this.cfg.speed * 0.3;
+        this.wanderVx = Math.cos(a) * spd;
+        this.wanderVy = Math.sin(a) * spd;
+        this.setRotation(a + Math.PI / 2);
+      }
+      this.setVelocity(this.wanderVx, this.wanderVy);
     }
   }
 }

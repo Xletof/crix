@@ -45,6 +45,9 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.cameras.main.setZoom(1);
 
+    // Aim cone overlay (drawn in world space, beneath the player)
+    this.aimGraphics = this.add.graphics().setDepth(25);
+
     // Enemy group
     this.enemies = this.add.group({ runChildUpdate: false });
     this.boss = null;
@@ -292,6 +295,9 @@ export class GameScene extends Phaser.Scene {
     if (this.boss) actors.push(this.boss);
     this.bushSystem.update(actors);
 
+    // Aim cone (Brawl-Stars-style shadow aimer)
+    this.drawAimCone();
+
     // Wave manager
     this.waveManager.update(delta);
 
@@ -408,6 +414,104 @@ export class GameScene extends Phaser.Scene {
     const rb = b.cfg?.radius ?? (b === this.player ? PLAYER.radius : 22);
     const dist = Math.hypot(a.x - b.x, a.y - b.y);
     return dist < ra + rb - 2;
+  }
+
+  drawAimCone() {
+    const g = this.aimGraphics;
+    g.clear();
+    const p = this.player;
+    if (!p || !p.alive) return;
+    if (!p.aiming) return;
+
+    const startGap = PLAYER.radius + 8;
+    const superReady = p.superCharge >= PLAYER.superHitsToCharge;
+
+    if (superReady) {
+      // Wider, hotter cone — preview of where the super fan will fly.
+      const range = PLAYER.superRange;
+      const spread = Phaser.Math.DegToRad(PLAYER.superSpreadDeg);
+      const half = spread / 2;
+      g.fillStyle(0xff7a1a, 0.22);
+      g.beginPath();
+      g.moveTo(p.x, p.y);
+      const steps = 18;
+      for (let i = 0; i <= steps; i++) {
+        const a = p.aim - half + (spread * i) / steps;
+        g.lineTo(p.x + Math.cos(a) * range, p.y + Math.sin(a) * range);
+      }
+      g.closePath();
+      g.fillPath();
+      // Bright edge lines
+      for (const off of [-half, half]) {
+        const a = p.aim + off;
+        g.lineStyle(4, 0xff9f1c, 0.7);
+        g.beginPath();
+        g.moveTo(p.x + Math.cos(a) * startGap, p.y + Math.sin(a) * startGap);
+        g.lineTo(p.x + Math.cos(a) * range, p.y + Math.sin(a) * range);
+        g.strokePath();
+      }
+      // Per-super-pellet dotted rays
+      const sPellets = PLAYER.superPellets;
+      const sHalf = (sPellets - 1) / 2;
+      for (let i = 0; i < sPellets; i++) {
+        const a = p.aim + (i - sHalf) * (spread / Math.max(1, sPellets - 1));
+        this.drawDottedRay(g, p.x, p.y, a, startGap, range, 0xffd166, 5, 18);
+      }
+    }
+
+    // 3-pellet normal aim cone.
+    const nRange = PLAYER.pelletRange;
+    const nSpread = Phaser.Math.DegToRad(PLAYER.pelletSpreadDeg);
+    const nHalf = nSpread / 2;
+    g.fillStyle(0x4cd9ff, 0.2);
+    g.beginPath();
+    g.moveTo(p.x, p.y);
+    const nSteps = 12;
+    for (let i = 0; i <= nSteps; i++) {
+      const a = p.aim - nHalf + (nSpread * i) / nSteps;
+      g.lineTo(p.x + Math.cos(a) * nRange, p.y + Math.sin(a) * nRange);
+    }
+    g.closePath();
+    g.fillPath();
+    // Bright edge lines (cone outline)
+    for (const off of [-nHalf, nHalf]) {
+      const a = p.aim + off;
+      g.lineStyle(3, 0x9be8ff, 0.55);
+      g.beginPath();
+      g.moveTo(p.x + Math.cos(a) * startGap, p.y + Math.sin(a) * startGap);
+      g.lineTo(p.x + Math.cos(a) * nRange, p.y + Math.sin(a) * nRange);
+      g.strokePath();
+    }
+    // Per-pellet dotted rays
+    const pellets = PLAYER.pelletCount;
+    const half2 = (pellets - 1) / 2;
+    for (let i = 0; i < pellets; i++) {
+      const a = p.aim + (i - half2) * (nSpread / Math.max(1, pellets - 1));
+      const isCenter = i === Math.floor(pellets / 2) && pellets % 2 === 1;
+      this.drawDottedRay(
+        g,
+        p.x,
+        p.y,
+        a,
+        startGap,
+        nRange,
+        isCenter ? 0xffffff : 0xa6efff,
+        isCenter ? 6 : 5,
+        14
+      );
+    }
+  }
+
+  drawDottedRay(g, x, y, angle, startGap, range, color, dotR, step) {
+    const cx = Math.cos(angle);
+    const cy = Math.sin(angle);
+    for (let d = startGap; d <= range; d += step) {
+      const t = (d - startGap) / Math.max(1, range - startGap);
+      const alpha = 0.95 * (1 - t * 0.85);
+      const r = dotR * (1 - t * 0.45);
+      g.fillStyle(color, alpha);
+      g.fillCircle(x + cx * d, y + cy * d, r);
+    }
   }
 
   victory() {
