@@ -53,6 +53,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.shadow = scene.add.image(x, y + 12, 'shadow')
       .setDepth(this.depth - 1).setAlpha(0.35);
 
+    // "You are here" glow ring — Mando-cyan, always visible so the player can
+    // spot themselves at a glance on small screens.
+    this.glowRing = scene.add.graphics().setDepth(this.depth - 2);
+    this.glowRing.fillStyle(0x40c8ff, 0.18);
+    this.glowRing.fillCircle(0, 0, PLAYER.radius + 14);
+    this.glowRing.lineStyle(2, 0x80e8ff, 0.75);
+    this.glowRing.strokeCircle(0, 0, PLAYER.radius + 8);
+    this.glowRing.setPosition(x, y);
+    this._glowPulse = 0;
+
     this.jetEmitter = scene.add.particles(x, y, 'jet-flame', {
       lifespan: 180,
       speed: { min: 40, max: 120 },
@@ -315,8 +325,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.scene.events.emit('player-hp-changed');
     }
 
-    // Shadow
+    // Shadow + you-are-here glow ring (pulses softly)
     this.shadow.setPosition(this.x, this.y + 18);
+    this._glowPulse += delta * 0.005;
+    const pulse = 0.85 + 0.15 * Math.sin(this._glowPulse);
+    this.glowRing.setPosition(this.x, this.y).setScale(pulse);
+    this.glowRing.setAlpha(this.hiddenInBush ? 0.25 : 1);
 
     // Bush alpha
     this.setAlpha(this.hiddenInBush ? PLAYER.bushAlpha : 1);
@@ -357,6 +371,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   destroy(fromScene) {
     this.shadow?.destroy();
+    this.glowRing?.destroy();
     this.jetEmitter?.destroy();
     super.destroy(fromScene);
   }

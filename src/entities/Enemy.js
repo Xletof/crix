@@ -21,6 +21,7 @@ const SUPPRESS_FIRE_MIN = 1400;    // ms between peeks
 const SUPPRESS_FIRE_MAX = 2200;
 const REPOSITION_DIST   = 110;     // px — retreat from cover when player this close
 const ARRIVE_THRESH     = 40;      // px — "close enough" to a target position
+const COVER_ARRIVE      = 90;      // px — cover spots have solid bodies, can't stand on top
 const FLANK_DIST        = 260;     // px — how far off the LOS axis to flank
 const ALERT_PAUSE_MS    = 500;     // ms surprised freeze before switching to combat
 
@@ -419,7 +420,7 @@ export class EnemyShooter extends Enemy {
       return;
     }
     const dist = this._moveToward(this.coverSpot.x, this.coverSpot.y, this.cfg.speed);
-    if (dist < ARRIVE_THRESH) {
+    if (dist < COVER_ARRIVE) {
       this.state = ST.SUPPRESS;
     }
     // Fire of opportunity while moving
@@ -475,7 +476,7 @@ export class EnemyShooter extends Enemy {
       return;
     }
     const dist = this._moveToward(this.coverSpot.x, this.coverSpot.y, this.cfg.speed);
-    if (dist < ARRIVE_THRESH) {
+    if (dist < COVER_ARRIVE) {
       this._repositioning = false;
       this.state = ST.SUPPRESS;
     }

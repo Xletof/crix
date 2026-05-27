@@ -72,7 +72,10 @@ export class GameScene extends Phaser.Scene {
     this.roomManager = new RoomManager(this);
 
     // ── Shared static group for walls (refreshed per room) ─────────────────
+    // Holds both blast-door walls AND solid cover sprites (consoles/crates).
+    // Both player and enemies collide with this group.
     this.walls = this.physics.add.staticGroup();
+    this.physics.add.collider(this.player, this.walls);
 
     // ── Door visuals (open/sealed indicator at exit) ───────────────────────
     this.doorGfx = this.add.graphics().setDepth(60);
@@ -132,11 +135,17 @@ export class GameScene extends Phaser.Scene {
       this.roomLayer.add(wall);
     }
 
-    // Cover / consoles (act as bushes — hides player + AI cover spots)
+    // Cover / consoles — solid obstacles that also hide actors (bush system).
+    // Created as static physics bodies so both player and enemies bump into
+    // them. We shrink the physics body (70×70) below the 112×112 sprite so
+    // AI can still close to within firing distance of the cover spot.
     this.bushSystem.clear();
     this.coverRegistry = new CoverRegistry(spec.cover);
     for (const cp of spec.cover) {
-      const con = this.add.image(cp.x, cp.y, 'bush').setDepth(20);
+      const con = this.walls.create(cp.x, cp.y, 'bush');
+      con.setDepth(20);
+      con.body.setSize(70, 70).setOffset((con.width - 70) / 2, (con.height - 70) / 2);
+      con.refreshBody();
       this.roomLayer.add(con);
       this.bushSystem.add(con, 55);
     }
