@@ -63,16 +63,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.glowRing.setPosition(x, y);
     this._glowPulse = 0;
 
-    this.jetEmitter = scene.add.particles(x, y, 'jet-flame', {
-      lifespan: 180,
-      speed: { min: 40, max: 120 },
-      angle: { min: 80, max: 100 },
-      scale: { start: 0.8, end: 0 },
-      alpha: { start: 0.9, end: 0 },
-      quantity: 0,
-      emitting: false,
-    }).setDepth(this.depth - 1);
-
     this.play('mando-idle');
   }
 
@@ -356,23 +346,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.setScale(1);
     }
 
-    // ── Jetpack flame trail ───────────────────────────────────────────────
-    if (this.alive && isMoving) {
-      const backAngle = this.rotation - Math.PI / 2 + Math.PI;
-      const jx = this.x + Math.cos(backAngle) * 10;
-      const jy = this.y + Math.sin(backAngle) * 10;
-      this.jetEmitter.setPosition(jx, jy);
-      if (!this.jetEmitter.emitting) this.jetEmitter.start();
-      this.jetEmitter.emitParticleAt(jx, jy, 2);
-    } else {
-      this.jetEmitter.stop();
-    }
   }
 
   destroy(fromScene) {
     this.shadow?.destroy();
     this.glowRing?.destroy();
-    this.jetEmitter?.destroy();
     super.destroy(fromScene);
   }
 }
