@@ -16,12 +16,11 @@ export const ST = {
 // Detection constants (exported so GameScene can render vision cones)
 export const VISION_RANGE = 380;   // px — unalerted patrol sight
 export const VISION_HALF_ANGLE = Math.PI * 0.28; // ~50° each side = 100° total cone
-const ALARM_RANGE     = 90;        // px — player too close always triggers alarm (reduced from 130)
+const ALARM_RANGE     = 90;        // px — player too close always triggers alarm
 const SUPPRESS_FIRE_MIN = 1400;    // ms between peeks
 const SUPPRESS_FIRE_MAX = 2200;
 const REPOSITION_DIST   = 110;     // px — retreat from cover when player this close
-const ARRIVE_THRESH     = 40;      // px — "close enough" to a target position
-const COVER_ARRIVE      = 90;      // px — cover spots have solid bodies, can't stand on top
+const ARRIVE_THRESH     = 40;      // px — "close enough" to a target or stand position
 const FLANK_DIST        = 260;     // px — how far off the LOS axis to flank
 const ALERT_PAUSE_MS    = 500;     // ms surprised freeze before switching to combat
 
@@ -142,16 +141,20 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   _triggerAlarm() {
     if (this.state !== ST.PATROL) return;
+    // Snap lastKnown to the actual player position (not our own spawn coords)
+    const player = this.scene.player;
+    if (player?.alive) { this.lastKnownX = player.x; this.lastKnownY = player.y; }
     this.state      = ST.ALERT;
     this.alertTimer = ALERT_PAUSE_MS;
     this._flashAlertMark();
-    // Broadcast to all other enemies in the room
     this.scene.events.emit('room-alarm');
-    SFX.uiClick(); // small "alert!" blip
+    SFX.uiClick();
   }
 
   _onAlarm() {
     if (this.state === ST.PATROL) {
+      const player = this.scene.player;
+      if (player?.alive) { this.lastKnownX = player.x; this.lastKnownY = player.y; }
       this.state      = ST.ALERT;
       this.alertTimer = ALERT_PAUSE_MS;
       this._flashAlertMark();
@@ -175,9 +178,13 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const dx = tx - this.x, dy = ty - this.y;
     const dist = Math.hypot(dx, dy);
     if (dist < 2) { this.setVelocity(0, 0); return dist; }
-    const vx = (dx / dist) * speed;
-    const vy = (dy / dist) * speed;
-    this.setVelocity(vx, vy);
+    // Stuck recovery: if a perpendicular sidestep is active, apply it instead
+    if (this._stuckSidestepMs > 0) {
+      const perp = Math.atan2(dy, dx) + (this._stuckSideDir || 1) * Math.PI / 2;
+      this.setVelocity(Math.cos(perp) * speed * 1.1, Math.sin(perp) * speed * 1.1);
+      return dist;
+    }
+    this.setVelocity((dx / dist) * speed, (dy / dist) * speed);
     this.setRotation(Math.atan2(dy, dx) + Math.PI / 2);
     return dist;
   }
@@ -260,6 +267,36 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.setScale(1 - Math.max(0, this.recoilT / 80) * 0.12);
     } else {
       this.setScale(1);
+    }
+
+    // ── Stuck-state recovery ────────────────────────────────────────────────
+    // If we're in a movement state but physics keeps stopping us (wall/cover),
+    // fire a brief perpendicular sidestep burst to escape the geometry.
+    const _inMoveState = (
+      this.state === ST.CHASE || this.state === ST.COVER_MOVE ||
+      this.state === ST.REPOSITION || this.state === ST.FLANK
+    );
+    if (_inMoveState) {
+      this._stuckSidestepMs = (this._stuckSidestepMs || 0) - delta;
+      this._stuckTimer      = (this._stuckTimer || 0) + delta;
+      if (this._stuckTimer >= 600) {
+        const moved = Math.hypot(
+          this.x - (this._stuckRefX ?? this.x),
+          this.y - (this._stuckRefY ?? this.y)
+        );
+        if (moved < 12) {
+          this._stuckSidestepMs = 280;
+          this._stuckSideDir   = Math.random() < 0.5 ? 1 : -1;
+        }
+        this._stuckTimer = 0;
+        this._stuckRefX  = this.x;
+        this._stuckRefY  = this.y;
+      }
+    } else {
+      this._stuckSidestepMs = 0;
+      this._stuckTimer      = 0;
+      this._stuckRefX       = this.x;
+      this._stuckRefY       = this.y;
     }
   }
 
@@ -399,35 +436,35 @@ export class EnemyShooter extends Enemy {
 
   _claimCover(player) {
     this.coverRegistry?.release(this);
-    // Prefer cover farther from current position (run away a bit)
-    this.coverSpot = this.coverRegistry?.claim(this) ?? null;
+    this.coverSpot = this.coverRegistry?.claim(this, player.x, player.y) ?? null;
+    this._standRecomputeTimer = 2500;
   }
 
   _claimFarCover(player) {
     this.coverRegistry?.release(this);
-    // Claim the cover spot farthest from the player (for repositioning)
     this.coverSpot = this.coverRegistry
       ? this.coverRegistry.claimFarthestFrom(this, player.x, player.y)
       : null;
+    this._standRecomputeTimer = 2500;
   }
 
-  // ── COVER_MOVE: walk to the claimed spot ────────────────────────────────
+  // ── COVER_MOVE: walk to the stand position beside the claimed spot ──────
 
   _tickCoverMove(delta, player) {
     if (!this.coverSpot) {
-      // No cover available — fall back to suppression in place
       this.state = ST.SUPPRESS;
       return;
     }
-    const dist = this._moveToward(this.coverSpot.x, this.coverSpot.y, this.cfg.speed);
-    if (dist < COVER_ARRIVE) {
+    const sx   = this.coverSpot.standX ?? this.coverSpot.x;
+    const sy   = this.coverSpot.standY ?? this.coverSpot.y;
+    const dist = this._moveToward(sx, sy, this.cfg.speed);
+    if (dist < ARRIVE_THRESH) {
       this.state = ST.SUPPRESS;
     }
-    // Fire of opportunity while moving
     this._maybeFireAt(delta, player);
   }
 
-  // ── SUPPRESS: hold position, peek-fire ─────────────────────────────────
+  // ── SUPPRESS: hold stand position, peek-fire at player ─────────────────
 
   _tickSuppress(delta, player) {
     const sees = this.canSee(player);
@@ -436,9 +473,15 @@ export class EnemyShooter extends Enemy {
       this.lastKnownY = player.y;
     }
 
-    // Hold at cover spot (or current pos if no spot)
-    const holdX = this.coverSpot?.x ?? this.x;
-    const holdY = this.coverSpot?.y ?? this.y;
+    // Periodically refresh stand position as the player flanks around cover
+    this._standRecomputeTimer = (this._standRecomputeTimer ?? 0) - delta;
+    if (this._standRecomputeTimer <= 0) {
+      this._standRecomputeTimer = 2200;
+      if (this.coverSpot) this.coverRegistry?.recomputeStand(this.coverSpot, player.x, player.y);
+    }
+
+    const holdX  = this.coverSpot?.standX ?? this.coverSpot?.x ?? this.x;
+    const holdY  = this.coverSpot?.standY ?? this.coverSpot?.y ?? this.y;
     const dCover = Math.hypot(this.x - holdX, this.y - holdY);
     if (dCover > ARRIVE_THRESH * 1.5) {
       this._moveToward(holdX, holdY, this.cfg.speed * 0.8);
@@ -448,9 +491,7 @@ export class EnemyShooter extends Enemy {
 
     this._maybeFireAt(delta, player);
 
-    // Reposition if player gets too close
-    const dPlayer = Math.hypot(player.x - this.x, player.y - this.y);
-    if (dPlayer < REPOSITION_DIST) {
+    if (Math.hypot(player.x - this.x, player.y - this.y) < REPOSITION_DIST) {
       this.state = ST.REPOSITION;
     }
   }
@@ -458,25 +499,24 @@ export class EnemyShooter extends Enemy {
   // ── REPOSITION: release current cover, find a new one ──────────────────
 
   _tickReposition(delta, player) {
-    // First frame: claim new cover
     if (!this._repositioning) {
       this._repositioning = true;
       this._claimFarCover(player);
     }
     if (!this.coverSpot) {
-      // Nowhere to go — just run away from player
       const dx = this.x - player.x, dy = this.y - player.y;
       const d  = Math.hypot(dx, dy) || 1;
       this.setVelocity((dx / d) * this.cfg.speed, (dy / d) * this.cfg.speed);
-      const dSafe = Math.hypot(player.x - this.x, player.y - this.y);
-      if (dSafe > REPOSITION_DIST * 2) {
+      if (Math.hypot(player.x - this.x, player.y - this.y) > REPOSITION_DIST * 2) {
         this._repositioning = false;
         this.state = ST.SUPPRESS;
       }
       return;
     }
-    const dist = this._moveToward(this.coverSpot.x, this.coverSpot.y, this.cfg.speed);
-    if (dist < COVER_ARRIVE) {
+    const sx   = this.coverSpot.standX ?? this.coverSpot.x;
+    const sy   = this.coverSpot.standY ?? this.coverSpot.y;
+    const dist = this._moveToward(sx, sy, this.cfg.speed);
+    if (dist < ARRIVE_THRESH) {
       this._repositioning = false;
       this.state = ST.SUPPRESS;
     }

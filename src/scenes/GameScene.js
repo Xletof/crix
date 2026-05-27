@@ -83,6 +83,14 @@ export class GameScene extends Phaser.Scene {
     this.doorGfx = this.add.graphics().setDepth(60);
     this.doorZone = null; // set per room
 
+    // ── AI debug overlay (press D to toggle) ──────────────────────────────
+    this.debugGraphics = this.add.graphics().setDepth(120);
+    this.debugAI = false;
+    this.input.keyboard?.on('keydown-D', () => {
+      this.debugAI = !this.debugAI;
+      if (!this.debugAI) this.debugGraphics.clear();
+    });
+
     // ── Event wiring ───────────────────────────────────────────────────────
     this.bindEvents();
 
@@ -726,6 +734,9 @@ export class GameScene extends Phaser.Scene {
     // Patrol enemy vision cones
     this._drawPatrolVision();
 
+    // AI debug overlay (D key)
+    this._drawAIDebug();
+
     // Reinforcement timer + door
     this._tickReinforcements(delta);
 
@@ -973,6 +984,55 @@ export class GameScene extends Phaser.Scene {
       // Subtle outline
       g.lineStyle(1, color, alpha * 2);
       g.strokePath();
+    }
+  }
+
+  // ── AI debug overlay ─────────────────────────────────────────────────────
+  // Press D in-game to toggle. Draws a state-coloured dot above each enemy
+  // and a line to its current movement target so stuck states are obvious.
+
+  _drawAIDebug() {
+    if (!this.debugAI) { this.debugGraphics?.clear(); return; }
+    const g = this.debugGraphics;
+    g.clear();
+
+    const STATE_COL = {
+      [ST.PATROL]:     0x00ff00,
+      [ST.ALERT]:      0xffff00,
+      [ST.CHASE]:      0xff2020,
+      [ST.COVER_MOVE]: 0xff8800,
+      [ST.SUPPRESS]:   0x2080ff,
+      [ST.REPOSITION]: 0xff00ff,
+      [ST.FLANK]:      0x00ffff,
+    };
+
+    for (const e of this.enemies.getChildren()) {
+      if (!e.active || !e.alive) continue;
+      const col = STATE_COL[e.state] ?? 0xffffff;
+
+      // State indicator — coloured dot above enemy
+      g.fillStyle(col, 0.95);
+      g.fillCircle(e.x, e.y - e.cfg.radius - 30, 8);
+
+      // Target line
+      let tx = null, ty = null;
+      switch (e.state) {
+        case ST.CHASE:
+          tx = e.lastKnownX; ty = e.lastKnownY; break;
+        case ST.COVER_MOVE:
+        case ST.SUPPRESS:
+        case ST.REPOSITION:
+          tx = e.coverSpot?.standX ?? e.coverSpot?.x;
+          ty = e.coverSpot?.standY ?? e.coverSpot?.y; break;
+        case ST.FLANK:
+          if (e.flankTarget) { tx = e.flankTarget.x; ty = e.flankTarget.y; } break;
+        default: break;
+      }
+      if (tx != null) {
+        g.lineStyle(2, col, 0.7);
+        g.beginPath(); g.moveTo(e.x, e.y); g.lineTo(tx, ty); g.strokePath();
+        g.fillStyle(col, 0.45); g.fillCircle(tx, ty, 10);
+      }
     }
   }
 
