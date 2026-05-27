@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Top-down melee monster grunt: claws/horns face UP. -->
+  <ellipse cx="64" cy="108" rx="34" ry="9" fill="#000" opacity="0.32"/>
+
+  <!-- squat lower body -->
+  <ellipse cx="64" cy="92" rx="32" ry="16" fill="#4a1414"/>
+  <ellipse cx="64" cy="91" rx="28" ry="13" fill="#d94f4f"/>
+
+  <!-- torso -->
+  <ellipse cx="64" cy="74" rx="34" ry="20" fill="#4a1414"/>
+  <ellipse cx="64" cy="73" rx="30" ry="17" fill="#d94f4f"/>
+  <ellipse cx="64" cy="70" rx="16" ry="6" fill="#ed7575" opacity="0.55"/>
+
+  <!-- shoulder spikes -->
+  <path d="M 28 60 L 18 48 L 32 56 Z" fill="#1a0505"/>
+  <path d="M 100 60 L 110 48 L 96 56 Z" fill="#1a0505"/>
+
+  <!-- arms -->
+  <ellipse cx="30" cy="56" rx="10" ry="16" fill="#4a1414"/>
+  <ellipse cx="98" cy="56" rx="10" ry="16" fill="#4a1414"/>
+  <ellipse cx="30" cy="56" rx="7" ry="12" fill="#d94f4f"/>
+  <ellipse cx="98" cy="56" rx="7" ry="12" fill="#d94f4f"/>
+
+  <!-- hand-claws -->
+  <path d="M 22 38 L 24 26 L 28 38 Z" fill="#f0f0f0"/>
+  <path d="M 28 38 L 30 24 L 34 38 Z" fill="#f0f0f0"/>
+  <path d="M 34 38 L 38 26 L 38 38 Z" fill="#f0f0f0"/>
+  <path d="M 90 38 L 90 26 L 94 38 Z" fill="#f0f0f0"/>
+  <path d="M 94 38 L 98 24 L 100 38 Z" fill="#f0f0f0"/>
+  <path d="M 100 38 L 104 26 L 106 38 Z" fill="#f0f0f0"/>
+
+  <!-- head -->
+  <circle cx="64" cy="48" r="21" fill="#4a1414"/>
+  <circle cx="64" cy="48" r="18" fill="#d94f4f"/>
+
+  <!-- horns -->
+  <path d="M 48 36 L 40 18 L 52 30 Z" fill="#1a0505"/>
+  <path d="M 80 36 L 88 18 L 76 30 Z" fill="#1a0505"/>
+
+  <!-- brow shadow -->
+  <path d="M 48 48 Q 64 38 80 48 L 80 44 Q 64 34 48 44 Z" fill="#2e0808"/>
+
+  <!-- eyes glowing yellow -->
+  <circle cx="55" cy="48" r="4.5" fill="#000"/>
+  <circle cx="73" cy="48" r="4.5" fill="#000"/>
+  <circle cx="55" cy="47" r="3.2" fill="#ffe66d"/>
+  <circle cx="73" cy="47" r="3.2" fill="#ffe66d"/>
+  <circle cx="55" cy="46" r="1.4" fill="#fff"/>
+  <circle cx="73" cy="46" r="1.4" fill="#fff"/>
+
+  <!-- mouth with teeth -->
+  <path d="M 50 56 L 78 56 L 74 64 L 54 64 Z" fill="#1a0505"/>
+  <path d="M 55 56 L 57 61 L 59 56 Z" fill="#fff"/>
+  <path d="M 61 56 L 63 62 L 65 56 Z" fill="#fff"/>
+  <path d="M 67 56 L 69 62 L 71 56 Z" fill="#fff"/>
+  <path d="M 73 56 L 75 61 L 77 56 Z" fill="#fff"/>
+</svg>

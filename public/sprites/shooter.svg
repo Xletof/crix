@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Lanky purple ranged enemy: pistol points UP. -->
+  <ellipse cx="64" cy="108" rx="30" ry="8" fill="#000" opacity="0.32"/>
+
+  <!-- robe hem -->
+  <path d="M 38 88 L 32 104 L 96 104 L 90 88 Z" fill="#2e0f4a"/>
+  <path d="M 41 90 L 36 102 L 92 102 L 87 90 Z" fill="#6b2aa3"/>
+
+  <!-- lower body -->
+  <ellipse cx="64" cy="86" rx="22" ry="12" fill="#2e0f4a"/>
+  <ellipse cx="64" cy="85" rx="18" ry="9" fill="#b04ad9"/>
+
+  <!-- torso -->
+  <ellipse cx="64" cy="68" rx="24" ry="18" fill="#2e0f4a"/>
+  <ellipse cx="64" cy="67" rx="20" ry="15" fill="#b04ad9"/>
+
+  <!-- shoulder cowl -->
+  <path d="M 40 60 Q 64 50 88 60 L 86 70 Q 64 62 42 70 Z" fill="#2e0f4a"/>
+
+  <!-- left arm at side -->
+  <ellipse cx="42" cy="58" rx="8" ry="14" fill="#2e0f4a"/>
+  <ellipse cx="42" cy="58" rx="5" ry="11" fill="#b04ad9"/>
+  <circle cx="42" cy="50" r="6" fill="#1a1f2e"/>
+
+  <!-- right arm raised holding pistol -->
+  <rect x="78" y="32" width="10" height="22" rx="5" fill="#2e0f4a"/>
+  <rect x="80" y="34" width="6" height="18" rx="3" fill="#b04ad9"/>
+  <circle cx="83" cy="28" r="6" fill="#1a1f2e"/>
+
+  <!-- pistol -->
+  <rect x="78" y="10" width="11" height="16" fill="#2a2f3a"/>
+  <rect x="80" y="12" width="7" height="12" fill="#3a3f4a"/>
+  <rect x="81" y="2" width="5" height="10" fill="#4b5563"/>
+  <rect x="76" y="22" width="14" height="6" rx="2" fill="#1a1f2e"/>
+
+  <!-- head -->
+  <circle cx="64" cy="48" r="16" fill="#2e0f4a"/>
+  <circle cx="64" cy="48" r="13" fill="#b04ad9"/>
+
+  <!-- hood -->
+  <path d="M 48 46 Q 64 30 80 46 L 82 52 Q 64 38 46 52 Z" fill="#1f0a35"/>
+
+  <!-- glowing cyan eyes -->
+  <ellipse cx="56" cy="50" rx="4" ry="5" fill="#000"/>
+  <ellipse cx="72" cy="50" rx="4" ry="5" fill="#000"/>
+  <ellipse cx="56" cy="49" rx="2.6" ry="3.6" fill="#9cf1ff"/>
+  <ellipse cx="72" cy="49" rx="2.6" ry="3.6" fill="#9cf1ff"/>
+  <circle cx="56" cy="48" r="1.2" fill="#fff"/>
+  <circle cx="72" cy="48" r="1.2" fill="#fff"/>
+
+  <!-- jaw shadow -->
+  <path d="M 56 58 Q 64 64 72 58" fill="none" stroke="#1f0a35" stroke-width="2"/>
+</svg>

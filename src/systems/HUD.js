@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { VIEW, PLAYER, COLORS, HUDCFG } from '../config.js';
 import { Joystick } from './Joystick.js';
+import { SuperButton } from './SuperButton.js';
 
 export class HUDScene extends Phaser.Scene {
   constructor() {
@@ -67,25 +68,27 @@ export class HUDScene extends Phaser.Scene {
       this.ammoPips.push(pip);
     }
 
-    // Super button
+    // Super button as a drag-aim widget.
     const superY =
       VIEW.height - HUDCFG.joystickBottom - HUDCFG.joystickRadius - 100;
     const superX = VIEW.width - HUDCFG.joystickMargin - HUDCFG.joystickRadius * 2 - 50;
-    this.superBtn = this.add
-      .image(superX, superY, 'super-btn-off')
-      .setDepth(40)
-      .setInteractive({ useHandCursor: true });
-    this.superBtn.on('pointerdown', () => {
-      if (this.gameScene?.player) this.gameScene.player.tryFireSuper();
+    this.superButton = new SuperButton(this, {
+      x: superX,
+      y: superY,
+      onAim: (v) => this.gameScene?.player?.setSuperAimInput(v),
+      onRelease: (v) => this.gameScene?.player?.releaseSuperAim(v),
+      isReady: () =>
+        !!this.gameScene?.player &&
+        this.gameScene.player.superCharge >= PLAYER.superHitsToCharge,
     });
-    this.superGauge = this.add.graphics().setDepth(41);
 
-    // Joysticks
+    // Joysticks — right one yields any pointer that started on the super button.
     this.moveStick = new Joystick(this, 'left', {
       onMove: (v) => this.gameScene?.player?.setMoveInput(v),
       onEnd: () => this.gameScene?.player?.setMoveInput({ x: 0, y: 0, force: 0 }),
     });
     this.fireStick = new Joystick(this, 'right', {
+      shouldClaim: (pointer) => !this.superButton.containsPoint(pointer.x, pointer.y),
       onStart: () => this.gameScene?.player?.setAimInput({ x: 0, y: 0, force: 0 }),
       onMove: (v) => {
         this.gameScene?.player?.setAimInput(v);
@@ -123,6 +126,7 @@ export class HUDScene extends Phaser.Scene {
       ge.off('boss-phase');
       this.moveStick?.shutdown();
       this.fireStick?.shutdown();
+      this.superButton?.shutdown();
     });
 
     this.refreshHp();
@@ -185,24 +189,8 @@ export class HUDScene extends Phaser.Scene {
     const p = this.gameScene.player;
     if (!p) return;
     const ready = p.superCharge >= PLAYER.superHitsToCharge;
-    this.superBtn.setTexture(ready ? 'super-btn' : 'super-btn-off');
-    this.superGauge.clear();
-    if (!ready) {
-      const r = p.superCharge / PLAYER.superHitsToCharge;
-      const cx = this.superBtn.x;
-      const cy = this.superBtn.y;
-      const radius = 56;
-      this.superGauge.lineStyle(6, COLORS.superGauge, 0.95);
-      this.superGauge.beginPath();
-      this.superGauge.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * r, false);
-      this.superGauge.strokePath();
-    } else {
-      // Pulse outline
-      const cx = this.superBtn.x;
-      const cy = this.superBtn.y;
-      this.superGauge.lineStyle(5, COLORS.superReady, 1);
-      this.superGauge.strokeCircle(cx, cy, 58);
-    }
+    this.superButton.setReady(ready);
+    this.superButton.drawGauge(p.superCharge, PLAYER.superHitsToCharge);
   }
 
   refreshWave(n, total) {

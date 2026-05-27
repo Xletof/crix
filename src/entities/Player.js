@@ -21,6 +21,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.facing = -Math.PI / 2; // up
     this.aim = -Math.PI / 2;
     this.aiming = false;
+    this.superAim = -Math.PI / 2;
+    this.superAiming = false;
     this.alive = true;
     this.hiddenInBush = false;
 
@@ -60,8 +62,30 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (vec && vec.force > 0) {
       this.aim = Math.atan2(vec.y, vec.x);
       this.tryFire();
+    } else {
+      // Quick tap with no real drag → shoot forward.
+      this.tryFire();
     }
     this.aiming = false;
+  }
+
+  setSuperAimInput(vec) {
+    if (!this.alive) return;
+    if (vec && vec.force > 0) {
+      this.superAiming = true;
+      this.superAim = Math.atan2(vec.y, vec.x);
+      this.setRotation(this.superAim + Math.PI / 2);
+    } else {
+      this.superAiming = true; // still considered aiming (cone visible) even with no drag
+      this.superAim = this.facing;
+    }
+  }
+
+  releaseSuperAim(vec) {
+    if (!this.alive) return;
+    const angle = vec && vec.force > 0 ? Math.atan2(vec.y, vec.x) : this.facing;
+    this.superAiming = false;
+    this.tryFireSuper(angle);
   }
 
   tryFire() {
@@ -77,11 +101,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     return true;
   }
 
-  tryFireSuper() {
+  tryFireSuper(angleOverride) {
     if (!this.alive) return false;
     if (this.superCharge < PLAYER.superHitsToCharge) return false;
     this.superCharge = 0;
-    const dir = this.aiming ? this.aim : this.facing;
+    const dir =
+      typeof angleOverride === 'number'
+        ? angleOverride
+        : this.aiming
+        ? this.aim
+        : this.facing;
     this.scene.events.emit('player-fire-super', dir);
     SFX.shootSuper();
     return true;

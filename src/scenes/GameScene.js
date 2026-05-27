@@ -421,97 +421,68 @@ export class GameScene extends Phaser.Scene {
     g.clear();
     const p = this.player;
     if (!p || !p.alive) return;
-    if (!p.aiming) return;
 
-    const startGap = PLAYER.radius + 8;
-    const superReady = p.superCharge >= PLAYER.superHitsToCharge;
+    const startGap = PLAYER.radius + 6;
 
-    if (superReady) {
-      // Wider, hotter cone — preview of where the super fan will fly.
-      const range = PLAYER.superRange;
-      const spread = Phaser.Math.DegToRad(PLAYER.superSpreadDeg);
-      const half = spread / 2;
-      g.fillStyle(0xff7a1a, 0.22);
-      g.beginPath();
-      g.moveTo(p.x, p.y);
-      const steps = 18;
-      for (let i = 0; i <= steps; i++) {
-        const a = p.aim - half + (spread * i) / steps;
-        g.lineTo(p.x + Math.cos(a) * range, p.y + Math.sin(a) * range);
-      }
-      g.closePath();
-      g.fillPath();
-      // Bright edge lines
-      for (const off of [-half, half]) {
-        const a = p.aim + off;
-        g.lineStyle(4, 0xff9f1c, 0.7);
-        g.beginPath();
-        g.moveTo(p.x + Math.cos(a) * startGap, p.y + Math.sin(a) * startGap);
-        g.lineTo(p.x + Math.cos(a) * range, p.y + Math.sin(a) * range);
-        g.strokePath();
-      }
-      // Per-super-pellet dotted rays
-      const sPellets = PLAYER.superPellets;
-      const sHalf = (sPellets - 1) / 2;
-      for (let i = 0; i < sPellets; i++) {
-        const a = p.aim + (i - sHalf) * (spread / Math.max(1, sPellets - 1));
-        this.drawDottedRay(g, p.x, p.y, a, startGap, range, 0xffd166, 5, 18);
-      }
-    }
-
-    // 3-pellet normal aim cone.
-    const nRange = PLAYER.pelletRange;
-    const nSpread = Phaser.Math.DegToRad(PLAYER.pelletSpreadDeg);
-    const nHalf = nSpread / 2;
-    g.fillStyle(0x4cd9ff, 0.2);
-    g.beginPath();
-    g.moveTo(p.x, p.y);
-    const nSteps = 12;
-    for (let i = 0; i <= nSteps; i++) {
-      const a = p.aim - nHalf + (nSpread * i) / nSteps;
-      g.lineTo(p.x + Math.cos(a) * nRange, p.y + Math.sin(a) * nRange);
-    }
-    g.closePath();
-    g.fillPath();
-    // Bright edge lines (cone outline)
-    for (const off of [-nHalf, nHalf]) {
-      const a = p.aim + off;
-      g.lineStyle(3, 0x9be8ff, 0.55);
-      g.beginPath();
-      g.moveTo(p.x + Math.cos(a) * startGap, p.y + Math.sin(a) * startGap);
-      g.lineTo(p.x + Math.cos(a) * nRange, p.y + Math.sin(a) * nRange);
-      g.strokePath();
-    }
-    // Per-pellet dotted rays
-    const pellets = PLAYER.pelletCount;
-    const half2 = (pellets - 1) / 2;
-    for (let i = 0; i < pellets; i++) {
-      const a = p.aim + (i - half2) * (nSpread / Math.max(1, pellets - 1));
-      const isCenter = i === Math.floor(pellets / 2) && pellets % 2 === 1;
-      this.drawDottedRay(
+    // Only one cone shows at a time. Super beats normal if both are flagged.
+    if (p.superAiming && p.superCharge >= PLAYER.superHitsToCharge) {
+      this.drawCone(
         g,
         p.x,
         p.y,
-        a,
+        p.superAim,
+        Phaser.Math.DegToRad(PLAYER.superSpreadDeg),
+        PLAYER.superRange,
         startGap,
-        nRange,
-        isCenter ? 0xffffff : 0xa6efff,
-        isCenter ? 6 : 5,
-        14
+        0xffd23a, // saturated gold
+        0xfff3b0,
+        0.32
+      );
+    } else if (p.aiming) {
+      this.drawCone(
+        g,
+        p.x,
+        p.y,
+        p.aim,
+        Phaser.Math.DegToRad(PLAYER.pelletSpreadDeg),
+        PLAYER.pelletRange,
+        startGap,
+        0xffffff, // soft white-gray
+        0xffffff,
+        0.16
       );
     }
   }
 
-  drawDottedRay(g, x, y, angle, startGap, range, color, dotR, step) {
-    const cx = Math.cos(angle);
-    const cy = Math.sin(angle);
-    for (let d = startGap; d <= range; d += step) {
-      const t = (d - startGap) / Math.max(1, range - startGap);
-      const alpha = 0.95 * (1 - t * 0.85);
-      const r = dotR * (1 - t * 0.45);
-      g.fillStyle(color, alpha);
-      g.fillCircle(x + cx * d, y + cy * d, r);
+  // Brawl-Stars-style soft cone: 2 stacked, fading triangular bands
+  // (fakes a gradient) + a glowing tip dot. No dotted rays, no edge lines.
+  drawCone(g, x, y, angle, spread, range, startGap, color, tipColor, baseAlpha) {
+    const half = spread / 2;
+    const steps = 16;
+    const bands = [
+      { reach: 1.0, alpha: baseAlpha * 0.75 },
+      { reach: 0.55, alpha: baseAlpha },
+    ];
+    for (const band of bands) {
+      const r = startGap + (range - startGap) * band.reach;
+      g.fillStyle(color, band.alpha);
+      g.beginPath();
+      g.moveTo(x + Math.cos(angle - half) * startGap * 0.6, y + Math.sin(angle - half) * startGap * 0.6);
+      for (let i = 0; i <= steps; i++) {
+        const a = angle - half + (spread * i) / steps;
+        g.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+      }
+      g.lineTo(x + Math.cos(angle + half) * startGap * 0.6, y + Math.sin(angle + half) * startGap * 0.6);
+      g.closePath();
+      g.fillPath();
     }
+    // Soft glow at the tip
+    const tipX = x + Math.cos(angle) * range;
+    const tipY = y + Math.sin(angle) * range;
+    g.fillStyle(tipColor, 0.22);
+    g.fillCircle(tipX, tipY, 20);
+    g.fillStyle(tipColor, 0.55);
+    g.fillCircle(tipX, tipY, 10);
   }
 
   victory() {

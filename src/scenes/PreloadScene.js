@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, WORLD, PLAYER, ENEMY, BOSS, COLORS } from '../config.js';
+import { WORLD, PLAYER, COLORS } from '../config.js';
 import { initAudio } from '../systems/FX.js';
 
 // All textures are generated at runtime via Phaser.Graphics so we don't depend
@@ -11,16 +11,18 @@ export class PreloadScene extends Phaser.Scene {
     super('Preload');
   }
 
+  preload() {
+    // Hand-authored SVG characters — rasterized by Phaser at load time.
+    this.load.svg('player', 'sprites/player.svg', { width: 96, height: 96 });
+    this.load.svg('grunt', 'sprites/grunt.svg', { width: 96, height: 96 });
+    this.load.svg('shooter', 'sprites/shooter.svg', { width: 96, height: 96 });
+    this.load.svg('boss', 'sprites/boss.svg', { width: 200, height: 200 });
+  }
+
   create() {
     this.makeBackdrop();
     this.makeBush();
     this.makeWall();
-
-    this.makeActor('player', COLORS.player, COLORS.playerOutline, PLAYER.radius, 0xffffff);
-
-    this.makeActor('grunt', ENEMY.grunt.color, 0x6b1f1f, ENEMY.grunt.radius, ENEMY.grunt.eyeColor);
-    this.makeActor('shooter', ENEMY.shooter.color, 0x4a1f6b, ENEMY.shooter.radius, ENEMY.shooter.eyeColor);
-    this.makeActor('boss', BOSS.color, 0x4a0f0f, BOSS.radius, BOSS.eyeColor, true);
 
     this.makeBullet('bullet', COLORS.bullet, PLAYER.pelletRadius);
     this.makeBullet('bullet-super', COLORS.bulletSuper, PLAYER.superRadius);
@@ -105,46 +107,6 @@ export class PreloadScene extends Phaser.Scene {
     g.lineStyle(4, WORLD.wallColor, 1);
     g.strokeRoundedRect(8, 8, size - 16, size - 16, 10);
     g.generateTexture('wall', size, size);
-    g.destroy();
-  }
-
-  makeActor(key, body, outline, radius, eye, boss = false) {
-    const r = radius;
-    const pad = 8;
-    const size = (r + pad) * 2;
-    const cx = size / 2;
-    const cy = size / 2;
-    const g = this.add.graphics();
-    // Drop shadow
-    g.fillStyle(0x000000, 0.25);
-    g.fillEllipse(cx, cy + r * 0.7, r * 1.6, r * 0.55);
-    // Body
-    g.fillStyle(outline, 1);
-    g.fillCircle(cx, cy, r);
-    g.fillStyle(body, 1);
-    g.fillCircle(cx, cy, r - 4);
-    // Highlight
-    g.fillStyle(0xffffff, 0.18);
-    g.fillCircle(cx - r * 0.3, cy - r * 0.35, r * 0.45);
-    // Eyes (point "up" so we rotate the sprite to face direction)
-    const eyeR = boss ? r * 0.18 : r * 0.16;
-    const eyeOffsetX = r * 0.32;
-    const eyeOffsetY = -r * 0.18;
-    g.fillStyle(0xffffff, 1);
-    g.fillCircle(cx - eyeOffsetX, cy + eyeOffsetY, eyeR);
-    g.fillCircle(cx + eyeOffsetX, cy + eyeOffsetY, eyeR);
-    g.fillStyle(eye, 1);
-    g.fillCircle(cx - eyeOffsetX, cy + eyeOffsetY - 1, eyeR * 0.55);
-    g.fillCircle(cx + eyeOffsetX, cy + eyeOffsetY - 1, eyeR * 0.55);
-    // Gun barrel
-    const gunLen = r * 1.1;
-    const gunW = r * 0.38;
-    g.fillStyle(0x222933, 1);
-    g.fillRect(cx - gunW / 2, cy - r - 4, gunW, gunLen);
-    g.fillStyle(0x4b5563, 1);
-    g.fillRect(cx - gunW / 2 + 2, cy - r - 4, gunW - 4, gunLen - 4);
-
-    g.generateTexture(key, size, size);
     g.destroy();
   }
 

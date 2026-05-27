@@ -15,6 +15,7 @@ export class Joystick {
     this.onMove = opts.onMove || (() => {});
     this.onEnd = opts.onEnd || (() => {});
     this.onStart = opts.onStart || (() => {});
+    this.shouldClaim = opts.shouldClaim || (() => true);
     this.holdAutoFire = opts.holdAutoFire || false;
 
     // Base + knob — placed bottom-left or bottom-right of the screen.
@@ -66,6 +67,7 @@ export class Joystick {
   handleDown(pointer) {
     if (this.pointerId !== null) return;
     if (!this.isOnMySide(pointer.x)) return;
+    if (!this.shouldClaim(pointer)) return;
     this.pointerId = pointer.id;
     this.active = true;
     this.base.setPosition(pointer.x, pointer.y);
