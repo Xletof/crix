@@ -14,38 +14,38 @@ export const ROOMS = [
   {
     id: 'hangar',
     name: 'HANGAR BAY',
-    bounds: { w: 1600, h: 1100 },
-    spawn: { x: 160, y: 550 },
-    exit: { x: 1540, y: 550, side: 'right' },
+    // Bumped h:1100 → 1500 so the room is taller than the viewport (1280)
+    // and the camera can actually keep the player centered.
+    bounds: { w: 1700, h: 1500 },
+    spawn: { x: 200, y: 750 },
+    exit: { x: 1640, y: 750, side: 'right' },
     walls: [
-      { x: 400, y: 220 }, { x: 400, y: 880 },
-      { x: 1200, y: 220 }, { x: 1200, y: 880 },
+      { x: 450, y: 320 }, { x: 450, y: 1180 },
+      { x: 1250, y: 320 }, { x: 1250, y: 1180 },
     ],
     cover: [
-      { x: 700, y: 380 }, { x: 800, y: 580 }, { x: 900, y: 380 },
-      { x: 1080, y: 460 }, { x: 1080, y: 720 },
+      { x: 750, y: 480 }, { x: 850, y: 750 }, { x: 950, y: 480 },
+      { x: 1120, y: 600 }, { x: 1120, y: 900 },
     ],
     enemies: [
       {
-        type: 'grunt', x: 700, y: 270,
-        patrol: [{ x: 700, y: 270 }, { x: 1100, y: 270 }, { x: 1100, y: 500 }, { x: 700, y: 270 }],
+        type: 'grunt', x: 750, y: 370,
+        patrol: [{ x: 750, y: 370 }, { x: 1150, y: 370 }, { x: 1150, y: 650 }, { x: 750, y: 370 }],
       },
       {
-        type: 'grunt', x: 700, y: 830,
-        patrol: [{ x: 700, y: 830 }, { x: 1100, y: 830 }, { x: 1100, y: 600 }, { x: 700, y: 830 }],
+        type: 'grunt', x: 750, y: 1080,
+        patrol: [{ x: 750, y: 1080 }, { x: 1150, y: 1080 }, { x: 1150, y: 850 }, { x: 750, y: 1080 }],
       },
-      { type: 'shooter', x: 1320, y: 550, role: 'flanker' },
+      { type: 'shooter', x: 1400, y: 750, role: 'flanker' },
     ],
-    // Rifle drops in the middle of the hangar — first room reward
     pickups: [
-      { x: 500, y: 550, weapon: 'rifle' },
+      { x: 600, y: 750, weapon: 'rifle' },
     ],
-    // Reinforcements through the upper-right side door after 22s of combat
     reinforce: {
       afterMs: 22000,
       count: 2,
       type: 'grunt',
-      door: { x: 1400, y: 80 },
+      door: { x: 1500, y: 100 },
     },
   },
 
@@ -93,41 +93,40 @@ export const ROOMS = [
   {
     id: 'detention',
     name: 'DETENTION BLOCK',
-    bounds: { w: 1400, h: 1200 },
-    spawn: { x: 110, y: 600 },
-    exit: { x: 1340, y: 600, side: 'right' },
+    // Bumped h:1200 → 1400 so the camera can keep the player centered.
+    bounds: { w: 1500, h: 1400 },
+    spawn: { x: 150, y: 700 },
+    exit: { x: 1440, y: 700, side: 'right' },
     walls: [
-      { x: 300, y: 180 }, { x: 500, y: 180 }, { x: 700, y: 180 },
-      { x: 900, y: 180 }, { x: 1100, y: 180 },
-      { x: 300, y: 1020 }, { x: 500, y: 1020 }, { x: 700, y: 1020 },
-      { x: 900, y: 1020 }, { x: 1100, y: 1020 },
+      { x: 340, y: 240 }, { x: 540, y: 240 }, { x: 740, y: 240 },
+      { x: 940, y: 240 }, { x: 1140, y: 240 },
+      { x: 340, y: 1160 }, { x: 540, y: 1160 }, { x: 740, y: 1160 },
+      { x: 940, y: 1160 }, { x: 1140, y: 1160 },
     ],
     cover: [
-      { x: 400, y: 420 }, { x: 700, y: 600 }, { x: 1000, y: 420 },
-      { x: 400, y: 800 }, { x: 1000, y: 800 },
+      { x: 440, y: 500 }, { x: 740, y: 700 }, { x: 1040, y: 500 },
+      { x: 440, y: 900 }, { x: 1040, y: 900 },
     ],
     enemies: [
       {
-        type: 'grunt', x: 700, y: 380,
-        patrol: [{ x: 400, y: 380 }, { x: 1000, y: 380 }],
+        type: 'grunt', x: 740, y: 440,
+        patrol: [{ x: 440, y: 440 }, { x: 1040, y: 440 }],
       },
       {
-        type: 'grunt', x: 700, y: 820,
-        patrol: [{ x: 400, y: 820 }, { x: 1000, y: 820 }],
+        type: 'grunt', x: 740, y: 960,
+        patrol: [{ x: 440, y: 960 }, { x: 1040, y: 960 }],
       },
-      { type: 'shooter', x: 1200, y: 400 },
-      { type: 'shooter', x: 1200, y: 800, role: 'flanker' },
+      { type: 'shooter', x: 1280, y: 480 },
+      { type: 'shooter', x: 1280, y: 920, role: 'flanker' },
     ],
-    // Thermal detonators — great for the tight Vader room ahead
     pickups: [
-      { x: 700, y: 600, weapon: 'detonator' },
+      { x: 740, y: 700, weapon: 'detonator' },
     ],
-    // Three reinforcements from the top — the heaviest of the run
     reinforce: {
       afterMs: 20000,
       count: 3,
       type: 'grunt',
-      door: { x: 700, y: 80 },
+      door: { x: 750, y: 100 },
     },
   },
 

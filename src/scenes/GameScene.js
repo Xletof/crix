@@ -31,7 +31,9 @@ export class GameScene extends Phaser.Scene {
 
     // ── Player ─────────────────────────────────────────────────────────────
     this.player = new Player(this, 200, 200);
-    this.cameras.main.startFollow(this.player, true, 0.10, 0.10);
+    // Tighter lerp (was 0.10) so the player stays anchored near screen
+    // center on mobile rather than sliding around the viewport.
+    this.cameras.main.startFollow(this.player, true, 0.5, 0.5);
 
     // ── Bush / cover system ────────────────────────────────────────────────
     this.bushSystem = new BushSystem(this);
