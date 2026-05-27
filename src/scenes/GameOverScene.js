@@ -13,279 +13,322 @@ export class GameOverScene extends Phaser.Scene {
     if (win) SFX.victory();
     else SFX.defeat();
 
-    // Update stats
     const stats = loadStats();
     stats.runs = (stats.runs || 0) + 1;
     if (win) stats.wins = (stats.wins || 0) + 1;
     saveStats(stats);
 
     const cx = VIEW.width / 2;
+    this.cameras.main.setBackgroundColor('#06060c');
 
-    // ── Background: same sunset sky as TitleScene (desaturated when defeated) ──
-    this.cameras.main.setBackgroundColor('#1a0e06');
     const g = this.add.graphics();
 
+    // ── Background ─────────────────────────────────────────────────────────
+    g.fillStyle(0x06060c, 1);
+    g.fillRect(0, 0, VIEW.width, VIEW.height);
+
+    // Stars
+    const rng = new Phaser.Math.RandomDataGenerator(['sw-gameover-seed']);
+    for (let i = 0; i < 160; i++) {
+      const sx = rng.between(0, VIEW.width);
+      const sy = rng.between(0, VIEW.height);
+      const b = rng.frac();
+      g.fillStyle(0xffffff, 0.3 + b * 0.5);
+      g.fillRect(sx, sy, b > 0.88 ? 2 : 1, b > 0.88 ? 2 : 1);
+    }
+
     if (win) {
-      // Golden hour — triumph
-      g.fillStyle(0x5a2e14, 1);
-      g.fillRect(0, 0, VIEW.width, VIEW.height * 0.5);
-      g.fillStyle(0x7a4820, 1);
-      g.fillRect(0, VIEW.height * 0.18, VIEW.width, VIEW.height * 0.18);
-      g.fillStyle(0xa06818, 1);
-      g.fillRect(0, VIEW.height * 0.28, VIEW.width, VIEW.height * 0.12);
-      // Glowing sun
-      g.fillStyle(0xffd040, 1);
-      g.fillCircle(cx, VIEW.height * 0.3, 72);
-      g.fillStyle(0xff8020, 0.45);
-      g.fillCircle(cx, VIEW.height * 0.3, 100);
-      // Ground
-      g.fillStyle(0xc4995a, 1);
-      g.fillRect(0, VIEW.height * 0.38, VIEW.width, VIEW.height * 0.62);
-      g.fillStyle(0x9a6838, 1);
-      g.fillRect(0, VIEW.height * 0.38, VIEW.width, 10);
-    } else {
-      // Blood-red dusk — defeat
-      g.fillStyle(0x3a0e08, 1);
-      g.fillRect(0, 0, VIEW.width, VIEW.height * 0.5);
-      g.fillStyle(0x5a1a10, 1);
-      g.fillRect(0, VIEW.height * 0.18, VIEW.width, VIEW.height * 0.18);
-      g.fillStyle(0x7a2810, 1);
-      g.fillRect(0, VIEW.height * 0.28, VIEW.width, VIEW.height * 0.12);
-      // Dim red sun
-      g.fillStyle(0xcc2010, 0.8);
-      g.fillCircle(cx, VIEW.height * 0.3, 60);
-      g.fillStyle(0x880808, 0.35);
-      g.fillCircle(cx, VIEW.height * 0.3, 90);
-      // Dark ground
-      g.fillStyle(0x7a4828, 1);
-      g.fillRect(0, VIEW.height * 0.38, VIEW.width, VIEW.height * 0.62);
-      g.fillStyle(0x4a2818, 1);
-      g.fillRect(0, VIEW.height * 0.38, VIEW.width, 10);
-    }
+      // ── WIN: Hologram transmission panel ────────────────────────────────
+      // Blue hologram glow backdrop
+      g.fillStyle(0x0038bb, 0.08);
+      g.fillRect(0, 0, VIEW.width, VIEW.height);
 
-    // Scatter dust pebbles on the ground
-    for (let i = 0; i < 120; i++) {
-      const px = Math.random() * VIEW.width;
-      const py = VIEW.height * 0.42 + Math.random() * VIEW.height * 0.58;
-      const s = Math.random() < 0.7 ? 3 : 5;
-      g.fillStyle(Math.random() < 0.5 ? 0x6a3a20 : 0x3a1808, 0.6);
-      g.fillRect(px, py, s, s);
-    }
+      // Scan line effect
+      for (let y = 0; y < VIEW.height; y += 6) {
+        g.fillStyle(0x0050ff, 0.04);
+        g.fillRect(0, y, VIEW.width, 2);
+      }
 
-    // ── WANTED POSTER PANEL ──
-    const panelW = VIEW.width - 60;
-    const panelH = 680;
-    const panelX = 30;
-    const panelY = 60;
+      // Panel border
+      const pw = VIEW.width - 60, ph = 700;
+      const px = 30, py = 60;
+      g.lineStyle(3, 0x0060ff, 0.9);
+      g.strokeRoundedRect(px, py, pw, ph, 6);
+      g.fillStyle(0x001830, 0.6);
+      g.fillRoundedRect(px, py, pw, ph, 6);
+      // Corner brackets
+      this._brackets(g, px, py, pw, ph, 0x0080ff, 20);
 
-    // Outer dark wood frame
-    g.fillStyle(0x2a1408, 1);
-    g.fillRoundedRect(panelX - 8, panelY - 8, panelW + 16, panelH + 16, 10);
-    // Brass border highlight (left+top edges)
-    g.fillStyle(0xb07820, 0.7);
-    g.fillRoundedRect(panelX - 4, panelY - 4, panelW + 8, panelH + 8, 8);
-    // Aged parchment interior
-    g.fillStyle(win ? 0xe8c878 : 0xc8a060, 1);
-    g.fillRoundedRect(panelX, panelY, panelW, panelH, 6);
-    // Subtle inner shadow (vignette feel)
-    g.fillStyle(0x1a0a04, 0.12);
-    g.fillRoundedRect(panelX + 4, panelY + 4, panelW - 8, panelH - 8, 4);
-    // Inner margin line (like a real wanted poster)
-    g.lineStyle(3, 0x5a3018, 0.5);
-    g.strokeRoundedRect(panelX + 14, panelY + 14, panelW - 28, panelH - 28, 4);
+      // "TRANSMISSION RECEIVED" header
+      this.add.text(cx, py + 40, '[ TRANSMISSION RECEIVED ]', {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '22px',
+        color: '#4080ff',
+        stroke: '#000000',
+        strokeThickness: 3,
+      }).setOrigin(0.5);
 
-    // Corner nail rivets on the poster
-    const nails = [
-      [panelX + 22, panelY + 22],
-      [panelX + panelW - 22, panelY + 22],
-      [panelX + 22, panelY + panelH - 22],
-      [panelX + panelW - 22, panelY + panelH - 22],
-    ];
-    for (const [nx, ny] of nails) {
-      g.fillStyle(0x2a1408, 1);
-      g.fillCircle(nx, ny, 7);
-      g.fillStyle(0xa08048, 1);
-      g.fillCircle(nx - 1.5, ny - 1.5, 3.5);
-    }
-
-    // ── "WANTED" header (or "DISPATCH") ──
-    const headerLabel = win ? 'SHERIFF DISPATCH' : 'WANTED';
-    this.add
-      .text(cx, panelY + 50, headerLabel, {
-        fontFamily: 'Georgia, "Times New Roman", serif',
-        fontSize: win ? '30px' : '52px',
+      // Main outcome
+      const outcomeY = py + 200;
+      const outcomeShadow = this.add.text(cx + 4, outcomeY + 4, 'BOUNTY\nDELIVERED', {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '82px',
         fontStyle: 'bold',
-        color: '#3a1808',
-        stroke: '#1a0a04',
-        strokeThickness: 2,
-      })
-      .setOrigin(0.5);
-
-    // Decorative divider line
-    const divLineY = panelY + 82;
-    g.fillStyle(0x5a3018, 0.6);
-    g.fillRect(panelX + 30, divLineY, panelW - 60, 2);
-
-    // ── Main Outcome Title ──
-    const outcomeText = win ? 'BOUNTY\nCLAIMED!' : 'GUNNED\nDOWN';
-    const outcomeColor = win ? '#8a4a08' : '#8a0808';
-    const outcomeShadow = this.add
-      .text(cx + 5, panelY + 155, outcomeText, {
-        fontFamily: 'Georgia, "Times New Roman", serif',
-        fontSize: '88px',
-        fontStyle: '900',
-        color: '#1a0a04',
+        color: '#000000',
         align: 'center',
-        lineSpacing: -10,
-      })
-      .setOrigin(0.5);
-    outcomeShadow.setAlpha(0.4);
+      }).setOrigin(0.5).setAlpha(0.5);
 
-    const outcomeTitle = this.add
-      .text(cx, panelY + 150, outcomeText, {
-        fontFamily: 'Georgia, "Times New Roman", serif',
-        fontSize: '88px',
-        fontStyle: '900',
-        color: outcomeColor,
-        stroke: '#3a1808',
+      const outcome = this.add.text(cx, outcomeY, 'BOUNTY\nDELIVERED', {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '82px',
+        fontStyle: 'bold',
+        color: '#4080ff',
+        stroke: '#001060',
         strokeThickness: 6,
         align: 'center',
-        lineSpacing: -10,
-      })
-      .setOrigin(0.5);
+      }).setOrigin(0.5);
 
-    // Pop-in scale tween
-    outcomeTitle.setScale(0.3);
-    outcomeShadow.setScale(0.3);
-    this.tweens.add({
-      targets: [outcomeTitle, outcomeShadow],
-      scale: 1,
-      duration: 380,
-      delay: 80,
-      ease: 'Back.easeOut',
-    });
+      // Pop-in
+      outcome.setScale(0.3);
+      outcomeShadow.setScale(0.3);
+      this.tweens.add({
+        targets: [outcome, outcomeShadow],
+        scale: 1,
+        duration: 380,
+        delay: 80,
+        ease: 'Back.easeOut',
+      });
 
-    // ── Flavour subtitle ──
-    const sub = win
-      ? 'Justice served — all outlaws accounted for.'
-      : 'The outlaws rode off into the sunset.';
-    this.add
-      .text(cx, panelY + 320, sub, {
-        fontFamily: 'Georgia, "Times New Roman", serif',
-        fontSize: '22px',
+      // Hologram flicker
+      this.tweens.add({
+        targets: outcome,
+        alpha: { from: 1, to: 0.75 },
+        duration: 120,
+        yoyo: true,
+        repeat: -1,
+        repeatDelay: 1800,
+        ease: 'Linear',
+      });
+
+      // Subtitle
+      this.add.text(cx, py + 370, 'The Empire has been dealt a blow, Mando.', {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '20px',
         fontStyle: 'italic',
-        color: '#3a1808',
-        stroke: '#e8c878',
+        color: '#8ab8ff',
+        stroke: '#000000',
         strokeThickness: 2,
-      })
-      .setOrigin(0.5);
+      }).setOrigin(0.5);
 
-    // Divider under subtitle
-    g.fillStyle(0x5a3018, 0.45);
-    g.fillRect(panelX + 50, panelY + 350, panelW - 100, 2);
+      // Stats
+      g.fillStyle(0x0038bb, 0.2);
+      g.fillRoundedRect(px + 30, py + 405, pw - 60, 44, 4);
+      g.lineStyle(1, 0x0060ff, 0.5);
+      g.strokeRoundedRect(px + 30, py + 405, pw - 60, 44, 4);
+      this.add.text(cx, py + 427, `BOUNTIES: ${stats.wins || 0}   MISSIONS: ${stats.runs}`, {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '22px',
+        color: '#60a0ff',
+        stroke: '#000000',
+        strokeThickness: 2,
+      }).setOrigin(0.5);
 
-    // ── Stats line ──
-    this.add
-      .text(cx, panelY + 380, `Bounties: ${stats.wins || 0}   Showdowns: ${stats.runs}`, {
-        fontFamily: 'Georgia, "Times New Roman", serif',
+      // Buttons
+      this.impButton(cx, py + ph - 160, 'NEW MISSION', true, () => {
+        SFX.uiClick();
+        this.cameras.main.fadeOut(220, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Game'));
+      }, win);
+      this.impButton(cx, py + ph - 60, 'MAIN MENU', false, () => {
+        SFX.uiClick();
+        this.cameras.main.fadeOut(220, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Title'));
+      }, win);
+
+    } else {
+      // ── LOSE: Imperial Alert Screen ──────────────────────────────────────
+      // Red alert overlay
+      g.fillStyle(0x200000, 0.7);
+      g.fillRect(0, 0, VIEW.width, VIEW.height);
+
+      // Red scan lines
+      for (let y = 0; y < VIEW.height; y += 6) {
+        g.fillStyle(0xff0000, 0.04);
+        g.fillRect(0, y, VIEW.width, 2);
+      }
+
+      // Panel border
+      const pw = VIEW.width - 60, ph = 700;
+      const px = 30, py = 60;
+      g.lineStyle(3, 0xff0000, 0.9);
+      g.strokeRoundedRect(px, py, pw, ph, 6);
+      g.fillStyle(0x1a0000, 0.75);
+      g.fillRoundedRect(px, py, pw, ph, 6);
+      this._brackets(g, px, py, pw, ph, 0xff2020, 20);
+
+      // "IMPERIAL ALERT" header
+      this.add.text(cx, py + 40, '[ IMPERIAL ALERT ]', {
+        fontFamily: 'Courier New, monospace',
         fontSize: '24px',
-        color: '#2a1408',
-        stroke: '#e8c878',
-        strokeThickness: 2,
-      })
-      .setOrigin(0.5);
+        color: '#ff2020',
+        stroke: '#000000',
+        strokeThickness: 3,
+      }).setOrigin(0.5);
 
-    // ── Buttons ──
-    const btn1Y = panelY + panelH - 160;
-    const btn2Y = panelY + panelH - 60;
-    this.westernButton(cx, btn1Y, 'RIDE AGAIN', true, () => {
-      SFX.uiClick();
-      this.cameras.main.fadeOut(220, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Game'));
-    });
-    this.westernButton(cx, btn2Y, 'MAIN MENU', false, () => {
-      SFX.uiClick();
-      this.cameras.main.fadeOut(220, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Title'));
-    });
+      // Imperial logo hint (cog outline)
+      g.lineStyle(2, 0x440000, 0.8);
+      g.strokeCircle(cx, py + 120, 36);
+      g.strokeCircle(cx, py + 120, 20);
+      // 8 cog teeth
+      for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4;
+        const r1 = 38, r2 = 46;
+        g.lineStyle(3, 0x550000, 0.8);
+        g.beginPath();
+        g.moveTo(cx + Math.cos(a) * r1, py + 120 + Math.sin(a) * r1);
+        g.lineTo(cx + Math.cos(a) * r2, py + 120 + Math.sin(a) * r2);
+        g.strokePath();
+      }
+
+      // Main outcome
+      const outcomeY = py + 230;
+      const outcomeShadow = this.add.text(cx + 4, outcomeY + 4, 'TARGET\nNEUTRALIZED', {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '78px',
+        fontStyle: 'bold',
+        color: '#000000',
+        align: 'center',
+      }).setOrigin(0.5).setAlpha(0.5);
+
+      const outcome = this.add.text(cx, outcomeY, 'TARGET\nNEUTRALIZED', {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '78px',
+        fontStyle: 'bold',
+        color: '#ff2020',
+        stroke: '#440000',
+        strokeThickness: 6,
+        align: 'center',
+      }).setOrigin(0.5);
+
+      outcome.setScale(0.3);
+      outcomeShadow.setScale(0.3);
+      this.tweens.add({
+        targets: [outcome, outcomeShadow],
+        scale: 1,
+        duration: 380,
+        delay: 80,
+        ease: 'Back.easeOut',
+      });
+
+      // Flicker
+      this.tweens.add({
+        targets: outcome,
+        alpha: { from: 1, to: 0.6 },
+        duration: 80,
+        yoyo: true,
+        repeat: -1,
+        repeatDelay: 1200,
+      });
+
+      this.add.text(cx, py + 405, 'The bounty hunter has been eliminated.', {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '20px',
+        fontStyle: 'italic',
+        color: '#aa4040',
+        stroke: '#000000',
+        strokeThickness: 2,
+      }).setOrigin(0.5);
+
+      g.fillStyle(0xff0000, 0.1);
+      g.fillRoundedRect(px + 30, py + 440, pw - 60, 44, 4);
+      g.lineStyle(1, 0xff0000, 0.4);
+      g.strokeRoundedRect(px + 30, py + 440, pw - 60, 44, 4);
+      this.add.text(cx, py + 462, `CAPTURES: ${stats.wins || 0}   MISSIONS: ${stats.runs}`, {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '22px',
+        color: '#cc4040',
+        stroke: '#000000',
+        strokeThickness: 2,
+      }).setOrigin(0.5);
+
+      this.impButton(cx, py + ph - 160, 'RETRY MISSION', true, () => {
+        SFX.uiClick();
+        this.cameras.main.fadeOut(220, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Game'));
+      }, win);
+      this.impButton(cx, py + ph - 60, 'MAIN MENU', false, () => {
+        SFX.uiClick();
+        this.cameras.main.fadeOut(220, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Title'));
+      }, win);
+    }
 
     this.cameras.main.fadeIn(280, 0, 0, 0);
   }
 
-  /**
-   * Brass-plate-on-wood button matching TitleScene's "DRAW!" button style.
-   * @param {number} cx - center x
-   * @param {number} cy - center y
-   * @param {string} label
-   * @param {boolean} isPrimary - primary (gold brass) vs secondary (silver brass)
-   * @param {Function} onClick
-   */
-  westernButton(cx, cy, label, isPrimary, onClick) {
-    const btnW = 380;
-    const btnH = 80;
+  // Corner bracket decoration helper
+  _brackets(g, x, y, w, h, color, size) {
+    g.lineStyle(3, color, 1);
+    // TL
+    g.beginPath(); g.moveTo(x + size, y); g.lineTo(x, y); g.lineTo(x, y + size); g.strokePath();
+    // TR
+    g.beginPath(); g.moveTo(x + w - size, y); g.lineTo(x + w, y); g.lineTo(x + w, y + size); g.strokePath();
+    // BL
+    g.beginPath(); g.moveTo(x + size, y + h); g.lineTo(x, y + h); g.lineTo(x, y + h - size); g.strokePath();
+    // BR
+    g.beginPath(); g.moveTo(x + w - size, y + h); g.lineTo(x + w, y + h); g.lineTo(x + w, y + h - size); g.strokePath();
+  }
+
+  // Imperial-style button
+  impButton(cx, cy, label, isPrimary, onClick, win) {
+    const btnW = 380, btnH = 78;
     const bg = this.add.graphics();
+    const mainColor = win
+      ? (isPrimary ? 0x0040cc : 0x002080)
+      : (isPrimary ? 0xcc0000 : 0x660000);
+    const hoverColor = win
+      ? (isPrimary ? 0x0060ff : 0x003acc)
+      : (isPrimary ? 0xff2020 : 0xaa0000);
+    const borderColor = win ? 0x0080ff : 0xff2020;
+    const textColor = win ? '#40b8ff' : '#ff4444';
 
     const draw = (hover) => {
       bg.clear();
-      // Drop shadow
-      bg.fillStyle(0x1a0a04, 0.5);
-      bg.fillRoundedRect(cx - btnW / 2 + 4, cy - btnH / 2 + 6, btnW, btnH, 12);
-      // Wood backplate
-      bg.fillStyle(hover ? 0x6a3a20 : 0x3a1a08, 1);
-      bg.fillRoundedRect(cx - btnW / 2, cy - btnH / 2, btnW, btnH, 12);
-      // Brass plate inset
-      const brassOn  = isPrimary ? 0xffd040 : 0x909878;
-      const brassOff = isPrimary ? 0xa07818 : 0x606858;
-      bg.fillStyle(hover ? brassOn : brassOff, 1);
-      bg.fillRoundedRect(cx - btnW / 2 + 7, cy - btnH / 2 + 7, btnW - 14, btnH - 14, 8);
-      // Inner highlight shimmer
-      bg.fillStyle(0xfff4b8, hover ? 0.45 : 0.25);
-      bg.fillRoundedRect(cx - btnW / 2 + 11, cy - btnH / 2 + 11, btnW - 22, 14, 6);
-      // Corner rivets
-      const rivets = [
-        [cx - btnW / 2 + 16, cy - btnH / 2 + 16],
-        [cx + btnW / 2 - 16, cy - btnH / 2 + 16],
-        [cx - btnW / 2 + 16, cy + btnH / 2 - 16],
-        [cx + btnW / 2 - 16, cy + btnH / 2 - 16],
-      ];
-      for (const [rx, ry] of rivets) {
-        bg.fillStyle(0x2a1008, 1);
-        bg.fillCircle(rx, ry, 4);
-        bg.fillStyle(0xc0b890, 0.85);
-        bg.fillCircle(rx - 1, ry - 1, 1.8);
-      }
+      bg.fillStyle(0x000000, 0.5);
+      bg.fillRoundedRect(cx - btnW / 2 + 3, cy - btnH / 2 + 5, btnW, btnH, 4);
+      bg.fillStyle(hover ? hoverColor : mainColor, 1);
+      bg.fillRoundedRect(cx - btnW / 2, cy - btnH / 2, btnW, btnH, 4);
+      bg.lineStyle(2, borderColor, hover ? 1 : 0.6);
+      bg.strokeRoundedRect(cx - btnW / 2, cy - btnH / 2, btnW, btnH, 4);
+      // Top shimmer
+      bg.fillStyle(0xffffff, hover ? 0.12 : 0.06);
+      bg.fillRoundedRect(cx - btnW / 2 + 6, cy - btnH / 2 + 6, btnW - 12, 12, 3);
     };
 
     draw(false);
 
-    const textColor = isPrimary ? '#1a0a04' : '#e8e0c8';
-    const text = this.add
-      .text(cx, cy, label, {
-        fontFamily: 'Georgia, "Times New Roman", serif',
-        fontSize: '38px',
-        fontStyle: '900',
-        color: textColor,
-        stroke: isPrimary ? '#5a3018' : '#1a0a04',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5);
+    const text = this.add.text(cx, cy, label, {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '36px',
+      fontStyle: 'bold',
+      color: textColor,
+      stroke: '#000000',
+      strokeThickness: 3,
+      letterSpacing: 4,
+    }).setOrigin(0.5);
 
-    // Pulse on primary button
     if (isPrimary) {
       this.tweens.add({
         targets: text,
-        scale: 1.05,
-        duration: 700,
+        scale: 1.04,
+        duration: 750,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut',
       });
     }
 
-    const zone = this.add
-      .zone(cx, cy, btnW, btnH)
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
+    const zone = this.add.zone(cx, cy, btnW, btnH).setOrigin(0.5).setInteractive({ useHandCursor: true });
     zone.on('pointerover', () => draw(true));
     zone.on('pointerout', () => draw(false));
     zone.on('pointerdown', () => draw(true));

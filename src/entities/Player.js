@@ -4,7 +4,7 @@ import { SFX } from '../systems/FX.js';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
-    super(scene, x, y, 'player');
+    super(scene, x, y, 'player', 0);
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setDepth(30);
@@ -14,37 +14,47 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.hp = PLAYER.hp;
     this.hpMax = PLAYER.hp;
     this.ammo = PLAYER.ammoMax;
-    this.ammoTimers = []; // ms remaining for each reloading slot
+    this.ammoTimers = [];
     this.fireCooldown = 0;
     this.lastHurtAt = -99999;
-    this.superCharge = 0; // 0..superHitsToCharge
-    this.facing = -Math.PI / 2; // up
+    this.superCharge = 0;
+    this.facing = -Math.PI / 2;
     this.aim = -Math.PI / 2;
     this.aiming = false;
     this.superAim = -Math.PI / 2;
     this.superAiming = false;
     this.alive = true;
     this.hiddenInBush = false;
-    // Smooth motion animation state — driven in preUpdate.
-    // bobT advances each frame; recoilT decays after firing.
-    this.bobT = Math.random() * 1000; // random phase so multiple actors don't sync
+
+    // Animation state tracking
+    this._animState = 'idle';
+    this._fireAnimTimer = 0;
+    // Recoil scale punch (on top of sprite anim)
     this.recoilT = 0;
 
     this.shadow = scene.add.image(x, y + 12, 'shadow').setDepth(this.depth - 1).setAlpha(0.35);
+
+    // Jetpack flame particle emitter
+    this.jetEmitter = scene.add.particles(x, y, 'jet-flame', {
+      lifespan: 180,
+      speed: { min: 40, max: 120 },
+      angle: { min: 80, max: 100 },   // downward by default; rotated per-frame
+      scale: { start: 0.8, end: 0 },
+      alpha: { start: 0.9, end: 0 },
+      quantity: 0,
+      emitting: false,
+    }).setDepth(this.depth - 1);
+
+    // Start idle animation
+    this.play('mando-idle');
   }
 
   setMoveInput(vec) {
-    if (!this.alive) {
-      this.setVelocity(0, 0);
-      return;
-    }
+    if (!this.alive) { this.setVelocity(0, 0); return; }
     if (vec && vec.force > 0) {
       this.setVelocity(vec.x * PLAYER.speed * vec.force, vec.y * PLAYER.speed * vec.force);
       this.facing = Math.atan2(vec.y, vec.x);
-      if (!this.aiming) {
-        // Rotate so the gun (drawn pointing up) faces movement direction.
-        this.setRotation(this.facing + Math.PI / 2);
-      }
+      if (!this.aiming) this.setRotation(this.facing + Math.PI / 2);
     } else {
       this.setVelocity(0, 0);
     }
@@ -67,7 +77,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.aim = Math.atan2(vec.y, vec.x);
       this.tryFire();
     } else {
-      // Quick tap with no real drag → shoot forward.
       this.tryFire();
     }
     this.aiming = false;
@@ -80,7 +89,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.superAim = Math.atan2(vec.y, vec.x);
       this.setRotation(this.superAim + Math.PI / 2);
     } else {
-      this.superAiming = true; // still considered aiming (cone visible) even with no drag
+      this.superAiming = true;
       this.superAim = this.facing;
     }
   }
@@ -100,7 +109,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.ammo -= 1;
     this.ammoTimers.push(PLAYER.ammoReloadMs);
     const dir = this.aiming ? this.aim : this.facing;
-    this.recoilT = 120; // ms of recoil punch
+    this.recoilT = 110;
+    this._fireAnimTimer = 140;
     this.scene.events.emit('player-fire', dir);
     SFX.shoot();
     return true;
@@ -110,13 +120,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (!this.alive) return false;
     if (this.superCharge < PLAYER.superHitsToCharge) return false;
     this.superCharge = 0;
-    const dir =
-      typeof angleOverride === 'number'
-        ? angleOverride
-        : this.aiming
-        ? this.aim
-        : this.facing;
-    this.recoilT = 280; // bigger, longer kick for super
+    const dir = typeof angleOverride === 'number' ? angleOverride
+      : this.aiming ? this.aim : this.facing;
+    this.recoilT = 260;
+    this._fireAnimTimer = 240;
     this.scene.events.emit('player-fire-super', dir);
     SFX.shootSuper();
     return true;
@@ -145,13 +152,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   die() {
     this.alive = false;
     this.setVelocity(0, 0);
+    this.jetEmitter.stop();
     this.scene.events.emit('player-dead');
   }
 
   preUpdate(time, delta) {
     super.preUpdate?.(time, delta);
+
     if (this.fireCooldown > 0) this.fireCooldown -= delta;
-    // Reload one slot at a time (left-to-right)
+
+    // Reload
     if (this.ammoTimers.length > 0) {
       this.ammoTimers[0] -= delta;
       if (this.ammoTimers[0] <= 0) {
@@ -160,37 +170,64 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         this.scene.events.emit('player-ammo-changed');
       }
     }
-    // HP regen after grace period
+
+    // HP regen
     if (this.alive && this.hp < this.hpMax && time - this.lastHurtAt > PLAYER.regenDelayMs) {
-      const inc = (PLAYER.regenPerSec * delta) / 1000;
-      this.hp = Math.min(this.hpMax, this.hp + inc);
+      this.hp = Math.min(this.hpMax, this.hp + (PLAYER.regenPerSec * delta) / 1000);
       this.scene.events.emit('player-hp-changed');
     }
-    // Shadow follow
+
+    // Shadow
     this.shadow.setPosition(this.x, this.y + 18);
+
     // Bush alpha
     this.setAlpha(this.hiddenInBush ? PLAYER.bushAlpha : 1);
 
-    // ── Smooth motion animation ─────────────────────────────────────────
-    // Idle bob (breathing). Walking accelerates the bob.
-    const speedSq = (this.body.velocity.x * this.body.velocity.x) + (this.body.velocity.y * this.body.velocity.y);
-    const isMoving = speedSq > 100;
-    const bobSpeed = isMoving ? 0.018 : 0.006;
-    const bobAmp   = isMoving ? 0.055 : 0.03;
-    this.bobT += delta;
-    const bob = 1 + Math.sin(this.bobT * bobSpeed) * bobAmp;
-    // Recoil punch (scales DOWN slightly on fire — like the shot pushed the hero back)
-    let recoil = 1;
+    // ── Sprite animation (frame selection) ─────────────────────────
+    const speedSq = this.body.velocity.x ** 2 + this.body.velocity.y ** 2;
+    const isMoving = speedSq > 200;
+
+    if (this._fireAnimTimer > 0) {
+      this._fireAnimTimer -= delta;
+      if (this.anims.currentAnim?.key !== 'mando-fire') {
+        this.play('mando-fire');
+      }
+    } else if (isMoving) {
+      if (this.anims.currentAnim?.key !== 'mando-walk') {
+        this.play('mando-walk');
+      }
+    } else {
+      if (this.anims.currentAnim?.key !== 'mando-idle') {
+        this.play('mando-idle');
+      }
+    }
+
+    // ── Recoil scale punch ──────────────────────────────────────────
     if (this.recoilT > 0) {
       this.recoilT -= delta;
-      const t = Math.max(0, this.recoilT / 120);
-      recoil = 1 - t * 0.14;
+      const t = Math.max(0, this.recoilT / 110);
+      this.setScale(1 - t * 0.12);
+    } else {
+      this.setScale(1);
     }
-    this.setScale(bob * recoil);
+
+    // ── Jetpack flame (trail when moving) ──────────────────────────
+    if (this.alive && isMoving) {
+      // Position emitter behind the player (opposite of facing)
+      const backAngle = this.rotation - Math.PI / 2 + Math.PI; // behind player
+      const jx = this.x + Math.cos(backAngle) * 10;
+      const jy = this.y + Math.sin(backAngle) * 10;
+      this.jetEmitter.setPosition(jx, jy);
+      if (!this.jetEmitter.emitting) this.jetEmitter.start();
+      this.jetEmitter.emitParticleAt(jx, jy, 2);
+    } else {
+      this.jetEmitter.stop();
+    }
   }
 
   destroy(fromScene) {
     this.shadow?.destroy();
+    this.jetEmitter?.destroy();
     super.destroy(fromScene);
   }
 }

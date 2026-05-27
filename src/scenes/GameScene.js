@@ -175,38 +175,41 @@ export class GameScene extends Phaser.Scene {
   spawnHealthOrb(x, y) {
     const g = this.add.graphics().setDepth(22);
     const r = HEALTH_ORB.radius;
-    // Outer warm glow (tonic aura)
-    g.fillStyle(0xff9020, 0.15);
+    // Bacta vial — cylindrical blue medical container
+    // Outer blue glow aura
+    g.fillStyle(0x1060cc, 0.22);
     g.fillCircle(0, 0, r + 10);
     // Shadow disc
-    g.fillStyle(0x1a0a04, 0.35);
-    g.fillEllipse(2, r * 0.6, r * 1.6, r * 0.5);
-    // Flask body (rounded rectangle, warm brown leather)
-    g.fillStyle(0x3a1a08, 1);
-    g.fillRoundedRect(-r * 0.6 + 1, -r + 1, r * 1.2, r * 1.8, r * 0.25);
+    g.fillStyle(0x000010, 0.4);
+    g.fillEllipse(2, r * 0.7, r * 1.8, r * 0.5);
+    // Vial body (dark border)
+    g.fillStyle(0x004488, 1);
+    g.fillRoundedRect(-r * 0.55 + 1, -r + 1, r * 1.1, r * 1.9, r * 0.3);
+    // Vial body (bacta blue)
     g.fillStyle(HEALTH_ORB.color, 1);
-    g.fillRoundedRect(-r * 0.6, -r, r * 1.2, r * 1.8, r * 0.25);
-    // Flask neck
-    g.fillStyle(0x3a1a08, 1);
-    g.fillRect(-r * 0.24 + 1, -r * 1.18 + 1, r * 0.48, r * 0.26);
-    g.fillStyle(0xc07828, 1);
-    g.fillRect(-r * 0.24, -r * 1.18, r * 0.48, r * 0.26);
-    // Cork stopper
-    g.fillStyle(0xd4a96a, 1);
-    g.fillRect(-r * 0.2, -r * 1.3, r * 0.4, r * 0.15);
-    // Flask highlight (left edge glint)
-    g.fillStyle(0xfff4c0, 0.5);
-    g.fillRoundedRect(-r * 0.5, -r * 0.9, r * 0.2, r * 1.4, r * 0.1);
-    // Red cross badge on flask
-    g.fillStyle(0x8a0808, 1);
-    g.fillRect(-r * 0.32, -r * 0.4, r * 0.64, r * 0.18);
-    g.fillRect(-r * 0.14, -r * 0.58, r * 0.28, r * 0.54);
-    g.fillStyle(0xdd2020, 1);
-    g.fillRect(-r * 0.28, -r * 0.36, r * 0.56, r * 0.14);
-    g.fillRect(-r * 0.12, -r * 0.54, r * 0.24, r * 0.46);
-    // Liquid line inside flask (golden tonic)
-    g.fillStyle(0xffd040, 0.45);
-    g.fillRoundedRect(-r * 0.48, -r * 0.1, r * 0.96, r * 0.7, r * 0.12);
+    g.fillRoundedRect(-r * 0.55, -r, r * 1.1, r * 1.9, r * 0.3);
+    // Inner bacta liquid (brighter blue)
+    g.fillStyle(0x40b8ff, 0.6);
+    g.fillRoundedRect(-r * 0.42, -r * 0.85, r * 0.84, r * 1.5, r * 0.25);
+    // Vial neck
+    g.fillStyle(0x003366, 1);
+    g.fillRect(-r * 0.22 + 1, -r * 1.15 + 1, r * 0.44, r * 0.22);
+    g.fillStyle(0x1898e8, 1);
+    g.fillRect(-r * 0.22, -r * 1.15, r * 0.44, r * 0.22);
+    // Cap/stopper (white medical)
+    g.fillStyle(0xccccdd, 1);
+    g.fillRect(-r * 0.28, -r * 1.28, r * 0.56, r * 0.16);
+    // Left edge glint (glass highlight)
+    g.fillStyle(0x90d8ff, 0.65);
+    g.fillRoundedRect(-r * 0.46, -r * 0.88, r * 0.16, r * 1.45, r * 0.08);
+    // Bubble detail (bacta suspension)
+    g.fillStyle(0x90d8ff, 0.5);
+    g.fillCircle(-r * 0.1, r * 0.1, r * 0.12);
+    g.fillCircle(r * 0.1, -r * 0.2, r * 0.09);
+    // Rebel symbol (simplified — two vertical lines)
+    g.fillStyle(0x006aaa, 0.7);
+    g.fillRect(-r * 0.08, -r * 0.5, r * 0.06, r * 0.9);
+    g.fillRect(r * 0.02, -r * 0.5, r * 0.06, r * 0.9);
     g.setPosition(x, y);
 
     const orb = {
@@ -380,10 +383,10 @@ export class GameScene extends Phaser.Scene {
     // Enemy bullets vs player
     this.handleEnemyBulletsVsPlayer();
 
-    // Bullets vs walls (just remove them)
-    this.handleBulletWallHits(this.playerBullets);
-    this.handleBulletWallHits(this.playerSuperBullets);
-    this.handleBulletWallHits(this.enemyBullets);
+    // Bullets vs walls
+    this.handleBulletWallHits(this.playerBullets, false);
+    this.handleBulletWallHits(this.playerSuperBullets, true);
+    this.handleBulletWallHits(this.enemyBullets, false);
 
     // Desktop keyboard movement (mirror joystick).
     // Only override the player's movement vector when a key is held *or*
@@ -424,7 +427,10 @@ export class GameScene extends Phaser.Scene {
             : null;
           this.boss.damage(b.damage, kbVec);
           this.player.addSuperHit();
-          if (!b.piercing) b.kill();
+          if (!b.piercing) {
+            if (isSuper) this.fx.explosion(b.x, b.y, 1.8);
+            b.kill();
+          }
         }
       }
       if (!b.active) continue;
@@ -440,6 +446,7 @@ export class GameScene extends Phaser.Scene {
           e.damage(b.damage, kbVec);
           this.player.addSuperHit();
           if (!b.piercing) {
+            if (isSuper) this.fx.explosion(b.x, b.y, 1.4);
             b.kill();
             break;
           }
@@ -459,7 +466,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  handleBulletWallHits(group) {
+  handleBulletWallHits(group, isSuper = false) {
     const bullets = group.getChildren();
     if (!bullets.length) return;
     const walls = this.walls.getChildren();
@@ -468,12 +475,17 @@ export class GameScene extends Phaser.Scene {
       for (const w of walls) {
         if (!w.active) continue;
         if (
-          b.x > w.x - 50 &&
-          b.x < w.x + 50 &&
-          b.y > w.y - 50 &&
-          b.y < w.y + 50
+          b.x > w.x - 56 &&
+          b.x < w.x + 56 &&
+          b.y > w.y - 56 &&
+          b.y < w.y + 56
         ) {
-          this.fx.burst(b.x, b.y, 'yellow', 4);
+          if (isSuper) {
+            this.fx.explosion(b.x, b.y, 1.2);
+            this.fx.shake(0.005, 60);
+          } else {
+            this.fx.burst(b.x, b.y, 'red', 4);
+          }
           b.kill();
           break;
         }
@@ -516,7 +528,7 @@ export class GameScene extends Phaser.Scene {
         const healed = Math.min(HEALTH_ORB.healAmount, p.hpMax - p.hp);
         p.hp = Math.min(p.hpMax, p.hp + HEALTH_ORB.healAmount);
         p.scene.events.emit('player-hp-changed');
-        this.fx.damageNumber(orb.x, orb.y - 20, `+${Math.round(healed)} HP`, '#ffd040', false);
+        this.fx.damageNumber(orb.x, orb.y - 20, `+${Math.round(healed)} HP`, '#40b8ff', false);
         this.fx.burst(orb.x, orb.y, 'yellow', 8);
         this.tweens.killTweensOf(orb.gfx);
         orb.gfx.destroy();
@@ -551,9 +563,9 @@ export class GameScene extends Phaser.Scene {
         Phaser.Math.DegToRad(PLAYER.superSpreadDeg),
         PLAYER.superRange,
         startGap,
-        0xffd23a, // saturated gold
-        0xfff3b0,
-        0.32
+        0xff2020, // deep red (missile barrage)
+        0xff8080,
+        0.30
       );
     } else if (p.aiming) {
       this.drawCone(
@@ -564,9 +576,9 @@ export class GameScene extends Phaser.Scene {
         Phaser.Math.DegToRad(PLAYER.pelletSpreadDeg),
         PLAYER.pelletRange,
         startGap,
-        0xffb050, // warm fire-amber
-        0xffd888,
-        0.20
+        0xff2828, // red blaster cone
+        0xff9090,
+        0.18
       );
     }
   }

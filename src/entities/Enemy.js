@@ -4,7 +4,7 @@ import { SFX } from '../systems/FX.js';
 
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, texture, cfg) {
-    super(scene, x, y, texture);
+    super(scene, x, y, texture, 0);
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.cfg = cfg;
@@ -15,14 +15,22 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.hpMax = cfg.hp;
     this.alive = true;
     this.hiddenInBush = false;
-    // Animation state — see preUpdate
-    this.bobT = Math.random() * 1000;
-    this.recoilT = 0;
-    this.shadow = scene.add.image(x, y + 14, 'shadow').setDepth(this.depth - 1).setAlpha(0.35);
 
-    // HP bar (small, only shows when damaged)
+    // Animation state
+    this._animPrefix = texture;  // 'grunt' or 'shooter'
+    this._fireAnimTimer = 0;
+
+    // Recoil scale (kept as FX on top of sprite anim)
+    this.recoilT = 0;
+
+    this.shadow = scene.add.image(x, y + 14, 'shadow').setDepth(this.depth - 1).setAlpha(0.35);
     this.hpBar = scene.add.graphics().setDepth(this.depth + 1);
     this.hpBar.visible = false;
+
+    // Start idle animation
+    if (scene.anims.exists(`${texture}-idle`)) {
+      this.play(`${texture}-idle`);
+    }
   }
 
   damage(amount, knockbackVec = null) {
@@ -34,6 +42,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.body.velocity.y + knockbackVec.y
       );
     }
+    this.recoilT = 80;
     this.scene.events.emit('enemy-hit', this, amount);
     if (this.hp <= 0) this.die();
   }
@@ -50,25 +59,21 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   updateHpBar() {
     if (!this.alive) return;
     const ratio = this.hp / this.hpMax;
-    if (ratio >= 0.999) {
-      this.hpBar.visible = false;
-      return;
-    }
+    if (ratio >= 0.999) { this.hpBar.visible = false; return; }
     this.hpBar.visible = true;
     this.hpBar.clear();
-    const w = 48;
-    const h = 6;
-    const x = this.x - w / 2;
-    const y = this.y - this.cfg.radius - 14;
-    this.hpBar.fillStyle(0x000000, 0.6);
+    const w = 48, h = 6;
+    const x = this.x - w / 2, y = this.y - this.cfg.radius - 14;
+    this.hpBar.fillStyle(0x000000, 0.7);
     this.hpBar.fillRect(x - 1, y - 1, w + 2, h + 2);
-    this.hpBar.fillStyle(0x222933, 1);
+    this.hpBar.fillStyle(0x1a2028, 1);
     this.hpBar.fillRect(x, y, w, h);
-    this.hpBar.fillStyle(ratio > 0.4 ? 0x4cd964 : 0xff3b30, 1);
+    // HP color: green for stormtrooper, blue for death trooper
+    const col = this._animPrefix === 'shooter' ? 0x00bbff : (ratio > 0.4 ? 0x20ee20 : 0xee2020);
+    this.hpBar.fillStyle(col, 1);
     this.hpBar.fillRect(x, y, w * ratio, h);
   }
 
-  // Distance check that respects bushes — enemies can't see through them.
   canSee(player) {
     return !player.hiddenInBush;
   }
@@ -79,23 +84,38 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.updateHpBar();
     this.setAlpha(this.hiddenInBush ? 0.55 : 1);
 
-    // Idle / walk bob — same system as Player
-    const speedSq = (this.body.velocity.x * this.body.velocity.x) + (this.body.velocity.y * this.body.velocity.y);
+    // Animation selection
+    const speedSq = this.body.velocity.x ** 2 + this.body.velocity.y ** 2;
     const isMoving = speedSq > 200;
-    const bobSpeed = isMoving ? 0.020 : 0.005;
-    const bobAmp = isMoving ? 0.065 : 0.025;
-    this.bobT += delta;
-    const bob = 1 + Math.sin(this.bobT * bobSpeed) * bobAmp;
-    let recoil = 1;
+    const prefix = this._animPrefix;
+
+    if (this._fireAnimTimer > 0) {
+      this._fireAnimTimer -= delta;
+      if (this.anims.currentAnim?.key !== `${prefix}-fire`) {
+        this.play(`${prefix}-fire`);
+      }
+    } else if (isMoving) {
+      if (this.anims.currentAnim?.key !== `${prefix}-walk`) {
+        this.play(`${prefix}-walk`);
+      }
+    } else {
+      if (this.anims.currentAnim?.key !== `${prefix}-idle`) {
+        this.play(`${prefix}-idle`);
+      }
+    }
+
+    // Recoil scale
     if (this.recoilT > 0) {
       this.recoilT -= delta;
-      const t = Math.max(0, this.recoilT / 120);
-      recoil = 1 - t * 0.16;
+      const t = Math.max(0, this.recoilT / 80);
+      this.setScale(1 - t * 0.12);
+    } else {
+      this.setScale(1);
     }
-    this.setScale(bob * recoil);
   }
 }
 
+// ── Stormtrooper Grunt ────────────────────────────────────────────────────
 export class EnemyGrunt extends Enemy {
   constructor(scene, x, y) {
     super(scene, x, y, 'grunt', ENEMY.grunt);
@@ -112,10 +132,8 @@ export class EnemyGrunt extends Enemy {
     super.preUpdate(time, delta);
     if (!this.alive) return;
     const player = this.scene.player;
-    if (!player || !player.alive) {
-      this.setVelocity(0, 0);
-      return;
-    }
+    if (!player || !player.alive) { this.setVelocity(0, 0); return; }
+
     const seesPlayer = this.canSee(player);
     if (seesPlayer) {
       this.lastKnownX = player.x;
@@ -132,21 +150,20 @@ export class EnemyGrunt extends Enemy {
         this.setVelocity(0, 0);
         if (time - this.lastMeleeAt > this.cfg.meleeCooldownMs) {
           this.lastMeleeAt = time;
+          this._fireAnimTimer = 200;
           player.damage(this.cfg.meleeDamage);
           this.scene.events.emit('grunt-melee', this);
         }
       }
       return;
     }
-    // Lost sight — head to last known position, then wander.
     const ldx = this.lastKnownX - this.x;
     const ldy = this.lastKnownY - this.y;
     const ld = Math.hypot(ldx, ldy);
     if (this.hasSeenPlayer && ld > 36) {
       const ang = Math.atan2(ldy, ldx);
       this.setRotation(ang + Math.PI / 2);
-      const slow = 0.7;
-      this.setVelocity(Math.cos(ang) * this.cfg.speed * slow, Math.sin(ang) * this.cfg.speed * slow);
+      this.setVelocity(Math.cos(ang) * this.cfg.speed * 0.7, Math.sin(ang) * this.cfg.speed * 0.7);
     } else {
       this.wanderTimer -= delta;
       if (this.wanderTimer <= 0) {
@@ -162,6 +179,7 @@ export class EnemyGrunt extends Enemy {
   }
 }
 
+// ── Death Trooper Shooter ─────────────────────────────────────────────────
 export class EnemyShooter extends Enemy {
   constructor(scene, x, y) {
     super(scene, x, y, 'shooter', ENEMY.shooter);
@@ -178,10 +196,8 @@ export class EnemyShooter extends Enemy {
     super.preUpdate(time, delta);
     if (!this.alive) return;
     const player = this.scene.player;
-    if (!player || !player.alive) {
-      this.setVelocity(0, 0);
-      return;
-    }
+    if (!player || !player.alive) { this.setVelocity(0, 0); return; }
+
     const seesPlayer = this.canSee(player);
     if (seesPlayer) {
       this.lastKnownX = player.x;
@@ -198,7 +214,6 @@ export class EnemyShooter extends Enemy {
       } else if (d < desired - 40) {
         this.setVelocity(-Math.cos(ang) * this.cfg.speed, -Math.sin(ang) * this.cfg.speed);
       } else {
-        // strafe
         this.setVelocity(
           Math.cos(ang + Math.PI / 2) * this.cfg.speed * 0.6,
           Math.sin(ang + Math.PI / 2) * this.cfg.speed * 0.6
@@ -207,20 +222,19 @@ export class EnemyShooter extends Enemy {
       this.fireCd -= delta;
       if (this.fireCd <= 0) {
         this.fireCd = this.cfg.fireCooldownMs;
-        this.recoilT = 120;
+        this.recoilT = 100;
+        this._fireAnimTimer = 180;
         this.scene.events.emit('shooter-fire', this, ang);
       }
       return;
     }
-    // Lost sight — head to last known, then wander (no firing while blind).
     const ldx = this.lastKnownX - this.x;
     const ldy = this.lastKnownY - this.y;
     const ld = Math.hypot(ldx, ldy);
     if (this.hasSeenPlayer && ld > 60) {
       const ang = Math.atan2(ldy, ldx);
       this.setRotation(ang + Math.PI / 2);
-      const slow = 0.6;
-      this.setVelocity(Math.cos(ang) * this.cfg.speed * slow, Math.sin(ang) * this.cfg.speed * slow);
+      this.setVelocity(Math.cos(ang) * this.cfg.speed * 0.6, Math.sin(ang) * this.cfg.speed * 0.6);
     } else {
       this.wanderTimer -= delta;
       if (this.wanderTimer <= 0) {

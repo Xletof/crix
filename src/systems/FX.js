@@ -72,64 +72,86 @@ function noise({ dur = 0.15, gain = 0.3, hp = 600, delay = 0 }) {
 }
 
 export const SFX = {
+  // Mandalorian blaster — snappy high-pitched zap (Star Wars blaster feel)
   shoot() {
-    tone({ freq: 880, type: 'square', dur: 0.08, gain: 0.18, slide: -300 });
-    noise({ dur: 0.06, gain: 0.12, hp: 1200 });
+    tone({ freq: 1400, type: 'square', dur: 0.05, gain: 0.20, slide: -900 });
+    tone({ freq: 700,  type: 'sine',   dur: 0.06, gain: 0.12, slide: -400 });
   },
+  // Wrist-rocket barrage — deep whoosh + explosion rumble
   shootSuper() {
-    tone({ freq: 320, type: 'sawtooth', dur: 0.22, gain: 0.3, slide: -120 });
-    tone({ freq: 640, type: 'square', dur: 0.18, gain: 0.18, slide: -260, delay: 0.02 });
-    noise({ dur: 0.2, gain: 0.2, hp: 400 });
+    tone({ freq: 180, type: 'sawtooth', dur: 0.28, gain: 0.30, slide: -80 });
+    tone({ freq: 360, type: 'square',   dur: 0.18, gain: 0.22, slide: -200, delay: 0.02 });
+    noise({ dur: 0.30, gain: 0.25, hp: 80 });
+    // Second rumble for explosion feel
+    tone({ freq: 90, type: 'sine', dur: 0.22, gain: 0.22, slide: -40, delay: 0.14 });
   },
+  // Death Trooper green bolt — lower pitch, slightly different timbre
   enemyShoot() {
-    tone({ freq: 520, type: 'triangle', dur: 0.1, gain: 0.14, slide: -200 });
+    tone({ freq: 900, type: 'square', dur: 0.06, gain: 0.14, slide: -600 });
+    tone({ freq: 450, type: 'sine',   dur: 0.05, gain: 0.08, slide: -300 });
   },
+  // Hit flash — crisp impact
   hit() {
-    noise({ dur: 0.08, gain: 0.2, hp: 800 });
-    tone({ freq: 220, type: 'square', dur: 0.05, gain: 0.18 });
+    noise({ dur: 0.06, gain: 0.18, hp: 1400 });
+    tone({ freq: 300, type: 'square', dur: 0.04, gain: 0.15 });
   },
+  // Player hurt — lower, painful
   hurt() {
-    tone({ freq: 200, type: 'sawtooth', dur: 0.18, gain: 0.25, slide: -120 });
-    noise({ dur: 0.12, gain: 0.18, hp: 200 });
+    tone({ freq: 220, type: 'sawtooth', dur: 0.22, gain: 0.28, slide: -100 });
+    noise({ dur: 0.15, gain: 0.22, hp: 150 });
   },
+  // Enemy die — trooper helmet clatter
   enemyDie() {
-    tone({ freq: 440, type: 'square', dur: 0.18, gain: 0.2, slide: -300 });
-    noise({ dur: 0.12, gain: 0.15, hp: 200 });
+    tone({ freq: 500, type: 'square', dur: 0.12, gain: 0.18, slide: -350 });
+    noise({ dur: 0.10, gain: 0.14, hp: 400 });
   },
+  // Vader hit — heavy metallic thud
   bossHit() {
-    noise({ dur: 0.18, gain: 0.3, hp: 200 });
-    tone({ freq: 110, type: 'square', dur: 0.18, gain: 0.3, slide: -40 });
+    noise({ dur: 0.22, gain: 0.35, hp: 120 });
+    tone({ freq: 80, type: 'sine', dur: 0.22, gain: 0.30, slide: -30 });
+    tone({ freq: 160, type: 'sawtooth', dur: 0.16, gain: 0.20, slide: -50 });
   },
+  // Vader death — dramatic orchestral descent
   bossDie() {
-    tone({ freq: 220, type: 'square', dur: 0.6, gain: 0.35, slide: -180 });
-    noise({ dur: 0.6, gain: 0.3, hp: 60 });
-    tone({ freq: 110, type: 'sawtooth', dur: 0.9, gain: 0.3, slide: -50, delay: 0.2 });
+    [220, 196, 165, 131].forEach((f, i) =>
+      tone({ freq: f, type: 'sawtooth', dur: 0.5, gain: 0.32 - i * 0.04, delay: i * 0.18 })
+    );
+    noise({ dur: 0.8, gain: 0.30, hp: 50 });
+    tone({ freq: 55, type: 'sine', dur: 1.2, gain: 0.25, slide: -20, delay: 0.4 });
   },
+  // Vader breathing / roar — low rumble
   bossRoar() {
-    tone({ freq: 160, type: 'sawtooth', dur: 0.45, gain: 0.32, slide: -70 });
-    noise({ dur: 0.45, gain: 0.22, hp: 80 });
+    tone({ freq: 80,  type: 'sawtooth', dur: 0.55, gain: 0.30, slide: -20 });
+    tone({ freq: 120, type: 'sine',     dur: 0.45, gain: 0.18, slide: -30, delay: 0.1 });
+    noise({ dur: 0.50, gain: 0.20, hp: 60 });
   },
+  // Lightsaber charge ready — ascending hum
   superReady() {
-    tone({ freq: 740, type: 'triangle', dur: 0.12, gain: 0.25 });
-    tone({ freq: 990, type: 'triangle', dur: 0.12, gain: 0.22, delay: 0.1 });
-    tone({ freq: 1320, type: 'triangle', dur: 0.18, gain: 0.22, delay: 0.2 });
+    tone({ freq: 400,  type: 'sine', dur: 0.15, gain: 0.20, slide: 200 });
+    tone({ freq: 600,  type: 'sine', dur: 0.15, gain: 0.18, slide: 200, delay: 0.12 });
+    tone({ freq: 900,  type: 'sine', dur: 0.20, gain: 0.18, slide: 300, delay: 0.22 });
+    tone({ freq: 1200, type: 'sine', dur: 0.18, gain: 0.16, slide: 200, delay: 0.34 });
   },
+  // Bacta pickup — soft chime
   heal() {
-    tone({ freq: 660,  type: 'triangle', dur: 0.08, gain: 0.2 });
-    tone({ freq: 880,  type: 'triangle', dur: 0.12, gain: 0.18, delay: 0.06 });
-    tone({ freq: 1100, type: 'triangle', dur: 0.1,  gain: 0.15, delay: 0.12 });
+    tone({ freq: 880,  type: 'triangle', dur: 0.10, gain: 0.18 });
+    tone({ freq: 1100, type: 'triangle', dur: 0.14, gain: 0.16, delay: 0.07 });
+    tone({ freq: 1320, type: 'triangle', dur: 0.12, gain: 0.14, delay: 0.14 });
   },
+  // Imperial UI click
   uiClick() {
-    tone({ freq: 660, type: 'square', dur: 0.05, gain: 0.18 });
+    tone({ freq: 800, type: 'square', dur: 0.04, gain: 0.15 });
   },
+  // Victory fanfare — 4-note ascending
   victory() {
     [523, 659, 784, 1046].forEach((f, i) =>
-      tone({ freq: f, type: 'triangle', dur: 0.18, gain: 0.28, delay: i * 0.12 })
+      tone({ freq: f, type: 'triangle', dur: 0.20, gain: 0.30, delay: i * 0.13 })
     );
   },
+  // Defeat — descending
   defeat() {
     [392, 330, 262, 196].forEach((f, i) =>
-      tone({ freq: f, type: 'sawtooth', dur: 0.22, gain: 0.28, delay: i * 0.14 })
+      tone({ freq: f, type: 'sawtooth', dur: 0.24, gain: 0.30, delay: i * 0.15 })
     );
   },
   waveStart() {
@@ -138,64 +160,65 @@ export const SFX = {
   },
 };
 
-// --- background music: a simple looping pad+arp ---
+// --- Background music: Imperial march-inspired dark ambient + pulse ---
 export function startMusic() {
   if (musicStarted) return;
   const ctx = ensureCtx();
   if (!ctx) return;
   musicStarted = true;
-  const baseNotes = [55, 62, 65, 67]; // A minor-ish
-  const arp = [220, 261, 329, 392, 329, 261];
   const nodes = [];
-  // Pad: two detuned saws low-passed
-  baseNotes.forEach((midiOffset, idx) => {
+
+  // Low drone pad (Vader breathing rhythm feel)
+  [55, 58, 62].forEach((semi, idx) => {
     const o1 = ctx.createOscillator();
     const o2 = ctx.createOscillator();
     o1.type = 'sawtooth';
     o2.type = 'sawtooth';
-    const f = 110 * Math.pow(2, idx * 0.05);
+    const f = 55 * Math.pow(2, semi / 12);
     o1.frequency.value = f;
-    o2.frequency.value = f * 1.005;
+    o2.frequency.value = f * 1.004;  // slight detune for thickness
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 600;
+    lp.frequency.value = 400;
+    lp.Q.value = 2;
     const g = ctx.createGain();
-    g.gain.value = 0.04;
-    o1.connect(lp);
-    o2.connect(lp);
-    lp.connect(g);
-    g.connect(musicGain);
-    o1.start();
-    o2.start();
+    g.gain.value = 0.028 - idx * 0.005;
+    o1.connect(lp); o2.connect(lp);
+    lp.connect(g); g.connect(musicGain);
+    o1.start(); o2.start();
     nodes.push(o1, o2);
   });
-  // Arp
-  const tempo = 0.25;
-  const startArp = (offset) => {
-    arp.forEach((freq, i) => {
-      const t = ctx.currentTime + offset + i * tempo;
+
+  // Imperial march-inspired bass pulse (4/4 pattern: strong on 1 and 3)
+  // Notes: A2, A2, A2, F2, C3 (simplified "dun dun dun DUN da DUN")
+  const marchNotes = [110, 110, 110, 87, 131, 110, 87, 131];
+  const marchDur = 0.38;
+  const startMarch = (offset) => {
+    marchNotes.forEach((freq, i) => {
+      const t = ctx.currentTime + offset + i * marchDur;
       const o = ctx.createOscillator();
       const g = ctx.createGain();
-      o.type = 'triangle';
+      o.type = 'square';
       o.frequency.value = freq;
       g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.08, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + tempo * 0.9);
+      g.gain.linearRampToValueAtTime(0.06, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + marchDur * 0.85);
       o.connect(g);
       g.connect(musicGain);
       o.start(t);
-      o.stop(t + tempo);
+      o.stop(t + marchDur);
     });
   };
+
   let offset = 0;
-  startArp(offset);
+  startMarch(offset);
   const loop = () => {
     if (!musicStarted) return;
-    offset += arp.length * tempo;
-    startArp(offset - ctx.currentTime);
-    setTimeout(loop, arp.length * tempo * 1000);
+    offset += marchNotes.length * marchDur;
+    startMarch(offset - ctx.currentTime);
+    setTimeout(loop, marchNotes.length * marchDur * 1000);
   };
-  setTimeout(loop, arp.length * tempo * 1000);
+  setTimeout(loop, marchNotes.length * marchDur * 1000);
   musicNodes = nodes;
 }
 
@@ -310,6 +333,14 @@ export function attachFX(scene) {
       scene.time.delayedCall(80, () => {
         if (sprite.active) sprite.clearTint();
       });
+    },
+
+    // Play 3-frame explosion sprite at position (for missile impacts)
+    explosion(x, y, scale = 1.5) {
+      if (!scene.textures.exists('explosion')) return;
+      const spr = scene.add.sprite(x, y, 'explosion', 0).setDepth(35).setScale(scale);
+      spr.play('explode');
+      spr.once('animationcomplete', () => spr.destroy());
     },
   };
   return fx;

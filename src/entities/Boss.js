@@ -16,21 +16,32 @@ export class Boss extends Enemy {
     super(scene, x, y, 'boss', { ...BOSS });
     this.setDepth(29);
     this.body.setCircle(BOSS.radius, this.width / 2 - BOSS.radius, this.height / 2 - BOSS.radius);
-    // Override shadow to bigger
+
+    // Override shadow to bigger one
     this.shadow.destroy();
-    this.shadow = scene.add.image(x, y + 30, 'shadow-boss').setDepth(this.depth - 1).setAlpha(0.4);
+    this.shadow = scene.add.image(x, y + 30, 'shadow-boss').setDepth(this.depth - 1).setAlpha(0.45);
+
     this.state = STATE.IDLE;
     this.stateTimer = 0;
-    this.cooldown = 1200;
+    this.cooldown = 1400;
     this.phase = 1;
     this.contactDmgCd = 0;
+
+    // Vader-specific: saber glow pulse
+    this._glowT = 0;
+    this._enraged = false;
+
     SFX.bossRoar();
+
+    // Start Vader idle anim
+    this.play('vader-idle');
   }
 
   enterPhase(p) {
     if (p === this.phase) return;
     this.phase = p;
     this.cfg = { ...this.cfg, attackCooldownMs: Math.max(900, BOSS.attackCooldownMs - 400 * (p - 1)) };
+    if (p >= 2) this._enraged = true;
     SFX.bossRoar();
     this.scene.events.emit('boss-phase', p);
   }
@@ -43,21 +54,18 @@ export class Boss extends Enemy {
   }
 
   preUpdate(time, delta) {
-    // Skip the base Grunt/Shooter AI by going straight to Phaser.Sprite preUpdate via shadow/hp update
+    // Skip base Enemy AI — Vader has its own state machine
     Phaser.Physics.Arcade.Sprite.prototype.preUpdate?.call(this, time, delta);
     this.shadow.setPosition(this.x, this.y + 30);
     this.updateHpBar();
     this.setAlpha(this.hiddenInBush ? 0.55 : 1);
     if (!this.alive) return;
 
-    // Slow ominous idle/walking bob — gets faster in later phases.
-    // Skip while charging up an attack (that state runs its own scale pulse).
-    if (this.state === STATE.IDLE || this.state === STATE.CHARGING) {
-      this.bobT = (this.bobT || 0) + delta;
-      const speed = this.phase >= 3 ? 0.006 : this.phase >= 2 ? 0.0048 : 0.0036;
-      const amp   = this.phase >= 3 ? 0.06 : this.phase >= 2 ? 0.05 : 0.04;
-      this.setScale(1 + Math.sin(this.bobT * speed) * amp);
-    }
+    // Saber glow pulse (subtle scale)
+    this._glowT += delta;
+    const glowSpd = this._enraged ? 0.008 : 0.004;
+    const glowAmp = this._enraged ? 0.05 : 0.03;
+    const glowScale = 1 + Math.sin(this._glowT * glowSpd) * glowAmp;
 
     // Phase transitions
     const ratio = this.hp / this.hpMax;
@@ -65,10 +73,7 @@ export class Boss extends Enemy {
     else if (this.phase < 2 && ratio <= BOSS.phase2) this.enterPhase(2);
 
     const player = this.scene.player;
-    if (!player || !player.alive) {
-      this.setVelocity(0, 0);
-      return;
-    }
+    if (!player || !player.alive) { this.setVelocity(0, 0); return; }
 
     const dx = player.x - this.x;
     const dy = player.y - this.y;
@@ -79,9 +84,18 @@ export class Boss extends Enemy {
 
     switch (this.state) {
       case STATE.IDLE: {
-        // Slow advance
-        const speed = this.cfg.speed * (this.phase === 3 ? 1.3 : 1);
+        const speed = this.cfg.speed * (this.phase === 3 ? 1.35 : 1);
         this.setVelocity(Math.cos(angToPlayer) * speed, Math.sin(angToPlayer) * speed);
+
+        // Vader animation during advance
+        const spd2 = speed * speed;
+        if (this.body.velocity.x ** 2 + this.body.velocity.y ** 2 > 200) {
+          if (this.anims.currentAnim?.key !== 'vader-walk') this.play('vader-walk');
+        } else {
+          if (this.anims.currentAnim?.key !== 'vader-idle') this.play('vader-idle');
+        }
+        this.setScale(glowScale);
+
         this.cooldown -= delta;
         if (this.cooldown <= 0) {
           this.state = this.pickAttack();
@@ -107,8 +121,9 @@ export class Boss extends Enemy {
       case STATE.CHARGE_WINDUP: {
         this.setVelocity(0, 0);
         this.stateTimer += delta;
-        // Telegraph: scale pulse
-        const pulse = 1 + Math.sin(this.stateTimer / 60) * 0.06;
+        // Vader windup: enraged frame + scale pulse
+        if (this.anims.currentAnim?.key !== 'vader-attack') this.play('vader-attack');
+        const pulse = 1 + Math.sin(this.stateTimer / 55) * 0.07;
         this.setScale(pulse);
         if (this.stateTimer >= BOSS.chargeWindupMs) {
           this.setScale(1);
@@ -119,14 +134,17 @@ export class Boss extends Enemy {
             Math.sin(this.chargeAngle) * BOSS.chargeSpeed
           );
           this.scene.events.emit('boss-charge', this);
+          if (this.anims.currentAnim?.key !== 'vader-walk') this.play('vader-walk');
         }
         break;
       }
       case STATE.CHARGING: {
         this.stateTimer += delta;
+        this.setScale(1 + Math.sin(this.stateTimer / 40) * 0.04); // vibrate
         if (this.stateTimer >= BOSS.chargeDurationMs) {
           this.state = STATE.IDLE;
           this.cooldown = this.cfg.attackCooldownMs;
+          this.setScale(1);
         }
         break;
       }
@@ -142,7 +160,7 @@ export class Boss extends Enemy {
   damage(amount, knockbackVec = null) {
     if (!this.alive) return;
     this.hp = Math.max(0, this.hp - amount);
-    // Boss doesn't get knocked back
+    // Boss no knockback
     this.scene.events.emit('boss-hit', this, amount);
     if (this.hp <= 0) this.die();
   }
