@@ -40,6 +40,13 @@ export const ROOMS = [
     pickups: [
       { x: 500, y: 550, weapon: 'rifle' },
     ],
+    // Reinforcements through the upper-right side door after 22s of combat
+    reinforce: {
+      afterMs: 22000,
+      count: 2,
+      type: 'grunt',
+      door: { x: 1400, y: 80 },
+    },
   },
 
   // ── 2. Service Corridor ────────────────────────────────────────────────
@@ -70,6 +77,13 @@ export const ROOMS = [
     pickups: [
       { x: 450, y: 1360, weapon: 'flamethrower' },
     ],
+    // Single shooter reinforcement from the top — tight corridor punishes camping
+    reinforce: {
+      afterMs: 18000,
+      count: 1,
+      type: 'shooter',
+      door: { x: 450, y: 80 },
+    },
   },
 
   // ── 3. Detention Block ─────────────────────────────────────────────────
@@ -107,6 +121,13 @@ export const ROOMS = [
     pickups: [
       { x: 700, y: 600, weapon: 'detonator' },
     ],
+    // Three reinforcements from the top — the heaviest of the run
+    reinforce: {
+      afterMs: 20000,
+      count: 3,
+      type: 'grunt',
+      door: { x: 700, y: 80 },
+    },
   },
 
   // ── 4. Vader's Chamber (boss) ──────────────────────────────────────────

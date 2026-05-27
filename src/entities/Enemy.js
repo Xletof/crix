@@ -3,7 +3,7 @@ import { ENEMY } from '../config.js';
 import { SFX } from '../systems/FX.js';
 
 // ── AI state constants ────────────────────────────────────────────────────────
-const ST = {
+export const ST = {
   PATROL:     'patrol',     // walking assigned waypoints, unalerted
   ALERT:      'alert',      // just spotted player — brief freeze before combat
   CHASE:      'chase',      // (Grunt) running toward player for melee
@@ -13,8 +13,9 @@ const ST = {
   FLANK:      'flank',      // (Shooter) moving to a perpendicular flanking pos
 };
 
-// Detection constants
-const VISION_RANGE    = 420;       // px — unalerted patrol sight
+// Detection constants (exported so GameScene can render vision cones)
+export const VISION_RANGE = 420;   // px — unalerted patrol sight
+export const VISION_HALF_ANGLE = Math.PI * 0.55; // ~100° each side
 const ALARM_RANGE     = 130;       // px — player too close always triggers alarm
 const SUPPRESS_FIRE_MIN = 1400;    // ms between peeks
 const SUPPRESS_FIRE_MAX = 2200;
@@ -61,6 +62,16 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.hpBar  = scene.add.graphics().setDepth(this.depth + 1);
     this.hpBar.visible = false;
 
+    // "!" alert indicator (shown briefly when spotting player)
+    this.alertMark = scene.add.text(x, y - cfg.radius - 24, '!', {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '28px',
+      fontStyle: 'bold',
+      color: '#ffff20',
+      stroke: '#000000',
+      strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(this.depth + 2).setAlpha(0);
+
     // Listen for the room-wide alarm so patrolling enemies switch to combat
     scene.events.on('room-alarm', this._onAlarm, this);
 
@@ -71,6 +82,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   damage(amount, knockbackVec = null) {
     if (!this.alive) return;
+    const wasPatrolling = this.state === ST.PATROL;
     this.hp = Math.max(0, this.hp - amount);
     if (knockbackVec) {
       this.body.setVelocity(
@@ -79,10 +91,25 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       );
     }
     this.recoilT = 80;
-    // Being shot always triggers alarm
-    if (this.state === ST.PATROL) this._triggerAlarm();
+
+    // Stealth-kill logic: if a patrolling enemy is killed AND the player
+    // is hidden in cover/bush, the room never goes loud.
+    const player = this.scene.player;
+    const killed = this.hp <= 0;
+    const playerHidden = !!player?.hiddenInBush;
+
+    if (wasPatrolling) {
+      if (killed && playerHidden) {
+        // Silent kill — count it for the HUD
+        this.scene.events.emit('stealth-kill');
+      } else {
+        // Loud — broadcast alarm
+        this._triggerAlarm();
+      }
+    }
+
     this.scene.events.emit('enemy-hit', this, amount);
-    if (this.hp <= 0) this.die();
+    if (killed) this.die();
   }
 
   die() {
@@ -93,6 +120,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.scene.events.emit('enemy-died', this);
     this.hpBar.destroy();
     this.shadow.destroy();
+    this.alertMark.destroy();
     this.destroy();
   }
 
@@ -114,6 +142,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (this.state !== ST.PATROL) return;
     this.state      = ST.ALERT;
     this.alertTimer = ALERT_PAUSE_MS;
+    this._flashAlertMark();
     // Broadcast to all other enemies in the room
     this.scene.events.emit('room-alarm');
     SFX.uiClick(); // small "alert!" blip
@@ -123,7 +152,19 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (this.state === ST.PATROL) {
       this.state      = ST.ALERT;
       this.alertTimer = ALERT_PAUSE_MS;
+      this._flashAlertMark();
     }
+  }
+
+  _flashAlertMark() {
+    this.alertMark.setAlpha(1).setScale(0.4);
+    this.scene.tweens.add({
+      targets: this.alertMark,
+      scale: 1.2,
+      alpha: { from: 1, to: 0 },
+      duration: 700,
+      ease: 'Back.easeOut',
+    });
   }
 
   // ── Shared movement helper ────────────────────────────────────────────────
@@ -193,6 +234,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   preUpdate(time, delta) {
     super.preUpdate?.(time, delta);
     this.shadow.setPosition(this.x, this.y + 18);
+    this.alertMark.setPosition(this.x, this.y - this.cfg.radius - 24);
     this.updateHpBar();
     this.setAlpha(this.hiddenInBush ? 0.55 : 1);
 
@@ -441,48 +483,66 @@ export class EnemyShooter extends Enemy {
   // ── FLANK: move to a perpendicular position and fire ───────────────────
 
   _computeFlankTarget(player) {
-    // Compute a position 90° off the axis from this enemy to the player
+    // Compute a position 90° off the axis from this enemy to the player.
+    // Pick whichever side is farther from any wall (rough heuristic).
     const dx  = player.x - this.x, dy = player.y - this.y;
     const len = Math.hypot(dx, dy) || 1;
-    // Perpendicular unit vector (rotate 90°)
-    const side = (Math.random() < 0.5 ? 1 : -1);
-    const px   = (-dy / len) * side;
-    const py   = (dx  / len) * side;
-    this.flankTarget = {
-      x: player.x + px * FLANK_DIST,
-      y: player.y + py * FLANK_DIST,
-    };
-    // Clamp to room bounds
+    const candidates = [];
+    for (const side of [1, -1]) {
+      const px = (-dy / len) * side;
+      const py = (dx  / len) * side;
+      candidates.push({
+        x: player.x + px * FLANK_DIST,
+        y: player.y + py * FLANK_DIST,
+        side,
+      });
+    }
+    // Clamp + score by distance from current pos (prefer the closer one)
     const { w, h } = this.scene.roomSpec?.bounds ?? { w: 1600, h: 1600 };
-    this.flankTarget.x = Phaser.Math.Clamp(this.flankTarget.x, 80, w - 80);
-    this.flankTarget.y = Phaser.Math.Clamp(this.flankTarget.y, 80, h - 80);
-    this.flankHoldMs   = 0;
+    let best = null, bestScore = Infinity;
+    for (const c of candidates) {
+      c.x = Phaser.Math.Clamp(c.x, 80, w - 80);
+      c.y = Phaser.Math.Clamp(c.y, 80, h - 80);
+      const score = Math.hypot(c.x - this.x, c.y - this.y);
+      if (score < bestScore) { bestScore = score; best = c; }
+    }
+    this.flankTarget = best;
+    this._flankRefX  = player.x;
+    this._flankRefY  = player.y;
+    this._flankRecomputeCd = 1200; // ms
   }
 
   _tickFlank(delta, player) {
     const sees = this.canSee(player);
     if (sees) { this.lastKnownX = player.x; this.lastKnownY = player.y; }
 
-    if (!this.flankTarget) {
-      this._computeFlankTarget(player);
+    if (!this.flankTarget) this._computeFlankTarget(player);
+
+    // Recompute target if player has moved >180px since last computation
+    this._flankRecomputeCd -= delta;
+    if (this._flankRecomputeCd <= 0) {
+      const pdx = player.x - this._flankRefX;
+      const pdy = player.y - this._flankRefY;
+      if (Math.hypot(pdx, pdy) > 180) {
+        this._computeFlankTarget(player);
+      } else {
+        this._flankRecomputeCd = 1200;
+      }
     }
 
     const dist = this._moveToward(this.flankTarget.x, this.flankTarget.y, this.cfg.speed * 1.1);
 
     if (dist < ARRIVE_THRESH) {
-      // In flank position — fire freely
       this._stopAndFace(this.lastKnownX, this.lastKnownY);
       this._maybeFireAt(delta, player);
       this.flankHoldMs += delta;
-      // After 3 s in flank, transition to cover suppression
-      if (this.flankHoldMs > 3000) {
+      if (this.flankHoldMs > 2500) {
         this.flankTarget = null;
         this.flankHoldMs = 0;
         this.state = ST.COVER_MOVE;
         this._claimCover(player);
       }
     } else {
-      // Fire of opportunity while moving to flank position
       this._maybeFireAt(delta, player);
     }
   }

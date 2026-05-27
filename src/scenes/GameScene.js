@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS } from '../config.js';
 import { Player } from '../entities/Player.js';
-import { EnemyGrunt, EnemyShooter } from '../entities/Enemy.js';
+import { EnemyGrunt, EnemyShooter, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
 import { BulletGroup } from '../entities/Bullet.js';
 import { BushSystem } from '../systems/BushSystem.js';
@@ -40,8 +40,20 @@ export class GameScene extends Phaser.Scene {
     this.aimGraphics   = this.add.graphics().setDepth(25);
     this.flameGraphics = this.add.graphics().setDepth(24);
 
+    // ── Patrol vision cones (drawn under enemies) ─────────────────────────
+    this.visionGraphics = this.add.graphics().setDepth(2);
+
+    // ── Reinforcement door visual ─────────────────────────────────────────
+    this.reinforceGraphics = this.add.graphics().setDepth(14);
+
     // ── Weapon pickups (cleared per room) ──────────────────────────────────
     this.weaponPickups = [];
+
+    // ── Reinforcement state (reset per room) ──────────────────────────────
+    this.reinforceTimer    = 0;
+    this.reinforceArmed    = false;  // true once first alarm fires
+    this.reinforceSpawned  = false;
+    this.stealthKills      = 0;
 
     // ── Enemy group ────────────────────────────────────────────────────────
     this.enemies = this.add.group({ runChildUpdate: false });
@@ -129,8 +141,23 @@ export class GameScene extends Phaser.Scene {
       this.bushSystem.add(con, 55);
     }
 
-    // Remove any stale room-alarm listeners from previous rooms
+    // Remove any stale room-alarm / stealth listeners from previous rooms
     this.events.off('room-alarm');
+    this.events.off('stealth-kill');
+
+    // Reset reinforcement + stealth tracking for the new room
+    this.reinforceTimer    = 0;
+    this.reinforceArmed    = false;
+    this.reinforceSpawned  = false;
+    this.stealthKills      = 0;
+    this.reinforceGraphics.clear();
+
+    // First room-alarm of the room arms the reinforcement timer
+    this.events.on('room-alarm', () => this._onFirstAlarm());
+    this.events.on('stealth-kill', () => {
+      this.stealthKills += 1;
+      this.fx.damageNumber(this.player.x, this.player.y - 40, 'SILENT', '#80ff80', false);
+    });
 
     // Weapon pickups
     this.weaponPickups.forEach((p) => p.destroy());
@@ -312,6 +339,76 @@ export class GameScene extends Phaser.Scene {
       this.loadRoom(ROOMS[nextIdx]);
       this.cameras.main.fadeIn(350, 0, 0, 0);
     });
+  }
+
+  // ── Reinforcements ───────────────────────────────────────────────────────
+
+  _onFirstAlarm() {
+    if (this.reinforceArmed) return;
+    const cfg = this.roomSpec?.reinforce;
+    if (!cfg) return;
+    this.reinforceArmed = true;
+    this.reinforceTimer = cfg.afterMs;
+  }
+
+  _tickReinforcements(delta) {
+    if (!this.reinforceArmed || this.reinforceSpawned) return;
+    const cfg = this.roomSpec?.reinforce;
+    if (!cfg) return;
+    this.reinforceTimer -= delta;
+
+    // Visual: pulsing red highlight on the reinforce door
+    this._drawReinforceDoor(cfg.door);
+
+    // HUD countdown update
+    const secs = Math.max(0, Math.ceil(this.reinforceTimer / 1000));
+    this.events.emit('reinforce-tick', secs);
+
+    if (this.reinforceTimer <= 0) {
+      this._spawnReinforcements();
+    }
+  }
+
+  _drawReinforceDoor({ x, y }) {
+    const g = this.reinforceGraphics;
+    g.clear();
+    // Pulse opacity based on time remaining
+    const r = 60;
+    const t = (this.time.now * 0.005) % (Math.PI * 2);
+    const pulse = 0.5 + 0.5 * Math.sin(t);
+    g.fillStyle(0xff2020, 0.18 + pulse * 0.2);
+    g.fillCircle(x, y, r);
+    g.lineStyle(3, 0xff4040, 0.7 + pulse * 0.3);
+    g.strokeCircle(x, y, r);
+    g.lineStyle(2, 0xff8080, 0.5);
+    g.strokeCircle(x, y, r * 1.4);
+  }
+
+  _spawnReinforcements() {
+    const cfg = this.roomSpec.reinforce;
+    this.reinforceSpawned = true;
+    this.reinforceGraphics.clear();
+    this.events.emit('reinforce-spawn');
+
+    // Big visual at the door
+    this.fx.explosion(cfg.door.x, cfg.door.y, 1.4);
+    this.fx.shake(0.012, 200);
+    SFX.bossRoar();
+
+    // Spawn enemies in a small spread around the door
+    for (let i = 0; i < cfg.count; i++) {
+      this.time.delayedCall(i * 220, () => {
+        const ox = Phaser.Math.Between(-30, 30);
+        const oy = Phaser.Math.Between(-10, 30);
+        const e  = this.spawnEnemyAt(cfg.type, cfg.door.x + ox, cfg.door.y + oy, {});
+        // Spawn in ALERT so they immediately engage
+        if (e) {
+          e.state = ST.ALERT;
+          e.alertTimer = 200;
+        }
+        this.fx.burst(cfg.door.x + ox, cfg.door.y + oy, 'red', 8);
+      });
+    }
   }
 
   // ── Spawning ─────────────────────────────────────────────────────────────
@@ -592,6 +689,12 @@ export class GameScene extends Phaser.Scene {
     // Aim cone
     this.drawAimCone();
 
+    // Patrol enemy vision cones
+    this._drawPatrolVision();
+
+    // Reinforcement timer + door
+    this._tickReinforcements(delta);
+
     // Health orbs
     this.updateHealthOrbs(delta);
 
@@ -794,6 +897,50 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ── Aim cone ─────────────────────────────────────────────────────────────
+
+  // Render a soft vision cone on each patrolling enemy. Yellow when they
+  // can't see the player, red when the player is inside the cone.
+  _drawPatrolVision() {
+    const g = this.visionGraphics;
+    g.clear();
+    const p = this.player;
+    if (!p?.alive) return;
+
+    const steps    = 14;
+    const range    = VISION_RANGE;
+    const halfAng  = VISION_HALF_ANGLE;
+
+    for (const e of this.enemies.getChildren()) {
+      if (!e.active || !e.alive) continue;
+      if (e.state !== ST.PATROL) continue;
+      const facing = e.rotation - Math.PI / 2;
+      // Is the player inside the cone (and visible)?
+      let seen = false;
+      if (!p.hiddenInBush) {
+        const dx = p.x - e.x, dy = p.y - e.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < range) {
+          const angTo = Math.atan2(dy, dx);
+          const diff  = Phaser.Math.Angle.Wrap(angTo - facing);
+          if (Math.abs(diff) < halfAng) seen = true;
+        }
+      }
+      const color = seen ? 0xff4040 : 0xffdd40;
+      const alpha = seen ? 0.20    : 0.10;
+      g.fillStyle(color, alpha);
+      g.beginPath();
+      g.moveTo(e.x, e.y);
+      for (let i = 0; i <= steps; i++) {
+        const a = facing - halfAng + (halfAng * 2 * i) / steps;
+        g.lineTo(e.x + Math.cos(a) * range, e.y + Math.sin(a) * range);
+      }
+      g.closePath();
+      g.fillPath();
+      // Subtle outline
+      g.lineStyle(1, color, alpha * 2);
+      g.strokePath();
+    }
+  }
 
   drawAimCone() {
     const g = this.aimGraphics;
