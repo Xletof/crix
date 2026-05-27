@@ -102,7 +102,6 @@ export class HUDScene extends Phaser.Scene {
       onStart: () => this.gameScene?.player?.setAimInput({ x: 0, y: 0, force: 0 }),
       onMove: (v) => {
         this.gameScene?.player?.setAimInput(v);
-        if (v.force > 0.1) this.gameScene?.player?.tryFire();
       },
       onEnd: (v) => this.gameScene?.player?.releaseAim(v),
     });
