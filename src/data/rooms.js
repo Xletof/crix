@@ -66,12 +66,13 @@ export const ROOMS = [
       { x: 450, y: 380 }, { x: 450, y: 800 }, { x: 450, y: 1200 },
     ],
     enemies: [
+      // These enemies heard the hangar fight — they boot in ALERT state
       {
-        type: 'grunt', x: 450, y: 650,
+        type: 'grunt', x: 450, y: 650, alerted: true,
         patrol: [{ x: 250, y: 650 }, { x: 650, y: 650 }],
       },
-      { type: 'grunt',   x: 320, y: 1100 },
-      { type: 'shooter', x: 450, y: 1280 },
+      { type: 'grunt',   x: 320, y: 1100, alerted: true },
+      { type: 'shooter', x: 450, y: 1280, alerted: true },
     ],
     // Flamethrower reward for clearing the tight corridor
     pickups: [

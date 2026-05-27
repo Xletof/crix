@@ -14,9 +14,9 @@ export const ST = {
 };
 
 // Detection constants (exported so GameScene can render vision cones)
-export const VISION_RANGE = 420;   // px — unalerted patrol sight
-export const VISION_HALF_ANGLE = Math.PI * 0.55; // ~100° each side
-const ALARM_RANGE     = 130;       // px — player too close always triggers alarm
+export const VISION_RANGE = 380;   // px — unalerted patrol sight
+export const VISION_HALF_ANGLE = Math.PI * 0.28; // ~50° each side = 100° total cone
+const ALARM_RANGE     = 90;        // px — player too close always triggers alarm (reduced from 130)
 const SUPPRESS_FIRE_MIN = 1400;    // ms between peeks
 const SUPPRESS_FIRE_MAX = 2200;
 const REPOSITION_DIST   = 110;     // px — retreat from cover when player this close
@@ -48,8 +48,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this._fireAnimTimer = 0;
     this.recoilT        = 0;
 
-    // AI shared state
-    this.state         = (spec.patrol?.length > 0) ? ST.PATROL : ST.ALERT;
+    // AI shared state — idle enemies (no patrol) still start PATROL (stand & scan).
+    // Only enemies explicitly flagged spec.alerted:true boot straight into combat.
+    this.state         = spec.alerted ? ST.ALERT : ST.PATROL;
     this.patrolPath    = spec.patrol || [];
     this.patrolIdx     = 0;
     this.patrolWait    = 0;          // ms to pause at waypoint

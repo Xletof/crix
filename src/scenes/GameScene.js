@@ -341,6 +341,24 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // ── Sound-radius alarm ────────────────────────────────────────────────────
+  // Only enemies within `radius` px of the shot hear it and switch to ALERT.
+  // Enemies farther away keep patrolling until they SEE the player themselves.
+  _alertEnemiesNear(x, y, radius) {
+    const r2 = radius * radius;
+    let anyAlerted = false;
+    for (const e of this.enemies.getChildren()) {
+      if (!e.active || !e.alive) continue;
+      if (e.state !== ST.PATROL) continue; // already alerted
+      if ((e.x - x) ** 2 + (e.y - y) ** 2 < r2) {
+        e._triggerAlarm();
+        anyAlerted = true;
+      }
+    }
+    // Arm the reinforcement timer if any enemy was alerted
+    if (anyAlerted) this._onFirstAlarm();
+  }
+
   // ── Reinforcements ───────────────────────────────────────────────────────
 
   _onFirstAlarm() {
@@ -483,14 +501,19 @@ export class GameScene extends Phaser.Scene {
   bindEvents() {
     this.events.on('player-fire', (angle) => {
       this.firePlayerPrimary(angle);
-      // First shot fires the room alarm — all patrolling enemies go on alert
-      this.events.emit('room-alarm');
+      // Pistol — only enemies within hearing radius react to the shot
+      this._alertEnemiesNear(this.player.x, this.player.y, 420);
     });
     this.events.on('player-fire-super', (angle) => {
       this.firePlayerSuper(angle);
+      // Super shot — loud enough to alert the entire room
       this.events.emit('room-alarm');
     });
-    this.events.on('player-fire-rifle',  (angle) => this.firePlayerRifle(angle));
+    this.events.on('player-fire-rifle', (angle) => {
+      this.firePlayerRifle(angle);
+      // Rifle — louder than pistol, alerts a wider radius
+      this._alertEnemiesNear(this.player.x, this.player.y, 560);
+    });
     this.events.on('grenade-detonate',  (x, y, dmg, r) => this.detonateGrenade(x, y, dmg, r));
     this.events.on('shooter-fire',      (s, a)  => this.fireShooter(s, a));
     this.events.on('boss-fan',          (b, a)  => this.fireBossFan(b, a));
