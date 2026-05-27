@@ -8,10 +8,10 @@ export const VIEW = {
 export const WORLD = {
   width: 1600,
   height: 1600,
-  bg: 0x14161c,       // Death Star floor dark (matches PAL.impMid)
+  bg: 0x14161c,
   bgDark: 0x0c0c12,
-  bushColor: 0x2e3038, // Imperial console
-  wallColor: 0x1e2028, // Blast door
+  bushColor: 0x2e3038,
+  wallColor: 0x1e2028,
 };
 
 export const PLAYER = {
@@ -21,14 +21,14 @@ export const PLAYER = {
   ammoMax: 4,
   ammoReloadMs: 750,
   fireCooldownMs: 150,
-  // Primary: 3 red blaster bolts
+  // Primary: 3 red blaster bolts (pistol)
   pelletCount: 3,
   pelletSpreadDeg: 10,
   pelletDamage: 300,
   pelletSpeed: 820,
   pelletRange: 420,
   pelletRadius: 7,
-  // Super: wrist-rocket barrage (7 missiles)
+  // Super: wrist-rocket barrage
   superHitsToCharge: 10,
   superPellets: 7,
   superSpreadDeg: 30,
@@ -44,6 +44,39 @@ export const PLAYER = {
   bushAlpha: 0.5,
 };
 
+// Secondary weapons (picked up in rooms)
+export const WEAPONS = {
+  rifle: {
+    id: 'rifle',
+    name: 'DC-15 RIFLE',
+    totalAmmo: 27,       // 9 bursts
+    burstCount: 3,
+    burstDelayMs: 75,    // ms between burst shots
+    damage: 220,
+    speed: 940,
+    range: 500,
+    fireCooldownMs: 300,
+  },
+  flamethrower: {
+    id: 'flamethrower',
+    name: 'FLAMETHROWER',
+    fuel: 100,            // percentage
+    drainPerSec: 22,      // ~4.5 s of continuous fire
+    damagePerSec: 380,
+    range: 190,
+    halfAngleDeg: 28,
+  },
+  detonator: {
+    id: 'detonator',
+    name: 'THERMAL DET.',
+    charges: 3,
+    throwSpeed: 510,
+    fuseMs: 1100,
+    blastRadius: 130,
+    damage: 750,
+  },
+};
+
 export const ENEMY = {
   grunt: {
     hp: 600,
@@ -52,7 +85,7 @@ export const ENEMY = {
     meleeDamage: 150,
     meleeRange: 38,
     meleeCooldownMs: 700,
-    color: 0xdcdce8,   // stormtrooper white
+    color: 0xdcdce8,
     eyeColor: 0x20ee20,
   },
   shooter: {
@@ -64,7 +97,7 @@ export const ENEMY = {
     bulletSpeed: 480,
     bulletDamage: 110,
     bulletRange: 520,
-    color: 0x181820,   // death trooper black
+    color: 0x181820,
     eyeColor: 0x20d020,
   },
 };
@@ -79,7 +112,6 @@ export const BOSS = {
   chargeWindupMs: 700,
   chargeSpeed: 560,
   chargeDurationMs: 900,
-  // Force push fan attack
   fanPellets: 11,
   fanSpreadDeg: 70,
   fanBulletSpeed: 380,
@@ -91,21 +123,12 @@ export const BOSS = {
   eyeColor: 0xff2020,
 };
 
-export const WAVES = [
-  // Wave 1 — stormtrooper squad
-  { spawns: [{ type: 'grunt', count: 4 }], spreadMs: 2500 },
-  // Wave 2 — plus death troopers
-  { spawns: [{ type: 'grunt', count: 3 }, { type: 'shooter', count: 2 }], spreadMs: 3000 },
-  // Wave 3 — heavy assault
-  { spawns: [{ type: 'shooter', count: 3 }, { type: 'grunt', count: 5 }], spreadMs: 2500 },
-];
-
 // Bacta vial healing pickup
 export const HEALTH_ORB = {
   dropChance: 0.22,
   healAmount: 140,
   radius: 14,
-  color: 0x1898e8,    // bacta blue
+  color: 0x1898e8,
   lifeMs: 8000,
 };
 
@@ -116,19 +139,18 @@ export const HUDCFG = {
   joystickBottom: 36,
 };
 
-// Numeric hex colors for Phaser Graphics calls
 export const COLORS = {
-  player:       0x6a7080, // beskar
+  player:        0x6a7080,
   playerOutline: 0x0a0c14,
-  bullet:       0xff2828, // red blaster bolt
-  bulletSuper:  0xffffff, // missile
-  enemyBullet:  0x10ee10, // green bolt
-  hpBack:       0x0a0e18,
-  hpFront:      0x1898e8, // bacta blue HP bar
-  hpLow:        0xee1010, // red when critical
-  ammoOn:       0xff2828, // red energy cell
-  ammoOff:      0x1a1c22,
-  superGauge:   0xee1010,
-  superReady:   0xff5040,
-  textShadow:   0x000000,
+  bullet:        0xff2828,
+  bulletSuper:   0xffffff,
+  enemyBullet:   0x10ee10,
+  hpBack:        0x0a0e18,
+  hpFront:       0x1898e8,
+  hpLow:         0xee1010,
+  ammoOn:        0xff2828,
+  ammoOff:       0x1a1c22,
+  superGauge:    0xee1010,
+  superReady:    0xff5040,
+  textShadow:    0x000000,
 };

@@ -1107,3 +1107,98 @@ export function paintSuperButton(scene) {
   make('super-btn', true);
   make('super-btn-off', false);
 }
+
+// ── WEAPON PICKUPS ────────────────────────────────────────────────────────────
+// Each pickup is 16×16 logical pixels @ scale 4 = 64×64 texture.
+// Glowing outline so they read clearly on the dark floor.
+
+export function paintWeaponPickups(scene) {
+  // DC-15 Rifle — angular dark barrel, orange glow
+  const rifle = new PixelCanvas(scene, 'pickup-rifle', 16, 16, 4);
+  // Outer glow halo
+  for (let x = 2; x <= 13; x++) { rifle.px(x, 0, '#804010'); rifle.px(x, 15, '#804010'); }
+  for (let y = 1; y <= 14; y++) { rifle.px(1,  y, '#804010'); rifle.px(14, y, '#804010'); }
+  // Barrel (long horizontal rectangle, top half)
+  rifle.rect(2, 3, 12, 3, PAL.impDark);
+  rifle.rect(3, 4, 10, 1, PAL.impGrey);
+  rifle.rect(3, 3, 10, 1, PAL.impLight);
+  // Muzzle tip orange
+  rifle.rect(13, 3, 1, 3, '#ff8010');
+  // Body / grip
+  rifle.rect(3, 6, 7, 5, PAL.impMid);
+  rifle.rect(4, 7, 5, 3, PAL.impGrey);
+  rifle.rect(5, 6, 3, 1, PAL.impLight);
+  // Scope
+  rifle.rect(5, 2, 3, 2, PAL.impLight);
+  rifle.rect(6, 2, 1, 1, PAL.bactaLight);
+  // Mag
+  rifle.rect(4, 11, 4, 3, PAL.impGrey);
+  rifle.finish();
+
+  // Flamethrower — squat tank + nozzle, orange flame
+  const flame = new PixelCanvas(scene, 'pickup-flamer', 16, 16, 4);
+  for (let x = 2; x <= 13; x++) { flame.px(x, 0, '#602800'); flame.px(x, 15, '#602800'); }
+  for (let y = 1; y <= 14; y++) { flame.px(1,  y, '#602800'); flame.px(14, y, '#602800'); }
+  // Tank body
+  flame.rect(2, 5, 8, 7, PAL.impMid);
+  flame.rect(3, 6, 6, 5, PAL.impGrey);
+  flame.rect(3, 5, 6, 1, PAL.impLight);
+  // Tank straps
+  flame.rect(5, 5, 1, 7, PAL.impDark);
+  flame.rect(7, 5, 1, 7, PAL.impDark);
+  // Nozzle
+  flame.rect(10, 7, 4, 3, PAL.impMid);
+  flame.rect(11, 8, 2, 1, PAL.impLight);
+  // Flame at tip
+  flame.px(14, 7, '#ff8010');
+  flame.px(14, 8, '#ffb040');
+  flame.px(14, 9, '#ff8010');
+  flame.px(15, 8, '#ffd060');
+  // Pressure gauge (small detail)
+  flame.rect(3, 9, 2, 2, '#1040aa');
+  flame.finish();
+
+  // Thermal Detonator — round sphere, red button, silver band
+  const det = new PixelCanvas(scene, 'pickup-det', 16, 16, 4);
+  for (let x = 3; x <= 12; x++) { det.px(x, 1, '#880000'); det.px(x, 14, '#880000'); }
+  for (let y = 2; y <= 13; y++) { det.px(2,  y, '#880000'); det.px(13, y, '#880000'); }
+  // Sphere body
+  det.rect(4, 3, 8, 10, PAL.impMid);
+  det.rect(3, 4, 10, 8, PAL.impMid);
+  det.rect(5, 4, 6, 8, PAL.impGrey);
+  det.rect(4, 5, 8, 6, PAL.impGrey);
+  // Highlight
+  det.rect(5, 4, 3, 2, PAL.impLight);
+  // Equatorial silver band
+  det.rect(3, 7, 10, 2, PAL.metalLight);
+  det.rect(3, 7, 10, 1, PAL.impSheen);
+  // Red activation button
+  det.rect(6, 7, 4, 2, '#cc0000');
+  det.rect(7, 7, 2, 2, '#ff2020');
+  det.rect(7, 7, 2, 1, '#ff8888');
+  det.finish();
+}
+
+// ── GRENADE PROJECTILE ────────────────────────────────────────────────────────
+// 10×10 logical @ scale 3 = 30×30 texture
+export function paintGrenade(scene) {
+  const g = new PixelCanvas(scene, 'grenade', 10, 10, 3);
+  // Sphere
+  g.rect(2, 1, 6, 8, PAL.impMid);
+  g.rect(1, 2, 8, 6, PAL.impMid);
+  g.rect(3, 2, 4, 6, PAL.impGrey);
+  g.rect(2, 3, 6, 4, PAL.impGrey);
+  // Highlight
+  g.rect(3, 2, 2, 2, PAL.impLight);
+  // Band
+  g.rect(1, 4, 8, 2, PAL.impSilver);
+  // Fuse pin (top)
+  g.px(4, 0, PAL.metalLight);
+  g.px(5, 0, PAL.metalLight);
+  g.px(4, 1, PAL.impSheen);
+  g.px(5, 1, PAL.impSheen);
+  // Red LED
+  g.px(4, 4, '#ff2020');
+  g.px(5, 4, '#ff4040');
+  g.finish();
+}

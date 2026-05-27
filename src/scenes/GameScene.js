@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, PLAYER, ENEMY, BOSS, HEALTH_ORB } from '../config.js';
+import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS } from '../config.js';
 import { Player } from '../entities/Player.js';
 import { EnemyGrunt, EnemyShooter } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
@@ -7,6 +7,7 @@ import { BulletGroup } from '../entities/Bullet.js';
 import { BushSystem } from '../systems/BushSystem.js';
 import { RoomManager } from '../systems/RoomManager.js';
 import { CoverRegistry } from '../systems/CoverRegistry.js';
+import { WeaponPickup } from '../entities/WeaponPickup.js';
 import { attachFX, SFX, startMusic, duckMusic, stopMusic } from '../systems/FX.js';
 import { ROOMS } from '../data/rooms.js';
 
@@ -18,8 +19,12 @@ export class GameScene extends Phaser.Scene {
   create() {
     // ── Persistent bullet groups (survive room transitions) ────────────────
     this.playerBullets      = new BulletGroup(this, 'bullet');
+    this.playerRifleBullets = new BulletGroup(this, 'bullet');   // rifle uses same bolt tex
     this.playerSuperBullets = new BulletGroup(this, 'bullet-super');
     this.enemyBullets       = new BulletGroup(this, 'bullet-enemy');
+
+    // ── Grenades group ─────────────────────────────────────────────────────
+    this.grenades = this.physics.add.group();
 
     // ── FX ─────────────────────────────────────────────────────────────────
     this.fx = attachFX(this);
@@ -31,8 +36,12 @@ export class GameScene extends Phaser.Scene {
     // ── Bush / cover system ────────────────────────────────────────────────
     this.bushSystem = new BushSystem(this);
 
-    // ── Aim cone overlay ───────────────────────────────────────────────────
-    this.aimGraphics = this.add.graphics().setDepth(25);
+    // ── Aim cone + flame cone overlays ────────────────────────────────────
+    this.aimGraphics   = this.add.graphics().setDepth(25);
+    this.flameGraphics = this.add.graphics().setDepth(24);
+
+    // ── Weapon pickups (cleared per room) ──────────────────────────────────
+    this.weaponPickups = [];
 
     // ── Enemy group ────────────────────────────────────────────────────────
     this.enemies = this.add.group({ runChildUpdate: false });
@@ -123,6 +132,13 @@ export class GameScene extends Phaser.Scene {
     // Remove any stale room-alarm listeners from previous rooms
     this.events.off('room-alarm');
 
+    // Weapon pickups
+    this.weaponPickups.forEach((p) => p.destroy());
+    this.weaponPickups = [];
+    (spec.pickups ?? []).forEach(({ x, y, weapon }) => {
+      this.weaponPickups.push(new WeaponPickup(this, x, y, weapon));
+    });
+
     // Spawn enemies listed in the spec (each gets the cover registry injected)
     spec.enemies.forEach((enemySpec) => this.spawnEnemyAt(enemySpec.type, enemySpec.x, enemySpec.y, enemySpec));
 
@@ -171,6 +187,14 @@ export class GameScene extends Phaser.Scene {
 
     // Static wall group
     this.walls.clear(true, true);
+
+    // Weapon pickups
+    this.weaponPickups?.forEach((p) => p.destroy());
+    this.weaponPickups = [];
+
+    // Grenades
+    this.grenades?.getChildren().forEach((g) => { try { g.destroy(); } catch (_) {} });
+    this.grenades?.clear(false, false);
 
     // Kill in-flight bullets
     [...this.playerBullets.getChildren(),
@@ -369,6 +393,8 @@ export class GameScene extends Phaser.Scene {
       this.firePlayerSuper(angle);
       this.events.emit('room-alarm');
     });
+    this.events.on('player-fire-rifle',  (angle) => this.firePlayerRifle(angle));
+    this.events.on('grenade-detonate',  (x, y, dmg, r) => this.detonateGrenade(x, y, dmg, r));
     this.events.on('shooter-fire',      (s, a)  => this.fireShooter(s, a));
     this.events.on('boss-fan',          (b, a)  => this.fireBossFan(b, a));
     this.events.on('boss-spawn',        ()      => this.bossSpawnMinions());
@@ -493,6 +519,37 @@ export class GameScene extends Phaser.Scene {
     duckMusic(0.4, 400);
   }
 
+  firePlayerRifle(angle) {
+    const cfg = WEAPONS.rifle;
+    const bx  = this.player.x + Math.cos(angle) * (PLAYER.radius + 4);
+    const by  = this.player.y + Math.sin(angle) * (PLAYER.radius + 4);
+    // Single tight bolt per burst shot
+    this.playerRifleBullets.fire(bx, by, angle, cfg.speed, cfg.damage, cfg.range, { owner: 'player' });
+    this.fx.muzzleFlash(bx, by, angle);
+  }
+
+  detonateGrenade(x, y, damage, radius) {
+    this.fx.explosion(x, y, 2.5);
+    this.fx.burst(x, y, 'yellow', 20);
+    this.fx.burst(x, y, 'red', 20);
+    this.fx.shake(0.018, 280);
+    duckMusic(0.5, 500);
+    SFX.bossDie(); // big boom reuse
+    // AoE enemies
+    const r2 = radius * radius;
+    const targets = [...this.enemies.getChildren()];
+    if (this.boss?.alive) targets.push(this.boss);
+    for (const t of targets) {
+      if (!t.active || !t.alive) continue;
+      if ((t.x - x) ** 2 + (t.y - y) ** 2 < r2) {
+        t.damage(damage);
+        this.player.addSuperHit();
+      }
+    }
+    // Damage number
+    this.fx.damageNumber(x, y - 40, damage, '#ffdd20', true);
+  }
+
   fireShooter(shooter, angle) {
     const bx = shooter.x + Math.cos(angle) * (shooter.cfg.radius + 4);
     const by = shooter.y + Math.sin(angle) * (shooter.cfg.radius + 4);
@@ -538,14 +595,22 @@ export class GameScene extends Phaser.Scene {
     // Health orbs
     this.updateHealthOrbs(delta);
 
+    // Weapon pickup checks
+    for (const p of this.weaponPickups) p.checkPickup(this.player);
+
     // Door trigger check
     this._checkDoorTrigger();
 
+    // Flamethrower continuous damage cone
+    this.handleFlamethrower(delta);
+
     // Bullets
     this.handleBulletEnemyHits(this.playerBullets, false);
+    this.handleBulletEnemyHits(this.playerRifleBullets, false);
     this.handleBulletEnemyHits(this.playerSuperBullets, true);
     this.handleEnemyBulletsVsPlayer();
     this.handleBulletWallHits(this.playerBullets, false);
+    this.handleBulletWallHits(this.playerRifleBullets, false);
     this.handleBulletWallHits(this.playerSuperBullets, true);
     this.handleBulletWallHits(this.enemyBullets, false);
 
@@ -568,6 +633,66 @@ export class GameScene extends Phaser.Scene {
         this._kbdActive = false;
       }
     }
+  }
+
+  // ── Flamethrower ──────────────────────────────────────────────────────────
+
+  handleFlamethrower(delta) {
+    const p = this.player;
+    const g = this.flameGraphics;
+    g.clear();
+    if (!p?.alive || !p.flameActive || p.secondary !== 'flamethrower') return;
+
+    const cfg     = WEAPONS.flamethrower;
+    const angle   = p.flameAngle;
+    const range   = cfg.range;
+    const halfRad = Phaser.Math.DegToRad(cfg.halfAngleDeg);
+
+    // Draw flame cone (orange-yellow gradient bands)
+    const bands = [
+      { reach: 1.0, color: 0xff4400, alpha: 0.30 },
+      { reach: 0.65, color: 0xff8800, alpha: 0.42 },
+      { reach: 0.35, color: 0xffcc00, alpha: 0.55 },
+    ];
+    const steps = 14;
+    for (const band of bands) {
+      const r = range * band.reach;
+      g.fillStyle(band.color, band.alpha);
+      g.beginPath();
+      g.moveTo(p.x, p.y);
+      for (let i = 0; i <= steps; i++) {
+        const a = angle - halfRad + (halfRad * 2 * i) / steps;
+        g.lineTo(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r);
+      }
+      g.closePath();
+      g.fillPath();
+    }
+
+    // Damage tick
+    this._flameTick = (this._flameTick || 0) + delta;
+    const tickMs = 120;
+    if (this._flameTick >= tickMs) {
+      this._flameTick -= tickMs;
+      const dmgPerTick = (cfg.damagePerSec * tickMs) / 1000;
+      const targets = [...this.enemies.getChildren()];
+      if (this.boss?.alive) targets.push(this.boss);
+      for (const t of targets) {
+        if (!t.active || !t.alive) continue;
+        const dx = t.x - p.x, dy = t.y - p.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > range + t.cfg.radius) continue;
+        const angleTo = Math.atan2(dy, dx);
+        const diff    = Math.abs(Phaser.Math.Angle.Wrap(angleTo - angle));
+        if (diff < halfRad) {
+          t.damage(dmgPerTick);
+          p.addSuperHit();
+          this.fx.burst(t.x, t.y, 'yellow', 2);
+        }
+      }
+    }
+
+    // Drain fuel
+    p.consumeFlame(delta);
   }
 
   // ── Collision helpers ─────────────────────────────────────────────────────

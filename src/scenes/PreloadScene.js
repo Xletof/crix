@@ -18,6 +18,8 @@ import {
   paintJetFlame,
   paintJoystick,
   paintSuperButton,
+  paintWeaponPickups,
+  paintGrenade,
 } from '../systems/pixelArt.js';
 import { WORLD } from '../config.js';
 
@@ -59,6 +61,8 @@ export class PreloadScene extends Phaser.Scene {
     // ── HUD ──────────────────────────────────────────────────────────
     paintJoystick(this);
     paintSuperButton(this);
+    paintWeaponPickups(this);
+    paintGrenade(this);
 
     // ── Animations ───────────────────────────────────────────────────
     // Mandalorian (player) — frames: 0=idle, 1=walkA, 2=walkB, 3=fire

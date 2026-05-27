@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, PLAYER, COLORS, HUDCFG } from '../config.js';
+import { VIEW, PLAYER, WEAPONS, COLORS, HUDCFG } from '../config.js';
 import { Joystick } from './Joystick.js';
 import { SuperButton } from './SuperButton.js';
 import { ROOMS } from '../data/rooms.js';
@@ -84,6 +84,20 @@ export class HUDScene extends Phaser.Scene {
       this.ammoPips.push(pip);
     }
 
+    // Secondary weapon display (left side, above left joystick)
+    const secX = HUDCFG.joystickMargin + HUDCFG.joystickRadius;
+    const secY = VIEW.height - HUDCFG.joystickBottom - HUDCFG.joystickRadius * 2 - 60;
+    this.secGfx = this.add.graphics();
+    this.secIcon = this.add.image(secX, secY, 'pickup-rifle').setDepth(5).setScale(0.7).setVisible(false);
+    this.secText = this.add.text(secX, secY + 42, '', {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '15px',
+      fontStyle: 'bold',
+      color: '#ffaa40',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(5);
+
     // Super button (lightsaber hilt)
     const superY = VIEW.height - HUDCFG.joystickBottom - HUDCFG.joystickRadius - 100;
     const superX = VIEW.width - HUDCFG.joystickMargin - HUDCFG.joystickRadius * 2 - 50;
@@ -122,11 +136,13 @@ export class HUDScene extends Phaser.Scene {
     ge.on('player-fire',          this.refreshAmmo,  this);
     ge.on('player-super-changed', this.refreshSuper, this);
     ge.on('player-super-ready',   this.refreshSuper, this);
-    ge.on('room-start',   (n, total, spec) => this.refreshChamber(n, total, spec));
-    ge.on('boss-start',   ()               => this.showBanner('VADER APPROACHES', '#ff2828'));
-    ge.on('boss-phase',   ()               => this.showBanner('ENRAGED!', '#ff8888'));
-    ge.on('show-banner',  (text, color)    => this.showBanner(text, color));
-    ge.on('lives-changed',(n)             => this.drawLives(n));
+    ge.on('room-start',           (n, total, spec) => this.refreshChamber(n, total, spec));
+    ge.on('boss-start',           ()               => this.showBanner('VADER APPROACHES', '#ff2828'));
+    ge.on('boss-phase',           ()               => this.showBanner('ENRAGED!', '#ff8888'));
+    ge.on('show-banner',          (text, color)    => this.showBanner(text, color));
+    ge.on('lives-changed',        (n)              => this.drawLives(n));
+    ge.on('secondary-equipped',   (id)             => this.refreshSecondary(id));
+    ge.on('secondary-ammo-changed', ()             => this.refreshSecondary());
 
     this.events.on('shutdown', () => {
       ge.off('player-hp-changed',    this.refreshHp,    this);
@@ -140,6 +156,8 @@ export class HUDScene extends Phaser.Scene {
       ge.off('boss-phase');
       ge.off('show-banner');
       ge.off('lives-changed');
+      ge.off('secondary-equipped');
+      ge.off('secondary-ammo-changed');
       this.moveStick?.shutdown();
       this.fireStick?.shutdown();
       this.superButton?.shutdown();
@@ -265,9 +283,56 @@ export class HUDScene extends Phaser.Scene {
     }
   }
 
+  refreshSecondary(weaponId) {
+    const p  = this.gameScene?.player;
+    const id = weaponId !== undefined ? weaponId : p?.secondary;
+    const g  = this.secGfx;
+    g.clear();
+
+    if (!id) {
+      this.secIcon.setVisible(false);
+      this.secText.setText('');
+      return;
+    }
+
+    const ICON = { rifle: 'pickup-rifle', flamethrower: 'pickup-flamer', detonator: 'pickup-det' };
+    const NAMES = { rifle: 'DC-15', flamethrower: 'FLAMER', detonator: 'DET.' };
+    const COLS  = { rifle: 0xff8010, flamethrower: 0xff4010, detonator: 0xff2020 };
+
+    const ammo  = p?.secondaryAmmo ?? 0;
+    const col   = COLS[id] ?? 0xffaa40;
+    const cx    = HUDCFG.joystickMargin + HUDCFG.joystickRadius;
+    const cy    = VIEW.height - HUDCFG.joystickBottom - HUDCFG.joystickRadius * 2 - 60;
+
+    // Background panel
+    g.fillStyle(0x0a0c14, 0.75);
+    g.fillRoundedRect(cx - 50, cy - 50, 100, 90, 6);
+    g.lineStyle(2, col, 0.7);
+    g.strokeRoundedRect(cx - 50, cy - 50, 100, 90, 6);
+
+    this.secIcon.setTexture(ICON[id] ?? 'pickup-rifle').setVisible(true);
+    this.secIcon.setPosition(cx, cy - 14);
+
+    // Ammo bar / counter
+    const maxAmmo = id === 'rifle' ? 27 : id === 'flamethrower' ? 100 : 3;
+    const ratio   = Math.max(0, ammo / maxAmmo);
+    g.fillStyle(0x1a1c22, 1);
+    g.fillRoundedRect(cx - 38, cy + 26, 76, 8, 3);
+    g.fillStyle(col, 1);
+    g.fillRoundedRect(cx - 38, cy + 26, 76 * ratio, 8, 3);
+
+    const label = id === 'rifle' ? `${ammo}` : id === 'flamethrower' ? `${ammo}%` : `×${ammo}`;
+    this.secText.setText(`${NAMES[id]}  ${label}`);
+    this.secText.setPosition(cx, cy + 44);
+  }
+
   update(time, delta) {
     if (this.gameScene?.player && this.gameScene.player.ammoTimers.length > 0) {
       this.refreshAmmo();
+    }
+    // Flamethrower: drain is continuous, refresh every frame while active
+    if (this.gameScene?.player?.flameActive) {
+      this.refreshSecondary();
     }
   }
 

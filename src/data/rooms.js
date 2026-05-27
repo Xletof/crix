@@ -36,6 +36,10 @@ export const ROOMS = [
       },
       { type: 'shooter', x: 1320, y: 550, role: 'flanker' },
     ],
+    // Rifle drops in the middle of the hangar — first room reward
+    pickups: [
+      { x: 500, y: 550, weapon: 'rifle' },
+    ],
   },
 
   // ── 2. Service Corridor ────────────────────────────────────────────────
@@ -61,6 +65,10 @@ export const ROOMS = [
       },
       { type: 'grunt',   x: 320, y: 1100 },
       { type: 'shooter', x: 450, y: 1280 },
+    ],
+    // Flamethrower reward for clearing the tight corridor
+    pickups: [
+      { x: 450, y: 1360, weapon: 'flamethrower' },
     ],
   },
 
@@ -94,6 +102,10 @@ export const ROOMS = [
       },
       { type: 'shooter', x: 1200, y: 400 },
       { type: 'shooter', x: 1200, y: 800, role: 'flanker' },
+    ],
+    // Thermal detonators — great for the tight Vader room ahead
+    pickups: [
+      { x: 700, y: 600, weapon: 'detonator' },
     ],
   },
 
