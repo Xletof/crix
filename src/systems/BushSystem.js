@@ -11,6 +11,10 @@ export class BushSystem {
     this.bushes.push({ x: bush.x, y: bush.y, r: radius });
   }
 
+  clear() {
+    this.bushes = [];
+  }
+
   isInsideBush(x, y, actorRadius = 0) {
     for (const b of this.bushes) {
       const dx = x - b.x;

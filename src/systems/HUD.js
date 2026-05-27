@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { VIEW, PLAYER, COLORS, HUDCFG } from '../config.js';
 import { Joystick } from './Joystick.js';
 import { SuperButton } from './SuperButton.js';
+import { ROOMS } from '../data/rooms.js';
 
 export class HUDScene extends Phaser.Scene {
   constructor() {
@@ -42,17 +43,21 @@ export class HUDScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    // Wave label (right) — Imperial datascreen style
-    this.waveText = this.add
-      .text(VIEW.width - 20, 16, '', {
+    // Chamber label (right) — e.g. "HANGAR BAY  CHAMBER 1/4"
+    this.chamberText = this.add
+      .text(VIEW.width - 20, 10, '', {
         fontFamily: 'Courier New, monospace',
-        fontSize: '20px',
+        fontSize: '17px',
         fontStyle: 'bold',
         color: '#ff2828',
         stroke: '#000000',
         strokeThickness: 4,
       })
       .setOrigin(1, 0);
+
+    // Lives — saber icons top-left
+    this.livesGfx = this.add.graphics();
+    this.drawLives(3);
 
     // Banner (center, transient)
     this.banner = this.add
@@ -111,26 +116,30 @@ export class HUDScene extends Phaser.Scene {
 
     // Events
     const ge = this.gameScene.events;
-    ge.on('player-hp-changed', this.refreshHp, this);
-    ge.on('player-hurt', this.refreshHp, this);
-    ge.on('player-ammo-changed', this.refreshAmmo, this);
-    ge.on('player-fire', this.refreshAmmo, this);
+    ge.on('player-hp-changed',    this.refreshHp,    this);
+    ge.on('player-hurt',          this.refreshHp,    this);
+    ge.on('player-ammo-changed',  this.refreshAmmo,  this);
+    ge.on('player-fire',          this.refreshAmmo,  this);
     ge.on('player-super-changed', this.refreshSuper, this);
-    ge.on('player-super-ready', this.refreshSuper, this);
-    ge.on('wave-start', (n, total) => this.showBanner(`WAVE ${n} / ${total}`));
-    ge.on('boss-start', () => this.showBanner('VADER APPROACHES', '#ff2828'));
-    ge.on('boss-phase', (p) => this.showBanner(`ENRAGED!`, '#ff8888'));
+    ge.on('player-super-ready',   this.refreshSuper, this);
+    ge.on('room-start',   (n, total, spec) => this.refreshChamber(n, total, spec));
+    ge.on('boss-start',   ()               => this.showBanner('VADER APPROACHES', '#ff2828'));
+    ge.on('boss-phase',   ()               => this.showBanner('ENRAGED!', '#ff8888'));
+    ge.on('show-banner',  (text, color)    => this.showBanner(text, color));
+    ge.on('lives-changed',(n)             => this.drawLives(n));
 
     this.events.on('shutdown', () => {
-      ge.off('player-hp-changed', this.refreshHp, this);
-      ge.off('player-hurt', this.refreshHp, this);
-      ge.off('player-ammo-changed', this.refreshAmmo, this);
-      ge.off('player-fire', this.refreshAmmo, this);
+      ge.off('player-hp-changed',    this.refreshHp,    this);
+      ge.off('player-hurt',          this.refreshHp,    this);
+      ge.off('player-ammo-changed',  this.refreshAmmo,  this);
+      ge.off('player-fire',          this.refreshAmmo,  this);
       ge.off('player-super-changed', this.refreshSuper, this);
-      ge.off('player-super-ready', this.refreshSuper, this);
-      ge.off('wave-start');
+      ge.off('player-super-ready',   this.refreshSuper, this);
+      ge.off('room-start');
       ge.off('boss-start');
       ge.off('boss-phase');
+      ge.off('show-banner');
+      ge.off('lives-changed');
       this.moveStick?.shutdown();
       this.fireStick?.shutdown();
       this.superButton?.shutdown();
@@ -139,8 +148,7 @@ export class HUDScene extends Phaser.Scene {
     this.refreshHp();
     this.refreshAmmo();
     this.refreshSuper();
-    this.refreshWave(1, 3);
-    ge.on('wave-start', (n, total) => this.refreshWave(n, total));
+    this.refreshChamber(1, ROOMS.length, ROOMS[0]);
   }
 
   refreshHp() {
@@ -225,8 +233,36 @@ export class HUDScene extends Phaser.Scene {
     this.superButton.drawGauge(p.superCharge, PLAYER.superHitsToCharge);
   }
 
-  refreshWave(n, total) {
-    this.waveText.setText(total ? `WAVE ${n}/${total}` : `BOSS`);
+  refreshChamber(n, total, spec) {
+    const name = spec?.name ?? '';
+    this.chamberText.setText(`${name}   CHAMBER ${n}/${total}`);
+  }
+
+  drawLives(n) {
+    const g = this.livesGfx;
+    g.clear();
+    // Three small saber-hilt icons top-left
+    const startX = 16;
+    const y      = 16;
+    const gap    = 28;
+    for (let i = 0; i < 3; i++) {
+      const lit = i < n;
+      const x = startX + i * gap;
+      // Hilt body
+      g.fillStyle(lit ? 0x888898 : 0x2e3038, 1);
+      g.fillRect(x, y, 8, 18);
+      // Blade
+      g.fillStyle(lit ? 0xff2828 : 0x220010, 1);
+      g.fillRect(x + 2, y - 22, 4, 22);
+      // Blade glow
+      if (lit) {
+        g.fillStyle(0xff8080, 0.4);
+        g.fillRect(x + 1, y - 22, 6, 22);
+      }
+      // Guard
+      g.fillStyle(lit ? 0xaaaacc : 0x1e2028, 1);
+      g.fillRect(x - 3, y, 14, 4);
+    }
   }
 
   update(time, delta) {
