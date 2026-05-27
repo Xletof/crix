@@ -6,6 +6,7 @@ import { Boss } from '../entities/Boss.js';
 import { BulletGroup } from '../entities/Bullet.js';
 import { BushSystem } from '../systems/BushSystem.js';
 import { RoomManager } from '../systems/RoomManager.js';
+import { CoverRegistry } from '../systems/CoverRegistry.js';
 import { attachFX, SFX, startMusic, duckMusic, stopMusic } from '../systems/FX.js';
 import { ROOMS } from '../data/rooms.js';
 
@@ -110,16 +111,20 @@ export class GameScene extends Phaser.Scene {
       this.roomLayer.add(wall);
     }
 
-    // Cover / consoles (act as bushes — hides player)
+    // Cover / consoles (act as bushes — hides player + AI cover spots)
     this.bushSystem.clear();
+    this.coverRegistry = new CoverRegistry(spec.cover);
     for (const cp of spec.cover) {
       const con = this.add.image(cp.x, cp.y, 'bush').setDepth(20);
       this.roomLayer.add(con);
       this.bushSystem.add(con, 55);
     }
 
-    // Spawn enemies listed in the spec
-    spec.enemies.forEach(({ type, x, y }) => this.spawnEnemyAt(type, x, y));
+    // Remove any stale room-alarm listeners from previous rooms
+    this.events.off('room-alarm');
+
+    // Spawn enemies listed in the spec (each gets the cover registry injected)
+    spec.enemies.forEach((enemySpec) => this.spawnEnemyAt(enemySpec.type, enemySpec.x, enemySpec.y, enemySpec));
 
     // Boss room
     if (spec.boss) {
@@ -287,23 +292,24 @@ export class GameScene extends Phaser.Scene {
 
   // ── Spawning ─────────────────────────────────────────────────────────────
 
-  spawnEnemyAt(type, x, y) {
+  spawnEnemyAt(type, x, y, spec = {}) {
     let enemy;
-    if (type === 'shooter') enemy = new EnemyShooter(this, x, y);
-    else                    enemy = new EnemyGrunt(this, x, y);
+    if (type === 'shooter') enemy = new EnemyShooter(this, x, y, spec);
+    else                    enemy = new EnemyGrunt(this, x, y, spec);
+    enemy.coverRegistry = this.coverRegistry;
     this.enemies.add(enemy);
     this.physics.add.collider(enemy, this.walls);
     this.roomManager.registerEnemy();
     return enemy;
   }
 
-  // Legacy: spawn at random room edge (kept for boss minions)
+  // Spawn at random room edge — used for boss minions (always alerted)
   spawnEnemyRandom(type) {
     const spec = this.roomSpec;
     if (!spec) return;
     const { w, h } = spec.bounds;
     const edges = [
-      { x: 80,    y: Phaser.Math.Between(80, h - 80) },
+      { x: 80,     y: Phaser.Math.Between(80, h - 80) },
       { x: w - 80, y: Phaser.Math.Between(80, h - 80) },
       { x: Phaser.Math.Between(80, w - 80), y: 80 },
       { x: Phaser.Math.Between(80, w - 80), y: h - 80 },
@@ -313,7 +319,8 @@ export class GameScene extends Phaser.Scene {
       const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
       if (d > bestDist) { bestDist = d; best = e; }
     }
-    return this.spawnEnemyAt(type, best.x, best.y);
+    // No patrol (spawn alerted) — empty spec means state starts as ALERT
+    return this.spawnEnemyAt(type, best.x, best.y, {});
   }
 
   spawnBoss(bx, by) {
@@ -353,8 +360,15 @@ export class GameScene extends Phaser.Scene {
   // ── Event wiring ──────────────────────────────────────────────────────────
 
   bindEvents() {
-    this.events.on('player-fire',       (angle) => this.firePlayerPrimary(angle));
-    this.events.on('player-fire-super', (angle) => this.firePlayerSuper(angle));
+    this.events.on('player-fire', (angle) => {
+      this.firePlayerPrimary(angle);
+      // First shot fires the room alarm — all patrolling enemies go on alert
+      this.events.emit('room-alarm');
+    });
+    this.events.on('player-fire-super', (angle) => {
+      this.firePlayerSuper(angle);
+      this.events.emit('room-alarm');
+    });
     this.events.on('shooter-fire',      (s, a)  => this.fireShooter(s, a));
     this.events.on('boss-fan',          (b, a)  => this.fireBossFan(b, a));
     this.events.on('boss-spawn',        ()      => this.bossSpawnMinions());

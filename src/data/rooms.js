@@ -1,16 +1,16 @@
-// Hand-authored room specs for the Death Star infiltration. Each room is a
-// self-contained chamber: world + camera bounds clamp to room.bounds, the
-// player spawns at room.spawn, and the exit door stays sealed until every
-// enemy is dead. Crossing an open door triggers the next-room transition.
+// Hand-authored room specs for the Death Star infiltration.
 //
-// All positions are in world coords inside the room (origin at top-left).
-// `walls` and `cover` accept a list of {x, y} placements — sprites are the
-// 'wall' (blast door tile) and 'bush' (Imperial console) textures.
+// Enemy spec fields:
+//   type    : 'grunt' | 'shooter'
+//   x, y    : starting position
+//   patrol  : optional array of {x,y} waypoints — enemy walks these when unalerted.
+//             If omitted, enemy idles at spawn until alarm fires.
+//   role    : optional 'flanker' — this shooter will attempt to flank rather than suppress.
 
 export const ROOMS = [
   // ── 1. Hangar Bay ──────────────────────────────────────────────────────
-  // Wide opening chamber. Two patrolling stormtroopers + a death trooper
-  // guarding the exit. Crate cover in the middle to encourage flanking.
+  // Wide opening chamber. Two stormtroopers on patrol + a death trooper
+  // guarding the far end. Cover crates in the middle.
   {
     id: 'hangar',
     name: 'HANGAR BAY',
@@ -26,14 +26,21 @@ export const ROOMS = [
       { x: 1080, y: 460 }, { x: 1080, y: 720 },
     ],
     enemies: [
-      { type: 'grunt',   x: 900,  y: 270 },
-      { type: 'grunt',   x: 900,  y: 830 },
-      { type: 'shooter', x: 1320, y: 550 },
+      {
+        type: 'grunt', x: 700, y: 270,
+        patrol: [{ x: 700, y: 270 }, { x: 1100, y: 270 }, { x: 1100, y: 500 }, { x: 700, y: 270 }],
+      },
+      {
+        type: 'grunt', x: 700, y: 830,
+        patrol: [{ x: 700, y: 830 }, { x: 1100, y: 830 }, { x: 1100, y: 600 }, { x: 700, y: 830 }],
+      },
+      { type: 'shooter', x: 1320, y: 550, role: 'flanker' },
     ],
   },
 
   // ── 2. Service Corridor ────────────────────────────────────────────────
-  // Tall narrow chamber, vertical layout — forces close-quarters combat.
+  // Tall narrow chamber — forces close-quarters. Enemies start alerted
+  // (they heard the hangar fight). One grunt on a cross-patrol.
   {
     id: 'corridor',
     name: 'SERVICE CORRIDOR',
@@ -48,14 +55,18 @@ export const ROOMS = [
       { x: 450, y: 380 }, { x: 450, y: 800 }, { x: 450, y: 1200 },
     ],
     enemies: [
-      { type: 'grunt',   x: 450, y: 600 },
+      {
+        type: 'grunt', x: 450, y: 650,
+        patrol: [{ x: 250, y: 650 }, { x: 650, y: 650 }],
+      },
       { type: 'grunt',   x: 320, y: 1100 },
       { type: 'shooter', x: 450, y: 1280 },
     ],
   },
 
   // ── 3. Detention Block ─────────────────────────────────────────────────
-  // Two rows of cell walls running across the chamber. Heavier garrison.
+  // Two rows of cell walls — heavier garrison. Two shooters suppress from
+  // opposite flanks; two grunts patrol the cell rows.
   {
     id: 'detention',
     name: 'DETENTION BLOCK',
@@ -73,15 +84,20 @@ export const ROOMS = [
       { x: 400, y: 800 }, { x: 1000, y: 800 },
     ],
     enemies: [
-      { type: 'grunt',   x: 700,  y: 400 },
-      { type: 'grunt',   x: 700,  y: 800 },
+      {
+        type: 'grunt', x: 700, y: 380,
+        patrol: [{ x: 400, y: 380 }, { x: 1000, y: 380 }],
+      },
+      {
+        type: 'grunt', x: 700, y: 820,
+        patrol: [{ x: 400, y: 820 }, { x: 1000, y: 820 }],
+      },
       { type: 'shooter', x: 1200, y: 400 },
-      { type: 'shooter', x: 1200, y: 800 },
+      { type: 'shooter', x: 1200, y: 800, role: 'flanker' },
     ],
   },
 
   // ── 4. Vader's Chamber (boss) ──────────────────────────────────────────
-  // No exit. Beat Vader to win the run.
   {
     id: 'vader',
     name: "VADER'S CHAMBER",
