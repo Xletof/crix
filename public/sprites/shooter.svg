@@ -1,53 +1,120 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <!-- Lanky purple ranged enemy: pistol points UP. -->
-  <ellipse cx="64" cy="108" rx="30" ry="8" fill="#000" opacity="0.32"/>
+<defs>
+  <radialGradient id="sb" cx="42%" cy="38%" r="56%">
+    <stop offset="0%"   stop-color="#9a40e0"/>
+    <stop offset="58%"  stop-color="#5a10a8"/>
+    <stop offset="100%" stop-color="#1e0050"/>
+  </radialGradient>
+  <radialGradient id="sh" cx="38%" cy="32%" r="54%">
+    <stop offset="0%"   stop-color="#b050f0"/>
+    <stop offset="100%" stop-color="#1e0050"/>
+  </radialGradient>
+  <radialGradient id="se" cx="28%" cy="26%" r="68%">
+    <stop offset="0%"   stop-color="#a0ffff"/>
+    <stop offset="60%"  stop-color="#00c8e0"/>
+    <stop offset="100%" stop-color="#006880"/>
+  </radialGradient>
+  <linearGradient id="sgn" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%"   stop-color="#301850"/>
+    <stop offset="40%"  stop-color="#8040d0"/>
+    <stop offset="60%"  stop-color="#8040d0"/>
+    <stop offset="100%" stop-color="#301850"/>
+  </linearGradient>
+  <radialGradient id="sgem" cx="35%" cy="30%" r="60%">
+    <stop offset="0%"   stop-color="#e080ff"/>
+    <stop offset="100%" stop-color="#6010b0"/>
+  </radialGradient>
+</defs>
 
-  <!-- robe hem -->
-  <path d="M 38 88 L 32 104 L 96 104 L 90 88 Z" fill="#2e0f4a"/>
-  <path d="M 41 90 L 36 102 L 92 102 L 87 90 Z" fill="#6b2aa3"/>
+<!-- Drop shadow -->
+<ellipse cx="64" cy="109" rx="22" ry="6" fill="#000" opacity="0.17"/>
 
-  <!-- lower body -->
-  <ellipse cx="64" cy="86" rx="22" ry="12" fill="#2e0f4a"/>
-  <ellipse cx="64" cy="85" rx="18" ry="9" fill="#b04ad9"/>
+<!-- ROBE BOTTOM (draped like a skirt) -->
+<path d="M 40 90 Q 38 104 46 108 Q 64 114 82 108 Q 90 104 88 90 Q 64 98 40 90Z"
+      fill="#140038"/>
+<!-- Robe hem glyphs/trim -->
+<path d="M 44 104 L 50 108" stroke="#5020a0" stroke-width="2" opacity="0.7"/>
+<path d="M 80 104 L 74 108" stroke="#5020a0" stroke-width="2" opacity="0.7"/>
+<path d="M 62 112 L 66 112" stroke="#5020a0" stroke-width="2" opacity="0.5"/>
+<!-- Robe hem embroidery (gold-ish trim) -->
+<path d="M 42 102 Q 64 106 86 102" stroke="#7030c8" stroke-width="1.5" fill="none" opacity="0.6"/>
 
-  <!-- torso -->
-  <ellipse cx="64" cy="68" rx="24" ry="18" fill="#2e0f4a"/>
-  <ellipse cx="64" cy="67" rx="20" ry="15" fill="#b04ad9"/>
+<!-- BODY / ROBE -->
+<ellipse cx="64" cy="80" rx="25" ry="22" fill="url(#sb)"/>
+<!-- Robe vertical folds -->
+<path d="M 50 66 Q 47 80 52 96" stroke="#7020c0" stroke-width="2" fill="none" opacity="0.5"/>
+<path d="M 78 66 Q 81 80 76 96" stroke="#7020c0" stroke-width="2" fill="none" opacity="0.5"/>
+<path d="M 64 63 Q 62 78 64 96" stroke="#7020c0" stroke-width="1.5" fill="none" opacity="0.38"/>
+<!-- Chest robe opening highlight -->
+<path d="M 55 65 Q 64 60 73 65 Q 64 58 55 65Z" fill="#a040e0" opacity="0.4"/>
+<!-- Center robe clasp / brooch -->
+<circle cx="64" cy="78" r="5.5" fill="#100030"/>
+<circle cx="64" cy="78" r="3.5" fill="#9030e0"/>
+<circle cx="64" cy="78" r="1.5" fill="#d080ff"/>
+<!-- Shoulder cowl overhang -->
+<path d="M 42 63 Q 64 54 86 63 L 85 70 Q 64 61 43 70Z" fill="#1a0048" opacity="0.8"/>
 
-  <!-- shoulder cowl -->
-  <path d="M 40 60 Q 64 50 88 60 L 86 70 Q 64 62 42 70 Z" fill="#2e0f4a"/>
+<!-- LEFT SLEEVE (hanging) -->
+<path d="M 44 74 Q 34 72 28 62" stroke="#6818b8" stroke-width="11" stroke-linecap="round" fill="none"/>
+<path d="M 44 74 Q 34 72 28 62" stroke="#9030e0" stroke-width="7" stroke-linecap="round" fill="none"/>
+<!-- Left hand (glowing-ish) -->
+<circle cx="28" cy="59" r="9" fill="#140038"/>
+<circle cx="27" cy="58" r="5" fill="#6818b8" opacity="0.7"/>
 
-  <!-- left arm at side -->
-  <ellipse cx="42" cy="58" rx="8" ry="14" fill="#2e0f4a"/>
-  <ellipse cx="42" cy="58" rx="5" ry="11" fill="#b04ad9"/>
-  <circle cx="42" cy="50" r="6" fill="#1a1f2e"/>
+<!-- RIGHT ARM (raised, holding energy gun pointing UP) -->
+<path d="M 84 74 Q 96 62 100 46" stroke="#6818b8" stroke-width="11" stroke-linecap="round" fill="none"/>
+<path d="M 84 74 Q 96 62 100 46" stroke="#9030e0" stroke-width="7" stroke-linecap="round" fill="none"/>
+<!-- Right wrist/hand -->
+<circle cx="100" cy="44" r="9" fill="#140038"/>
+<circle cx="101" cy="43" r="5" fill="#6818b8" opacity="0.7"/>
 
-  <!-- right arm raised holding pistol -->
-  <rect x="78" y="32" width="10" height="22" rx="5" fill="#2e0f4a"/>
-  <rect x="80" y="34" width="6" height="18" rx="3" fill="#b04ad9"/>
-  <circle cx="83" cy="28" r="6" fill="#1a1f2e"/>
+<!-- ═══ ENERGY WEAPON (gun pointing UP toward y=0) ═══ -->
+<!-- Weapon shaft -->
+<rect x="96" y="6" width="8" height="40" rx="3" fill="url(#sgn)"/>
+<!-- Shaft highlight -->
+<rect x="96.5" y="6" width="2" height="40" rx="1" fill="#c060ff" opacity="0.45"/>
+<!-- Weapon cap (top) -->
+<rect x="95" y="2" width="10" height="6" rx="2.5" fill="#200848"/>
+<!-- Energy orb/tip (glowing) -->
+<circle cx="100" cy="2" r="5" fill="#a040ff" opacity="0.7"/>
+<circle cx="100" cy="2" r="3" fill="#e090ff" opacity="0.92"/>
+<circle cx="99" cy="1" r="1.5" fill="#fff" opacity="0.7"/>
+<!-- Glow halo around tip -->
+<circle cx="100" cy="2" r="8" fill="#8020e0" opacity="0.22"/>
+<!-- Rune rings along shaft -->
+<rect x="94" y="14" width="12" height="3" rx="1.5" fill="#3a1068" opacity="0.85"/>
+<rect x="94" y="24" width="12" height="3" rx="1.5" fill="#3a1068" opacity="0.85"/>
+<rect x="94" y="34" width="12" height="3" rx="1.5" fill="#3a1068" opacity="0.85"/>
+<!-- Power crystal embedded in shaft -->
+<polygon points="100,18 105,24 100,30 95,24" fill="#200848" opacity="0.9"/>
+<polygon points="100,20 104,24 100,28 96,24" fill="url(#sgem)"/>
+<polygon points="100,21 103,24 100,27 97,24" fill="#e0a8ff" opacity="0.7"/>
 
-  <!-- pistol -->
-  <rect x="78" y="10" width="11" height="16" fill="#2a2f3a"/>
-  <rect x="80" y="12" width="7" height="12" fill="#3a3f4a"/>
-  <rect x="81" y="2" width="5" height="10" fill="#4b5563"/>
-  <rect x="76" y="22" width="14" height="6" rx="2" fill="#1a1f2e"/>
+<!-- ═══ HOOD / HEAD ═══ -->
+<ellipse cx="64" cy="56" rx="21" ry="23" fill="url(#sh)"/>
+<!-- Deep hood shadow (dark interior at top) -->
+<path d="M 46 46 Q 64 52 82 46 Q 80 36 64 32 Q 48 36 46 46Z" fill="#120030" opacity="0.72"/>
+<!-- Hood side folds -->
+<path d="M 44 48 Q 42 58 47 68" stroke="#4a0a90" stroke-width="2.5" fill="none" opacity="0.5"/>
+<path d="M 84 48 Q 86 58 81 68" stroke="#4a0a90" stroke-width="2.5" fill="none" opacity="0.5"/>
+<!-- Hood top peak -->
+<path d="M 56 36 Q 64 25 72 36" stroke="#2a0868" stroke-width="5" fill="none" stroke-linecap="round"/>
+<path d="M 57 37 Q 64 28 71 37" stroke="#7030c0" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.5"/>
 
-  <!-- head -->
-  <circle cx="64" cy="48" r="16" fill="#2e0f4a"/>
-  <circle cx="64" cy="48" r="13" fill="#b04ad9"/>
+<!-- GLOWING EYES -->
+<ellipse cx="54" cy="54" rx="6" ry="5.5" fill="#080018"/>
+<ellipse cx="74" cy="54" rx="6" ry="5.5" fill="#080018"/>
+<ellipse cx="54" cy="53" rx="4.5" ry="4.2" fill="url(#se)"/>
+<ellipse cx="74" cy="53" rx="4.5" ry="4.2" fill="url(#se)"/>
+<!-- Eye pupils -->
+<circle cx="55" cy="54" r="1.8" fill="#fff" opacity="0.75"/>
+<circle cx="75" cy="54" r="1.8" fill="#fff" opacity="0.75"/>
+<!-- Eye glow halo -->
+<circle cx="54" cy="54" r="8" fill="#00c8f0" opacity="0.15"/>
+<circle cx="74" cy="54" r="8" fill="#00c8f0" opacity="0.15"/>
 
-  <!-- hood -->
-  <path d="M 48 46 Q 64 30 80 46 L 82 52 Q 64 38 46 52 Z" fill="#1f0a35"/>
-
-  <!-- glowing cyan eyes -->
-  <ellipse cx="56" cy="50" rx="4" ry="5" fill="#000"/>
-  <ellipse cx="72" cy="50" rx="4" ry="5" fill="#000"/>
-  <ellipse cx="56" cy="49" rx="2.6" ry="3.6" fill="#9cf1ff"/>
-  <ellipse cx="72" cy="49" rx="2.6" ry="3.6" fill="#9cf1ff"/>
-  <circle cx="56" cy="48" r="1.2" fill="#fff"/>
-  <circle cx="72" cy="48" r="1.2" fill="#fff"/>
-
-  <!-- jaw shadow -->
-  <path d="M 56 58 Q 64 64 72 58" fill="none" stroke="#1f0a35" stroke-width="2"/>
+<!-- Nose shadow / face depth -->
+<path d="M 60 60 Q 64 64 68 60" stroke="#200850" stroke-width="2" fill="none" opacity="0.5"/>
+<!-- Face glow (bounced light from eyes) -->
+<ellipse cx="64" cy="57" rx="12" ry="8" fill="#00d0e8" opacity="0.06"/>
 </svg>

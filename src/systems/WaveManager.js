@@ -13,7 +13,7 @@ export class WaveManager {
     this.alive = 0;
     this.bossPhase = false;
     this.done = false;
-    this.intermissionMs = 1800;
+    this.intermissionMs = 1000; // tighter gap between waves (was 1800ms)
     this.between = 0;
     this.queued = [];
     this.spreadMs = 0;

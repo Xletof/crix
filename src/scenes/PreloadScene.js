@@ -13,10 +13,11 @@ export class PreloadScene extends Phaser.Scene {
 
   preload() {
     // Hand-authored SVG characters — rasterized by Phaser at load time.
-    this.load.svg('player', 'sprites/player.svg', { width: 96, height: 96 });
-    this.load.svg('grunt', 'sprites/grunt.svg', { width: 96, height: 96 });
-    this.load.svg('shooter', 'sprites/shooter.svg', { width: 96, height: 96 });
-    this.load.svg('boss', 'sprites/boss.svg', { width: 200, height: 200 });
+    // 128px gives a crisp texture that still scales cleanly at all zoom levels.
+    this.load.svg('player',  'sprites/player.svg',  { width: 128, height: 128 });
+    this.load.svg('grunt',   'sprites/grunt.svg',   { width: 128, height: 128 });
+    this.load.svg('shooter', 'sprites/shooter.svg', { width: 128, height: 128 });
+    this.load.svg('boss',    'sprites/boss.svg',    { width: 200, height: 200 });
   }
 
   create() {

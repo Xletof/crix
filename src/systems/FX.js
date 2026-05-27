@@ -114,6 +114,11 @@ export const SFX = {
     tone({ freq: 990, type: 'triangle', dur: 0.12, gain: 0.22, delay: 0.1 });
     tone({ freq: 1320, type: 'triangle', dur: 0.18, gain: 0.22, delay: 0.2 });
   },
+  heal() {
+    tone({ freq: 660,  type: 'triangle', dur: 0.08, gain: 0.2 });
+    tone({ freq: 880,  type: 'triangle', dur: 0.12, gain: 0.18, delay: 0.06 });
+    tone({ freq: 1100, type: 'triangle', dur: 0.1,  gain: 0.15, delay: 0.12 });
+  },
   uiClick() {
     tone({ freq: 660, type: 'square', dur: 0.05, gain: 0.18 });
   },

@@ -17,30 +17,30 @@ export const WORLD = {
 
 export const PLAYER = {
   hp: 1000,
-  speed: 220,
+  speed: 240,           // slightly faster — feels more nimble
   radius: 22,
-  ammoMax: 3,
-  ammoReloadMs: 1500,
-  fireCooldownMs: 220,
-  // Primary attack: 3-pellet spread
+  ammoMax: 4,           // one extra shot (was 3)
+  ammoReloadMs: 750,    // 2× faster reload (was 1500ms) — MUCH more responsive
+  fireCooldownMs: 150,  // snappier trigger (was 220ms)
+  // Primary attack: 3-pellet spread (tighter for more precision feel)
   pelletCount: 3,
-  pelletSpreadDeg: 14,
-  pelletDamage: 320,
-  pelletSpeed: 720,
-  pelletRange: 380,
+  pelletSpreadDeg: 10,  // tighter (was 14°) — feels more accurate & powerful
+  pelletDamage: 300,    // slight nerf to compensate for faster reload (was 320)
+  pelletSpeed: 780,     // faster bullets (was 720) — more satisfying impact
+  pelletRange: 400,     // slightly longer range (was 380)
   pelletRadius: 7,
   // Super
   superHitsToCharge: 10,
   superPellets: 7,
   superSpreadDeg: 28,
   superDamage: 520,
-  superSpeed: 900,
-  superRange: 520,
+  superSpeed: 960,      // snappier super (was 900)
+  superRange: 540,
   superRadius: 11,
-  superKnockback: 380,
+  superKnockback: 420,  // more knockback punch (was 380)
   // HP regen
-  regenDelayMs: 3000,
-  regenPerSec: 200,
+  regenDelayMs: 2500,   // regen kicks in sooner (was 3000ms)
+  regenPerSec: 220,     // slightly faster regen (was 200)
   // Hidden in bush
   bushAlpha: 0.6,
 };
@@ -94,13 +94,22 @@ export const BOSS = {
 };
 
 export const WAVES = [
-  // wave 1
-  { spawns: [{ type: 'grunt', count: 4 }], spreadMs: 3000 },
-  // wave 2
-  { spawns: [{ type: 'grunt', count: 3 }, { type: 'shooter', count: 2 }], spreadMs: 3500 },
-  // wave 3
-  { spawns: [{ type: 'shooter', count: 2 }, { type: 'grunt', count: 4 }], spreadMs: 2500 },
+  // wave 1 — easy intro
+  { spawns: [{ type: 'grunt', count: 4 }], spreadMs: 2500 },
+  // wave 2 — adds shooters
+  { spawns: [{ type: 'grunt', count: 3 }, { type: 'shooter', count: 2 }], spreadMs: 3000 },
+  // wave 3 — more pressure
+  { spawns: [{ type: 'shooter', count: 3 }, { type: 'grunt', count: 5 }], spreadMs: 2500 },
 ];
+
+// Health orb drop (small healing pickup on enemy death)
+export const HEALTH_ORB = {
+  dropChance: 0.22,     // 22% chance per enemy death
+  healAmount: 140,      // heal 140 HP
+  radius: 14,
+  color: 0x44ee88,
+  lifeMs: 8000,         // orb disappears after 8s
+};
 
 export const HUDCFG = {
   joystickRadius: 90,

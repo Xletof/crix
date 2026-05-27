@@ -5,6 +5,7 @@ import {
   PLAYER,
   ENEMY,
   BOSS,
+  HEALTH_ORB,
 } from '../config.js';
 import { Player } from '../entities/Player.js';
 import { EnemyGrunt, EnemyShooter } from '../entities/Enemy.js';
@@ -12,7 +13,7 @@ import { Boss } from '../entities/Boss.js';
 import { BulletGroup } from '../entities/Bullet.js';
 import { BushSystem } from '../systems/BushSystem.js';
 import { WaveManager } from '../systems/WaveManager.js';
-import { attachFX, SFX, startMusic, duckMusic } from '../systems/FX.js';
+import { attachFX, SFX, startMusic, duckMusic, stopMusic } from '../systems/FX.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -55,6 +56,9 @@ export class GameScene extends Phaser.Scene {
     // Wave manager
     this.waveManager = new WaveManager(this, (type) => this.spawnEnemy(type));
 
+    // Health orbs (dropped by enemies)
+    this.healthOrbs = [];
+
     // Wire all events from entities
     this.bindEvents();
 
@@ -74,7 +78,11 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-SPACE', () => this.player?.tryFireSuper());
 
     // Cleanup on shutdown
-    this.events.once('shutdown', () => this.scene.stop('HUD'));
+    this.events.once('shutdown', () => {
+      this.scene.stop('HUD');
+      this.healthOrbs.forEach((o) => { this.tweens.killTweensOf(o.gfx); o.gfx.destroy(); });
+      this.healthOrbs = [];
+    });
   }
 
   // --- Arena construction ---
@@ -164,6 +172,44 @@ export class GameScene extends Phaser.Scene {
     return enemy;
   }
 
+  spawnHealthOrb(x, y) {
+    const g = this.add.graphics().setDepth(22);
+    const r = HEALTH_ORB.radius;
+    // Outer glow ring
+    g.fillStyle(HEALTH_ORB.color, 0.25);
+    g.fillCircle(0, 0, r + 6);
+    // Main orb
+    g.fillStyle(HEALTH_ORB.color, 0.9);
+    g.fillCircle(0, 0, r);
+    // Inner highlight
+    g.fillStyle(0xffffff, 0.55);
+    g.fillCircle(-r * 0.32, -r * 0.32, r * 0.45);
+    // Cross symbol
+    g.fillStyle(0xffffff, 0.85);
+    g.fillRect(-r * 0.18, -r * 0.6, r * 0.36, r * 1.2);
+    g.fillRect(-r * 0.6, -r * 0.18, r * 1.2, r * 0.36);
+    g.setPosition(x, y);
+
+    const orb = {
+      gfx: g,
+      x, y,
+      life: HEALTH_ORB.lifeMs,
+      pulse: 0,
+    };
+    this.healthOrbs.push(orb);
+
+    // Pulse tween
+    this.tweens.add({
+      targets: g,
+      scaleX: 1.18,
+      scaleY: 1.18,
+      duration: 400,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+
   spawnBoss() {
     this.boss = new Boss(this, WORLD.width / 2, WORLD.height * 0.18);
     this.physics.add.collider(this.boss, this.walls);
@@ -205,6 +251,10 @@ export class GameScene extends Phaser.Scene {
       this.fx.burst(enemy.x, enemy.y, 'red', 18);
       this.fx.shake(0.003, 50);
       this.waveManager.onEnemyDied();
+      // Random health orb drop
+      if (Math.random() < HEALTH_ORB.dropChance) {
+        this.spawnHealthOrb(enemy.x, enemy.y);
+      }
     });
     this.events.on('player-hurt', () => {
       this.fx.shake(0.008, 110);
@@ -297,6 +347,9 @@ export class GameScene extends Phaser.Scene {
 
     // Aim cone (Brawl-Stars-style shadow aimer)
     this.drawAimCone();
+
+    // Health orb pickups
+    this.updateHealthOrbs(delta);
 
     // Wave manager
     this.waveManager.update(delta);
@@ -405,6 +458,51 @@ export class GameScene extends Phaser.Scene {
           b.kill();
           break;
         }
+      }
+    }
+  }
+
+  updateHealthOrbs(delta) {
+    const p = this.player;
+    const pickupRadius = HEALTH_ORB.radius + PLAYER.radius;
+    let i = this.healthOrbs.length;
+    while (i--) {
+      const orb = this.healthOrbs[i];
+      orb.life -= delta;
+      if (orb.life <= 0) {
+        // Fade out and remove
+        this.tweens.killTweensOf(orb.gfx);
+        orb.gfx.destroy();
+        this.healthOrbs.splice(i, 1);
+        continue;
+      }
+      // Fade near end of life
+      if (orb.life < 1500) {
+        orb.gfx.setAlpha(orb.life / 1500);
+      }
+      // Attract to player when close
+      const dx = p.x - orb.x;
+      const dy = p.y - orb.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 80 && p.alive) {
+        // Magnetic pull
+        const pullSpeed = 320 * delta / 1000;
+        const move = Math.min(dist, pullSpeed);
+        orb.x += (dx / dist) * move;
+        orb.y += (dy / dist) * move;
+        orb.gfx.setPosition(orb.x, orb.y);
+      }
+      // Pickup
+      if (dist < pickupRadius && p.alive && p.hp < p.hpMax) {
+        const healed = Math.min(HEALTH_ORB.healAmount, p.hpMax - p.hp);
+        p.hp = Math.min(p.hpMax, p.hp + HEALTH_ORB.healAmount);
+        p.scene.events.emit('player-hp-changed');
+        this.fx.damageNumber(orb.x, orb.y - 20, `+${Math.round(healed)} HP`, '#44ee88', false);
+        this.fx.burst(orb.x, orb.y, 'yellow', 8);
+        this.tweens.killTweensOf(orb.gfx);
+        orb.gfx.destroy();
+        this.healthOrbs.splice(i, 1);
+        SFX.heal();
       }
     }
   }
