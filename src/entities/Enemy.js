@@ -11,11 +11,13 @@ export const ST = {
   SUPPRESS:   'suppress',   // (Shooter) at cover, peek-firing at player
   REPOSITION: 'reposition', // (Shooter) moving to new cover (player too close)
   FLANK:      'flank',      // (Shooter) moving to a perpendicular flanking pos
+  ADVANCE:    'advance',    // (Shooter) no cover with LOS — push forward until LOS
 };
 
 // Detection constants (exported so GameScene can render vision cones)
 export const VISION_RANGE = 380;   // px — unalerted patrol sight
 export const VISION_HALF_ANGLE = Math.PI * 0.28; // ~50° each side = 100° total cone
+const ALERT_VISION_RANGE = 720;    // px — max sight range once alerted (was infinite)
 const ALARM_RANGE     = 90;        // px — player too close always triggers alarm
 const SUPPRESS_FIRE_MIN = 1400;    // ms between peeks
 const SUPPRESS_FIRE_MAX = 2200;
@@ -23,6 +25,9 @@ const REPOSITION_DIST   = 110;     // px — retreat from cover when player this
 const ARRIVE_THRESH     = 40;      // px — "close enough" to a target or stand position
 const FLANK_DIST        = 260;     // px — how far off the LOS axis to flank
 const ALERT_PAUSE_MS    = 500;     // ms surprised freeze before switching to combat
+const STAND_DIST        = 92;      // px from cover centre to stand-and-fire position
+const LOS_LOST_RECLAIM  = 900;     // ms of no-LOS in SUPPRESS before re-picking cover
+const LOS_LOST_ADVANCE  = 1500;    // ms of no-LOS in COVER_MOVE before going ADVANCE
 
 // ── Base Enemy class ──────────────────────────────────────────────────────────
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
@@ -128,13 +133,65 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   canSee(player) {
     if (player.hiddenInBush) return false;
     const dist = Math.hypot(player.x - this.x, player.y - this.y);
-    if (this.state !== ST.PATROL) return true;   // alerted: 360° vision
-    // Patrolling: cone check
-    if (dist > VISION_RANGE) return false;
-    const angleTo  = Math.atan2(player.y - this.y, player.x - this.x);
-    const facing   = this.rotation - Math.PI / 2;
-    const diff     = Phaser.Math.Angle.Wrap(angleTo - facing);
-    return Math.abs(diff) < Math.PI * 0.55; // ~100° each side = 200° total
+    if (this.state === ST.PATROL) {
+      if (dist > VISION_RANGE) return false;
+      const angleTo = Math.atan2(player.y - this.y, player.x - this.x);
+      const facing  = this.rotation - Math.PI / 2;
+      const diff    = Phaser.Math.Angle.Wrap(angleTo - facing);
+      if (Math.abs(diff) >= VISION_HALF_ANGLE) return false;
+      return this._hasLOS(this.x, this.y, player.x, player.y);
+    }
+    // Alerted: 360° vision but still capped at ALERT_VISION_RANGE and gated by walls.
+    if (dist > ALERT_VISION_RANGE) return false;
+    return this._hasLOS(this.x, this.y, player.x, player.y);
+  }
+
+  // True if a straight line from (x1,y1) to (x2,y2) is unobstructed by any
+  // static body in the scene's walls group (which holds both blast doors and
+  // solid cover sprites). We exclude bodies the line *starts* or *ends*
+  // inside so an enemy isn't blinded by its own cover.
+  _hasLOS(x1, y1, x2, y2) {
+    const walls = this.scene.walls?.getChildren?.() ?? [];
+    if (!walls.length) return true;
+    const line = new Phaser.Geom.Line(x1, y1, x2, y2);
+    for (const w of walls) {
+      if (!w.active || !w.body) continue;
+      const b = w.body;
+      // Skip if endpoint is inside this body
+      if (x1 >= b.x && x1 <= b.x + b.width && y1 >= b.y && y1 <= b.y + b.height) continue;
+      if (x2 >= b.x && x2 <= b.x + b.width && y2 >= b.y && y2 <= b.y + b.height) continue;
+      const rect = new Phaser.Geom.Rectangle(b.x, b.y, b.width, b.height);
+      if (Phaser.Geom.Intersects.LineToRectangle(line, rect)) return false;
+    }
+    return true;
+  }
+
+  // Compute the best stand-and-fire position around `spot` for shooting at
+  // (px, py). Tries 8 directions around the cover; picks the closest one
+  // with clear LOS to the target. Returns null if none have LOS.
+  _computeStandPos(spot, px, py) {
+    if (!spot) return null;
+    const { w, h } = this.scene.roomSpec?.bounds ?? { w: 1600, h: 1600 };
+    // Base axis from the spot toward the player; the candidate placed on the
+    // *player side* (angle = base) is closest to the player and has the best
+    // LOS odds, while the opposite side is the most "behind cover".
+    const base = Math.atan2(py - spot.y, px - spot.x);
+    // 8 candidates around the cover: perpendicular sides first (good cover
+    // AND LOS), then player-side leans, then behind-cover positions.
+    const offsets = [
+      Math.PI / 2, -Math.PI / 2,           // perpendicular L / R
+      Math.PI / 4, -Math.PI / 4,           // player-side leans (45°)
+      3 * Math.PI / 4, -3 * Math.PI / 4,   // cover-side corners
+      0,                                    // directly between cover and player (worst cover, best LOS)
+      Math.PI,                              // directly behind cover (worst LOS, best cover)
+    ];
+    for (const offset of offsets) {
+      const angle = base + offset;
+      const cx = Phaser.Math.Clamp(spot.x + Math.cos(angle) * STAND_DIST, 60, w - 60);
+      const cy = Phaser.Math.Clamp(spot.y + Math.sin(angle) * STAND_DIST, 60, h - 60);
+      if (this._hasLOS(cx, cy, px, py)) return { x: cx, y: cy };
+    }
+    return null;
   }
 
   // ── Alarm system ─────────────────────────────────────────────────────────
@@ -429,39 +486,83 @@ export class EnemyShooter extends Enemy {
       case ST.FLANK:
         this._tickFlank(delta, player);
         break;
+
+      case ST.ADVANCE:
+        this._tickAdvance(delta, player);
+        break;
     }
   }
 
   // ── Cover claiming ──────────────────────────────────────────────────────
 
+  // Claim a cover spot whose computed stand position has LOS to the player.
+  // Iterates nearest-first; if no cover yields LOS, sets coverSpot to null
+  // and the caller should drop to ADVANCE.
   _claimCover(player) {
     this.coverRegistry?.release(this);
-    this.coverSpot = this.coverRegistry?.claim(this, player.x, player.y) ?? null;
-    this._standRecomputeTimer = 2500;
+    this.standPos = null;
+    if (!this.coverRegistry) { this.coverSpot = null; return; }
+
+    let pickedStand = null;
+    const spot = this.coverRegistry.claimFirstValid(this, (s) => {
+      const stand = this._computeStandPos(s, player.x, player.y);
+      if (stand) { pickedStand = stand; return true; }
+      return false;
+    });
+    this.coverSpot = spot;
+    this.standPos  = pickedStand;
   }
 
+  // For repositioning: find the cover farthest from the player that also has
+  // a LOS-clear stand position. Falls back to whatever is farthest.
   _claimFarCover(player) {
     this.coverRegistry?.release(this);
-    this.coverSpot = this.coverRegistry
-      ? this.coverRegistry.claimFarthestFrom(this, player.x, player.y)
-      : null;
-    this._standRecomputeTimer = 2500;
+    this.standPos = null;
+    if (!this.coverRegistry) { this.coverSpot = null; return; }
+
+    // Rank by distance from player (farthest first)
+    const ranked = this.coverRegistry.spots
+      .filter((s) => s.owner === null || s.owner === this)
+      .map((s) => ({ s, d: Math.hypot(s.x - player.x, s.y - player.y) }))
+      .sort((a, b) => b.d - a.d);
+    for (const { s } of ranked) {
+      const stand = this._computeStandPos(s, player.x, player.y);
+      if (stand) { s.owner = this; this.coverSpot = s; this.standPos = stand; return; }
+    }
+    // No LOS-clear option — take the farthest spot anyway
+    if (ranked.length) {
+      const s = ranked[0].s;
+      s.owner = this;
+      this.coverSpot = s;
+      this.standPos  = { x: s.x, y: s.y };
+    }
   }
 
   // ── COVER_MOVE: walk to the stand position beside the claimed spot ──────
 
   _tickCoverMove(delta, player) {
-    if (!this.coverSpot) {
-      this.state = ST.SUPPRESS;
+    // No cover with LOS — go ADVANCE so we push forward instead of standing
+    // pressed against a useless wall.
+    if (!this.coverSpot || !this.standPos) {
+      this.state = ST.ADVANCE;
+      this._advanceTimer = 0;
       return;
     }
-    const sx   = this.coverSpot.standX ?? this.coverSpot.x;
-    const sy   = this.coverSpot.standY ?? this.coverSpot.y;
-    const dist = this._moveToward(sx, sy, this.cfg.speed);
+    const dist = this._moveToward(this.standPos.x, this.standPos.y, this.cfg.speed);
     if (dist < ARRIVE_THRESH) {
       this.state = ST.SUPPRESS;
+      this._losLostMs = 0;
     }
+    // Fire-of-opportunity (only if we actually have LOS now)
     this._maybeFireAt(delta, player);
+
+    // Safety net: if we can't reach the stand position for too long, ADVANCE.
+    this._coverMoveStuckMs = (this._coverMoveStuckMs || 0) + delta;
+    if (this._coverMoveStuckMs > LOS_LOST_ADVANCE) {
+      this._coverMoveStuckMs = 0;
+      this.state = ST.ADVANCE;
+      this._advanceTimer = 0;
+    }
   }
 
   // ── SUPPRESS: hold stand position, peek-fire at player ─────────────────
@@ -471,25 +572,36 @@ export class EnemyShooter extends Enemy {
     if (sees) {
       this.lastKnownX = player.x;
       this.lastKnownY = player.y;
+      this._losLostMs = 0;
+    } else {
+      this._losLostMs = (this._losLostMs || 0) + delta;
     }
 
-    // Periodically refresh stand position as the player flanks around cover
-    this._standRecomputeTimer = (this._standRecomputeTimer ?? 0) - delta;
-    if (this._standRecomputeTimer <= 0) {
-      this._standRecomputeTimer = 2200;
-      if (this.coverSpot) this.coverRegistry?.recomputeStand(this.coverSpot, player.x, player.y);
-    }
-
-    const holdX  = this.coverSpot?.standX ?? this.coverSpot?.x ?? this.x;
-    const holdY  = this.coverSpot?.standY ?? this.coverSpot?.y ?? this.y;
-    const dCover = Math.hypot(this.x - holdX, this.y - holdY);
-    if (dCover > ARRIVE_THRESH * 1.5) {
+    const holdX  = this.standPos?.x ?? this.coverSpot?.x ?? this.x;
+    const holdY  = this.standPos?.y ?? this.coverSpot?.y ?? this.y;
+    const dHold  = Math.hypot(this.x - holdX, this.y - holdY);
+    if (dHold > ARRIVE_THRESH * 1.5) {
       this._moveToward(holdX, holdY, this.cfg.speed * 0.8);
     } else {
       this._stopAndFace(this.lastKnownX, this.lastKnownY);
     }
 
     this._maybeFireAt(delta, player);
+
+    // LOST LOS for too long — try a fresh cover with LOS (which may also pick
+    // a brand new stand position around the same cover spot). If even that
+    // fails, drop to ADVANCE.
+    if (this._losLostMs > LOS_LOST_RECLAIM) {
+      this._losLostMs = 0;
+      this._claimCover(player);
+      if (!this.standPos) {
+        this.state = ST.ADVANCE;
+        this._advanceTimer = 0;
+      } else {
+        this.state = ST.COVER_MOVE;
+        this._coverMoveStuckMs = 0;
+      }
+    }
 
     if (Math.hypot(player.x - this.x, player.y - this.y) < REPOSITION_DIST) {
       this.state = ST.REPOSITION;
@@ -503,7 +615,7 @@ export class EnemyShooter extends Enemy {
       this._repositioning = true;
       this._claimFarCover(player);
     }
-    if (!this.coverSpot) {
+    if (!this.coverSpot || !this.standPos) {
       const dx = this.x - player.x, dy = this.y - player.y;
       const d  = Math.hypot(dx, dy) || 1;
       this.setVelocity((dx / d) * this.cfg.speed, (dy / d) * this.cfg.speed);
@@ -513,13 +625,33 @@ export class EnemyShooter extends Enemy {
       }
       return;
     }
-    const sx   = this.coverSpot.standX ?? this.coverSpot.x;
-    const sy   = this.coverSpot.standY ?? this.coverSpot.y;
-    const dist = this._moveToward(sx, sy, this.cfg.speed);
+    const dist = this._moveToward(this.standPos.x, this.standPos.y, this.cfg.speed);
     if (dist < ARRIVE_THRESH) {
       this._repositioning = false;
       this.state = ST.SUPPRESS;
+      this._losLostMs = 0;
     }
+  }
+
+  // ── ADVANCE: no cover with LOS — push toward the player until we regain LOS,
+  // then try to claim cover again.
+  _tickAdvance(delta, player) {
+    this._advanceTimer = (this._advanceTimer || 0) + delta;
+    const sees = this.canSee(player);
+    if (sees) {
+      this.lastKnownX = player.x;
+      this.lastKnownY = player.y;
+      // Try to take cover at this new position
+      this._claimCover(player);
+      if (this.coverSpot && this.standPos) {
+        this.state = ST.COVER_MOVE;
+        this._coverMoveStuckMs = 0;
+        return;
+      }
+    }
+    // Move toward the player at three-quarter speed, firing if LOS appears
+    this._moveToward(player.x, player.y, this.cfg.speed * 0.78);
+    this._maybeFireAt(delta, player);
   }
 
   // ── FLANK: move to a perpendicular position and fire ───────────────────
@@ -592,7 +724,10 @@ export class EnemyShooter extends Enemy {
   // ── Fire helper ─────────────────────────────────────────────────────────
 
   _maybeFireAt(delta, player) {
+    // canSee() already does LOS — only fire if a bullet from THIS exact
+    // position would actually reach the player without hitting a wall.
     if (!this.canSee(player)) return;
+    if (!this._hasLOS(this.x, this.y, player.x, player.y)) return;
     this.fireCd -= delta;
     if (this.fireCd <= 0) {
       this.fireCd         = Phaser.Math.Between(SUPPRESS_FIRE_MIN, SUPPRESS_FIRE_MAX);

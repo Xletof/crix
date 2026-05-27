@@ -1004,6 +1004,7 @@ export class GameScene extends Phaser.Scene {
       [ST.SUPPRESS]:   0x2080ff,
       [ST.REPOSITION]: 0xff00ff,
       [ST.FLANK]:      0x00ffff,
+      [ST.ADVANCE]:    0xffffff,
     };
 
     for (const e of this.enemies.getChildren()) {
@@ -1018,12 +1019,13 @@ export class GameScene extends Phaser.Scene {
       let tx = null, ty = null;
       switch (e.state) {
         case ST.CHASE:
+        case ST.ADVANCE:
           tx = e.lastKnownX; ty = e.lastKnownY; break;
         case ST.COVER_MOVE:
         case ST.SUPPRESS:
         case ST.REPOSITION:
-          tx = e.coverSpot?.standX ?? e.coverSpot?.x;
-          ty = e.coverSpot?.standY ?? e.coverSpot?.y; break;
+          tx = e.standPos?.x ?? e.coverSpot?.x;
+          ty = e.standPos?.y ?? e.coverSpot?.y; break;
         case ST.FLANK:
           if (e.flankTarget) { tx = e.flankTarget.x; ty = e.flankTarget.y; } break;
         default: break;
