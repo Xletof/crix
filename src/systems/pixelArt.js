@@ -159,6 +159,11 @@ export class SpriteSheet {
   }
   hline(y, x1, x2, color) { this.rect(x1, y, x2 - x1 + 1, 1, color); }
   vline(x, y1, y2, color) { this.rect(x, y1, 1, y2 - y1 + 1, color); }
+  circle(cx, cy, r, color) {
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++)
+        if (dx * dx + dy * dy <= r * r) this.px(cx + dx, cy + dy, color);
+  }
   copyFrame(fromF, toF) {
     const fw = this.logW * this.scale, fh = this.logH * this.scale;
     const data = this.ctx.getImageData(fromF * fw, 0, fw, fh);
