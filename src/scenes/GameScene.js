@@ -175,19 +175,38 @@ export class GameScene extends Phaser.Scene {
   spawnHealthOrb(x, y) {
     const g = this.add.graphics().setDepth(22);
     const r = HEALTH_ORB.radius;
-    // Outer glow ring
-    g.fillStyle(HEALTH_ORB.color, 0.25);
-    g.fillCircle(0, 0, r + 6);
-    // Main orb
-    g.fillStyle(HEALTH_ORB.color, 0.9);
-    g.fillCircle(0, 0, r);
-    // Inner highlight
-    g.fillStyle(0xffffff, 0.55);
-    g.fillCircle(-r * 0.32, -r * 0.32, r * 0.45);
-    // Cross symbol
-    g.fillStyle(0xffffff, 0.85);
-    g.fillRect(-r * 0.18, -r * 0.6, r * 0.36, r * 1.2);
-    g.fillRect(-r * 0.6, -r * 0.18, r * 1.2, r * 0.36);
+    // Outer warm glow (tonic aura)
+    g.fillStyle(0xff9020, 0.15);
+    g.fillCircle(0, 0, r + 10);
+    // Shadow disc
+    g.fillStyle(0x1a0a04, 0.35);
+    g.fillEllipse(2, r * 0.6, r * 1.6, r * 0.5);
+    // Flask body (rounded rectangle, warm brown leather)
+    g.fillStyle(0x3a1a08, 1);
+    g.fillRoundedRect(-r * 0.6 + 1, -r + 1, r * 1.2, r * 1.8, r * 0.25);
+    g.fillStyle(HEALTH_ORB.color, 1);
+    g.fillRoundedRect(-r * 0.6, -r, r * 1.2, r * 1.8, r * 0.25);
+    // Flask neck
+    g.fillStyle(0x3a1a08, 1);
+    g.fillRect(-r * 0.24 + 1, -r * 1.18 + 1, r * 0.48, r * 0.26);
+    g.fillStyle(0xc07828, 1);
+    g.fillRect(-r * 0.24, -r * 1.18, r * 0.48, r * 0.26);
+    // Cork stopper
+    g.fillStyle(0xd4a96a, 1);
+    g.fillRect(-r * 0.2, -r * 1.3, r * 0.4, r * 0.15);
+    // Flask highlight (left edge glint)
+    g.fillStyle(0xfff4c0, 0.5);
+    g.fillRoundedRect(-r * 0.5, -r * 0.9, r * 0.2, r * 1.4, r * 0.1);
+    // Red cross badge on flask
+    g.fillStyle(0x8a0808, 1);
+    g.fillRect(-r * 0.32, -r * 0.4, r * 0.64, r * 0.18);
+    g.fillRect(-r * 0.14, -r * 0.58, r * 0.28, r * 0.54);
+    g.fillStyle(0xdd2020, 1);
+    g.fillRect(-r * 0.28, -r * 0.36, r * 0.56, r * 0.14);
+    g.fillRect(-r * 0.12, -r * 0.54, r * 0.24, r * 0.46);
+    // Liquid line inside flask (golden tonic)
+    g.fillStyle(0xffd040, 0.45);
+    g.fillRoundedRect(-r * 0.48, -r * 0.1, r * 0.96, r * 0.7, r * 0.12);
     g.setPosition(x, y);
 
     const orb = {
@@ -497,7 +516,7 @@ export class GameScene extends Phaser.Scene {
         const healed = Math.min(HEALTH_ORB.healAmount, p.hpMax - p.hp);
         p.hp = Math.min(p.hpMax, p.hp + HEALTH_ORB.healAmount);
         p.scene.events.emit('player-hp-changed');
-        this.fx.damageNumber(orb.x, orb.y - 20, `+${Math.round(healed)} HP`, '#44ee88', false);
+        this.fx.damageNumber(orb.x, orb.y - 20, `+${Math.round(healed)} HP`, '#ffd040', false);
         this.fx.burst(orb.x, orb.y, 'yellow', 8);
         this.tweens.killTweensOf(orb.gfx);
         orb.gfx.destroy();

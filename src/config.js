@@ -107,7 +107,7 @@ export const HEALTH_ORB = {
   dropChance: 0.22,     // 22% chance per enemy death
   healAmount: 140,      // heal 140 HP
   radius: 14,
-  color: 0x44ee88,
+  color: 0xe8a040,      // warm amber (western healing tonic)
   lifeMs: 8000,         // orb disappears after 8s
 };
 
