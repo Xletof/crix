@@ -278,7 +278,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.alive       = false;
     this.flameActive = false;
     this.setVelocity(0, 0);
-    this.jetEmitter.stop();
+    this.jetEmitter?.stop();
     this.scene.events.emit('player-dead');
   }
 
