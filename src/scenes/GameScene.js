@@ -544,6 +544,11 @@ export class GameScene extends Phaser.Scene {
         Math.round(amount), '#ffd166', true);
       this.fx.burst(boss.x, boss.y, 'red', 6);
       this.fx.shake(0.005, 60);
+      // Hit-pause: brief freeze on big damage spikes for crunchy impact
+      if (amount >= 400) {
+        this.physics.world.pause();
+        this.time.delayedCall(45, () => this.physics.world.resume());
+      }
       SFX.bossHit();
     });
     this.events.on('boss-died', (boss) => {
@@ -567,9 +572,12 @@ export class GameScene extends Phaser.Scene {
       this.roomManager.onEnemyDied();
       if (Math.random() < HEALTH_ORB.dropChance) this.spawnHealthOrb(enemy.x, enemy.y);
     });
-    this.events.on('player-hurt', () => {
+    this.events.on('player-hurt', (amount) => {
       this.fx.shake(0.008, 110);
       this.cameras.main.flash(120, 255, 80, 80, true);
+      this.fx.hitFlash(this.player);
+      this.fx.damageNumber(this.player.x, this.player.y - 40, Math.round(amount || 0), '#ff4040');
+      this.fx.burst(this.player.x, this.player.y, 'red', 6);
     });
     this.events.on('player-dead', () => {
       this.fx.burst(this.player.x, this.player.y, 'red', 30);
