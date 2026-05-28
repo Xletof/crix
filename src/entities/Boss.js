@@ -27,6 +27,11 @@ export class Boss extends Enemy {
     this.phase = 1;
     this.contactDmgCd = 0;
 
+    // Per-volley damage cap: no more than 2200 dmg in any 120 ms window so a
+    // point-blank super (7 pellets × 520 = 3640) can't one-shot the boss.
+    this._dmgWindow    = 0;   // damage absorbed in current window
+    this._dmgWindowMs  = 0;   // ms since window opened
+
     // Vader-specific: saber glow pulse
     this._glowT = 0;
     this._enraged = false;
@@ -35,6 +40,20 @@ export class Boss extends Enemy {
 
     // Start Vader idle anim
     this.play('vader-idle');
+  }
+
+  // Override damage() to apply a per-volley cap so a point-blank super volley
+  // (7 simultaneous pellets) can't one-shot the boss. Any individual hit that
+  // would push total intake above 2200 in a 120 ms window is partially absorbed.
+  damage(amount, knockbackVec = null) {
+    const CAP = 2200, WIN = 120;
+    if (this._dmgWindowMs <= 0) { this._dmgWindow = 0; }
+    const headroom = Math.max(0, CAP - this._dmgWindow);
+    const effective = Math.min(amount, headroom);
+    if (effective <= 0) return; // fully absorbed
+    this._dmgWindow   += effective;
+    this._dmgWindowMs  = WIN;
+    super.damage(effective, knockbackVec);
   }
 
   enterPhase(p) {
@@ -60,6 +79,9 @@ export class Boss extends Enemy {
     this.updateHpBar();
     this.setAlpha(this.hiddenInBush ? 0.55 : 1);
     if (!this.alive) return;
+
+    // Per-volley damage window
+    if (this._dmgWindowMs > 0) this._dmgWindowMs -= delta;
 
     // Saber glow pulse (subtle scale)
     this._glowT += delta;

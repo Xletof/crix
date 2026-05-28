@@ -103,7 +103,7 @@ export const ENEMY = {
 };
 
 export const BOSS = {
-  hp: 6000,
+  hp: 9000,
   radius: 56,
   speed: 110,
   contactDamage: 220,
