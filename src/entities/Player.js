@@ -64,6 +64,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this._glowPulse = 0;
 
     this.play('mando-idle');
+    // Bump display scale for readability (texture stays 24×24)
+    this.setScale(1.15);
   }
 
   // ── Movement / aiming inputs (called by HUD joysticks) ────────────────────
@@ -341,9 +343,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // ── Recoil punch ─────────────────────────────────────────────────────
     if (this.recoilT > 0) {
       this.recoilT -= delta;
-      this.setScale(1 - Math.max(0, this.recoilT / 110) * 0.12);
+      this.setScale(1.15 * (1 - Math.max(0, this.recoilT / 110) * 0.12));
     } else {
-      this.setScale(1);
+      this.setScale(1.15);
     }
 
   }

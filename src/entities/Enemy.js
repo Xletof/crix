@@ -71,6 +71,20 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.hpBar  = scene.add.graphics().setDepth(this.depth + 1);
     this.hpBar.visible = false;
 
+    // Threat ring — red halo under the enemy so it pops on a dark floor.
+    // Mirrors the player's cyan "you are here" ring.
+    const ringColor = spec.alerted ? 0xff3030 : 0xff5040;
+    this.threatRing = scene.add.graphics().setDepth(this.depth - 2);
+    this.threatRing.fillStyle(ringColor, 0.16);
+    this.threatRing.fillCircle(0, 0, cfg.radius + 12);
+    this.threatRing.lineStyle(2, ringColor, 0.65);
+    this.threatRing.strokeCircle(0, 0, cfg.radius + 6);
+    this.threatRing.setPosition(x, y);
+    this._ringPulse = Math.random() * Math.PI * 2;
+
+    // Bump sprite scale for readability (~15% larger)
+    this.setScale(1.15);
+
     // "!" alert indicator (shown briefly when spotting player)
     this.alertMark = scene.add.text(x, y - cfg.radius - 24, '!', {
       fontFamily: 'Courier New, monospace',
@@ -130,6 +144,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.hpBar.destroy();
     this.shadow.destroy();
     this.alertMark.destroy();
+    this.threatRing?.destroy();
     this.destroy();
   }
 
@@ -307,6 +322,14 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.updateHpBar();
     this.setAlpha(this.hiddenInBush ? 0.55 : 1);
 
+    // Threat ring tracks position + soft pulse; dims when enemy is hidden.
+    if (this.threatRing) {
+      this._ringPulse += delta * 0.006;
+      const pulse = 0.92 + 0.08 * Math.sin(this._ringPulse);
+      this.threatRing.setPosition(this.x, this.y).setScale(pulse);
+      this.threatRing.setAlpha(this.hiddenInBush ? 0.25 : 1);
+    }
+
     // Animation frame selection
     const speedSq   = this.body.velocity.x ** 2 + this.body.velocity.y ** 2;
     const isMoving  = speedSq > 200;
@@ -321,12 +344,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       if (this.anims.currentAnim?.key !== `${prefix}-idle`) this.play(`${prefix}-idle`);
     }
 
-    // Recoil scale
+    // Recoil scale (over base 1.15)
     if (this.recoilT > 0) {
       this.recoilT -= delta;
-      this.setScale(1 - Math.max(0, this.recoilT / 80) * 0.12);
+      this.setScale(1.15 * (1 - Math.max(0, this.recoilT / 80) * 0.12));
     } else {
-      this.setScale(1);
+      this.setScale(1.15);
     }
 
     // ── Stuck-state recovery ────────────────────────────────────────────────
