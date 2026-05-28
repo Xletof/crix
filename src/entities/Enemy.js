@@ -60,8 +60,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.patrolIdx     = 0;
     this.patrolWait    = 0;          // ms to pause at waypoint
     this.alertTimer    = 0;          // ms remaining in ALERT freeze
-    this.lastKnownX    = x;
-    this.lastKnownY    = y;
+    // Pre-alerted enemies: use the player's current position so they move toward
+    // the player immediately rather than toward their own spawn when LOS is blocked.
+    const _p = spec.alerted && scene.player?.alive ? scene.player : null;
+    this.lastKnownX    = _p ? _p.x : x;
+    this.lastKnownY    = _p ? _p.y : y;
     this.hasSeenPlayer = false;
 
     this.shadow = scene.add.image(x, y + 14, 'shadow').setDepth(this.depth - 1).setAlpha(0.35);
@@ -675,16 +678,18 @@ export class EnemyShooter extends Enemy {
     const tx = sees ? player.x : this.lastKnownX;
     const ty = sees ? player.y : this.lastKnownY;
 
-    // Wall-following phase: move perpendicularly to slide around the obstacle.
+    // Wall-following phase: blend perpendicular slide with forward progress so
+    // the enemy clears the obstacle AND continues closing in on the target.
     if (this._advWallFollowMs > 0) {
       this._advWallFollowMs -= delta;
-      const toTarget = Math.atan2(ty - this.y, tx - this.x);
-      const perp     = toTarget + this._advWallFollowDir * Math.PI / 2;
-      this.setVelocity(
-        Math.cos(perp) * this.cfg.speed * 0.9,
-        Math.sin(perp) * this.cfg.speed * 0.9,
-      );
-      this.setRotation(perp + Math.PI / 2);
+      const toTarget  = Math.atan2(ty - this.y, tx - this.x);
+      const perp      = toTarget + this._advWallFollowDir * Math.PI / 2;
+      // 65% slide + 35% forward → gains ground while skirting the wall
+      const vx = Math.cos(perp) * 0.65 + Math.cos(toTarget) * 0.35;
+      const vy = Math.sin(perp) * 0.65 + Math.sin(toTarget) * 0.35;
+      const len = Math.hypot(vx, vy) || 1;
+      this.setVelocity((vx / len) * this.cfg.speed, (vy / len) * this.cfg.speed);
+      this.setRotation(Math.atan2(vy, vx) + Math.PI / 2);
       return;
     }
 
@@ -692,14 +697,14 @@ export class EnemyShooter extends Enemy {
     this._advStuckTimer = (this._advStuckTimer || 0) + delta;
     this._advRefX = this._advRefX ?? this.x;
     this._advRefY = this._advRefY ?? this.y;
-    if (this._advStuckTimer >= 500) {
+    if (this._advStuckTimer >= 350) {
       const moved = Math.hypot(this.x - this._advRefX, this.y - this._advRefY);
-      if (moved < 10) {
+      if (moved < 8) {
         // Flip direction on each episode to eventually find the way around.
         this._advWallFollowDir = this._advWallFollowDir
           ? -this._advWallFollowDir
           : (Math.random() < 0.5 ? 1 : -1);
-        this._advWallFollowMs = 1000;
+        this._advWallFollowMs = 1400;
       }
       this._advStuckTimer = 0;
       this._advRefX       = this.x;

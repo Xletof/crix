@@ -51,7 +51,8 @@ export const ROOMS = [
 
   // ── 2. Service Corridor ────────────────────────────────────────────────
   // Tall narrow chamber — forces close-quarters. Enemies start alerted
-  // (they heard the hangar fight). One grunt on a cross-patrol.
+  // (they heard the hangar fight). Cover staggered left/right so enemies
+  // can navigate around them (centered cover caused permanent stuck-loops).
   {
     id: 'corridor',
     name: 'SERVICE CORRIDOR',
@@ -63,7 +64,7 @@ export const ROOMS = [
       { x: 220, y: 1000 }, { x: 680, y: 1000 },
     ],
     cover: [
-      { x: 450, y: 380 }, { x: 450, y: 800 }, { x: 450, y: 1200 },
+      { x: 320, y: 380 }, { x: 580, y: 800 }, { x: 320, y: 1200 },
     ],
     enemies: [
       // These enemies heard the hangar fight — they boot in ALERT state
@@ -71,8 +72,8 @@ export const ROOMS = [
         type: 'grunt', x: 450, y: 650, alerted: true,
         patrol: [{ x: 250, y: 650 }, { x: 650, y: 650 }],
       },
-      { type: 'grunt',   x: 320, y: 1100, alerted: true },
-      { type: 'shooter', x: 450, y: 1280, alerted: true },
+      { type: 'grunt',   x: 300, y: 1100, alerted: true },
+      { type: 'shooter', x: 620, y: 1280, alerted: true },
     ],
     // Flamethrower reward for clearing the tight corridor
     pickups: [
