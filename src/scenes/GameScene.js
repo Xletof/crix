@@ -296,7 +296,7 @@ export class GameScene extends Phaser.Scene {
     const label = sealed ? '[ SEALED ]' : '[ EXIT ]';
     const lx = side === 'right' ? w - 80 : side === 'left' ? 80 : x;
     const ly = side === 'bottom' ? h - 80 : side === 'top' ? 80 : y - 24;
-    if (!this._doorLabel) {
+    if (!this._doorLabel || !this._doorLabel.active) {
       this._doorLabel = this.add.text(lx, ly, label, {
         fontFamily: 'Courier New, monospace',
         fontSize: '18px',
