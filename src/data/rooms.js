@@ -64,7 +64,7 @@ export const ROOMS = [
       { x: 220, y: 1000 }, { x: 680, y: 1000 },
     ],
     cover: [
-      { x: 320, y: 380 }, { x: 580, y: 800 }, { x: 320, y: 1200 },
+      { x: 280, y: 420 }, { x: 660, y: 800 }, { x: 280, y: 1220 },
     ],
     enemies: [
       // These enemies heard the hangar fight — they boot in ALERT state
