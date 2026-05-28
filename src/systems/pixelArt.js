@@ -345,117 +345,66 @@ export function paintShooter(scene, key = 'shooter') {
   function drawDeathTrooper(f, legOff = 0, fireMode = false) {
     ss.frame(f);
 
-    // ── DT-29 HEAVY BLASTER (pointing UP) — voxel cube shading ───────────
-    ss.vline(9,  0, 5, C.impGrey);
-    ss.vline(10, 0, 5, C.impSheen);
-    ss.px(9,  0, fireMode ? C.boltGreen     : C.metalLight);
-    ss.px(10, 0, fireMode ? C.boltGreenGlow : C.metalLight);
-    // Barrel left SIDE face (shadow)
-    ss.px(8, 1, C.impDark);
-    ss.px(8, 2, C.impDark);
-    ss.px(8, 3, C.impDark);
-    ss.px(8, 4, C.impDark);
-    // Heavy body — TOP bright, FRONT medium, SIDE dark
-    ss.rect(8, 5, 4, 3, C.impLight);    // TOP face
-    ss.hline(8, 8, 11, C.impGrey);      // FRONT lower face
-    ss.px(7, 5, C.impDark);             // left SIDE shadow
-    ss.px(7, 6, C.impDark);
-    ss.px(7, 7, C.impDark);
-    ss.px(12, 5, C.impDark);            // right SIDE shadow
+    // Heavy blaster
+    ss.px(9,  0, fireMode ? C.boltGreen     : C.dthLight);
+    ss.px(10, 0, fireMode ? C.boltGreenGlow : C.impGrey);
+    ss.vline(9,  1, 4, C.impDark);
+    ss.vline(10, 1, 4, C.dthLight);
+    ss.rect(8, 5, 4, 2, C.dthMid);
+    ss.hline(5, 8, 11, C.dthLight);
+    ss.px(7, 5, C.dthDark); ss.px(12, 5, C.dthDark);
 
-    // ── DEATH TROOPER HELMET — angular voxel cube, all black ─────────────
-    // TOP face (rows 5-7): dthLight — slightly lighter black
-    ss.hline(5, 7,  12, C.dthLight);    // top-face row 1 (narrow)
-    ss.hline(6, 6,  13, C.dthLight);    // top-face row 2
-    ss.hline(7, 5,  14, C.dthMid);      // top-face row 3 (widest, still dark)
-    // 1px dark separator
-    ss.hline(8, 5,  14, C.black);
+    // DEATH TROOPER HELMET — angular, all-black
+    ss.rect(5, 4, 10, 9, C.dthMid);
+    // Crown subtly lighter
+    ss.hline(4, 7, 12, C.dthLight);
+    ss.hline(5, 6, 13, C.dthLight);
+    ss.hline(6, 5, 14, C.dthMid);
+    // Angular sides
+    ss.vline(5,  4, 12, C.dthDark);
+    ss.vline(14, 4, 12, C.dthDark);
+    ss.hline(12, 5, 14, C.dthDark);
+    ss.px(5, 4, C.black); ss.px(14, 4, C.black);
+    // GREEN LED EYES (glowing 2×2)
+    ss.rect(6,  6, 3, 2, C.dthLED);
+    ss.rect(11, 6, 3, 2, C.dthLED);
+    ss.px(7,  6, C.dthLEDBright); ss.px(12, 6, C.dthLEDBright);
+    // Glow bleed
+    ss.px(5, 6, '#0a2a0a'); ss.px(9,  6, '#0a2a0a');
+    ss.px(5, 7, '#0a2a0a'); ss.px(9,  7, '#0a2a0a');
+    ss.px(10, 6, '#0a2a0a'); ss.px(14, 6, '#0a2a0a');
+    ss.px(10, 7, '#0a2a0a'); ss.px(14, 7, '#0a2a0a');
+    // Vent slots
+    ss.px(7, 10, C.dthDark); ss.px(9, 10, C.dthDark); ss.px(11, 10, C.dthDark);
 
-    // FRONT face of helmet (rows 8-11): dthMid
-    ss.hline(9,  5, 14, C.dthMid);
-    ss.hline(10, 5, 14, C.dthMid);
-    ss.hline(11, 5, 14, C.dthDark);     // chin row darker
+    // BODY
+    ss.rect(5, 12, 10, 5, C.dthMid);
+    ss.hline(12, 5, 14, C.dthLight);
+    ss.hline(16, 5, 14, C.dthDark);
+    ss.vline(5,  12, 16, C.dthDark);
+    ss.vline(14, 12, 16, C.dthDark);
+    ss.vline(9,  12, 16, C.dthDark);
+    ss.vline(10, 12, 16, C.dthLight);
+    ss.px(9, 16, C.dthLED); ss.px(10, 16, C.dthLED); // LED belt
 
-    // GREEN LED EYES — bright rectangles on FRONT face (rows 8-9)
-    // Left LED eye
-    ss.px(5, 8, C.dthLED);
-    ss.px(6, 8, C.dthLED);
-    ss.px(7, 8, C.dthLED);
-    ss.px(5, 9, C.dthLED);
-    ss.px(6, 9, C.dthLEDBright);        // bright center
-    ss.px(7, 9, C.dthLED);
-    // LED glow bleed
-    ss.px(4, 8, '#0a2a0a');
-    ss.px(4, 9, '#0a2a0a');
-    // Right LED eye
-    ss.px(11, 8, C.dthLED);
-    ss.px(12, 8, C.dthLED);
-    ss.px(13, 8, C.dthLED);
-    ss.px(11, 9, C.dthLED);
-    ss.px(12, 9, C.dthLEDBright);
-    ss.px(13, 9, C.dthLED);
-    ss.px(14, 8, '#0a2a0a');
-    ss.px(14, 9, '#0a2a0a');
-
-    // Breather vents (row 10) — small dark slots
-    ss.px(6,  10, C.dthDark);
-    ss.px(8,  10, C.dthDark);
-    ss.px(10, 10, C.dthDark);
-    ss.px(12, 10, C.dthDark);
-
-    // SIDE faces of helmet
-    ss.vline(5,  8, 11, C.dthDark);     // left SIDE
-    ss.vline(14, 8, 11, C.dthDark);     // right SIDE
-
-    // ── CHEST ARMOR — angular black voxel block ───────────────────────────
-    ss.hline(11, 5,  14, C.dthLight);   // TOP face
-    ss.hline(12, 5,  14, C.black);      // TOP/FRONT separator
-    ss.rect(4, 12, 12, 3, C.dthMid);    // FRONT face
-    ss.hline(15, 5,  14, C.dthDark);    // bottom shadow
-    ss.vline(4,  12, 14, C.dthDark);    // left SIDE shadow
-    ss.vline(15, 12, 14, C.dthDark);    // right SIDE shadow
-    // Center ridge
-    ss.vline(9,  12, 14, C.dthDark);
-    ss.vline(10, 12, 14, C.dthLight);
-
-    // ── ARMS — armored voxel blocks ───────────────────────────────────────
-    ss.hline(11, 2, 3, C.dthLight);     // L arm TOP face
-    ss.rect(2, 12, 2, 4, C.dthMid);     // L arm FRONT
-    ss.vline(2, 12, 15, C.dthDark);     // L SIDE shadow
-    ss.hline(11, 16, 17, C.dthLight);   // R arm TOP face
-    ss.rect(16, 12, 2, 4, C.dthMid);    // R arm FRONT
-    ss.vline(17, 12, 15, C.dthDark);    // R SIDE shadow
-
-    // ── BELT ──────────────────────────────────────────────────────────────
-    ss.hline(15, 4, 15, C.dthDark);
-    ss.px(9,  15, C.dthLED);            // LED indicator on belt
-    ss.px(10, 15, C.dthLED);
-
-    // ── LEGS — chunky voxel blocks ────────────────────────────────────────
-    const lx = 4 - legOff;
-    const rx = 11 + legOff;
-    // Left leg: TOP lighter, FRONT mid, SIDE dark
-    ss.hline(16, lx, lx + 3, C.dthLight);   // TOP face
-    ss.hline(17, lx, lx + 3, C.black);       // TOP/FRONT separator
-    ss.rect(lx, 17, 4, 2, C.dthMid);         // FRONT face
-    ss.vline(lx, 16, 18, C.dthDark);         // SIDE shadow
-    // Right leg
-    ss.hline(16, rx, rx + 3, C.dthLight);
-    ss.hline(17, rx, rx + 3, C.black);
-    ss.rect(rx, 17, 4, 2, C.dthMid);
-    ss.vline(rx + 3, 16, 18, C.dthDark);
-    // Boots
-    ss.hline(19, lx - 1, lx + 4, C.dthDark);
-    ss.hline(19, rx - 1, rx + 4, C.dthDark);
-    ss.vline(lx - 1, 19, 19, C.dthDark);
-    ss.vline(rx + 4, 19, 19, C.dthDark);
+    // LEGS
+    const lx = 5 - legOff, rx = 11 + legOff;
+    ss.rect(lx, 16, 4, 3, C.dthMid);
+    ss.rect(rx, 16, 4, 3, C.dthMid);
+    ss.hline(16, lx, lx+3, C.dthLight);
+    ss.hline(16, rx, rx+3, C.dthLight);
+    ss.hline(18, lx, lx+3, C.dthDark);
+    ss.hline(18, rx, rx+3, C.dthDark);
+    ss.vline(lx,   16, 18, C.dthDark);
+    ss.vline(lx+3, 16, 18, C.black);
+    ss.vline(rx,   16, 18, C.dthDark);
+    ss.vline(rx+3, 16, 18, C.black);
   }
 
   drawDeathTrooper(0, 0, false);
   drawDeathTrooper(1, 1, false);
   drawDeathTrooper(2, -1, false);
   drawDeathTrooper(3, 0, true);
-
   ss.finish();
 }
 
@@ -466,187 +415,105 @@ export function paintBoss(scene, key = 'boss') {
 
   function drawVader(f, legOff = 0, enraged = false) {
     ss.frame(f);
-    const saberColor = enraged ? C.saberRedGlow : C.saberRed;
-    const saberCore  = enraged ? C.saberRedCore : C.saberRedGlow;
+    const sbr  = enraged ? C.saberRedGlow : C.saberRed;
+    const sbrC = enraged ? C.saberRedCore : C.saberRedGlow;
 
-    // ── LIGHTSABER (pointing UP, x=19-20) — voxel depth on hilt ──────────
-    // Blade
-    ss.vline(19, 0, 16, saberColor);
-    ss.vline(20, 0, 16, saberCore);
-    ss.px(19, 0, C.saberRedTip);
-    ss.px(20, 0, C.saberRedTip);
-    // Glow halo (narrow saber aura)
-    ss.px(18, 1, saberColor);
-    ss.px(21, 1, saberColor);
-    ss.px(18, 6, saberColor);
-    ss.px(21, 6, saberColor);
-    ss.px(18, 12, saberColor);
-    ss.px(21, 12, saberColor);
-    // Crossguard — TOP face lighter, FRONT medium, SIDE dark
-    ss.hline(15, 16, 23, C.impLight);   // TOP face of crossguard
-    ss.rect(16, 16, 8, 2, C.impGrey);   // FRONT face
-    ss.hline(18, 16, 23, C.impDark);    // bottom SIDE shadow
-    ss.vline(16, 16, 17, C.impDark);    // left SIDE
-    ss.vline(23, 16, 17, C.impDark);    // right SIDE
-    ss.hline(16, 17, 22, C.impSheen);   // crossguard highlight
-    // Hilt body — voxel cube
-    ss.hline(17, 18, 21, C.impLight);   // TOP face of hilt
-    ss.rect(18, 18, 4, 4, C.impGrey);   // FRONT face
-    ss.px(19, 18, C.impSheen);
-    ss.px(20, 18, C.metalLight);
-    ss.vline(18, 18, 21, C.impDark);    // left SIDE shadow
-    ss.vline(21, 18, 21, C.impDark);    // right SIDE shadow
-    // Hand grips
-    ss.rect(17, 22, 3, 2, C.vaderArmor);
-    ss.rect(20, 22, 3, 2, C.vaderArmor);
-    ss.hline(22, 17, 22, C.vaderSheen);
+    // LIGHTSABER (forward = up)
+    ss.px(19, 0, C.saberRedTip); ss.px(20, 0, C.saberRedTip);
+    ss.vline(19, 1, 8, sbr);
+    ss.vline(20, 1, 8, sbrC);
+    ss.px(18, 2, sbr); ss.px(21, 2, sbr);
+    ss.px(18, 5, sbr); ss.px(21, 5, sbr);
+    ss.px(18, 8, sbr); ss.px(21, 8, sbr);
+    // Hilt
+    ss.rect(17, 8, 6, 4, C.impGrey);
+    ss.hline(8, 17, 22,  C.impLight);
+    ss.hline(11, 17, 22, C.impDark);
+    ss.px(16, 9, C.gold); ss.px(23, 9, C.gold);
+    ss.px(16, 10, C.gold); ss.px(23, 10, C.gold);
 
-    // ── VADER HELMET — massive voxel dome, iconic silhouette ──────────────
-    // TOP face of dome (rows 15-20): slightly lighter black — shows the crown
-    ss.hline(15, 18, 21, C.vaderSheen); // apex highlight (narrow)
-    ss.hline(16, 17, 22, C.vaderSheen);
-    ss.hline(17, 16, 23, C.vaderArmor); // dome top spreading
-    ss.hline(18, 15, 24, C.vaderArmor);
-    ss.hline(19, 14, 25, C.vaderArmor);
-    ss.hline(20, 13, 26, C.vaderArmor);
-    // TOP/FRONT separator (1px dark outline)
-    ss.hline(21, 12, 27, C.black);
+    // VADER HELMET — massive dome 20px wide
+    ss.rect(10, 10, 20, 16, C.vaderHelm);
+    // Crown sheen (top of dome)
+    ss.hline(10, 14, 25, C.vaderSheen);
+    ss.hline(11, 13, 26, C.vaderSheen);
+    ss.hline(12, 12, 27, C.vaderArmor);
+    ss.hline(13, 11, 28, C.vaderArmor);
+    // Sides dark
+    ss.vline(10, 10, 25, C.black);
+    ss.vline(29, 10, 25, C.black);
+    ss.hline(25, 10, 29, C.black);
+    ss.px(10, 10, C.black); ss.px(29, 10, C.black);
+    // VISOR SLIT — horizontal band (the key Vader feature)
+    ss.hline(15, 12, 27, C.black);
+    ss.hline(16, 12, 27, C.black);
+    ss.hline(17, 12, 27, enraged ? C.saberRedGlow : '#201810');
+    // Breathing mask
+    ss.rect(15, 21, 10, 4, C.vaderArmor);
+    ss.hline(21, 15, 24, C.vaderSheen);
+    for (let gx = 16; gx <= 24; gx += 2) ss.px(gx, 23, C.black);
+    ss.vline(15, 21, 24, C.vaderHelm);
+    ss.vline(24, 21, 24, C.vaderHelm);
 
-    // FRONT face of helmet (rows 21-27): vaderHelm (darkest)
-    ss.hline(22, 11, 28, C.vaderHelm);
-    ss.hline(23, 11, 28, C.vaderHelm);
-    ss.hline(24, 11, 28, C.vaderHelm);
-    ss.hline(25, 12, 27, C.vaderHelm);
-    ss.hline(26, 13, 26, C.vaderHelm);
+    // PAULDRONS
+    ss.rect(3,  22, 9, 5, C.vaderArmor);
+    ss.rect(28, 22, 9, 5, C.vaderArmor);
+    ss.hline(22, 3, 11,  C.vaderSheen);
+    ss.hline(22, 28, 36, C.vaderSheen);
+    ss.hline(26, 3, 11,  C.black);
+    ss.hline(26, 28, 36, C.black);
+    ss.vline(3,  22, 26, C.black);
+    ss.vline(36, 22, 26, C.black);
 
-    // Dome sheen (subtle highlight on left edge)
-    ss.px(13, 19, C.vaderSheen);
-    ss.px(13, 20, C.vaderSheen);
-    ss.px(14, 21, C.vaderSheen);
+    // CAPE (dramatic, wide)
+    ss.rect(5,  25, 6, 14, C.cape);
+    ss.rect(29, 25, 6, 14, C.cape);
+    ss.vline(5,  25, 38, C.capeBlack);
+    ss.vline(34, 25, 38, C.capeBlack);
+    ss.rect(3,  33, 9, 6, C.cape);
+    ss.rect(28, 33, 9, 6, C.cape);
+    ss.vline(3,  33, 38, C.capeBlack);
+    ss.vline(36, 33, 38, C.capeBlack);
+    ss.hline(38, 3, 8,   C.capeBlack);
+    ss.hline(38, 31, 36, C.capeBlack);
 
-    // SIDE faces of dome
-    ss.vline(11, 22, 26, C.vaderHelm);
-    ss.vline(28, 22, 26, C.vaderHelm);
+    // CHEST ARMOR (life support)
+    ss.rect(11, 25, 18, 9, C.vaderArmor);
+    ss.hline(25, 11, 28, C.vaderSheen);
+    ss.hline(33, 11, 28, C.black);
+    ss.vline(11, 25, 33, C.black);
+    ss.vline(28, 25, 33, C.black);
+    ss.rect(14, 27, 12, 5, C.vaderHelm);
+    ss.px(16, 29, enraged ? C.saberRed : C.ledRed);
+    ss.px(18, 29, C.ledGreen);
+    ss.px(20, 29, enraged ? C.saberRed : C.ledRed);
+    ss.px(22, 29, C.ledGreen);
+    ss.px(16, 30, C.impGrey); ss.px(18, 30, C.impGrey);
+    ss.px(20, 30, C.impGrey); ss.px(22, 30, C.impGrey);
 
-    // EYE SLITS — two narrow rectangles on FRONT face (row 22-23)
-    // Left eye slit
-    ss.hline(22, 13, 16, enraged ? C.saberRedGlow : C.impSilver);
-    ss.hline(23, 13, 16, enraged ? C.saberRed     : C.impGrey);
-    // Right eye slit
-    ss.hline(22, 23, 26, enraged ? C.saberRedGlow : C.impSilver);
-    ss.hline(23, 23, 26, enraged ? C.saberRed     : C.impGrey);
+    // BELT
+    ss.hline(33, 12, 27, C.impMid);
+    ss.px(19, 33, C.gold); ss.px(20, 33, C.gold);
+    ss.px(19, 34, C.goldDark); ss.px(20, 34, C.goldDark);
 
-    // Nose / breathing apparatus box (voxel block centered)
-    ss.hline(23, 18, 21, C.vaderArmor);  // nose bridge TOP
-    ss.rect(18, 24, 4, 2, C.vaderArmor); // nose block FRONT
-    ss.px(19, 24, C.impSilver);
-    ss.px(20, 24, C.impSilver);
-    ss.px(19, 25, C.impGrey);
-    ss.px(20, 25, C.impGrey);
-    ss.vline(18, 24, 25, C.vaderHelm);
-    ss.vline(21, 24, 25, C.vaderHelm);
-
-    // Jaw / lower mask
-    ss.hline(26, 13, 26, C.vaderHelm);
-    ss.hline(27, 14, 25, C.vaderArmor);
-
-    // ── CHEST ARMOR PANEL (life-support) — voxel block with LEDs ─────────
-    // TOP edge of chest plate
-    ss.hline(27, 13, 26, C.vaderSheen);  // TOP face highlight
-    ss.hline(28, 13, 26, C.black);       // TOP/FRONT separator
-    ss.rect(12, 28, 16, 5, C.vaderArmor); // FRONT face
-    ss.vline(12, 28, 32, C.vaderHelm);   // left SIDE shadow
-    ss.vline(27, 28, 32, C.vaderHelm);   // right SIDE shadow
-    // Left life-support panel (voxel sub-block)
-    ss.rect(13, 29, 5, 3, C.vaderHelm);
-    ss.px(14, 29, enraged ? C.saberRed : C.ledRed);
-    ss.px(15, 29, C.ledRed);
-    ss.px(16, 30, C.impGrey);
-    ss.px(14, 30, C.impGrey);
-    ss.px(15, 31, enraged ? C.saberRed : C.ledRed);
-    // Right life-support panel
-    ss.rect(22, 29, 5, 3, C.vaderHelm);
-    ss.px(23, 29, C.ledRed);
-    ss.px(24, 29, enraged ? C.saberRed : C.ledRed);
-    ss.px(25, 30, C.impGrey);
-    ss.px(23, 30, enraged ? C.saberRed : C.ledRed);
-    ss.px(24, 31, C.impGrey);
-
-    // ── SHOULDERS / PAULDRONS — massive voxel blocks ──────────────────────
-    // Left shoulder: TOP face, FRONT face, SIDE shadow
-    ss.hline(23, 8,  14, C.vaderSheen);  // TOP face
-    ss.hline(24, 8,  14, C.black);       // TOP/FRONT separator
-    ss.rect(7, 24, 8, 4, C.vaderArmor);  // FRONT face
-    ss.vline(7, 24, 27, C.vaderHelm);    // left SIDE shadow
-    // Right shoulder
-    ss.hline(23, 25, 31, C.vaderSheen);  // TOP face
-    ss.hline(24, 25, 31, C.black);       // TOP/FRONT separator
-    ss.rect(25, 24, 8, 4, C.vaderArmor); // FRONT face
-    ss.vline(32, 24, 27, C.vaderHelm);   // right SIDE shadow
-
-    // ── ARMS — armored voxel blocks ───────────────────────────────────────
-    // Left arm: TOP lighter, FRONT vaderArmor, SIDE dark
-    ss.hline(27, 8, 10, C.vaderSheen);   // TOP face
-    ss.rect(7, 28, 4, 5, C.vaderArmor);  // FRONT face
-    ss.px(8, 28, C.vaderSheen);          // highlight corner
-    ss.vline(7, 28, 32, C.vaderHelm);    // SIDE shadow
-    // Right arm
-    ss.hline(27, 29, 31, C.vaderSheen);
-    ss.rect(29, 28, 4, 5, C.vaderArmor);
-    ss.px(30, 28, C.vaderSheen);
-    ss.vline(32, 28, 32, C.vaderHelm);
-
-    // ── FLOWING CAPE — wide dramatic voxel slabs ──────────────────────────
-    // Left cape slab
-    ss.rect(3, 26, 5, 13, C.capeBlack);
-    ss.rect(2, 30, 4, 9, C.cape);
-    ss.vline(2, 30, 38, C.capeBlack);    // outer edge
-    ss.vline(6, 26, 38, C.capeShade);    // inner fold
-    // Right cape slab
-    ss.rect(32, 26, 5, 13, C.capeBlack);
-    ss.rect(34, 30, 4, 9, C.cape);
-    ss.vline(37, 30, 38, C.capeBlack);
-    ss.vline(33, 26, 38, C.capeShade);
-    // Cape bottom hem
-    ss.hline(39, 2,  7, C.capeBlack);
-    ss.hline(39, 32, 37, C.capeBlack);
-
-    // ── BELT — Imperial buckle voxel strip ────────────────────────────────
-    ss.hline(32, 13, 26, C.impLight);    // TOP face of belt
-    ss.hline(33, 13, 26, C.black);       // TOP/FRONT separator
-    ss.rect(17, 33, 6, 2, C.impGrey);    // FRONT face — buckle block
-    ss.px(19, 33, C.gold);
-    ss.px(20, 33, C.gold);
-    ss.px(19, 34, C.goldDark);
-    ss.px(20, 34, C.goldDark);
-    ss.vline(17, 33, 34, C.impDark);
-    ss.vline(22, 33, 34, C.impDark);
-
-    // ── LEGS — chunky voxel blocks ────────────────────────────────────────
-    const lx = 13 - legOff;
-    const rx = 21 + legOff;
-    // Left leg: TOP sheen, FRONT armor, SIDE dark
-    ss.hline(34, lx, lx + 4, C.vaderSheen);   // TOP face
-    ss.hline(35, lx, lx + 4, C.black);         // TOP/FRONT separator
-    ss.rect(lx, 35, 5, 3, C.vaderArmor);       // FRONT face
-    ss.vline(lx, 34, 37, C.vaderHelm);         // SIDE shadow
-    // Right leg
-    ss.hline(34, rx, rx + 4, C.vaderSheen);
-    ss.hline(35, rx, rx + 4, C.black);
-    ss.rect(rx, 35, 5, 3, C.vaderArmor);
-    ss.vline(rx + 4, 34, 37, C.vaderHelm);
-    // Boots (darkest — vaderHelm)
-    ss.hline(38, lx - 1, lx + 5, C.vaderHelm);
-    ss.hline(38, rx - 1, rx + 5, C.vaderHelm);
-    ss.hline(39, lx - 1, lx + 5, C.black);
-    ss.hline(39, rx - 1, rx + 5, C.black);
+    // LEGS
+    const lx = 12 - legOff, rx = 23 + legOff;
+    ss.rect(lx, 34, 6, 6, C.vaderArmor);
+    ss.rect(rx, 34, 6, 6, C.vaderArmor);
+    ss.hline(34, lx, lx+5, C.vaderSheen);
+    ss.hline(34, rx, rx+5, C.vaderSheen);
+    ss.hline(39, lx, lx+5, C.black);
+    ss.hline(39, rx, rx+5, C.black);
+    ss.vline(lx,   34, 39, C.black);
+    ss.vline(lx+5, 34, 39, C.vaderHelm);
+    ss.vline(rx,   34, 39, C.black);
+    ss.vline(rx+5, 34, 39, C.vaderHelm);
   }
 
   drawVader(0, 0, false);
-  drawVader(1, 1, false);
-  drawVader(2, -1, false);
+  drawVader(1, 2, false);
+  drawVader(2, -2, false);
   drawVader(3, 0, true);
-
   ss.finish();
 }
 
