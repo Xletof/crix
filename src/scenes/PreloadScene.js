@@ -8,6 +8,7 @@ import {
   paintBoss,
   paintBackdrop,
   paintConsole,
+  paintTerminal,
   paintBlastDoor,
   paintBolt,
   paintMissile,
@@ -41,6 +42,7 @@ export class PreloadScene extends Phaser.Scene {
     paintBackdrop(this, 'backdrop', WORLD.width, WORLD.height);
     paintConsole(this, 'bush');       // Imperial console replaces tumbleweed
     paintBlastDoor(this, 'wall');     // Blast door replaces wooden crate
+    paintTerminal(this, 'terminal');  // hackable objective terminal
 
     // ── Projectiles ──────────────────────────────────────────────────
     paintBolt(this, 'bullet',        PAL.boltRed,        PAL.boltRedGlow,   6);

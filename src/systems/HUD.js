@@ -55,6 +55,29 @@ export class HUDScene extends Phaser.Scene {
       })
       .setOrigin(1, 0);
 
+    // Objective readout (under the chamber label, top-right)
+    this.objText = this.add
+      .text(VIEW.width - 20, 32, '', {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '15px',
+        fontStyle: 'bold',
+        color: '#ffd040',
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(1, 0);
+
+    // Hack progress bar (center, only while actively slicing)
+    this.hackBarGfx = this.add.graphics().setDepth(12);
+    this.hackBarText = this.add.text(VIEW.width / 2, VIEW.height * 0.46 - 22, '', {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '16px',
+      fontStyle: 'bold',
+      color: '#ffd040',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setAlpha(0);
+
     // Lives — saber icons top-left
     this.livesGfx = this.add.graphics();
     this.drawLives(3);
@@ -195,6 +218,8 @@ export class HUDScene extends Phaser.Scene {
     ge.on('reinforce-tick',         (secs)         => this.refreshReinforce(secs));
     ge.on('reinforce-spawn',        ()             => this.onReinforceSpawn());
     ge.on('takedown-available',     (avail)        => this.setTakedownVisible(avail));
+    ge.on('objective-update',       (done, total)  => this.refreshObjective(done, total));
+    ge.on('terminal-progress',      (ratio)        => this.refreshHackBar(ratio));
 
     this.events.on('shutdown', () => {
       ge.off('player-hp-changed',    this.refreshHp,    this);
@@ -213,6 +238,8 @@ export class HUDScene extends Phaser.Scene {
       ge.off('reinforce-tick');
       ge.off('reinforce-spawn');
       ge.off('takedown-available');
+      ge.off('objective-update');
+      ge.off('terminal-progress');
       this.moveStick?.shutdown();
       this.fireStick?.shutdown();
       this.superButton?.shutdown();
@@ -421,6 +448,33 @@ export class HUDScene extends Phaser.Scene {
     if (this.gameScene?.player?.flameActive) {
       this.refreshSecondary();
     }
+  }
+
+  refreshObjective(done, total) {
+    if (!total) { this.objText.setText(''); return; }
+    const complete = done >= total;
+    this.objText.setColor(complete ? '#40ff80' : '#ffd040');
+    this.objText.setText(complete ? '✓ TERMINALS SLICED' : `⛁ SLICE TERMINALS ${done}/${total}`);
+  }
+
+  refreshHackBar(ratio) {
+    const g = this.hackBarGfx;
+    g.clear();
+    if (!ratio || ratio <= 0 || ratio >= 1) {
+      this.hackBarText.setAlpha(0);
+      return;
+    }
+    const cx = VIEW.width / 2, cy = VIEW.height * 0.46;
+    const w = 320, h = 22;
+    g.fillStyle(0x000000, 0.7);
+    g.fillRoundedRect(cx - w / 2 - 2, cy - h / 2 - 2, w + 4, h + 4, 4);
+    g.fillStyle(0x2a1800, 1);
+    g.fillRoundedRect(cx - w / 2, cy - h / 2, w, h, 3);
+    g.fillStyle(0xffaa20, 1);
+    g.fillRoundedRect(cx - w / 2, cy - h / 2, w * ratio, h, 3);
+    g.fillStyle(0xffe0a0, 0.7);
+    g.fillRoundedRect(cx - w / 2, cy - h / 2, w * ratio, 5, 3);
+    this.hackBarText.setAlpha(1).setText(`SLICING… ${Math.round(ratio * 100)}%`);
   }
 
   setTakedownVisible(avail) {

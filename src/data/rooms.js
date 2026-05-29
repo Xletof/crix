@@ -41,6 +41,10 @@ export const ROOMS = [
     pickups: [
       { x: 600, y: 750, weapon: 'rifle' },
     ],
+    // Single intro terminal in the open far side — teaches the hack objective.
+    terminals: [
+      { x: 1000, y: 1050 },
+    ],
     reinforce: {
       afterMs: 22000,
       count: 2,
@@ -78,6 +82,11 @@ export const ROOMS = [
     // Flamethrower reward for clearing the tight corridor
     pickups: [
       { x: 450, y: 1360, weapon: 'flamethrower' },
+    ],
+    // Two terminals on opposite flanks force movement through the crossfire.
+    terminals: [
+      { x: 650, y: 650 },
+      { x: 300, y: 950 },
     ],
     // Single shooter reinforcement from the top — tight corridor punishes camping
     reinforce: {
@@ -122,6 +131,11 @@ export const ROOMS = [
     ],
     pickups: [
       { x: 740, y: 700, weapon: 'detonator' },
+    ],
+    // Two terminals deep in the cell block — held by two shooters + patrols.
+    terminals: [
+      { x: 600, y: 950 },
+      { x: 900, y: 450 },
     ],
     reinforce: {
       afterMs: 20000,

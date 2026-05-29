@@ -8,6 +8,7 @@ import { BushSystem } from '../systems/BushSystem.js';
 import { RoomManager } from '../systems/RoomManager.js';
 import { CoverRegistry } from '../systems/CoverRegistry.js';
 import { WeaponPickup } from '../entities/WeaponPickup.js';
+import { Terminal } from '../entities/Terminal.js';
 import { attachFX, SFX, startMusic, duckMusic, stopMusic } from '../systems/FX.js';
 import { ROOMS } from '../data/rooms.js';
 
@@ -54,6 +55,9 @@ export class GameScene extends Phaser.Scene {
 
     // ── Weapon pickups (cleared per room) ──────────────────────────────────
     this.weaponPickups = [];
+
+    // ── Objective terminals (cleared per room) ──────────────────────────────
+    this.terminals = [];
 
     // ── Reinforcement state (reset per room) ──────────────────────────────
     this.reinforceTimer    = 0;
@@ -192,6 +196,16 @@ export class GameScene extends Phaser.Scene {
       this.weaponPickups.push(new WeaponPickup(this, x, y, weapon));
     });
 
+    // Objective terminals — the exit stays sealed until every one is hacked.
+    this.terminals.forEach((t) => t.destroy());
+    this.terminals = [];
+    (spec.terminals ?? []).forEach(({ x, y }) => this.terminals.push(new Terminal(this, x, y)));
+    this._terminalsTotal  = this.terminals.length;
+    this._terminalsHacked = 0;
+    this._enemiesCleared  = false;
+    this._roomDoorOpened  = false;
+    this.events.emit('objective-update', this._terminalsHacked, this._terminalsTotal);
+
     // Spawn enemies listed in the spec (each gets the cover registry injected)
     spec.enemies.forEach((enemySpec) => this.spawnEnemyAt(enemySpec.type, enemySpec.x, enemySpec.y, enemySpec));
 
@@ -215,9 +229,10 @@ export class GameScene extends Phaser.Scene {
     const idx = this.roomManager.index;
     this.events.emit('room-start', idx + 1, ROOMS.length, spec);
 
-    // If the room has no enemies and no boss (empty room), open door immediately
-    if (spec.enemies.length === 0 && !spec.boss) {
-      this.time.delayedCall(200, () => this._openDoor());
+    // Empty room with no objectives → open immediately. Otherwise the door is
+    // gated by _maybeCompleteRoom() (enemies cleared AND all terminals hacked).
+    if (spec.enemies.length === 0 && !spec.boss && this._terminalsTotal === 0) {
+      this.time.delayedCall(200, () => { this._enemiesCleared = true; this._maybeCompleteRoom(); });
     }
   }
 
@@ -244,6 +259,10 @@ export class GameScene extends Phaser.Scene {
     // Weapon pickups
     this.weaponPickups?.forEach((p) => p.destroy());
     this.weaponPickups = [];
+
+    // Objective terminals
+    this.terminals?.forEach((t) => t.destroy());
+    this.terminals = [];
 
     // Grenades
     this.grenades?.getChildren().forEach((g) => { try { g.destroy(); } catch (_) {} });
@@ -316,6 +335,25 @@ export class GameScene extends Phaser.Scene {
         .setColor(sealed ? '#ff4040' : '#40ff80')
         .setPosition(lx, ly);
     }
+  }
+
+  // Open the exit only once BOTH win conditions hold: every enemy is down and
+  // every objective terminal is hacked. Called from both completion paths.
+  _maybeCompleteRoom() {
+    if (this._roomDoorOpened) return;
+    if (!this._enemiesCleared) return;
+    if (this._terminalsHacked < this._terminalsTotal) {
+      // Enemies down but terminals remain — nudge the player toward them.
+      if (this._terminalsTotal > 0) {
+        this.events.emit('show-banner', 'SLICE THE TERMINALS', '#ffd040');
+      }
+      return;
+    }
+    this._roomDoorOpened = true;
+    const spec = this.roomSpec;
+    if (!spec?.exit) return;
+    this._openDoor();
+    this.events.emit('show-banner', 'CHAMBER CLEAR', '#20ff60');
   }
 
   _openDoor() {
@@ -653,13 +691,23 @@ export class GameScene extends Phaser.Scene {
     });
     this.events.on('grunt-melee', (g) => this.fx.burst(g.x, g.y, 'red', 6));
 
-    // Room-cleared → open exit door + banner
+    // Enemies cleared → mark it; the door only opens once terminals are also done.
     this.events.on('room-cleared', (spec) => {
-      this.time.delayedCall(400, () => {
-        if (spec.boss) return; // boss room ends via boss-died
-        this._openDoor();
-        this.events.emit('show-banner', 'CHAMBER CLEAR', '#20ff60');
-      });
+      if (spec.boss) return; // boss room ends via boss-died
+      this._enemiesCleared = true;
+      this.time.delayedCall(400, () => this._maybeCompleteRoom());
+    });
+
+    // A terminal finished hacking → tally it and re-check room completion.
+    this.events.on('terminal-hacked', () => {
+      this._terminalsHacked += 1;
+      this.events.emit('objective-update', this._terminalsHacked, this._terminalsTotal);
+      this.fx.shake(0.004, 80);
+      const remaining = this._terminalsTotal - this._terminalsHacked;
+      this.events.emit('show-banner',
+        remaining > 0 ? `TERMINAL SLICED  ${this._terminalsHacked}/${this._terminalsTotal}` : 'ALL TERMINALS SLICED',
+        '#ffd040');
+      this._maybeCompleteRoom();
     });
 
     // Boss start event forwarded from loadRoom
@@ -820,6 +868,16 @@ export class GameScene extends Phaser.Scene {
 
     // Weapon pickup checks
     for (const p of this.weaponPickups) p.checkPickup(this.player);
+
+    // Objective terminals (hacking progress + HUD bar)
+    if (this.terminals.length) {
+      let activeRatio = 0;
+      for (const t of this.terminals) {
+        t.update(delta, this.player);
+        if (!t.hacked && t.inRange(this.player)) activeRatio = Math.max(activeRatio, t.progress);
+      }
+      this.events.emit('terminal-progress', activeRatio);
+    }
 
     // Door trigger check
     this._checkDoorTrigger();

@@ -703,6 +703,56 @@ export function paintConsole(scene, key = 'bush') {
   c.finish();
 }
 
+// ── HACK TERMINAL (objective) ──────────────────────────────────────────────
+// 24×24 logical @ scale 4 = 96×96. A floor-standing Imperial data terminal
+// with a glowing amber screen — visually distinct from the grey cover console.
+// The entity tints it green once hacked.
+export function paintTerminal(scene, key = 'terminal') {
+  const c = new PixelCanvas(scene, key, 24, 24, 4);
+  const C = PAL;
+
+  // Base pedestal (dark metal, top-down footprint)
+  c.rect(5, 16, 14, 6, C.impDark);
+  c.hline(16, 5, 18, C.impGrey);     // near edge highlight
+  c.hline(21, 5, 18, C.black);       // far edge shadow
+  c.vline(5,  16, 21, C.impMid);
+  c.vline(18, 16, 21, C.black);
+
+  // Main console body
+  c.rect(4, 4, 16, 13, C.impMid);
+  c.hline(4, 5, 18, C.impLight);     // top sheen
+  c.vline(4, 4, 16, C.impGrey);
+  c.vline(19, 4, 16, C.impDark);
+  c.hline(16, 4, 19, C.black);       // body/base separator
+
+  // Amber screen (the objective glow)
+  c.rect(6, 6, 12, 8, '#2a1800');    // bezel
+  c.rect(7, 7, 10, 6, '#ff9010');    // amber screen
+  c.rect(7, 7, 10, 1, '#ffd060');    // top highlight
+  // Scrolling data lines
+  c.hline(8,  8, 14, '#ffe0a0');
+  c.hline(9,  8, 12, '#cc6000');
+  c.hline(10, 8, 15, '#ffe0a0');
+  c.hline(11, 8, 11, '#cc6000');
+  c.hline(11, 13, 15, '#ffe0a0');
+  // Imperial cog on screen corner
+  c.px(15, 11, '#cc6000');
+  c.px(16, 11, '#cc6000');
+
+  // Status LEDs along the top
+  c.px(6,  5, C.ledRed);
+  c.px(9,  5, '#ffaa20');
+  c.px(12, 5, C.ledGreen);
+  c.px(17, 5, '#ffaa20');
+
+  // Antenna dish (top-left protrusion) — reads as "transmitting"
+  c.px(3, 3, C.impSilver);
+  c.px(2, 2, C.impSheen);
+  c.px(4, 2, C.metalLight);
+
+  c.finish();
+}
+
 // ── BLAST DOOR SEGMENT (wall replacement) — isometric 3D cube layout ──────
 // 26×26 logical, scale 4 → 104×104
 // Vertices: B=(13,2) top, A=(2,8) left, C=(24,8) right,
