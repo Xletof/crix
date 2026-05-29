@@ -184,92 +184,119 @@ export class SpriteSheet {
 // VOXEL / CUBE-FACE shading: TOP=lightest, FRONT=medium, SIDE=darkest
 // ═══════════════════════════════════════════════════════════════════════════
 
-// ── PLAYER: Mandalorian (24×24, 4 frames) — TRUE TOP-DOWN OVERHEAD ────────
-// Drawn as if viewed straight from above: NO face/eyes (those are underneath).
-// You see helmet dome from above, shoulders, gun extending forward, cape behind.
-// Rotating the sprite to aim looks correct at every angle — nothing reads as
-// "upside down" because there is no "up" feature like eyes on the helmet.
+// ── PLAYER: Mandalorian (24×24, 4 frames) — TOP-DOWN 3/4 HIP-FIRE ──────────
+// Body silhouette does the work: dome on top, wider pauldrons below, chest
+// plate, cape flaring behind, weapon stub at the right hip. The weapon never
+// extends past the dome — so it can't read as an antenna at any rotation.
 export function paintPlayer(scene, key = 'player') {
   const ss = new SpriteSheet(scene, key, 24, 24, 4, 4);
 
-  function drawMando(f, legOff = 0, fireMode = false) {
+  function drawMando(f, legPhase = 0, fireMode = false) {
     ss.frame(f);
     const C = PAL;
+    // legPhase: 0=neutral, 1=left-fwd, -1=right-fwd. Body bobs 1px up on |1|.
+    const bob = legPhase === 0 ? 0 : -1;
+    // Fire-mode shifts the weapon stub up 1px to suggest recoil-extension.
+    const wOff = fireMode ? -1 : 0;
 
-    // ── GUN extending forward (y=0..7) — the rotational cue ────────────────
-    ss.px(11, 0, fireMode ? C.boltRedCore : C.offWhite);
-    ss.px(12, 0, fireMode ? C.boltRed     : C.offWhite);
-    ss.vline(11, 1, 6, C.impGrey);
-    ss.vline(12, 1, 6, C.impSheen);
-    ss.rect(10, 7, 4, 2, C.impLight);
-    ss.px(11, 7, C.metalLight);
-    ss.px(12, 7, C.metalLight);
+    // ── HELMET DOME (rounded, fills the top of the sprite) ─────────────────
+    // Stack of horizontal runs to make a proper round dome (10 wide max)
+    const cy = 8 + bob;
+    ss.hline(cy - 4, 10, 13, C.beskarDark);          // top edge (4 wide)
+    ss.hline(cy - 3, 9,  14, C.beskar);              // (6 wide)
+    ss.hline(cy - 2, 8,  15, C.beskar);              // (8 wide)
+    ss.hline(cy - 1, 7,  16, C.beskar);              // (10 wide)
+    ss.hline(cy,     7,  16, C.beskarMid);           // (widest)
+    ss.hline(cy + 1, 7,  16, C.beskarMid);
+    ss.hline(cy + 2, 8,  15, C.beskar);              // taper down
+    ss.hline(cy + 3, 9,  14, C.beskarDark);
+    // Crown highlight (light catches top-center of dome)
+    ss.px(11, cy - 2, C.beskarLight);
+    ss.px(12, cy - 2, C.beskarLight);
+    ss.px(11, cy - 1, C.beskarShine);
+    ss.px(12, cy - 1, C.beskarShine);
+    ss.px(13, cy - 1, C.beskarLight);
+    // Rangefinder antenna stub on left side (the *actual* Mando detail, tiny)
+    ss.px(7, cy - 1, C.impDark);
+    ss.px(6, cy,     C.beskarDeep);
+    // Visor band (thin, only on the FORWARD edge of the dome — gives a "front")
+    ss.hline(cy - 3, 10, 13, C.black);
+    ss.px(10, cy - 4, C.beskarDeep);
+    ss.px(13, cy - 4, C.beskarDeep);
 
-    // ── HELMET DOME (circle viewed straight from above, y=9..16) ───────────
-    // Top-down: NO eyes/visor visible — just the dome surface
-    ss.hline(9,  10, 13, C.beskarDark);
-    ss.hline(10, 9,  14, C.beskar);
-    ss.hline(11, 8,  15, C.beskar);
-    ss.hline(12, 8,  15, C.beskarMid);
-    ss.hline(13, 8,  15, C.beskarMid);
-    ss.hline(14, 8,  15, C.beskar);
-    ss.hline(15, 9,  14, C.beskar);
-    ss.hline(16, 10, 13, C.beskarDark);
-    // Center crown highlight (light catches top of dome)
-    ss.rect(11, 11, 2, 4, C.beskarLight);
-    ss.px(11, 12, C.beskarShine);
-    ss.px(12, 13, C.beskarShine);
-    // Side shadow rim
-    ss.px(8, 12, C.beskarDark);
-    ss.px(8, 13, C.beskarDark);
-    ss.px(15, 12, C.beskarDark);
-    ss.px(15, 13, C.beskarDark);
-    // Rangefinder antenna stub (left side, classic Mando detail)
-    ss.px(8, 10, C.beskarDeep);
-    ss.px(7, 11, C.beskarDeep);
+    // ── PAULDRONS (shoulders — wider than the dome so the body reads) ─────
+    ss.hline(12 + bob, 5, 7,   C.beskarMid);         // left pauldron top
+    ss.hline(12 + bob, 16, 18, C.beskarMid);         // right pauldron top
+    ss.rect(4, 13 + bob, 4, 2, C.beskar);
+    ss.rect(16, 13 + bob, 4, 2, C.beskar);
+    ss.px(4, 13 + bob,  C.beskarDark);               // outer shadow
+    ss.px(4, 14 + bob,  C.beskarDark);
+    ss.px(19, 13 + bob, C.beskarDark);
+    ss.px(19, 14 + bob, C.beskarDark);
+    // Jetpack nozzles peek over the top of the shoulders
+    ss.px(8, 12 + bob,  C.impDark);
+    ss.px(15, 12 + bob, C.impDark);
 
-    // ── PAULDRONS (shoulder armor — protrude left/right) ───────────────────
-    ss.rect(5,  14, 3, 4, C.beskarMid);
-    ss.hline(13, 5, 7,   C.beskarLight);
-    ss.hline(18, 5, 7,   C.beskarDeep);
-    ss.vline(5,  14, 17, C.beskarDark);
-    ss.rect(16, 14, 3, 4, C.beskarMid);
-    ss.hline(13, 16, 18, C.beskarLight);
-    ss.hline(18, 16, 18, C.beskarDeep);
-    ss.vline(18, 14, 17, C.beskarDark);
+    // ── TORSO / CHEST PLATE ─────────────────────────────────────────────────
+    ss.rect(8, 13 + bob, 8, 5, C.beskar);
+    ss.hline(13 + bob, 8, 15, C.beskarLight);        // top sheen
+    ss.hline(17 + bob, 8, 15, C.beskarDeep);         // bottom shadow
+    ss.vline(8,  13 + bob, 17 + bob, C.beskarDark);
+    ss.vline(15, 13 + bob, 17 + bob, C.beskarDark);
+    // Mudhorn signet (gold)
+    ss.px(11, 15 + bob, C.gold);     ss.px(12, 15 + bob, C.gold);
+    ss.px(11, 16 + bob, C.goldDark); ss.px(12, 16 + bob, C.goldDark);
 
-    // ── TORSO (chest plate — small visible behind dome) ────────────────────
-    ss.rect(9, 17, 6, 3, C.beskar);
-    ss.hline(17, 9, 14, C.beskarMid);
-    ss.hline(20, 9, 14, C.beskarDeep);
-    ss.vline(9,  17, 19, C.beskarDark);
-    ss.vline(14, 17, 19, C.beskarDark);
-    // Mudhorn signet (gold dot, centered)
-    ss.px(11, 18, C.gold);     ss.px(12, 18, C.gold);
-    ss.px(11, 19, C.goldDark); ss.px(12, 19, C.goldDark);
+    // ── WEAPON STUB at right hip (short barrel — no antenna) ─────────────
+    // Grip (held against the right side of the torso)
+    ss.px(15, 14 + bob, C.impDark);
+    ss.px(16, 14 + bob, C.impGrey);
+    ss.px(15, 15 + bob, C.impMid);
+    ss.px(16, 15 + bob, C.impLight);
+    // Short barrel extending forward (up) from the grip — only 3-4px long
+    // so its tip is at or just barely past the dome's right edge, not above it.
+    ss.px(15, 13 + bob + wOff, C.impGrey);
+    ss.px(16, 13 + bob + wOff, C.impLight);
+    ss.px(15, 12 + bob + wOff, C.impGrey);
+    ss.px(16, 12 + bob + wOff, C.impLight);
+    ss.px(15, 11 + bob + wOff, C.impDark);
+    ss.px(16, 11 + bob + wOff, fireMode ? C.boltRedCore : C.metalLight); // muzzle
+    if (fireMode) {
+      // Small flare just past the muzzle
+      ss.px(16, 10 + bob + wOff, C.boltRed);
+      ss.px(15, 10 + bob + wOff, C.boltRedGlow);
+    }
 
-    // ── CAPE flaring backward (y=18..23) ──────────────────────────────────
-    ss.rect(8,  19, 8, 4, C.cape);
-    ss.rect(7,  20, 10, 3, C.cape);
-    ss.hline(22, 8, 15, C.capeBlack);
-    ss.vline(7, 20, 22, C.capeBlack);
-    ss.vline(16, 20, 22, C.capeBlack);
-    ss.px(10, 21, C.capeShade);
-    ss.px(13, 21, C.capeShade);
+    // ── BELT ────────────────────────────────────────────────────────────────
+    ss.hline(18 + bob, 8, 15, C.impDark);
+    ss.px(11, 18 + bob, C.gold);
+    ss.px(12, 18 + bob, C.gold);
 
-    // ── BOOT TOES (animate with legOff for walk cycle) ─────────────────────
-    const lx = 9 + legOff;
-    const rx = 13 - legOff;
-    ss.px(lx,   23, C.beskarDeep);
-    ss.px(lx+1, 23, C.black);
-    ss.px(rx,   23, C.black);
-    ss.px(rx+1, 23, C.beskarDeep);
+    // ── CAPE (flares behind the body, partially hides legs) ────────────────
+    ss.rect(7, 19, 10, 4, C.cape);
+    ss.hline(19, 7, 16, C.capeBlack);
+    ss.vline(6,  20, 22, C.capeShade);
+    ss.vline(17, 20, 22, C.capeShade);
+    ss.px(6, 22, C.capeBlack);
+    ss.px(17, 22, C.capeBlack);
+    // Cape fold lines
+    ss.vline(9,  20, 22, C.capeBlack);
+    ss.vline(14, 20, 22, C.capeBlack);
+
+    // ── LEGS (peek out below the cape, swing for walk) ────────────────────
+    // legPhase=1 → left leg forward (further from body), right back
+    const lY = 21 + (legPhase === 1 ? 0 : 1);
+    const rY = 21 + (legPhase === -1 ? 0 : 1);
+    ss.px(10, lY,     C.beskarDeep);
+    ss.px(10, lY + 1, C.black);
+    ss.px(13, rY,     C.beskarDeep);
+    ss.px(13, rY + 1, C.black);
   }
 
-  drawMando(0, 0, false);
-  drawMando(1, 1, false);
-  drawMando(2, -1, false);
-  drawMando(3, 0, true);
+  drawMando(0, 0, false);   // idle
+  drawMando(1, 1, false);   // walk A (left fwd)
+  drawMando(2, -1, false);  // walk B (right fwd)
+  drawMando(3, 0, true);    // fire
   ss.finish();
 }
 
