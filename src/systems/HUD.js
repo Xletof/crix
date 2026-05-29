@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { VIEW, PLAYER, WEAPONS, COLORS, HUDCFG } from '../config.js';
 import { Joystick } from './Joystick.js';
 import { SuperButton } from './SuperButton.js';
+import { HackMinigame } from './HackMinigame.js';
 import { ROOMS } from '../data/rooms.js';
 
 export class HUDScene extends Phaser.Scene {
@@ -219,7 +220,11 @@ export class HUDScene extends Phaser.Scene {
     ge.on('reinforce-spawn',        ()             => this.onReinforceSpawn());
     ge.on('takedown-available',     (avail)        => this.setTakedownVisible(avail));
     ge.on('objective-update',       (done, total)  => this.refreshObjective(done, total));
-    ge.on('terminal-progress',      (ratio)        => this.refreshHackBar(ratio));
+    ge.on('hack-start',             (terminal)     => this.hackMinigame?.start(terminal));
+    ge.on('hack-cancel',            ()             => this.hackMinigame?.cancel());
+
+    // Spin up the slicing mini-game (hidden until hack-start fires)
+    this.hackMinigame = new HackMinigame(this);
 
     this.events.on('shutdown', () => {
       ge.off('player-hp-changed',    this.refreshHp,    this);
@@ -239,7 +244,10 @@ export class HUDScene extends Phaser.Scene {
       ge.off('reinforce-spawn');
       ge.off('takedown-available');
       ge.off('objective-update');
-      ge.off('terminal-progress');
+      ge.off('hack-start');
+      ge.off('hack-cancel');
+      this.hackMinigame?.shutdown();
+      this.hackMinigame = null;
       this.moveStick?.shutdown();
       this.fireStick?.shutdown();
       this.superButton?.shutdown();
@@ -448,6 +456,8 @@ export class HUDScene extends Phaser.Scene {
     if (this.gameScene?.player?.flameActive) {
       this.refreshSecondary();
     }
+    // Tick the timing-puzzle mini-game (no-op when idle)
+    this.hackMinigame?.update(delta);
   }
 
   refreshObjective(done, total) {

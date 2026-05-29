@@ -204,6 +204,8 @@ export class GameScene extends Phaser.Scene {
     this._terminalsHacked = 0;
     this._enemiesCleared  = false;
     this._roomDoorOpened  = false;
+    this._activeHackTarget = null;
+    this.events.emit('hack-cancel');   // close any leftover mini-game
     this.events.emit('objective-update', this._terminalsHacked, this._terminalsTotal);
 
     // Spawn enemies listed in the spec (each gets the cover registry injected)
@@ -742,6 +744,18 @@ export class GameScene extends Phaser.Scene {
       this._maybeCompleteRoom();
     });
 
+    // Mini-game completion bridges to the terminal.
+    this.events.on('hack-success', (terminal) => {
+      terminal?.complete();
+      this._activeHackTarget = null;
+    });
+    // Mini-game failure → trip the room alarm just like blowing your cover.
+    this.events.on('hack-fail', () => {
+      // Alert every patrolling enemy in the room and arm reinforcements.
+      this.events.emit('room-alarm');
+      this._onFirstAlarm();
+    });
+
     // Boss start event forwarded from loadRoom
     this.events.on('boss-start', () => {
       this.events.emit('show-banner', 'VADER APPROACHES', '#ff2828');
@@ -901,14 +915,22 @@ export class GameScene extends Phaser.Scene {
     // Weapon pickup checks
     for (const p of this.weaponPickups) p.checkPickup(this.player);
 
-    // Objective terminals (hacking progress + HUD bar)
+    // Objective terminals — update visuals + manage mini-game start/cancel.
+    // The slicing itself happens in HUD's HackMinigame; we just open/close it
+    // based on proximity to the nearest non-hacked terminal.
     if (this.terminals.length) {
-      let activeRatio = 0;
+      let nearest = null;
       for (const t of this.terminals) {
         t.update(delta, this.player);
-        if (!t.hacked && t.inRange(this.player)) activeRatio = Math.max(activeRatio, t.progress);
+        if (!nearest && !t.hacked && t.inRange(this.player)) nearest = t;
       }
-      this.events.emit('terminal-progress', activeRatio);
+      if (nearest !== this._activeHackTarget) {
+        if (this._activeHackTarget && nearest !== this._activeHackTarget) {
+          this.events.emit('hack-cancel');
+        }
+        this._activeHackTarget = nearest;
+        if (nearest) this.events.emit('hack-start', nearest);
+      }
     }
 
     // Door trigger check

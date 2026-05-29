@@ -1,30 +1,24 @@
 import Phaser from 'phaser';
 import { SFX } from '../systems/FX.js';
 
-// A hackable objective terminal. The player hacks it by standing within
-// HACK_RADIUS; progress fills over HACK_MS of cumulative contact. Standing
-// still to hack exposes the player to fire — that's the intended risk.
+// A hackable objective terminal. The actual slicing happens through a HUD
+// timing mini-game (HackMinigame) — this class just tracks state and visual
+// feedback for the terminal sprite itself.
 //
 // Emits on the scene:
-//   'terminal-hacked'   (terminal)   — when a terminal completes
-//   'terminal-progress' (done,total,activeRatio) — for the HUD bar
-const HACK_RADIUS = 70;   // px — how close the player must be
-const HACK_MS     = 2500; // ms of cumulative contact to fully slice
-const DECAY_MS    = 5000; // ms to bleed a partial hack back down when away
+//   'terminal-hacked'   (terminal)   — when the mini-game completes
+const HACK_RADIUS = 70;   // px — how close the player must be to start a hack
 
 export class Terminal {
   constructor(scene, x, y) {
     this.scene = scene;
     this.x = x;
     this.y = y;
-    this.progress = 0;     // 0..1
     this.hacked = false;
-    this._tickAcc = 0;
 
     this.sprite = scene.add.image(x, y, 'terminal').setDepth(19).setScale(1.1);
     scene.roomLayer.add(this.sprite);
 
-    // Progress ring + label
     this.gfx = scene.add.graphics().setDepth(20);
     this.label = scene.add.text(x, y - 34, 'HACK', {
       fontFamily: 'Courier New, monospace',
@@ -43,56 +37,36 @@ export class Terminal {
     return Phaser.Math.Distance.Between(player.x, player.y, this.x, this.y) <= HACK_RADIUS;
   }
 
+  // Update visuals only — the mini-game owns the progress logic.
   update(delta, player) {
     this._pulse += delta * 0.006;
-    if (this.hacked) { this._drawHacked(); return false; }
-
-    const active = player?.alive && this.inRange(player);
-    let justCompleted = false;
-
-    if (active) {
-      this.progress = Math.min(1, this.progress + delta / HACK_MS);
-      // Soft data blip a few times per second while hacking
-      this._tickAcc += delta;
-      if (this._tickAcc >= 320) { this._tickAcc = 0; SFX.hackTick(); }
-      if (this.progress >= 1) {
-        this.hacked = true;
-        justCompleted = true;
-        this.sprite.setTint(0x40ff80);     // turns green when sliced
-        this.label.setText('SLICED').setColor('#40ff80');
-        SFX.hackComplete();
-        this.scene.events.emit('terminal-hacked', this);
-      }
-    } else if (this.progress > 0) {
-      this.progress = Math.max(0, this.progress - delta / DECAY_MS);
-    }
-
-    this._draw(active);
-    return justCompleted;
+    if (this.hacked) { this._drawHacked(); return; }
+    const inRange = !!player?.alive && this.inRange(player);
+    this._draw(inRange);
   }
 
-  _draw(active) {
+  // Called by GameScene when the mini-game finishes successfully.
+  complete() {
+    if (this.hacked) return;
+    this.hacked = true;
+    this.sprite.setTint(0x40ff80);
+    this.label.setText('SLICED').setColor('#40ff80');
+    SFX.hackComplete();
+    this.scene.events.emit('terminal-hacked', this);
+  }
+
+  _draw(inRange) {
     const g = this.gfx;
     g.clear();
     const r = 30;
-    // Backing ring
     g.lineStyle(4, 0x000000, 0.5);
     g.strokeCircle(this.x, this.y, r);
-    // Progress arc
-    if (this.progress > 0) {
-      const col = active ? 0xffd040 : 0xff8020;
-      g.lineStyle(4, col, 0.95);
-      g.beginPath();
-      g.arc(this.x, this.y, r, -Math.PI / 2, -Math.PI / 2 + this.progress * Math.PI * 2);
-      g.strokePath();
-    }
-    // Idle prompt ring pulse when the player isn't on it yet
-    if (!active && this.progress === 0) {
-      const pulse = 0.4 + 0.4 * Math.sin(this._pulse);
-      g.lineStyle(2, 0xffaa30, pulse);
-      g.strokeCircle(this.x, this.y, r + 6);
-    }
-    this.label.setAlpha(active || this.progress === 0 ? 1 : 0.6);
+    // "Ready to hack" prompt ring pulses brighter when player is on it
+    const pulse = 0.4 + 0.4 * Math.sin(this._pulse);
+    const color = inRange ? 0xffd040 : 0xffaa30;
+    g.lineStyle(inRange ? 3 : 2, color, inRange ? 0.6 + pulse * 0.4 : pulse);
+    g.strokeCircle(this.x, this.y, r + 6);
+    this.label.setAlpha(0.6 + pulse * 0.4);
   }
 
   _drawHacked() {
