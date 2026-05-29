@@ -512,6 +512,12 @@ export class HUDScene extends Phaser.Scene {
   }
 
   showBanner(text, color = '#ff2828') {
+    // Adaptive sizing: long or multi-line messages (tips/objectives) shrink so
+    // they don't overflow the portrait width.
+    const longest = Math.max(...text.split('\n').map((s) => s.length));
+    const size = text.includes('\n') || longest > 14 ? 34 : 60;
+    this.banner.setFontSize(size);
+    this.banner.setAlign('center');
     this.banner.setText(text);
     this.banner.setColor(color);
     this.banner.setAlpha(0);

@@ -228,6 +228,25 @@ export class GameScene extends Phaser.Scene {
     this.roomManager.setRoom(spec);
     const idx = this.roomManager.index;
     this.events.emit('room-start', idx + 1, ROOMS.length, spec);
+    this._roomLoud = false;
+
+    // Objective briefing banner (skip boss room — it has its own intro).
+    if (!spec.boss) {
+      const n = this._terminalsTotal;
+      const objMsg = n > 0
+        ? `SLICE ${n} TERMINAL${n > 1 ? 'S' : ''}`
+        : 'ELIMINATE ALL HOSTILES';
+      this.time.delayedCall(650, () => this.events.emit('show-banner', objMsg, '#ffd040'));
+
+      // One-time tips on the very first room of a run.
+      if (idx === 0 && !this._shownStealthTip) {
+        this._shownStealthTip = true;
+        this.time.delayedCall(2400, () =>
+          this.events.emit('show-banner', 'SNEAK BEHIND FOES\nFOR SILENT TAKEDOWNS', '#80ffaa'));
+        this.time.delayedCall(4400, () =>
+          this.events.emit('show-banner', 'STAND ON TERMINALS\nTO SLICE THEM', '#ffd040'));
+      }
+    }
 
     // Empty room with no objectives → open immediately. Otherwise the door is
     // gated by _maybeCompleteRoom() (enemies cleared AND all terminals hacked).
@@ -353,7 +372,12 @@ export class GameScene extends Phaser.Scene {
     const spec = this.roomSpec;
     if (!spec?.exit) return;
     this._openDoor();
-    this.events.emit('show-banner', 'CHAMBER CLEAR', '#20ff60');
+    // Celebration: green flash + banner, and a reward for a fully-silent room.
+    this.cameras.main.flash(220, 40, 255, 120, true);
+    this.fx.shake(0.004, 120);
+    const silent = !this._roomLoud && this._enemiesCleared;
+    this.events.emit('show-banner', silent ? 'GHOST — UNDETECTED' : 'CHAMBER CLEAR',
+      silent ? '#80ffaa' : '#20ff60');
   }
 
   _openDoor() {
@@ -486,6 +510,14 @@ export class GameScene extends Phaser.Scene {
   // ── Reinforcements ───────────────────────────────────────────────────────
 
   _onFirstAlarm() {
+    // Room just went loud — klaxon + banner, once per room (independent of
+    // whether this room actually has reinforcements configured).
+    if (!this._roomLoud) {
+      this._roomLoud = true;
+      SFX.alarm();
+      this.cameras.main.flash(160, 120, 0, 0, true);
+      this.events.emit('show-banner', '⚠ DETECTED', '#ff2828');
+    }
     if (this.reinforceArmed) return;
     const cfg = this.roomSpec?.reinforce;
     if (!cfg) return;
