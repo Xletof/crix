@@ -205,7 +205,9 @@ export class GameScene extends Phaser.Scene {
     this._enemiesCleared  = false;
     this._roomDoorOpened  = false;
     this._activeHackTarget = null;
+    this._hackPromptTarget = null;
     this.events.emit('hack-cancel');   // close any leftover mini-game
+    this.events.emit('hack-prompt', false);
     this.events.emit('objective-update', this._terminalsHacked, this._terminalsTotal);
 
     // Spawn enemies listed in the spec (each gets the cover registry injected)
@@ -471,6 +473,15 @@ export class GameScene extends Phaser.Scene {
       const y2 = enemy.y + Math.sin(a) * (r + 5);
       g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.strokePath();
     }
+  }
+
+  // Called by the HUD HACK button. Opens the slicing mini-game on whatever
+  // terminal the player is currently standing on (no-op if none).
+  requestHack() {
+    const t = this._hackPromptTarget;
+    if (!t || t.hacked) return;
+    this._activeHackTarget = t;
+    this.events.emit('hack-start', t);
   }
 
   // Called by the HUD takedown button.
@@ -915,21 +926,25 @@ export class GameScene extends Phaser.Scene {
     // Weapon pickup checks
     for (const p of this.weaponPickups) p.checkPickup(this.player);
 
-    // Objective terminals — update visuals + manage mini-game start/cancel.
-    // The slicing itself happens in HUD's HackMinigame; we just open/close it
-    // based on proximity to the nearest non-hacked terminal.
+    // Objective terminals — update visuals + show the contextual HACK
+    // button when the player is on a slicable terminal. The puzzle itself
+    // is NEVER auto-opened; the player taps HACK (or presses E) to start.
     if (this.terminals.length) {
       let nearest = null;
       for (const t of this.terminals) {
         t.update(delta, this.player);
         if (!nearest && !t.hacked && t.inRange(this.player)) nearest = t;
       }
-      if (nearest !== this._activeHackTarget) {
-        if (this._activeHackTarget && nearest !== this._activeHackTarget) {
-          this.events.emit('hack-cancel');
-        }
-        this._activeHackTarget = nearest;
-        if (nearest) this.events.emit('hack-start', nearest);
+      // The button shows whenever in range; selection persists until you
+      // leave that terminal's radius.
+      if (nearest !== this._hackPromptTarget) {
+        this._hackPromptTarget = nearest;
+        this.events.emit('hack-prompt', !!nearest);
+      }
+      // If a mini-game is in flight on a terminal we walked away from, cancel.
+      if (this._activeHackTarget && !this._activeHackTarget.inRange(this.player)) {
+        this._activeHackTarget = null;
+        this.events.emit('hack-cancel');
       }
     }
 

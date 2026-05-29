@@ -20,9 +20,9 @@ import { SFX } from './FX.js';
 // HackMinigame is owned by HUDScene and ticked from its update().
 
 const ROUNDS = [
-  { zone: 0.32, speed: 0.0011 },  // wide & slow  — feels generous
-  { zone: 0.20, speed: 0.0016 },  // medium       — pay attention
-  { zone: 0.12, speed: 0.0022 },  // narrow & fast — real skill check
+  { zone: 0.34, speed: 0.0011 },  // wide & slow   — generous warm-up
+  { zone: 0.24, speed: 0.0015 },  // medium        — pay attention
+  { zone: 0.18, speed: 0.0018 },  // narrow & fast — fair skill check
 ];
 
 const BAR_W = 540, BAR_H = 36;

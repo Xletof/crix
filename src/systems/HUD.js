@@ -153,12 +153,22 @@ export class HUDScene extends Phaser.Scene {
       onEnd: () => this.gameScene?.player?.setMoveInput({ x: 0, y: 0, force: 0 }),
     });
     this.fireStick = new Joystick(this, 'right', {
-      shouldClaim: (pointer) => !this.superButton.containsPoint(pointer.x, pointer.y),
+      shouldClaim: (pointer) => {
+        // Don't claim the pointer if the user is interacting with the
+        // hack mini-game or the super button — keeps fire input from
+        // leaking into other UI.
+        if (this.hackMinigame && this.hackMinigame.state !== 'idle') return false;
+        return !this.superButton.containsPoint(pointer.x, pointer.y);
+      },
       onStart: () => this.gameScene?.player?.setAimInput({ x: 0, y: 0, force: 0 }),
       onMove: (v) => {
+        if (this.hackMinigame && this.hackMinigame.state !== 'idle') return;
         this.gameScene?.player?.setAimInput(v);
       },
-      onEnd: (v) => this.gameScene?.player?.releaseAim(v),
+      onEnd: (v) => {
+        if (this.hackMinigame && this.hackMinigame.state !== 'idle') return;
+        this.gameScene?.player?.releaseAim(v);
+      },
     });
 
     // ── Contextual TAKEDOWN button (stealth) ───────────────────────────────
@@ -198,6 +208,49 @@ export class HUDScene extends Phaser.Scene {
       if (this._takedownReady) this.gameScene?.performTakedown();
     });
 
+    // ── Contextual HACK button (mirrors the takedown button, amber) ────────
+    // Fades in when the player is standing on a hackable terminal. Tap = start
+    // the slicing mini-game. The terminal does NOT auto-open the puzzle.
+    const hkX = VIEW.width / 2;
+    const hkY = VIEW.height - 320;
+    this.hackBtn = this.add.container(hkX, hkY).setDepth(30).setAlpha(0);
+    const hkBg = this.add.graphics();
+    hkBg.fillStyle(0x2a1800, 0.85);
+    hkBg.fillCircle(0, 0, 50);
+    hkBg.lineStyle(3, 0xffaa30, 0.95);
+    hkBg.strokeCircle(0, 0, 50);
+    hkBg.lineStyle(2, 0xffd060, 0.5);
+    hkBg.strokeCircle(0, 0, 44);
+    // Terminal glyph (mini bars on a screen)
+    hkBg.fillStyle(0xffd060, 1);
+    hkBg.fillRect(-14, -16, 28, 18);
+    hkBg.fillStyle(0x2a1800, 1);
+    hkBg.fillRect(-12, -14, 24, 14);
+    hkBg.fillStyle(0xffd060, 1);
+    hkBg.fillRect(-10, -12, 14, 2);
+    hkBg.fillRect(-10, -9,  20, 2);
+    hkBg.fillRect(-10, -6,  10, 2);
+    hkBg.fillStyle(0x80ffaa, 1);
+    hkBg.fillRect(-6, 4, 12, 4);  // green base LED
+    const hkLabel = this.add.text(0, 28, 'HACK', {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '15px',
+      fontStyle: 'bold',
+      color: '#ffd060',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5);
+    this.hackBtn.add([hkBg, hkLabel]);
+    this._hackReady = false;
+    this.hackZone = this.add.zone(hkX, hkY, 110, 110).setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    this.hackZone.on('pointerdown', () => {
+      if (this._hackReady) this.gameScene?.requestHack();
+    });
+    this.input.keyboard?.on('keydown-E', () => {
+      if (this._hackReady) this.gameScene?.requestHack();
+    });
+
     // Keyboard fallback
     this.input.keyboard?.on('keydown-SPACE', () => this.gameScene?.player?.tryFireSuper());
 
@@ -220,7 +273,11 @@ export class HUDScene extends Phaser.Scene {
     ge.on('reinforce-spawn',        ()             => this.onReinforceSpawn());
     ge.on('takedown-available',     (avail)        => this.setTakedownVisible(avail));
     ge.on('objective-update',       (done, total)  => this.refreshObjective(done, total));
-    ge.on('hack-start',             (terminal)     => this.hackMinigame?.start(terminal));
+    ge.on('hack-prompt',            (avail)        => this.setHackVisible(avail));
+    ge.on('hack-start',             (terminal)     => {
+      this.setHackVisible(false);
+      this.hackMinigame?.start(terminal);
+    });
     ge.on('hack-cancel',            ()             => this.hackMinigame?.cancel());
 
     // Spin up the slicing mini-game (hidden until hack-start fires)
@@ -244,6 +301,7 @@ export class HUDScene extends Phaser.Scene {
       ge.off('reinforce-spawn');
       ge.off('takedown-available');
       ge.off('objective-update');
+      ge.off('hack-prompt');
       ge.off('hack-start');
       ge.off('hack-cancel');
       this.hackMinigame?.shutdown();
@@ -485,6 +543,39 @@ export class HUDScene extends Phaser.Scene {
     g.fillStyle(0xffe0a0, 0.7);
     g.fillRoundedRect(cx - w / 2, cy - h / 2, w * ratio, 5, 3);
     this.hackBarText.setAlpha(1).setText(`SLICING… ${Math.round(ratio * 100)}%`);
+  }
+
+  setHackVisible(avail) {
+    if (avail === this._hackReady) return;
+    this._hackReady = avail;
+    this.tweens.killTweensOf(this.hackBtn);
+    if (avail) {
+      this.hackBtn.setScale(0.6);
+      this.tweens.add({
+        targets: this.hackBtn,
+        alpha: 1,
+        scale: 1,
+        duration: 160,
+        ease: 'Back.easeOut',
+      });
+      this._hackPulse = this.tweens.add({
+        targets: this.hackBtn,
+        scale: 1.06,
+        duration: 700,
+        yoyo: true,
+        repeat: -1,
+        delay: 200,
+        ease: 'Sine.easeInOut',
+      });
+    } else {
+      this._hackPulse?.stop();
+      this.tweens.add({
+        targets: this.hackBtn,
+        alpha: 0,
+        scale: 0.6,
+        duration: 140,
+      });
+    }
   }
 
   setTakedownVisible(avail) {
