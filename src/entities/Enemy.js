@@ -50,6 +50,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.alive  = true;
     this.hiddenInBush = false;
 
+    // Aim angle stored as data — body sprite NEVER rotates; the weapon
+    // overlay (see _setupWeapon) rotates to this angle instead.
+    this._aim = -Math.PI / 2;
+
     // Animation
     this._animPrefix   = texture;
     this._fireAnimTimer = 0;
@@ -147,6 +151,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.shadow.destroy();
     this.alertMark.destroy();
     this.threatRing?.destroy();
+    this.weaponSprite?.destroy();
     this.destroy();
   }
 
@@ -158,7 +163,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const dist = Math.hypot(dx, dy);
     if (dist > TAKEDOWN_RANGE) return false;
     const angleToPlayer = Math.atan2(dy, dx);
-    const facing = this.rotation - Math.PI / 2;
+    const facing = this._aim;
     const diff = Math.abs(Phaser.Math.Angle.Wrap(angleToPlayer - facing));
     return diff > TAKEDOWN_REAR_ARC; // player is behind the enemy
   }
@@ -177,7 +182,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (this.state === ST.PATROL) {
       if (dist > VISION_RANGE) return false;
       const angleTo = Math.atan2(player.y - this.y, player.x - this.x);
-      const facing  = this.rotation - Math.PI / 2;
+      const facing  = this._aim;
       const diff    = Phaser.Math.Angle.Wrap(angleTo - facing);
       if (Math.abs(diff) >= VISION_HALF_ANGLE) return false;
       return this._hasLOS(this.x, this.y, player.x, player.y);
@@ -283,12 +288,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       return dist;
     }
     this.setVelocity((dx / dist) * speed, (dy / dist) * speed);
-    this.setRotation(Math.atan2(dy, dx) + Math.PI / 2);
+    this._aim = Math.atan2(dy, dx);
     return dist;
   }
 
   _facePoint(tx, ty) {
-    this.setRotation(Math.atan2(ty - this.y, tx - this.x) + Math.PI / 2);
+    this._aim = Math.atan2(ty - this.y, tx - this.x);
   }
 
   _stopAndFace(tx, ty) {
@@ -304,7 +309,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // stealth takedown. Anyone approaching from the front/side still trips it.
     const dx = player.x - this.x, dy = player.y - this.y;
     const dist = Math.hypot(dx, dy);
-    const facing = this.rotation - Math.PI / 2;
+    const facing = this._aim;
     const rearDiff = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - facing));
     const sneakingBehind = rearDiff > TAKEDOWN_REAR_ARC && !player.hiddenInBush;
     if ((dist < ALARM_RANGE && !sneakingBehind) || this.canSee(player)) {
@@ -350,6 +355,15 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.alertMark.setPosition(this.x, this.y - this.cfg.radius - 24);
     this.updateHpBar();
     this.setAlpha(this.hiddenInBush ? 0.55 : 1);
+
+    // Weapon overlay (rotates to the aim angle — body never rotates)
+    if (this.weaponSprite) {
+      const offset = this.cfg.radius - 4;
+      this.weaponSprite.x = this.x + Math.cos(this._aim) * offset;
+      this.weaponSprite.y = this.y + Math.sin(this._aim) * offset;
+      this.weaponSprite.rotation = this._aim;
+      this.weaponSprite.setAlpha(this.alive ? (this.hiddenInBush ? 0.55 : 1) : 0);
+    }
 
     // Threat ring tracks position + soft pulse; dims when enemy is hidden.
     if (this.threatRing) {
@@ -439,6 +453,9 @@ export class EnemyGrunt extends Enemy {
   constructor(scene, x, y, spec = {}) {
     super(scene, x, y, 'grunt', ENEMY.grunt, spec);
     this.lastMeleeAt = 0;
+    // Grunts carry an E-11 even at melee range — the overlay rotates with aim.
+    this.weaponSprite = scene.add.image(x, y, 'wpn-enemy-rifle')
+      .setDepth(this.depth + 1).setOrigin(0.15, 0.5).setScale(1.15);
   }
 
   preUpdate(time, delta) {
@@ -501,6 +518,9 @@ export class EnemyShooter extends Enemy {
     this.flankTarget  = null;
     this.flankHoldMs  = 0;
     this.role         = spec.role || 'suppress'; // 'suppress' | 'flanker'
+    // Heavy DT-29 blaster overlay
+    this.weaponSprite = scene.add.image(x, y, 'wpn-enemy-rifle')
+      .setDepth(this.depth + 1).setOrigin(0.15, 0.5).setScale(1.2);
   }
 
   preUpdate(time, delta) {
@@ -741,7 +761,7 @@ export class EnemyShooter extends Enemy {
       const vy = Math.sin(perp) * 0.65 + Math.sin(toTarget) * 0.35;
       const len = Math.hypot(vx, vy) || 1;
       this.setVelocity((vx / len) * this.cfg.speed, (vy / len) * this.cfg.speed);
-      this.setRotation(Math.atan2(vy, vx) + Math.PI / 2);
+      this._aim = Math.atan2(vy, vx);
       return;
     }
 

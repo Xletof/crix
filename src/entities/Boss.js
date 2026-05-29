@@ -23,6 +23,10 @@ export class Boss extends Enemy {
 
     // Boss is already 40×40 — reset scale + recolor threat ring to danger-orange.
     this.setScale(1);
+    // Saber overlay (replaces the generic enemy rifle the base class added)
+    this.weaponSprite?.destroy();
+    this.weaponSprite = scene.add.image(x, y, 'wpn-saber')
+      .setDepth(this.depth + 1).setOrigin(0.1, 0.5).setScale(1.4);
     this.threatRing?.destroy();
     this.threatRing = scene.add.graphics().setDepth(this.depth - 2);
     this.threatRing.fillStyle(0xff8020, 0.18);
@@ -116,7 +120,14 @@ export class Boss extends Enemy {
     const dx = player.x - this.x;
     const dy = player.y - this.y;
     const angToPlayer = Math.atan2(dy, dx);
-    this.setRotation(angToPlayer + Math.PI / 2);
+    this._aim = angToPlayer;
+    if (this.weaponSprite) {
+      const offset = BOSS.radius - 6;
+      this.weaponSprite.x = this.x + Math.cos(angToPlayer) * offset;
+      this.weaponSprite.y = this.y + Math.sin(angToPlayer) * offset;
+      this.weaponSprite.rotation = angToPlayer;
+      this.weaponSprite.setAlpha(this.alive ? (this.hiddenInBush ? 0.55 : 1) : 0);
+    }
 
     if (this.contactDmgCd > 0) this.contactDmgCd -= delta;
 
@@ -209,6 +220,8 @@ export class Boss extends Enemy {
     this.scene.events.emit('boss-died', this);
     this.hpBar.destroy();
     this.shadow.destroy();
+    this.weaponSprite?.destroy();
+    this.threatRing?.destroy();
     this.destroy();
   }
 }

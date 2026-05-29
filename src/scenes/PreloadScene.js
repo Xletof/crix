@@ -21,6 +21,10 @@ import {
   paintSuperButton,
   paintWeaponPickups,
   paintGrenade,
+  paintPistolOverlay,
+  paintRifleOverlay,
+  paintEnemyRifleOverlay,
+  paintSaberOverlay,
 } from '../systems/pixelArt.js';
 import { WORLD } from '../config.js';
 
@@ -65,6 +69,12 @@ export class PreloadScene extends Phaser.Scene {
     paintSuperButton(this);
     paintWeaponPickups(this);
     paintGrenade(this);
+
+    // ── Weapon overlays (rotate around the character — body never rotates) ─
+    paintPistolOverlay(this, 'wpn-pistol');
+    paintRifleOverlay(this, 'wpn-rifle');
+    paintEnemyRifleOverlay(this, 'wpn-enemy-rifle');
+    paintSaberOverlay(this, 'wpn-saber');
 
     // ── Animations ───────────────────────────────────────────────────
     // Mandalorian (player) — frames: 0=idle, 1=walkA, 2=walkB, 3=fire

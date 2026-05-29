@@ -184,6 +184,88 @@ export class SpriteSheet {
 // VOXEL / CUBE-FACE shading: TOP=lightest, FRONT=medium, SIDE=darkest
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ── WEAPON OVERLAY SPRITES ─────────────────────────────────────────────────
+// These small sprites float "in the character's hand" — the body never
+// rotates; only the weapon orbits the character, pointing in the aim
+// direction. Sprite is drawn facing RIGHT (barrel points +X) so it lines up
+// naturally when setRotation(aim) is applied.
+export function paintPistolOverlay(scene, key = 'wpn-pistol') {
+  const c = new PixelCanvas(scene, key, 14, 8, 4);
+  // Grip (held end) on the LEFT, barrel pointing RIGHT.
+  // Grip
+  c.rect(0, 3, 4, 4, PAL.beskarDark);
+  c.rect(0, 3, 4, 1, PAL.beskarMid);
+  c.rect(0, 6, 4, 1, PAL.black);
+  c.px(1, 4, PAL.beskarLight);
+  // Slide / receiver block
+  c.rect(3, 2, 5, 4, PAL.impGrey);
+  c.rect(3, 2, 5, 1, PAL.impLight);
+  c.rect(3, 5, 5, 1, PAL.black);
+  c.px(4, 3, PAL.impSheen);
+  // Barrel
+  c.rect(8, 3, 5, 2, PAL.impGrey);
+  c.hline(3, 8, 12, PAL.impLight);
+  c.hline(4, 8, 12, PAL.black);
+  // Muzzle tip
+  c.px(13, 3, PAL.metalLight);
+  c.px(13, 4, PAL.offWhite);
+  c.finish();
+}
+
+export function paintRifleOverlay(scene, key = 'wpn-rifle') {
+  const c = new PixelCanvas(scene, key, 20, 8, 4);
+  // Stock
+  c.rect(0, 3, 3, 4, PAL.beskarDeep);
+  c.hline(3, 0, 2, PAL.beskarMid);
+  c.hline(6, 0, 2, PAL.black);
+  // Receiver
+  c.rect(3, 2, 7, 5, PAL.impGrey);
+  c.hline(2, 3, 9, PAL.impLight);
+  c.hline(6, 3, 9, PAL.black);
+  c.px(5, 4, PAL.gold);  // selector
+  // Long barrel
+  c.rect(10, 3, 9, 2, PAL.impGrey);
+  c.hline(3, 10, 18, PAL.impLight);
+  c.hline(4, 10, 18, PAL.black);
+  c.px(19, 3, PAL.metalLight);
+  c.px(19, 4, PAL.offWhite);
+  c.finish();
+}
+
+export function paintEnemyRifleOverlay(scene, key = 'wpn-enemy-rifle') {
+  const c = new PixelCanvas(scene, key, 18, 8, 4);
+  // Compact E-11 silhouette — held by stormtroopers + death troopers.
+  c.rect(0, 3, 3, 4, PAL.impDark);
+  c.rect(3, 2, 6, 5, PAL.impMid);
+  c.hline(2, 3, 8, PAL.impLight);
+  c.hline(6, 3, 8, PAL.black);
+  c.rect(9, 3, 8, 2, PAL.impGrey);
+  c.hline(3, 9, 16, PAL.impLight);
+  c.hline(4, 9, 16, PAL.black);
+  c.px(17, 3, PAL.metalLight);
+  c.px(17, 4, PAL.boltGreenCore); // green-tinted muzzle hint
+  c.finish();
+}
+
+export function paintSaberOverlay(scene, key = 'wpn-saber') {
+  const c = new PixelCanvas(scene, key, 22, 6, 4);
+  // Hilt
+  c.rect(0, 1, 4, 4, PAL.impGrey);
+  c.hline(0, 0, 3, PAL.impLight);
+  c.hline(5, 0, 3, PAL.black);
+  c.px(2, 2, PAL.gold);
+  c.px(2, 3, PAL.goldDark);
+  // Emitter
+  c.rect(4, 2, 1, 2, PAL.metalLight);
+  // Blade
+  c.rect(5, 2, 17, 2, PAL.saberRed);
+  c.hline(2, 5, 21, PAL.saberRedGlow);
+  c.hline(3, 5, 21, PAL.saberRedCore);
+  c.px(21, 2, PAL.saberRedTip);
+  c.px(21, 3, PAL.saberRedTip);
+  c.finish();
+}
+
 // ── PLAYER: Mandalorian (24×24, 4 frames) — TOP-DOWN 3/4 HIP-FIRE ──────────
 // Body silhouette does the work: dome on top, wider pauldrons below, chest
 // plate, cape flaring behind, weapon stub at the right hip. The weapon never
@@ -191,100 +273,70 @@ export class SpriteSheet {
 export function paintPlayer(scene, key = 'player') {
   const ss = new SpriteSheet(scene, key, 24, 24, 4, 4);
 
-  function drawMando(f, legPhase = 0, fireMode = false) {
+  // Body sprite: NO rotation. NO weapon (drawn as separate overlay that
+  // rotates around the player). Sprite shows a 3/4 above-behind view: dome
+  // on top, pauldrons sticking out, cape flaring south, leg toes peeking.
+  // Symmetric left-right so it reads correctly regardless of facing.
+  function drawMando(f, legPhase = 0, hurt = false) {
     ss.frame(f);
     const C = PAL;
-    // legPhase: 0=neutral, 1=left-fwd, -1=right-fwd. Body bobs 1px up on |1|.
+    // legPhase: 0=neutral, 1=left-fwd, -1=right-fwd. Body bobs 1px on movement.
     const bob = legPhase === 0 ? 0 : -1;
-    // Fire-mode shifts the weapon stub up 1px to suggest recoil-extension.
-    const wOff = fireMode ? -1 : 0;
+    const bodyTint = hurt ? C.beskarShine : C.beskar;
+    const bodyMid  = hurt ? '#ffffff'      : C.beskarMid;
 
-    // ── HELMET DOME (rounded, fills the top of the sprite) ─────────────────
-    // Stack of horizontal runs to make a proper round dome (10 wide max)
+    // ── HELMET DOME (round, centered, no facing features) ─────────────────
     const cy = 8 + bob;
-    ss.hline(cy - 4, 10, 13, C.beskarDark);          // top edge (4 wide)
-    ss.hline(cy - 3, 9,  14, C.beskar);              // (6 wide)
-    ss.hline(cy - 2, 8,  15, C.beskar);              // (8 wide)
-    ss.hline(cy - 1, 7,  16, C.beskar);              // (10 wide)
-    ss.hline(cy,     7,  16, C.beskarMid);           // (widest)
-    ss.hline(cy + 1, 7,  16, C.beskarMid);
-    ss.hline(cy + 2, 8,  15, C.beskar);              // taper down
-    ss.hline(cy + 3, 9,  14, C.beskarDark);
-    // Crown highlight (light catches top-center of dome)
-    ss.px(11, cy - 2, C.beskarLight);
-    ss.px(12, cy - 2, C.beskarLight);
-    ss.px(11, cy - 1, C.beskarShine);
-    ss.px(12, cy - 1, C.beskarShine);
-    ss.px(13, cy - 1, C.beskarLight);
-    // Rangefinder antenna stub on left side (the *actual* Mando detail, tiny)
-    ss.px(7, cy - 1, C.impDark);
-    ss.px(6, cy,     C.beskarDeep);
-    // Visor band (thin, only on the FORWARD edge of the dome — gives a "front")
-    ss.hline(cy - 3, 10, 13, C.black);
-    ss.px(10, cy - 4, C.beskarDeep);
-    ss.px(13, cy - 4, C.beskarDeep);
+    ss.hline(cy - 4, 10, 13, C.beskarDark);
+    ss.hline(cy - 3, 9,  14, bodyTint);
+    ss.hline(cy - 2, 8,  15, bodyTint);
+    ss.hline(cy - 1, 8,  15, bodyMid);
+    ss.hline(cy,     8,  15, bodyMid);
+    ss.hline(cy + 1, 8,  15, bodyTint);
+    ss.hline(cy + 2, 9,  14, bodyTint);
+    ss.hline(cy + 3, 10, 13, C.beskarDark);
+    // Centered crown highlight (no asymmetric features = no false "facing")
+    ss.px(11, cy - 1, C.beskarLight);
+    ss.px(12, cy - 1, C.beskarLight);
+    ss.px(11, cy,     C.beskarShine);
+    ss.px(12, cy,     C.beskarShine);
 
-    // ── PAULDRONS (shoulders — wider than the dome so the body reads) ─────
-    ss.hline(12 + bob, 5, 7,   C.beskarMid);         // left pauldron top
-    ss.hline(12 + bob, 16, 18, C.beskarMid);         // right pauldron top
-    ss.rect(4, 13 + bob, 4, 2, C.beskar);
-    ss.rect(16, 13 + bob, 4, 2, C.beskar);
-    ss.px(4, 13 + bob,  C.beskarDark);               // outer shadow
-    ss.px(4, 14 + bob,  C.beskarDark);
-    ss.px(19, 13 + bob, C.beskarDark);
-    ss.px(19, 14 + bob, C.beskarDark);
-    // Jetpack nozzles peek over the top of the shoulders
-    ss.px(8, 12 + bob,  C.impDark);
-    ss.px(15, 12 + bob, C.impDark);
+    // ── PAULDRONS (symmetric left/right shoulders) ────────────────────────
+    ss.rect(4,  12 + bob, 4, 3, bodyTint);
+    ss.rect(16, 12 + bob, 4, 3, bodyTint);
+    ss.hline(12 + bob, 4,  7,  C.beskarLight);
+    ss.hline(12 + bob, 16, 19, C.beskarLight);
+    ss.hline(14 + bob, 4,  7,  C.beskarDark);
+    ss.hline(14 + bob, 16, 19, C.beskarDark);
+    ss.vline(4,  12 + bob, 14 + bob, C.beskarDeep);
+    ss.vline(19, 12 + bob, 14 + bob, C.beskarDeep);
 
-    // ── TORSO / CHEST PLATE ─────────────────────────────────────────────────
-    ss.rect(8, 13 + bob, 8, 5, C.beskar);
-    ss.hline(13 + bob, 8, 15, C.beskarLight);        // top sheen
-    ss.hline(17 + bob, 8, 15, C.beskarDeep);         // bottom shadow
+    // ── CHEST PLATE ───────────────────────────────────────────────────────
+    ss.rect(8, 13 + bob, 8, 5, bodyTint);
+    ss.hline(13 + bob, 8, 15, C.beskarLight);
+    ss.hline(17 + bob, 8, 15, C.beskarDeep);
     ss.vline(8,  13 + bob, 17 + bob, C.beskarDark);
     ss.vline(15, 13 + bob, 17 + bob, C.beskarDark);
-    // Mudhorn signet (gold)
+    // Mudhorn signet
     ss.px(11, 15 + bob, C.gold);     ss.px(12, 15 + bob, C.gold);
     ss.px(11, 16 + bob, C.goldDark); ss.px(12, 16 + bob, C.goldDark);
 
-    // ── WEAPON STUB at right hip (short barrel — no antenna) ─────────────
-    // Grip (held against the right side of the torso)
-    ss.px(15, 14 + bob, C.impDark);
-    ss.px(16, 14 + bob, C.impGrey);
-    ss.px(15, 15 + bob, C.impMid);
-    ss.px(16, 15 + bob, C.impLight);
-    // Short barrel extending forward (up) from the grip — only 3-4px long
-    // so its tip is at or just barely past the dome's right edge, not above it.
-    ss.px(15, 13 + bob + wOff, C.impGrey);
-    ss.px(16, 13 + bob + wOff, C.impLight);
-    ss.px(15, 12 + bob + wOff, C.impGrey);
-    ss.px(16, 12 + bob + wOff, C.impLight);
-    ss.px(15, 11 + bob + wOff, C.impDark);
-    ss.px(16, 11 + bob + wOff, fireMode ? C.boltRedCore : C.metalLight); // muzzle
-    if (fireMode) {
-      // Small flare just past the muzzle
-      ss.px(16, 10 + bob + wOff, C.boltRed);
-      ss.px(15, 10 + bob + wOff, C.boltRedGlow);
-    }
-
-    // ── BELT ────────────────────────────────────────────────────────────────
+    // ── BELT ──────────────────────────────────────────────────────────────
     ss.hline(18 + bob, 8, 15, C.impDark);
     ss.px(11, 18 + bob, C.gold);
     ss.px(12, 18 + bob, C.gold);
 
-    // ── CAPE (flares behind the body, partially hides legs) ────────────────
+    // ── CAPE (behind body, symmetric) ─────────────────────────────────────
     ss.rect(7, 19, 10, 4, C.cape);
     ss.hline(19, 7, 16, C.capeBlack);
     ss.vline(6,  20, 22, C.capeShade);
     ss.vline(17, 20, 22, C.capeShade);
     ss.px(6, 22, C.capeBlack);
     ss.px(17, 22, C.capeBlack);
-    // Cape fold lines
     ss.vline(9,  20, 22, C.capeBlack);
     ss.vline(14, 20, 22, C.capeBlack);
 
-    // ── LEGS (peek out below the cape, swing for walk) ────────────────────
-    // legPhase=1 → left leg forward (further from body), right back
+    // ── LEGS (symmetric swing — legPhase shifts L vs R) ──────────────────
     const lY = 21 + (legPhase === 1 ? 0 : 1);
     const rY = 21 + (legPhase === -1 ? 0 : 1);
     ss.px(10, lY,     C.beskarDeep);
@@ -294,72 +346,65 @@ export function paintPlayer(scene, key = 'player') {
   }
 
   drawMando(0, 0, false);   // idle
-  drawMando(1, 1, false);   // walk A (left fwd)
-  drawMando(2, -1, false);  // walk B (right fwd)
-  drawMando(3, 0, true);    // fire
+  drawMando(1, 1, false);   // walk A
+  drawMando(2, -1, false);  // walk B
+  drawMando(3, 0, true);    // hurt flash (fire animation handled by weapon overlay)
   ss.finish();
 }
 
-// ── GRUNT: Stormtrooper (20×20) — TRUE TOP-DOWN OVERHEAD ──────────────────
+// ── GRUNT: Stormtrooper (20×20, 4 frames) — NO ROTATION ───────────────────
+// Body silhouette only — weapon is a separate overlay sprite.
 export function paintGrunt(scene, key = 'grunt') {
   const ss = new SpriteSheet(scene, key, 20, 20, 4, 4);
   const C = PAL;
 
-  function drawTrooper(f, legOff = 0, attackMode = false) {
+  function drawTrooper(f, legPhase = 0, hurt = false) {
     ss.frame(f);
+    const bob = legPhase === 0 ? 0 : -1;
+    const main = hurt ? '#ffffff' : C.troopWhite;
+    const mid  = hurt ? C.troopLight : C.troopLight;
 
-    // ── E-11 BLASTER (forward = up) ───────────────────────────────────────
-    ss.px(9,  0, attackMode ? C.boltGreen     : C.offWhite);
-    ss.px(10, 0, attackMode ? C.boltGreenGlow : C.offWhite);
-    ss.vline(9,  1, 5, C.impGrey);
-    ss.vline(10, 1, 5, C.impSheen);
-    ss.rect(8, 6, 4, 2, C.impLight);
-    ss.px(9, 6, C.metalLight);
-    ss.px(10, 6, C.metalLight);
+    // ── HELMET DOME (round, symmetric) ────────────────────────────────────
+    const cy = 7 + bob;
+    ss.hline(cy - 3, 7,  10, C.troopShade);
+    ss.hline(cy - 2, 6,  11, main);
+    ss.hline(cy - 1, 6,  11, mid);
+    ss.hline(cy,     6,  11, mid);
+    ss.hline(cy + 1, 6,  11, main);
+    ss.hline(cy + 2, 7,  10, C.troopShade);
+    // Crown highlight
+    ss.px(8, cy - 1, '#ffffff');
+    ss.px(9, cy - 1, '#ffffff');
 
-    // ── HELMET DOME (top-down view, no eyes/mouth) ────────────────────────
-    ss.hline(7,  8, 11, C.troopShade);
-    ss.hline(8,  7, 12, C.troopWhite);
-    ss.hline(9,  6, 13, C.troopWhite);
-    ss.hline(10, 6, 13, C.troopLight);
-    ss.hline(11, 6, 13, C.troopLight);
-    ss.hline(12, 6, 13, C.troopWhite);
-    ss.hline(13, 7, 12, C.troopWhite);
-    ss.hline(14, 8, 11, C.troopShade);
-    // Center crown highlight (bright top of dome)
-    ss.rect(9, 9, 2, 3, C.troopLight);
-    ss.px(9,  10, '#ffffff');
-    ss.px(10, 10, '#ffffff');
-    // Side shadow rim
-    ss.px(5, 10, C.troopShade);
-    ss.px(5, 11, C.troopShade);
-    ss.px(14, 10, C.troopShade);
-    ss.px(14, 11, C.troopShade);
-    // Front-facing helmet ridge (small bump near gun for direction cue)
-    ss.px(9,  8, C.troopShade);
-    ss.px(10, 8, C.troopShade);
+    // ── PAULDRONS ─────────────────────────────────────────────────────────
+    ss.rect(3, 11 + bob, 3, 3, main);
+    ss.rect(14, 11 + bob, 3, 3, main);
+    ss.hline(11 + bob, 3,  5, C.troopLight);
+    ss.hline(11 + bob, 14, 16, C.troopLight);
+    ss.hline(13 + bob, 3,  5, C.troopShade);
+    ss.hline(13 + bob, 14, 16, C.troopShade);
 
-    // ── SHOULDERS/CHEST (small, behind dome) ──────────────────────────────
-    ss.rect(4, 13, 12, 3, C.troopWhite);
-    ss.hline(13, 4, 15, C.troopLight);
-    ss.hline(15, 4, 15, C.troopShade);
-    ss.vline(4,  13, 15, C.troopShade);
-    ss.vline(15, 13, 15, C.troopShade);
+    // ── CHEST PLATE ───────────────────────────────────────────────────────
+    ss.rect(6, 12 + bob, 8, 4, main);
+    ss.hline(12 + bob, 6, 13, C.troopLight);
+    ss.hline(15 + bob, 6, 13, C.troopShade);
+    ss.vline(6,  12 + bob, 15 + bob, C.troopShade);
+    ss.vline(13, 12 + bob, 15 + bob, C.troopShade);
     // Center seam
-    ss.px(9, 14, C.troopShade);
-    ss.px(10, 14, C.troopShade);
-    // Utility belt (small dark strip)
-    ss.hline(16, 5, 14, C.impGrey);
-    ss.px(7,  16, C.impSheen);
-    ss.px(12, 16, C.impSheen);
+    ss.vline(9,  13 + bob, 14 + bob, C.troopShade);
+    ss.vline(10, 13 + bob, 14 + bob, C.troopShade);
+    // Belt
+    ss.hline(16 + bob, 6, 13, C.impGrey);
+    ss.px(8,  16 + bob, C.impSheen);
+    ss.px(11, 16 + bob, C.impSheen);
 
-    // ── BOOT TOES (animate with walk) ─────────────────────────────────────
-    const lx = 8 + legOff;
-    const rx = 11 - legOff;
-    ss.px(lx,   18, C.troopDark);
-    ss.px(lx,   19, C.troopBlack);
-    ss.px(rx+1, 18, C.troopDark);
-    ss.px(rx+1, 19, C.troopBlack);
+    // ── BOOT TOES ─────────────────────────────────────────────────────────
+    const lY = 18 + (legPhase === 1 ? 0 : 1);
+    const rY = 18 + (legPhase === -1 ? 0 : 1);
+    ss.px(8,  lY,     C.troopDark);
+    ss.px(8,  lY + 1, C.troopBlack);
+    ss.px(11, rY,     C.troopDark);
+    ss.px(11, rY + 1, C.troopBlack);
   }
 
   drawTrooper(0, 0, false);
@@ -369,69 +414,61 @@ export function paintGrunt(scene, key = 'grunt') {
   ss.finish();
 }
 
-// ── SHOOTER: Death Trooper (20×20) — TRUE TOP-DOWN OVERHEAD ───────────────
+// ── SHOOTER: Death Trooper (20×20, 4 frames) — NO ROTATION ────────────────
 export function paintShooter(scene, key = 'shooter') {
   const ss = new SpriteSheet(scene, key, 20, 20, 4, 4);
   const C = PAL;
 
-  function drawDeathTrooper(f, legOff = 0, fireMode = false) {
+  function drawDeathTrooper(f, legPhase = 0, hurt = false) {
     ss.frame(f);
+    const bob = legPhase === 0 ? 0 : -1;
+    const main = hurt ? C.dthLight : C.dthMid;
+    const dark = hurt ? C.dthMid   : C.dthDark;
 
-    // ── DT-29 HEAVY BLASTER (forward = up) ────────────────────────────────
-    ss.px(9,  0, fireMode ? C.boltGreen     : C.dthLight);
-    ss.px(10, 0, fireMode ? C.boltGreenGlow : C.impGrey);
-    ss.vline(9,  1, 6, C.dthDark);
-    ss.vline(10, 1, 6, C.impGrey);
-    ss.rect(8, 6, 4, 2, C.dthMid);
-    ss.px(9, 6, C.impLight);
-    ss.px(10, 6, C.impLight);
+    // ── HELMET DOME (angular black) ───────────────────────────────────────
+    const cy = 7 + bob;
+    ss.hline(cy - 3, 7,  10, dark);
+    ss.hline(cy - 2, 6,  11, main);
+    ss.hline(cy - 1, 6,  11, C.dthLight);
+    ss.hline(cy,     6,  11, C.dthLight);
+    ss.hline(cy + 1, 6,  11, main);
+    ss.hline(cy + 2, 7,  10, dark);
+    // Crown highlight
+    ss.px(8, cy - 1, '#4a4a58');
+    ss.px(9, cy - 1, '#4a4a58');
+    // Symmetric green LED accents on either side of the dome
+    ss.px(6, cy, C.dthLED);
+    ss.px(11, cy, C.dthLED);
 
-    // ── HELMET DOME (angular, all-black, top-down) ────────────────────────
-    ss.hline(7,  8, 11, C.dthDark);
-    ss.hline(8,  7, 12, C.dthMid);
-    ss.hline(9,  6, 13, C.dthMid);
-    ss.hline(10, 6, 13, C.dthLight);
-    ss.hline(11, 6, 13, C.dthLight);
-    ss.hline(12, 6, 13, C.dthMid);
-    ss.hline(13, 7, 12, C.dthMid);
-    ss.hline(14, 8, 11, C.dthDark);
-    // Center crown highlight
-    ss.rect(9, 9, 2, 3, C.dthLight);
-    ss.px(9,  10, '#3a3a48');
-    ss.px(10, 10, '#3a3a48');
-    // Side dark rim
-    ss.px(5, 10, C.dthDark);
-    ss.px(5, 11, C.dthDark);
-    ss.px(14, 10, C.dthDark);
-    ss.px(14, 11, C.dthDark);
-    // Front facing antenna nub (direction cue)
-    ss.px(9,  8, C.black);
-    ss.px(10, 8, C.black);
-    // Single small comms LED on left side (asymmetric detail still readable from any rotation)
-    ss.px(7, 9, C.dthLED);
-    ss.px(7, 10, '#0a2a0a');
+    // ── PAULDRONS (heavy black armor, symmetric) ──────────────────────────
+    ss.rect(3, 11 + bob, 3, 3, main);
+    ss.rect(14, 11 + bob, 3, 3, main);
+    ss.hline(11 + bob, 3,  5, C.dthLight);
+    ss.hline(11 + bob, 14, 16, C.dthLight);
+    ss.hline(13 + bob, 3,  5, dark);
+    ss.hline(13 + bob, 14, 16, dark);
 
-    // ── SHOULDERS/CHEST (heavy armor — wider than grunt) ──────────────────
-    ss.rect(4, 13, 12, 3, C.dthMid);
-    ss.hline(13, 4, 15, C.dthLight);
-    ss.hline(15, 4, 15, C.black);
-    ss.vline(4,  13, 15, C.dthDark);
-    ss.vline(15, 13, 15, C.dthDark);
+    // ── CHEST PLATE ───────────────────────────────────────────────────────
+    ss.rect(6, 12 + bob, 8, 4, main);
+    ss.hline(12 + bob, 6, 13, C.dthLight);
+    ss.hline(15 + bob, 6, 13, dark);
+    ss.vline(6,  12 + bob, 15 + bob, dark);
+    ss.vline(13, 12 + bob, 15 + bob, dark);
     // Center ridge
-    ss.px(9, 14, C.dthLight);
-    ss.px(10, 14, C.dthLight);
-    // Belt LED (green)
-    ss.hline(16, 5, 14, C.dthDark);
-    ss.px(9,  16, C.dthLED);
-    ss.px(10, 16, C.dthLEDBright);
+    ss.vline(9,  13 + bob, 14 + bob, C.dthLight);
+    ss.vline(10, 13 + bob, 14 + bob, C.dthLight);
+    // Belt with LED
+    ss.hline(16 + bob, 6, 13, dark);
+    ss.px(9,  16 + bob, C.dthLED);
+    ss.px(10, 16 + bob, C.dthLEDBright);
 
     // ── BOOT TOES ─────────────────────────────────────────────────────────
-    const lx = 8 + legOff;
-    const rx = 11 - legOff;
-    ss.px(lx,   18, C.dthDark);
-    ss.px(lx,   19, C.black);
-    ss.px(rx+1, 18, C.dthDark);
-    ss.px(rx+1, 19, C.black);
+    const lY = 18 + (legPhase === 1 ? 0 : 1);
+    const rY = 18 + (legPhase === -1 ? 0 : 1);
+    ss.px(8,  lY,     dark);
+    ss.px(8,  lY + 1, C.black);
+    ss.px(11, rY,     dark);
+    ss.px(11, rY + 1, C.black);
   }
 
   drawDeathTrooper(0, 0, false);
@@ -441,76 +478,68 @@ export function paintShooter(scene, key = 'shooter') {
   ss.finish();
 }
 
-// ── BOSS: Darth Vader (40×40) — TRUE TOP-DOWN OVERHEAD ────────────────────
+// ── BOSS: Darth Vader (40×40, 4 frames) — NO ROTATION ─────────────────────
+// Massive cape spreading south, dome at top, weapon (saber) is a separate
+// rotating overlay sprite — body itself is static aside from walk/idle.
 export function paintBoss(scene, key = 'boss') {
   const ss = new SpriteSheet(scene, key, 40, 40, 4, 4);
   const C = PAL;
 
-  function drawVader(f, legOff = 0, enraged = false) {
+  function drawVader(f, legPhase = 0, enraged = false) {
     ss.frame(f);
-    const sbr  = enraged ? C.saberRedGlow : C.saberRed;
-    const sbrC = enraged ? C.saberRedCore : C.saberRedGlow;
+    const bob = legPhase === 0 ? 0 : -1;
+    const main = enraged ? C.vaderSheen : C.vaderArmor;
 
-    // ── LIGHTSABER (forward = up) — long dramatic blade ───────────────────
-    ss.px(19, 0, C.saberRedTip); ss.px(20, 0, C.saberRedTip);
-    ss.vline(19, 1, 12, sbr);
-    ss.vline(20, 1, 12, sbrC);
-    // Bright core line
-    ss.vline(19, 2, 10, sbrC);
-    ss.vline(20, 2, 10, sbr);
-    // Halo glow
-    ss.px(18, 3, sbr); ss.px(21, 3, sbr);
-    ss.px(18, 7, sbr); ss.px(21, 7, sbr);
-    ss.px(18, 11, sbr); ss.px(21, 11, sbr);
-    // Crossguard
-    ss.rect(15, 12, 10, 2, C.impGrey);
-    ss.hline(12, 15, 24, C.impLight);
-    ss.hline(13, 15, 24, C.impDark);
-    // Hilt body
-    ss.rect(17, 14, 6, 3, C.impGrey);
-    ss.hline(14, 17, 22, C.impLight);
-    ss.px(19, 15, C.gold);   ss.px(20, 15, C.gold);
-    ss.px(19, 16, C.goldDark); ss.px(20, 16, C.goldDark);
+    // ── DOME (huge round helmet, no face features, symmetric) ─────────────
+    const cy = 14 + bob;
+    for (let dy = -7; dy <= 7; dy++) {
+      const w = Math.round(Math.sqrt(64 - dy * dy));
+      const xl = 20 - w, xr = 19 + w;
+      const tone = dy <= -5 || dy >= 5 ? C.vaderHelm
+                 : dy <= -3 || dy >= 3 ? main
+                 : C.vaderSheen;
+      ss.hline(cy + dy, xl, xr, tone);
+    }
+    // Dark side rim
+    ss.vline(11, cy - 3, cy + 3, C.black);
+    ss.vline(28, cy - 3, cy + 3, C.black);
+    // Crown highlight (top center catches light)
+    ss.rect(18, cy - 2, 4, 4, C.vaderBreath);
+    ss.px(19, cy - 1, C.impSilver);
+    ss.px(20, cy - 1, C.impSilver);
+    if (enraged) {
+      // Reactor-red eye-band hint (very small dome detail when enraged)
+      ss.px(15, cy + 2, C.saberRed);
+      ss.px(24, cy + 2, C.saberRed);
+    }
 
-    // ── VADER HELMET (massive dome, top-down, NO face features) ───────────
-    // 18-px wide circular dome at y=14..28
-    ss.hline(14, 14, 25, C.vaderHelm);
-    ss.hline(15, 13, 26, C.vaderArmor);
-    ss.hline(16, 12, 27, C.vaderArmor);
-    ss.hline(17, 11, 28, C.vaderArmor);
-    ss.hline(18, 11, 28, C.vaderArmor);
-    ss.hline(19, 11, 28, C.vaderSheen);
-    ss.hline(20, 11, 28, C.vaderSheen);
-    ss.hline(21, 11, 28, C.vaderSheen);
-    ss.hline(22, 11, 28, C.vaderSheen);
-    ss.hline(23, 11, 28, C.vaderArmor);
-    ss.hline(24, 11, 28, C.vaderArmor);
-    ss.hline(25, 12, 27, C.vaderArmor);
-    ss.hline(26, 13, 26, C.vaderArmor);
-    ss.hline(27, 14, 25, C.vaderHelm);
-    ss.hline(28, 15, 24, C.vaderHelm);
-    // Center crown highlight (top of dome catches light)
-    ss.rect(18, 19, 4, 4, C.vaderBreath);
-    ss.px(19, 20, C.impSheen); ss.px(20, 20, C.impSheen);
-    ss.px(19, 21, C.impSilver); ss.px(20, 21, C.impSilver);
-    // Side dark rim
-    ss.vline(10, 17, 24, C.black);
-    ss.vline(29, 17, 24, C.black);
-    // Front facing helmet ridge (small dark bump near saber for rotation cue)
-    ss.hline(17, 18, 21, C.vaderHelm);
-    ss.hline(18, 18, 21, C.vaderHelm);
+    // ── PAULDRONS (symmetric) ─────────────────────────────────────────────
+    ss.rect(3,  cy + 5, 8, 6, main);
+    ss.rect(29, cy + 5, 8, 6, main);
+    ss.hline(cy + 5,  3,  10, C.vaderSheen);
+    ss.hline(cy + 5,  29, 36, C.vaderSheen);
+    ss.hline(cy + 10, 3,  10, C.black);
+    ss.hline(cy + 10, 29, 36, C.black);
+    ss.vline(3,  cy + 5, cy + 10, C.black);
+    ss.vline(36, cy + 5, cy + 10, C.black);
 
-    // ── PAULDRONS (huge shoulder armor) ───────────────────────────────────
-    ss.rect(3,  24, 8, 6, C.vaderArmor);
-    ss.rect(29, 24, 8, 6, C.vaderArmor);
-    ss.hline(24, 3, 10,  C.vaderSheen);
-    ss.hline(24, 29, 36, C.vaderSheen);
-    ss.hline(29, 3, 10,  C.black);
-    ss.hline(29, 29, 36, C.black);
-    ss.vline(3,  24, 29, C.black);
-    ss.vline(36, 24, 29, C.black);
+    // ── CHEST PANEL ───────────────────────────────────────────────────────
+    const cy2 = cy + 11;
+    ss.rect(11, cy2, 18, 8, main);
+    ss.hline(cy2,     11, 28, C.vaderSheen);
+    ss.hline(cy2 + 7, 11, 28, C.black);
+    ss.vline(11, cy2, cy2 + 7, C.black);
+    ss.vline(28, cy2, cy2 + 7, C.black);
+    // Life-support LEDs (symmetric)
+    ss.rect(14, cy2 + 2, 12, 4, C.vaderHelm);
+    ss.px(16, cy2 + 3, enraged ? C.saberRed : C.ledRed);
+    ss.px(19, cy2 + 3, C.ledGreen);
+    ss.px(20, cy2 + 3, C.ledGreen);
+    ss.px(23, cy2 + 3, enraged ? C.saberRed : C.ledRed);
+    ss.px(16, cy2 + 4, C.impGrey);
+    ss.px(23, cy2 + 4, C.impGrey);
 
-    // ── CAPE (huge, flares dramatically behind) ───────────────────────────
+    // ── CAPE (massive, flares south) ──────────────────────────────────────
     ss.rect(8,  29, 24, 10, C.cape);
     ss.rect(6,  31, 28, 8,  C.cape);
     ss.rect(4,  33, 32, 6,  C.cape);
@@ -519,36 +548,17 @@ export function paintBoss(scene, key = 'boss') {
     ss.vline(6,  31, 38, C.capeBlack);
     ss.vline(33, 31, 38, C.capeBlack);
     ss.hline(38, 4, 35, C.capeBlack);
-    // Cape folds
     ss.vline(12, 31, 38, C.capeShade);
     ss.vline(20, 31, 38, C.capeShade);
     ss.vline(27, 31, 38, C.capeShade);
 
-    // ── CHEST PANEL (life support, peeks through cape) ────────────────────
-    ss.rect(13, 30, 14, 6, C.vaderHelm);
-    ss.hline(30, 13, 26, C.vaderSheen);
-    ss.hline(35, 13, 26, C.black);
-    // LED status panel
-    ss.px(15, 32, enraged ? C.saberRed : C.ledRed);
-    ss.px(17, 32, C.ledGreen);
-    ss.px(19, 32, enraged ? C.saberRed : C.ledRed);
-    ss.px(21, 32, C.ledGreen);
-    ss.px(23, 32, enraged ? C.saberRed : C.ledRed);
-    ss.px(25, 32, C.ledGreen);
-    ss.px(15, 33, C.impGrey); ss.px(17, 33, C.impGrey);
-    ss.px(19, 33, C.impGrey); ss.px(21, 33, C.impGrey);
-    ss.px(23, 33, C.impGrey); ss.px(25, 33, C.impGrey);
-    // Belt buckle
-    ss.px(19, 34, C.gold);     ss.px(20, 34, C.gold);
-    ss.px(19, 35, C.goldDark); ss.px(20, 35, C.goldDark);
-
-    // ── BOOT TOES (animate with stride) ───────────────────────────────────
-    const lx = 16 + legOff;
-    const rx = 21 - legOff;
-    ss.rect(lx, 38, 2, 2, C.vaderHelm);
-    ss.rect(rx, 38, 2, 2, C.vaderHelm);
-    ss.px(lx,   39, C.black);
-    ss.px(rx+1, 39, C.black);
+    // ── BOOT TOES (animate stride) ────────────────────────────────────────
+    const lY = 37 + (legPhase === 1 ? 0 : 1);
+    const rY = 37 + (legPhase === -1 ? 0 : 1);
+    ss.rect(16, lY, 2, 2, C.vaderHelm);
+    ss.rect(22, rY, 2, 2, C.vaderHelm);
+    ss.px(16, lY + 1, C.black);
+    ss.px(23, rY + 1, C.black);
   }
 
   drawVader(0, 0, false);

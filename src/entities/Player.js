@@ -66,6 +66,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.play('mando-idle');
     // Bump display scale for readability (texture stays 24×24)
     this.setScale(1.15);
+
+    // ── Weapon overlay: held by the character, rotates to match aim. ─────
+    // The body itself never rotates — the weapon does. This is how
+    // shipping 2D top-down games (Brawl Stars etc.) handle aim direction.
+    this.weaponSprite = scene.add.image(x, y, 'wpn-pistol')
+      .setDepth(this.depth + 1)
+      .setOrigin(0.15, 0.5)  // pivot near the grip so the barrel swings forward
+      .setScale(1.15);
   }
 
   // ── Movement / aiming inputs (called by HUD joysticks) ────────────────────
@@ -75,7 +83,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (vec?.force > 0) {
       this.setVelocity(vec.x * PLAYER.speed * vec.force, vec.y * PLAYER.speed * vec.force);
       this.facing = Math.atan2(vec.y, vec.x);
-      if (!this.aiming) this.setRotation(this.facing + Math.PI / 2);
+      // Body NEVER rotates — only the weapon overlay does (handled in preUpdate).
+      // When not aiming, the weapon follows the movement direction.
     } else {
       this.setVelocity(0, 0);
     }
@@ -86,7 +95,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (vec?.force > 0) {
       this.aiming = true;
       this.aim    = Math.atan2(vec.y, vec.x);
-      this.setRotation(this.aim + Math.PI / 2);
       // Flamethrower: fire while held
       if (this.secondary === 'flamethrower' && this.secondaryAmmo > 0) {
         this.flameActive = true;
@@ -113,7 +121,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (vec?.force > 0) {
       this.superAiming = true;
       this.superAim    = Math.atan2(vec.y, vec.x);
-      this.setRotation(this.superAim + Math.PI / 2);
     } else {
       this.superAiming = true;
       this.superAim    = this.facing;
@@ -317,6 +324,27 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.scene.events.emit('player-hp-changed');
     }
 
+    // ── Weapon overlay: hovers next to the character, rotated to aim ─────
+    // The aim angle drives weapon rotation. When not aiming, the weapon
+    // follows the move-facing so the character looks "ready" in the direction
+    // they're walking. The overlay sits a small radius out from the character
+    // center so it visually reads as "held in front" of them.
+    if (this.weaponSprite) {
+      const ang = this.superAiming ? this.superAim
+                : this.aiming      ? this.aim
+                : this.facing;
+      // Pick the right weapon sprite for the equipped secondary.
+      const wantTex = this.secondary === 'rifle' ? 'wpn-rifle'
+                    : this.secondary === 'flamethrower' ? 'wpn-rifle'
+                    : 'wpn-pistol';
+      if (this.weaponSprite.texture.key !== wantTex) this.weaponSprite.setTexture(wantTex);
+      const offset = PLAYER.radius - 4;
+      this.weaponSprite.x = this.x + Math.cos(ang) * offset;
+      this.weaponSprite.y = this.y + Math.sin(ang) * offset;
+      this.weaponSprite.rotation = ang;
+      this.weaponSprite.setAlpha(this.alive ? (this.hiddenInBush ? PLAYER.bushAlpha : 1) : 0);
+    }
+
     // Shadow + you-are-here glow ring (pulses softly)
     this.shadow.setPosition(this.x, this.y + 18);
     this._glowPulse += delta * 0.005;
@@ -353,6 +381,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   destroy(fromScene) {
     this.shadow?.destroy();
     this.glowRing?.destroy();
+    this.weaponSprite?.destroy();
     super.destroy(fromScene);
   }
 }
