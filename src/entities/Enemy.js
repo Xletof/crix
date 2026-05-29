@@ -26,6 +26,8 @@ const ARRIVE_THRESH     = 40;      // px — "close enough" to a target or stand
 const FLANK_DIST        = 260;     // px — how far off the LOS axis to flank
 const ALERT_PAUSE_MS    = 500;     // ms surprised freeze before switching to combat
 const STAND_DIST        = 92;      // px from cover centre to stand-and-fire position
+const TAKEDOWN_RANGE    = 56;      // px — how close the player must be to take down
+const TAKEDOWN_REAR_ARC = 1.95;    // rad — player must be within the enemy's rear arc (~112°)
 const LOS_LOST_RECLAIM  = 900;     // ms of no-LOS in SUPPRESS before re-picking cover
 const LOS_LOST_ADVANCE  = 1500;    // ms of no-LOS in COVER_MOVE before going ADVANCE
 
@@ -146,6 +148,27 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.alertMark.destroy();
     this.threatRing?.destroy();
     this.destroy();
+  }
+
+  // True if this enemy can be silently taken down right now: it must still be
+  // unalerted (PATROL) and the player must be close and within its rear arc.
+  isBackstabbable(player) {
+    if (!this.alive || this.state !== ST.PATROL) return false;
+    const dx = player.x - this.x, dy = player.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > TAKEDOWN_RANGE) return false;
+    const angleToPlayer = Math.atan2(dy, dx);
+    const facing = this.rotation - Math.PI / 2;
+    const diff = Math.abs(Phaser.Math.Angle.Wrap(angleToPlayer - facing));
+    return diff > TAKEDOWN_REAR_ARC; // player is behind the enemy
+  }
+
+  // Instant, silent elimination from a stealth takedown — never raises the alarm.
+  stealthKill() {
+    if (!this.alive) return;
+    this.hp = 0;
+    this.scene.events.emit('stealth-kill');
+    this.die();
   }
 
   canSee(player) {
@@ -276,9 +299,15 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   // ── Patrol walking ────────────────────────────────────────────────────────
 
   _tickPatrol(delta, player) {
-    // Proximity alarm (heard/sensed player even without seeing)
-    const dist = Math.hypot(player.x - this.x, player.y - this.y);
-    if (dist < ALARM_RANGE || this.canSee(player)) {
+    // Proximity alarm (heard/sensed player even without seeing). A player
+    // creeping up from directly behind is NOT sensed — that's the window for a
+    // stealth takedown. Anyone approaching from the front/side still trips it.
+    const dx = player.x - this.x, dy = player.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    const facing = this.rotation - Math.PI / 2;
+    const rearDiff = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - facing));
+    const sneakingBehind = rearDiff > TAKEDOWN_REAR_ARC && !player.hiddenInBush;
+    if ((dist < ALARM_RANGE && !sneakingBehind) || this.canSee(player)) {
       this.lastKnownX = player.x;
       this.lastKnownY = player.y;
       this._triggerAlarm();

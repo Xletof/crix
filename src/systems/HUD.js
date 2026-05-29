@@ -137,6 +137,43 @@ export class HUDScene extends Phaser.Scene {
       onEnd: (v) => this.gameScene?.player?.releaseAim(v),
     });
 
+    // ── Contextual TAKEDOWN button (stealth) ───────────────────────────────
+    // Fades in when the player is positioned behind an unalerted enemy.
+    const tdX = VIEW.width / 2;
+    const tdY = VIEW.height - 320;
+    this.takedownBtn = this.add.container(tdX, tdY).setDepth(30).setAlpha(0);
+    const tdBg = this.add.graphics();
+    tdBg.fillStyle(0x062814, 0.85);
+    tdBg.fillCircle(0, 0, 50);
+    tdBg.lineStyle(3, 0x40ff80, 0.95);
+    tdBg.strokeCircle(0, 0, 50);
+    tdBg.lineStyle(2, 0x80ffaa, 0.5);
+    tdBg.strokeCircle(0, 0, 44);
+    // Knife glyph
+    tdBg.fillStyle(0xd0ffe0, 1);
+    tdBg.fillTriangle(-3, -22, 3, -22, 0, -4);
+    tdBg.fillRect(-2, -4, 4, 16);
+    tdBg.fillStyle(0x40ff80, 1);
+    tdBg.fillRect(-7, 10, 14, 4);
+    const tdLabel = this.add.text(0, 28, 'TAKEDOWN', {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '15px',
+      fontStyle: 'bold',
+      color: '#80ffaa',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5);
+    this.takedownBtn.add([tdBg, tdLabel]);
+    this._takedownReady = false;
+    this.takedownZone = this.add.zone(tdX, tdY, 110, 110).setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    this.takedownZone.on('pointerdown', () => {
+      if (this._takedownReady) this.gameScene?.performTakedown();
+    });
+    this.input.keyboard?.on('keydown-Q', () => {
+      if (this._takedownReady) this.gameScene?.performTakedown();
+    });
+
     // Keyboard fallback
     this.input.keyboard?.on('keydown-SPACE', () => this.gameScene?.player?.tryFireSuper());
 
@@ -157,6 +194,7 @@ export class HUDScene extends Phaser.Scene {
     ge.on('secondary-ammo-changed', ()             => this.refreshSecondary());
     ge.on('reinforce-tick',         (secs)         => this.refreshReinforce(secs));
     ge.on('reinforce-spawn',        ()             => this.onReinforceSpawn());
+    ge.on('takedown-available',     (avail)        => this.setTakedownVisible(avail));
 
     this.events.on('shutdown', () => {
       ge.off('player-hp-changed',    this.refreshHp,    this);
@@ -174,6 +212,7 @@ export class HUDScene extends Phaser.Scene {
       ge.off('secondary-ammo-changed');
       ge.off('reinforce-tick');
       ge.off('reinforce-spawn');
+      ge.off('takedown-available');
       this.moveStick?.shutdown();
       this.fireStick?.shutdown();
       this.superButton?.shutdown();
@@ -381,6 +420,40 @@ export class HUDScene extends Phaser.Scene {
     // Flamethrower: drain is continuous, refresh every frame while active
     if (this.gameScene?.player?.flameActive) {
       this.refreshSecondary();
+    }
+  }
+
+  setTakedownVisible(avail) {
+    if (avail === this._takedownReady) return;
+    this._takedownReady = avail;
+    this.tweens.killTweensOf(this.takedownBtn);
+    if (avail) {
+      this.takedownBtn.setScale(0.6);
+      this.tweens.add({
+        targets: this.takedownBtn,
+        alpha: 1,
+        scale: 1,
+        duration: 160,
+        ease: 'Back.easeOut',
+      });
+      // Gentle idle pulse while available
+      this._takedownPulse = this.tweens.add({
+        targets: this.takedownBtn,
+        scale: 1.08,
+        duration: 600,
+        yoyo: true,
+        repeat: -1,
+        delay: 180,
+        ease: 'Sine.easeInOut',
+      });
+    } else {
+      this._takedownPulse?.stop();
+      this.tweens.add({
+        targets: this.takedownBtn,
+        alpha: 0,
+        scale: 0.6,
+        duration: 140,
+      });
     }
   }
 

@@ -158,6 +158,27 @@ export const SFX = {
     tone({ freq: 440, type: 'square', dur: 0.08, gain: 0.22 });
     tone({ freq: 660, type: 'square', dur: 0.12, gain: 0.22, delay: 0.1 });
   },
+  // Stealth takedown — a quick blade shink + muffled thud (no alarm)
+  takedown() {
+    noise({ dur: 0.05, gain: 0.20, hp: 2600 });        // blade shink
+    tone({ freq: 1800, type: 'sine', dur: 0.04, gain: 0.10, slide: -1200 });
+    tone({ freq: 120, type: 'sine', dur: 0.14, gain: 0.16, slide: -50, delay: 0.04 }); // muffled drop
+  },
+  // Terminal hack — each completed tick gives a soft data blip
+  hackTick() {
+    tone({ freq: 660, type: 'square', dur: 0.04, gain: 0.10 });
+    tone({ freq: 990, type: 'square', dur: 0.03, gain: 0.06, delay: 0.02 });
+  },
+  // Terminal fully sliced — affirmative two-note chirp
+  hackComplete() {
+    tone({ freq: 784, type: 'triangle', dur: 0.10, gain: 0.20 });
+    tone({ freq: 1175, type: 'triangle', dur: 0.14, gain: 0.18, delay: 0.08 });
+  },
+  // Alarm klaxon — the room just went loud
+  alarm() {
+    tone({ freq: 660, type: 'sawtooth', dur: 0.18, gain: 0.18, slide: -180 });
+    tone({ freq: 660, type: 'sawtooth', dur: 0.18, gain: 0.18, slide: -180, delay: 0.22 });
+  },
 };
 
 // --- Background music: Imperial march-inspired dark ambient + pulse ---

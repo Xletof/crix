@@ -48,6 +48,10 @@ export class GameScene extends Phaser.Scene {
     // ── Reinforcement door visual ─────────────────────────────────────────
     this.reinforceGraphics = this.add.graphics().setDepth(14);
 
+    // ── Stealth takedown hint ring ─────────────────────────────────────────
+    this.takedownGfx = this.add.graphics().setDepth(27);
+    this._takedownTarget = null;
+
     // ── Weapon pickups (cleared per room) ──────────────────────────────────
     this.weaponPickups = [];
 
@@ -170,6 +174,9 @@ export class GameScene extends Phaser.Scene {
     this.reinforceSpawned  = false;
     this.stealthKills      = 0;
     this.reinforceGraphics.clear();
+    this._takedownTarget   = null;
+    this.takedownGfx.clear();
+    this.events.emit('takedown-available', false);
 
     // First room-alarm of the room arms the reinforcement timer
     this.events.on('room-alarm', () => this._onFirstAlarm());
@@ -358,6 +365,66 @@ export class GameScene extends Phaser.Scene {
       this.loadRoom(ROOMS[nextIdx]);
       this.cameras.main.fadeIn(350, 0, 0, 0);
     });
+  }
+
+  // ── Stealth takedowns ──────────────────────────────────────────────────────
+  // Each frame, find the nearest unalerted enemy the player is standing behind.
+  // When one exists, the HUD shows a contextual TAKEDOWN button.
+  _updateTakedownTarget() {
+    let best = null, bestD = Infinity;
+    if (this.player?.alive) {
+      for (const e of this.enemies.getChildren()) {
+        if (!e.alive || typeof e.isBackstabbable !== 'function') continue;
+        if (!e.isBackstabbable(this.player)) continue;
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, e.x, e.y);
+        if (d < bestD) { bestD = d; best = e; }
+      }
+    }
+    if (best !== this._takedownTarget) {
+      this._takedownTarget = best;
+      this.events.emit('takedown-available', !!best);
+    }
+    this._drawTakedownHint(best);
+  }
+
+  _drawTakedownHint(enemy) {
+    const g = this.takedownGfx;
+    g.clear();
+    if (!enemy) return;
+    const t = (this.time.now * 0.012) % (Math.PI * 2);
+    const pulse = 0.5 + 0.5 * Math.sin(t);
+    const r = enemy.cfg.radius + 10;
+    // Green "silent" reticle around the target
+    g.lineStyle(3, 0x40ff80, 0.6 + pulse * 0.4);
+    g.strokeCircle(enemy.x, enemy.y, r);
+    // Crosshair ticks
+    g.lineStyle(2, 0x80ffaa, 0.7 + pulse * 0.3);
+    for (let k = 0; k < 4; k++) {
+      const a = k * Math.PI / 2 + Math.PI / 4;
+      const x1 = enemy.x + Math.cos(a) * (r - 4);
+      const y1 = enemy.y + Math.sin(a) * (r - 4);
+      const x2 = enemy.x + Math.cos(a) * (r + 5);
+      const y2 = enemy.y + Math.sin(a) * (r + 5);
+      g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.strokePath();
+    }
+  }
+
+  // Called by the HUD takedown button.
+  performTakedown() {
+    const e = this._takedownTarget;
+    if (!e || !e.alive) return;
+    // Snap the player just behind the target for a clean "grab" read.
+    this.fx.burst(e.x, e.y, 'red', 16);
+    this.fx.shake(0.006, 90);
+    this.cameras.main.flash(70, 60, 255, 120, true);
+    // Brief hit-stop for weight
+    this.physics.world.pause();
+    this.time.delayedCall(60, () => this.physics.world.resume());
+    SFX.takedown();
+    e.stealthKill();
+    this._takedownTarget = null;
+    this.takedownGfx.clear();
+    this.events.emit('takedown-available', false);
   }
 
   // ── Sound-radius alarm ────────────────────────────────────────────────────
@@ -756,6 +823,9 @@ export class GameScene extends Phaser.Scene {
 
     // Door trigger check
     this._checkDoorTrigger();
+
+    // Stealth takedown target
+    this._updateTakedownTarget();
 
     // Flamethrower continuous damage cone
     this.handleFlamethrower(delta);
