@@ -154,12 +154,29 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.coverRegistry?.release(this);
     SFX.enemyDie();
     this.scene.events.emit('enemy-died', this);
+    // Combat UI off immediately.
     this.hpBar.destroy();
-    this.shadow.destroy();
     this.alertMark.destroy();
     this.threatRing?.destroy();
     this.weaponSprite?.destroy();
-    this.destroy();
+    // Corpse slide: keep the body sprite around for ~350ms, carrying its
+    // current knockback velocity (drag bleeds it down), then fade and clean.
+    this.body.setDrag(900, 900);
+    // Stop colliding with bullets — alive=false already gates the loop,
+    // but disabling the body avoids any residual physics surprises.
+    this.body.checkCollision.none = true;
+    this.setDepth(this.depth - 2);   // dead bodies sit below live actors
+    this.scene.tweens.add({
+      targets: this,
+      alpha: 0,
+      duration: 380,
+      delay: 60,
+      ease: 'Cubic.easeIn',
+      onComplete: () => {
+        this.shadow?.destroy();
+        this.destroy();
+      },
+    });
   }
 
   // True if this enemy can be silently taken down right now: it must still be
@@ -358,6 +375,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   preUpdate(time, delta) {
     super.preUpdate?.(time, delta);
+    // Dead bodies just slide+fade via tween — the UI is gone, skip updates.
+    if (!this.alive) {
+      if (this.shadow?.active) this.shadow.setPosition(this.x, this.y + 18);
+      return;
+    }
     // Stagger decay — bleed velocity off so the knockback slide ends smoothly.
     if (this._staggerMs > 0) {
       this._staggerMs -= delta;

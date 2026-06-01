@@ -1,6 +1,8 @@
 // FX: visual juice (damage numbers, particles, screen shake) + procedural audio
 // via Web Audio API. No external sound assets needed for the vertical slice.
 
+import Phaser from 'phaser';
+
 let audioCtx = null;
 let masterGain = null;
 let musicGain = null;
@@ -307,6 +309,26 @@ export function attachFX(scene) {
           : color === 'yellow'
             ? this.sparksYellow
             : this.sparks;
+      // Reset to omnidirectional in case a prior burstDir narrowed the cone.
+      e.ops.angle.onChange({ min: 0, max: 360 });
+      e.emitParticleAt(x, y, count);
+    },
+
+    // Directional impact spray — sparks shoot back along the bullet's path
+    // (pass the bullet's flight angle in radians; we flip by 180° internally
+    // so the spray emits AWAY from where the bullet came from).
+    burstDir(x, y, color, count, flightAngleRad, spreadDeg = 70) {
+      const e =
+        color === 'red'
+          ? this.sparksRed
+          : color === 'yellow'
+            ? this.sparksYellow
+            : this.sparks;
+      // Phaser angle config is in degrees. The bullet keeps flying forward,
+      // so most of the impact energy reflects forward too — emit forward
+      // along the flight direction with a wide cone.
+      const cx = Phaser.Math.RadToDeg(flightAngleRad);
+      e.ops.angle.onChange({ min: cx - spreadDeg / 2, max: cx + spreadDeg / 2 });
       e.emitParticleAt(x, y, count);
     },
 

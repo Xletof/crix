@@ -905,50 +905,69 @@ export function paintBlastDoor(scene, key = 'wall') {
 // BULLETS / FX
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Blaster bolt — elongated energy tracer, oriented UP
-export function paintBolt(scene, key, coreColor, glowColor, len = 6) {
-  const w = 4, h = len + 4;
+// Energy blaster bolt — long horizontal tracer, points EAST in the texture
+// (matches Phaser's natural rotation-0 axis, so setRotation(travelAngle)
+// orients the streak correctly). Rendered as a bright white core line
+// surrounded by a saturated colored glow + diffuse halo + fading tail.
+export function paintBolt(scene, key, coreColor, glowColor, len = 22) {
+  // Width = streak length, height = thin glow band.
+  const w = len + 6, h = 5;
   const c = new PixelCanvas(scene, key, w, h, 3);
-  // Glow trail (faint)
-  c.px(1, h - 1, glowColor);
-  c.px(2, h - 1, glowColor);
-  c.px(0, h - 2, glowColor);
-  c.px(3, h - 2, glowColor);
-  // Body
-  c.rect(1, 1, 2, len + 1, coreColor);
-  c.rect(0, len - 1, 4, 2, glowColor);  // glow halo at middle
-  // Bright tip
-  c.px(1, 0, '#ffffff');
-  c.px(2, 0, '#ffffff');
-  c.px(1, 1, coreColor);
-  c.px(2, 1, coreColor);
+
+  // ── Fading tail (leftmost few pixels) — diffuse, weak ──────────────
+  c.px(0, 2, glowColor);
+  c.px(1, 1, glowColor); c.px(1, 2, glowColor); c.px(1, 3, glowColor);
+  c.px(2, 1, glowColor); c.px(2, 2, coreColor); c.px(2, 3, glowColor);
+
+  // ── Main streak — bright outer band + thin saturated core ──────────
+  c.rect(3, 1, w - 5, 3, coreColor);          // outer body (3 px tall)
+  c.rect(3, 2, w - 5, 1, '#ffffff');          // pure white centre line
+
+  // ── Soft glow halo above/below ─────────────────────────────────────
+  c.rect(4, 0, w - 6, 1, glowColor);
+  c.rect(4, 4, w - 6, 1, glowColor);
+
+  // ── Bright head (rightmost) — incandescent tip ─────────────────────
+  c.px(w - 3, 1, '#ffffff');
+  c.px(w - 3, 2, '#ffffff');
+  c.px(w - 3, 3, '#ffffff');
+  c.px(w - 2, 1, glowColor);
+  c.px(w - 2, 2, '#ffffff');
+  c.px(w - 2, 3, glowColor);
+  c.px(w - 1, 2, '#ffffff');
+
   c.finish();
 }
 
-// Missile — fat projectile with fins
+// Wrist-rocket / missile — points EAST in the texture (nose right, flame left)
+// so setRotation(travelAngle) orients it naturally to its velocity.
 export function paintMissile(scene, key = 'bullet-super') {
-  const c = new PixelCanvas(scene, key, 6, 14, 3);
-  // Nose cone
-  c.px(2, 0, PAL.metalLight);
-  c.px(3, 0, PAL.metalLight);
-  c.rect(2, 1, 2, 1, PAL.offWhite);
-  // Body
-  c.rect(1, 2, 4, 8, PAL.rocketBody);
-  c.px(2, 2, PAL.impSheen);
-  c.px(3, 2, PAL.impSheen);
-  c.vline(1, 3, 9, PAL.impGrey);
-  c.vline(4, 3, 9, PAL.impGrey);
-  // Fins
-  c.px(0, 9, PAL.rocketFin);
-  c.px(5, 9, PAL.rocketFin);
-  c.px(0, 10, PAL.rocketFin);
-  c.px(5, 10, PAL.rocketFin);
-  // Exhaust
-  c.rect(2, 10, 2, 3, PAL.rocketFire);
-  c.px(2, 12, PAL.rocketFireBrt);
-  c.px(3, 12, PAL.rocketFireBrt);
-  c.px(1, 13, PAL.rocketFire);
-  c.px(4, 13, PAL.rocketFire);
+  const c = new PixelCanvas(scene, key, 18, 8, 3);
+
+  // ── Exhaust flame (leftmost) — bright multi-layer plume ─────────────
+  c.px(0, 4, PAL.expMid);
+  c.px(1, 3, PAL.rocketFire);     c.px(1, 4, PAL.rocketFireBrt); c.px(1, 5, PAL.rocketFire);
+  c.px(2, 2, PAL.rocketFire);     c.px(2, 3, PAL.rocketFireBrt); c.px(2, 4, PAL.expBright); c.px(2, 5, PAL.rocketFireBrt); c.px(2, 6, PAL.rocketFire);
+  c.rect(3, 3, 2, 3, PAL.rocketFireBrt);
+  c.rect(3, 3, 1, 3, PAL.expBright);
+
+  // ── Body (centre) — Imperial grey rocket with rivet line ────────────
+  c.rect(5, 2, 8, 5, PAL.rocketBody);
+  c.hline(2, 5, 12, PAL.impSheen);   // top sheen
+  c.hline(6, 5, 12, PAL.black);      // bottom shadow
+  c.px(8,  4, PAL.impLight);
+  c.px(10, 4, PAL.impLight);
+
+  // ── Fins (just behind nose) ─────────────────────────────────────────
+  c.px(11, 1, PAL.rocketFin); c.px(12, 1, PAL.rocketFin);
+  c.px(11, 7, PAL.rocketFin); c.px(12, 7, PAL.rocketFin);
+
+  // ── Nose cone (rightmost) — bright incandescent tip ─────────────────
+  c.rect(13, 3, 2, 3, PAL.metalLight);
+  c.rect(15, 3, 1, 3, PAL.offWhite);
+  c.px(16, 4, PAL.offWhite);
+  c.px(17, 4, '#ffffff');
+
   c.finish();
 }
 

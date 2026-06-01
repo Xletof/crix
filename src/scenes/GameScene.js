@@ -1114,6 +1114,9 @@ export class GameScene extends Phaser.Scene {
           // Boss ignores knockback in its damage override — pass it anyway.
           const kbVec = { x: b.body.velocity.x * 0.15, y: b.body.velocity.y * 0.15 };
           this.boss.damage(b.damage, kbVec);
+          // Heavier directional spark — boss armor deflects more
+          const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
+          this.fx.burstDir(b.x, b.y, 'yellow', isSuper ? 18 : 10, flightAng, 100);
           this.player.addSuperHit();
           if (!b.piercing) { if (isSuper) this.fx.explosion(b.x, b.y, 1.8); b.kill(); }
         }
@@ -1128,6 +1131,10 @@ export class GameScene extends Phaser.Scene {
           const kbScale = isSuper ? 0.32 : 0.18;
           const kbVec = { x: b.body.velocity.x * kbScale, y: b.body.velocity.y * kbScale };
           e.damage(b.damage, kbVec);
+          // Directional impact spray — sparks fly forward along the bullet
+          // path with a wide cone, like a deflection ricochet.
+          const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
+          this.fx.burstDir(b.x, b.y, 'red', isSuper ? 14 : 7, flightAng, 80);
           this.player.addSuperHit();
           if (!b.piercing) { if (isSuper) this.fx.explosion(b.x, b.y, 1.4); b.kill(); break; }
         }
@@ -1154,8 +1161,12 @@ export class GameScene extends Phaser.Scene {
       for (const w of walls) {
         if (!w.active) continue;
         if (b.x > w.x - 56 && b.x < w.x + 56 && b.y > w.y - 56 && b.y < w.y + 56) {
+          // Directional ricochet sparks: bullet hit a wall, sparks deflect
+          // along the reverse flight direction (i.e. bounce back at us).
+          const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
+          const ricochetAng = flightAng + Math.PI;
+          this.fx.burstDir(b.x, b.y, 'yellow', isSuper ? 14 : 6, ricochetAng, 70);
           if (isSuper) { this.fx.explosion(b.x, b.y, 1.2); this.fx.shake(0.005, 60); }
-          else         { this.fx.burst(b.x, b.y, 'red', 4); }
           b.kill();
           break;
         }
