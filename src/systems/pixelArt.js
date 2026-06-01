@@ -1020,22 +1020,38 @@ export function paintExplosion(scene, key = 'explosion') {
 }
 
 // Muzzle flash (blaster version — elongated blast)
+// Muzzle flash — forward-pointing flame (EAST in the texture), so it lines
+// up with the barrel when fired at any angle. Bright white core that fades
+// into a saturated red flare with side spark wings.
 export function paintMuzzle(scene, key = 'muzzle') {
-  const c = new PixelCanvas(scene, key, 12, 12, 3);
-  const cx = 6, cy = 6;
-  c.rect(5, 5, 2, 2, '#ffffff');
-  c.rect(4, 4, 4, 4, PAL.boltRedGlow);
-  c.rect(3, 3, 6, 6, PAL.boltRed);
-  // Cross arms (blaster flash style)
-  c.hline(6, 0, 11, PAL.boltRed);
-  c.vline(6, 0, 11, PAL.boltRed);
-  c.hline(5, 1, 10, PAL.boltRedGlow);
-  c.vline(5, 1, 10, PAL.boltRedGlow);
-  // Diagonal sparks
-  c.px(2, 2, PAL.expBright);
-  c.px(9, 2, PAL.expBright);
-  c.px(2, 9, PAL.expBright);
-  c.px(9, 9, PAL.expBright);
+  const c = new PixelCanvas(scene, key, 18, 10, 3);
+
+  // ── White-hot core right where the barrel ends (leftmost band) ─────
+  c.rect(0, 4, 4, 2, '#ffffff');
+  c.rect(0, 3, 4, 1, PAL.boltRedCore);
+  c.rect(0, 6, 4, 1, PAL.boltRedCore);
+
+  // ── Forward flame body — wider taper ───────────────────────────────
+  c.rect(4, 3, 6, 4, PAL.boltRedGlow);
+  c.rect(4, 4, 6, 2, '#ffffff');
+  c.rect(10, 3, 3, 4, PAL.boltRed);
+  c.rect(10, 4, 3, 2, PAL.boltRedGlow);
+
+  // ── Forward flare tongue (rightmost) — pointed flame ───────────────
+  c.px(13, 4, PAL.boltRedGlow); c.px(13, 5, PAL.boltRedGlow);
+  c.px(14, 4, PAL.boltRed);     c.px(14, 5, PAL.boltRed);
+  c.px(15, 5, PAL.boltRed);
+  c.px(16, 5, PAL.boltRedGlow);
+
+  // ── Side spark wings flying outward at the muzzle ──────────────────
+  c.px(2, 1, PAL.boltRed);  c.px(3, 0, PAL.boltRedGlow);
+  c.px(2, 8, PAL.boltRed);  c.px(3, 9, PAL.boltRedGlow);
+  c.px(4, 1, PAL.expBright); c.px(4, 8, PAL.expBright);
+  c.px(5, 2, PAL.boltRedGlow); c.px(5, 7, PAL.boltRedGlow);
+  // Extra forward sparks
+  c.px(8, 1, PAL.boltRedGlow); c.px(8, 8, PAL.boltRedGlow);
+  c.px(9, 2, PAL.expBright);  c.px(9, 7, PAL.expBright);
+
   c.finish();
 }
 

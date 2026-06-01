@@ -301,6 +301,17 @@ export function attachFX(scene) {
       quantity: 0,
       emitting: false,
     }),
+    // Dedicated bullet trail emitter — small near-stationary fading dust
+    // dropped at each active player bullet's position once per frame.
+    bulletTrail: scene.add.particles(0, 0, 'spark', {
+      lifespan: 200,
+      speed: { min: 0, max: 28 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 0.42, end: 0 },
+      alpha: { start: 0.55, end: 0 },
+      quantity: 0,
+      emitting: false,
+    }),
 
     burst(x, y, color = 'yellow', count = 12) {
       const e =
@@ -312,6 +323,12 @@ export function attachFX(scene) {
       // Reset to omnidirectional in case a prior burstDir narrowed the cone.
       e.ops.angle.onChange({ min: 0, max: 360 });
       e.emitParticleAt(x, y, count);
+    },
+
+    // One puff of fading dust at the bullet's current position. Called per
+    // frame on every active player bullet to build a motion-blur trail.
+    trail(x, y) {
+      this.bulletTrail.emitParticleAt(x, y, 1);
     },
 
     // Directional impact spray — sparks shoot back along the bullet's path
@@ -333,14 +350,18 @@ export function attachFX(scene) {
     },
 
     muzzleFlash(x, y, angle) {
-      const m = scene.add.image(x, y, 'muzzle').setDepth(10);
+      const m = scene.add.image(x, y, 'muzzle').setDepth(34);
+      // Origin near the "core" end so the flame extends forward from the
+      // barrel tip in the aim direction instead of being centered.
+      m.setOrigin(0.15, 0.5);
       m.setRotation(angle);
-      m.setScale(0.6);
+      m.setScale(0.95);
       scene.tweens.add({
         targets: m,
         scale: 0,
         alpha: 0,
-        duration: 90,
+        duration: 110,
+        ease: 'Cubic.easeIn',
         onComplete: () => m.destroy(),
       });
     },

@@ -488,13 +488,31 @@ export class GameScene extends Phaser.Scene {
   performTakedown() {
     const e = this._takedownTarget;
     if (!e || !e.alive) return;
-    // Snap the player just behind the target for a clean "grab" read.
-    this.fx.burst(e.x, e.y, 'red', 16);
-    this.fx.shake(0.006, 90);
-    this.cameras.main.flash(70, 60, 255, 120, true);
-    // Brief hit-stop for weight
-    this.physics.world.pause();
-    this.time.delayedCall(60, () => this.physics.world.resume());
+    this.fx.burst(e.x, e.y, 'red', 18);
+    this.fx.shake(0.008, 110);
+    this.cameras.main.flash(80, 60, 255, 120, true);
+    // ── Proper slow-mo on the kill: ramp physics + tween clocks down to
+    // 0.3x and back over 380ms. Stronger sense of weight than a hard freeze.
+    const pw = this.physics.world;
+    const tw = this.tweens;
+    const t  = this.time;
+    pw.timeScale = 0.3;
+    t.timeScale  = 0.3;
+    this.tweens.add({
+      targets: pw,
+      timeScale: 1,
+      duration: 380,
+      ease: 'Quad.easeOut',
+    });
+    this.tweens.add({
+      targets: t,
+      timeScale: 1,
+      duration: 380,
+      ease: 'Quad.easeOut',
+      onComplete: () => { pw.timeScale = 1; t.timeScale = 1; },
+    });
+    // Punch zoom for cinematic emphasis
+    this._cameraPunch(1.08, 420);
     SFX.takedown();
     e.stealthKill();
     this._takedownTarget = null;
@@ -521,6 +539,24 @@ export class GameScene extends Phaser.Scene {
       const r = 2 + Math.random() * 5;
       g.fillStyle(Math.random() < 0.5 ? 0x4a0000 : 0x6a0010, 0.45 + Math.random() * 0.25);
       g.fillCircle(x + Math.cos(a) * d, y + Math.sin(a) * d, r);
+    }
+    this.roomLayer.add(g);
+  }
+
+  // Small persistent scorch mark on the floor where a bullet hit a wall.
+  // Builds up over a firefight so the room visually records the chaos.
+  spawnScorch(x, y) {
+    const g = this.add.graphics().setDepth(2);
+    g.fillStyle(0x000000, 0.55);
+    g.fillCircle(x, y, 7);
+    g.fillStyle(0x0a0a14, 0.65);
+    g.fillCircle(x + (Math.random() - 0.5) * 4, y + (Math.random() - 0.5) * 4, 5);
+    // A few stray soot dots
+    for (let i = 0; i < 4; i++) {
+      g.fillStyle(0x1a1a22, 0.45);
+      const a = Math.random() * Math.PI * 2;
+      const d = 4 + Math.random() * 8;
+      g.fillCircle(x + Math.cos(a) * d, y + Math.sin(a) * d, 0.7 + Math.random() * 1.8);
     }
     this.roomLayer.add(g);
   }
@@ -1019,6 +1055,29 @@ export class GameScene extends Phaser.Scene {
     this.handleBulletWallHits(this.playerSuperBullets, true);
     this.handleBulletWallHits(this.enemyBullets, false);
 
+    // Bullet trails — drop one fading dust particle per active player bullet
+    // every frame. Gives bolts a proper motion-blur tail.
+    for (const b of this.playerBullets.getChildren())
+      if (b.active) this.fx.trail(b.x, b.y);
+    for (const b of this.playerRifleBullets.getChildren())
+      if (b.active) this.fx.trail(b.x, b.y);
+    for (const b of this.playerSuperBullets.getChildren())
+      if (b.active) this.fx.trail(b.x, b.y);
+
+    // Camera aim-lookahead — shift the follow target ~70px toward the
+    // current aim/facing direction so you can see further down the barrel.
+    // Smoothly interpolated to avoid camera snap.
+    if (this.player.alive) {
+      const aim = this.player.aiming ? this.player.aim
+                : this.player.superAiming ? this.player.superAim
+                : this.player.facing;
+      const tx = Math.cos(aim) * 70;
+      const ty = Math.sin(aim) * 70;
+      this._camOX = (this._camOX ?? 0) * 0.92 + tx * 0.08;
+      this._camOY = (this._camOY ?? 0) * 0.92 + ty * 0.08;
+      this.cameras.main.setFollowOffset(-this._camOX, -this._camOY);
+    }
+
     // Desktop keyboard movement
     if (this.cursors || this.keys) {
       const k    = this.keys || {};
@@ -1166,6 +1225,8 @@ export class GameScene extends Phaser.Scene {
           const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
           const ricochetAng = flightAng + Math.PI;
           this.fx.burstDir(b.x, b.y, 'yellow', isSuper ? 14 : 6, ricochetAng, 70);
+          // Persistent scorch mark on the floor at impact
+          this.spawnScorch(b.x, b.y);
           if (isSuper) { this.fx.explosion(b.x, b.y, 1.2); this.fx.shake(0.005, 60); }
           b.kill();
           break;
