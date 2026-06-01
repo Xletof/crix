@@ -502,6 +502,46 @@ export class GameScene extends Phaser.Scene {
     this.events.emit('takedown-available', false);
   }
 
+  // ── Hotline-style kill juice helpers ──────────────────────────────────────
+
+  // Persistent blood splatter pool — irregular dark-red circles, lives in
+  // roomLayer so it gets purged on room change. Builds a "trail of bodies"
+  // visual that lingers as the player advances.
+  spawnBloodSplatter(x, y) {
+    const g = this.add.graphics().setDepth(2);
+    g.fillStyle(0x4a0000, 0.55);
+    g.fillCircle(x, y, 16);
+    g.fillStyle(0x6a0000, 0.6);
+    g.fillCircle(x, y, 11);
+    // 6-8 splotch dots flung outward
+    const dots = 6 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < dots; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const d = 6 + Math.random() * 28;
+      const r = 2 + Math.random() * 5;
+      g.fillStyle(Math.random() < 0.5 ? 0x4a0000 : 0x6a0010, 0.45 + Math.random() * 0.25);
+      g.fillCircle(x + Math.cos(a) * d, y + Math.sin(a) * d, r);
+    }
+    this.roomLayer.add(g);
+  }
+
+  // Brief camera punch-zoom: pulse the zoom up to `to` over half the
+  // duration, then back to 1.0. Decay handled by a tween so it's safe
+  // through scene transitions.
+  _cameraPunch(to = 1.04, durMs = 220) {
+    const cam = this.cameras.main;
+    if (this._cameraPunchTween) this._cameraPunchTween.stop();
+    cam.setZoom(1);
+    this._cameraPunchTween = this.tweens.add({
+      targets: cam,
+      zoom: to,
+      duration: durMs * 0.35,
+      yoyo: true,
+      ease: 'Cubic.easeOut',
+      onComplete: () => { cam.setZoom(1); this._cameraPunchTween = null; },
+    });
+  }
+
   // ── Sound-radius alarm ────────────────────────────────────────────────────
   // Only enemies within `radius` px of the shot hear it and switch to ALERT.
   // Enemies farther away keep patrolling until they SEE the player themselves.
@@ -717,8 +757,17 @@ export class GameScene extends Phaser.Scene {
       SFX.hit();
     });
     this.events.on('enemy-died', (enemy) => {
-      this.fx.burst(enemy.x, enemy.y, 'red', 18);
-      this.fx.shake(0.003, 50);
+      // ── HOTLINE-MIAMI KILL JUICE ──────────────────────────────────────
+      // Big blood burst + persistent splatter pool that stays for the room.
+      this.fx.burst(enemy.x, enemy.y, 'red', 26);
+      this.spawnBloodSplatter(enemy.x, enemy.y);
+      // Beefier shake than before for kill weight.
+      this.fx.shake(0.009, 110);
+      // Universal hit-pause on every kill — 45ms freeze for crisp impact.
+      this.physics.world.pause();
+      this.time.delayedCall(45, () => this.physics.world.resume());
+      // Camera punch-zoom — brief 1.04x snap that decays.
+      this._cameraPunch(1.04, 220);
       this.roomManager.onEnemyDied();
       if (Math.random() < HEALTH_ORB.dropChance) this.spawnHealthOrb(enemy.x, enemy.y);
     });
@@ -821,6 +870,9 @@ export class GameScene extends Phaser.Scene {
       this.playerBullets.fire(bx, by, a, PLAYER.pelletSpeed, PLAYER.pelletDamage, PLAYER.pelletRange, { owner: 'player' });
     }
     this.fx.muzzleFlash(bx, by, angle);
+    // Tiny shake on every shot — gives the pistol some weight without
+    // overwhelming the bigger super/explosion shakes.
+    this.fx.shake(0.0035, 55);
   }
 
   firePlayerSuper(angle) {
@@ -1059,8 +1111,8 @@ export class GameScene extends Phaser.Scene {
       if (this.boss?.alive && !b.hitSet.has(this.boss)) {
         if (this.circleOverlap(b, this.boss)) {
           b.hitSet.add(this.boss);
-          const kbVec = isSuper && b.knockback
-            ? { x: b.body.velocity.x * 0.15, y: b.body.velocity.y * 0.15 } : null;
+          // Boss ignores knockback in its damage override — pass it anyway.
+          const kbVec = { x: b.body.velocity.x * 0.15, y: b.body.velocity.y * 0.15 };
           this.boss.damage(b.damage, kbVec);
           this.player.addSuperHit();
           if (!b.piercing) { if (isSuper) this.fx.explosion(b.x, b.y, 1.8); b.kill(); }
@@ -1071,8 +1123,10 @@ export class GameScene extends Phaser.Scene {
         if (!e.active || !e.alive || b.hitSet.has(e)) continue;
         if (this.circleOverlap(b, e)) {
           b.hitSet.add(e);
-          const kbVec = isSuper && b.knockback
-            ? { x: b.body.velocity.x * 0.15, y: b.body.velocity.y * 0.15 } : null;
+          // Every bullet knocks: super pellets shove hard, normal shots
+          // give a punchy stagger in flight direction. Hotline-feel.
+          const kbScale = isSuper ? 0.32 : 0.18;
+          const kbVec = { x: b.body.velocity.x * kbScale, y: b.body.velocity.y * kbScale };
           e.damage(b.damage, kbVec);
           this.player.addSuperHit();
           if (!b.piercing) { if (isSuper) this.fx.explosion(b.x, b.y, 1.4); b.kill(); break; }

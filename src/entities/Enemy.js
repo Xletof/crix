@@ -53,6 +53,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // Aim angle stored as data — body sprite NEVER rotates; the weapon
     // overlay (see _setupWeapon) rotates to this angle instead.
     this._aim = -Math.PI / 2;
+    // Stagger window: how many ms the AI is suspended after a knockback hit,
+    // so the body actually slides instead of being immediately re-glued by
+    // setVelocity in the next AI tick.
+    this._staggerMs = 0;
 
     // Animation
     this._animPrefix   = texture;
@@ -118,6 +122,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.body.velocity.x + knockbackVec.x,
         this.body.velocity.y + knockbackVec.y,
       );
+      // Pause AI for a few frames so the slide is actually visible.
+      // 90ms ≈ ~5 frames at 60fps, long enough for a satisfying shove.
+      this._staggerMs = 90;
     }
     this.recoilT = 80;
 
@@ -351,6 +358,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   preUpdate(time, delta) {
     super.preUpdate?.(time, delta);
+    // Stagger decay — bleed velocity off so the knockback slide ends smoothly.
+    if (this._staggerMs > 0) {
+      this._staggerMs -= delta;
+      this.body.velocity.x *= 0.85;
+      this.body.velocity.y *= 0.85;
+    }
     this.shadow.setPosition(this.x, this.y + 18);
     this.alertMark.setPosition(this.x, this.y - this.cfg.radius - 24);
     this.updateHpBar();
@@ -460,6 +473,8 @@ export class EnemyGrunt extends Enemy {
   preUpdate(time, delta) {
     super.preUpdate(time, delta);
     if (!this.alive) return;
+    // Suspend AI while staggered so the knockback slide reads on screen.
+    if (this._staggerMs > 0) return;
     const player = this.scene.player;
     if (!player?.alive) { this.setVelocity(0, 0); return; }
 
@@ -525,6 +540,8 @@ export class EnemyShooter extends Enemy {
   preUpdate(time, delta) {
     super.preUpdate(time, delta);
     if (!this.alive) return;
+    // Suspend AI while staggered so the knockback slide reads on screen.
+    if (this._staggerMs > 0) return;
     const player = this.scene.player;
     if (!player?.alive) { this.setVelocity(0, 0); return; }
 
