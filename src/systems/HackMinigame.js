@@ -74,13 +74,18 @@ export class HackMinigame {
                         this.headerText, this.subText, this.hintText]);
     this.container.setAlpha(0).setActive(false).setVisible(false);
 
-    // ── Tap zone (covers the bar area only; avoids joysticks) ─────────────
-    // Joysticks sit in the bottom 200px; bar+text occupy roughly y=270..620.
-    this.tapZone = hudScene.add.zone(VIEW.width / 2, BAR_Y, VIEW.width, 280)
-      .setOrigin(0.5)
-      .setDepth(39);
-    this.tapZone.setVisible(false);
-    this.tapZone.on('pointerdown', () => this.handleTap());
+    // ── Tap-to-lock input ────────────────────────────────────────────────
+    // While a hack is active, a tap ANYWHERE on the right half of the screen
+    // locks the cursor — not just on the little bar window. The LEFT half is
+    // left untouched so the movement joystick stays live and the player can
+    // walk away to abort. (The fire joystick is separately disabled during a
+    // hack via HUD's shouldClaim guard, so right-side taps never shoot.)
+    this._onPointerDown = (pointer) => {
+      if (this.state !== 'active') return;
+      if (pointer.x < VIEW.width / 2) return; // left half = movement, ignore
+      this.handleTap();
+    };
+    hudScene.input.on('pointerdown', this._onPointerDown);
     // Desktop fallback
     this._spaceKey = hudScene.input.keyboard?.on('keydown-ENTER', () => this.handleTap());
     this._spaceKey2 = hudScene.input.keyboard?.on('keydown-F', () => this.handleTap());
@@ -93,8 +98,6 @@ export class HackMinigame {
     this.round = 1;
     this._setupRound();
     this.container.setAlpha(1).setActive(true).setVisible(true);
-    this.tapZone.setVisible(true);
-    this.tapZone.setInteractive();
   }
 
   // GameScene calls this when the player walks out of range (or terminal dies).
@@ -246,12 +249,10 @@ export class HackMinigame {
     this.state = 'idle';
     this.terminal = null;
     this.container.setAlpha(0).setActive(false).setVisible(false);
-    this.tapZone.setVisible(false);
-    this.tapZone.disableInteractive();
   }
 
   shutdown() {
+    this.hud.input?.off('pointerdown', this._onPointerDown);
     this.container?.destroy();
-    this.tapZone?.destroy();
   }
 }

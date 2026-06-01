@@ -453,9 +453,8 @@ export class EnemyGrunt extends Enemy {
   constructor(scene, x, y, spec = {}) {
     super(scene, x, y, 'grunt', ENEMY.grunt, spec);
     this.lastMeleeAt = 0;
-    // Grunts carry an E-11 even at melee range — the overlay rotates with aim.
-    this.weaponSprite = scene.add.image(x, y, 'wpn-enemy-rifle')
-      .setDepth(this.depth + 1).setOrigin(0.15, 0.5).setScale(1.15);
+    // Grunts are melee chasers — no weapon overlay. The body silhouette
+    // alone reads as a charging trooper.
   }
 
   preUpdate(time, delta) {
