@@ -532,7 +532,9 @@ export class EnemyGrunt extends Enemy {
       if (time - this.lastMeleeAt > this.cfg.meleeCooldownMs) {
         this.lastMeleeAt     = time;
         this._fireAnimTimer  = 200;
-        player.damage(this.cfg.meleeDamage);
+        // Knock the player away from the grunt on each melee swing.
+        const dirAwayFromGrunt = Math.atan2(player.y - this.y, player.x - this.x);
+        player.damage(this.cfg.meleeDamage, dirAwayFromGrunt);
         this.scene.events.emit('grunt-melee', this);
       }
     }

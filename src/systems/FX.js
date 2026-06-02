@@ -312,6 +312,17 @@ export function attachFX(scene) {
       quantity: 0,
       emitting: false,
     }),
+    // Footstep dust — short-lived greyish puffs behind a running player.
+    footDust: scene.add.particles(0, 0, 'spark', {
+      lifespan: 360,
+      speed: { min: 8, max: 32 },
+      angle: { min: 70, max: 110 },   // mostly downward in screen space
+      scale: { start: 0.7, end: 0 },
+      alpha: { start: 0.35, end: 0 },
+      tint: 0x5a5a64,
+      quantity: 0,
+      emitting: false,
+    }),
 
     burst(x, y, color = 'yellow', count = 12) {
       const e =
@@ -329,6 +340,11 @@ export function attachFX(scene) {
     // frame on every active player bullet to build a motion-blur trail.
     trail(x, y) {
       this.bulletTrail.emitParticleAt(x, y, 1);
+    },
+
+    // Footstep dust puff — a small grey poof behind/under a running actor.
+    dustPuff(x, y) {
+      this.footDust.emitParticleAt(x, y, 2);
     },
 
     // Directional impact spray — sparks shoot back along the bullet's path

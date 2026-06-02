@@ -199,9 +199,10 @@ export class Boss extends Enemy {
       }
     }
 
-    // Contact damage
+    // Contact damage — shove the player away from us as they get hit.
     if (this.contactDmgCd <= 0 && Math.hypot(dx, dy) < BOSS.radius + 24) {
-      player.damage(BOSS.contactDamage);
+      const dirFromBoss = Math.atan2(dy, dx);
+      player.damage(BOSS.contactDamage, dirFromBoss);
       this.contactDmgCd = 600;
     }
   }

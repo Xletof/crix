@@ -1205,7 +1205,10 @@ export class GameScene extends Phaser.Scene {
     for (const b of this.enemyBullets.getChildren()) {
       if (!b.active) continue;
       if (this.circleOverlap(b, this.player)) {
-        this.player.damage(b.damage);
+        // Pass the bullet's flight angle so the player gets shoved in the
+        // direction the bullet was travelling (same pattern as enemy stagger).
+        const dir = Math.atan2(b.body.velocity.y, b.body.velocity.x);
+        this.player.damage(b.damage, dir);
         b.kill();
       }
     }
@@ -1375,15 +1378,51 @@ export class GameScene extends Phaser.Scene {
     const p = this.player;
     if (!p?.alive) return;
     const gap = PLAYER.radius + 6;
+    let activeAim = null, activeRange = 0, activeSpread = 0;
     if (p.superAiming && p.superCharge >= PLAYER.superHitsToCharge) {
       this.drawCone(g, p.x, p.y, p.superAim,
         Phaser.Math.DegToRad(PLAYER.superSpreadDeg), PLAYER.superRange, gap,
         0xff2020, 0xff8080, 0.30);
+      activeAim = p.superAim;
+      activeRange = PLAYER.superRange;
     } else if (p.aiming) {
       this.drawCone(g, p.x, p.y, p.aim,
         Phaser.Math.DegToRad(PLAYER.pelletSpreadDeg), PLAYER.pelletRange, gap,
         0xff2828, 0xff9090, 0.18);
+      activeAim = p.aim;
+      activeRange = PLAYER.pelletRange;
     }
+    // Aim laser — thin red line + dot to first wall hit. Only when actively
+    // aiming (right stick held). Sits on top of the cone for clarity.
+    if (activeAim != null) this._drawAimLaser(g, p.x, p.y, activeAim, activeRange, gap);
+  }
+
+  // Thin red laser line from the gun tip out to the first wall hit (or full
+  // range if clear). Draws on the existing aimGraphics so it lives in the
+  // world layer behind the player but above the floor.
+  _drawAimLaser(g, px, py, angle, range, startGap) {
+    const sx = px + Math.cos(angle) * startGap;
+    const sy = py + Math.sin(angle) * startGap;
+    let ex = sx + Math.cos(angle) * range;
+    let ey = sy + Math.sin(angle) * range;
+    let nearest = range;
+    const ray = new Phaser.Geom.Line(sx, sy, ex, ey);
+    for (const w of this.walls.getChildren()) {
+      const b = w.body;
+      if (!b) continue;
+      const rect = new Phaser.Geom.Rectangle(b.x, b.y, b.width, b.height);
+      const pts = Phaser.Geom.Intersects.GetLineToRectangle(ray, rect);
+      for (const p of pts) {
+        const d = Math.hypot(p.x - sx, p.y - sy);
+        if (d < nearest) { nearest = d; ex = p.x; ey = p.y; }
+      }
+    }
+    g.lineStyle(1.4, 0xff2828, 0.55);
+    g.beginPath(); g.moveTo(sx, sy); g.lineTo(ex, ey); g.strokePath();
+    g.fillStyle(0xff8080, 0.9);
+    g.fillCircle(ex, ey, 2.5);
+    g.fillStyle(0xffffff, 0.6);
+    g.fillCircle(ex, ey, 1.2);
   }
 
   drawCone(g, x, y, angle, spread, range, startGap, color, tipColor, baseAlpha) {

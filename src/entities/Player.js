@@ -80,6 +80,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   setMoveInput(vec) {
     if (!this.alive) { this.setVelocity(0, 0); return; }
+    // Hurt-stagger: ignore joystick input briefly so the knockback shove
+    // is actually visible before the player resumes control.
+    if (this._hurtStaggerMs > 0) return;
     if (vec?.force > 0) {
       this.setVelocity(vec.x * PLAYER.speed * vec.force, vec.y * PLAYER.speed * vec.force);
       this.facing = Math.atan2(vec.y, vec.x);
@@ -263,10 +266,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   // ── Damage / death ────────────────────────────────────────────────────────
 
-  damage(amount) {
+  damage(amount, hitDirRad = null) {
     if (!this.alive) return;
     this.hp         = Math.max(0, this.hp - amount);
     this.lastHurtAt = this.scene.time.now;
+    // Knockback shove if we know which direction we got hit from. Mirrors the
+    // enemy stagger system: brief input-suspension window so the slide reads.
+    if (typeof hitDirRad === 'number') {
+      const kbStr = 220;
+      this.body.velocity.x += Math.cos(hitDirRad) * kbStr;
+      this.body.velocity.y += Math.sin(hitDirRad) * kbStr;
+      this._hurtStaggerMs = 110;
+    }
     this.scene.events.emit('player-hurt', amount);
     SFX.hurt();
     if (this.hp <= 0) this.die();
@@ -295,6 +306,23 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   preUpdate(time, delta) {
     super.preUpdate?.(time, delta);
+
+    // Hurt-stagger window: bleed knockback velocity so the slide ends
+    // smoothly and joystick input takes over again.
+    if (this._hurtStaggerMs > 0) {
+      this._hurtStaggerMs -= delta;
+      this.body.velocity.x *= 0.88;
+      this.body.velocity.y *= 0.88;
+    }
+
+    // Footstep dust puffs — drop a small particle puff every ~140ms while
+    // the player is moving fast enough for it to read as running.
+    const movingSq = this.body.velocity.x ** 2 + this.body.velocity.y ** 2;
+    this._stepTimer = (this._stepTimer || 0) + delta;
+    if (this.alive && movingSq > 8000 && this._stepTimer >= 140) {
+      this._stepTimer = 0;
+      this.scene.fx?.dustPuff?.(this.x, this.y + 14);
+    }
 
     if (this.fireCooldown > 0) this.fireCooldown -= delta;
 

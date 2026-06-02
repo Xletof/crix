@@ -14,6 +14,11 @@ export class HUDScene extends Phaser.Scene {
     this.gameScene = game;
     this.cameras.main.setRoundPixels(true);
 
+    // ── Low-HP red vignette overlay (sits BEHIND the chrome panels) ─────
+    // Sub-30% HP starts a soft pulsing red edge glow that intensifies as
+    // the player's HP drops toward zero. Drawn as feathered edge bars.
+    this.vignette = this.add.graphics().setDepth(8);
+
     // ── Imperial top bar ────────────────────────────────────────────────
     const top = this.add.graphics();
     // Dark metal base
@@ -516,6 +521,38 @@ export class HUDScene extends Phaser.Scene {
     }
     // Tick the timing-puzzle mini-game (no-op when idle)
     this.hackMinigame?.update(delta);
+    // Low-HP red vignette pulse
+    this._drawVignette(time);
+  }
+
+  // Soft red edge glow that fades in below 30% HP and pulses faster as
+  // the player gets closer to death. Three feathered bands per edge.
+  _drawVignette(time) {
+    const g = this.vignette;
+    g.clear();
+    const p = this.gameScene?.player;
+    if (!p || !p.alive) return;
+    const ratio = p.hp / p.hpMax;
+    if (ratio >= 0.3) return;
+    // 0..1 intensity: 0 at 30% HP, 1 at 0% HP
+    const t = Math.min(1, (0.3 - ratio) / 0.3);
+    const pulseSpeed = 0.005 + t * 0.012;
+    const pulse = 0.6 + 0.4 * Math.sin(time * pulseSpeed);
+    const w = VIEW.width, h = VIEW.height;
+    // Three feathered red bands per edge (outer-most thinnest+strongest)
+    const bands = [
+      { thick: 18, a: 0.55 },
+      { thick: 44, a: 0.28 },
+      { thick: 86, a: 0.12 },
+    ];
+    for (const b of bands) {
+      const a = b.a * t * pulse;
+      g.fillStyle(0xff0000, a);
+      g.fillRect(0, 0, w, b.thick);                 // top
+      g.fillRect(0, h - b.thick, w, b.thick);       // bottom
+      g.fillRect(0, 0, b.thick, h);                 // left
+      g.fillRect(w - b.thick, 0, b.thick, h);       // right
+    }
   }
 
   refreshObjective(done, total) {
