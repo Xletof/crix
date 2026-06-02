@@ -71,6 +71,11 @@ export class WeaponPickup {
 
   _collect(player) {
     this.active = false;
+    // Grab juice: sparkle burst + bright camera flash + shake.
+    const sc = this.scene;
+    sc.fx?.pickupSparkle?.(this.x, this.y, 16);
+    sc.fx?.shake?.(0.004, 90);
+    sc.cameras?.main?.flash(120, 220, 160, 60, true);
     player.equipSecondary(this.weaponId);
     this._tween?.remove();
     this.sprite.destroy();

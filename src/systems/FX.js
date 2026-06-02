@@ -323,6 +323,27 @@ export function attachFX(scene) {
       quantity: 0,
       emitting: false,
     }),
+    // Missile smoke trail — slow expanding dark puffs behind a super shot.
+    missileSmoke: scene.add.particles(0, 0, 'spark', {
+      lifespan: 620,
+      speed: { min: 0, max: 18 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 1.1, end: 0 },
+      alpha: { start: 0.45, end: 0 },
+      tint: 0x3a3a44,
+      quantity: 0,
+      emitting: false,
+    }),
+    // Pickup sparkle — bright yellow particles flung outward on grab.
+    pickupGlitter: scene.add.particles(0, 0, 'spark-yellow', {
+      lifespan: 480,
+      speed: { min: 60, max: 180 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 0.9, end: 0 },
+      alpha: { start: 1, end: 0 },
+      quantity: 0,
+      emitting: false,
+    }),
 
     burst(x, y, color = 'yellow', count = 12) {
       const e =
@@ -345,6 +366,16 @@ export function attachFX(scene) {
     // Footstep dust puff — a small grey poof behind/under a running actor.
     dustPuff(x, y) {
       this.footDust.emitParticleAt(x, y, 2);
+    },
+
+    // Slow expanding smoke puff for missile/super trails. Called per frame.
+    smokeTrail(x, y) {
+      this.missileSmoke.emitParticleAt(x, y, 1);
+    },
+
+    // Bright sparkle burst when grabbing a pickup — flings 12 yellow specks.
+    pickupSparkle(x, y, count = 12) {
+      this.pickupGlitter.emitParticleAt(x, y, count);
     },
 
     // Directional impact spray — sparks shoot back along the bullet's path

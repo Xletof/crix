@@ -396,6 +396,12 @@ export class GameScene extends Phaser.Scene {
     const { w, h } = spec.bounds;
     const { x, y, side } = spec.exit;
 
+    // ── Sliding-panel unseal animation ─────────────────────────────────
+    // Two green panels slide outward from the centre of the door, briefly
+    // showing the opening before fading. A bright flash punctuates the
+    // unlock; sparkles fly out for emphasis.
+    this._playDoorOpenAnim(spec);
+
     // Trigger zone at the exit edge
     const zoneW = side === 'right' || side === 'left' ? 30 : 200;
     const zoneH = side === 'top'   || side === 'bottom' ? 30 : 200;
@@ -407,6 +413,50 @@ export class GameScene extends Phaser.Scene {
       .setDepth(62);
 
     this._doorTriggered = false;
+  }
+
+  // Sliding-panel unseal animation that plays once when an exit unlocks.
+  // Reads as the blast door retracting. Lives in roomLayer so it gets
+  // cleaned up at room change.
+  _playDoorOpenAnim(spec) {
+    const { w, h } = spec.bounds;
+    const { x, y, side } = spec.exit;
+    const horiz = side === 'right' || side === 'left';
+    const cx = side === 'right' ? w : side === 'left' ? 0 : x;
+    const cy = side === 'bottom' ? h : side === 'top' ? 0 : y;
+    const panelLen = 90;
+    const panelW = 16;
+    // Spawn 2 panels meeting at (cx, cy) and slide them apart
+    const mk = (sign) => {
+      const g = this.add.graphics().setDepth(60);
+      g.fillStyle(0x20ff60, 0.9);
+      if (horiz) g.fillRect(-panelW / 2, -panelLen / 2, panelW, panelLen / 2);
+      else       g.fillRect(-panelLen / 2, -panelW / 2, panelLen / 2, panelW);
+      g.lineStyle(2, 0x80ffaa, 0.95);
+      if (horiz) g.strokeRect(-panelW / 2, -panelLen / 2, panelW, panelLen / 2);
+      else       g.strokeRect(-panelLen / 2, -panelW / 2, panelLen / 2, panelW);
+      g.setPosition(cx, cy);
+      // slide direction:
+      // - top: panels slide up/down → vary y
+      // - bottom: same
+      // - left/right: panels slide up/down (since door is vertical), vary y too
+      const dy = sign * panelLen * 0.55;
+      const dx = 0;
+      this.tweens.add({
+        targets: g,
+        y: cy + dy, x: cx + dx,
+        alpha: 0,
+        duration: 380,
+        ease: 'Cubic.easeOut',
+        onComplete: () => g.destroy(),
+      });
+      this.roomLayer.add(g);
+    };
+    mk(1); mk(-1);
+    // Flash + sparkle for emphasis
+    this.fx.pickupSparkle(cx, cy, 18);
+    this.cameras.main.flash(180, 50, 220, 100, true);
+    this.fx.shake(0.005, 100);
   }
 
   _checkDoorTrigger() {
@@ -819,6 +869,17 @@ export class GameScene extends Phaser.Scene {
     });
     this.events.on('enemy-hit', (enemy, amount) => {
       this.fx.hitFlash(enemy);
+      // Hurt-frame swap: jump to the "hurt" texture frame (frame 3 in the
+      // 4-frame sheet) for ~140ms, then let the AI's anim system reclaim it.
+      // This adds visual variety beyond the white tint flash.
+      if (enemy.anims) enemy.anims.stop();
+      enemy.setFrame(3);
+      this.time.delayedCall(140, () => {
+        if (enemy.active && enemy.alive) {
+          const prefix = enemy._animPrefix;
+          if (this.anims.exists(`${prefix}-idle`)) enemy.play(`${prefix}-idle`);
+        }
+      });
       this.fx.damageNumber(enemy.x, enemy.y - enemy.cfg.radius, Math.round(amount));
       this.fx.burst(enemy.x, enemy.y, 'red', 4);
       SFX.hit();
@@ -1096,8 +1157,12 @@ export class GameScene extends Phaser.Scene {
       if (b.active) this.fx.trail(b.x, b.y);
     for (const b of this.playerRifleBullets.getChildren())
       if (b.active) this.fx.trail(b.x, b.y);
-    for (const b of this.playerSuperBullets.getChildren())
-      if (b.active) this.fx.trail(b.x, b.y);
+    for (const b of this.playerSuperBullets.getChildren()) {
+      if (b.active) {
+        this.fx.trail(b.x, b.y);
+        this.fx.smokeTrail(b.x, b.y); // missiles get extra smoke puff
+      }
+    }
 
     // Camera aim-lookahead — shift the follow target ~70px toward the
     // current aim/facing direction so you can see further down the barrel.
@@ -1297,7 +1362,9 @@ export class GameScene extends Phaser.Scene {
         p.hp = Math.min(p.hpMax, p.hp + HEALTH_ORB.healAmount);
         p.scene.events.emit('player-hp-changed');
         this.fx.damageNumber(orb.x, orb.y - 20, `+${Math.round(healed)} HP`, '#40b8ff', false);
-        this.fx.burst(orb.x, orb.y, 'yellow', 8);
+        // Healing juice: sparkle + soft cyan camera flash
+        this.fx.pickupSparkle(orb.x, orb.y, 14);
+        this.cameras.main.flash(110, 60, 200, 255, true);
         this.tweens.killTweensOf(orb.gfx); orb.gfx.destroy();
         this.healthOrbs.splice(i, 1); SFX.heal();
       }
