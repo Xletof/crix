@@ -608,6 +608,44 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  // Bright white pop at a wall hit — decays fast over ~80ms. Pure flash, no
+  // persistence; the scorch/crater handles the lasting mark.
+  _impactMicroFlash(x, y, r = 8) {
+    const g = this.add.graphics().setDepth(27);
+    g.fillStyle(0xffffff, 0.95);
+    g.fillCircle(0, 0, r);
+    g.fillStyle(0xfff0c0, 0.55);
+    g.fillCircle(0, 0, r * 1.7);
+    g.setPosition(x, y);
+    this.tweens.add({
+      targets: g, scale: 1.8, alpha: 0,
+      duration: 90, ease: 'Cubic.easeOut',
+      onComplete: () => g.destroy(),
+    });
+  }
+
+  // Super-impact crater — larger persistent floor mark for missile hits.
+  // Composed of overlapping dark blobs + a charred ring for depth.
+  spawnCrater(x, y) {
+    const g = this.add.graphics().setDepth(2);
+    // Outer charred ring
+    g.lineStyle(2, 0x000000, 0.5);
+    g.strokeCircle(x, y, 18);
+    // Dark crater body
+    g.fillStyle(0x000000, 0.7);
+    g.fillCircle(x, y, 14);
+    g.fillStyle(0x0a0a14, 0.85);
+    g.fillCircle(x + (Math.random() - 0.5) * 4, y + (Math.random() - 0.5) * 4, 10);
+    // Ejecta dots scattered around
+    for (let i = 0; i < 9; i++) {
+      g.fillStyle(0x1a1a22, 0.6);
+      const a = Math.random() * Math.PI * 2;
+      const d = 14 + Math.random() * 14;
+      g.fillCircle(x + Math.cos(a) * d, y + Math.sin(a) * d, 1 + Math.random() * 2.5);
+    }
+    this.roomLayer.add(g);
+  }
+
   // Small persistent scorch mark on the floor where a bullet hit a wall.
   // Builds up over a firefight so the room visually records the chaos.
   spawnScorch(x, y) {
@@ -1338,8 +1376,12 @@ export class GameScene extends Phaser.Scene {
           const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
           const ricochetAng = flightAng + Math.PI;
           this.fx.burstDir(b.x, b.y, 'yellow', isSuper ? 14 : 6, ricochetAng, 70);
-          // Persistent scorch mark on the floor at impact
-          this.spawnScorch(b.x, b.y);
+          // Micro-flash — bright white pop at the moment of impact, decays
+          // over 80ms. Sells the hit before the persistent scorch settles.
+          this._impactMicroFlash(b.x, b.y, isSuper ? 14 : 8);
+          // Persistent scorch (super → big crater, regular → small mark)
+          if (isSuper) this.spawnCrater(b.x, b.y);
+          else         this.spawnScorch(b.x, b.y);
           if (isSuper) { this.fx.explosion(b.x, b.y, 1.2); this.fx.shake(0.005, 60); }
           b.kill();
           break;

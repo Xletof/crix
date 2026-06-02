@@ -167,6 +167,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.ammo         -= 1;
     this.ammoTimers.push(PLAYER.ammoReloadMs);
     this.recoilT       = 110;
+    this._wKickT       = 80;
     this._fireAnimTimer = 140;
     this.scene.events.emit('player-fire', dir);
     SFX.shoot();
@@ -181,6 +182,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this._burstTimer     = 0;
     this._burstAngle     = dir;
     this.recoilT         = 80;
+    this._wKickT         = 60;
     this._fireAnimTimer  = 160;
     SFX.shoot();
     return true;
@@ -240,6 +242,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const dir = typeof angleOverride === 'number' ? angleOverride
       : this.aiming ? this.aim : this.facing;
     this.recoilT        = 260;
+    this._wKickT        = 180;   // bigger kick for the super
     this._fireAnimTimer = 240;
     this.scene.events.emit('player-fire-super', dir);
     SFX.shootSuper();
@@ -371,7 +374,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
                     : this.secondary === 'flamethrower' ? 'wpn-rifle'
                     : 'wpn-pistol';
       if (this.weaponSprite.texture.key !== wantTex) this.weaponSprite.setTexture(wantTex);
-      const offset = PLAYER.radius - 4;
+      // Recoil kick — when firing, the weapon visually slides BACKWARDS
+      // from the player for ~80ms then springs back. Pure visual, doesn't
+      // affect bullet spawn positions.
+      if (this._wKickT > 0) this._wKickT -= delta;
+      const kickBack = this._wKickT > 0 ? (this._wKickT / 80) * 7 : 0;
+      const offset = PLAYER.radius - 4 - kickBack;
       this.weaponSprite.x = this.x + Math.cos(ang) * offset;
       this.weaponSprite.y = this.y + Math.sin(ang) * offset;
       this.weaponSprite.rotation = ang;
@@ -422,10 +430,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       if (this.anims.currentAnim?.key !== 'mando-idle') this.play('mando-idle');
     }
 
-    // ── Recoil punch ─────────────────────────────────────────────────────
+    // ── Recoil punch + idle breathing ─────────────────────────────────
+    // Recoil wins when active. Otherwise, when standing still, oscillate
+    // scaleY subtly (±1.5%) to suggest breathing. Moving plays the walk
+    // anim so we don't add bob there.
     if (this.recoilT > 0) {
       this.recoilT -= delta;
       this.setScale(1.15 * (1 - Math.max(0, this.recoilT / 110) * 0.12));
+    } else if (!isMoving && !this.flameActive && this._hurtStaggerMs <= 0) {
+      const breath = Math.sin(time * 0.003) * 0.015;
+      this.setScale(1.15, 1.15 + breath);
     } else {
       this.setScale(1.15);
     }
