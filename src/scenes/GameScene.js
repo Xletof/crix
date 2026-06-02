@@ -1067,6 +1067,8 @@ export class GameScene extends Phaser.Scene {
     }
     this.fx.muzzleFlash(bx, by, angle);
     this.fx.shake(0.012, 180);
+    // Warm screen flash punctuates the super shot — orange/red wash.
+    this.cameras.main.flash(150, 255, 150, 60, true);
     duckMusic(0.4, 400);
   }
 
@@ -1571,9 +1573,18 @@ export class GameScene extends Phaser.Scene {
         if (d < nearest) { nearest = d; ex = p.x; ey = p.y; }
       }
     }
-    g.lineStyle(1.4, 0xff2828, 0.55);
+    // Low-ammo flicker: laser strobes redder/faster when down to 0-1 rounds
+    // so you can feel reloads coming.
+    const lowAmmo = this.player.ammo <= 1;
+    const lineAlpha = lowAmmo
+      ? 0.30 + 0.45 * Math.abs(Math.sin(this.time.now * 0.022))
+      : 0.55;
+    const dotAlpha  = lowAmmo
+      ? 0.55 + 0.40 * Math.abs(Math.sin(this.time.now * 0.022))
+      : 0.9;
+    g.lineStyle(1.4, 0xff2828, lineAlpha);
     g.beginPath(); g.moveTo(sx, sy); g.lineTo(ex, ey); g.strokePath();
-    g.fillStyle(0xff8080, 0.9);
+    g.fillStyle(0xff8080, dotAlpha);
     g.fillCircle(ex, ey, 2.5);
     g.fillStyle(0xffffff, 0.6);
     g.fillCircle(ex, ey, 1.2);

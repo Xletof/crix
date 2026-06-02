@@ -190,6 +190,24 @@ export class Boss extends Enemy {
       case STATE.CHARGING: {
         this.stateTimer += delta;
         this.setScale(1 + Math.sin(this.stateTimer / 40) * 0.04); // vibrate
+        // Spawn saber afterimage ghost every ~50ms — fades over 300ms.
+        this._saberGhostT = (this._saberGhostT || 0) + delta;
+        if (this._saberGhostT >= 50 && this.weaponSprite?.active) {
+          this._saberGhostT = 0;
+          const ws = this.weaponSprite;
+          const ghost = this.scene.add.image(ws.x, ws.y, ws.texture.key)
+            .setOrigin(ws.originX, ws.originY)
+            .setRotation(ws.rotation)
+            .setScale(ws.scaleX, ws.scaleY)
+            .setDepth(ws.depth - 1)
+            .setTint(0xff4040)
+            .setAlpha(0.55);
+          this.scene.tweens.add({
+            targets: ghost, alpha: 0, scale: ws.scaleX * 1.2,
+            duration: 320, ease: 'Cubic.easeOut',
+            onComplete: () => ghost.destroy(),
+          });
+        }
         if (this.stateTimer >= BOSS.chargeDurationMs) {
           this.state = STATE.IDLE;
           this.cooldown = this.cfg.attackCooldownMs;

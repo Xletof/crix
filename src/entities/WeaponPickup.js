@@ -24,17 +24,18 @@ export class WeaponPickup {
     const tex   = TEXTURE[weaponId] ?? 'pickup-rifle';
     const glow  = GLOW_COLOR[weaponId] ?? 0xff8010;
 
-    // Glow ring (graphics, drawn under the sprite)
+    // Glow ring (graphics anchored at 0,0 + setPosition so we can move it
+    // when the magnet pulls the pickup toward the player).
     this.glowGfx = scene.add.graphics().setDepth(18);
     this.glowGfx.fillStyle(glow, 0.18);
-    this.glowGfx.fillCircle(x, y, 38);
+    this.glowGfx.fillCircle(0, 0, 38);
     this.glowGfx.lineStyle(2, glow, 0.6);
-    this.glowGfx.strokeCircle(x, y, 38);
+    this.glowGfx.strokeCircle(0, 0, 38);
+    this.glowGfx.setPosition(x, y);
 
-    // Weapon sprite
+    // Weapon sprite + label — all anchored on this.x/this.y now.
     this.sprite = scene.add.image(x, y, tex).setDepth(19).setScale(0.85);
 
-    // Label
     const name = WEAPONS[weaponId]?.name ?? weaponId;
     this.label = scene.add.text(x, y + 46, name, {
       fontFamily: 'Courier New, monospace',
@@ -44,14 +45,12 @@ export class WeaponPickup {
       strokeThickness: 3,
     }).setOrigin(0.5).setDepth(20);
 
-    // Idle float tween
+    // Idle float tween — affects only the sprite y so the magnet can still
+    // re-position the whole pickup without fighting the tween.
+    this._floatOffset = 0;
     this._tween = scene.tweens.add({
-      targets: this.sprite,
-      y: y - 10,
-      duration: 900,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
+      targets: this, _floatOffset: -10,
+      duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
     });
 
     this.x = x;
@@ -61,7 +60,22 @@ export class WeaponPickup {
   // Call each frame from GameScene.update()
   checkPickup(player) {
     if (!this.active) return false;
-    const dist = Math.hypot(player.x - this.x, player.y - this.y);
+    const dx = player.x - this.x, dy = player.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    // Magnet pull: when in the outer ring, slide toward the player at a
+    // speed that ramps up as we get closer. Player magnet feeling.
+    const MAGNET = 90;
+    if (dist > PLAYER.radius + 30 && dist < MAGNET) {
+      const closeness = 1 - (dist - (PLAYER.radius + 30)) / (MAGNET - (PLAYER.radius + 30));
+      const dt = this.scene.game.loop.delta / 1000;
+      const pull = 320 * closeness;
+      this.x += (dx / dist) * pull * dt;
+      this.y += (dy / dist) * pull * dt;
+    }
+    // Apply position + idle float offset to children every frame.
+    this.glowGfx.setPosition(this.x, this.y);
+    this.sprite.setPosition(this.x, this.y + this._floatOffset);
+    this.label.setPosition(this.x, this.y + 46);
     if (dist < PLAYER.radius + 36) {
       this._collect(player);
       return true;
