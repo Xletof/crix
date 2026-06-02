@@ -19,6 +19,11 @@ export class HUDScene extends Phaser.Scene {
     // the player's HP drops toward zero. Drawn as feathered edge bars.
     this.vignette = this.add.graphics().setDepth(8);
 
+    // ── Boss enrage tint: subtle red ambient overlay when boss is in
+    // phase 2 or 3. Sits below the vignette so low-HP still dominates.
+    this.bossTint = this.add.graphics().setDepth(6);
+    this._bossPhase = 1;
+
     // ── Imperial top bar ────────────────────────────────────────────────
     const top = this.add.graphics();
     // Dark metal base
@@ -269,7 +274,8 @@ export class HUDScene extends Phaser.Scene {
     ge.on('player-super-ready',   this.refreshSuper, this);
     ge.on('room-start',           (n, total, spec) => this.refreshChamber(n, total, spec));
     ge.on('boss-start',           ()               => this.showBanner('VADER APPROACHES', '#ff2828'));
-    ge.on('boss-phase',           ()               => this.showBanner('ENRAGED!', '#ff8888'));
+    ge.on('boss-phase',           (phase)          => { this._bossPhase = phase; this.showBanner('ENRAGED!', '#ff8888'); });
+    ge.on('boss-died',            ()               => { this._bossPhase = 1; });
     ge.on('show-banner',          (text, color)    => this.showBanner(text, color));
     ge.on('lives-changed',        (n)              => this.drawLives(n));
     ge.on('secondary-equipped',     (id)           => this.refreshSecondary(id));
@@ -351,11 +357,16 @@ export class HUDScene extends Phaser.Scene {
     const p = this.gameScene.player;
     if (!p) return;
     // Draw each ammo slot as an Imperial energy cell (rectangular, glowing red)
+    if (!this._ammoPipPrevLoaded) this._ammoPipPrevLoaded = [];
     for (let i = 0; i < this.ammoPips.length; i++) {
       const pip = this.ammoPips[i];
       pip.clear();
       const loaded = i < p.ammo;
       const reloading = !loaded && i === p.ammo && p.ammoTimers.length > 0;
+      // Detect the moment a reload completes (was unloaded, now loaded)
+      const wasLoaded = this._ammoPipPrevLoaded[i] || false;
+      if (loaded && !wasLoaded) this._pulseAmmoPip(pip);
+      this._ammoPipPrevLoaded[i] = loaded;
 
       // Cell casing (dark border)
       pip.fillStyle(0x0a0c14, 0.9);
@@ -525,6 +536,21 @@ export class HUDScene extends Phaser.Scene {
     this.hackMinigame?.update(delta);
     // Low-HP red vignette pulse
     this._drawVignette(time);
+    // Boss enrage ambient red tint
+    this._drawBossTint(time);
+  }
+
+  // Soft pulsing red full-screen tint while the boss is enraged (phase ≥ 2).
+  // Phase 3 is stronger. Cleared automatically when the boss dies.
+  _drawBossTint(time) {
+    const g = this.bossTint;
+    g.clear();
+    const phase = this._bossPhase || 1;
+    if (phase < 2) return;
+    const base = phase >= 3 ? 0.10 : 0.05;
+    const pulse = 0.85 + 0.15 * Math.sin(time * 0.005);
+    g.fillStyle(0xff1010, base * pulse);
+    g.fillRect(0, 0, VIEW.width, VIEW.height);
   }
 
   // Soft red edge glow that fades in below 30% HP and pulses faster as
@@ -582,6 +608,16 @@ export class HUDScene extends Phaser.Scene {
     g.fillStyle(0xffe0a0, 0.7);
     g.fillRoundedRect(cx - w / 2, cy - h / 2, w * ratio, 5, 3);
     this.hackBarText.setAlpha(1).setText(`SLICING… ${Math.round(ratio * 100)}%`);
+  }
+
+  // Brief scale-up flash when an ammo cell finishes reloading.
+  _pulseAmmoPip(pip) {
+    this.tweens.killTweensOf(pip);
+    pip.setScale(1.55);
+    this.tweens.add({
+      targets: pip, scale: 1,
+      duration: 240, ease: 'Back.easeOut',
+    });
   }
 
   // Splash an "x2!", "x3!" etc combo text when chain kills happen.

@@ -422,8 +422,15 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       if (this.anims.currentAnim?.key !== `${prefix}-idle`) this.play(`${prefix}-idle`);
     }
 
-    // Recoil scale (over base 1.15)
-    if (this.recoilT > 0) {
+    // Recoil scale + stagger wobble (over base 1.15).
+    // Stagger wins while it's active — body wobbles X/Y inversely to read
+    // as a body taking a shove. After stagger, the regular recoil punch
+    // takes over and decays naturally.
+    if (this._staggerMs > 0) {
+      const phase = (90 - this._staggerMs) * 0.22;
+      const w = Math.sin(phase) * 0.10;
+      this.setScale(1.15 * (1 + w), 1.15 * (1 - w));
+    } else if (this.recoilT > 0) {
       this.recoilT -= delta;
       this.setScale(1.15 * (1 - Math.max(0, this.recoilT / 80) * 0.12));
     } else {

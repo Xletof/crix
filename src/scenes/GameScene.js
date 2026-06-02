@@ -880,8 +880,18 @@ export class GameScene extends Phaser.Scene {
           if (this.anims.exists(`${prefix}-idle`)) enemy.play(`${prefix}-idle`);
         }
       });
-      this.fx.damageNumber(enemy.x, enemy.y - enemy.cfg.radius, Math.round(amount));
-      this.fx.burst(enemy.x, enemy.y, 'red', 4);
+      // CRIT callout on big hits — one-shot territory for most enemies.
+      const crit = amount >= 400;
+      if (crit) {
+        this.fx.damageNumber(enemy.x, enemy.y - enemy.cfg.radius - 30,
+          'CRIT!', '#ffe040', true);
+        this.fx.damageNumber(enemy.x + 18, enemy.y - enemy.cfg.radius,
+          Math.round(amount), '#ff8020', false);
+        this.fx.shake(0.005, 70);
+      } else {
+        this.fx.damageNumber(enemy.x, enemy.y - enemy.cfg.radius, Math.round(amount));
+      }
+      this.fx.burst(enemy.x, enemy.y, 'red', crit ? 8 : 4);
       SFX.hit();
     });
     this.events.on('enemy-died', (enemy) => {
