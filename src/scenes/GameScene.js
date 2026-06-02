@@ -206,6 +206,8 @@ export class GameScene extends Phaser.Scene {
     this._roomDoorOpened  = false;
     this._activeHackTarget = null;
     this._hackPromptTarget = null;
+    this._comboCount       = 0;
+    this._lastKillTime     = -99999;
     this.events.emit('hack-cancel');   // close any leftover mini-game
     this.events.emit('hack-prompt', false);
     this.events.emit('objective-update', this._terminalsHacked, this._terminalsTotal);
@@ -491,27 +493,8 @@ export class GameScene extends Phaser.Scene {
     this.fx.burst(e.x, e.y, 'red', 18);
     this.fx.shake(0.008, 110);
     this.cameras.main.flash(80, 60, 255, 120, true);
-    // ── Proper slow-mo on the kill: ramp physics + tween clocks down to
-    // 0.3x and back over 380ms. Stronger sense of weight than a hard freeze.
-    const pw = this.physics.world;
-    const tw = this.tweens;
-    const t  = this.time;
-    pw.timeScale = 0.3;
-    t.timeScale  = 0.3;
-    this.tweens.add({
-      targets: pw,
-      timeScale: 1,
-      duration: 380,
-      ease: 'Quad.easeOut',
-    });
-    this.tweens.add({
-      targets: t,
-      timeScale: 1,
-      duration: 380,
-      ease: 'Quad.easeOut',
-      onComplete: () => { pw.timeScale = 1; t.timeScale = 1; },
-    });
-    // Punch zoom for cinematic emphasis
+    // Cinematic slow-mo for stealth kills — deeper than a regular slow-mo
+    this._slowMo(0.3, 380);
     this._cameraPunch(1.08, 420);
     SFX.takedown();
     e.stealthKill();
@@ -543,6 +526,38 @@ export class GameScene extends Phaser.Scene {
     this.roomLayer.add(g);
   }
 
+  // Radial death glow — bright orange ring that expands and fades quickly
+  // over the kill site. Drawn as a Graphics object animated via tween.
+  _spawnDeathGlow(x, y, baseR = 22) {
+    const g = this.add.graphics().setDepth(26);
+    g.fillStyle(0xff6020, 0.55);
+    g.fillCircle(0, 0, baseR);
+    g.lineStyle(2.5, 0xffd060, 0.95);
+    g.strokeCircle(0, 0, baseR);
+    g.setPosition(x, y);
+    this.tweens.add({
+      targets: g, scale: 3.4, alpha: 0,
+      duration: 280, ease: 'Cubic.easeOut',
+      onComplete: () => g.destroy(),
+    });
+  }
+
+  // Chain-kill combo: any death within 2s of the previous one bumps the
+  // counter. Past x2 we emit 'show-combo' which the HUD renders as a
+  // splashy "x2!", "x3!" etc. Resets when the streak times out.
+  _tickKillCombo() {
+    const now = this.time.now;
+    if (now - (this._lastKillTime ?? -99999) < 2000) {
+      this._comboCount = (this._comboCount || 0) + 1;
+    } else {
+      this._comboCount = 1;
+    }
+    this._lastKillTime = now;
+    if (this._comboCount >= 2) {
+      this.events.emit('show-combo', this._comboCount);
+    }
+  }
+
   // Small persistent scorch mark on the floor where a bullet hit a wall.
   // Builds up over a firefight so the room visually records the chaos.
   spawnScorch(x, y) {
@@ -559,6 +574,24 @@ export class GameScene extends Phaser.Scene {
       g.fillCircle(x + Math.cos(a) * d, y + Math.sin(a) * d, 0.7 + Math.random() * 1.8);
     }
     this.roomLayer.add(g);
+  }
+
+  // Smooth slow-mo ramp on physics + scene time. Falls to `floor` (e.g. 0.3)
+  // and tweens back to 1 over `durMs`. Both clocks slow together so tweens,
+  // animations, and physics all read consistently. Safe to overlap calls —
+  // the latest scale wins.
+  _slowMo(floor = 0.3, durMs = 380) {
+    const pw = this.physics.world;
+    const t  = this.time;
+    pw.timeScale = floor;
+    t.timeScale  = floor;
+    this.tweens.add({
+      targets: pw, timeScale: 1, duration: durMs, ease: 'Quad.easeOut',
+    });
+    this.tweens.add({
+      targets: t, timeScale: 1, duration: durMs, ease: 'Quad.easeOut',
+      onComplete: () => { pw.timeScale = 1; t.timeScale = 1; },
+    });
   }
 
   // Brief camera punch-zoom: pulse the zoom up to `to` over half the
@@ -770,11 +803,9 @@ export class GameScene extends Phaser.Scene {
         Math.round(amount), '#ffd166', true);
       this.fx.burst(boss.x, boss.y, 'red', 6);
       this.fx.shake(0.005, 60);
-      // Hit-pause: brief freeze on big damage spikes for crunchy impact
-      if (amount >= 400) {
-        this.physics.world.pause();
-        this.time.delayedCall(45, () => this.physics.world.resume());
-      }
+      // Big-damage spike → slow-mo ramp instead of a binary freeze. Shorter
+      // and shallower than the takedown's slow-mo so heavy combos still flow.
+      if (amount >= 400) this._slowMo(0.5, 240);
       SFX.bossHit();
     });
     this.events.on('boss-died', (boss) => {
@@ -797,6 +828,8 @@ export class GameScene extends Phaser.Scene {
       // Big blood burst + persistent splatter pool that stays for the room.
       this.fx.burst(enemy.x, enemy.y, 'red', 26);
       this.spawnBloodSplatter(enemy.x, enemy.y);
+      // Radial death glow — bright orange ring expands and fades.
+      this._spawnDeathGlow(enemy.x, enemy.y, enemy.cfg.radius);
       // Beefier shake than before for kill weight.
       this.fx.shake(0.009, 110);
       // Universal hit-pause on every kill — 45ms freeze for crisp impact.
@@ -804,6 +837,8 @@ export class GameScene extends Phaser.Scene {
       this.time.delayedCall(45, () => this.physics.world.resume());
       // Camera punch-zoom — brief 1.04x snap that decays.
       this._cameraPunch(1.04, 220);
+      // Combo counter — chain kills within 2s show on screen
+      this._tickKillCombo();
       this.roomManager.onEnemyDied();
       if (Math.random() < HEALTH_ORB.dropChance) this.spawnHealthOrb(enemy.x, enemy.y);
     });

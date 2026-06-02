@@ -279,6 +279,7 @@ export class HUDScene extends Phaser.Scene {
     ge.on('takedown-available',     (avail)        => this.setTakedownVisible(avail));
     ge.on('objective-update',       (done, total)  => this.refreshObjective(done, total));
     ge.on('hack-prompt',            (avail)        => this.setHackVisible(avail));
+    ge.on('show-combo',             (n)            => this.showCombo(n));
     ge.on('hack-start',             (terminal)     => {
       this.setHackVisible(false);
       this.hackMinigame?.start(terminal);
@@ -309,6 +310,7 @@ export class HUDScene extends Phaser.Scene {
       ge.off('hack-prompt');
       ge.off('hack-start');
       ge.off('hack-cancel');
+      ge.off('show-combo');
       this.hackMinigame?.shutdown();
       this.hackMinigame = null;
       this.moveStick?.shutdown();
@@ -580,6 +582,34 @@ export class HUDScene extends Phaser.Scene {
     g.fillStyle(0xffe0a0, 0.7);
     g.fillRoundedRect(cx - w / 2, cy - h / 2, w * ratio, 5, 3);
     this.hackBarText.setAlpha(1).setText(`SLICING… ${Math.round(ratio * 100)}%`);
+  }
+
+  // Splash an "x2!", "x3!" etc combo text when chain kills happen.
+  showCombo(n) {
+    // Reuse a single text object — kill any previous tween/state.
+    if (!this.comboText) {
+      this.comboText = this.add.text(VIEW.width / 2, VIEW.height * 0.36, '', {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '64px',
+        fontStyle: 'bold',
+        color: '#ffd040',
+        stroke: '#000000',
+        strokeThickness: 7,
+      }).setOrigin(0.5).setDepth(35).setAlpha(0);
+    }
+    this.tweens.killTweensOf(this.comboText);
+    const colors = [null, null, '#ffd040', '#ffaa20', '#ff8020', '#ff4020', '#ff2020'];
+    const col = colors[Math.min(colors.length - 1, n)] || '#ff2020';
+    this.comboText.setText(`x${n}!`).setColor(col);
+    this.comboText.setScale(0.5).setAlpha(1);
+    this.tweens.add({
+      targets: this.comboText, scale: 1.15,
+      duration: 180, ease: 'Back.easeOut',
+    });
+    this.tweens.add({
+      targets: this.comboText, alpha: 0, scale: 1.5,
+      duration: 600, delay: 700, ease: 'Cubic.easeIn',
+    });
   }
 
   setHackVisible(avail) {

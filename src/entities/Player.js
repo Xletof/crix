@@ -63,6 +63,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.glowRing.setPosition(x, y);
     this._glowPulse = 0;
 
+    // Super-ready aura: extra wider red/orange ring that only shows when
+    // the super meter is full. Pulses faster than the cyan you-are-here.
+    this.superAura = scene.add.graphics().setDepth(this.depth - 3).setVisible(false);
+    this._auraPulse = 0;
+
     this.play('mando-idle');
     // Bump display scale for readability (texture stays 24×24)
     this.setScale(1.15);
@@ -380,6 +385,27 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.glowRing.setPosition(this.x, this.y).setScale(pulse);
     this.glowRing.setAlpha(this.hiddenInBush ? 0.25 : 1);
 
+    // Super-ready aura — only draws while the super meter is full. Re-paints
+    // each frame so the pulse intensity can wobble.
+    const superReady = this.superCharge >= PLAYER.superHitsToCharge;
+    if (superReady) {
+      this._auraPulse += delta * 0.012;
+      const ap = 0.55 + 0.45 * Math.sin(this._auraPulse);
+      const aGfx = this.superAura;
+      aGfx.clear();
+      aGfx.fillStyle(0xff4020, 0.10 + 0.10 * ap);
+      aGfx.fillCircle(0, 0, PLAYER.radius + 24);
+      aGfx.lineStyle(3, 0xff6040, 0.7 + 0.3 * ap);
+      aGfx.strokeCircle(0, 0, PLAYER.radius + 18);
+      // Inner highlight
+      aGfx.lineStyle(1.5, 0xffe080, 0.5 + 0.4 * ap);
+      aGfx.strokeCircle(0, 0, PLAYER.radius + 12);
+      aGfx.setPosition(this.x, this.y).setVisible(true);
+      aGfx.setAlpha(this.hiddenInBush ? 0.3 : 1);
+    } else if (this.superAura.visible) {
+      this.superAura.setVisible(false);
+    }
+
     // Bush alpha
     this.setAlpha(this.hiddenInBush ? PLAYER.bushAlpha : 1);
 
@@ -409,6 +435,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   destroy(fromScene) {
     this.shadow?.destroy();
     this.glowRing?.destroy();
+    this.superAura?.destroy();
     this.weaponSprite?.destroy();
     super.destroy(fromScene);
   }
