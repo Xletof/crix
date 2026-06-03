@@ -24,11 +24,13 @@ const config = {
       gravity: { x: 0, y: 0 },
     },
   },
-  // Pixel-art renderer: crisp chunky pixels at any zoom, no blur.
+  // Pixel-art renderer: keep source textures crisp (no antialias), but allow
+  // sub-pixel rendered positions so camera/player motion glides instead of
+  // snapping to the integer pixel grid each frame.
   render: {
     pixelArt: true,
     antialias: false,
-    roundPixels: true,
+    roundPixels: false,
   },
   input: {
     activePointers: 4,

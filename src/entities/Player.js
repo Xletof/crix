@@ -49,6 +49,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this._fireAnimTimer = 0;
     this.recoilT        = 0;
 
+    // ── Movement ramp ──────────────────────────────────────────────────────
+    // Target velocity set by setMoveInput; preUpdate eases body.velocity
+    // toward it instead of snapping. Kills the "dragging picture" feel.
+    this._moveTargetX = 0;
+    this._moveTargetY = 0;
+    // Smoothed move-vs-still envelope (0..1) for anim crossfade + scale.
+    this._moveEnv = 0;
+
     // ── Visual accessories ─────────────────────────────────────────────────
     this.shadow = scene.add.image(x, y + 12, 'shadow')
       .setDepth(this.depth - 1).setAlpha(0.35);
@@ -84,17 +92,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   // ── Movement / aiming inputs (called by HUD joysticks) ────────────────────
 
   setMoveInput(vec) {
-    if (!this.alive) { this.setVelocity(0, 0); return; }
+    if (!this.alive) { this._moveTargetX = 0; this._moveTargetY = 0; return; }
     // Hurt-stagger: ignore joystick input briefly so the knockback shove
     // is actually visible before the player resumes control.
     if (this._hurtStaggerMs > 0) return;
     if (vec?.force > 0) {
-      this.setVelocity(vec.x * PLAYER.speed * vec.force, vec.y * PLAYER.speed * vec.force);
+      this._moveTargetX = vec.x * PLAYER.speed * vec.force;
+      this._moveTargetY = vec.y * PLAYER.speed * vec.force;
       this.facing = Math.atan2(vec.y, vec.x);
       // Body NEVER rotates — only the weapon overlay does (handled in preUpdate).
       // When not aiming, the weapon follows the movement direction.
     } else {
-      this.setVelocity(0, 0);
+      this._moveTargetX = 0;
+      this._moveTargetY = 0;
     }
   }
 
@@ -321,6 +331,25 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this._hurtStaggerMs -= delta;
       this.body.velocity.x *= 0.88;
       this.body.velocity.y *= 0.88;
+    } else if (this.alive) {
+      // Acceleration / deceleration ramp toward the target velocity set by
+      // the joystick. Snapping instantly to top speed reads as "dragging a
+      // picture"; ramping over ~3 frames reads as weight.
+      const dt    = delta / 1000;
+      const tx    = this._moveTargetX || 0;
+      const ty    = this._moveTargetY || 0;
+      const vx    = this.body.velocity.x;
+      const vy    = this.body.velocity.y;
+      const dx    = tx - vx;
+      const dy    = ty - vy;
+      const dMag  = Math.hypot(dx, dy);
+      const rate  = (tx === 0 && ty === 0) ? PLAYER.decelPerSec : PLAYER.accelPerSec;
+      const step  = rate * dt;
+      if (dMag <= step) {
+        this.body.setVelocity(tx, ty);
+      } else {
+        this.body.setVelocity(vx + (dx / dMag) * step, vy + (dy / dMag) * step);
+      }
     }
 
     // Footstep dust puffs — drop a small particle puff every ~140ms while
@@ -418,8 +447,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setAlpha(this.hiddenInBush ? PLAYER.bushAlpha : 1);
 
     // ── Sprite animation ─────────────────────────────────────────────────
+    // Use a smoothed move envelope (0..1) so the walk↔idle transition isn't
+    // a binary snap. We still swap the anim key when the envelope crosses
+    // the threshold, but the Y-scale stretch is continuous so the body
+    // visually settles into / out of the gait.
     const speedSq  = this.body.velocity.x ** 2 + this.body.velocity.y ** 2;
-    const isMoving = speedSq > 200;
+    const moveT    = Math.min(1, speedSq / (PLAYER.speed * PLAYER.speed * 0.25));
+    // Exponential smoothing toward target — ~140ms blend window.
+    const blendK   = 1 - Math.exp(-delta / 140);
+    this._moveEnv += (moveT - this._moveEnv) * blendK;
+    const isMoving = this._moveEnv > 0.35;
 
     if (this._fireAnimTimer > 0) {
       this._fireAnimTimer -= delta;
@@ -430,16 +467,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       if (this.anims.currentAnim?.key !== 'mando-idle') this.play('mando-idle');
     }
 
-    // ── Recoil punch + idle breathing ─────────────────────────────────
-    // Recoil wins when active. Otherwise, when standing still, oscillate
-    // scaleY subtly (±1.5%) to suggest breathing. Moving plays the walk
-    // anim so we don't add bob there.
+    // ── Recoil punch + idle breathing + move-envelope stretch ──────────
+    // Recoil wins when active. Otherwise the body Y-scale eases between
+    // idle (with subtle breathing) and walk (slight forward lean from the
+    // move envelope), so transitions read as weight shifts not snaps.
     if (this.recoilT > 0) {
       this.recoilT -= delta;
       this.setScale(1.15 * (1 - Math.max(0, this.recoilT / 110) * 0.12));
-    } else if (!isMoving && !this.flameActive && this._hurtStaggerMs <= 0) {
-      const breath = Math.sin(time * 0.003) * 0.015;
-      this.setScale(1.15, 1.15 + breath);
+    } else if (!this.flameActive && this._hurtStaggerMs <= 0) {
+      const breath  = (1 - this._moveEnv) * Math.sin(time * 0.003) * 0.015;
+      const stretch = this._moveEnv * 0.045; // up to +4.5% Y when fully running
+      this.setScale(1.15, 1.15 + breath + stretch);
     } else {
       this.setScale(1.15);
     }

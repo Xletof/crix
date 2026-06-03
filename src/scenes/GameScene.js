@@ -32,9 +32,12 @@ export class GameScene extends Phaser.Scene {
 
     // ── Player ─────────────────────────────────────────────────────────────
     this.player = new Player(this, 200, 200);
-    // Tighter lerp (was 0.10) so the player stays anchored near screen
-    // center on mobile rather than sliding around the viewport.
-    this.cameras.main.startFollow(this.player, true, 0.5, 0.5);
+    // Looser follow lerp so the camera trails the player by a couple of
+    // frames. With the acceleration ramp on Player movement, a tight lerp
+    // (0.5) was eating the weight curve by chasing the player instantly;
+    // 0.18 lets the ramp register on screen as actual physical motion.
+    // The aim-lookahead `_camOX/_camOY` smoothing still carries the snap.
+    this.cameras.main.startFollow(this.player, true, 0.18, 0.18);
 
     // ── Bush / cover system ────────────────────────────────────────────────
     this.bushSystem = new BushSystem(this);

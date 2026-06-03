@@ -17,6 +17,11 @@ export const WORLD = {
 export const PLAYER = {
   hp: 1000,
   speed: 240,
+  // Movement weight curve — px/s² ramps applied to body velocity each frame
+  // so input doesn't snap to top speed (kills the "dragging picture" feel).
+  // accel reaches full speed in ~135 ms; decel kills it in ~100 ms.
+  accelPerSec: 1800,
+  decelPerSec: 2400,
   radius: 22,
   ammoMax: 4,
   ammoReloadMs: 750,
