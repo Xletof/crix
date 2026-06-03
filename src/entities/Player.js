@@ -415,8 +415,26 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.weaponSprite.setAlpha(this.alive ? (this.hiddenInBush ? PLAYER.bushAlpha : 1) : 0);
     }
 
-    // Shadow + you-are-here glow ring (pulses softly)
-    this.shadow.setPosition(this.x, this.y + 18);
+    // ── Y-sort: depth tracks world Y so entities occlude each other based
+    // on their position rather than a fixed integer per type. Related
+    // sprites (shadow, weapon, rings) ride small offsets around the body.
+    this.setDepth(this.y);
+    this.weaponSprite?.setDepth(this.y + 1);
+    this.glowRing.setDepth(this.y - 2);
+    this.superAura.setDepth(this.y - 3);
+
+    // Shadow + you-are-here glow ring (pulses softly).
+    // Reactive shadow: drifts in the velocity direction (sells motion) and
+    // squashes briefly during hurt-stagger or weapon kick (sells weight).
+    const sVx     = this.body.velocity.x;
+    const sVy     = this.body.velocity.y;
+    const sDriftX = Phaser.Math.Clamp(sVx * 0.012, -3, 3);
+    const sDriftY = Phaser.Math.Clamp(sVy * 0.008, -2, 2);
+    const kickLift = this._wKickT > 0 ? -1 : 0;
+    const staggerSquash = this._hurtStaggerMs > 0 ? 0.85 : 1;
+    this.shadow.setPosition(this.x + sDriftX, this.y + 18 + sDriftY + kickLift);
+    this.shadow.setScale(staggerSquash, staggerSquash);
+    this.shadow.setDepth(this.y - 1);
     this._glowPulse += delta * 0.005;
     const pulse = 0.85 + 0.15 * Math.sin(this._glowPulse);
     this.glowRing.setPosition(this.x, this.y).setScale(pulse);

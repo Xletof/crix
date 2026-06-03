@@ -149,10 +149,12 @@ export class GameScene extends Phaser.Scene {
       .setDepth(-10);
     this.roomLayer.add(bgImg);
 
-    // Walls
+    // Walls — Y-sorted by bottom edge of the 112-px tile so entities standing
+    // south of a wall draw IN FRONT and entities north draw behind. This is
+    // what gives the arena its top-down 3D-ish space.
     for (const wp of spec.walls) {
       const wall = this.walls.create(wp.x, wp.y, 'wall');
-      wall.setDepth(15).refreshBody();
+      wall.setDepth(wp.y + 56).refreshBody();
       this.roomLayer.add(wall);
     }
 
@@ -164,7 +166,7 @@ export class GameScene extends Phaser.Scene {
     this.coverRegistry = new CoverRegistry(spec.cover);
     for (const cp of spec.cover) {
       const con = this.walls.create(cp.x, cp.y, 'bush');
-      con.setDepth(20);
+      con.setDepth(cp.y + 56);
       con.body.setSize(70, 70).setOffset((con.width - 70) / 2, (con.height - 70) / 2);
       con.refreshBody();
       this.roomLayer.add(con);
@@ -1302,6 +1304,32 @@ export class GameScene extends Phaser.Scene {
       this._camOX = (this._camOX ?? 0) * 0.92 + tx * 0.08;
       this._camOY = (this._camOY ?? 0) * 0.92 + ty * 0.08;
       this.cameras.main.setFollowOffset(-this._camOX, -this._camOY);
+    }
+
+    // ── Ambient floor motes — slow airborne drift across the viewport.
+    // Spawns one mote every ~220 ms at a random point in the camera's
+    // worldView so they appear scattered and drift offscreen naturally.
+    this._moteTimer = (this._moteTimer || 0) + delta;
+    if (this._moteTimer >= 220) {
+      this._moteTimer = 0;
+      const wv = this.cameras.main.worldView;
+      const mx = wv.x + Math.random() * wv.width;
+      const my = wv.y + Math.random() * wv.height;
+      this.fx?.ambientMote?.(mx, my);
+    }
+
+    // ── Speed-tied camera zoom-breathe — subtle zoom-out when sprinting,
+    // zoom-in tighter when idle/aiming. Stacks with _cameraPunch (zoom
+    // punches are multiplicative through the tween's main.zoom write).
+    const ps      = this.player.alive ? Math.hypot(this.player.body.velocity.x, this.player.body.velocity.y) : 0;
+    const speedN  = Math.min(1, ps / PLAYER.speed);
+    const targetZ = 1.0 - speedN * 0.04;
+    // 200 ms exponential smoothing toward target. Skip while a punch tween
+    // is actively writing to main.zoom so the two effects don't fight.
+    if (!this._cameraPunchTween || !this._cameraPunchTween.isPlaying()) {
+      const k = 1 - Math.exp(-delta / 200);
+      const z = this.cameras.main.zoom;
+      this.cameras.main.setZoom(z + (targetZ - z) * k);
     }
 
     // Desktop keyboard movement

@@ -91,7 +91,15 @@ export class Boss extends Enemy {
   preUpdate(time, delta) {
     // Skip base Enemy AI — Vader has its own state machine
     Phaser.Physics.Arcade.Sprite.prototype.preUpdate?.call(this, time, delta);
-    this.shadow.setPosition(this.x, this.y + 30);
+    // Y-sort: depth tracks world Y. Boss shadow is the bigger 'shadow-boss'
+    // sprite so we offset it by 30 like before but drift X with motion.
+    this.setDepth(this.y);
+    const sVx = this.body.velocity.x;
+    const sVy = this.body.velocity.y;
+    const sDx = Phaser.Math.Clamp(sVx * 0.010, -4, 4);
+    const sDy = Phaser.Math.Clamp(sVy * 0.006, -3, 3);
+    this.shadow.setPosition(this.x + sDx, this.y + 30 + sDy);
+    this.shadow.setDepth(this.y - 1);
     this.updateHpBar();
     this.setAlpha(this.hiddenInBush ? 0.55 : 1);
     if (this.threatRing) {
@@ -99,6 +107,7 @@ export class Boss extends Enemy {
       const pulse = 0.94 + 0.06 * Math.sin(this._ringPulse);
       this.threatRing.setPosition(this.x, this.y).setScale(pulse);
       this.threatRing.setAlpha(this.hiddenInBush ? 0.25 : 1);
+      this.threatRing.setDepth(this.y - 2);
     }
     if (!this.alive) return;
 
@@ -129,6 +138,7 @@ export class Boss extends Enemy {
       this.weaponSprite.y = this.y + Math.sin(angToPlayer) * offset;
       this.weaponSprite.rotation = angToPlayer;
       this.weaponSprite.setAlpha(this.alive ? (this.hiddenInBush ? 0.55 : 1) : 0);
+      this.weaponSprite.setDepth(this.y + 1);
     }
 
     if (this.contactDmgCd > 0) this.contactDmgCd -= delta;

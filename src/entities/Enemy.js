@@ -165,7 +165,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // Stop colliding with bullets — alive=false already gates the loop,
     // but disabling the body avoids any residual physics surprises.
     this.body.checkCollision.none = true;
-    this.setDepth(this.depth - 2);   // dead bodies sit below live actors
+    // Dead bodies drop below the live Y-sort layer entirely so live actors
+    // always draw above them (corpse depth = world.y - 2000).
+    this.setDepth(this.y - 2000);
+    if (this.shadow?.active) this.shadow.setDepth(this.y - 2001);
     this.scene.tweens.add({
       targets: this,
       alpha: 0,
@@ -393,7 +396,23 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.body.velocity.x *= 0.85;
       this.body.velocity.y *= 0.85;
     }
-    this.shadow.setPosition(this.x, this.y + 18);
+    // Y-sort: depth tracks world Y so this entity occludes / is occluded by
+    // others based on its position. Related sprites ride small offsets.
+    this.setDepth(this.y);
+    this.hpBar.setDepth(this.y + 1);
+    this.alertMark.setDepth(this.y + 2);
+    if (this.threatRing) this.threatRing.setDepth(this.y - 2);
+
+    // Reactive shadow — drifts in the velocity direction (motion cue) and
+    // squashes during stagger (weight cue).
+    const sVx = this.body.velocity.x;
+    const sVy = this.body.velocity.y;
+    const sDx = Phaser.Math.Clamp(sVx * 0.012, -3, 3);
+    const sDy = Phaser.Math.Clamp(sVy * 0.008, -2, 2);
+    const sSq = this._staggerMs > 0 ? 0.85 : 1;
+    this.shadow.setPosition(this.x + sDx, this.y + 18 + sDy);
+    this.shadow.setScale(sSq, sSq);
+    this.shadow.setDepth(this.y - 1);
     this.alertMark.setPosition(this.x, this.y - this.cfg.radius - 24);
     this.updateHpBar();
     this.setAlpha(this.hiddenInBush ? 0.55 : 1);
@@ -405,6 +424,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.weaponSprite.y = this.y + Math.sin(this._aim) * offset;
       this.weaponSprite.rotation = this._aim;
       this.weaponSprite.setAlpha(this.alive ? (this.hiddenInBush ? 0.55 : 1) : 0);
+      this.weaponSprite.setDepth(this.y + 1);
     }
 
     // Threat ring tracks position + soft pulse; dims when enemy is hidden.

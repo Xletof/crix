@@ -334,6 +334,19 @@ export function attachFX(scene) {
       quantity: 0,
       emitting: false,
     }),
+    // Ambient floor motes — slow-drifting airborne particulate emitted across
+    // the visible viewport. Kills the "static board" flatness without needing
+    // a new parallax background layer. Drift direction = global wind.
+    ambientMotes: scene.add.particles(0, 0, 'spark', {
+      lifespan: 4200,
+      speedX: { min: 6, max: 14 },
+      speedY: { min: -3, max: 3 },
+      scale: { start: 0.55, end: 0 },
+      alpha: { start: 0.22, end: 0 },
+      tint: 0xb8b4a8,
+      quantity: 0,
+      emitting: false,
+    }),
     // Pickup sparkle — bright yellow particles flung outward on grab.
     pickupGlitter: scene.add.particles(0, 0, 'spark-yellow', {
       lifespan: 480,
@@ -376,6 +389,12 @@ export function attachFX(scene) {
     // Bright sparkle burst when grabbing a pickup — flings 12 yellow specks.
     pickupSparkle(x, y, count = 12) {
       this.pickupGlitter.emitParticleAt(x, y, count);
+    },
+
+    // Single airborne floor mote at (x, y) — called by GameScene every few
+    // hundred ms at a random viewport position to seed ambient drift.
+    ambientMote(x, y) {
+      this.ambientMotes.emitParticleAt(x, y, 1);
     },
 
     // Directional impact spray — sparks shoot back along the bullet's path
@@ -454,5 +473,8 @@ export function attachFX(scene) {
       spr.once('animationcomplete', () => spr.destroy());
     },
   };
+  // Ambient motes sit above the floor decals but below the live Y-sort
+  // layer (entities are at depth = y, minimum ~60 in this 1600px arena).
+  fx.ambientMotes.setDepth(3);
   return fx;
 }
