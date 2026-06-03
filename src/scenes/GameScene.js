@@ -699,6 +699,25 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // Ambient light-flicker effect for the boss room: rapid dim flashes that
+  // repeat every 2-4 s while the boss is alive, evoking a damaged power grid.
+  _startBossFlicker() {
+    const runFlicker = () => {
+      if (!this.boss?.alive) return;
+      const cam = this.cameras.main;
+      if (!cam) return;
+      const count = Phaser.Math.Between(2, 4);
+      for (let i = 0; i < count; i++) {
+        this.time.delayedCall(i * Phaser.Math.Between(55, 100), () => {
+          if (cam && this.boss?.alive) cam.flash(45, 15, 8, 25, true);
+        });
+      }
+      const next = Phaser.Math.Between(1800, 4500) + count * 100;
+      this.time.delayedCall(next, runFlicker);
+    };
+    this.time.delayedCall(Phaser.Math.Between(400, 1000), runFlicker);
+  }
+
   // ── Sound-radius alarm ────────────────────────────────────────────────────
   // Only enemies within `radius` px of the shot hear it and switch to ALERT.
   // Enemies farther away keep patrolling until they SEE the player themselves.
@@ -856,9 +875,17 @@ export class GameScene extends Phaser.Scene {
 
     const orb = { gfx: g, x, y, life: HEALTH_ORB.lifeMs, pulse: 0 };
     this.healthOrbs.push(orb);
+    // Landing bounce: spring in from oversized, then settle into idle pulse.
+    g.setScale(1.8);
     this.tweens.add({
-      targets: g, scaleX: 1.18, scaleY: 1.18, duration: 400,
-      yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      targets: g, scaleX: 1, scaleY: 1, duration: 300,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        this.tweens.add({
+          targets: g, scaleX: 1.18, scaleY: 1.18, duration: 400,
+          yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+        });
+      },
     });
   }
 
@@ -867,18 +894,18 @@ export class GameScene extends Phaser.Scene {
   bindEvents() {
     this.events.on('player-fire', (angle) => {
       this.firePlayerPrimary(angle);
-      // Pistol — only enemies within hearing radius react to the shot
       this._alertEnemiesNear(this.player.x, this.player.y, 420);
+      this._cameraPunch(1.008, 90);
     });
     this.events.on('player-fire-super', (angle) => {
       this.firePlayerSuper(angle);
-      // Super shot — loud enough to alert the entire room
       this.events.emit('room-alarm');
+      this._cameraPunch(1.025, 180);
     });
     this.events.on('player-fire-rifle', (angle) => {
       this.firePlayerRifle(angle);
-      // Rifle — louder than pistol, alerts a wider radius
       this._alertEnemiesNear(this.player.x, this.player.y, 560);
+      this._cameraPunch(1.012, 100);
     });
     this.events.on('grenade-detonate',  (x, y, dmg, r) => this.detonateGrenade(x, y, dmg, r));
     this.events.on('shooter-fire',      (s, a)  => this.fireShooter(s, a));
@@ -999,6 +1026,7 @@ export class GameScene extends Phaser.Scene {
     // Boss start event forwarded from loadRoom
     this.events.on('boss-start', () => {
       this.events.emit('show-banner', 'VADER APPROACHES', '#ff2828');
+      this._startBossFlicker();
     });
   }
 

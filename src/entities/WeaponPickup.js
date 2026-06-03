@@ -34,7 +34,12 @@ export class WeaponPickup {
     this.glowGfx.setPosition(x, y);
 
     // Weapon sprite + label — all anchored on this.x/this.y now.
-    this.sprite = scene.add.image(x, y, tex).setDepth(19).setScale(0.85);
+    this.sprite = scene.add.image(x, y, tex).setDepth(19).setScale(1.55);
+    // Landing bounce: oversized → correct scale with a spring back.
+    scene.tweens.add({
+      targets: this.sprite, scaleX: 0.85, scaleY: 0.85,
+      duration: 300, ease: 'Back.easeOut',
+    });
 
     const name = WEAPONS[weaponId]?.name ?? weaponId;
     this.label = scene.add.text(x, y + 46, name, {

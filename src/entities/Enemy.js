@@ -908,8 +908,21 @@ export class EnemyShooter extends Enemy {
     if (!this.canSee(player)) return;
     if (!this._hasLOS(this.x, this.y, player.x, player.y)) return;
     this.fireCd -= delta;
+    // Pre-fire warning: orange weapon glow ~300 ms before the shot lands.
+    // Gives the player a readable dodge window.
+    const WARN = 300;
+    if (this.fireCd > 0 && this.fireCd <= WARN && !this._warnFlashed) {
+      this._warnFlashed = true;
+      if (this.weaponSprite) {
+        this.weaponSprite.setTint(0xff6010);
+        this.scene.time.delayedCall(WARN + 60, () => {
+          if (this.weaponSprite?.active) this.weaponSprite.clearTint();
+        });
+      }
+    }
     if (this.fireCd <= 0) {
       this.fireCd         = Phaser.Math.Between(SUPPRESS_FIRE_MIN, SUPPRESS_FIRE_MAX);
+      this._warnFlashed   = false;
       this.recoilT        = 100;
       this._fireAnimTimer = 180;
       const ang = Math.atan2(player.y - this.y, player.x - this.x);
