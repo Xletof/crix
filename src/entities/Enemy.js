@@ -266,14 +266,14 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   // ── Alarm system ─────────────────────────────────────────────────────────
 
-  _triggerAlarm() {
+  _triggerAlarm(noisy = false) {
     if (this.state !== ST.PATROL) return;
     // Snap lastKnown to the actual player position (not our own spawn coords)
     const player = this.scene.player;
     if (player?.alive) { this.lastKnownX = player.x; this.lastKnownY = player.y; }
     this.state      = ST.ALERT;
     this.alertTimer = ALERT_PAUSE_MS;
-    this._flashAlertMark();
+    this._flashAlertMark(noisy ? '?' : '!');
     this.scene.events.emit('room-alarm');
     SFX.uiClick();
   }
@@ -284,11 +284,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       if (player?.alive) { this.lastKnownX = player.x; this.lastKnownY = player.y; }
       this.state      = ST.ALERT;
       this.alertTimer = ALERT_PAUSE_MS;
-      this._flashAlertMark();
+      this._flashAlertMark('?');
     }
   }
 
-  _flashAlertMark() {
+  _flashAlertMark(glyph = '!') {
+    this.alertMark.setText(glyph);
     this.alertMark.setAlpha(1).setScale(0.4);
     this.scene.tweens.add({
       targets: this.alertMark,
@@ -336,10 +337,16 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const facing = this._aim;
     const rearDiff = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - facing));
     const sneakingBehind = rearDiff > TAKEDOWN_REAR_ARC && !player.hiddenInBush;
-    if ((dist < ALARM_RANGE && !sneakingBehind) || this.canSee(player)) {
+    if (dist < ALARM_RANGE && !sneakingBehind) {
       this.lastKnownX = player.x;
       this.lastKnownY = player.y;
-      this._triggerAlarm();
+      this._triggerAlarm(true); // heard/sensed → "?"
+      return;
+    }
+    if (this.canSee(player)) {
+      this.lastKnownX = player.x;
+      this.lastKnownY = player.y;
+      this._triggerAlarm(false); // spotted → "!"
       return;
     }
 

@@ -19,6 +19,10 @@ export class HUDScene extends Phaser.Scene {
     // the player's HP drops toward zero. Drawn as feathered edge bars.
     this.vignette = this.add.graphics().setDepth(8);
 
+    // ── Directional hit indicator arcs along the screen edge ─────────────
+    this.hitArcGfx = this.add.graphics().setDepth(7);
+    this._hitArcs  = []; // { angle: rad, age: ms }
+
     // ── Boss enrage tint: subtle red ambient overlay when boss is in
     // phase 2 or 3. Sits below the vignette so low-HP still dominates.
     this.bossTint = this.add.graphics().setDepth(6);
@@ -267,7 +271,8 @@ export class HUDScene extends Phaser.Scene {
     // Events
     const ge = this.gameScene.events;
     ge.on('player-hp-changed',    this.refreshHp,    this);
-    ge.on('player-hurt',          this.refreshHp,    this);
+    this._onPlayerHurt = (amt, dir) => { this.refreshHp(); if (typeof dir === 'number') this._addHitArc(dir); };
+    ge.on('player-hurt',          this._onPlayerHurt);
     ge.on('player-ammo-changed',  this.refreshAmmo,  this);
     ge.on('player-fire',          this.refreshAmmo,  this);
     ge.on('player-super-changed', this.refreshSuper, this);
@@ -297,7 +302,7 @@ export class HUDScene extends Phaser.Scene {
 
     this.events.on('shutdown', () => {
       ge.off('player-hp-changed',    this.refreshHp,    this);
-      ge.off('player-hurt',          this.refreshHp,    this);
+      ge.off('player-hurt',          this._onPlayerHurt);
       ge.off('player-ammo-changed',  this.refreshAmmo,  this);
       ge.off('player-fire',          this.refreshAmmo,  this);
       ge.off('player-super-changed', this.refreshSuper, this);
@@ -538,6 +543,43 @@ export class HUDScene extends Phaser.Scene {
     this._drawVignette(time);
     // Boss enrage ambient red tint
     this._drawBossTint(time);
+    // Directional hit arcs
+    this._drawHitArcs(delta);
+  }
+
+  _addHitArc(hitDirRad) {
+    // hitDirRad is FROM attacker TOWARD player (knockback dir).
+    // Indicator faces toward the attacker = opposite direction.
+    this._hitArcs.push({ angle: hitDirRad + Math.PI, age: 0 });
+    // Cap at 4 simultaneous arcs to avoid overdraw
+    if (this._hitArcs.length > 4) this._hitArcs.shift();
+  }
+
+  _drawHitArcs(delta) {
+    const DURATION = 750;
+    const g = this.hitArcGfx;
+    g.clear();
+    const cx = VIEW.width  / 2;
+    const cy = VIEW.height / 2;
+    this._hitArcs = this._hitArcs.filter(arc => {
+      arc.age += delta;
+      if (arc.age >= DURATION) return false;
+      const t       = arc.age / DURATION;
+      const alpha   = (1 - t) * (1 - t) * 0.90; // quadratic fade
+      const ang     = arc.angle;
+      // Edge radius in this direction (intersection of ray with screen rect)
+      const absC    = Math.abs(Math.cos(ang));
+      const absS    = Math.abs(Math.sin(ang));
+      const R = (absC < 0.001 ? cy : absS < 0.001 ? cx : Math.min(cx / absC, cy / absS)) * 0.88;
+      const SPAN    = 0.55; // ~63° total arc
+      // Thick glow pass
+      g.lineStyle(14, 0xff2020, alpha * 0.35);
+      g.beginPath(); g.arc(cx, cy, R, ang - SPAN, ang + SPAN); g.strokePath();
+      // Bright core pass
+      g.lineStyle(6, 0xff5050, alpha);
+      g.beginPath(); g.arc(cx, cy, R, ang - SPAN, ang + SPAN); g.strokePath();
+      return true;
+    });
   }
 
   // Soft pulsing red full-screen tint while the boss is enraged (phase ≥ 2).

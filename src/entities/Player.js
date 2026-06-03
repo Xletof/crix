@@ -286,7 +286,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.body.velocity.y += Math.sin(hitDirRad) * kbStr;
       this._hurtStaggerMs = 110;
     }
-    this.scene.events.emit('player-hurt', amount);
+    this.scene.events.emit('player-hurt', amount, hitDirRad);
     SFX.hurt();
     if (this.hp <= 0) this.die();
   }

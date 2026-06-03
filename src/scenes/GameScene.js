@@ -482,6 +482,8 @@ export class GameScene extends Phaser.Scene {
       if (this._doorLabel) { this._doorLabel.destroy(); this._doorLabel = null; }
       this.loadRoom(ROOMS[nextIdx]);
       this.cameras.main.fadeIn(350, 0, 0, 0);
+      // Bright white bloom as the new room reveals — reinforces the door crossing moment.
+      this.cameras.main.flash(220, 255, 230, 180, true);
     });
   }
 
@@ -664,6 +666,46 @@ export class GameScene extends Phaser.Scene {
     this.roomLayer.add(g);
   }
 
+  // Persistent radial floor crack pattern when Vader enrages. More cracks and
+  // longer lines on phase 3. Stays in roomLayer for the duration of the fight.
+  _spawnVaderGroundCrack(cx, cy, phase) {
+    const g = this.add.graphics().setDepth(2);
+    const crackCount = phase >= 3 ? 10 : 7;
+    const maxLen     = phase >= 3 ? 110 : 75;
+    const alpha      = phase >= 3 ? 0.72 : 0.55;
+    for (let i = 0; i < crackCount; i++) {
+      const baseAng = (i / crackCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
+      // Each crack: a jagged polyline radiating outward
+      let x = cx, y = cy;
+      const segments = 3 + Math.floor(Math.random() * 3);
+      const segLen   = (maxLen * (0.6 + Math.random() * 0.4)) / segments;
+      g.lineStyle(1.5 + Math.random(), 0x1a1a22, alpha);
+      g.beginPath();
+      g.moveTo(x, y);
+      for (let s = 0; s < segments; s++) {
+        const jitter = (Math.random() - 0.5) * 0.45;
+        x += Math.cos(baseAng + jitter) * segLen * (0.7 + Math.random() * 0.6);
+        y += Math.sin(baseAng + jitter) * segLen * (0.7 + Math.random() * 0.6);
+        g.lineTo(x, y);
+      }
+      g.strokePath();
+      // Sub-crack: short branch near the tip
+      const branchAng = baseAng + (Math.random() - 0.5) * 1.1;
+      const branchLen = segLen * (0.3 + Math.random() * 0.45);
+      g.lineStyle(1, 0x1a1a22, alpha * 0.7);
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x + Math.cos(branchAng) * branchLen, y + Math.sin(branchAng) * branchLen);
+      g.strokePath();
+    }
+    // Dark epicenter ring
+    g.lineStyle(2, 0x000000, 0.6);
+    g.strokeCircle(cx, cy, phase >= 3 ? 22 : 14);
+    g.fillStyle(0x000000, 0.35);
+    g.fillCircle(cx, cy, phase >= 3 ? 16 : 10);
+    this.roomLayer.add(g);
+  }
+
   // Smooth slow-mo ramp on physics + scene time. Falls to `floor` (e.g. 0.3)
   // and tweens back to 1 over `durMs`. Both clocks slow together so tweens,
   // animations, and physics all read consistently. Safe to overlap calls —
@@ -728,7 +770,7 @@ export class GameScene extends Phaser.Scene {
       if (!e.active || !e.alive) continue;
       if (e.state !== ST.PATROL) continue; // already alerted
       if ((e.x - x) ** 2 + (e.y - y) ** 2 < r2) {
-        e._triggerAlarm();
+        e._triggerAlarm(true); // heard a shot → "?"
         anyAlerted = true;
       }
     }
@@ -931,6 +973,9 @@ export class GameScene extends Phaser.Scene {
       this.fx.shake(0.025, 500);
       SFX.bossDie();
       this.time.delayedCall(800, () => this.victory());
+    });
+    this.events.on('boss-phase-crack', (bx, by, phase) => {
+      this._spawnVaderGroundCrack(bx, by, phase);
     });
     this.events.on('enemy-hit', (enemy, amount) => {
       this.fx.hitFlash(enemy);

@@ -67,6 +67,7 @@ export class Boss extends Enemy {
     if (effective <= 0) return; // fully absorbed
     this._dmgWindow   += effective;
     this._dmgWindowMs  = WIN;
+    this.scene.events.emit('boss-hit', this, effective);
     super.damage(effective, knockbackVec);
   }
 
@@ -77,6 +78,7 @@ export class Boss extends Enemy {
     if (p >= 2) this._enraged = true;
     SFX.bossRoar();
     this.scene.events.emit('boss-phase', p);
+    this.scene.events.emit('boss-phase-crack', this.x, this.y, p);
   }
 
   pickAttack() {
@@ -223,14 +225,6 @@ export class Boss extends Enemy {
       player.damage(BOSS.contactDamage, dirFromBoss);
       this.contactDmgCd = 600;
     }
-  }
-
-  damage(amount, knockbackVec = null) {
-    if (!this.alive) return;
-    this.hp = Math.max(0, this.hp - amount);
-    // Boss no knockback
-    this.scene.events.emit('boss-hit', this, amount);
-    if (this.hp <= 0) this.die();
   }
 
   die() {
