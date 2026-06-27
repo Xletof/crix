@@ -3,6 +3,7 @@ import { VIEW } from './config.js';
 import { BootScene } from './scenes/BootScene.js';
 import { PreloadScene } from './scenes/PreloadScene.js';
 import { TitleScene } from './scenes/TitleScene.js';
+import { IntroScene } from './scenes/IntroScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { HUDScene } from './systems/HUD.js';
 import { GameOverScene } from './scenes/GameOverScene.js';
@@ -35,7 +36,7 @@ const config = {
   input: {
     activePointers: 4,
   },
-  scene: [BootScene, PreloadScene, TitleScene, GameScene, HUDScene, GameOverScene],
+  scene: [BootScene, PreloadScene, TitleScene, IntroScene, GameScene, HUDScene, GameOverScene],
 };
 
 window.addEventListener('load', () => {

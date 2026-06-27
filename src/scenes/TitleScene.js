@@ -176,7 +176,7 @@ export class TitleScene extends Phaser.Scene {
     zone.on('pointerup', () => {
       SFX.uiClick();
       this.cameras.main.fadeOut(220, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Game'));
+      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Intro'));
     });
 
     // Pulse button text
