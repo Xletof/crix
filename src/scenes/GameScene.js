@@ -956,7 +956,10 @@ export class GameScene extends Phaser.Scene {
     this.events.on('player-fire-super', (angle) => {
       this.firePlayerSuper(angle);
       this.events.emit('room-alarm');
-      this._cameraPunch(1.025, 180);
+      // Punchier than before: harder zoom kick + a brief slow-mo so the
+      // super release lands with real weight (this is the loop's payoff beat).
+      this._cameraPunch(1.05, 220);
+      this._slowMo(0.6, 200);
     });
     this.events.on('player-fire-rifle', (angle) => {
       this.firePlayerRifle(angle);
@@ -1153,9 +1156,9 @@ export class GameScene extends Phaser.Scene {
         { owner: 'player', piercing: true, knockback: PLAYER.superKnockback });
     }
     this.fx.muzzleFlash(bx, by, angle);
-    this.fx.shake(0.012, 180);
+    this.fx.shake(0.02, 240);
     // Warm screen flash punctuates the super shot — orange/red wash.
-    this.cameras.main.flash(150, 255, 150, 60, true);
+    this.cameras.main.flash(220, 255, 150, 60, true);
     duckMusic(0.4, 400);
   }
 
@@ -1440,6 +1443,19 @@ export class GameScene extends Phaser.Scene {
           const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
           this.fx.burstDir(b.x, b.y, 'yellow', isSuper ? 18 : 10, flightAng, 100);
           this.player.addSuperHit();
+          // Super-on-boss is the combo the loop is built around — give it a
+          // bigger explosion + red flash + distinct SFX. Super pellets pierce
+          // (7 overlap the boss), so gate the screen-wide FX behind an ~80ms
+          // cooldown to avoid stacking 7 flashes into one blinding frame.
+          if (isSuper) {
+            const now = this.time.now;
+            if (now - (this._superBossFxAt || 0) > 80) {
+              this._superBossFxAt = now;
+              this.fx.explosion(b.x, b.y, 2.6);
+              this.cameras.main.flash(120, 255, 40, 40, true);
+              SFX.superBossHit();
+            }
+          }
           if (!b.piercing) { if (isSuper) this.fx.explosion(b.x, b.y, 1.8); b.kill(); }
         }
       }

@@ -420,6 +420,15 @@ export class HUDScene extends Phaser.Scene {
     const ready = p.superCharge >= PLAYER.superHitsToCharge;
     this.superButton.setReady(ready);
     this.superButton.drawGauge(p.superCharge, PLAYER.superHitsToCharge);
+    // Brief scale pop on the super button each time the meter ticks up, so
+    // the charge feeding from normal-shot hits reads on the HUD.
+    if (p.superCharge > (this._superPrevCharge || 0)) {
+      const img = this.superButton.image;
+      this.tweens.killTweensOf(img);
+      img.setScale(1.18);
+      this.tweens.add({ targets: img, scale: 1, duration: 140, ease: 'Back.easeOut' });
+    }
+    this._superPrevCharge = p.superCharge;
   }
 
   refreshChamber(n, total, spec) {

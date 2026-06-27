@@ -134,6 +134,23 @@ export const SFX = {
     tone({ freq: 900,  type: 'sine', dur: 0.20, gain: 0.18, slide: 300, delay: 0.22 });
     tone({ freq: 1200, type: 'sine', dur: 0.18, gain: 0.16, slide: 200, delay: 0.34 });
   },
+  // Super charge tick — a short blip whose pitch rises as the meter fills,
+  // so spamming normal shots audibly "charges" toward the super.
+  superTick(ratio = 0) {
+    const r = Math.max(0, Math.min(1, ratio));
+    tone({ freq: 460 + r * 760, type: 'square', dur: 0.045, gain: 0.085 });
+  },
+  // Halfway milestone — two quick rising triangle notes.
+  superHalf() {
+    tone({ freq: 700,  type: 'triangle', dur: 0.09, gain: 0.16 });
+    tone({ freq: 1040, type: 'triangle', dur: 0.11, gain: 0.15, delay: 0.07 });
+  },
+  // Super pellet slamming the boss — heavier, brighter than a normal boss hit.
+  superBossHit() {
+    noise({ dur: 0.18, gain: 0.34, hp: 200 });
+    tone({ freq: 140, type: 'sawtooth', dur: 0.22, gain: 0.30, slide: -60 });
+    tone({ freq: 520, type: 'square',   dur: 0.12, gain: 0.20, slide: -200 });
+  },
   // Bacta pickup — soft chime
   heal() {
     tone({ freq: 880,  type: 'triangle', dur: 0.10, gain: 0.18 });

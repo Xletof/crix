@@ -302,12 +302,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   addSuperHit() {
+    const max        = PLAYER.superHitsToCharge;
     const before     = this.superCharge;
-    this.superCharge = Math.min(PLAYER.superHitsToCharge, this.superCharge + 1);
-    if (before < PLAYER.superHitsToCharge && this.superCharge >= PLAYER.superHitsToCharge) {
+    this.superCharge = Math.min(max, this.superCharge + 1);
+    if (before < max && this.superCharge >= max) {
       SFX.superReady();
       this.scene.events.emit('player-super-ready');
     } else {
+      // Rising tick so each connecting pellet audibly feeds the meter.
+      SFX.superTick(this.superCharge / max);
+      // Halfway milestone chime on the crossing.
+      if (before / max < 0.5 && this.superCharge / max >= 0.5) SFX.superHalf();
       this.scene.events.emit('player-super-changed');
     }
   }
@@ -440,20 +445,35 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.glowRing.setPosition(this.x, this.y).setScale(pulse);
     this.glowRing.setAlpha(this.hiddenInBush ? 0.25 : 1);
 
-    // Super-ready aura — only draws while the super meter is full. Re-paints
-    // each frame so the pulse intensity can wobble.
-    const superReady = this.superCharge >= PLAYER.superHitsToCharge;
-    if (superReady) {
-      this._auraPulse += delta * 0.012;
-      const ap = 0.55 + 0.45 * Math.sin(this._auraPulse);
+    // Super aura — now draws whenever the meter has ANY charge, brightening
+    // as it fills (t = 0..1) so the player feels the super building toward
+    // ready. At full charge it pulses; below full it's a steady dim-to-bright
+    // glow scaled by t.
+    const t = Math.min(1, this.superCharge / PLAYER.superHitsToCharge);
+    if (t > 0) {
       const aGfx = this.superAura;
       aGfx.clear();
-      aGfx.fillStyle(0xff4020, 0.10 + 0.10 * ap);
+      let fillA, lineA, innerA, ringR;
+      if (t >= 1) {
+        // Full: the original pulsing ready-aura.
+        this._auraPulse += delta * 0.012;
+        const ap = 0.55 + 0.45 * Math.sin(this._auraPulse);
+        fillA  = 0.10 + 0.10 * ap;
+        lineA  = 0.7 + 0.3 * ap;
+        innerA = 0.5 + 0.4 * ap;
+        ringR  = PLAYER.radius + 18;
+      } else {
+        // Charging: steady glow that grows in intensity + radius with t.
+        fillA  = 0.05 + 0.08 * t;
+        lineA  = 0.25 + 0.45 * t;
+        innerA = 0.15 + 0.35 * t;
+        ringR  = PLAYER.radius + 10 + 8 * t;
+      }
+      aGfx.fillStyle(0xff4020, fillA);
       aGfx.fillCircle(0, 0, PLAYER.radius + 24);
-      aGfx.lineStyle(3, 0xff6040, 0.7 + 0.3 * ap);
-      aGfx.strokeCircle(0, 0, PLAYER.radius + 18);
-      // Inner highlight
-      aGfx.lineStyle(1.5, 0xffe080, 0.5 + 0.4 * ap);
+      aGfx.lineStyle(3, 0xff6040, lineA);
+      aGfx.strokeCircle(0, 0, ringR);
+      aGfx.lineStyle(1.5, 0xffe080, innerA);
       aGfx.strokeCircle(0, 0, PLAYER.radius + 12);
       aGfx.setPosition(this.x, this.y).setVisible(true);
       aGfx.setAlpha(this.hiddenInBush ? 0.3 : 1);
