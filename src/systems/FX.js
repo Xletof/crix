@@ -8,6 +8,16 @@ let masterGain = null;
 let musicGain = null;
 let musicNodes = null;
 let musicStarted = false;
+let muted = false;
+const MASTER_VOL = 0.5;
+
+// Global mute toggle (driven by the pause menu). The `muted` flag lives at
+// module scope so it survives scene restarts; initAudio honours it on create.
+export function setMuted(m) {
+  muted = !!m;
+  if (masterGain) masterGain.gain.value = muted ? 0 : MASTER_VOL;
+}
+export function isMuted() { return muted; }
 
 export function initAudio() {
   // Lazy-create on first user gesture (browsers require it).
@@ -17,7 +27,7 @@ export function initAudio() {
     if (!AC) return;
     audioCtx = new AC();
     masterGain = audioCtx.createGain();
-    masterGain.gain.value = 0.5;
+    masterGain.gain.value = muted ? 0 : MASTER_VOL;
     masterGain.connect(audioCtx.destination);
     musicGain = audioCtx.createGain();
     musicGain.gain.value = 0.18;

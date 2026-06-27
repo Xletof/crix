@@ -4,6 +4,7 @@ import { Joystick } from './Joystick.js';
 import { SuperButton } from './SuperButton.js';
 import { HackMinigame } from './HackMinigame.js';
 import { ROOMS } from '../data/rooms.js';
+import { SFX } from './FX.js';
 
 export class HUDScene extends Phaser.Scene {
   constructor() {
@@ -161,6 +162,10 @@ export class HUDScene extends Phaser.Scene {
         this.gameScene.player.superCharge >= PLAYER.superHitsToCharge,
     });
 
+    // Pause button — top-right play-area corner (right half, excluded from the
+    // fire stick's claim region so tapping it never starts an aim drag).
+    this._buildPauseButton();
+
     // Joysticks
     this.moveStick = new Joystick(this, 'left', {
       onMove: (v) => this.gameScene?.player?.setMoveInput(v),
@@ -172,7 +177,8 @@ export class HUDScene extends Phaser.Scene {
         // hack mini-game or the super button — keeps fire input from
         // leaking into other UI.
         if (this.hackMinigame && this.hackMinigame.state !== 'idle') return false;
-        return !this.superButton.containsPoint(pointer.x, pointer.y);
+        return !this.superButton.containsPoint(pointer.x, pointer.y)
+          && !this._overPauseBtn(pointer.x, pointer.y);
       },
       onStart: () => this.gameScene?.player?.setAimInput({ x: 0, y: 0, force: 0 }),
       onMove: (v) => {
@@ -412,6 +418,56 @@ export class HUDScene extends Phaser.Scene {
         pip.fillRect(-3, -9, 6, 18);
       }
     }
+  }
+
+  // ── Pause button ───────────────────────────────────────────────────────
+  _buildPauseButton() {
+    const r = 30;
+    const x = VIEW.width - 44, y = 120;
+    this._pauseBtn = { x, y, r };
+    const g = this.add.graphics().setDepth(46);
+    g.fillStyle(0x000000, 0.5); g.fillCircle(x + 2, y + 3, r);
+    g.fillStyle(0x14161c, 0.92); g.fillCircle(x, y, r);
+    g.lineStyle(3, 0x0050cc, 1); g.strokeCircle(x, y, r);
+    // "II" pause glyph
+    g.fillStyle(0x90d8ff, 1);
+    g.fillRect(x - 9, y - 11, 6, 22);
+    g.fillRect(x + 3, y - 11, 6, 22);
+    const zone = this.add.zone(x, y, r * 2, r * 2).setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    zone.on('pointerdown', () => this._openPause());
+    this.pauseGfx = g;
+    this.pauseZone = zone;
+
+    // On resume, hard-reset the sticks: any pointer held across the pause never
+    // delivered its pointerup to the paused scene, so clear state to avoid a
+    // stuck joystick, and zero the player's move/aim input.
+    this.events.on('resume', () => {
+      this.moveStick?.forceRelease();
+      this.fireStick?.forceRelease();
+      this.superButton?.forceRelease();
+      const p = this.gameScene?.player;
+      if (p) {
+        p.setMoveInput({ x: 0, y: 0, force: 0 });
+        p.setAimInput({ x: 0, y: 0, force: 0 });
+      }
+    });
+  }
+
+  _overPauseBtn(px, py) {
+    const b = this._pauseBtn;
+    if (!b) return false;
+    return Math.hypot(px - b.x, py - b.y) <= b.r;
+  }
+
+  _openPause() {
+    if (!this.gameScene) return;
+    SFX.uiClick();
+    // Launch the overlay first, then freeze Game + HUD. The paused scenes stop
+    // processing input, so the joysticks can't be left mid-drag.
+    this.scene.launch('Pause', { game: this.gameScene });
+    this.scene.pause('Game');
+    this.scene.pause('HUD');
   }
 
   refreshSuper() {

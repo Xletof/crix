@@ -83,6 +83,15 @@ export class SuperButton {
     this.vec.angle = Math.atan2(dy, dx);
   }
 
+  // Hard reset without firing the super (used on resume from pause).
+  forceRelease() {
+    this.pointerId = null;
+    this.vec = { x: 0, y: 0, force: 0, angle: 0 };
+    this.knob.setPosition(this.x, this.y);
+    this.knob.setAlpha(0);
+    this.image.setScale(1);
+  }
+
   // External setter so HUD can refresh the button texture when super ready/not-ready.
   setReady(ready) {
     this.image.setTexture(ready ? 'super-btn' : 'super-btn-off');

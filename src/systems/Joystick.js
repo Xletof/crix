@@ -100,6 +100,21 @@ export class Joystick {
     this.onEnd(final);
   }
 
+  // Hard reset of stick state + visuals without firing callbacks. Used when
+  // resuming from pause: a pointer held across the pause would otherwise never
+  // get its pointerup (the scene was paused) and leave the stick stuck.
+  forceRelease() {
+    this.pointerId = null;
+    this.active = false;
+    this.vec.x = 0;
+    this.vec.y = 0;
+    this.vec.force = 0;
+    this.base.setPosition(this.homeX, this.homeY);
+    this.knob.setPosition(this.homeX, this.homeY);
+    this.base.setAlpha(0.6);
+    this.knob.setAlpha(0.85);
+  }
+
   updateVec(px, py) {
     const dx = px - this.base.x;
     const dy = py - this.base.y;
