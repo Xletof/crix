@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { VIEW } from '../config.js';
 import { SFX, stopMusic } from '../systems/FX.js';
 import { loadStats, saveStats } from './TitleScene.js';
+import { NARRATIVE } from '../data/narrative.js';
 
 export class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -110,8 +111,8 @@ export class GameOverScene extends Phaser.Scene {
         ease: 'Linear',
       });
 
-      // Subtitle
-      this.add.text(cx, py + 370, 'The Empire has been dealt a blow, Mando.', {
+      // Subtitle — questline closing line.
+      this.add.text(cx, py + 370, NARRATIVE.victoryLine, {
         fontFamily: 'Courier New, monospace',
         fontSize: '20px',
         fontStyle: 'italic',

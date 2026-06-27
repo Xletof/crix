@@ -11,6 +11,7 @@ import { WeaponPickup } from '../entities/WeaponPickup.js';
 import { Terminal } from '../entities/Terminal.js';
 import { attachFX, SFX, startMusic, duckMusic, stopMusic } from '../systems/FX.js';
 import { ROOMS } from '../data/rooms.js';
+import { NARRATIVE } from '../data/narrative.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -241,20 +242,28 @@ export class GameScene extends Phaser.Scene {
     this.events.emit('room-start', idx + 1, ROOMS.length, spec);
     this._roomLoud = false;
 
-    // Objective briefing banner (skip boss room — it has its own intro).
+    // Quest title + objective briefing banners (skip boss room — it has its
+    // own "VADER APPROACHES" intro). Quest title leads, objective follows, so
+    // each room reads as a beat in the questline.
     if (!spec.boss) {
       const n = this._terminalsTotal;
       const objMsg = n > 0
         ? `SLICE ${n} TERMINAL${n > 1 ? 'S' : ''}`
         : 'ELIMINATE ALL HOSTILES';
-      this.time.delayedCall(650, () => this.events.emit('show-banner', objMsg, '#ffd040'));
+      const quest = NARRATIVE.rooms[spec.id];
+      if (quest) {
+        this.time.delayedCall(650, () => this.events.emit('show-banner', quest.title, '#ff9050'));
+        this.time.delayedCall(1750, () => this.events.emit('show-banner', objMsg, '#ffd040'));
+      } else {
+        this.time.delayedCall(650, () => this.events.emit('show-banner', objMsg, '#ffd040'));
+      }
 
-      // One-time tips on the very first room of a run.
+      // One-time tips on the very first room of a run (spaced after the brief).
       if (idx === 0 && !this._shownStealthTip) {
         this._shownStealthTip = true;
-        this.time.delayedCall(2400, () =>
+        this.time.delayedCall(3200, () =>
           this.events.emit('show-banner', 'SNEAK BEHIND FOES\nFOR SILENT TAKEDOWNS', '#80ffaa'));
-        this.time.delayedCall(4400, () =>
+        this.time.delayedCall(5200, () =>
           this.events.emit('show-banner', 'STAND ON TERMINALS\nTO SLICE THEM', '#ffd040'));
       }
     }
