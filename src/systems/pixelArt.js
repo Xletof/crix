@@ -271,7 +271,7 @@ export function paintSaberOverlay(scene, key = 'wpn-saber') {
 // plate, cape flaring behind, weapon stub at the right hip. The weapon never
 // extends past the dome — so it can't read as an antenna at any rotation.
 export function paintPlayer(scene, key = 'player') {
-  const ss = new SpriteSheet(scene, key, 24, 24, 4, 4);
+  const ss = new SpriteSheet(scene, key, 24, 24, 8, 4);
 
   // Body sprite: NO rotation. NO weapon (drawn as separate overlay that
   // rotates around the player). Sprite shows a 3/4 above-behind view: dome
@@ -280,8 +280,9 @@ export function paintPlayer(scene, key = 'player') {
   function drawMando(f, legPhase = 0, hurt = false) {
     ss.frame(f);
     const C = PAL;
-    // legPhase: 0=neutral, 1=left-fwd, -1=right-fwd. Body bobs 1px on movement.
-    const bob = legPhase === 0 ? 0 : -1;
+    // legPhase: 0=neutral, 1=walkA, 2=walkB, -1=walkC, -2=walkD.
+    // Body bobs down 1px when legs are stretched far apart.
+    const bob = (legPhase === 0) ? 0 : (Math.abs(legPhase) === 2 ? 1 : 0);
     const bodyTint = hurt ? C.beskarShine : C.beskar;
     const bodyMid  = hurt ? '#ffffff'      : C.beskarMid;
 
@@ -327,40 +328,61 @@ export function paintPlayer(scene, key = 'player') {
     ss.px(12, 18 + bob, C.gold);
 
     // ── CAPE (behind body, symmetric) ─────────────────────────────────────
-    ss.rect(7, 19, 10, 4, C.cape);
-    ss.hline(19, 7, 16, C.capeBlack);
-    ss.vline(6,  20, 22, C.capeShade);
-    ss.vline(17, 20, 22, C.capeShade);
-    ss.px(6, 22, C.capeBlack);
-    ss.px(17, 22, C.capeBlack);
-    ss.vline(9,  20, 22, C.capeBlack);
-    ss.vline(14, 20, 22, C.capeBlack);
+    ss.rect(7, 19 + bob, 10, 4, C.cape);
+    ss.hline(19 + bob, 7, 16, C.capeBlack);
+    ss.vline(6,  20 + bob, 22 + bob, C.capeShade);
+    ss.vline(17, 20 + bob, 22 + bob, C.capeShade);
+    ss.px(6, 22 + bob, C.capeBlack);
+    ss.px(17, 22 + bob, C.capeBlack);
+    ss.vline(9,  20 + bob, 22 + bob, C.capeBlack);
+    ss.vline(14, 20 + bob, 22 + bob, C.capeBlack);
 
-    // ── LEGS (symmetric swing — legPhase shifts L vs R) ──────────────────
-    const lY = 21 + (legPhase === 1 ? 0 : 1);
-    const rY = 21 + (legPhase === -1 ? 0 : 1);
-    ss.px(10, lY,     C.beskarDeep);
-    ss.px(10, lY + 1, C.black);
-    ss.px(13, rY,     C.beskarDeep);
-    ss.px(13, rY + 1, C.black);
+    // ── LEGS ──────────────────────────────────────────────────────────────
+    // Thick 2-pixel wide boots that swing left-right and forward-back
+    let lx = 10, ly = 21;
+    let rx = 13, ry = 21;
+    if (legPhase === 1) {
+      lx = 9; ly = 20;
+      rx = 14; ry = 22;
+    } else if (legPhase === 2) {
+      lx = 8; ly = 19;
+      rx = 15; ry = 23;
+    } else if (legPhase === -1) {
+      lx = 11; ly = 22;
+      rx = 12; ry = 20;
+    } else if (legPhase === -2) {
+      lx = 12; ly = 23;
+      rx = 9; ry = 19;
+    }
+
+    // Draw left boot (2x2 pixels + shadow/heel)
+    ss.rect(lx, ly, 2, 2, C.beskarDeep);
+    ss.rect(lx, ly + 2, 2, 1, C.black);
+    // Draw right boot
+    ss.rect(rx, ry, 2, 2, C.beskarDeep);
+    ss.rect(rx, ry + 2, 2, 1, C.black);
   }
 
-  drawMando(0, 0, false);   // idle
-  drawMando(1, 1, false);   // walk A
-  drawMando(2, -1, false);  // walk B
-  drawMando(3, 0, true);    // hurt flash (fire animation handled by weapon overlay)
+  drawMando(0, 0, false);   // 0: Idle
+  drawMando(1, 1, false);   // 1: Walk 1
+  drawMando(2, 2, false);   // 2: Walk 2 (far)
+  drawMando(3, 1, false);   // 3: Walk 3
+  drawMando(4, -1, false);  // 4: Walk 4
+  drawMando(5, -2, false);  // 5: Walk 5 (far)
+  drawMando(6, -1, false);  // 6: Walk 6
+  drawMando(7, 0, true);    // 7: Hurt / action
   ss.finish();
 }
 
 // ── GRUNT: Stormtrooper (20×20, 4 frames) — NO ROTATION ───────────────────
 // Body silhouette only — weapon is a separate overlay sprite.
 export function paintGrunt(scene, key = 'grunt') {
-  const ss = new SpriteSheet(scene, key, 20, 20, 4, 4);
+  const ss = new SpriteSheet(scene, key, 20, 20, 8, 4);
   const C = PAL;
 
   function drawTrooper(f, legPhase = 0, hurt = false) {
     ss.frame(f);
-    const bob = legPhase === 0 ? 0 : -1;
+    const bob = (legPhase === 0) ? 0 : (Math.abs(legPhase) === 2 ? 1 : 0);
     const main = hurt ? '#ffffff' : C.troopWhite;
     const mid  = hurt ? C.troopLight : C.troopLight;
 
@@ -382,46 +404,40 @@ export function paintGrunt(scene, key = 'grunt') {
     ss.hline(11 + bob, 3,  5, C.troopLight);
     ss.hline(11 + bob, 14, 16, C.troopLight);
     ss.hline(13 + bob, 3,  5, C.troopShade);
-    ss.hline(13 + bob, 14, 16, C.troopShade);
-
-    // ── CHEST PLATE ───────────────────────────────────────────────────────
+    ss.px(8, cy - 1, '#ffffff'); ss.px(9, cy - 1, '#ffffff');
+    ss.rect(3, 11 + bob, 3, 3, main); ss.rect(14, 11 + bob, 3, 3, main);
+    ss.hline(11 + bob, 3,  5, C.troopLight); ss.hline(11 + bob, 14, 16, C.troopLight);
+    ss.hline(13 + bob, 3,  5, C.troopShade); ss.hline(13 + bob, 14, 16, C.troopShade);
     ss.rect(6, 12 + bob, 8, 4, main);
     ss.hline(12 + bob, 6, 13, C.troopLight);
     ss.hline(15 + bob, 6, 13, C.troopShade);
     ss.vline(6,  12 + bob, 15 + bob, C.troopShade);
     ss.vline(13, 12 + bob, 15 + bob, C.troopShade);
-    // Center seam
     ss.vline(9,  13 + bob, 14 + bob, C.troopShade);
     ss.vline(10, 13 + bob, 14 + bob, C.troopShade);
-    // Belt
     ss.hline(16 + bob, 6, 13, C.impGrey);
-    ss.px(8,  16 + bob, C.impSheen);
-    ss.px(11, 16 + bob, C.impSheen);
-
-    // ── BOOT TOES ─────────────────────────────────────────────────────────
-    const lY = 18 + (legPhase === 1 ? 0 : 1);
-    const rY = 18 + (legPhase === -1 ? 0 : 1);
-    ss.px(8,  lY,     C.troopDark);
-    ss.px(8,  lY + 1, C.troopBlack);
-    ss.px(11, rY,     C.troopDark);
-    ss.px(11, rY + 1, C.troopBlack);
+    ss.px(8,  16 + bob, C.impSheen); ss.px(11, 16 + bob, C.impSheen);
+    let lx = 7, ly = 18, rx = 11, ry = 18;
+    if (legPhase === 1) { lx = 6; ly = 17; rx = 12; ry = 19; }
+    else if (legPhase === 2) { lx = 5; ly = 16; rx = 13; ry = 20; }
+    else if (legPhase === -1) { lx = 8; ly = 19; rx = 10; ry = 17; }
+    else if (legPhase === -2) { lx = 9; ly = 20; rx = 9; ry = 16; }
+    ss.rect(lx, ly, 2, 2, C.troopDark); ss.rect(lx, ly + 2, 2, 1, C.troopBlack);
+    ss.rect(rx, ry, 2, 2, C.troopDark); ss.rect(rx, ry + 2, 2, 1, C.troopBlack);
   }
-
-  drawTrooper(0, 0, false);
-  drawTrooper(1, 1, false);
-  drawTrooper(2, -1, false);
-  drawTrooper(3, 0, true);
+  drawTrooper(0, 0, false); drawTrooper(1, 1, false); drawTrooper(2, 2, false); drawTrooper(3, 1, false);
+  drawTrooper(4, 0, false); drawTrooper(5, -1, false); drawTrooper(6, -2, false); drawTrooper(7, -1, false);
   ss.finish();
 }
 
-// ── SHOOTER: Death Trooper (20×20, 4 frames) — NO ROTATION ────────────────
+// ── SHOOTER: Death Trooper (20×20, 8 frames) ──────────────────────────────
 export function paintShooter(scene, key = 'shooter') {
-  const ss = new SpriteSheet(scene, key, 20, 20, 4, 4);
+  const ss = new SpriteSheet(scene, key, 20, 20, 8, 4);
   const C = PAL;
 
   function drawDeathTrooper(f, legPhase = 0, hurt = false) {
     ss.frame(f);
-    const bob = legPhase === 0 ? 0 : -1;
+    const bob = (legPhase === 0) ? 0 : (Math.abs(legPhase) === 2 ? 1 : 0);
     const main = hurt ? C.dthLight : C.dthMid;
     const dark = hurt ? C.dthMid   : C.dthDark;
 
@@ -463,18 +479,37 @@ export function paintShooter(scene, key = 'shooter') {
     ss.px(10, 16 + bob, C.dthLEDBright);
 
     // ── BOOT TOES ─────────────────────────────────────────────────────────
-    const lY = 18 + (legPhase === 1 ? 0 : 1);
-    const rY = 18 + (legPhase === -1 ? 0 : 1);
-    ss.px(8,  lY,     dark);
-    ss.px(8,  lY + 1, C.black);
-    ss.px(11, rY,     dark);
-    ss.px(11, rY + 1, C.black);
+    let lx = 7, ly = 18;
+    let rx = 11, ry = 18;
+    if (legPhase === 1) {
+      lx = 6; ly = 17;
+      rx = 12; ry = 19;
+    } else if (legPhase === 2) {
+      lx = 5; ly = 16;
+      rx = 13; ry = 20;
+    } else if (legPhase === -1) {
+      lx = 8; ly = 19;
+      rx = 10; ry = 17;
+    } else if (legPhase === -2) {
+      lx = 9; ly = 20;
+      rx = 9; ry = 16;
+    }
+
+    ss.rect(lx, ly, 2, 2, dark);
+    ss.rect(lx, ly + 2, 2, 1, C.black);
+
+    ss.rect(rx, ry, 2, 2, dark);
+    ss.rect(rx, ry + 2, 2, 1, C.black);
   }
 
-  drawDeathTrooper(0, 0, false);
-  drawDeathTrooper(1, 1, false);
-  drawDeathTrooper(2, -1, false);
-  drawDeathTrooper(3, 0, true);
+  drawDeathTrooper(0, 0, false);   // 0: Idle
+  drawDeathTrooper(1, 1, false);   // 1: Walk 1
+  drawDeathTrooper(2, 2, false);   // 2: Walk 2 (far)
+  drawDeathTrooper(3, 1, false);   // 3: Walk 3
+  drawDeathTrooper(4, -1, false);  // 4: Walk 4
+  drawDeathTrooper(5, -2, false);  // 5: Walk 5 (far)
+  drawDeathTrooper(6, -1, false);  // 6: Walk 6
+  drawDeathTrooper(7, 0, true);    // 7: Hurt / action
   ss.finish();
 }
 
@@ -482,12 +517,12 @@ export function paintShooter(scene, key = 'shooter') {
 // Massive cape spreading south, dome at top, weapon (saber) is a separate
 // rotating overlay sprite — body itself is static aside from walk/idle.
 export function paintBoss(scene, key = 'boss') {
-  const ss = new SpriteSheet(scene, key, 40, 40, 4, 4);
+  const ss = new SpriteSheet(scene, key, 40, 40, 8, 4);
   const C = PAL;
 
   function drawVader(f, legPhase = 0, enraged = false) {
     ss.frame(f);
-    const bob = legPhase === 0 ? 0 : -1;
+    const bob = (legPhase === 0) ? 0 : (Math.abs(legPhase) === 2 ? 2 : 0);
     const main = enraged ? C.vaderSheen : C.vaderArmor;
 
     // ── DOME (huge round helmet, no face features, symmetric) ─────────────
@@ -540,31 +575,52 @@ export function paintBoss(scene, key = 'boss') {
     ss.px(23, cy2 + 4, C.impGrey);
 
     // ── CAPE (massive, flares south) ──────────────────────────────────────
-    ss.rect(8,  29, 24, 10, C.cape);
-    ss.rect(6,  31, 28, 8,  C.cape);
-    ss.rect(4,  33, 32, 6,  C.cape);
-    ss.vline(4,  33, 38, C.capeBlack);
-    ss.vline(35, 33, 38, C.capeBlack);
-    ss.vline(6,  31, 38, C.capeBlack);
-    ss.vline(33, 31, 38, C.capeBlack);
-    ss.hline(38, 4, 35, C.capeBlack);
-    ss.vline(12, 31, 38, C.capeShade);
-    ss.vline(20, 31, 38, C.capeShade);
-    ss.vline(27, 31, 38, C.capeShade);
+    ss.rect(8,  29 + bob, 24, 10, C.cape);
+    ss.rect(6,  31 + bob, 28, 8,  C.cape);
+    ss.rect(4,  33 + bob, 32, 6,  C.cape);
+    ss.vline(4,  33 + bob, 38 + bob, C.capeBlack);
+    ss.vline(35, 33 + bob, 38 + bob, C.capeBlack);
+    ss.vline(6,  31 + bob, 38 + bob, C.capeBlack);
+    ss.vline(33, 31 + bob, 38 + bob, C.capeBlack);
+    ss.hline(38 + bob, 4, 35, C.capeBlack);
+    ss.vline(12, 31 + bob, 38 + bob, C.capeShade);
+    ss.vline(20, 31 + bob, 38 + bob, C.capeShade);
+    ss.vline(27, 31 + bob, 38 + bob, C.capeShade);
 
     // ── BOOT TOES (animate stride) ────────────────────────────────────────
-    const lY = 37 + (legPhase === 1 ? 0 : 1);
-    const rY = 37 + (legPhase === -1 ? 0 : 1);
-    ss.rect(16, lY, 2, 2, C.vaderHelm);
-    ss.rect(22, rY, 2, 2, C.vaderHelm);
-    ss.px(16, lY + 1, C.black);
-    ss.px(23, rY + 1, C.black);
+    let lx = 15, ly = 37;
+    let rx = 22, ry = 37;
+    if (legPhase === 1) {
+      lx = 13; ly = 35;
+      rx = 24; ry = 38;
+    } else if (legPhase === 2) {
+      lx = 11; ly = 33;
+      rx = 26; ry = 39;
+    } else if (legPhase === -1) {
+      lx = 17; ly = 38;
+      rx = 20; ry = 35;
+    } else if (legPhase === -2) {
+      lx = 19; ly = 39;
+      rx = 18; ry = 33;
+    }
+
+    // Draw left boot (3x2 pixels)
+    ss.rect(lx, ly, 3, 2, C.vaderHelm);
+    ss.rect(lx, ly + 2, 3, 1, C.black); // heel
+
+    // Draw right boot (3x2 pixels)
+    ss.rect(rx, ry, 3, 2, C.vaderHelm);
+    ss.rect(rx, ry + 2, 3, 1, C.black); // heel
   }
 
-  drawVader(0, 0, false);
-  drawVader(1, 1, false);
-  drawVader(2, -1, false);
-  drawVader(3, 0, true);
+  drawVader(0, 0, false);   // 0: Idle
+  drawVader(1, 1, false);   // 1: Walk 1
+  drawVader(2, 2, false);   // 2: Walk 2 (far)
+  drawVader(3, 1, false);   // 3: Walk 3
+  drawVader(4, -1, false);  // 4: Walk 4
+  drawVader(5, -2, false);  // 5: Walk 5 (far)
+  drawVader(6, -1, false);  // 6: Walk 6
+  drawVader(7, 0, true);    // 7: Hurt / action
   ss.finish();
 }
 
@@ -1083,6 +1139,16 @@ export function paintJetFlame(scene, key = 'jet-flame') {
   c.finish();
 }
 
+// Shell casing particle (ejected on shots)
+export function paintCasing(scene, key = 'casing') {
+  const c = new PixelCanvas(scene, key, 3, 2, 3);
+  c.rect(0, 0, 3, 2, '#d4af37'); // Gold brass
+  c.px(2, 0, '#805000'); // Rim shade
+  c.px(2, 1, '#805000');
+  c.finish();
+}
+
+
 // ═══════════════════════════════════════════════════════════════════════════
 // HUD UI: Imperial console-style joystick + lightsaber super button
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1312,4 +1378,48 @@ export function paintGrenade(scene) {
   g.px(4, 4, '#ff2020');
   g.px(5, 4, '#ff4040');
   g.finish();
+}
+
+export function paintDashButton(scene) {
+  const make = (key, active) => {
+    const r = 42;
+    const size = r * 2 + 8;
+    const tex = scene.textures.createCanvas(key, size, size);
+    const ctx = tex.getContext();
+    const cx = size / 2, cy = size / 2;
+
+    // Background disc
+    ctx.fillStyle = active ? 'rgba(10, 50, 60, 0.75)' : 'rgba(20, 20, 25, 0.6)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Rim
+    ctx.strokeStyle = active ? '#40ffc8' : '#607080';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Two chevrons pointing right >>
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = active ? '#ffffff' : '#4a5a6a';
+
+    const drawChevron = (offset) => {
+      ctx.beginPath();
+      ctx.moveTo(cx - 10 + offset, cy - 14);
+      ctx.lineTo(cx + 4 + offset, cy);
+      ctx.lineTo(cx - 10 + offset, cy + 14);
+      ctx.stroke();
+    };
+
+    drawChevron(-4);
+    drawChevron(10);
+
+    tex.refresh();
+  };
+  make('dash-btn', true);
+  make('dash-btn-off', false);
 }

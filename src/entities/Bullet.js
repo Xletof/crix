@@ -34,6 +34,7 @@ export class Bullet extends Phaser.Physics.Arcade.Image {
     this.piercing = opts.piercing || false;
     this.knockback = opts.knockback || 0;
     this.owner = opts.owner || 'player';
+    this.hasHit = false;
     this.hitSet.clear();
     this.body.setCircle(this.width / 2);
     this.body.setOffset(0, 0);
@@ -53,10 +54,14 @@ export class Bullet extends Phaser.Physics.Arcade.Image {
   }
 
   kill() {
+    const isMiss = this.owner === 'player' && !this.piercing && !this.hasHit && this.active;
     this.setActive(false);
     this.setVisible(false);
     if (this.body) this.body.stop();
     this.disableBody(true, true);
+    if (isMiss) {
+      this.scene.events.emit('player-shot-missed');
+    }
   }
 }
 

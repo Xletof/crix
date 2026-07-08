@@ -16,32 +16,35 @@ export const WORLD = {
 
 export const PLAYER = {
   hp: 1000,
-  speed: 240,
+  speed: 380,
   // Movement weight curve — px/s² ramps applied to body velocity each frame
   // so input doesn't snap to top speed (kills the "dragging picture" feel).
-  // accel reaches full speed in ~135 ms; decel kills it in ~100 ms.
-  accelPerSec: 1800,
-  decelPerSec: 2400,
+  accelPerSec: 4200,
+  decelPerSec: 5000,
+  dashChargesMax: 2,
+  dashRechargeMs: 4000,
+  dashSpeed: 800,
+  dashDurationMs: 180,
   radius: 22,
-  ammoMax: 4,
-  ammoReloadMs: 750,
-  fireCooldownMs: 150,
-  // Primary: 3 red blaster bolts (pistol)
-  pelletCount: 3,
-  pelletSpreadDeg: 10,
-  pelletDamage: 300,
-  pelletSpeed: 820,
-  pelletRange: 420,
-  pelletRadius: 7,
+  ammoMax: 3,
+  ammoReloadMs: 800,
+  fireCooldownMs: 120,
+  // Primary: single red blaster bolt
+  pelletCount: 1,
+  pelletSpreadDeg: 0,
+  pelletDamage: 350,
+  pelletSpeed: 900,
+  pelletRange: 400,
+  pelletRadius: 6,
   // Super: wrist-rocket barrage
-  superHitsToCharge: 10,
-  superPellets: 7,
+  superHitsToCharge: 8,
+  superPellets: 5,
   superSpreadDeg: 30,
-  superDamage: 520,
+  superDamage: 600,
   superSpeed: 700,
   superRange: 560,
   superRadius: 12,
-  superKnockback: 440,
+  superKnockback: 500,
   // HP regen
   regenDelayMs: 2500,
   regenPerSec: 220,
@@ -85,7 +88,7 @@ export const WEAPONS = {
 export const ENEMY = {
   grunt: {
     hp: 600,
-    speed: 180,
+    speed: 220,
     radius: 22,
     meleeDamage: 150,
     meleeRange: 38,
@@ -95,7 +98,7 @@ export const ENEMY = {
   },
   shooter: {
     hp: 400,
-    speed: 140,
+    speed: 190,
     radius: 22,
     desiredRange: 360,
     fireCooldownMs: 1800,
@@ -110,12 +113,12 @@ export const ENEMY = {
 export const BOSS = {
   hp: 9000,
   radius: 56,
-  speed: 110,
+  speed: 165,
   contactDamage: 220,
   phase2: 0.66,
   phase3: 0.33,
   chargeWindupMs: 700,
-  chargeSpeed: 560,
+  chargeSpeed: 750,
   chargeDurationMs: 900,
   fanPellets: 11,
   fanSpreadDeg: 70,

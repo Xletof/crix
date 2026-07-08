@@ -22,6 +22,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.superCharge  = 0;
     this.alive        = true;
     this.hiddenInBush = false;
+    this._hurtStaggerMs = 0;
+    this._wKickT        = 0;
+    this.accuracyMult   = 1.0;
+    this.hitStreak      = 0;
 
     // ── Aiming state ───────────────────────────────────────────────────────
     this.facing      = -Math.PI / 2;
@@ -48,6 +52,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // ── Animation helpers ──────────────────────────────────────────────────
     this._fireAnimTimer = 0;
     this.recoilT        = 0;
+    this.revealTimer    = 0; // timer to reveal player when firing in bush
+    this.dashCharges    = PLAYER.dashChargesMax || 3;
+    this.dashRechargeTimer = 0;
+    this.isDashing      = false;
+    this.dashTimer      = 0;
+    this.dashAngle      = 0;
 
     // ── Movement ramp ──────────────────────────────────────────────────────
     // Target velocity set by setMoveInput; preUpdate eases body.velocity
@@ -77,8 +87,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this._auraPulse = 0;
 
     this.play('mando-idle');
-    // Bump display scale for readability (texture stays 24×24)
-    this.setScale(1.15);
+    // Baseline scale (1.0)
+    this.setScale(1.0);
 
     // ── Weapon overlay: held by the character, rotates to match aim. ─────
     // The body itself never rotates — the weapon does. This is how
@@ -86,7 +96,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.weaponSprite = scene.add.image(x, y, 'wpn-pistol')
       .setDepth(this.depth + 1)
       .setOrigin(0.15, 0.5)  // pivot near the grip so the barrel swings forward
-      .setScale(1.15);
+      .setScale(1.0);
   }
 
   // ── Movement / aiming inputs (called by HUD joysticks) ────────────────────
@@ -126,11 +136,28 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   releaseAim(vec) {
     if (!this.alive) return;
-    const dir = vec?.force > 0 ? Math.atan2(vec.y, vec.x) : this.aim;
     this.flameActive = false; // always stop flame on release
-    if (this.secondary !== 'flamethrower') {
-      this.tryFire(dir);
+    if (this.secondary === 'flamethrower') {
+      this.aiming = false;
+      return;
     }
+
+    let dir;
+    if (vec && vec.force > 0.05) {
+      dir = Math.atan2(vec.y, vec.x);
+    } else {
+      // Auto-aim at closest enemy
+      const target = this.scene.findNearestEnemy(this.x, this.y);
+      if (target) {
+        dir = Math.atan2(target.y - this.y, target.x - this.x);
+        this.facing = dir;
+        this.aim = dir;
+      } else {
+        dir = this.aim;
+      }
+    }
+
+    this.tryFire(dir);
     this.aiming = false;
   }
 
@@ -147,17 +174,39 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   releaseSuperAim(vec) {
     if (!this.alive) return;
-    const angle = vec?.force > 0 ? Math.atan2(vec.y, vec.x) : this.facing;
+    let angle;
+    if (vec && vec.force > 0.05) {
+      angle = Math.atan2(vec.y, vec.x);
+    } else {
+      // Auto-aim super at closest enemy
+      const target = this.scene.findNearestEnemy(this.x, this.y);
+      if (target) {
+        angle = Math.atan2(target.y - this.y, target.x - this.x);
+        this.facing = angle;
+        this.superAim = angle;
+      } else {
+        angle = this.facing;
+      }
+    }
     this.superAiming = false;
     this.tryFireSuper(angle);
   }
 
   // ── Firing ────────────────────────────────────────────────────────────────
 
+  keyboardFire() {
+    if (!this.alive) return;
+    const nearest = this.scene.findNearestEnemy(this.x, this.y);
+    const angle = nearest ? Math.atan2(nearest.y - this.y, nearest.x - this.x) : this.facing;
+    this.tryFire(angle);
+  }
+
   tryFire(angleOverride) {
     if (!this.alive) return false;
     const dir = typeof angleOverride === 'number' ? angleOverride
       : this.aiming ? this.aim : this.facing;
+
+    this.revealTimer = 1500; // Reveal player when shooting
 
     // Route through active secondary weapon
     if (this.secondary === 'rifle' && this.secondaryAmmo > 0) {
@@ -230,6 +279,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   // Flamethrower: drains each frame via GameScene; we just expose flameActive
   consumeFlame(delta) {
     const cfg = WEAPONS.flamethrower;
+    this.revealTimer = 1000; // Keep player revealed during flamethrower
     this._flameDrain += cfg.drainPerSec * delta / 1000;
     if (this._flameDrain >= 1) {
       const drain        = Math.floor(this._flameDrain);
@@ -249,6 +299,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (!this.alive) return false;
     if (this.superCharge < PLAYER.superHitsToCharge) return false;
     this.superCharge = 0;
+    this.revealTimer = 1500; // Reveal player
     const dir = typeof angleOverride === 'number' ? angleOverride
       : this.aiming ? this.aim : this.facing;
     this.recoilT        = 260;
@@ -257,6 +308,34 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.scene.events.emit('player-fire-super', dir);
     SFX.shootSuper();
     return true;
+  }
+
+  tryDash() {
+    if (!this.alive) return;
+    if (isNaN(this.dashCharges) || !isFinite(this.dashCharges)) {
+      this.dashCharges = PLAYER.dashChargesMax || 3;
+    }
+    if (this.dashCharges <= 0) return;
+    if (this.isDashing) return;
+    if (this._hurtStaggerMs > 0) return;
+
+    this.dashCharges--;
+    this.isDashing = true;
+    this.dashTimer = PLAYER.dashDurationMs || 220;
+
+    if (this._moveTargetX !== 0 || this._moveTargetY !== 0) {
+      this.dashAngle = Math.atan2(this._moveTargetY, this._moveTargetX);
+    } else {
+      this.dashAngle = this.facing;
+    }
+    if (isNaN(this.dashAngle) || !isFinite(this.dashAngle)) {
+      this.dashAngle = 0;
+    }
+
+    this.scene.fx?.dustPuff?.(this.x, this.y + 14);
+    SFX.takedown(); // quick whoosh sound
+    this.scene.events.emit('player-dash', this.dashCharges);
+    this.scene.events.emit('player-dash-sound', this.x, this.y);
   }
 
   // ── Secondary weapon management ───────────────────────────────────────────
@@ -301,10 +380,33 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.hp <= 0) this.die();
   }
 
+  onHitLanded() {
+    this.hitStreak++;
+    if (this.hitStreak >= 6) {
+      this.accuracyMult = 2.0;
+    } else if (this.hitStreak >= 4) {
+      this.accuracyMult = 1.5;
+    } else if (this.hitStreak >= 2) {
+      this.accuracyMult = 1.2;
+    } else {
+      this.accuracyMult = 1.0;
+    }
+    this.scene.events.emit('player-mult-changed', this.accuracyMult, this.hitStreak);
+  }
+
+  onShotMissed() {
+    if (this.hitStreak > 0) {
+      this.hitStreak = 0;
+      this.accuracyMult = 1.0;
+      this.scene.events.emit('player-mult-changed', this.accuracyMult, this.hitStreak);
+    }
+  }
+
   addSuperHit() {
     const max        = PLAYER.superHitsToCharge;
     const before     = this.superCharge;
-    this.superCharge = Math.min(max, this.superCharge + 1);
+    // Charge gains scaled by current combo multiplier
+    this.superCharge = Math.min(max, this.superCharge + this.accuracyMult);
     if (before < max && this.superCharge >= max) {
       SFX.superReady();
       this.scene.events.emit('player-super-ready');
@@ -330,9 +432,44 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   preUpdate(time, delta) {
     super.preUpdate?.(time, delta);
 
-    // Hurt-stagger window: bleed knockback velocity so the slide ends
-    // smoothly and joystick input takes over again.
-    if (this._hurtStaggerMs > 0) {
+    // Recharge dash charges
+    if (isNaN(this.dashCharges) || !isFinite(this.dashCharges)) {
+      this.dashCharges = PLAYER.dashChargesMax || 3;
+    }
+    if (this.dashCharges < (PLAYER.dashChargesMax || 3)) {
+      this.dashRechargeTimer += delta;
+      if (this.dashRechargeTimer >= (PLAYER.dashRechargeMs || 3500)) {
+        this.dashCharges++;
+        this.dashRechargeTimer = 0;
+        this.scene.events.emit('player-dash-recharged', this.dashCharges);
+      }
+    } else {
+      this.dashRechargeTimer = 0;
+    }
+
+    if (this.isDashing) {
+      if (isNaN(this.dashTimer) || !isFinite(this.dashTimer)) {
+        this.dashTimer = 0;
+      }
+      this.dashTimer -= delta;
+      if (this.dashTimer <= 0) {
+        this.isDashing = false;
+        this.body.setVelocity(0, 0);
+      } else {
+        if (this.body) {
+          const vx = Math.cos(this.dashAngle) * (PLAYER.dashSpeed || 780);
+          const vy = Math.sin(this.dashAngle) * (PLAYER.dashSpeed || 780);
+          if (!isNaN(vx) && !isNaN(vy) && isFinite(vx) && isFinite(vy)) {
+            this.body.setVelocity(vx, vy);
+          } else {
+            this.body.setVelocity(0, 0);
+          }
+        }
+        if (Math.random() < 0.45) {
+          this.scene.fx?.dustPuff?.(this.x, this.y + 14);
+        }
+      }
+    } else if (this._hurtStaggerMs > 0) {
       this._hurtStaggerMs -= delta;
       this.body.velocity.x *= 0.88;
       this.body.velocity.y *= 0.88;
@@ -509,15 +646,30 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Recoil wins when active. Otherwise the body Y-scale eases between
     // idle (with subtle breathing) and walk (slight forward lean from the
     // move envelope), so transitions read as weight shifts not snaps.
-    if (this.recoilT > 0) {
+    // Decay reveal timer
+    if (this.revealTimer > 0) this.revealTimer -= delta;
+
+    // ── Recoil punch + waddle / lean / bob walking animations ──────────
+    if (this.isDashing) {
+      this.angle = Math.sin(time * 0.05) * 15; // fast dodge roll spin
+      this.setScale(1.0);
+    } else if (this.recoilT > 0) {
       this.recoilT -= delta;
-      this.setScale(1.15 * (1 - Math.max(0, this.recoilT / 110) * 0.12));
-    } else if (!this.flameActive && this._hurtStaggerMs <= 0) {
-      const breath  = (1 - this._moveEnv) * Math.sin(time * 0.003) * 0.015;
-      const stretch = this._moveEnv * 0.045; // up to +4.5% Y when fully running
-      this.setScale(1.15, 1.15 + breath + stretch);
+      this.setScale(1.0 * (1 - Math.max(0, this.recoilT / 110) * 0.12));
+      this.angle = 0;
+    } else if (this.alive && this._hurtStaggerMs <= 0) {
+      if (isMoving) {
+        this.angle = 0;
+        this.setScale(1.0);
+      } else {
+        // Idle breathing Y-scale only (very subtle)
+        this.angle = 0;
+        const breath = Math.sin(time * 0.003) * 0.015;
+        this.setScale(1.0, 1.0 + breath);
+      }
     } else {
-      this.setScale(1.15);
+      this.angle = 0;
+      this.setScale(1.0);
     }
 
   }

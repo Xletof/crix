@@ -25,6 +25,8 @@ import {
   paintRifleOverlay,
   paintEnemyRifleOverlay,
   paintSaberOverlay,
+  paintCasing,
+  paintDashButton,
 } from '../systems/pixelArt.js';
 import { WORLD } from '../config.js';
 
@@ -63,6 +65,8 @@ export class PreloadScene extends Phaser.Scene {
     paintShadow(this, 'shadow',      34);
     paintShadow(this, 'shadow-boss', 80);
     paintJetFlame(this, 'jet-flame');
+    paintCasing(this);
+    paintDashButton(this);
 
     // ── HUD ──────────────────────────────────────────────────────────
     paintJoystick(this);
@@ -89,13 +93,17 @@ export class PreloadScene extends Phaser.Scene {
       frames: [
         { key: 'player', frame: 1 },
         { key: 'player', frame: 2 },
+        { key: 'player', frame: 3 },
+        { key: 'player', frame: 4 },
+        { key: 'player', frame: 5 },
+        { key: 'player', frame: 6 },
       ],
-      frameRate: 7,
+      frameRate: 14,
       repeat: -1,
     });
     this.anims.create({
       key: 'mando-fire',
-      frames: [{ key: 'player', frame: 3 }],
+      frames: [{ key: 'player', frame: 7 }],
       frameRate: 12,
       repeat: 0,
     });
@@ -112,13 +120,17 @@ export class PreloadScene extends Phaser.Scene {
       frames: [
         { key: 'grunt', frame: 1 },
         { key: 'grunt', frame: 2 },
+        { key: 'grunt', frame: 3 },
+        { key: 'grunt', frame: 4 },
+        { key: 'grunt', frame: 5 },
+        { key: 'grunt', frame: 6 },
       ],
-      frameRate: 7,
+      frameRate: 14,
       repeat: -1,
     });
     this.anims.create({
       key: 'grunt-fire',
-      frames: [{ key: 'grunt', frame: 3 }],
+      frames: [{ key: 'grunt', frame: 7 }],
       frameRate: 12,
       repeat: 0,
     });
@@ -135,13 +147,17 @@ export class PreloadScene extends Phaser.Scene {
       frames: [
         { key: 'shooter', frame: 1 },
         { key: 'shooter', frame: 2 },
+        { key: 'shooter', frame: 3 },
+        { key: 'shooter', frame: 4 },
+        { key: 'shooter', frame: 5 },
+        { key: 'shooter', frame: 6 },
       ],
-      frameRate: 7,
+      frameRate: 14,
       repeat: -1,
     });
     this.anims.create({
       key: 'shooter-fire',
-      frames: [{ key: 'shooter', frame: 3 }],
+      frames: [{ key: 'shooter', frame: 7 }],
       frameRate: 12,
       repeat: 0,
     });
@@ -158,13 +174,17 @@ export class PreloadScene extends Phaser.Scene {
       frames: [
         { key: 'boss', frame: 1 },
         { key: 'boss', frame: 2 },
+        { key: 'boss', frame: 3 },
+        { key: 'boss', frame: 4 },
+        { key: 'boss', frame: 5 },
+        { key: 'boss', frame: 6 },
       ],
-      frameRate: 5,
+      frameRate: 14,
       repeat: -1,
     });
     this.anims.create({
       key: 'vader-attack',
-      frames: [{ key: 'boss', frame: 3 }],
+      frames: [{ key: 'boss', frame: 7 }],
       frameRate: 6,
       repeat: -1,
     });

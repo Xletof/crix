@@ -36,9 +36,9 @@ export class GameScene extends Phaser.Scene {
     // Looser follow lerp so the camera trails the player by a couple of
     // frames. With the acceleration ramp on Player movement, a tight lerp
     // (0.5) was eating the weight curve by chasing the player instantly;
-    // 0.18 lets the ramp register on screen as actual physical motion.
+    // 0.22 lets the ramp register on screen as actual physical motion.
     // The aim-lookahead `_camOX/_camOY` smoothing still carries the snap.
-    this.cameras.main.startFollow(this.player, true, 0.18, 0.18);
+    this.cameras.main.startFollow(this.player, true, 0.22, 0.22);
 
     // ── Bush / cover system ────────────────────────────────────────────────
     this.bushSystem = new BushSystem(this);
@@ -56,6 +56,7 @@ export class GameScene extends Phaser.Scene {
     // ── Stealth takedown hint ring ─────────────────────────────────────────
     this.takedownGfx = this.add.graphics().setDepth(27);
     this._takedownTarget = null;
+    this.lockGfx = this.add.graphics().setDepth(15);
 
     // ── Weapon pickups (cleared per room) ──────────────────────────────────
     this.weaponPickups = [];
@@ -95,13 +96,19 @@ export class GameScene extends Phaser.Scene {
     this.doorGfx = this.add.graphics().setDepth(60);
     this.doorZone = null; // set per room
 
-    // ── AI debug overlay (press D to toggle) ──────────────────────────────
+    // ── AI debug overlay (press U or Backtick to toggle) ──────────────────
     this.debugGraphics = this.add.graphics().setDepth(120);
+    this.debugTexts = [];
     this.debugAI = false;
-    this.input.keyboard?.on('keydown-D', () => {
+    const toggleDebug = () => {
       this.debugAI = !this.debugAI;
-      if (!this.debugAI) this.debugGraphics.clear();
-    });
+      if (!this.debugAI) {
+        this.debugGraphics.clear();
+        this.debugTexts.forEach(t => t.setVisible(false));
+      }
+    };
+    this.input.keyboard?.on('keydown-U', toggleDebug);
+    this.input.keyboard?.on('keydown-BACKTICK', toggleDebug);
 
     // ── Event wiring ───────────────────────────────────────────────────────
     this.bindEvents();
@@ -115,8 +122,11 @@ export class GameScene extends Phaser.Scene {
 
     // ── Desktop keyboard fallback ──────────────────────────────────────────
     this.cursors = this.input.keyboard?.createCursorKeys();
-    this.keys    = this.input.keyboard?.addKeys('W,A,S,D');
-    this.input.keyboard?.on('keydown-SPACE', () => this.player?.tryFireSuper());
+    this.keys    = this.input.keyboard?.addKeys('W,A,S,D,SHIFT,F,ENTER');
+    this.input.keyboard?.on('keydown-SPACE', () => this.player?.keyboardFire());
+    this.input.keyboard?.on('keydown-ENTER', () => this.player?.tryFireSuper());
+    this.input.keyboard?.on('keydown-F', () => this.player?.tryFireSuper());
+    this.input.keyboard?.on('keydown-SHIFT', () => this.player?.tryDash());
 
     // ── Start the run ──────────────────────────────────────────────────────
     this.cameras.main.fadeIn(300, 0, 0, 0);
@@ -175,7 +185,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Remove any stale room-alarm / stealth listeners from previous rooms
-    this.events.off('room-alarm');
+    this.events.off('room-alarm-klaxon');
     this.events.off('stealth-kill');
 
     // Reset reinforcement + stealth tracking for the new room
@@ -189,7 +199,7 @@ export class GameScene extends Phaser.Scene {
     this.events.emit('takedown-available', false);
 
     // First room-alarm of the room arms the reinforcement timer
-    this.events.on('room-alarm', () => this._onFirstAlarm());
+    this.events.on('room-alarm-klaxon', () => this._onFirstAlarm());
     this.events.on('stealth-kill', () => {
       this.stealthKills += 1;
       this.fx.damageNumber(this.player.x, this.player.y - 40, 'SILENT', '#80ff80', false);
@@ -556,6 +566,25 @@ export class GameScene extends Phaser.Scene {
   performTakedown() {
     const e = this._takedownTarget;
     if (!e || !e.alive) return;
+
+    // Face the enemy
+    const angle = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+    this.player.facing = angle;
+    this.player.aim = angle;
+
+    // Curved slash swipe effect on the enemy
+    this.fx.slashSwipe(e.x, e.y, angle, 45, 0x40ff80);
+
+    // Player jump-dash visual tween toward enemy
+    this.tweens.add({
+      targets: this.player,
+      x: e.x - Math.cos(angle) * 20,
+      y: e.y - Math.sin(angle) * 20,
+      duration: 100,
+      yoyo: true,
+      ease: 'Quad.easeOut'
+    });
+
     this.fx.burst(e.x, e.y, 'red', 18);
     this.fx.shake(0.008, 110);
     this.cameras.main.flash(80, 60, 255, 120, true);
@@ -727,14 +756,21 @@ export class GameScene extends Phaser.Scene {
   _slowMo(floor = 0.3, durMs = 380) {
     const pw = this.physics.world;
     const t  = this.time;
+    if (this._slowMoPwTween) this._slowMoPwTween.stop();
+    if (this._slowMoTTween) this._slowMoTTween.stop();
     pw.timeScale = floor;
     t.timeScale  = floor;
-    this.tweens.add({
+    this._slowMoPwTween = this.tweens.add({
       targets: pw, timeScale: 1, duration: durMs, ease: 'Quad.easeOut',
     });
-    this.tweens.add({
+    this._slowMoTTween = this.tweens.add({
       targets: t, timeScale: 1, duration: durMs, ease: 'Quad.easeOut',
-      onComplete: () => { pw.timeScale = 1; t.timeScale = 1; },
+      onComplete: () => { 
+        pw.timeScale = 1; 
+        t.timeScale = 1; 
+        this._slowMoPwTween = null;
+        this._slowMoTTween = null;
+      },
     });
   }
 
@@ -777,7 +813,11 @@ export class GameScene extends Phaser.Scene {
   // ── Sound-radius alarm ────────────────────────────────────────────────────
   // Only enemies within `radius` px of the shot hear it and switch to ALERT.
   // Enemies farther away keep patrolling until they SEE the player themselves.
-  _alertEnemiesNear(x, y, radius) {
+  alertEnemiesNear(x, y, radius) {
+    if (this.debugAI) {
+      this._soundEvents = this._soundEvents || [];
+      this._soundEvents.push({ x, y, r: radius, t: this.time.now, duration: 1000 });
+    }
     const r2 = radius * radius;
     let anyAlerted = false;
     for (const e of this.enemies.getChildren()) {
@@ -789,7 +829,26 @@ export class GameScene extends Phaser.Scene {
       }
     }
     // Arm the reinforcement timer if any enemy was alerted
-    if (anyAlerted) this._onFirstAlarm();
+    if (anyAlerted) this.events.emit('room-alarm-klaxon');
+  }
+
+  // Find the closest alive enemy within range (used for auto-aim)
+  findNearestEnemy(x, y, maxRange = 600) {
+    let nearest = null;
+    let minDist = maxRange;
+    const list = [...this.enemies.getChildren()];
+    if (this.boss && this.boss.alive) {
+      list.push(this.boss);
+    }
+    for (const e of list) {
+      if (!e.active || !e.alive) continue;
+      const d = Phaser.Math.Distance.Between(x, y, e.x, e.y);
+      if (d < minDist) {
+        minDist = d;
+        nearest = e;
+      }
+    }
+    return nearest;
   }
 
   // ── Reinforcements ───────────────────────────────────────────────────────
@@ -950,12 +1009,18 @@ export class GameScene extends Phaser.Scene {
   bindEvents() {
     this.events.on('player-fire', (angle) => {
       this.firePlayerPrimary(angle);
-      this._alertEnemiesNear(this.player.x, this.player.y, 420);
+      this.alertEnemiesNear(this.player.x, this.player.y, 420);
       this._cameraPunch(1.008, 90);
+    });
+    this.events.on('player-dash-sound', (x, y) => {
+      this.alertEnemiesNear(x, y, 160);
+    });
+    this.events.on('player-shot-missed', () => {
+      this.player?.onShotMissed();
     });
     this.events.on('player-fire-super', (angle) => {
       this.firePlayerSuper(angle);
-      this.events.emit('room-alarm');
+      this.events.emit('room-alarm-klaxon');
       // Punchier than before: harder zoom kick + a brief slow-mo so the
       // super release lands with real weight (this is the loop's payoff beat).
       this._cameraPunch(1.05, 220);
@@ -963,7 +1028,7 @@ export class GameScene extends Phaser.Scene {
     });
     this.events.on('player-fire-rifle', (angle) => {
       this.firePlayerRifle(angle);
-      this._alertEnemiesNear(this.player.x, this.player.y, 560);
+      this.alertEnemiesNear(this.player.x, this.player.y, 560);
       this._cameraPunch(1.012, 100);
     });
     this.events.on('grenade-detonate',  (x, y, dmg, r) => this.detonateGrenade(x, y, dmg, r));
@@ -1081,8 +1146,13 @@ export class GameScene extends Phaser.Scene {
     // Mini-game failure → trip the room alarm just like blowing your cover.
     this.events.on('hack-fail', () => {
       // Alert every patrolling enemy in the room and arm reinforcements.
-      this.events.emit('room-alarm');
+      this.events.emit('room-alarm-klaxon');
       this._onFirstAlarm();
+      for (const e of this.enemies.getChildren()) {
+        if (e.active && e.alive && e.state === ST.PATROL) {
+          e._triggerAlarm(true);
+        }
+      }
     });
 
     // Boss start event forwarded from loadRoom
@@ -1140,6 +1210,14 @@ export class GameScene extends Phaser.Scene {
       this.playerBullets.fire(bx, by, a, PLAYER.pelletSpeed, PLAYER.pelletDamage, PLAYER.pelletRange, { owner: 'player' });
     }
     this.fx.muzzleFlash(bx, by, angle);
+    this.fx.ejectCasing(bx, by, angle);
+
+    // Recoil pushback
+    if (this.player.body) {
+      this.player.body.velocity.x -= Math.cos(angle) * 75;
+      this.player.body.velocity.y -= Math.sin(angle) * 75;
+    }
+
     // Tiny shake on every shot — gives the pistol some weight without
     // overwhelming the bigger super/explosion shakes.
     this.fx.shake(0.0035, 55);
@@ -1156,6 +1234,19 @@ export class GameScene extends Phaser.Scene {
         { owner: 'player', piercing: true, knockback: PLAYER.superKnockback });
     }
     this.fx.muzzleFlash(bx, by, angle);
+    
+    // Eject multiple casings for super rocket barrage
+    this.fx.ejectCasing(bx, by, angle);
+    this.time.delayedCall(40, () => this.fx.ejectCasing(bx, by, angle));
+    this.time.delayedCall(80, () => this.fx.ejectCasing(bx, by, angle));
+
+    // Heavy physics recoil force + slide stagger
+    if (this.player.body) {
+      this.player.body.velocity.x -= Math.cos(angle) * 350;
+      this.player.body.velocity.y -= Math.sin(angle) * 350;
+      this.player._hurtStaggerMs = 150;
+    }
+
     this.fx.shake(0.02, 240);
     // Warm screen flash punctuates the super shot — orange/red wash.
     this.cameras.main.flash(220, 255, 150, 60, true);
@@ -1169,6 +1260,13 @@ export class GameScene extends Phaser.Scene {
     // Single tight bolt per burst shot
     this.playerRifleBullets.fire(bx, by, angle, cfg.speed, cfg.damage, cfg.range, { owner: 'player' });
     this.fx.muzzleFlash(bx, by, angle);
+    this.fx.ejectCasing(bx, by, angle);
+
+    // Mild physics recoil
+    if (this.player.body) {
+      this.player.body.velocity.x -= Math.cos(angle) * 45;
+      this.player.body.velocity.y -= Math.sin(angle) * 45;
+    }
   }
 
   detonateGrenade(x, y, damage, radius) {
@@ -1226,6 +1324,28 @@ export class GameScene extends Phaser.Scene {
 
   update(time, delta) {
     if (!this.player) return;
+
+    // Draw auto-aim targeting circle
+    if (this.lockGfx) {
+      this.lockGfx.clear();
+      if (this.player.alive && (this.player.aiming || this.player.superAiming)) {
+        const target = this.findNearestEnemy(this.player.x, this.player.y, 600);
+        if (target && target.alive) {
+          const r = target.cfg.radius + 8;
+          const pulse = 1.0 + Math.sin(time * 0.01) * 0.08;
+          const angle = time * 0.002;
+          this.lockGfx.lineStyle(3, 0xff3333, 0.85);
+          for (let i = 0; i < 4; i++) {
+            const a = angle + i * (Math.PI / 2);
+            this.lockGfx.beginPath();
+            this.lockGfx.arc(target.x, target.y, r * pulse, a - 0.25, a + 0.25);
+            this.lockGfx.strokePath();
+          }
+          this.lockGfx.fillStyle(0xff3333, 0.4);
+          this.lockGfx.fillCircle(target.x, target.y, 4);
+        }
+      }
+    }
 
     // Bush hiding
     const actors = [this.player, ...this.enemies.getChildren()];
@@ -1311,8 +1431,8 @@ export class GameScene extends Phaser.Scene {
       const aim = this.player.aiming ? this.player.aim
                 : this.player.superAiming ? this.player.superAim
                 : this.player.facing;
-      const tx = Math.cos(aim) * 70;
-      const ty = Math.sin(aim) * 70;
+      const tx = Math.cos(aim) * 50;
+      const ty = Math.sin(aim) * 50;
       this._camOX = (this._camOX ?? 0) * 0.92 + tx * 0.08;
       this._camOY = (this._camOY ?? 0) * 0.92 + ty * 0.08;
       this.cameras.main.setFollowOffset(-this._camOX, -this._camOY);
@@ -1436,9 +1556,12 @@ export class GameScene extends Phaser.Scene {
       if (this.boss?.alive && !b.hitSet.has(this.boss)) {
         if (this.circleOverlap(b, this.boss)) {
           b.hitSet.add(this.boss);
+          b.hasHit = true;
+          if (!isSuper) this.player.onHitLanded();
           // Boss ignores knockback in its damage override — pass it anyway.
           const kbVec = { x: b.body.velocity.x * 0.15, y: b.body.velocity.y * 0.15 };
           this.boss.damage(b.damage, kbVec);
+          this.fx.impactRing(b.x, b.y, 0xffd040); // gold shockwave for boss
           // Heavier directional spark — boss armor deflects more
           const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
           this.fx.burstDir(b.x, b.y, 'yellow', isSuper ? 18 : 10, flightAng, 100);
@@ -1464,11 +1587,14 @@ export class GameScene extends Phaser.Scene {
         if (!e.active || !e.alive || b.hitSet.has(e)) continue;
         if (this.circleOverlap(b, e)) {
           b.hitSet.add(e);
+          b.hasHit = true;
+          if (!isSuper) this.player.onHitLanded();
           // Every bullet knocks: super pellets shove hard, normal shots
           // give a punchy stagger in flight direction. Hotline-feel.
           const kbScale = isSuper ? 0.32 : 0.18;
           const kbVec = { x: b.body.velocity.x * kbScale, y: b.body.velocity.y * kbScale };
           e.damage(b.damage, kbVec);
+          this.fx.impactRing(b.x, b.y, 0xee3030); // red shockwave for troopers
           // Directional impact spray — sparks fly forward along the bullet
           // path with a wide cone, like a deflection ricochet.
           const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
@@ -1481,6 +1607,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   handleEnemyBulletsVsPlayer() {
+    if (this.player?.isDashing) return;
     for (const b of this.enemyBullets.getChildren()) {
       if (!b.active) continue;
       if (this.circleOverlap(b, this.player)) {
@@ -1488,6 +1615,7 @@ export class GameScene extends Phaser.Scene {
         // direction the bullet was travelling (same pattern as enemy stagger).
         const dir = Math.atan2(b.body.velocity.y, b.body.velocity.x);
         this.player.damage(b.damage, dir);
+        this.fx.impactRing(b.x, b.y, 0x40c8ff); // cyan shockwave for player
         b.kill();
       }
     }
@@ -1507,6 +1635,9 @@ export class GameScene extends Phaser.Scene {
           const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
           const ricochetAng = flightAng + Math.PI;
           this.fx.burstDir(b.x, b.y, 'yellow', isSuper ? 14 : 6, ricochetAng, 70);
+          
+          this.fx.impactRing(b.x, b.y, 0xb0b0b0); // grey shockwave for walls
+          
           // Micro-flash — bright white pop at the moment of impact, decays
           // over 80ms. Sells the hit before the persistent scorch settles.
           this._impactMicroFlash(b.x, b.y, isSuper ? 14 : 8);
@@ -1567,6 +1698,7 @@ export class GameScene extends Phaser.Scene {
   _drawPatrolVision() {
     const g = this.visionGraphics;
     g.clear();
+    if (!this.debugAI) return;
     const p = this.player;
     if (!p?.alive) return;
 
@@ -1577,7 +1709,7 @@ export class GameScene extends Phaser.Scene {
     for (const e of this.enemies.getChildren()) {
       if (!e.active || !e.alive) continue;
       if (e.state !== ST.PATROL) continue;
-      const facing = e.rotation - Math.PI / 2;
+      const facing = e._aim;
       // Is the player inside the cone (and visible)?
       let seen = false;
       if (!p.hiddenInBush) {
@@ -1586,7 +1718,9 @@ export class GameScene extends Phaser.Scene {
         if (dist < range) {
           const angTo = Math.atan2(dy, dx);
           const diff  = Phaser.Math.Angle.Wrap(angTo - facing);
-          if (Math.abs(diff) < halfAng) seen = true;
+          if (Math.abs(diff) < halfAng) {
+            seen = e._hasLOS(e.x, e.y, p.x, p.y);
+          }
         }
       }
       const color = seen ? 0xff4040 : 0xffdd40;
@@ -1611,20 +1745,40 @@ export class GameScene extends Phaser.Scene {
   // and a line to its current movement target so stuck states are obvious.
 
   _drawAIDebug() {
-    if (!this.debugAI) { this.debugGraphics?.clear(); return; }
+    if (!this.debugAI) {
+      this.debugGraphics?.clear();
+      this.debugTexts.forEach(t => t.setVisible(false));
+      return;
+    }
     const g = this.debugGraphics;
     g.clear();
 
     const STATE_COL = {
-      [ST.PATROL]:     0x00ff00,
-      [ST.ALERT]:      0xffff00,
-      [ST.CHASE]:      0xff2020,
-      [ST.COVER_MOVE]: 0xff8800,
-      [ST.SUPPRESS]:   0x2080ff,
-      [ST.REPOSITION]: 0xff00ff,
-      [ST.FLANK]:      0x00ffff,
-      [ST.ADVANCE]:    0xffffff,
+      [ST.PATROL]:     0x00ff00, // green
+      [ST.ALERT]:      0xffff00, // yellow
+      [ST.CHASE]:      0xff2020, // red
+      [ST.COVER_MOVE]: 0xff8800, // orange
+      [ST.SUPPRESS]:   0x2080ff, // blue
+      [ST.REPOSITION]: 0xff00ff, // pink
+      [ST.FLANK]:      0x00ffff, // cyan
+      [ST.ADVANCE]:    0xffffff, // white
+      [ST.SEARCH]:     0x8800ff, // purple
     };
+
+    // Draw active sound events
+    const now = this.time.now;
+    this._soundEvents = (this._soundEvents || []).filter(se => now - se.t < se.duration);
+    for (const se of this._soundEvents) {
+      const elapsed = now - se.t;
+      const alpha = 0.45 * (1 - elapsed / se.duration);
+      g.lineStyle(2, 0xffaa00, alpha);
+      g.strokeCircle(se.x, se.y, se.r);
+      g.fillStyle(0xffaa00, alpha * 0.12);
+      g.fillCircle(se.x, se.y, se.r);
+    }
+
+    let idx = 0;
+    const player = this.player;
 
     for (const e of this.enemies.getChildren()) {
       if (!e.active || !e.alive) continue;
@@ -1634,11 +1788,80 @@ export class GameScene extends Phaser.Scene {
       g.fillStyle(col, 0.95);
       g.fillCircle(e.x, e.y - e.cfg.radius - 30, 8);
 
-      // Target line
+      // Facing direction vector line
+      const aimLen = 42;
+      const ax = e.x + Math.cos(e._aim) * aimLen;
+      const ay = e.y + Math.sin(e._aim) * aimLen;
+      g.lineStyle(2, 0x00ffff, 0.85);
+      g.beginPath(); g.moveTo(e.x, e.y); g.lineTo(ax, ay); g.strokePath();
+      g.fillStyle(0x00ffff, 0.85); g.fillCircle(ax, ay, 3);
+
+      // FOV cone and ranges
+      const curRange = (e.state === ST.PATROL) ? VISION_RANGE : 720; // ALERT_VISION_RANGE
+      g.lineStyle(1, curRange === VISION_RANGE ? 0xffdd40 : 0xff4040, 0.2);
+      g.strokeCircle(e.x, e.y, curRange);
+
+      if (e.state === ST.PATROL) {
+        g.fillStyle(0xffdd40, 0.04);
+        g.beginPath();
+        g.moveTo(e.x, e.y);
+        const steps = 14;
+        for (let i = 0; i <= steps; i++) {
+          const a = e._aim - VISION_HALF_ANGLE + (VISION_HALF_ANGLE * 2 * i) / steps;
+          g.lineTo(e.x + Math.cos(a) * VISION_RANGE, e.y + Math.sin(a) * VISION_RANGE);
+        }
+        g.closePath();
+        g.fillPath();
+      } else {
+        g.fillStyle(0xff4040, 0.025);
+        g.fillCircle(e.x, e.y, 720);
+      }
+
+      // Line of Sight Ray (from enemy to player)
+      if (player?.alive) {
+        const hasLOS = e._hasLOS(e.x, e.y, player.x, player.y);
+        const dist = Math.hypot(player.x - e.x, player.y - e.y);
+        
+        let inCone = true;
+        if (e.state === ST.PATROL) {
+          const angleTo = Math.atan2(player.y - e.y, player.x - e.x);
+          const diff = Phaser.Math.Angle.Wrap(angleTo - e._aim);
+          inCone = Math.abs(diff) < VISION_HALF_ANGLE;
+        }
+
+        let rayCol = 0xff3333; // red
+        let rayAlpha = 0.45;
+        if (player.hiddenInBush && dist >= 38 && !(player.revealTimer > 0)) {
+          rayCol = 0x888888; // grey (player hidden in bush)
+          rayAlpha = 0.35;
+        } else if (inCone && dist < curRange && hasLOS) {
+          rayCol = 0x33ff33; // green
+          rayAlpha = 0.75;
+        }
+
+        g.lineStyle(1.5, rayCol, rayAlpha);
+        g.beginPath(); g.moveTo(e.x, e.y); g.lineTo(player.x, player.y); g.strokePath();
+      }
+
+      // Last known player position crosshair
+      if (e.state !== ST.PATROL && e.lastKnownX != null) {
+        g.lineStyle(1.5, 0xff2828, 0.8);
+        g.beginPath();
+        g.moveTo(e.lastKnownX - 10, e.lastKnownY);
+        g.lineTo(e.lastKnownX + 10, e.lastKnownY);
+        g.moveTo(e.lastKnownX, e.lastKnownY - 10);
+        g.lineTo(e.lastKnownX, e.lastKnownY + 10);
+        g.strokePath();
+        g.lineStyle(1, 0xff2828, 0.35);
+        g.strokeCircle(e.lastKnownX, e.lastKnownY, 8);
+      }
+
+      // Target path line
       let tx = null, ty = null;
       switch (e.state) {
         case ST.CHASE:
         case ST.ADVANCE:
+        case ST.SEARCH:
           tx = e.lastKnownX; ty = e.lastKnownY; break;
         case ST.COVER_MOVE:
         case ST.SUPPRESS:
@@ -1650,10 +1873,77 @@ export class GameScene extends Phaser.Scene {
         default: break;
       }
       if (tx != null) {
-        g.lineStyle(2, col, 0.7);
+        g.lineStyle(2, col, 0.75);
         g.beginPath(); g.moveTo(e.x, e.y); g.lineTo(tx, ty); g.strokePath();
-        g.fillStyle(col, 0.45); g.fillCircle(tx, ty, 10);
+        g.fillStyle(col, 0.45); g.fillCircle(tx, ty, 8);
       }
+
+      // Debug Text Label
+      let debugText = this.debugTexts[idx];
+      if (!debugText) {
+        debugText = this.add.text(0, 0, '', {
+          fontFamily: 'Outfit, Arial, sans-serif',
+          fontSize: '11px',
+          fontWeight: 'bold',
+          color: '#ffffff',
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          padding: { x: 5, y: 3 },
+        }).setOrigin(0.5, 1).setDepth(130);
+        this.debugTexts.push(debugText);
+      }
+
+      // Map internally tracked states to human-readable state categories
+      let mappedState = e.state;
+      if (e.state === ST.PATROL) {
+        mappedState = (e.patrolWait > 0 || !e.patrolPath.length) ? 'idle' : 'patrol';
+      } else if (e.state === ST.ALERT) {
+        mappedState = (e.alertMark?.text === '?') ? 'suspicious' : 'alerted';
+      } else if (e.state === ST.CHASE || e.state === ST.SUPPRESS || e.state === ST.COVER_MOVE || e.state === ST.FLANK || e.state === ST.ADVANCE) {
+        mappedState = 'attacking';
+      } else if (e.state === ST.SEARCH) {
+        mappedState = 'searching';
+      }
+
+      // Reason for detection/non-detection
+      let reason = 'Spotted';
+      if (player?.alive) {
+        const dist = Math.hypot(player.x - e.x, player.y - e.y);
+        const hasLOS = e._hasLOS(e.x, e.y, player.x, player.y);
+        
+        if (player.hiddenInBush) {
+          if (dist < 38) {
+            reason = 'Touch in Bush';
+          } else if (player.revealTimer > 0) {
+            reason = 'Revealed (Firing in Bush)';
+          } else {
+            reason = 'Hidden in Bush';
+          }
+        } else if (dist > curRange) {
+          reason = `Outside Range (${Math.round(dist)}px / ${curRange}px)`;
+        } else if (e.state === ST.PATROL) {
+          const angleTo = Math.atan2(player.y - e.y, player.x - e.x);
+          const diff = Phaser.Math.Angle.Wrap(angleTo - e._aim);
+          if (Math.abs(diff) >= VISION_HALF_ANGLE) {
+            reason = 'Behind/Outside Cone';
+          } else if (!hasLOS) {
+            reason = 'LOS Blocked (Wall)';
+          }
+        } else if (!hasLOS) {
+          reason = 'LOS Blocked (Wall)';
+        }
+      } else {
+        reason = 'Player Dead';
+      }
+
+      debugText.setText(`State: ${mappedState.toUpperCase()}\nReason: ${reason}`);
+      debugText.setPosition(e.x, e.y - e.cfg.radius - 50);
+      debugText.setVisible(true);
+      idx++;
+    }
+
+    // Hide unused debug labels
+    for (let i = idx; i < this.debugTexts.length; i++) {
+      this.debugTexts[i].setVisible(false);
     }
   }
 

@@ -1,0 +1,83 @@
+=== PHASE 0: BASELINE QA ===
+Timestamp: 2026-07-08T12:16:40.078Z
+
+--- Loading game ---
+Console errors on load: 0
+Console warnings on load: 0
+Page errors on load: 0
+
+--- Starting game ---
+
+--- Game state inspection ---
+Scene active: true
+Player: alive=true, pos={"x":200,"y":750}, hp=1000/undefined
+Player body: {"w":50.599999999999994,"h":50.599999999999994}
+Player dash charges: 3, isDashing: false
+Player ammo: 4/undefined
+Enemies: 3 alive / 3 total
+  EnemyGrunt: state=patrol, pos=(1018,370), hp=600
+  EnemyGrunt: state=patrol, pos=(1022,1080), hp=600
+  EnemyShooter: state=patrol, pos=(1400,750), hp=400
+Walls: 9, Cover: 0, Bushes: 0
+Camera zoom: 1
+Room spec: {"width":1700,"height":1500,"enemyCount":3}
+Debug AI: false
+
+--- Test: Movement ---
+Move right: start=(200,750), after=(382,750), vel=(0,0)
+After WASD movement: pos=(200,568), alive=true
+
+--- Test: Stopping ---
+After stopping: velocity=(0,0) — should be near 0
+
+--- Test: Dash while moving ---
+Dash while moving: isDashing=false, charges=2, pos=(620,568)
+Errors during dash-while-moving: 0
+
+--- Test: Dash from standstill ---
+Dash from standstill: isDashing=false, charges=1
+Errors during dash-from-standstill: 0
+
+--- Test: Repeated dash ---
+After 5 rapid dashes: isDashing=false, charges=0, alive=true
+Errors during repeated dash: 0
+
+--- Test: Hold SHIFT ---
+After holding SHIFT 2s: isDashing=false, alive=true, stuck=false
+Errors during SHIFT hold: 0
+
+--- Test: Shooting ---
+Shooting: ammo before=4, after=4/undefined
+Super charge: before=0, after=0
+Active bullets: 0
+Errors during shooting: 0
+
+--- Test: Enemy behavior ---
+Live enemies: 3
+  EnemyGrunt: state=patrol, hp=600, canSee=false, hasWeapon=false
+  EnemyGrunt: state=patrol, hp=600, canSee=false, hasWeapon=false
+  EnemyShooter: state=patrol, hp=400, canSee=false, hasWeapon=true
+
+--- Test: Takedown system ---
+Takedown: target=false, gfx=true, method=function
+
+--- Config values ---
+Player config: null
+
+--- Visual: Character sizes ---
+Player: scale={"x":1.15,"y":1.15}, display={"w":110.39999999999999,"h":110.39999999999999}, body={"w":50.599999999999994,"h":50.599999999999994}
+  EnemyGrunt: scale={"x":1.15,"y":1.15}, display={"w":92,"h":92}, body={"w":50.599999999999994,"h":50.599999999999994}
+  EnemyGrunt: scale={"x":1.15,"y":1.15}, display={"w":92,"h":92}, body={"w":50.599999999999994,"h":50.599999999999994}
+  EnemyShooter: scale={"x":1.15,"y":1.15}, display={"w":92,"h":92}, body={"w":50.599999999999994,"h":50.599999999999994}
+
+--- Room layout ---
+Room bounds: {"w":1700,"h":1500}
+Walls: 9, Covers: 0
+
+--- Mobile portrait emulation ---
+Mobile: game=720x1280, player=true, zoom=1, hud=true
+Mobile errors: 0
+
+--- Final error summary ---
+Total page errors: 0
+Total console errors: 0

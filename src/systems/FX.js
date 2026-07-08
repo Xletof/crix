@@ -384,6 +384,17 @@ export function attachFX(scene) {
       quantity: 0,
       emitting: false,
     }),
+    // Spinning gravity-bound gold shell casings
+    casings: scene.add.particles(0, 0, 'casing', {
+      lifespan: 800,
+      speed: { min: 110, max: 210 },
+      scale: { start: 1, end: 1 },
+      alpha: { start: 1, end: 0 },
+      rotate: { start: 0, end: 1440 },
+      gravityY: 650,
+      quantity: 0,
+      emitting: false,
+    }),
 
     burst(x, y, color = 'yellow', count = 12) {
       const e =
@@ -416,6 +427,48 @@ export function attachFX(scene) {
     // Bright sparkle burst when grabbing a pickup — flings 12 yellow specks.
     pickupSparkle(x, y, count = 12) {
       this.pickupGlitter.emitParticleAt(x, y, count);
+    },
+
+    // Eject gold casing perpendicular to shooting angle
+    ejectCasing(x, y, angle) {
+      const ejectAngle = Phaser.Math.RadToDeg(angle - Math.PI / 2); // Eject right
+      this.casings.ops.angle.onChange({ min: ejectAngle - 20, max: ejectAngle + 20 });
+      this.casings.emitParticleAt(x, y, 1);
+    },
+
+    // A fading shockwave ring visual at the impact point of a bullet
+    impactRing(x, y, color = 0xffffff) {
+      const g = scene.add.graphics().setDepth(25);
+      g.lineStyle(2, color, 0.8);
+      g.strokeCircle(0, 0, 8);
+      g.setPosition(x, y);
+      scene.tweens.add({
+        targets: g,
+        scale: 2.2,
+        alpha: 0,
+        duration: 150,
+        ease: 'Quad.easeOut',
+        onComplete: () => g.destroy(),
+      });
+    },
+
+    // A sweeping curved arc for takedown animations
+    slashSwipe(x, y, angle, radius = 45, color = 0x40ff80) {
+      const g = scene.add.graphics().setDepth(32);
+      g.lineStyle(5, color, 1);
+      g.beginPath();
+      const start = angle - Math.PI / 3;
+      const end = angle + Math.PI / 3;
+      g.arc(x, y, radius, start, end, false);
+      g.strokePath();
+      scene.tweens.add({
+        targets: g,
+        alpha: 0,
+        scale: 1.3,
+        duration: 180,
+        ease: 'Cubic.easeOut',
+        onComplete: () => g.destroy(),
+      });
     },
 
     // Single airborne floor mote at (x, y) — called by GameScene every few
@@ -463,19 +516,42 @@ export function attachFX(scene) {
       const t = scene.add
         .text(x, y, String(amount), {
           fontFamily: 'system-ui, sans-serif',
-          fontSize: big ? '28px' : '20px',
+          fontSize: big ? '32px' : '24px',
           fontStyle: 'bold',
           color,
           stroke: '#000000',
-          strokeThickness: 4,
+          strokeThickness: 5,
         })
         .setOrigin(0.5)
-        .setDepth(30);
+        .setDepth(30)
+        .setScale(0.2);
+
+      const dx = Phaser.Math.Between(-55, 55);
+      const dy = Phaser.Math.Between(-85, -60);
+
+      // Bounce scale tween
       scene.tweens.add({
         targets: t,
-        y: y - 40,
-        alpha: 0,
-        duration: 650,
+        scale: big ? 1.45 : 1.1,
+        duration: 130,
+        ease: 'Back.easeOut',
+        onComplete: () => {
+          scene.tweens.add({
+            targets: t,
+            scale: 0.9,
+            duration: 100,
+            ease: 'Quad.easeIn',
+          });
+        }
+      });
+
+      // Arc/bounce movement tween
+      scene.tweens.add({
+        targets: t,
+        x: x + dx,
+        y: y + dy,
+        alpha: { start: 1, end: 0 },
+        duration: 750,
         ease: 'Cubic.easeOut',
         onComplete: () => t.destroy(),
       });

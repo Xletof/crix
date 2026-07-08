@@ -14,42 +14,42 @@ export const ROOMS = [
   {
     id: 'hangar',
     name: 'HANGAR BAY',
-    // Bumped h:1100 → 1500 so the room is taller than the viewport (1280)
-    // and the camera can actually keep the player centered.
-    bounds: { w: 1700, h: 1500 },
-    spawn: { x: 200, y: 750 },
-    exit: { x: 1640, y: 750, side: 'right' },
+    bounds: { w: 1600, h: 1400 },
+    spawn: { x: 200, y: 700 },
+    exit: { x: 1500, y: 700, side: 'right' },
     walls: [
-      { x: 450, y: 320 }, { x: 450, y: 1180 },
-      { x: 1250, y: 320 }, { x: 1250, y: 1180 },
+      { x: 500, y: 350 }, { x: 500, y: 1050 },
+      { x: 1100, y: 350 }, { x: 1100, y: 1050 },
     ],
     cover: [
-      { x: 750, y: 480 }, { x: 850, y: 750 }, { x: 950, y: 480 },
-      { x: 1120, y: 600 }, { x: 1120, y: 900 },
+      { x: 450, y: 700 },
+      { x: 800, y: 350 }, { x: 950, y: 350 },
+      { x: 700, y: 620 }, { x: 700, y: 780 }, { x: 900, y: 700 },
+      { x: 800, y: 1050 }, { x: 950, y: 1050 },
     ],
     enemies: [
       {
-        type: 'grunt', x: 750, y: 370,
-        patrol: [{ x: 750, y: 370 }, { x: 1150, y: 370 }, { x: 1150, y: 650 }, { x: 750, y: 370 }],
+        type: 'grunt', x: 800, y: 250,
+        patrol: [{ x: 800, y: 250 }, { x: 500, y: 250 }, { x: 800, y: 250 }, { x: 1100, y: 250 }],
       },
       {
-        type: 'grunt', x: 750, y: 1080,
-        patrol: [{ x: 750, y: 1080 }, { x: 1150, y: 1080 }, { x: 1150, y: 850 }, { x: 750, y: 1080 }],
+        type: 'grunt', x: 800, y: 1150,
+        patrol: [{ x: 800, y: 1150 }, { x: 1100, y: 1150 }, { x: 800, y: 1150 }, { x: 500, y: 1150 }],
       },
-      { type: 'shooter', x: 1400, y: 750, role: 'flanker' },
+      { type: 'shooter', x: 1050, y: 700, role: 'suppress' },
     ],
     pickups: [
-      { x: 600, y: 750, weapon: 'rifle' },
+      { x: 600, y: 500, weapon: 'rifle' },
     ],
-    // Single intro terminal in the open far side — teaches the hack objective.
+    // Central terminal objective
     terminals: [
-      { x: 1000, y: 1050 },
+      { x: 800, y: 700 },
     ],
     reinforce: {
       afterMs: 22000,
       count: 2,
       type: 'grunt',
-      door: { x: 1500, y: 100 },
+      door: { x: 1300, y: 100 },
     },
   },
 

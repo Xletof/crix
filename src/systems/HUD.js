@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { VIEW, PLAYER, WEAPONS, COLORS, HUDCFG } from '../config.js';
 import { Joystick } from './Joystick.js';
 import { SuperButton } from './SuperButton.js';
+import { DashButton } from './DashButton.js';
 import { HackMinigame } from './HackMinigame.js';
 import { ROOMS } from '../data/rooms.js';
 import { SFX } from './FX.js';
@@ -85,7 +86,7 @@ export class HUDScene extends Phaser.Scene {
 
     // Hack progress bar (center, only while actively slicing)
     this.hackBarGfx = this.add.graphics().setDepth(12);
-    this.hackBarText = this.add.text(VIEW.width / 2, VIEW.height * 0.46 - 22, '', {
+    this.hackBarText = this.add.text(VIEW.width / 2, VIEW.height * 0.46 - 22, ' ', {
       fontFamily: 'Courier New, monospace',
       fontSize: '16px',
       fontStyle: 'bold',
@@ -100,7 +101,7 @@ export class HUDScene extends Phaser.Scene {
 
     // Reinforcement countdown badge (hidden by default)
     this.reinforceGfx = this.add.graphics();
-    this.reinforceText = this.add.text(VIEW.width / 2, 100, '', {
+    this.reinforceText = this.add.text(VIEW.width / 2, 100, ' ', {
       fontFamily: 'Courier New, monospace',
       fontSize: '16px',
       fontStyle: 'bold',
@@ -112,7 +113,7 @@ export class HUDScene extends Phaser.Scene {
 
     // Banner (center, transient)
     this.banner = this.add
-      .text(VIEW.width / 2, VIEW.height * 0.32, '', {
+      .text(VIEW.width / 2, VIEW.height * 0.32, ' ', {
         fontFamily: 'Courier New, monospace',
         fontSize: '60px',
         fontStyle: 'bold',
@@ -140,7 +141,7 @@ export class HUDScene extends Phaser.Scene {
     const secY = VIEW.height - HUDCFG.joystickBottom - HUDCFG.joystickRadius * 2 - 60;
     this.secGfx = this.add.graphics();
     this.secIcon = this.add.image(secX, secY, 'pickup-rifle').setDepth(5).setScale(0.7).setVisible(false);
-    this.secText = this.add.text(secX, secY + 42, '', {
+    this.secText = this.add.text(secX, secY + 42, ' ', {
       fontFamily: 'Courier New, monospace',
       fontSize: '15px',
       fontStyle: 'bold',
@@ -155,12 +156,43 @@ export class HUDScene extends Phaser.Scene {
     this.superButton = new SuperButton(this, {
       x: superX,
       y: superY,
+      radius: 46,
+      joystick: this.joystickRight,
       onAim: (v) => this.gameScene?.player?.setSuperAimInput(v),
       onRelease: (v) => this.gameScene?.player?.releaseSuperAim(v),
       isReady: () =>
         !!this.gameScene?.player &&
         this.gameScene.player.superCharge >= PLAYER.superHitsToCharge,
     });
+
+    // Dash button (chevrons pointing right >>)
+    const dashY = superY + 110;
+    const dashX = superX - 100;
+    this.dashButton = new DashButton(this, {
+      x: dashX,
+      y: dashY,
+      radius: 42,
+      onPress: () => {
+        const p = this.gameScene?.player;
+        if (p?.alive) {
+          p.tryDash();
+        }
+      },
+      isReady: () => {
+        const p = this.gameScene?.player;
+        return !!p?.alive && p.dashCharges > 0 && !p.isDashing;
+      }
+    });
+
+    // Combo multiplier text (above Super button)
+    this.multText = this.add.text(superX, superY - 62, ' ', {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '17px',
+      fontStyle: 'bold',
+      color: '#ffd040',
+      stroke: '#000000',
+      strokeThickness: 3
+    }).setOrigin(0.5).setAlpha(0);
 
     // Pause button — top-right play-area corner (right half, excluded from the
     // fire stick's claim region so tapping it never starts an aim drag).
@@ -178,6 +210,7 @@ export class HUDScene extends Phaser.Scene {
         // leaking into other UI.
         if (this.hackMinigame && this.hackMinigame.state !== 'idle') return false;
         return !this.superButton.containsPoint(pointer.x, pointer.y)
+          && !this.dashButton.containsPoint(pointer.x, pointer.y)
           && !this._overPauseBtn(pointer.x, pointer.y);
       },
       onStart: () => this.gameScene?.player?.setAimInput({ x: 0, y: 0, force: 0 }),
@@ -271,8 +304,7 @@ export class HUDScene extends Phaser.Scene {
       if (this._hackReady) this.gameScene?.requestHack();
     });
 
-    // Keyboard fallback
-    this.input.keyboard?.on('keydown-SPACE', () => this.gameScene?.player?.tryFireSuper());
+
 
     // Events
     const ge = this.gameScene.events;
@@ -283,6 +315,33 @@ export class HUDScene extends Phaser.Scene {
     ge.on('player-fire',          this.refreshAmmo,  this);
     ge.on('player-super-changed', this.refreshSuper, this);
     ge.on('player-super-ready',   this.refreshSuper, this);
+    this._onMultChanged = (mult, streak) => {
+      if (streak > 0) {
+        this.multText.setText(`COMBO x${mult.toFixed(1)}`);
+        this.multText.setAlpha(1);
+        if (mult > 1.0) {
+          this.multText.setColor('#ff4040');
+          this.tweens.killTweensOf(this.multText);
+          this.multText.setScale(1.2);
+          this.tweens.add({
+            targets: this.multText,
+            scale: 1,
+            duration: 150,
+            ease: 'Back.easeOut'
+          });
+        } else {
+          this.multText.setColor('#ffd040');
+        }
+      } else {
+        this.tweens.killTweensOf(this.multText);
+        this.tweens.add({
+          targets: this.multText,
+          alpha: 0,
+          duration: 300
+        });
+      }
+    };
+    ge.on('player-mult-changed',  this._onMultChanged);
     ge.on('room-start',           (n, total, spec) => this.refreshChamber(n, total, spec));
     ge.on('boss-start',           ()               => this.showBanner('VADER APPROACHES', '#ff2828'));
     ge.on('boss-phase',           (phase)          => { this._bossPhase = phase; this.showBanner('ENRAGED!', '#ff8888'); });
@@ -313,6 +372,7 @@ export class HUDScene extends Phaser.Scene {
       ge.off('player-fire',          this.refreshAmmo,  this);
       ge.off('player-super-changed', this.refreshSuper, this);
       ge.off('player-super-ready',   this.refreshSuper, this);
+      ge.off('player-mult-changed',  this._onMultChanged);
       ge.off('room-start');
       ge.off('boss-start');
       ge.off('boss-phase');
@@ -333,6 +393,7 @@ export class HUDScene extends Phaser.Scene {
       this.moveStick?.shutdown();
       this.fireStick?.shutdown();
       this.superButton?.shutdown();
+      this.dashButton?.shutdown();
     });
 
     this.refreshHp();
@@ -604,6 +665,12 @@ export class HUDScene extends Phaser.Scene {
     }
     // Tick the timing-puzzle mini-game (no-op when idle)
     this.hackMinigame?.update(delta);
+    // Update dash button loading gauge
+    const p = this.gameScene?.player;
+    if (p && p.alive && this.dashButton) {
+      const rechargeRatio = p.dashCharges < PLAYER.dashChargesMax ? p.dashRechargeTimer / PLAYER.dashRechargeMs : 0;
+      this.dashButton.drawGauge(p.dashCharges, PLAYER.dashChargesMax, rechargeRatio);
+    }
     // Low-HP red vignette pulse
     this._drawVignette(time);
     // Boss enrage ambient red tint
@@ -731,7 +798,7 @@ export class HUDScene extends Phaser.Scene {
   showCombo(n) {
     // Reuse a single text object — kill any previous tween/state.
     if (!this.comboText) {
-      this.comboText = this.add.text(VIEW.width / 2, VIEW.height * 0.36, '', {
+      this.comboText = this.add.text(VIEW.width / 2, VIEW.height * 0.36, ' ', {
         fontFamily: 'Courier New, monospace',
         fontSize: '64px',
         fontStyle: 'bold',
