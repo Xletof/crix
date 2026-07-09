@@ -19,7 +19,7 @@ export const ST = {
 export const VISION_RANGE = 380;   // px — unalerted patrol sight
 export const VISION_HALF_ANGLE = Math.PI * 0.28; // ~50° each side = 100° total cone
 const ALERT_VISION_RANGE = 720;    // px — max sight range once alerted (was infinite)
-const ALARM_RANGE     = 90;        // px — player too close always triggers alarm
+const ALARM_RANGE     = 72;        // px — player too close always triggers alarm
 const SUPPRESS_FIRE_MIN = 1400;    // ms between peeks
 const SUPPRESS_FIRE_MAX = 2200;
 const REPOSITION_DIST   = 110;     // px — retreat from cover when player this close
@@ -27,8 +27,8 @@ const ARRIVE_THRESH     = 40;      // px — "close enough" to a target or stand
 const FLANK_DIST        = 260;     // px — how far off the LOS axis to flank
 const ALERT_PAUSE_MS    = 500;     // ms surprised freeze before switching to combat
 const STAND_DIST        = 92;      // px from cover centre to stand-and-fire position
-const TAKEDOWN_RANGE    = 56;      // px — how close the player must be to take down
-const TAKEDOWN_REAR_ARC = 1.95;    // rad — player must be within the enemy's rear arc (~112°)
+const TAKEDOWN_RANGE    = 80;      // px — how close the player must be to take down
+const TAKEDOWN_REAR_ARC = 1.62;    // rad — player must be within the enemy's rear arc (~174°)
 const LOS_LOST_RECLAIM  = 900;     // ms of no-LOS in SUPPRESS before re-picking cover
 const LOS_LOST_ADVANCE  = 1500;    // ms of no-LOS in COVER_MOVE before going ADVANCE
 
@@ -678,9 +678,10 @@ export class EnemyGrunt extends Enemy {
       return;
     }
 
-    const dist = this._navigatePath(player.x, player.y, this.cfg.speed, delta);
+    this._navigatePath(player.x, player.y, this.cfg.speed, delta);
+    const distToPlayer = Math.hypot(player.x - this.x, player.y - this.y);
 
-    if (sees && dist < this.cfg.meleeRange) {
+    if (sees && distToPlayer < this.cfg.meleeRange) {
       this.setVelocity(0, 0);
       if (time - this.lastMeleeAt > this.cfg.meleeCooldownMs) {
         this.lastMeleeAt     = time;

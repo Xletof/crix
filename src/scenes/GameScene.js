@@ -126,11 +126,18 @@ export class GameScene extends Phaser.Scene {
 
     // ── Desktop keyboard fallback ──────────────────────────────────────────
     this.cursors = this.input.keyboard?.createCursorKeys();
-    this.keys    = this.input.keyboard?.addKeys('W,A,S,D,SHIFT,F,ENTER');
+    this.keys    = this.input.keyboard?.addKeys('W,A,S,D,SHIFT,F,ENTER,E');
     this.input.keyboard?.on('keydown-SPACE', () => this.player?.keyboardFire());
     this.input.keyboard?.on('keydown-ENTER', () => this.player?.tryFireSuper());
     this.input.keyboard?.on('keydown-F', () => this.player?.tryFireSuper());
     this.input.keyboard?.on('keydown-SHIFT', () => this.player?.tryDash());
+    this.input.keyboard?.on('keydown-E', () => {
+      if (this._takedownTarget) {
+        this.performTakedown();
+      } else if (this._hackPromptTarget) {
+        this.requestHack();
+      }
+    });
 
     // ── Start the run ──────────────────────────────────────────────────────
     this.cameras.main.fadeIn(300, 0, 0, 0);
