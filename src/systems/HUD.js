@@ -388,6 +388,7 @@ export class HUDScene extends Phaser.Scene {
       ge.off('hack-start');
       ge.off('hack-cancel');
       ge.off('show-combo');
+      this.comboText = null;
       this.hackMinigame?.shutdown();
       this.hackMinigame = null;
       this.moveStick?.shutdown();
