@@ -104,7 +104,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       strokeThickness: 4,
     }).setOrigin(0.5).setDepth(this.depth + 2).setAlpha(0);
 
-    if (scene.anims.exists(`${texture}-idle`)) this.play(`${texture}-idle`);
+    if (scene.anims.exists(`${texture}-idle-front`)) this.play(`${texture}-idle-front`);
   }
 
   // ── External API ─────────────────────────────────────────────────────────
@@ -332,6 +332,31 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     return dist;
   }
 
+  _navigatePath(tx, ty, speed, delta) {
+    this._pathTimer = (this._pathTimer || 0) + delta;
+    const lastTarget = this._pathLastTarget || { x: 0, y: 0 };
+    const targetMoved = Math.hypot(tx - lastTarget.x, ty - lastTarget.y) > 40;
+
+    if (!this._currentPath || this._currentPath.length === 0 || targetMoved || this._pathTimer > 300) {
+      this._currentPath = this.scene.navGrid.findPath(this.x, this.y, tx, ty);
+      this._pathNodeIdx = 0;
+      this._pathTimer = 0;
+      this._pathLastTarget = { x: tx, y: ty };
+    }
+
+    if (this._currentPath && this._currentPath.length > 0) {
+      let node = this._currentPath[this._pathNodeIdx];
+      while (node && Math.hypot(node.x - this.x, node.y - this.y) < 30) {
+        this._pathNodeIdx++;
+        node = this._currentPath[this._pathNodeIdx];
+      }
+      if (node) {
+        return this._moveToward(node.x, node.y, speed);
+      }
+    }
+    return this._moveToward(tx, ty, speed);
+  }
+
   _facePoint(tx, ty) {
     this._aim = Math.atan2(ty - this.y, tx - this.x);
   }
@@ -386,7 +411,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
 
     const wp = this.patrolPath[this.patrolIdx];
-    const d  = this._moveToward(wp.x, wp.y, this.cfg.speed * 0.55);
+    const d  = this._navigatePath(wp.x, wp.y, this.cfg.speed * 0.55, delta);
     if (d < ARRIVE_THRESH) {
       this.patrolIdx  = (this.patrolIdx + 1) % this.patrolPath.length;
       this.patrolWait = Phaser.Math.Between(400, 900);
@@ -415,7 +440,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       return;
     }
 
-    const dist = this._moveToward(this.lastKnownX, this.lastKnownY, this.cfg.speed * 0.75);
+    const dist = this._navigatePath(this.lastKnownX, this.lastKnownY, this.cfg.speed * 0.75, delta);
 
     if (dist < ARRIVE_THRESH) {
       this.setVelocity(0, 0);
@@ -467,8 +492,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.weaponSprite.x = this.x + Math.cos(this._aim) * offset;
       this.weaponSprite.y = this.y + Math.sin(this._aim) * offset;
       this.weaponSprite.rotation = this._aim;
+      this.weaponSprite.setFlipY(Math.abs(this._aim) > Math.PI / 2);
       this.weaponSprite.setAlpha(this.alive ? (this.hiddenInBush ? 0.55 : 1) : 0);
-      this.weaponSprite.setDepth(this.y + 1);
+      
+      const degEnemy = Phaser.Math.RadToDeg(this._aim);
+      const isFacingNorth = (degEnemy < -45 && degEnemy > -135);
+      this.weaponSprite.setDepth(isFacingNorth ? this.y - 1 : this.y + 1);
     }
 
     // Threat ring tracks position + soft pulse; dims when enemy is hidden.
@@ -499,13 +528,35 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const isMoving  = speedSq > 200;
     const prefix    = this._animPrefix;
 
+    let dirSuffix = 'front';
+    let flipX = false;
+    const deg = Phaser.Math.RadToDeg(this._aim);
+    if (deg >= -45 && deg <= 45) {
+      dirSuffix = 'side';
+      flipX = false; // facing East
+    } else if (deg > 45 && deg < 135) {
+      dirSuffix = 'front';
+      flipX = false; // facing South
+    } else if (deg >= 135 || deg <= -135) {
+      dirSuffix = 'side';
+      flipX = true;  // facing West
+    } else {
+      dirSuffix = 'back';
+      flipX = false; // facing North
+    }
+
+    this.setFlipX(flipX);
+
+    let animKey = `${prefix}-idle-${dirSuffix}`;
     if (this._fireAnimTimer > 0) {
       this._fireAnimTimer -= delta;
-      if (this.anims.currentAnim?.key !== `${prefix}-fire`) this.play(`${prefix}-fire`);
+      animKey = `${prefix}-fire-${dirSuffix}`;
     } else if (isMoving) {
-      if (this.anims.currentAnim?.key !== `${prefix}-walk`) this.play(`${prefix}-walk`);
-    } else {
-      if (this.anims.currentAnim?.key !== `${prefix}-idle`) this.play(`${prefix}-idle`);
+      animKey = `${prefix}-walk-${dirSuffix}`;
+    }
+
+    if (this.anims.currentAnim?.key !== animKey) {
+      this.play(animKey);
     }
 
     // Recoil scale + lean animations
@@ -606,7 +657,7 @@ export class EnemyGrunt extends Enemy {
         break;
 
       case ST.CHASE:
-        this._tickChase(time, player);
+        this._tickChase(time, player, delta);
         break;
 
       case ST.SEARCH:
@@ -615,7 +666,7 @@ export class EnemyGrunt extends Enemy {
     }
   }
 
-  _tickChase(time, player) {
+  _tickChase(time, player, delta) {
     const sees = this.canSee(player);
     if (sees) {
       this.lastKnownX = player.x;
@@ -627,7 +678,7 @@ export class EnemyGrunt extends Enemy {
       return;
     }
 
-    const dist = this._moveToward(player.x, player.y, this.cfg.speed);
+    const dist = this._navigatePath(player.x, player.y, this.cfg.speed, delta);
 
     if (sees && dist < this.cfg.meleeRange) {
       this.setVelocity(0, 0);
@@ -774,7 +825,7 @@ export class EnemyShooter extends Enemy {
       this._advRefY          = undefined;
       return;
     }
-    const dist = this._moveToward(this.standPos.x, this.standPos.y, this.cfg.speed);
+    const dist = this._navigatePath(this.standPos.x, this.standPos.y, this.cfg.speed, delta);
     if (dist < ARRIVE_THRESH) {
       this.state = ST.SUPPRESS;
       this._losLostMs = 0;
@@ -812,7 +863,7 @@ export class EnemyShooter extends Enemy {
     const holdY  = this.standPos?.y ?? this.coverSpot?.y ?? this.y;
     const dHold  = Math.hypot(this.x - holdX, this.y - holdY);
     if (dHold > ARRIVE_THRESH * 1.5) {
-      this._moveToward(holdX, holdY, this.cfg.speed * 0.8);
+      this._navigatePath(holdX, holdY, this.cfg.speed * 0.8, delta);
     } else {
       this._stopAndFace(this.lastKnownX, this.lastKnownY);
     }
@@ -856,7 +907,7 @@ export class EnemyShooter extends Enemy {
       }
       return;
     }
-    const dist = this._moveToward(this.standPos.x, this.standPos.y, this.cfg.speed);
+    const dist = this._navigatePath(this.standPos.x, this.standPos.y, this.cfg.speed, delta);
     if (dist < ARRIVE_THRESH) {
       this._repositioning = false;
       this.state = ST.SUPPRESS;
@@ -881,8 +932,6 @@ export class EnemyShooter extends Enemy {
       if (this.coverSpot && this.standPos) {
         this.state             = ST.COVER_MOVE;
         this._coverMoveStuckMs = 0;
-        this._advWallFollowMs  = 0;
-        this._advWallFollowDir = 0;
         return;
       }
     }
@@ -891,40 +940,7 @@ export class EnemyShooter extends Enemy {
     const tx = sees ? player.x : this.lastKnownX;
     const ty = sees ? player.y : this.lastKnownY;
 
-    // Wall-following phase: blend perpendicular slide with forward progress so
-    // the enemy clears the obstacle AND continues closing in on the target.
-    if (this._advWallFollowMs > 0) {
-      this._advWallFollowMs -= delta;
-      const toTarget  = Math.atan2(ty - this.y, tx - this.x);
-      const perp      = toTarget + this._advWallFollowDir * Math.PI / 2;
-      // 65% slide + 35% forward → gains ground while skirting the wall
-      const vx = Math.cos(perp) * 0.65 + Math.cos(toTarget) * 0.35;
-      const vy = Math.sin(perp) * 0.65 + Math.sin(toTarget) * 0.35;
-      const len = Math.hypot(vx, vy) || 1;
-      this.setVelocity((vx / len) * this.cfg.speed, (vy / len) * this.cfg.speed);
-      this._aim = Math.atan2(vy, vx);
-      return;
-    }
-
-    // Straight-line phase with progress tracking.
-    this._advStuckTimer = (this._advStuckTimer || 0) + delta;
-    this._advRefX = this._advRefX ?? this.x;
-    this._advRefY = this._advRefY ?? this.y;
-    if (this._advStuckTimer >= 350) {
-      const moved = Math.hypot(this.x - this._advRefX, this.y - this._advRefY);
-      if (moved < 8) {
-        // Flip direction on each episode to eventually find the way around.
-        this._advWallFollowDir = this._advWallFollowDir
-          ? -this._advWallFollowDir
-          : (Math.random() < 0.5 ? 1 : -1);
-        this._advWallFollowMs = 1400;
-      }
-      this._advStuckTimer = 0;
-      this._advRefX       = this.x;
-      this._advRefY       = this.y;
-    }
-
-    const dist = this._moveToward(tx, ty, this.cfg.speed * 0.78);
+    const dist = this._navigatePath(tx, ty, this.cfg.speed * 0.78, delta);
     if (!sees && dist < ARRIVE_THRESH) {
       this.state = ST.SEARCH;
       this._scanTimer = 0;
@@ -991,7 +1007,7 @@ export class EnemyShooter extends Enemy {
 
     const tx = (this.flankTarget && typeof this.flankTarget.x === 'number' && !isNaN(this.flankTarget.x)) ? this.flankTarget.x : (player.x || this.x);
     const ty = (this.flankTarget && typeof this.flankTarget.y === 'number' && !isNaN(this.flankTarget.y)) ? this.flankTarget.y : (player.y || this.y);
-    const dist = this._moveToward(tx, ty, this.cfg.speed * 1.1);
+    const dist = this._navigatePath(tx, ty, this.cfg.speed * 1.1, delta);
 
     if (dist < ARRIVE_THRESH) {
       this._stopAndFace(this.lastKnownX, this.lastKnownY);

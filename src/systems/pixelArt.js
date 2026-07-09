@@ -271,22 +271,16 @@ export function paintSaberOverlay(scene, key = 'wpn-saber') {
 // plate, cape flaring behind, weapon stub at the right hip. The weapon never
 // extends past the dome — so it can't read as an antenna at any rotation.
 export function paintPlayer(scene, key = 'player') {
-  const ss = new SpriteSheet(scene, key, 24, 24, 8, 4);
+  const ss = new SpriteSheet(scene, key, 24, 24, 24, 4);
 
-  // Body sprite: NO rotation. NO weapon (drawn as separate overlay that
-  // rotates around the player). Sprite shows a 3/4 above-behind view: dome
-  // on top, pauldrons sticking out, cape flaring south, leg toes peeking.
-  // Symmetric left-right so it reads correctly regardless of facing.
-  function drawMando(f, legPhase = 0, hurt = false) {
+  function drawMando(f, legPhase = 0, dir = 'front', hurt = false) {
     ss.frame(f);
     const C = PAL;
-    // legPhase: 0=neutral, 1=walkA, 2=walkB, -1=walkC, -2=walkD.
-    // Body bobs down 1px when legs are stretched far apart.
     const bob = (legPhase === 0) ? 0 : (Math.abs(legPhase) === 2 ? 1 : 0);
     const bodyTint = hurt ? C.beskarShine : C.beskar;
     const bodyMid  = hurt ? '#ffffff'      : C.beskarMid;
 
-    // ── HELMET DOME (round, centered, no facing features) ─────────────────
+    // ── HELMET DOME ───────────────────────────────────────────────────────
     const cy = 8 + bob;
     ss.hline(cy - 4, 10, 13, C.beskarDark);
     ss.hline(cy - 3, 9,  14, bodyTint);
@@ -296,97 +290,162 @@ export function paintPlayer(scene, key = 'player') {
     ss.hline(cy + 1, 8,  15, bodyTint);
     ss.hline(cy + 2, 9,  14, bodyTint);
     ss.hline(cy + 3, 10, 13, C.beskarDark);
-    // Centered crown highlight (no asymmetric features = no false "facing")
-    ss.px(11, cy - 1, C.beskarLight);
-    ss.px(12, cy - 1, C.beskarLight);
-    ss.px(11, cy,     C.beskarShine);
-    ss.px(12, cy,     C.beskarShine);
-
-    // ── PAULDRONS (symmetric left/right shoulders) ────────────────────────
-    ss.rect(4,  12 + bob, 4, 3, bodyTint);
-    ss.rect(16, 12 + bob, 4, 3, bodyTint);
-    ss.hline(12 + bob, 4,  7,  C.beskarLight);
-    ss.hline(12 + bob, 16, 19, C.beskarLight);
-    ss.hline(14 + bob, 4,  7,  C.beskarDark);
-    ss.hline(14 + bob, 16, 19, C.beskarDark);
-    ss.vline(4,  12 + bob, 14 + bob, C.beskarDeep);
-    ss.vline(19, 12 + bob, 14 + bob, C.beskarDeep);
-
-    // ── CHEST PLATE ───────────────────────────────────────────────────────
-    ss.rect(8, 13 + bob, 8, 5, bodyTint);
-    ss.hline(13 + bob, 8, 15, C.beskarLight);
-    ss.hline(17 + bob, 8, 15, C.beskarDeep);
-    ss.vline(8,  13 + bob, 17 + bob, C.beskarDark);
-    ss.vline(15, 13 + bob, 17 + bob, C.beskarDark);
-    // Mudhorn signet
-    ss.px(11, 15 + bob, C.gold);     ss.px(12, 15 + bob, C.gold);
-    ss.px(11, 16 + bob, C.goldDark); ss.px(12, 16 + bob, C.goldDark);
-
-    // ── BELT ──────────────────────────────────────────────────────────────
-    ss.hline(18 + bob, 8, 15, C.impDark);
-    ss.px(11, 18 + bob, C.gold);
-    ss.px(12, 18 + bob, C.gold);
-
-    // ── CAPE (behind body, symmetric) ─────────────────────────────────────
-    ss.rect(7, 19 + bob, 10, 4, C.cape);
-    ss.hline(19 + bob, 7, 16, C.capeBlack);
-    ss.vline(6,  20 + bob, 22 + bob, C.capeShade);
-    ss.vline(17, 20 + bob, 22 + bob, C.capeShade);
-    ss.px(6, 22 + bob, C.capeBlack);
-    ss.px(17, 22 + bob, C.capeBlack);
-    ss.vline(9,  20 + bob, 22 + bob, C.capeBlack);
-    ss.vline(14, 20 + bob, 22 + bob, C.capeBlack);
-
-    // ── LEGS ──────────────────────────────────────────────────────────────
-    // Thick 2-pixel wide boots that swing left-right and forward-back
-    let lx = 10, ly = 21;
-    let rx = 13, ry = 21;
-    if (legPhase === 1) {
-      lx = 9; ly = 20;
-      rx = 14; ry = 22;
-    } else if (legPhase === 2) {
-      lx = 8; ly = 19;
-      rx = 15; ry = 23;
-    } else if (legPhase === -1) {
-      lx = 11; ly = 22;
-      rx = 12; ry = 20;
-    } else if (legPhase === -2) {
-      lx = 12; ly = 23;
-      rx = 9; ry = 19;
+    
+    // Visor / details based on direction
+    if (dir === 'front') {
+      // Black T-visor
+      ss.vline(11, cy - 1, cy + 2, C.black);
+      ss.vline(12, cy - 1, cy + 2, C.black);
+      ss.hline(cy, 9, 14, C.black);
+      ss.px(10, cy - 1, C.beskarLight);
+      ss.px(13, cy - 1, C.beskarLight);
+    } else if (dir === 'side') {
+      // Visor profile on the right (facing East)
+      ss.vline(13, cy - 1, cy + 2, C.black);
+      ss.px(14, cy, C.black);
+      ss.px(12, cy, C.beskarLight);
+    } else {
+      // Back view - plain helmet back
+      ss.px(11, cy - 1, C.beskarLight);
+      ss.px(12, cy - 1, C.beskarLight);
     }
 
-    // Draw left boot (2x2 pixels + shadow/heel)
+    // ── BODY LAYOUTS ──────────────────────────────────────────────────────
+    if (dir === 'front') {
+      ss.rect(4,  12 + bob, 4, 3, bodyTint);
+      ss.rect(16, 12 + bob, 4, 3, bodyTint);
+      ss.hline(12 + bob, 4,  7,  C.beskarLight);
+      ss.hline(12 + bob, 16, 19, C.beskarLight);
+      ss.hline(14 + bob, 4,  7,  C.beskarDark);
+      ss.hline(14 + bob, 16, 19, C.beskarDark);
+      ss.vline(4,  12 + bob, 14 + bob, C.beskarDeep);
+      ss.vline(19, 12 + bob, 14 + bob, C.beskarDeep);
+
+      ss.rect(8, 13 + bob, 8, 5, bodyTint);
+      ss.hline(13 + bob, 8, 15, C.beskarLight);
+      ss.hline(17 + bob, 8, 15, C.beskarDeep);
+      ss.vline(8,  13 + bob, 17 + bob, C.beskarDark);
+      ss.vline(15, 13 + bob, 17 + bob, C.beskarDark);
+      ss.px(11, 15 + bob, C.gold);     ss.px(12, 15 + bob, C.gold);
+      ss.px(11, 16 + bob, C.goldDark); ss.px(12, 16 + bob, C.goldDark);
+
+      ss.hline(18 + bob, 8, 15, C.impDark);
+      ss.px(11, 18 + bob, C.gold);
+      ss.px(12, 18 + bob, C.gold);
+
+      ss.rect(6, 19 + bob, 2, 3, C.cape);
+      ss.rect(16, 19 + bob, 2, 3, C.cape);
+
+    } else if (dir === 'back') {
+      ss.rect(4, 12 + bob, 3, 3, bodyTint);
+      ss.rect(17, 12 + bob, 3, 3, bodyTint);
+      ss.rect(7, 12 + bob, 10, 11, C.cape);
+      ss.hline(12 + bob, 7, 16, C.capeShade);
+      ss.vline(7, 13 + bob, 22 + bob, C.capeBlack);
+      ss.vline(16, 13 + bob, 22 + bob, C.capeBlack);
+      ss.vline(11, 13 + bob, 22 + bob, C.capeBlack);
+
+    } else if (dir === 'side') {
+      ss.rect(5, 12 + bob, 4, 10, C.cape);
+      ss.vline(5, 12 + bob, 21 + bob, C.capeBlack);
+      ss.vline(8, 12 + bob, 21 + bob, C.capeShade);
+
+      ss.rect(9, 12 + bob, 9, 6, bodyTint);
+      ss.hline(12 + bob, 9, 17, C.beskarLight);
+      ss.rect(11, 12 + bob, 5, 4, bodyMid);
+      ss.hline(12 + bob, 11, 15, C.beskarLight);
+      ss.px(13, 14 + bob, C.gold);
+      ss.px(14, 14 + bob, C.gold);
+
+      ss.hline(18 + bob, 9, 17, C.impDark);
+      ss.px(16, 18 + bob, C.gold);
+    }
+
+    // ── LEGS ──────────────────────────────────────────────────────────────
+    let lx = 10, ly = 21;
+    let rx = 13, ry = 21;
+
+    if (dir === 'side') {
+      if (legPhase === 1) {
+        lx = 8; ly = 21;
+        rx = 14; ry = 21;
+      } else if (legPhase === 2) {
+        lx = 7; ly = 21;
+        rx = 16; ry = 21;
+      } else if (legPhase === -1) {
+        lx = 12; ly = 21;
+        rx = 10; ry = 21;
+      } else if (legPhase === -2) {
+        lx = 14; ly = 21;
+        rx = 8; ry = 21;
+      }
+    } else {
+      if (legPhase === 1) {
+        lx = 9; ly = 20;
+        rx = 14; ry = 22;
+      } else if (legPhase === 2) {
+        lx = 8; ly = 19;
+        rx = 15; ry = 23;
+      } else if (legPhase === -1) {
+        lx = 11; ly = 22;
+        rx = 12; ry = 20;
+      } else if (legPhase === -2) {
+        lx = 12; ly = 23;
+        rx = 9; ry = 19;
+      }
+    }
+
     ss.rect(lx, ly, 2, 2, C.beskarDeep);
     ss.rect(lx, ly + 2, 2, 1, C.black);
-    // Draw right boot
     ss.rect(rx, ry, 2, 2, C.beskarDeep);
     ss.rect(rx, ry + 2, 2, 1, C.black);
   }
 
-  drawMando(0, 0, false);   // 0: Idle
-  drawMando(1, 1, false);   // 1: Walk 1
-  drawMando(2, 2, false);   // 2: Walk 2 (far)
-  drawMando(3, 1, false);   // 3: Walk 3
-  drawMando(4, -1, false);  // 4: Walk 4
-  drawMando(5, -2, false);  // 5: Walk 5 (far)
-  drawMando(6, -1, false);  // 6: Walk 6
-  drawMando(7, 0, true);    // 7: Hurt / action
+  // Front
+  drawMando(0, 0, 'front', false);
+  drawMando(1, 1, 'front', false);
+  drawMando(2, 2, 'front', false);
+  drawMando(3, 1, 'front', false);
+  drawMando(4, -1, 'front', false);
+  drawMando(5, -2, 'front', false);
+  drawMando(6, -1, 'front', false);
+  drawMando(7, 0, 'front', true);
+
+  // Back
+  drawMando(8, 0, 'back', false);
+  drawMando(9, 1, 'back', false);
+  drawMando(10, 2, 'back', false);
+  drawMando(11, 1, 'back', false);
+  drawMando(12, -1, 'back', false);
+  drawMando(13, -2, 'back', false);
+  drawMando(14, -1, 'back', false);
+  drawMando(15, 0, 'back', true);
+
+  // Side
+  drawMando(16, 0, 'side', false);
+  drawMando(17, 1, 'side', false);
+  drawMando(18, 2, 'side', false);
+  drawMando(19, 1, 'side', false);
+  drawMando(20, -1, 'side', false);
+  drawMando(21, -2, 'side', false);
+  drawMando(22, -1, 'side', false);
+  drawMando(23, 0, 'side', true);
+
   ss.finish();
 }
 
-// ── GRUNT: Stormtrooper (20×20, 4 frames) — NO ROTATION ───────────────────
-// Body silhouette only — weapon is a separate overlay sprite.
+// ── GRUNT: Stormtrooper (20×20, 24 frames) — 4-DIRECTIONAL ─────────────────
 export function paintGrunt(scene, key = 'grunt') {
-  const ss = new SpriteSheet(scene, key, 20, 20, 8, 4);
+  const ss = new SpriteSheet(scene, key, 20, 20, 24, 4);
   const C = PAL;
 
-  function drawTrooper(f, legPhase = 0, hurt = false) {
+  function drawTrooper(f, legPhase = 0, dir = 'front', hurt = false) {
     ss.frame(f);
     const bob = (legPhase === 0) ? 0 : (Math.abs(legPhase) === 2 ? 1 : 0);
     const main = hurt ? '#ffffff' : C.troopWhite;
     const mid  = hurt ? C.troopLight : C.troopLight;
 
-    // ── HELMET DOME (round, symmetric) ────────────────────────────────────
+    // ── HELMET DOME ───────────────────────────────────────────────────────
     const cy = 7 + bob;
     ss.hline(cy - 3, 7,  10, C.troopShade);
     ss.hline(cy - 2, 6,  11, main);
@@ -398,50 +457,120 @@ export function paintGrunt(scene, key = 'grunt') {
     ss.px(8, cy - 1, '#ffffff');
     ss.px(9, cy - 1, '#ffffff');
 
-    // ── PAULDRONS ─────────────────────────────────────────────────────────
-    ss.rect(3, 11 + bob, 3, 3, main);
-    ss.rect(14, 11 + bob, 3, 3, main);
-    ss.hline(11 + bob, 3,  5, C.troopLight);
-    ss.hline(11 + bob, 14, 16, C.troopLight);
-    ss.hline(13 + bob, 3,  5, C.troopShade);
-    ss.px(8, cy - 1, '#ffffff'); ss.px(9, cy - 1, '#ffffff');
-    ss.rect(3, 11 + bob, 3, 3, main); ss.rect(14, 11 + bob, 3, 3, main);
-    ss.hline(11 + bob, 3,  5, C.troopLight); ss.hline(11 + bob, 14, 16, C.troopLight);
-    ss.hline(13 + bob, 3,  5, C.troopShade); ss.hline(13 + bob, 14, 16, C.troopShade);
-    ss.rect(6, 12 + bob, 8, 4, main);
-    ss.hline(12 + bob, 6, 13, C.troopLight);
-    ss.hline(15 + bob, 6, 13, C.troopShade);
-    ss.vline(6,  12 + bob, 15 + bob, C.troopShade);
-    ss.vline(13, 12 + bob, 15 + bob, C.troopShade);
-    ss.vline(9,  13 + bob, 14 + bob, C.troopShade);
-    ss.vline(10, 13 + bob, 14 + bob, C.troopShade);
-    ss.hline(16 + bob, 6, 13, C.impGrey);
-    ss.px(8,  16 + bob, C.impSheen); ss.px(11, 16 + bob, C.impSheen);
-    let lx = 7, ly = 18, rx = 11, ry = 18;
-    if (legPhase === 1) { lx = 6; ly = 17; rx = 12; ry = 19; }
-    else if (legPhase === 2) { lx = 5; ly = 16; rx = 13; ry = 20; }
-    else if (legPhase === -1) { lx = 8; ly = 19; rx = 10; ry = 17; }
-    else if (legPhase === -2) { lx = 9; ly = 20; rx = 9; ry = 16; }
+    // Visor and details based on direction
+    if (dir === 'front') {
+      ss.hline(cy + 1, 7, 10, C.black);
+      ss.px(8, cy + 2, C.impGrey);
+      ss.px(9, cy + 2, C.impGrey);
+    } else if (dir === 'side') {
+      ss.hline(cy + 1, 9, 11, C.black);
+      ss.px(11, cy + 2, C.impGrey);
+    } else {
+      // Back - plain helmet back
+    }
+
+    // ── BODY LAYOUTS ──────────────────────────────────────────────────────
+    if (dir === 'front') {
+      ss.rect(3, 11 + bob, 3, 3, main);
+      ss.rect(14, 11 + bob, 3, 3, main);
+      ss.hline(11 + bob, 3,  5, C.troopLight);
+      ss.hline(11 + bob, 14, 16, C.troopLight);
+      ss.hline(13 + bob, 3,  5, C.troopShade);
+      ss.hline(13 + bob, 14, 16, C.troopShade);
+
+      ss.rect(6, 12 + bob, 8, 4, main);
+      ss.hline(12 + bob, 6, 13, C.troopLight);
+      ss.hline(15 + bob, 6, 13, C.troopShade);
+      ss.vline(6,  12 + bob, 15 + bob, C.troopShade);
+      ss.vline(13, 12 + bob, 15 + bob, C.troopShade);
+      ss.vline(9,  13 + bob, 14 + bob, C.troopShade);
+      ss.vline(10, 13 + bob, 14 + bob, C.troopShade);
+      ss.hline(16 + bob, 6, 13, C.impGrey);
+      ss.px(8,  16 + bob, C.impSheen); ss.px(11, 16 + bob, C.impSheen);
+
+    } else if (dir === 'back') {
+      ss.rect(3, 11 + bob, 3, 3, main);
+      ss.rect(14, 11 + bob, 3, 3, main);
+      ss.rect(6, 12 + bob, 8, 4, main);
+      ss.hline(12 + bob, 6, 13, C.troopLight);
+      ss.hline(15 + bob, 6, 13, C.troopShade);
+      ss.hline(16 + bob, 7, 12, '#ffffff');
+      ss.hline(17 + bob, 7, 12, C.impGrey);
+
+    } else if (dir === 'side') {
+      ss.rect(5, 11 + bob, 4, 5, main);
+      ss.hline(11 + bob, 5, 8, C.troopLight);
+      ss.hline(15 + bob, 5, 8, C.troopShade);
+      ss.vline(7, 12 + bob, 14 + bob, C.black);
+      ss.rect(9, 12 + bob, 6, 4, main);
+      ss.hline(16 + bob, 8, 13, C.impGrey);
+    }
+
+    // ── LEGS ──────────────────────────────────────────────────────────────
+    let lx = 7, ly = 18;
+    let rx = 11, ry = 18;
+
+    if (dir === 'side') {
+      if (legPhase === 1) { lx = 5; ly = 18; rx = 11; ry = 18; }
+      else if (legPhase === 2) { lx = 4; ly = 18; rx = 13; ry = 18; }
+      else if (legPhase === -1) { lx = 9; ly = 18; rx = 7; ry = 18; }
+      else if (legPhase === -2) { lx = 11; ly = 18; rx = 5; ry = 18; }
+    } else {
+      if (legPhase === 1) { lx = 6; ly = 17; rx = 12; ry = 19; }
+      else if (legPhase === 2) { lx = 5; ly = 16; rx = 13; ry = 20; }
+      else if (legPhase === -1) { lx = 8; ly = 19; rx = 10; ry = 17; }
+      else if (legPhase === -2) { lx = 9; ly = 20; rx = 9; ry = 16; }
+    }
+
     ss.rect(lx, ly, 2, 2, C.troopDark); ss.rect(lx, ly + 2, 2, 1, C.troopBlack);
     ss.rect(rx, ry, 2, 2, C.troopDark); ss.rect(rx, ry + 2, 2, 1, C.troopBlack);
   }
-  drawTrooper(0, 0, false); drawTrooper(1, 1, false); drawTrooper(2, 2, false); drawTrooper(3, 1, false);
-  drawTrooper(4, 0, false); drawTrooper(5, -1, false); drawTrooper(6, -2, false); drawTrooper(7, -1, false);
+
+  // Front
+  drawTrooper(0, 0, 'front', false);
+  drawTrooper(1, 1, 'front', false);
+  drawTrooper(2, 2, 'front', false);
+  drawTrooper(3, 1, 'front', false);
+  drawTrooper(4, -1, 'front', false);
+  drawTrooper(5, -2, 'front', false);
+  drawTrooper(6, -1, 'front', false);
+  drawTrooper(7, 0, 'front', true);
+
+  // Back
+  drawTrooper(8, 0, 'back', false);
+  drawTrooper(9, 1, 'back', false);
+  drawTrooper(10, 2, 'back', false);
+  drawTrooper(11, 1, 'back', false);
+  drawTrooper(12, -1, 'back', false);
+  drawTrooper(13, -2, 'back', false);
+  drawTrooper(14, -1, 'back', false);
+  drawTrooper(15, 0, 'back', true);
+
+  // Side
+  drawTrooper(16, 0, 'side', false);
+  drawTrooper(17, 1, 'side', false);
+  drawTrooper(18, 2, 'side', false);
+  drawTrooper(19, 1, 'side', false);
+  drawTrooper(20, -1, 'side', false);
+  drawTrooper(21, -2, 'side', false);
+  drawTrooper(22, -1, 'side', false);
+  drawTrooper(23, 0, 'side', true);
+
   ss.finish();
 }
 
 // ── SHOOTER: Death Trooper (20×20, 8 frames) ──────────────────────────────
 export function paintShooter(scene, key = 'shooter') {
-  const ss = new SpriteSheet(scene, key, 20, 20, 8, 4);
+  const ss = new SpriteSheet(scene, key, 20, 20, 24, 4);
   const C = PAL;
 
-  function drawDeathTrooper(f, legPhase = 0, hurt = false) {
+  function drawDeathTrooper(f, legPhase = 0, dir = 'front', hurt = false) {
     ss.frame(f);
     const bob = (legPhase === 0) ? 0 : (Math.abs(legPhase) === 2 ? 1 : 0);
     const main = hurt ? C.dthLight : C.dthMid;
     const dark = hurt ? C.dthMid   : C.dthDark;
 
-    // ── HELMET DOME (angular black) ───────────────────────────────────────
+    // ── HELMET DOME ───────────────────────────────────────────────────────
     const cy = 7 + bob;
     ss.hline(cy - 3, 7,  10, dark);
     ss.hline(cy - 2, 6,  11, main);
@@ -452,64 +581,107 @@ export function paintShooter(scene, key = 'shooter') {
     // Crown highlight
     ss.px(8, cy - 1, '#4a4a58');
     ss.px(9, cy - 1, '#4a4a58');
-    // Symmetric green LED accents on either side of the dome
-    ss.px(6, cy, C.dthLED);
-    ss.px(11, cy, C.dthLED);
 
-    // ── PAULDRONS (heavy black armor, symmetric) ──────────────────────────
-    ss.rect(3, 11 + bob, 3, 3, main);
-    ss.rect(14, 11 + bob, 3, 3, main);
-    ss.hline(11 + bob, 3,  5, C.dthLight);
-    ss.hline(11 + bob, 14, 16, C.dthLight);
-    ss.hline(13 + bob, 3,  5, dark);
-    ss.hline(13 + bob, 14, 16, dark);
+    // Visor LEDs / details
+    if (dir === 'front') {
+      ss.px(6, cy, C.dthLED);
+      ss.px(11, cy, C.dthLED);
+    } else if (dir === 'side') {
+      // LED on the right profile
+      ss.px(11, cy, C.dthLED);
+    }
 
-    // ── CHEST PLATE ───────────────────────────────────────────────────────
-    ss.rect(6, 12 + bob, 8, 4, main);
-    ss.hline(12 + bob, 6, 13, C.dthLight);
-    ss.hline(15 + bob, 6, 13, dark);
-    ss.vline(6,  12 + bob, 15 + bob, dark);
-    ss.vline(13, 12 + bob, 15 + bob, dark);
-    // Center ridge
-    ss.vline(9,  13 + bob, 14 + bob, C.dthLight);
-    ss.vline(10, 13 + bob, 14 + bob, C.dthLight);
-    // Belt with LED
-    ss.hline(16 + bob, 6, 13, dark);
-    ss.px(9,  16 + bob, C.dthLED);
-    ss.px(10, 16 + bob, C.dthLEDBright);
+    // ── BODY LAYOUTS ──────────────────────────────────────────────────────
+    if (dir === 'front') {
+      ss.rect(3, 11 + bob, 3, 3, main);
+      ss.rect(14, 11 + bob, 3, 3, main);
+      ss.hline(11 + bob, 3,  5, C.dthLight);
+      ss.hline(11 + bob, 14, 16, C.dthLight);
+      ss.hline(13 + bob, 3,  5, dark);
+      ss.hline(13 + bob, 14, 16, dark);
 
-    // ── BOOT TOES ─────────────────────────────────────────────────────────
+      ss.rect(6, 12 + bob, 8, 4, main);
+      ss.hline(12 + bob, 6, 13, C.dthLight);
+      ss.hline(15 + bob, 6, 13, dark);
+      ss.vline(6,  12 + bob, 15 + bob, dark);
+      ss.vline(13, 12 + bob, 15 + bob, dark);
+      ss.vline(9,  13 + bob, 14 + bob, C.dthLight);
+      ss.vline(10, 13 + bob, 14 + bob, C.dthLight);
+      ss.hline(16 + bob, 6, 13, dark);
+      ss.px(9,  16 + bob, C.dthLED);
+      ss.px(10, 16 + bob, C.dthLEDBright);
+
+    } else if (dir === 'back') {
+      ss.rect(3, 11 + bob, 3, 3, main);
+      ss.rect(14, 11 + bob, 3, 3, main);
+      ss.rect(6, 12 + bob, 8, 4, main);
+      ss.hline(12 + bob, 6, 13, C.dthLight);
+      ss.hline(15 + bob, 6, 13, dark);
+      // Detonator belt pack
+      ss.hline(16 + bob, 7, 12, dark);
+      ss.hline(17 + bob, 7, 12, C.black);
+
+    } else if (dir === 'side') {
+      ss.rect(5, 11 + bob, 4, 5, main);
+      ss.hline(11 + bob, 5, 8, C.dthLight);
+      ss.hline(15 + bob, 5, 8, dark);
+      ss.vline(7, 12 + bob, 14 + bob, C.black);
+      ss.rect(9, 12 + bob, 6, 4, main);
+      ss.hline(16 + bob, 8, 13, dark);
+    }
+
+    // ── LEGS ──────────────────────────────────────────────────────────────
     let lx = 7, ly = 18;
     let rx = 11, ry = 18;
-    if (legPhase === 1) {
-      lx = 6; ly = 17;
-      rx = 12; ry = 19;
-    } else if (legPhase === 2) {
-      lx = 5; ly = 16;
-      rx = 13; ry = 20;
-    } else if (legPhase === -1) {
-      lx = 8; ly = 19;
-      rx = 10; ry = 17;
-    } else if (legPhase === -2) {
-      lx = 9; ly = 20;
-      rx = 9; ry = 16;
+
+    if (dir === 'side') {
+      if (legPhase === 1) { lx = 5; ly = 18; rx = 11; ry = 18; }
+      else if (legPhase === 2) { lx = 4; ly = 18; rx = 13; ry = 18; }
+      else if (legPhase === -1) { lx = 9; ly = 18; rx = 7; ry = 18; }
+      else if (legPhase === -2) { lx = 11; ly = 18; rx = 5; ry = 18; }
+    } else {
+      if (legPhase === 1) { lx = 6; ly = 17; rx = 12; ry = 19; }
+      else if (legPhase === 2) { lx = 5; ly = 16; rx = 13; ry = 20; }
+      else if (legPhase === -1) { lx = 8; ly = 19; rx = 10; ry = 17; }
+      else if (legPhase === -2) { lx = 9; ly = 20; rx = 9; ry = 16; }
     }
 
     ss.rect(lx, ly, 2, 2, dark);
     ss.rect(lx, ly + 2, 2, 1, C.black);
-
     ss.rect(rx, ry, 2, 2, dark);
     ss.rect(rx, ry + 2, 2, 1, C.black);
   }
 
-  drawDeathTrooper(0, 0, false);   // 0: Idle
-  drawDeathTrooper(1, 1, false);   // 1: Walk 1
-  drawDeathTrooper(2, 2, false);   // 2: Walk 2 (far)
-  drawDeathTrooper(3, 1, false);   // 3: Walk 3
-  drawDeathTrooper(4, -1, false);  // 4: Walk 4
-  drawDeathTrooper(5, -2, false);  // 5: Walk 5 (far)
-  drawDeathTrooper(6, -1, false);  // 6: Walk 6
-  drawDeathTrooper(7, 0, true);    // 7: Hurt / action
+  // Front
+  drawDeathTrooper(0, 0, 'front', false);
+  drawDeathTrooper(1, 1, 'front', false);
+  drawDeathTrooper(2, 2, 'front', false);
+  drawDeathTrooper(3, 1, 'front', false);
+  drawDeathTrooper(4, -1, 'front', false);
+  drawDeathTrooper(5, -2, 'front', false);
+  drawDeathTrooper(6, -1, 'front', false);
+  drawDeathTrooper(7, 0, 'front', true);
+
+  // Back
+  drawDeathTrooper(8, 0, 'back', false);
+  drawDeathTrooper(9, 1, 'back', false);
+  drawDeathTrooper(10, 2, 'back', false);
+  drawDeathTrooper(11, 1, 'back', false);
+  drawDeathTrooper(12, -1, 'back', false);
+  drawDeathTrooper(13, -2, 'back', false);
+  drawDeathTrooper(14, -1, 'back', false);
+  drawDeathTrooper(15, 0, 'back', true);
+
+  // Side
+  drawDeathTrooper(16, 0, 'side', false);
+  drawDeathTrooper(17, 1, 'side', false);
+  drawDeathTrooper(18, 2, 'side', false);
+  drawDeathTrooper(19, 1, 'side', false);
+  drawDeathTrooper(20, -1, 'side', false);
+  drawDeathTrooper(21, -2, 'side', false);
+  drawDeathTrooper(22, -1, 'side', false);
+  drawDeathTrooper(23, 0, 'side', true);
+
   ss.finish();
 }
 
@@ -517,16 +689,18 @@ export function paintShooter(scene, key = 'shooter') {
 // Massive cape spreading south, dome at top, weapon (saber) is a separate
 // rotating overlay sprite — body itself is static aside from walk/idle.
 export function paintBoss(scene, key = 'boss') {
-  const ss = new SpriteSheet(scene, key, 40, 40, 8, 4);
+  const ss = new SpriteSheet(scene, key, 40, 40, 24, 4);
   const C = PAL;
 
-  function drawVader(f, legPhase = 0, enraged = false) {
+  function drawVader(f, legPhase = 0, dir = 'front', enraged = false) {
     ss.frame(f);
     const bob = (legPhase === 0) ? 0 : (Math.abs(legPhase) === 2 ? 2 : 0);
     const main = enraged ? C.vaderSheen : C.vaderArmor;
 
-    // ── DOME (huge round helmet, no face features, symmetric) ─────────────
+    // ── HELMET DOME (cy centered) ─────────────────────────────────────────
     const cy = 14 + bob;
+    
+    // Draw base dome shape
     for (let dy = -7; dy <= 7; dy++) {
       const w = Math.round(Math.sqrt(64 - dy * dy));
       const xl = 20 - w, xr = 19 + w;
@@ -538,89 +712,166 @@ export function paintBoss(scene, key = 'boss') {
     // Dark side rim
     ss.vline(11, cy - 3, cy + 3, C.black);
     ss.vline(28, cy - 3, cy + 3, C.black);
-    // Crown highlight (top center catches light)
-    ss.rect(18, cy - 2, 4, 4, C.vaderBreath);
-    ss.px(19, cy - 1, C.impSilver);
-    ss.px(20, cy - 1, C.impSilver);
-    if (enraged) {
-      // Reactor-red eye-band hint (very small dome detail when enraged)
-      ss.px(15, cy + 2, C.saberRed);
-      ss.px(24, cy + 2, C.saberRed);
+
+    // Visor and details based on direction
+    if (dir === 'front') {
+      // Crown center highlight
+      ss.rect(18, cy - 2, 4, 4, C.vaderBreath);
+      ss.px(19, cy - 1, C.impSilver);
+      ss.px(20, cy - 1, C.impSilver);
+      // Triangular mask grill
+      ss.vline(19, cy + 2, cy + 5, C.black);
+      ss.vline(20, cy + 2, cy + 5, C.black);
+      ss.px(18, cy + 4, C.vaderBreath);
+      ss.px(21, cy + 4, C.vaderBreath);
+      
+      // Eyes / visor
+      const eyeColor = enraged ? C.saberRed : C.black;
+      ss.rect(15, cy + 1, 3, 2, eyeColor);
+      ss.rect(22, cy + 1, 3, 2, eyeColor);
+      
+    } else if (dir === 'side') {
+      // Profile snout/mask sticking out right
+      ss.vline(25, cy - 1, cy + 3, C.black);
+      ss.rect(23, cy + 2, 3, 3, C.black);
+      ss.px(26, cy + 3, C.vaderBreath); // breathing filter tip
+      // Eye profile on right
+      const eyeColor = enraged ? C.saberRed : C.black;
+      ss.rect(21, cy + 1, 2, 2, eyeColor);
+      
+    } else {
+      // Back view - solid black dome back
+      ss.rect(18, cy - 2, 4, 4, C.black);
     }
 
-    // ── PAULDRONS (symmetric) ─────────────────────────────────────────────
-    ss.rect(3,  cy + 5, 8, 6, main);
-    ss.rect(29, cy + 5, 8, 6, main);
-    ss.hline(cy + 5,  3,  10, C.vaderSheen);
-    ss.hline(cy + 5,  29, 36, C.vaderSheen);
-    ss.hline(cy + 10, 3,  10, C.black);
-    ss.hline(cy + 10, 29, 36, C.black);
-    ss.vline(3,  cy + 5, cy + 10, C.black);
-    ss.vline(36, cy + 5, cy + 10, C.black);
+    // ── BODY LAYOUTS ──────────────────────────────────────────────────────
+    if (dir === 'front') {
+      // Pauldrons
+      ss.rect(3,  cy + 5, 8, 6, main);
+      ss.rect(29, cy + 5, 8, 6, main);
+      ss.hline(cy + 5,  3,  10, C.vaderSheen);
+      ss.hline(cy + 5,  29, 36, C.vaderSheen);
+      ss.hline(cy + 10, 3,  10, C.black);
+      ss.hline(cy + 10, 29, 36, C.black);
+      ss.vline(3,  cy + 5, cy + 10, C.black);
+      ss.vline(36, cy + 5, cy + 10, C.black);
 
-    // ── CHEST PANEL ───────────────────────────────────────────────────────
-    const cy2 = cy + 11;
-    ss.rect(11, cy2, 18, 8, main);
-    ss.hline(cy2,     11, 28, C.vaderSheen);
-    ss.hline(cy2 + 7, 11, 28, C.black);
-    ss.vline(11, cy2, cy2 + 7, C.black);
-    ss.vline(28, cy2, cy2 + 7, C.black);
-    // Life-support LEDs (symmetric)
-    ss.rect(14, cy2 + 2, 12, 4, C.vaderHelm);
-    ss.px(16, cy2 + 3, enraged ? C.saberRed : C.ledRed);
-    ss.px(19, cy2 + 3, C.ledGreen);
-    ss.px(20, cy2 + 3, C.ledGreen);
-    ss.px(23, cy2 + 3, enraged ? C.saberRed : C.ledRed);
-    ss.px(16, cy2 + 4, C.impGrey);
-    ss.px(23, cy2 + 4, C.impGrey);
+      // Chest panel
+      const cy2 = cy + 11;
+      ss.rect(11, cy2, 18, 8, main);
+      ss.hline(cy2,     11, 28, C.vaderSheen);
+      ss.hline(cy2 + 7, 11, 28, C.black);
+      ss.vline(11, cy2, cy2 + 7, C.black);
+      ss.vline(28, cy2, cy2 + 7, C.black);
+      // LEDs
+      ss.rect(14, cy2 + 2, 12, 4, C.vaderHelm);
+      ss.px(16, cy2 + 3, enraged ? C.saberRed : C.ledRed);
+      ss.px(19, cy2 + 3, C.ledGreen);
+      ss.px(20, cy2 + 3, C.ledGreen);
+      ss.px(23, cy2 + 3, enraged ? C.saberRed : C.ledRed);
+      ss.px(16, cy2 + 4, C.impGrey);
+      ss.px(23, cy2 + 4, C.impGrey);
 
-    // ── CAPE (massive, flares south) ──────────────────────────────────────
-    ss.rect(8,  29 + bob, 24, 10, C.cape);
-    ss.rect(6,  31 + bob, 28, 8,  C.cape);
-    ss.rect(4,  33 + bob, 32, 6,  C.cape);
-    ss.vline(4,  33 + bob, 38 + bob, C.capeBlack);
-    ss.vline(35, 33 + bob, 38 + bob, C.capeBlack);
-    ss.vline(6,  31 + bob, 38 + bob, C.capeBlack);
-    ss.vline(33, 31 + bob, 38 + bob, C.capeBlack);
-    ss.hline(38 + bob, 4, 35, C.capeBlack);
-    ss.vline(12, 31 + bob, 38 + bob, C.capeShade);
-    ss.vline(20, 31 + bob, 38 + bob, C.capeShade);
-    ss.vline(27, 31 + bob, 38 + bob, C.capeShade);
+      // Cape (flares behind shoulders)
+      ss.rect(8,  29 + bob, 24, 10, C.cape);
+      ss.rect(6,  31 + bob, 28, 8,  C.cape);
+      ss.rect(4,  33 + bob, 32, 6,  C.cape);
+      ss.vline(4,  33 + bob, 38 + bob, C.capeBlack);
+      ss.vline(35, 33 + bob, 38 + bob, C.capeBlack);
+      ss.vline(6,  31 + bob, 38 + bob, C.capeBlack);
+      ss.vline(33, 31 + bob, 38 + bob, C.capeBlack);
+      ss.hline(38 + bob, 4, 35, C.capeBlack);
+      ss.vline(12, 31 + bob, 38 + bob, C.capeShade);
+      ss.vline(20, 31 + bob, 38 + bob, C.capeShade);
+      ss.vline(27, 31 + bob, 38 + bob, C.capeShade);
 
-    // ── BOOT TOES (animate stride) ────────────────────────────────────────
+    } else if (dir === 'back') {
+      // Cape covers everything
+      ss.rect(4, cy + 5, 32, 25, C.cape);
+      ss.hline(cy + 5, 4, 35, C.capeShade);
+      ss.vline(4, cy + 5, cy + 29, C.capeBlack);
+      ss.vline(35, cy + 5, cy + 29, C.capeBlack);
+      ss.vline(20, cy + 5, cy + 29, C.capeBlack);
+      ss.hline(cy + 29, 4, 35, C.capeBlack);
+
+    } else if (dir === 'side') {
+      // Cape hangs left (West)
+      ss.rect(6, cy + 5, 12, 24, C.cape);
+      ss.vline(6, cy + 5, cy + 28, C.capeBlack);
+      ss.vline(17, cy + 5, cy + 28, C.capeShade);
+
+      // Side shoulder + chest profile
+      ss.rect(18, cy + 5, 12, 14, main);
+      ss.hline(cy + 5, 18, 29, C.vaderSheen);
+      ss.rect(19, cy + 7, 7, 7, C.vaderHelm); // shoulder armor plate
+      // Side control box
+      ss.rect(26, cy + 11, 4, 6, C.black);
+      ss.px(28, cy + 13, C.ledRed);
+    }
+
+    // ── LEGS ──────────────────────────────────────────────────────────────
     let lx = 15, ly = 37;
     let rx = 22, ry = 37;
-    if (legPhase === 1) {
-      lx = 13; ly = 35;
-      rx = 24; ry = 38;
-    } else if (legPhase === 2) {
-      lx = 11; ly = 33;
-      rx = 26; ry = 39;
-    } else if (legPhase === -1) {
-      lx = 17; ly = 38;
-      rx = 20; ry = 35;
-    } else if (legPhase === -2) {
-      lx = 19; ly = 39;
-      rx = 18; ry = 33;
+
+    if (dir === 'side') {
+      if (legPhase === 1) { lx = 11; ly = 37; rx = 23; ry = 37; }
+      else if (legPhase === 2) { lx = 8; ly = 37; rx = 26; ry = 37; }
+      else if (legPhase === -1) { lx = 20; ly = 37; rx = 14; ry = 37; }
+      else if (legPhase === -2) { lx = 23; ly = 37; rx = 11; ry = 37; }
+    } else {
+      if (legPhase === 1) {
+        lx = 13; ly = 35;
+        rx = 24; ry = 38;
+      } else if (legPhase === 2) {
+        lx = 11; ly = 33;
+        rx = 26; ry = 39;
+      } else if (legPhase === -1) {
+        lx = 17; ly = 38;
+        rx = 20; ry = 35;
+      } else if (legPhase === -2) {
+        lx = 19; ly = 39;
+        rx = 18; ry = 33;
+      }
     }
 
-    // Draw left boot (3x2 pixels)
+    // Draw left boot
     ss.rect(lx, ly, 3, 2, C.vaderHelm);
-    ss.rect(lx, ly + 2, 3, 1, C.black); // heel
-
-    // Draw right boot (3x2 pixels)
+    ss.rect(lx, ly + 2, 3, 1, C.black);
+    // Draw right boot
     ss.rect(rx, ry, 3, 2, C.vaderHelm);
-    ss.rect(rx, ry + 2, 3, 1, C.black); // heel
+    ss.rect(rx, ry + 2, 3, 1, C.black);
   }
 
-  drawVader(0, 0, false);   // 0: Idle
-  drawVader(1, 1, false);   // 1: Walk 1
-  drawVader(2, 2, false);   // 2: Walk 2 (far)
-  drawVader(3, 1, false);   // 3: Walk 3
-  drawVader(4, -1, false);  // 4: Walk 4
-  drawVader(5, -2, false);  // 5: Walk 5 (far)
-  drawVader(6, -1, false);  // 6: Walk 6
-  drawVader(7, 0, true);    // 7: Hurt / action
+  // Front
+  drawVader(0, 0, 'front', false);
+  drawVader(1, 1, 'front', false);
+  drawVader(2, 2, 'front', false);
+  drawVader(3, 1, 'front', false);
+  drawVader(4, -1, 'front', false);
+  drawVader(5, -2, 'front', false);
+  drawVader(6, -1, 'front', false);
+  drawVader(7, 0, 'front', true);
+
+  // Back
+  drawVader(8, 0, 'back', false);
+  drawVader(9, 1, 'back', false);
+  drawVader(10, 2, 'back', false);
+  drawVader(11, 1, 'back', false);
+  drawVader(12, -1, 'back', false);
+  drawVader(13, -2, 'back', false);
+  drawVader(14, -1, 'back', false);
+  drawVader(15, 0, 'back', true);
+
+  // Side
+  drawVader(16, 0, 'side', false);
+  drawVader(17, 1, 'side', false);
+  drawVader(18, 2, 'side', false);
+  drawVader(19, 1, 'side', false);
+  drawVader(20, -1, 'side', false);
+  drawVader(21, -2, 'side', false);
+  drawVader(22, -1, 'side', false);
+  drawVader(23, 0, 'side', true);
+
   ss.finish();
 }
 

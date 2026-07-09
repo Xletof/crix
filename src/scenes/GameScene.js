@@ -12,6 +12,7 @@ import { Terminal } from '../entities/Terminal.js';
 import { attachFX, SFX, startMusic, duckMusic, stopMusic } from '../systems/FX.js';
 import { ROOMS } from '../data/rooms.js';
 import { NARRATIVE } from '../data/narrative.js';
+import { NavGrid } from '../systems/NavGrid.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -42,6 +43,9 @@ export class GameScene extends Phaser.Scene {
 
     // ── Bush / cover system ────────────────────────────────────────────────
     this.bushSystem = new BushSystem(this);
+
+    // ── NavGrid pathfinding ────────────────────────────────────────────────
+    this.navGrid = new NavGrid(this, 80);
 
     // ── Aim cone + flame cone overlays ────────────────────────────────────
     this.aimGraphics   = this.add.graphics().setDepth(25);
@@ -183,6 +187,9 @@ export class GameScene extends Phaser.Scene {
       this.roomLayer.add(con);
       this.bushSystem.add(con, 55);
     }
+
+    // Rebuild pathfinding navigation grid
+    this.navGrid.build(w, h, this.walls.getChildren());
 
     // Remove any stale room-alarm / stealth listeners from previous rooms
     this.events.off('room-alarm-klaxon');
@@ -1069,7 +1076,7 @@ export class GameScene extends Phaser.Scene {
       this.time.delayedCall(140, () => {
         if (enemy.active && enemy.alive) {
           const prefix = enemy._animPrefix;
-          if (this.anims.exists(`${prefix}-idle`)) enemy.play(`${prefix}-idle`);
+          if (this.anims.exists(`${prefix}-idle-front`)) enemy.play(`${prefix}-idle-front`);
         }
       });
       // CRIT callout on big hits — one-shot territory for most enemies.
@@ -1189,7 +1196,7 @@ export class GameScene extends Phaser.Scene {
         const spawn = this.roomSpec?.spawn ?? { x: 200, y: 200 };
         this.player.setPosition(spawn.x, spawn.y);
         this.player.setVelocity(0, 0);
-        this.player.play('mando-idle');
+        this.player.play('mando-idle-front');
         this.events.emit('player-hp-changed');
         this.events.emit('player-ammo-changed');
         this.events.emit('player-super-changed');

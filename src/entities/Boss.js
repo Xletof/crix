@@ -53,7 +53,7 @@ export class Boss extends Enemy {
     SFX.bossRoar();
 
     // Start Vader idle anim
-    this.play('vader-idle');
+    this.play('vader-idle-front');
   }
 
   // Override damage() to apply a per-volley cap so a point-blank super volley
@@ -86,6 +86,28 @@ export class Boss extends Enemy {
     if (this.phase >= 2 && r < 0.33) return STATE.SPAWNING;
     if (r < 0.5) return STATE.CHARGE_WINDUP;
     return STATE.FAN;
+  }
+
+  playVaderAnim(type, angle) {
+    let dirSuffix = 'front';
+    let flipX = false;
+    const deg = Phaser.Math.RadToDeg(angle);
+    if (deg >= -45 && deg <= 45) {
+      dirSuffix = 'side';
+      flipX = false;
+    } else if (deg > 45 && deg < 135) {
+      dirSuffix = 'front';
+      flipX = false;
+    } else if (deg >= 135 || deg <= -135) {
+      dirSuffix = 'side';
+      flipX = true;
+    } else {
+      dirSuffix = 'back';
+      flipX = false;
+    }
+    this.setFlipX(flipX);
+    const key = `vader-${type}-${dirSuffix}`;
+    if (this.anims.currentAnim?.key !== key) this.play(key);
   }
 
   preUpdate(time, delta) {
@@ -137,8 +159,12 @@ export class Boss extends Enemy {
       this.weaponSprite.x = this.x + Math.cos(angToPlayer) * offset;
       this.weaponSprite.y = this.y + Math.sin(angToPlayer) * offset;
       this.weaponSprite.rotation = angToPlayer;
+      this.weaponSprite.setFlipY(Math.abs(angToPlayer) > Math.PI / 2);
       this.weaponSprite.setAlpha(this.alive ? (this.hiddenInBush ? 0.55 : 1) : 0);
-      this.weaponSprite.setDepth(this.y + 1);
+      
+      const degBoss = Phaser.Math.RadToDeg(angToPlayer);
+      const isFacingNorth = (degBoss < -45 && degBoss > -135);
+      this.weaponSprite.setDepth(isFacingNorth ? this.y - 1 : this.y + 1);
     }
 
     if (this.contactDmgCd > 0) this.contactDmgCd -= delta;
@@ -151,9 +177,9 @@ export class Boss extends Enemy {
         // Vader animation during advance
         const spd2 = speed * speed;
         if (this.body.velocity.x ** 2 + this.body.velocity.y ** 2 > 200) {
-          if (this.anims.currentAnim?.key !== 'vader-walk') this.play('vader-walk');
+          this.playVaderAnim('walk', angToPlayer);
         } else {
-          if (this.anims.currentAnim?.key !== 'vader-idle') this.play('vader-idle');
+          this.playVaderAnim('idle', angToPlayer);
         }
         this.setScale(glowScale);
 
@@ -183,7 +209,7 @@ export class Boss extends Enemy {
         this.setVelocity(0, 0);
         this.stateTimer += delta;
         // Vader windup: enraged frame + scale pulse
-        if (this.anims.currentAnim?.key !== 'vader-attack') this.play('vader-attack');
+        this.playVaderAnim('fire', this.chargeAngle);
         const pulse = 1 + Math.sin(this.stateTimer / 55) * 0.07;
         this.setScale(pulse);
         if (this.stateTimer >= BOSS.chargeWindupMs) {
@@ -195,7 +221,7 @@ export class Boss extends Enemy {
             Math.sin(this.chargeAngle) * BOSS.chargeSpeed
           );
           this.scene.events.emit('boss-charge', this);
-          if (this.anims.currentAnim?.key !== 'vader-walk') this.play('vader-walk');
+          this.playVaderAnim('walk', this.chargeAngle);
         }
         break;
       }

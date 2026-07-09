@@ -86,7 +86,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.superAura = scene.add.graphics().setDepth(this.depth - 3).setVisible(false);
     this._auraPulse = 0;
 
-    this.play('mando-idle');
+    this.play('mando-idle-front');
     // Baseline scale (1.0)
     this.setScale(1.0);
 
@@ -554,6 +554,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.weaponSprite.x = this.x + Math.cos(ang) * offset;
       this.weaponSprite.y = this.y + Math.sin(ang) * offset;
       this.weaponSprite.rotation = ang;
+      this.weaponSprite.setFlipY(Math.abs(ang) > Math.PI / 2);
       this.weaponSprite.setAlpha(this.alive ? (this.hiddenInBush ? PLAYER.bushAlpha : 1) : 0);
     }
 
@@ -561,7 +562,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // on their position rather than a fixed integer per type. Related
     // sprites (shadow, weapon, rings) ride small offsets around the body.
     this.setDepth(this.y);
-    this.weaponSprite?.setDepth(this.y + 1);
+    
+    // Depth sort weapon based on facing direction (behind if facing North/back)
+    const deg = Phaser.Math.RadToDeg(this.superAiming ? this.superAim : this.aiming ? this.aim : this.facing);
+    const isFacingNorth = (deg < -45 && deg > -135);
+    if (this.weaponSprite) {
+      this.weaponSprite.setDepth(isFacingNorth ? this.y - 1 : this.y + 1);
+    }
     this.glowRing.setDepth(this.y - 2);
     this.superAura.setDepth(this.y - 3);
 
@@ -633,13 +640,48 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this._moveEnv += (moveT - this._moveEnv) * blendK;
     const isMoving = this._moveEnv > 0.35;
 
+    // Determine 4-directional anim suffix and flipX
+    let dirSuffix = 'front';
+    let flipX = false;
+
+    let angAnim = this.facing;
+    if (this.superAiming) {
+      angAnim = this.superAim;
+    } else if (this.aiming) {
+      angAnim = this.aim;
+    } else if (isMoving && this.body && (Math.abs(this.body.velocity.x) > 10 || Math.abs(this.body.velocity.y) > 10)) {
+      angAnim = Math.atan2(this.body.velocity.y, this.body.velocity.x);
+      this.facing = angAnim; // update facing to walk direction
+    }
+
+    const degAnim = Phaser.Math.RadToDeg(angAnim);
+    if (degAnim >= -45 && degAnim <= 45) {
+      dirSuffix = 'side';
+      flipX = false; // facing East
+    } else if (degAnim > 45 && degAnim < 135) {
+      dirSuffix = 'front';
+      flipX = false; // facing South
+    } else if (degAnim >= 135 || degAnim <= -135) {
+      dirSuffix = 'side';
+      flipX = true;  // facing West
+    } else {
+      dirSuffix = 'back';
+      flipX = false; // facing North
+    }
+
+    this.setFlipX(flipX);
+
+    const baseKey = 'mando';
+    let animKey = `${baseKey}-idle-${dirSuffix}`;
     if (this._fireAnimTimer > 0) {
       this._fireAnimTimer -= delta;
-      if (this.anims.currentAnim?.key !== 'mando-fire') this.play('mando-fire');
+      animKey = `${baseKey}-fire-${dirSuffix}`;
     } else if (isMoving) {
-      if (this.anims.currentAnim?.key !== 'mando-walk') this.play('mando-walk');
-    } else {
-      if (this.anims.currentAnim?.key !== 'mando-idle') this.play('mando-idle');
+      animKey = `${baseKey}-walk-${dirSuffix}`;
+    }
+
+    if (this.anims.currentAnim?.key !== animKey) {
+      this.play(animKey);
     }
 
     // ── Recoil punch + idle breathing + move-envelope stretch ──────────

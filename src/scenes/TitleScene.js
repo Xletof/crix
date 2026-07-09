@@ -109,7 +109,7 @@ export class TitleScene extends Phaser.Scene {
     // ── Mandalorian portrait ──────────────────────────────────────────────
     // Use player sprite frame 0 at large scale
     const portrait = this.add.sprite(cx, VIEW.height * 0.74, 'player', 0).setScale(3.5);
-    portrait.play('mando-idle');
+    portrait.play('mando-idle-front');
     // Subtle float tween
     this.tweens.add({
       targets: portrait,

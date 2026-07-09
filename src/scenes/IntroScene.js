@@ -42,7 +42,7 @@ export class IntroScene extends Phaser.Scene {
 
     // ── Mando portrait at the bottom, listening to the transmission ──
     const portrait = this.add.sprite(cx, VIEW.height * 0.86, 'player', 0).setScale(3.2);
-    portrait.play('mando-idle');
+    portrait.play('mando-idle-front');
     this.tweens.add({
       targets: portrait, y: portrait.y - 14,
       duration: 1600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',

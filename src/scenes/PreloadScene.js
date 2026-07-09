@@ -81,113 +81,53 @@ export class PreloadScene extends Phaser.Scene {
     paintSaberOverlay(this, 'wpn-saber');
 
     // ── Animations ───────────────────────────────────────────────────
-    // Mandalorian (player) — frames: 0=idle, 1=walkA, 2=walkB, 3=fire
-    this.anims.create({
-      key: 'mando-idle',
-      frames: [{ key: 'player', frame: 0 }],
-      frameRate: 4,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: 'mando-walk',
-      frames: [
-        { key: 'player', frame: 1 },
-        { key: 'player', frame: 2 },
-        { key: 'player', frame: 3 },
-        { key: 'player', frame: 4 },
-        { key: 'player', frame: 5 },
-        { key: 'player', frame: 6 },
-      ],
-      frameRate: 14,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: 'mando-fire',
-      frames: [{ key: 'player', frame: 7 }],
-      frameRate: 12,
-      repeat: 0,
-    });
+    const chars = [
+      { key: 'mando', tex: 'player' },
+      { key: 'grunt', tex: 'grunt' },
+      { key: 'shooter', tex: 'shooter' },
+      { key: 'vader', tex: 'boss' }
+    ];
 
-    // Stormtrooper (grunt) — same layout
-    this.anims.create({
-      key: 'grunt-idle',
-      frames: [{ key: 'grunt', frame: 0 }],
-      frameRate: 4,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: 'grunt-walk',
-      frames: [
-        { key: 'grunt', frame: 1 },
-        { key: 'grunt', frame: 2 },
-        { key: 'grunt', frame: 3 },
-        { key: 'grunt', frame: 4 },
-        { key: 'grunt', frame: 5 },
-        { key: 'grunt', frame: 6 },
-      ],
-      frameRate: 14,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: 'grunt-fire',
-      frames: [{ key: 'grunt', frame: 7 }],
-      frameRate: 12,
-      repeat: 0,
-    });
+    for (const c of chars) {
+      const dirs = [
+        { name: 'front', offset: 0 },
+        { name: 'back', offset: 8 },
+        { name: 'side', offset: 16 }
+      ];
 
-    // Death Trooper (shooter)
-    this.anims.create({
-      key: 'shooter-idle',
-      frames: [{ key: 'shooter', frame: 0 }],
-      frameRate: 4,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: 'shooter-walk',
-      frames: [
-        { key: 'shooter', frame: 1 },
-        { key: 'shooter', frame: 2 },
-        { key: 'shooter', frame: 3 },
-        { key: 'shooter', frame: 4 },
-        { key: 'shooter', frame: 5 },
-        { key: 'shooter', frame: 6 },
-      ],
-      frameRate: 14,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: 'shooter-fire',
-      frames: [{ key: 'shooter', frame: 7 }],
-      frameRate: 12,
-      repeat: 0,
-    });
+      for (const d of dirs) {
+        // Idle
+        this.anims.create({
+          key: `${c.key}-idle-${d.name}`,
+          frames: [{ key: c.tex, frame: d.offset }],
+          frameRate: 4,
+          repeat: -1,
+        });
 
-    // Darth Vader (boss)
-    this.anims.create({
-      key: 'vader-idle',
-      frames: [{ key: 'boss', frame: 0 }],
-      frameRate: 2,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: 'vader-walk',
-      frames: [
-        { key: 'boss', frame: 1 },
-        { key: 'boss', frame: 2 },
-        { key: 'boss', frame: 3 },
-        { key: 'boss', frame: 4 },
-        { key: 'boss', frame: 5 },
-        { key: 'boss', frame: 6 },
-      ],
-      frameRate: 14,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: 'vader-attack',
-      frames: [{ key: 'boss', frame: 7 }],
-      frameRate: 6,
-      repeat: -1,
-    });
+        // Walk
+        this.anims.create({
+          key: `${c.key}-walk-${d.name}`,
+          frames: [
+            { key: c.tex, frame: d.offset + 1 },
+            { key: c.tex, frame: d.offset + 2 },
+            { key: c.tex, frame: d.offset + 3 },
+            { key: c.tex, frame: d.offset + 4 },
+            { key: c.tex, frame: d.offset + 5 },
+            { key: c.tex, frame: d.offset + 6 },
+          ],
+          frameRate: 14,
+          repeat: -1,
+        });
+
+        // Fire / Action
+        this.anims.create({
+          key: `${c.key}-fire-${d.name}`,
+          frames: [{ key: c.tex, frame: d.offset + 7 }],
+          frameRate: 12,
+          repeat: 0,
+        });
+      }
+    }
 
     // Explosion — 3-frame one-shot
     this.anims.create({

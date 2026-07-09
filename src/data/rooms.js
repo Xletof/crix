@@ -19,7 +19,6 @@ export const ROOMS = [
     exit: { x: 1500, y: 700, side: 'right' },
     walls: [
       { x: 500, y: 350 }, { x: 500, y: 1050 },
-      { x: 1100, y: 350 }, { x: 1100, y: 1050 },
     ],
     cover: [
       { x: 450, y: 700 },
@@ -54,94 +53,87 @@ export const ROOMS = [
   },
 
   // ── 2. Service Corridor ────────────────────────────────────────────────
-  // Tall narrow chamber — forces close-quarters. Enemies start alerted
-  // (they heard the hangar fight). Cover staggered left/right so enemies
-  // can navigate around them (centered cover caused permanent stuck-loops).
+  // S-shaped zig-zag maze to showcase pathfinding around blocking walls.
   {
     id: 'corridor',
     name: 'SERVICE CORRIDOR',
-    bounds: { w: 900, h: 1500 },
-    spawn: { x: 450, y: 120 },
-    exit: { x: 450, y: 1440, side: 'bottom' },
+    bounds: { w: 1000, h: 1600 },
+    spawn: { x: 500, y: 120 },
+    exit: { x: 500, y: 1480, side: 'bottom' },
     walls: [
-      { x: 220, y: 500 }, { x: 680, y: 500 },
-      { x: 220, y: 1000 }, { x: 680, y: 1000 },
+      // Left-extending partition wall
+      { x: 250, y: 500 }, { x: 400, y: 500 },
+      // Right-extending partition wall
+      { x: 750, y: 1000 }, { x: 600, y: 1000 },
     ],
     cover: [
-      { x: 280, y: 420 }, { x: 660, y: 800 }, { x: 280, y: 1220 },
+      { x: 700, y: 350 }, { x: 300, y: 750 }, { x: 700, y: 1250 },
     ],
     enemies: [
-      // These enemies heard the hangar fight — they boot in ALERT state
       {
-        type: 'grunt', x: 450, y: 650, alerted: true,
-        patrol: [{ x: 250, y: 650 }, { x: 650, y: 650 }],
+        type: 'grunt', x: 700, y: 450, alerted: true,
+        patrol: [{ x: 700, y: 450 }, { x: 850, y: 450 }],
       },
-      { type: 'grunt',   x: 300, y: 1100, alerted: true },
-      { type: 'shooter', x: 620, y: 1280, alerted: true },
+      {
+        type: 'grunt', x: 300, y: 950, alerted: true,
+        patrol: [{ x: 300, y: 950 }, { x: 150, y: 950 }],
+      },
+      { type: 'shooter', x: 500, y: 1250, alerted: true },
     ],
-    // Flamethrower reward for clearing the tight corridor
     pickups: [
-      { x: 450, y: 1360, weapon: 'flamethrower' },
+      { x: 500, y: 1380, weapon: 'flamethrower' },
     ],
-    // Two terminals on opposite flanks force movement through the crossfire.
-    terminals: [
-      { x: 650, y: 650 },
-      { x: 300, y: 950 },
-    ],
-    // Single shooter reinforcement from the top — tight corridor punishes camping
+    terminals: [],
     reinforce: {
       afterMs: 18000,
       count: 1,
       type: 'shooter',
-      door: { x: 450, y: 80 },
+      door: { x: 500, y: 80 },
     },
   },
 
   // ── 3. Detention Block ─────────────────────────────────────────────────
-  // Two rows of cell walls — heavier garrison. Two shooters suppress from
-  // opposite flanks; two grunts patrol the cell rows.
+  // Cell blocks layout with dual terminals requiring hacking.
   {
     id: 'detention',
     name: 'DETENTION BLOCK',
-    // Bumped h:1200 → 1400 so the camera can keep the player centered.
-    bounds: { w: 1500, h: 1400 },
+    bounds: { w: 1600, h: 1400 },
     spawn: { x: 150, y: 700 },
-    exit: { x: 1440, y: 700, side: 'right' },
+    exit: { x: 1450, y: 700, side: 'right' },
     walls: [
-      { x: 340, y: 240 }, { x: 540, y: 240 }, { x: 740, y: 240 },
-      { x: 940, y: 240 }, { x: 1140, y: 240 },
-      { x: 340, y: 1160 }, { x: 540, y: 1160 }, { x: 740, y: 1160 },
-      { x: 940, y: 1160 }, { x: 1140, y: 1160 },
+      // Upper prison block cell walls
+      { x: 400, y: 300 }, { x: 800, y: 300 }, { x: 1200, y: 300 },
+      // Lower prison block cell walls
+      { x: 400, y: 1100 }, { x: 800, y: 1100 }, { x: 1200, y: 1100 },
     ],
     cover: [
-      { x: 440, y: 500 }, { x: 740, y: 700 }, { x: 1040, y: 500 },
-      { x: 440, y: 900 }, { x: 1040, y: 900 },
+      { x: 600, y: 500 }, { x: 1000, y: 500 },
+      { x: 600, y: 900 }, { x: 1000, y: 900 },
     ],
     enemies: [
       {
-        type: 'grunt', x: 740, y: 440,
-        patrol: [{ x: 440, y: 440 }, { x: 1040, y: 440 }],
+        type: 'grunt', x: 800, y: 700,
+        patrol: [{ x: 500, y: 700 }, { x: 1100, y: 700 }],
       },
       {
-        type: 'grunt', x: 740, y: 960,
-        patrol: [{ x: 440, y: 960 }, { x: 1040, y: 960 }],
+        type: 'grunt', x: 800, y: 650,
+        patrol: [{ x: 1100, y: 650 }, { x: 500, y: 650 }],
       },
-      { type: 'shooter', x: 1280, y: 480 },
-      { type: 'shooter', x: 1280, y: 920, role: 'flanker' },
+      { type: 'shooter', x: 550, y: 400 },
+      { type: 'shooter', x: 1050, y: 1000, role: 'flanker' },
     ],
     pickups: [
-      { x: 740, y: 700, weapon: 'detonator' },
+      { x: 800, y: 700, weapon: 'detonator' },
     ],
-    // Two terminals deep in the cell block — held by two shooters + patrols.
     terminals: [
-      { x: 600, y: 950 },
-      { x: 900, y: 450 },
+      { x: 500, y: 450 },
+      { x: 1100, y: 950 },
     ],
     reinforce: {
       afterMs: 20000,
       count: 3,
       type: 'grunt',
-      door: { x: 750, y: 100 },
+      door: { x: 800, y: 100 },
     },
   },
 
@@ -149,18 +141,17 @@ export const ROOMS = [
   {
     id: 'vader',
     name: "VADER'S CHAMBER",
-    bounds: { w: 1600, h: 1400 },
-    spawn: { x: 800, y: 1280 },
+    bounds: { w: 1600, h: 1600 },
+    spawn: { x: 800, y: 1350 },
     exit: null,
-    walls: [
-      { x: 300, y: 250 }, { x: 1300, y: 250 },
-      { x: 300, y: 1150 }, { x: 1300, y: 1150 },
-    ],
+    walls: [],
     cover: [
-      { x: 500, y: 700 }, { x: 1100, y: 700 },
+      // 4 corner cover pillars
+      { x: 400, y: 400 }, { x: 1200, y: 400 },
+      { x: 400, y: 1200 }, { x: 1200, y: 1200 },
     ],
     enemies: [],
     boss: true,
-    bossSpawn: { x: 800, y: 320 },
+    bossSpawn: { x: 800, y: 400 },
   },
 ];
