@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - claude/mobile-run-game-design-OZLYF
+      - FRIX
   workflow_dispatch:
 
 permissions:
