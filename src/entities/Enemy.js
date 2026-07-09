@@ -436,6 +436,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.state = (this instanceof EnemyGrunt) ? ST.CHASE : ST.COVER_MOVE;
       if (this instanceof EnemyShooter) {
         this._claimCover(player);
+        this.fireCd = Phaser.Math.Between(1000, 1600);
+        this._warnFlashed = false;
       }
       return;
     }
@@ -737,6 +739,8 @@ export class EnemyShooter extends Enemy {
             this.state = ST.COVER_MOVE;
             this._claimCover(player);
           }
+          this.fireCd = Phaser.Math.Between(1000, 1600);
+          this._warnFlashed = false;
         }
         break;
 
