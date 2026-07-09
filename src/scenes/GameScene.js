@@ -1309,7 +1309,7 @@ export class GameScene extends Phaser.Scene {
     const bx = shooter.x + Math.cos(angle) * (shooter.cfg.radius + 4);
     const by = shooter.y + Math.sin(angle) * (shooter.cfg.radius + 4);
     this.enemyBullets.fire(bx, by, angle,
-      ENEMY.shooter.bulletSpeed, ENEMY.shooter.bulletDamage, ENEMY.shooter.bulletRange,
+      shooter.cfg.bulletSpeed, shooter.cfg.bulletDamage, shooter.cfg.bulletRange,
       { owner: 'enemy' });
     SFX.enemyShoot();
   }

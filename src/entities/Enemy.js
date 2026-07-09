@@ -433,12 +433,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (sees) {
       this.lastKnownX = player.x;
       this.lastKnownY = player.y;
-      this.state = (this instanceof EnemyGrunt) ? ST.CHASE : ST.COVER_MOVE;
-      if (this instanceof EnemyShooter) {
-        this._claimCover(player);
-        this.fireCd = Phaser.Math.Between(1000, 1600);
-        this._warnFlashed = false;
-      }
+      this.state = ST.COVER_MOVE;
+      this._claimCover(player);
+      this.fireCd = Phaser.Math.Between(1000, 1600);
+      this._warnFlashed = false;
       return;
     }
 
@@ -630,72 +628,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 }
 
-// ── Stormtrooper Grunt ────────────────────────────────────────────────────────
-// States: PATROL → ALERT → CHASE
-// Chases and melees. Last-known-position tracking when player hides.
-export class EnemyGrunt extends Enemy {
-  constructor(scene, x, y, spec = {}) {
-    super(scene, x, y, 'grunt', ENEMY.grunt, spec);
-    this.lastMeleeAt = 0;
-    // Grunts are melee chasers — no weapon overlay. The body silhouette
-    // alone reads as a charging trooper.
-  }
-
-  preUpdate(time, delta) {
-    super.preUpdate(time, delta);
-    if (!this.alive) return;
-    // Suspend AI while staggered so the knockback slide reads on screen.
-    if (this._staggerMs > 0) return;
-    const player = this.scene.player;
-    if (!player?.alive) { this.setVelocity(0, 0); return; }
-
-    switch (this.state) {
-      case ST.PATROL:
-        this._tickPatrol(delta, player);
-        break;
-
-      case ST.ALERT:
-        if (this._tickAlert(delta)) this.state = ST.CHASE;
-        break;
-
-      case ST.CHASE:
-        this._tickChase(time, player, delta);
-        break;
-
-      case ST.SEARCH:
-        this._tickSearch(delta, player);
-        break;
-    }
-  }
-
-  _tickChase(time, player, delta) {
-    const sees = this.canSee(player);
-    if (sees) {
-      this.lastKnownX = player.x;
-      this.lastKnownY = player.y;
-      this.hasSeenPlayer = true;
-    } else {
-      this.state = ST.SEARCH;
-      this._scanTimer = 0;
-      return;
-    }
-
-    this._navigatePath(player.x, player.y, this.cfg.speed, delta);
-    const distToPlayer = Math.hypot(player.x - this.x, player.y - this.y);
-
-    if (sees && distToPlayer < this.cfg.meleeRange) {
-      this.setVelocity(0, 0);
-      if (time - this.lastMeleeAt > this.cfg.meleeCooldownMs) {
-        this.lastMeleeAt     = time;
-        this._fireAnimTimer  = 200;
-        // Knock the player away from the grunt on each melee swing.
-        const dirAwayFromGrunt = Math.atan2(player.y - this.y, player.x - this.x);
-        player.damage(this.cfg.meleeDamage, dirAwayFromGrunt);
-        this.scene.events.emit('grunt-melee', this);
-      }
-    }
-  }
-}
+// EnemyGrunt is defined after EnemyShooter (see bottom of file).
 
 // ── Death Trooper Shooter ─────────────────────────────────────────────────────
 // States: PATROL → ALERT → COVER_MOVE → SUPPRESS → (REPOSITION | FLANK)
@@ -1055,12 +988,30 @@ export class EnemyShooter extends Enemy {
       }
     }
     if (this.fireCd <= 0) {
-      this.fireCd         = Phaser.Math.Between(SUPPRESS_FIRE_MIN, SUPPRESS_FIRE_MAX);
+      this.fireCd         = Phaser.Math.Between(this.cfg.fireCooldownMs * 0.8, this.cfg.fireCooldownMs * 1.2);
       this._warnFlashed   = false;
       this.recoilT        = 100;
       this._fireAnimTimer = 180;
       const ang = Math.atan2(player.y - this.y, player.x - this.x);
       this.scene.events.emit('shooter-fire', this, ang);
+    }
+  }
+}
+
+// ── Stormtrooper Grunt (Ranged Infantry) ──────────────────────────────────────
+// Extends EnemyShooter with white armor, standard E-11 blaster.
+// Fires slower and deals less damage than the elite Death Trooper.
+export class EnemyGrunt extends EnemyShooter {
+  constructor(scene, x, y, spec = {}) {
+    super(scene, x, y, spec);
+    // Override to Stormtrooper visuals and standard blaster stats
+    this.setTexture('grunt');
+    this.cfg = ENEMY.grunt;
+    this.hp  = this.cfg.hp;
+    this._animPrefix = 'grunt';
+    this.fireCd = Phaser.Math.Between(800, this.cfg.fireCooldownMs);
+    if (this.anims.exists('grunt-idle-front')) {
+      this.play('grunt-idle-front');
     }
   }
 }
