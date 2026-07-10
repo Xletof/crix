@@ -13,6 +13,7 @@ export const ST = {
   FLANK:      'flank',      // (Shooter) moving to a perpendicular flanking pos
   ADVANCE:    'advance',    // (Shooter) no cover with LOS — push forward until LOS
   SEARCH:     'search',     // moving to last known player position to search
+  SUSPICIOUS: 'suspicious', // investigating sound location
 };
 
 // Detection constants (exported so GameScene can render vision cones)
@@ -70,11 +71,18 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.patrolPath    = spec.patrol || [];
     this.patrolIdx     = 0;
     this.patrolWait    = 0;          // ms
+    this.patrolAlpha   = 0;
     const _p = spec.alerted && scene.player?.alive ? scene.player : null;
     this.lastKnownX    = _p ? _p.x : x;
     this.lastKnownY    = _p ? _p.y : y;
     this.hasSeenPlayer = false;
     this.lostTrackMs   = 0;
+
+    // Suspicion state variables
+    this.suspiciousTargetX   = null;
+    this.suspiciousTargetY   = null;
+    this.suspiciousTimer     = 0;
+    this.suspiciousScanTimer = 0;
 
     this.shadow = scene.add.image(x, y + 14, 'shadow').setDepth(this.depth - 1).setAlpha(0.35);
     this.hpBar  = scene.add.graphics().setDepth(this.depth + 1);
@@ -111,7 +119,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   damage(amount, knockbackVec = null) {
     if (!this.alive) return;
-    const wasPatrolling = this.state === ST.PATROL;
+    const wasPatrolling = this.state === ST.PATROL || this.state === ST.SUSPICIOUS;
     this.hp = Math.max(0, this.hp - amount);
     if (knockbackVec) {
       this.body.setVelocity(
@@ -180,7 +188,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   // True if this enemy can be silently taken down right now: it must still be
   // unalerted (PATROL) and the player must be close and within its rear arc.
   isBackstabbable(player) {
-    if (!this.alive || this.state !== ST.PATROL) return false;
+    if (!this.alive || (this.state !== ST.PATROL && this.state !== ST.SUSPICIOUS)) return false;
     const dx = player.x - this.x, dy = player.y - this.y;
     const dist = Math.hypot(dx, dy);
     if (dist > TAKEDOWN_RANGE) return false;
@@ -208,7 +216,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     if (player.hiddenInBush && !isCloseEnoughInBush && !isRevealedInBush) return false;
 
-    if (this.state === ST.PATROL) {
+    if (this.state === ST.PATROL || this.state === ST.SUSPICIOUS) {
       if (dist > VISION_RANGE) return false;
       const angleTo = Math.atan2(player.y - this.y, player.x - this.x);
       const facing  = this._aim;
@@ -272,7 +280,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   // ── Alarm system ─────────────────────────────────────────────────────────
 
   _triggerAlarm(noisy = false) {
-    if (this.state !== ST.PATROL) return;
+    if (this.state !== ST.PATROL && this.state !== ST.SUSPICIOUS) return;
     const player = this.scene.player;
     if (player?.alive) { this.lastKnownX = player.x; this.lastKnownY = player.y; }
     this.state      = ST.ALERT;
@@ -290,7 +298,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   calmDown() {
-    if (this.state === ST.PATROL) return;
+    if (this.state === ST.PATROL || this.state === ST.SUSPICIOUS) return;
     this.state = ST.PATROL;
     this.lostTrackMs = 0;
     this.hasSeenPlayer = false;
@@ -336,8 +344,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this._pathTimer = (this._pathTimer || 0) + delta;
     const lastTarget = this._pathLastTarget || { x: 0, y: 0 };
     const targetMoved = Math.hypot(tx - lastTarget.x, ty - lastTarget.y) > 40;
+    const isStuck = (this._stuckSidestepMs || 0) > 0;
 
-    if (!this._currentPath || this._currentPath.length === 0 || targetMoved || this._pathTimer > 300) {
+    if (!this._currentPath || this._currentPath.length === 0 || targetMoved || isStuck) {
       this._currentPath = this.scene.navGrid.findPath(this.x, this.y, tx, ty);
       this._pathNodeIdx = 0;
       this._pathTimer = 0;
@@ -346,7 +355,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     if (this._currentPath && this._currentPath.length > 0) {
       let node = this._currentPath[this._pathNodeIdx];
-      while (node && Math.hypot(node.x - this.x, node.y - this.y) < 30) {
+      // Smoother corner navigation: snapping threshold updated to 35px for cleaner path tracking
+      while (node && Math.hypot(node.x - this.x, node.y - this.y) < 35) {
         this._pathNodeIdx++;
         node = this._currentPath[this._pathNodeIdx];
       }
@@ -418,6 +428,62 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  onHearSound(x, y) {
+    if (!this.alive) return;
+    if (this.state === ST.PATROL || this.state === ST.SUSPICIOUS) {
+      this.suspiciousTargetX = x;
+      this.suspiciousTargetY = y;
+      this.suspiciousTimer = 0;
+      this.suspiciousScanTimer = 0;
+      this.state = ST.SUSPICIOUS;
+      this._pathTimer = 9999;
+      this._currentPath = null;
+      this._flashAlertMark('?');
+    }
+  }
+
+  _tickSuspicious(delta, player) {
+    const dx = player.x - this.x, dy = player.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    const facing = this._aim;
+    const rearDiff = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - facing));
+    const sneakingBehind = rearDiff > TAKEDOWN_REAR_ARC;
+    
+    const isProximityAlert = player.hiddenInBush
+      ? (dist < 38)
+      : (dist < ALARM_RANGE && !sneakingBehind);
+
+    if (isProximityAlert) {
+      this.lastKnownX = player.x;
+      this.lastKnownY = player.y;
+      this._triggerAlarm(true);
+      return;
+    }
+    if (this.canSee(player)) {
+      this.lastKnownX = player.x;
+      this.lastKnownY = player.y;
+      this._triggerAlarm(false);
+      return;
+    }
+
+    const d = this._navigatePath(this.suspiciousTargetX, this.suspiciousTargetY, this.cfg.speed * 0.55, delta);
+    if (d < ARRIVE_THRESH) {
+      this.setVelocity(0, 0);
+      this.suspiciousTimer += delta;
+      
+      const baseAngle = Math.atan2(this.suspiciousTargetY - this.y, this.suspiciousTargetX - this.x);
+      this.suspiciousScanTimer += delta;
+      this._aim = baseAngle + Math.sin(this.suspiciousScanTimer * 0.003) * (Math.PI / 3);
+      
+      if (this.suspiciousTimer >= 4000) {
+        this.state = ST.PATROL;
+        this.setVelocity(0, 0);
+        this._currentPath = null;
+        this._pathTimer = 9999;
+      }
+    }
+  }
+
   // ── Shared alert tick ─────────────────────────────────────────────────────
 
   _tickAlert(delta) {
@@ -457,7 +523,14 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // Dead bodies just slide+fade via tween — the UI is gone, skip updates.
     if (!this.alive) {
       if (this.shadow?.active) this.shadow.setPosition(this.x, this.y + 18);
+      this.patrolAlpha = 0;
       return;
+    }
+    
+    if (this.state === ST.PATROL) {
+      this.patrolAlpha = Math.min(1.0, this.patrolAlpha + delta * 0.003);
+    } else {
+      this.patrolAlpha = Math.max(0.0, this.patrolAlpha - delta * 0.005);
     }
     // Stagger decay — bleed velocity off so the knockback slide ends smoothly.
     if (this._staggerMs > 0) {
@@ -510,7 +583,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     // Combat state tracking & Calm Down transition
     const player = this.scene.player;
-    if (this.state !== ST.PATROL && this.state !== ST.ALERT) {
+    if (this.state !== ST.PATROL && this.state !== ST.SUSPICIOUS && this.state !== ST.ALERT) {
       if (player && player.alive && this.canSee(player)) {
         this.lostTrackMs = 0;
       } else {
@@ -582,7 +655,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // fire a brief perpendicular sidestep burst to escape the geometry.
     const _inMoveState = (
       this.state === ST.CHASE || this.state === ST.COVER_MOVE ||
-      this.state === ST.REPOSITION || this.state === ST.FLANK
+      this.state === ST.REPOSITION || this.state === ST.FLANK ||
+      this.state === ST.SUSPICIOUS || this.state === ST.ADVANCE ||
+      this.state === ST.SEARCH
     );
     if (_inMoveState) {
       this._stuckSidestepMs = (this._stuckSidestepMs || 0) - delta;
@@ -661,6 +736,10 @@ export class EnemyShooter extends Enemy {
     switch (this.state) {
       case ST.PATROL:
         this._tickPatrol(delta, player);
+        break;
+
+      case ST.SUSPICIOUS:
+        this._tickSuspicious(delta, player);
         break;
 
       case ST.ALERT:

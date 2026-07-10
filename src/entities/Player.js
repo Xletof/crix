@@ -22,10 +22,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.superCharge  = 0;
     this.alive        = true;
     this.hiddenInBush = false;
+    this.isRegenerating = false;
     this._hurtStaggerMs = 0;
     this._wKickT        = 0;
     this.accuracyMult   = 1.0;
     this.hitStreak      = 0;
+    this.runMaxCombo    = 1.0;
 
     // ── Aiming state ───────────────────────────────────────────────────────
     this.facing      = -Math.PI / 2;
@@ -321,13 +323,48 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.dashCharges--;
     this.isDashing = true;
-    this.dashTimer = PLAYER.dashDurationMs || 220;
 
+    // Detect adjacent cover for Vault Dash
+    let targetSpot = null;
+    let minAngleDiff = Infinity;
+    let desiredAngle = this.facing;
     if (this._moveTargetX !== 0 || this._moveTargetY !== 0) {
-      this.dashAngle = Math.atan2(this._moveTargetY, this._moveTargetX);
-    } else {
-      this.dashAngle = this.facing;
+      desiredAngle = Math.atan2(this._moveTargetY, this._moveTargetX);
     }
+
+    if (this.scene.coverRegistry && this.scene.coverRegistry.spots) {
+      for (const spot of this.scene.coverRegistry.spots) {
+        const dx = spot.x - this.x;
+        const dy = spot.y - this.y;
+        const dist = Math.hypot(dx, dy);
+
+        // Only lock onto covers within 300px and not already hugging them (dist > 45px)
+        if (dist > 45 && dist <= 300) {
+          const angleToSpot = Math.atan2(dy, dx);
+          const diff = Math.abs(Phaser.Math.Angle.ShortestBetween(desiredAngle * 180 / Math.PI, angleToSpot * 180 / Math.PI));
+          if (diff <= 35 && diff < minAngleDiff) {
+            minAngleDiff = diff;
+            targetSpot = spot;
+          }
+        }
+      }
+    }
+
+    if (targetSpot) {
+      const dx = targetSpot.x - this.x;
+      const dy = targetSpot.y - this.y;
+      const dist = Math.hypot(dx, dy);
+      
+      this.dashAngle = Math.atan2(dy, dx);
+      // Adaptive slide duration timer: scale time to match travel distance to cover edge
+      const dashSpeed = PLAYER.dashSpeed || 780;
+      const travelDist = Math.max(40, dist - 35); // offset cover radius
+      this.dashTimer = Math.max(100, Math.min(400, (travelDist / dashSpeed) * 1000));
+    } else {
+      this.dashAngle = desiredAngle;
+      this.dashTimer = PLAYER.dashDurationMs || 220;
+    }
+
     if (isNaN(this.dashAngle) || !isFinite(this.dashAngle)) {
       this.dashAngle = 0;
     }
@@ -365,7 +402,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   damage(amount, hitDirRad = null) {
     if (!this.alive) return;
+    if (this.isDashing) return; // i-frames (invincibility during dash)
     this.hp         = Math.max(0, this.hp - amount);
+    this.scene.runDamageTaken = (this.scene.runDamageTaken || 0) + amount;
     this.lastHurtAt = this.scene.time.now;
     // Knockback shove if we know which direction we got hit from. Mirrors the
     // enemy stagger system: brief input-suspension window so the slide reads.
@@ -391,6 +430,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     } else {
       this.accuracyMult = 1.0;
     }
+    this.runMaxCombo = Math.max(this.runMaxCombo || 1.0, this.accuracyMult);
     this.scene.events.emit('player-mult-changed', this.accuracyMult, this.hitStreak);
   }
 
@@ -526,9 +566,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     // HP regen
-    if (this.alive && this.hp < this.hpMax && time - this.lastHurtAt > PLAYER.regenDelayMs) {
+    const isHealing = this.alive && this.hp < this.hpMax && time - this.lastHurtAt > PLAYER.regenDelayMs;
+    this.isRegenerating = isHealing;
+    if (isHealing) {
       this.hp = Math.min(this.hpMax, this.hp + (PLAYER.regenPerSec * delta) / 1000);
       this.scene.events.emit('player-hp-changed');
+      
+      // Spawn healing sparkles bubbling upward (cyan)
+      if (Math.random() < 0.25) {
+        this.scene.fx?.healingSparkle?.(this.x + Phaser.Math.Between(-16, 16), this.y + Phaser.Math.Between(-12, 12));
+      }
     }
 
     // ── Weapon overlay: hovers next to the character, rotated to aim ─────

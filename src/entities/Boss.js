@@ -250,6 +250,13 @@ export class Boss extends Enemy {
           this.state = STATE.IDLE;
           this.cooldown = this.cfg.attackCooldownMs;
           this.setScale(1);
+          
+          // Vader ground slam impact effects
+          this.scene.events.emit('boss-phase-crack', this.x, this.y, 1);
+          SFX.bossSlam?.();
+          this.scene.fx?.burst?.(this.x, this.y, 'yellow', 15);
+          this.scene.fx?.burst?.(this.x, this.y, 'white', 15);
+          this.scene.fx?.shake?.(0.015, 200);
         }
         break;
       }

@@ -6,6 +6,10 @@ import Phaser from 'phaser';
 let audioCtx = null;
 let masterGain = null;
 let musicGain = null;
+let sfxGain = null;
+let musicVol = 0.18;
+let sfxVol = 0.60;
+let lowQuality = false;
 let musicNodes = null;
 let musicStarted = false;
 let muted = false;
@@ -29,9 +33,14 @@ export function initAudio() {
     masterGain = audioCtx.createGain();
     masterGain.gain.value = muted ? 0 : MASTER_VOL;
     masterGain.connect(audioCtx.destination);
+    
     musicGain = audioCtx.createGain();
-    musicGain.gain.value = 0.18;
+    musicGain.gain.value = musicVol;
     musicGain.connect(masterGain);
+    
+    sfxGain = audioCtx.createGain();
+    sfxGain.gain.value = sfxVol;
+    sfxGain.connect(masterGain);
   };
   ['pointerdown', 'touchstart', 'keydown'].forEach((evt) =>
     window.addEventListener(evt, create, { once: true })
@@ -57,7 +66,7 @@ function tone({ freq = 440, type = 'sine', dur = 0.12, gain = 0.4, slide = 0, de
   g.gain.linearRampToValueAtTime(gain, t + 0.005);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   osc.connect(g);
-  g.connect(masterGain);
+  g.connect(sfxGain || masterGain);
   osc.start(t);
   osc.stop(t + dur + 0.02);
 }
@@ -79,134 +88,158 @@ function noise({ dur = 0.15, gain = 0.3, hp = 600, delay = 0 }) {
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   src.connect(filter);
   filter.connect(g);
-  g.connect(masterGain);
+  g.connect(sfxGain || masterGain);
   src.start(t);
 }
+
+// Sub-channel volume adjustments (bindable to sliders in the UI)
+export function setSFXVolume(vol) {
+  sfxVol = Math.max(0, Math.min(1, vol));
+  if (sfxGain && audioCtx) {
+    sfxGain.gain.setValueAtTime(sfxVol, audioCtx.currentTime);
+  }
+}
+export function setMusicVolume(vol) {
+  musicVol = Math.max(0, Math.min(1, vol));
+  if (musicGain && audioCtx) {
+    musicGain.gain.setValueAtTime(musicVol, audioCtx.currentTime);
+  }
+}
+export function getSFXVolume() { return sfxVol; }
+export function getMusicVolume() { return musicVol; }
+
+export function setLowQuality(l) { lowQuality = !!l; }
+export function isLowQuality() { return lowQuality; }
 
 export const SFX = {
   // Mandalorian blaster — snappy high-pitched zap (Star Wars blaster feel)
   shoot() {
-    tone({ freq: 1400, type: 'square', dur: 0.05, gain: 0.20, slide: -900 });
-    tone({ freq: 700,  type: 'sine',   dur: 0.06, gain: 0.12, slide: -400 });
+    tone({ freq: 1400, type: 'square', dur: 0.05, gain: 0.16, slide: -900 });
+    tone({ freq: 700,  type: 'sine',   dur: 0.06, gain: 0.08, slide: -400 });
   },
   // Wrist-rocket barrage — deep whoosh + explosion rumble
   shootSuper() {
-    tone({ freq: 180, type: 'sawtooth', dur: 0.28, gain: 0.30, slide: -80 });
-    tone({ freq: 360, type: 'square',   dur: 0.18, gain: 0.22, slide: -200, delay: 0.02 });
-    noise({ dur: 0.30, gain: 0.25, hp: 80 });
+    tone({ freq: 180, type: 'sawtooth', dur: 0.28, gain: 0.24, slide: -80 });
+    tone({ freq: 360, type: 'square',   dur: 0.18, gain: 0.18, slide: -200, delay: 0.02 });
+    noise({ dur: 0.30, gain: 0.20, hp: 80 });
     // Second rumble for explosion feel
-    tone({ freq: 90, type: 'sine', dur: 0.22, gain: 0.22, slide: -40, delay: 0.14 });
+    tone({ freq: 90, type: 'sine', dur: 0.22, gain: 0.18, slide: -40, delay: 0.14 });
   },
   // Death Trooper green bolt — lower pitch, slightly different timbre
   enemyShoot() {
-    tone({ freq: 900, type: 'square', dur: 0.06, gain: 0.14, slide: -600 });
-    tone({ freq: 450, type: 'sine',   dur: 0.05, gain: 0.08, slide: -300 });
+    tone({ freq: 900, type: 'square', dur: 0.06, gain: 0.11, slide: -600 });
+    tone({ freq: 450, type: 'sine',   dur: 0.05, gain: 0.06, slide: -300 });
   },
   // Hit flash — crisp impact
   hit() {
-    noise({ dur: 0.06, gain: 0.18, hp: 1400 });
-    tone({ freq: 300, type: 'square', dur: 0.04, gain: 0.15 });
+    noise({ dur: 0.06, gain: 0.14, hp: 1400 });
+    tone({ freq: 300, type: 'square', dur: 0.04, gain: 0.10 });
   },
   // Player hurt — lower, painful
   hurt() {
-    tone({ freq: 220, type: 'sawtooth', dur: 0.22, gain: 0.28, slide: -100 });
-    noise({ dur: 0.15, gain: 0.22, hp: 150 });
+    tone({ freq: 220, type: 'sawtooth', dur: 0.22, gain: 0.24, slide: -100 });
+    noise({ dur: 0.15, gain: 0.18, hp: 150 });
   },
   // Enemy die — trooper helmet clatter
   enemyDie() {
-    tone({ freq: 500, type: 'square', dur: 0.12, gain: 0.18, slide: -350 });
-    noise({ dur: 0.10, gain: 0.14, hp: 400 });
+    tone({ freq: 500, type: 'square', dur: 0.12, gain: 0.14, slide: -350 });
+    noise({ dur: 0.10, gain: 0.10, hp: 400 });
   },
   // Vader hit — heavy metallic thud
   bossHit() {
-    noise({ dur: 0.22, gain: 0.35, hp: 120 });
-    tone({ freq: 80, type: 'sine', dur: 0.22, gain: 0.30, slide: -30 });
-    tone({ freq: 160, type: 'sawtooth', dur: 0.16, gain: 0.20, slide: -50 });
+    noise({ dur: 0.22, gain: 0.30, hp: 120 });
+    tone({ freq: 80, type: 'sine', dur: 0.22, gain: 0.24, slide: -30 });
+    tone({ freq: 160, type: 'sawtooth', dur: 0.16, gain: 0.15, slide: -50 });
   },
   // Vader death — dramatic orchestral descent
   bossDie() {
     [220, 196, 165, 131].forEach((f, i) =>
-      tone({ freq: f, type: 'sawtooth', dur: 0.5, gain: 0.32 - i * 0.04, delay: i * 0.18 })
+      tone({ freq: f, type: 'sawtooth', dur: 0.5, gain: 0.26 - i * 0.04, delay: i * 0.18 })
     );
-    noise({ dur: 0.8, gain: 0.30, hp: 50 });
-    tone({ freq: 55, type: 'sine', dur: 1.2, gain: 0.25, slide: -20, delay: 0.4 });
+    noise({ dur: 0.8, gain: 0.24, hp: 50 });
+    tone({ freq: 55, type: 'sine', dur: 1.2, gain: 0.22, slide: -20, delay: 0.4 });
   },
   // Vader breathing / roar — low rumble
   bossRoar() {
-    tone({ freq: 80,  type: 'sawtooth', dur: 0.55, gain: 0.30, slide: -20 });
-    tone({ freq: 120, type: 'sine',     dur: 0.45, gain: 0.18, slide: -30, delay: 0.1 });
-    noise({ dur: 0.50, gain: 0.20, hp: 60 });
+    tone({ freq: 80,  type: 'sawtooth', dur: 0.55, gain: 0.26, slide: -20 });
+    tone({ freq: 120, type: 'sine',     dur: 0.45, gain: 0.15, slide: -30, delay: 0.1 });
+    noise({ dur: 0.50, gain: 0.16, hp: 60 });
+  },
+  // Vader ground slam / charge impact
+  bossSlam() {
+    tone({ freq: 110, type: 'sawtooth', dur: 0.35, gain: 0.26, slide: -60 });
+    noise({ dur: 0.40, gain: 0.22, hp: 50 });
   },
   // Lightsaber charge ready — ascending hum
   superReady() {
-    tone({ freq: 400,  type: 'sine', dur: 0.15, gain: 0.20, slide: 200 });
-    tone({ freq: 600,  type: 'sine', dur: 0.15, gain: 0.18, slide: 200, delay: 0.12 });
-    tone({ freq: 900,  type: 'sine', dur: 0.20, gain: 0.18, slide: 300, delay: 0.22 });
-    tone({ freq: 1200, type: 'sine', dur: 0.18, gain: 0.16, slide: 200, delay: 0.34 });
+    tone({ freq: 400,  type: 'sine', dur: 0.15, gain: 0.16, slide: 200 });
+    tone({ freq: 600,  type: 'sine', dur: 0.15, gain: 0.14, slide: 200, delay: 0.12 });
+    tone({ freq: 900,  type: 'sine', dur: 0.20, gain: 0.14, slide: 300, delay: 0.22 });
+    tone({ freq: 1200, type: 'sine', dur: 0.18, gain: 0.12, slide: 200, delay: 0.34 });
   },
   // Super charge tick — a short blip whose pitch rises as the meter fills,
   // so spamming normal shots audibly "charges" toward the super.
   superTick(ratio = 0) {
     const r = Math.max(0, Math.min(1, ratio));
-    tone({ freq: 460 + r * 760, type: 'square', dur: 0.045, gain: 0.085 });
+    tone({ freq: 460 + r * 760, type: 'square', dur: 0.045, gain: 0.07 });
   },
   // Halfway milestone — two quick rising triangle notes.
   superHalf() {
-    tone({ freq: 700,  type: 'triangle', dur: 0.09, gain: 0.16 });
-    tone({ freq: 1040, type: 'triangle', dur: 0.11, gain: 0.15, delay: 0.07 });
+    tone({ freq: 700,  type: 'triangle', dur: 0.09, gain: 0.13 });
+    tone({ freq: 1040, type: 'triangle', dur: 0.11, gain: 0.12, delay: 0.07 });
   },
   // Super pellet slamming the boss — heavier, brighter than a normal boss hit.
   superBossHit() {
-    noise({ dur: 0.18, gain: 0.34, hp: 200 });
-    tone({ freq: 140, type: 'sawtooth', dur: 0.22, gain: 0.30, slide: -60 });
-    tone({ freq: 520, type: 'square',   dur: 0.12, gain: 0.20, slide: -200 });
+    noise({ dur: 0.18, gain: 0.28, hp: 200 });
+    tone({ freq: 140, type: 'sawtooth', dur: 0.22, gain: 0.24, slide: -60 });
+    tone({ freq: 520, type: 'square',   dur: 0.12, gain: 0.16, slide: -200 });
   },
   // Bacta pickup — soft chime
   heal() {
-    tone({ freq: 880,  type: 'triangle', dur: 0.10, gain: 0.18 });
-    tone({ freq: 1100, type: 'triangle', dur: 0.14, gain: 0.16, delay: 0.07 });
-    tone({ freq: 1320, type: 'triangle', dur: 0.12, gain: 0.14, delay: 0.14 });
+    tone({ freq: 880,  type: 'triangle', dur: 0.10, gain: 0.14 });
+    tone({ freq: 1100, type: 'triangle', dur: 0.14, gain: 0.12, delay: 0.07 });
+    tone({ freq: 1320, type: 'triangle', dur: 0.12, gain: 0.11, delay: 0.14 });
   },
   // Imperial UI click
   uiClick() {
-    tone({ freq: 800, type: 'square', dur: 0.04, gain: 0.15 });
+    tone({ freq: 800, type: 'square', dur: 0.04, gain: 0.12 });
   },
   // Victory fanfare — 4-note ascending
   victory() {
     [523, 659, 784, 1046].forEach((f, i) =>
-      tone({ freq: f, type: 'triangle', dur: 0.20, gain: 0.30, delay: i * 0.13 })
+      tone({ freq: f, type: 'triangle', dur: 0.20, gain: 0.24, delay: i * 0.13 })
     );
   },
   // Defeat — descending
   defeat() {
     [392, 330, 262, 196].forEach((f, i) =>
-      tone({ freq: f, type: 'sawtooth', dur: 0.24, gain: 0.30, delay: i * 0.15 })
+      tone({ freq: f, type: 'sawtooth', dur: 0.24, gain: 0.24, delay: i * 0.15 })
     );
   },
   waveStart() {
-    tone({ freq: 440, type: 'square', dur: 0.08, gain: 0.22 });
-    tone({ freq: 660, type: 'square', dur: 0.12, gain: 0.22, delay: 0.1 });
+    tone({ freq: 440, type: 'square', dur: 0.08, gain: 0.18 });
+    tone({ freq: 660, type: 'square', dur: 0.12, gain: 0.18, delay: 0.1 });
   },
   // Stealth takedown — a quick blade shink + muffled thud (no alarm)
   takedown() {
-    noise({ dur: 0.05, gain: 0.20, hp: 2600 });        // blade shink
-    tone({ freq: 1800, type: 'sine', dur: 0.04, gain: 0.10, slide: -1200 });
-    tone({ freq: 120, type: 'sine', dur: 0.14, gain: 0.16, slide: -50, delay: 0.04 }); // muffled drop
+    noise({ dur: 0.05, gain: 0.16, hp: 2600 });        // blade shink
+    tone({ freq: 1800, type: 'sine', dur: 0.04, gain: 0.08, slide: -1200 });
+    tone({ freq: 120, type: 'sine', dur: 0.14, gain: 0.12, slide: -50, delay: 0.04 }); // muffled drop
   },
   // Terminal hack — each completed tick gives a soft data blip
   hackTick() {
-    tone({ freq: 660, type: 'square', dur: 0.04, gain: 0.10 });
-    tone({ freq: 990, type: 'square', dur: 0.03, gain: 0.06, delay: 0.02 });
+    tone({ freq: 660, type: 'square', dur: 0.04, gain: 0.08 });
+    tone({ freq: 990, type: 'square', dur: 0.03, gain: 0.05, delay: 0.02 });
   },
   // Terminal fully sliced — affirmative two-note chirp
   hackComplete() {
-    tone({ freq: 784, type: 'triangle', dur: 0.10, gain: 0.20 });
-    tone({ freq: 1175, type: 'triangle', dur: 0.14, gain: 0.18, delay: 0.08 });
+    tone({ freq: 784, type: 'triangle', dur: 0.10, gain: 0.16 });
+    tone({ freq: 1175, type: 'triangle', dur: 0.14, gain: 0.14, delay: 0.08 });
   },
   // Alarm klaxon — the room just went loud
   alarm() {
-    tone({ freq: 660, type: 'sawtooth', dur: 0.18, gain: 0.18, slide: -180 });
-    tone({ freq: 660, type: 'sawtooth', dur: 0.18, gain: 0.18, slide: -180, delay: 0.22 });
+    tone({ freq: 660, type: 'sawtooth', dur: 0.18, gain: 0.14, slide: -180 });
+    tone({ freq: 660, type: 'sawtooth', dur: 0.18, gain: 0.14, slide: -180, delay: 0.22 });
   },
 };
 
@@ -384,6 +417,16 @@ export function attachFX(scene) {
       quantity: 0,
       emitting: false,
     }),
+    // Healing sparkles bubbling upward (cyan)
+    sparksBlue: scene.add.particles(0, 0, 'spark-blue', {
+      lifespan: { min: 400, max: 700 },
+      speedY: { min: -50, max: -20 },
+      speedX: { min: -15, max: 15 },
+      scale: { start: 0.9, end: 0 },
+      alpha: { start: 0.8, end: 0 },
+      quantity: 0,
+      emitting: false,
+    }),
     // Spinning gravity-bound gold shell casings
     casings: scene.add.particles(0, 0, 'casing', {
       lifespan: 800,
@@ -411,16 +454,19 @@ export function attachFX(scene) {
     // One puff of fading dust at the bullet's current position. Called per
     // frame on every active player bullet to build a motion-blur trail.
     trail(x, y) {
+      if (lowQuality) return;
       this.bulletTrail.emitParticleAt(x, y, 1);
     },
 
     // Footstep dust puff — a small grey poof behind/under a running actor.
     dustPuff(x, y) {
+      if (lowQuality) return;
       this.footDust.emitParticleAt(x, y, 2);
     },
 
     // Slow expanding smoke puff for missile/super trails. Called per frame.
     smokeTrail(x, y) {
+      if (lowQuality) return;
       this.missileSmoke.emitParticleAt(x, y, 1);
     },
 
@@ -428,7 +474,9 @@ export function attachFX(scene) {
     pickupSparkle(x, y, count = 12) {
       this.pickupGlitter.emitParticleAt(x, y, count);
     },
-
+    healingSparkle(x, y, count = 1) {
+      this.sparksBlue.emitParticleAt(x, y, count);
+    },
     // Eject gold casing perpendicular to shooting angle
     ejectCasing(x, y, angle) {
       const ejectAngle = Phaser.Math.RadToDeg(angle - Math.PI / 2); // Eject right

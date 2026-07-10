@@ -9,15 +9,27 @@ export class GameOverScene extends Phaser.Scene {
     super('GameOver');
   }
 
-  create({ win }) {
+  create({ win, stats }) {
     stopMusic();
     if (win) SFX.victory();
     else SFX.defeat();
 
-    const stats = loadStats();
-    stats.runs = (stats.runs || 0) + 1;
-    if (win) stats.wins = (stats.wins || 0) + 1;
-    saveStats(stats);
+    const globalStats = loadStats();
+    globalStats.runs = (globalStats.runs || 0) + 1;
+    if (win) globalStats.wins = (globalStats.wins || 0) + 1;
+
+    // Compare and update records
+    if (stats) {
+      if (win) {
+        if (!globalStats.bestTime || stats.clearTime < globalStats.bestTime) {
+          globalStats.bestTime = stats.clearTime;
+        }
+      }
+      globalStats.bestStealthKills = Math.max(globalStats.bestStealthKills || 0, stats.stealthKills);
+      globalStats.bestMaxCombo = Math.max(globalStats.bestMaxCombo || 1.0, stats.maxCombo);
+      globalStats.lastDamageTaken = stats.damageTaken;
+    }
+    saveStats(globalStats);
 
     const cx = VIEW.width / 2;
     this.cameras.main.setBackgroundColor('#06060c');
@@ -121,18 +133,32 @@ export class GameOverScene extends Phaser.Scene {
         strokeThickness: 2,
       }).setOrigin(0.5);
 
-      // Stats
-      g.fillStyle(0x0038bb, 0.2);
-      g.fillRoundedRect(px + 30, py + 405, pw - 60, 44, 4);
-      g.lineStyle(1, 0x0060ff, 0.5);
-      g.strokeRoundedRect(px + 30, py + 405, pw - 60, 44, 4);
-      this.add.text(cx, py + 427, `BOUNTIES: ${stats.wins || 0}   MISSIONS: ${stats.runs}`, {
+      // Stats block card
+      const boxY = py + 390, boxW = pw - 60, boxH = 150;
+      g.fillStyle(0x0038bb, 0.15);
+      g.fillRoundedRect(px + 30, boxY, boxW, boxH, 6);
+      g.lineStyle(1.5, 0x0060ff, 0.45);
+      g.strokeRoundedRect(px + 30, boxY, boxW, boxH, 6);
+      
+      const formatTime = (ms) => {
+        if (!ms) return 'N/A';
+        const sec = Math.floor(ms / 1000) % 60;
+        const min = Math.floor(ms / 60000);
+        return `${min}m ${sec}s`;
+      };
+      
+      const statsStyle = {
         fontFamily: 'Courier New, monospace',
-        fontSize: '22px',
-        color: '#60a0ff',
+        fontSize: '18px',
+        color: '#8ab8ff',
         stroke: '#000000',
         strokeThickness: 2,
-      }).setOrigin(0.5);
+      };
+
+      this.add.text(px + 50, boxY + 20, `TIME:    ${formatTime(stats?.clearTime)}  (PB: ${formatTime(globalStats.bestTime)})`, statsStyle);
+      this.add.text(px + 50, boxY + 50, `STEALTH: ${stats?.stealthKills || 0}  (PB: ${globalStats.bestStealthKills || 0})`, statsStyle);
+      this.add.text(px + 50, boxY + 80, `COMBO:   x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
+      this.add.text(px + 50, boxY + 110, `DAMAGE:  ${stats?.damageTaken || 0} HP`, statsStyle);
 
       // Buttons
       this.impButton(cx, py + ph - 160, 'NEW MISSION', true, () => {
@@ -240,17 +266,32 @@ export class GameOverScene extends Phaser.Scene {
         strokeThickness: 2,
       }).setOrigin(0.5);
 
-      g.fillStyle(0xff0000, 0.1);
-      g.fillRoundedRect(px + 30, py + 440, pw - 60, 44, 4);
-      g.lineStyle(1, 0xff0000, 0.4);
-      g.strokeRoundedRect(px + 30, py + 440, pw - 60, 44, 4);
-      this.add.text(cx, py + 462, `CAPTURES: ${stats.wins || 0}   MISSIONS: ${stats.runs}`, {
+      // Stats block card (Lose)
+      const boxY = py + 410, boxW = pw - 60, boxH = 140;
+      g.fillStyle(0xff0000, 0.08);
+      g.fillRoundedRect(px + 30, boxY, boxW, boxH, 6);
+      g.lineStyle(1.5, 0xff0000, 0.4);
+      g.strokeRoundedRect(px + 30, boxY, boxW, boxH, 6);
+      
+      const formatTime = (ms) => {
+        if (!ms) return 'N/A';
+        const sec = Math.floor(ms / 1000) % 60;
+        const min = Math.floor(ms / 60000);
+        return `${min}m ${sec}s`;
+      };
+
+      const statsStyle = {
         fontFamily: 'Courier New, monospace',
-        fontSize: '22px',
-        color: '#cc4040',
+        fontSize: '18px',
+        color: '#ff8080',
         stroke: '#000000',
         strokeThickness: 2,
-      }).setOrigin(0.5);
+      };
+
+      this.add.text(px + 50, boxY + 18, `TIME ELAPSED: ${formatTime(stats?.clearTime)}`, statsStyle);
+      this.add.text(px + 50, boxY + 46, `STEALTH KILLS: ${stats?.stealthKills || 0}  (PB: ${globalStats.bestStealthKills || 0})`, statsStyle);
+      this.add.text(px + 50, boxY + 74, `MAX COMBO:    x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
+      this.add.text(px + 50, boxY + 102, `DAMAGE TAKEN: ${stats?.damageTaken || 0} HP`, statsStyle);
 
       this.impButton(cx, py + ph - 160, 'RETRY MISSION', true, () => {
         SFX.uiClick();

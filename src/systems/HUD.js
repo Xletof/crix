@@ -22,7 +22,7 @@ export class HUDScene extends Phaser.Scene {
     this.vignette = this.add.graphics().setDepth(8);
 
     // ── Directional hit indicator arcs along the screen edge ─────────────
-    this.hitArcGfx = this.add.graphics().setDepth(7);
+    this.hitArcGfx = this.add.graphics().setDepth(35);
     this._hitArcs  = []; // { angle: rad, age: ms }
 
     // ── Boss enrage tint: subtle red ambient overlay when boss is in
@@ -657,17 +657,28 @@ export class HUDScene extends Phaser.Scene {
   }
 
   update(time, delta) {
-    if (this.gameScene?.player && this.gameScene.player.ammoTimers.length > 0) {
+    const p = this.gameScene?.player;
+    if (p && p.ammoTimers.length > 0) {
       this.refreshAmmo();
     }
     // Flamethrower: drain is continuous, refresh every frame while active
-    if (this.gameScene?.player?.flameActive) {
+    if (p?.flameActive) {
       this.refreshSecondary();
     }
+    // HP Regeneration visual pulse on health bar
+    if (p && p.alive && p.isRegenerating) {
+      this.refreshHp();
+      const pulse = 1.0 + Math.sin(time * 0.008) * 0.04;
+      this.hpText.setScale(pulse);
+      this.hpText.setColor('#c0f0ff'); // bright cyan text for healing feedback
+    } else if (this.hpText) {
+      this.hpText.setScale(1.0);
+      this.hpText.setColor('#90d8ff'); // default hpText color
+    }
+
     // Tick the timing-puzzle mini-game (no-op when idle)
     this.hackMinigame?.update(delta);
     // Update dash button loading gauge
-    const p = this.gameScene?.player;
     if (p && p.alive && this.dashButton) {
       const rechargeRatio = p.dashCharges < PLAYER.dashChargesMax ? p.dashRechargeTimer / PLAYER.dashRechargeMs : 0;
       this.dashButton.drawGauge(p.dashCharges, PLAYER.dashChargesMax, rechargeRatio);
@@ -706,10 +717,10 @@ export class HUDScene extends Phaser.Scene {
       const R = (absC < 0.001 ? cy : absS < 0.001 ? cx : Math.min(cx / absC, cy / absS)) * 0.88;
       const SPAN    = 0.55; // ~63° total arc
       // Thick glow pass
-      g.lineStyle(14, 0xff2020, alpha * 0.35);
+      g.lineStyle(28, 0xff2020, alpha * 0.40);
       g.beginPath(); g.arc(cx, cy, R, ang - SPAN, ang + SPAN); g.strokePath();
       // Bright core pass
-      g.lineStyle(6, 0xff5050, alpha);
+      g.lineStyle(10, 0xff5050, alpha);
       g.beginPath(); g.arc(cx, cy, R, ang - SPAN, ang + SPAN); g.strokePath();
       return true;
     });

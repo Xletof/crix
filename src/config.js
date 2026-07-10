@@ -32,7 +32,7 @@ export const PLAYER = {
   // Primary: single red blaster bolt
   pelletCount: 1,
   pelletSpreadDeg: 0,
-  pelletDamage: 350,
+  pelletDamage: 120,
   pelletSpeed: 900,
   pelletRange: 400,
   pelletRadius: 6,
@@ -46,8 +46,8 @@ export const PLAYER = {
   superRadius: 12,
   superKnockback: 500,
   // HP regen
-  regenDelayMs: 2500,
-  regenPerSec: 220,
+  regenDelayMs: 4000,
+  regenPerSec: 100,
   // Bush alpha
   bushAlpha: 0.5,
 };
@@ -60,7 +60,7 @@ export const WEAPONS = {
     totalAmmo: 27,       // 9 bursts
     burstCount: 3,
     burstDelayMs: 75,    // ms between burst shots
-    damage: 220,
+    damage: 90,
     speed: 940,
     range: 500,
     fireCooldownMs: 300,
@@ -70,7 +70,7 @@ export const WEAPONS = {
     name: 'FLAMETHROWER',
     fuel: 100,            // percentage
     drainPerSec: 22,      // ~4.5 s of continuous fire
-    damagePerSec: 380,
+    damagePerSec: 250,
     range: 190,
     halfAngleDeg: 28,
   },
@@ -81,31 +81,31 @@ export const WEAPONS = {
     throwSpeed: 510,
     fuseMs: 1100,
     blastRadius: 130,
-    damage: 750,
+    damage: 500,
   },
 };
 
 export const ENEMY = {
   grunt: {
-    hp: 400,
-    speed: 210,
+    hp: 320,
+    speed: 230,
     radius: 22,
     desiredRange: 350,
-    fireCooldownMs: 2200,
-    bulletSpeed: 440,
-    bulletDamage: 80,
+    fireCooldownMs: 1200,
+    bulletSpeed: 520,
+    bulletDamage: 140,
     bulletRange: 480,
     color: 0xdcdce8,
     eyeColor: 0x20ee20,
   },
   shooter: {
-    hp: 550,
-    speed: 180,
+    hp: 450,
+    speed: 190,
     radius: 22,
     desiredRange: 380,
-    fireCooldownMs: 1400,
-    bulletSpeed: 520,
-    bulletDamage: 120,
+    fireCooldownMs: 800,
+    bulletSpeed: 640,
+    bulletDamage: 180,
     bulletRange: 560,
     color: 0x181820,
     eyeColor: 0x20d020,
@@ -113,30 +113,30 @@ export const ENEMY = {
 };
 
 export const BOSS = {
-  hp: 9000,
+  hp: 12000,
   radius: 56,
   speed: 165,
-  contactDamage: 220,
+  contactDamage: 300,
   phase2: 0.66,
   phase3: 0.33,
   chargeWindupMs: 700,
-  chargeSpeed: 750,
+  chargeSpeed: 950,
   chargeDurationMs: 900,
   fanPellets: 11,
   fanSpreadDeg: 70,
   fanBulletSpeed: 380,
-  fanBulletDamage: 130,
+  fanBulletDamage: 180,
   fanBulletRange: 720,
   spawnCount: 3,
-  attackCooldownMs: 2200,
+  attackCooldownMs: 1600,
   color: 0x0a0a0e,
   eyeColor: 0xff2020,
 };
 
 // Bacta vial healing pickup
 export const HEALTH_ORB = {
-  dropChance: 0.22,
-  healAmount: 140,
+  dropChance: 0.18,
+  healAmount: 120,
   radius: 14,
   color: 0x1898e8,
   lifeMs: 8000,
