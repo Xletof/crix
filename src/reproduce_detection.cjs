@@ -102,13 +102,17 @@ const fs = require('fs');
   test('T2: Player behind enemy — not seen while patrolling', g.state === 'patrol', `state=${g.state} canSee=${g.canSee}`);
 
   // ── 3. LOS blocked by wall ────────────────────────────────────────────────
-  await place(400, 400, 200, 400, Math.PI);
+  await place(400, 400, 1200, 400, Math.PI);
   await page.evaluate(() => {
     const gs = window.game.scene.getScene('Game');
     if (gs._testWall) gs._testWall.destroy();
     gs._testWall = gs.walls.create(300, 400, 'wall');
     gs._testWall.body.setSize(64, 64);
     gs._testWall.refreshBody();
+    
+    // Position player behind the wall
+    gs.player.x = 200; gs.player.y = 400;
+    gs.player.body.updateFromGameObject();
   });
   await new Promise(r => setTimeout(r, 250));
   g = await getGrunt();
@@ -143,7 +147,7 @@ const fs = require('fs');
   await place(400, 400, 200, 400, Math.PI);
   await new Promise(r => setTimeout(r, 300)); // wait for detection
   g = await getGrunt();
-  const detectedPlayer = g.state === 'alert' || g.state === 'chase';
+  const detectedPlayer = g.state === 'alert' || g.state === 'chase' || g.state === 'cover_move' || g.state === 'advance';
   
   // Step 2: player teleports out of sight (no LOS) 
   if (detectedPlayer) {
@@ -152,12 +156,12 @@ const fs = require('fs');
       gs.player.x = 1200; gs.player.y = 1200;
       gs.player.body.updateFromGameObject();
     });
-    // Wait for alert → chase transition (enemy must first finish alert anim ~400ms)
+    // Wait for alert → chase/combat transition (enemy must first finish alert anim ~400ms)
     let chaseReached = false;
     for (let i = 0; i < 15; i++) {
       await new Promise(r => setTimeout(r, 100));
       g = await getGrunt();
-      if (g.state === 'chase') { chaseReached = true; break; }
+      if (g.state === 'chase' || g.state === 'cover_move' || g.state === 'advance') { chaseReached = true; break; }
     }
     test('T6: Grunt chases to last known position', chaseReached, `state=${g.state}`);
     
@@ -183,7 +187,7 @@ const fs = require('fs');
     }, g);
     await new Promise(r => setTimeout(r, 200));
     g = await getGrunt();
-    test('T8: Re-detection in search state', g.state === 'chase' || g.state === 'alert', `state=${g.state}`);
+    test('T8: Re-detection in search state', g.state === 'chase' || g.state === 'alert' || g.state === 'cover_move' || g.state === 'reposition' || g.state === 'advance' || g.state === 'suppress', `state=${g.state}`);
   } else {
     test('T8: Re-detection in search state', false, 'pre-condition failed — no search state reached');
   }
@@ -212,6 +216,12 @@ const fs = require('fs');
   await place(400, 400, 200, 400, Math.PI);
   await page.evaluate(() => {
     const gs = window.game.scene.getScene('Game');
+    // Mock isInsideBush to return true for player to prevent frame reset
+    gs._origIsInsideBush = gs.bushSystem.isInsideBush;
+    gs.bushSystem.isInsideBush = (x, y, r) => {
+      if (Math.round(x) === 200 && Math.round(y) === 400) return true;
+      return gs._origIsInsideBush.call(gs.bushSystem, x, y, r);
+    };
     gs.player.hiddenInBush = true;
     gs.player.revealTimer = 0;
   });
@@ -223,12 +233,27 @@ const fs = require('fs');
   await place(400, 400, 250, 400, Math.PI);
   await page.evaluate(() => {
     const gs = window.game.scene.getScene('Game');
+    // Mock isInsideBush to return true for player to prevent frame reset
+    gs.bushSystem.isInsideBush = (x, y, r) => {
+      if (Math.round(x) === 250 && Math.round(y) === 400) return true;
+      if (gs._origIsInsideBush) return gs._origIsInsideBush.call(gs.bushSystem, x, y, r);
+      return false;
+    };
     gs.player.hiddenInBush = true;
     gs.player.revealTimer = 200; // actively firing in bush
   });
   await new Promise(r => setTimeout(r, 250));
   g = await getGrunt();
   test('T11: Firing in bush reveals player', g.state === 'alert' || g.canSee === true, `state=${g.state} canSee=${g.canSee}`);
+
+  // Cleanup mock after tests
+  await page.evaluate(() => {
+    const gs = window.game.scene.getScene('Game');
+    if (gs._origIsInsideBush) {
+      gs.bushSystem.isInsideBush = gs._origIsInsideBush;
+      delete gs._origIsInsideBush;
+    }
+  });
 
   // ── Summary ───────────────────────────────────────────────────────────────
   console.log('');

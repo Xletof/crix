@@ -468,10 +468,13 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     const d = this._navigatePath(this.suspiciousTargetX, this.suspiciousTargetY, this.cfg.speed * 0.55, delta);
     if (d < ARRIVE_THRESH) {
+      if (this.suspiciousTimer === 0) {
+        this.suspiciousAngle = Math.atan2(this.suspiciousTargetY - this.y, this.suspiciousTargetX - this.x);
+      }
       this.setVelocity(0, 0);
       this.suspiciousTimer += delta;
       
-      const baseAngle = Math.atan2(this.suspiciousTargetY - this.y, this.suspiciousTargetX - this.x);
+      const baseAngle = this.suspiciousAngle !== undefined ? this.suspiciousAngle : Math.atan2(this.suspiciousTargetY - this.y, this.suspiciousTargetX - this.x);
       this.suspiciousScanTimer += delta;
       this._aim = baseAngle + Math.sin(this.suspiciousScanTimer * 0.003) * (Math.PI / 3);
       
@@ -509,9 +512,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const dist = this._navigatePath(this.lastKnownX, this.lastKnownY, this.cfg.speed * 0.75, delta);
 
     if (dist < ARRIVE_THRESH) {
+      if (!this._scanTimer) {
+        this.searchAngle = Math.atan2(this.lastKnownY - this.y, this.lastKnownX - this.x);
+      }
       this.setVelocity(0, 0);
       this._scanTimer = (this._scanTimer || 0) + delta;
-      const baseAngle = Math.atan2(player.y - this.y, player.x - this.x);
+      const baseAngle = this.searchAngle !== undefined ? this.searchAngle : Math.atan2(this.lastKnownY - this.y, this.lastKnownX - this.x);
       this._aim = baseAngle + Math.sin(this._scanTimer * 0.0025) * (Math.PI / 3);
     }
   }
