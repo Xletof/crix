@@ -9,7 +9,6 @@ import { RoomManager } from '../systems/RoomManager.js';
 import { CoverRegistry } from '../systems/CoverRegistry.js';
 import { WeaponPickup } from '../entities/WeaponPickup.js';
 import { Terminal } from '../entities/Terminal.js';
-import { AllyTurret, AllySoldier } from '../entities/Ally.js';
 import { attachFX, SFX, startMusic, duckMusic, stopMusic } from '../systems/FX.js';
 import { ROOMS } from '../data/rooms.js';
 import { NARRATIVE } from '../data/narrative.js';
@@ -56,9 +55,6 @@ export class GameScene extends Phaser.Scene {
     this.visionGraphics = this.add.graphics().setDepth(2);
     this.patrolRouteGfx = this.add.graphics().setDepth(3);
 
-    // ── Reinforcement door visual ─────────────────────────────────────────
-    this.reinforceGraphics = this.add.graphics().setDepth(14);
-
     // ── Stealth takedown hint ring ─────────────────────────────────────────
     this.takedownGfx = this.add.graphics().setDepth(27);
     this._takedownTarget = null;
@@ -77,20 +73,11 @@ export class GameScene extends Phaser.Scene {
     // ── Objective terminals (cleared per room) ──────────────────────────────
     this.terminals = [];
 
-    // ── Reinforcement state (reset per room) ──────────────────────────────
-    this.reinforceTimer    = 0;
-    this.reinforceArmed    = false;  // true once first alarm fires
-    this.reinforceSpawned  = false;
     this.stealthKills      = 0;
 
     // ── Enemy group ────────────────────────────────────────────────────────
     this.enemies = this.add.group({ runChildUpdate: false });
     this.boss    = null;
-
-    // ── Allies group ────────────────────────────────────────────────────────
-    this.allies = this.add.group({ runChildUpdate: true });
-    this.physics.add.collider(this.allies, this.walls);
-    this.physics.add.collider(this.allies, this.player);
 
     // ── Health orbs ────────────────────────────────────────────────────────
     this.healthOrbs = [];
@@ -216,17 +203,13 @@ export class GameScene extends Phaser.Scene {
     this.events.off('room-alarm-klaxon');
     this.events.off('stealth-kill');
 
-    // Reset reinforcement + stealth tracking for the new room
-    this.reinforceTimer    = 0;
-    this.reinforceArmed    = false;
-    this.reinforceSpawned  = false;
+    // Reset stealth tracking for the new room
     this.stealthKills      = 0;
-    this.reinforceGraphics.clear();
     this._takedownTarget   = null;
     this.takedownGfx.clear();
     this.events.emit('takedown-available', false);
 
-    // First room-alarm of the room arms the reinforcement timer
+    // First room-alarm of the room fires the klaxon banner
     this.events.on('room-alarm-klaxon', () => this._onFirstAlarm());
     this.events.on('stealth-kill', () => {
       this.stealthKills += 1;
@@ -262,11 +245,8 @@ export class GameScene extends Phaser.Scene {
 
     // Boss room
     if (spec.boss) {
-      // Initialize dual climax: start with 60s survival round first, do NOT spawn Vader yet.
-      this.survivalTimeLeft = 60;
-      this.waveTimer = 20;
-      this.arenaActive = true;
-      this.events.emit('timer-update', this.survivalTimeLeft);
+      // Dual climax: a full survival round first, then Vader spawns.
+      this._startArena(ARENA[spec.id] ?? ARENA.vader);
       this.time.delayedCall(1700, () => {
         this.events.emit('show-banner', 'SURVIVE THE SWARM', '#ff2020');
       });
@@ -289,10 +269,7 @@ export class GameScene extends Phaser.Scene {
     if (!spec.boss) {
       const arenaCfg = ARENA[spec.id];
       if (arenaCfg) {
-        this.survivalTimeLeft = arenaCfg.time;
-        this.waveTimer = 20;
-        this.arenaActive = true;
-        this.events.emit('timer-update', this.survivalTimeLeft);
+        this._startArena(arenaCfg);
         this.time.delayedCall(650, () => this.events.emit('show-banner', `SURVIVE FOR ${arenaCfg.time}s`, '#ff4040'));
         if (this._terminalsTotal > 0) {
           this.time.delayedCall(1750, () => this.events.emit('show-banner', 'SLICE TERMINALS FOR SUPPORT', '#ffd040'));
@@ -301,18 +278,23 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  // Initialize a survival round from an ARENA config entry: countdown timer,
+  // continuous drip spawner (first drip ~2s in), and the surge cadence.
+  _startArena(cfg) {
+    this.arenaCfg         = cfg;
+    this.survivalTimeLeft = cfg.time;
+    this.arenaActive      = true;
+    this._dripMs          = Math.max(0, cfg.spawnRate - 2000); // first drip at ~2s
+    this._surgeMs         = cfg.surgeEvery * 1000;
+    this.events.emit('timer-update', this.survivalTimeLeft);
+  }
+
   _clearRoomEntities() {
     // Destroy all enemies still alive (dead ones already cleaned themselves up)
     this.enemies.getChildren().forEach((e) => {
       try { e.shadow?.destroy(); e.hpBar?.destroy(); if (e.scene) e.destroy(); } catch (_) {}
     });
     this.enemies.clear(false, false);
-
-    // Destroy all friendly allies
-    this.allies.getChildren().forEach((a) => {
-      try { a.hpBar?.destroy(); a.weaponSprite?.destroy(); if (a.scene) a.destroy(); } catch (_) {}
-    });
-    this.allies.clear(false, false);
 
     // Boss
     if (this.boss) {
@@ -868,7 +850,7 @@ export class GameScene extends Phaser.Scene {
         anyAlerted = true;
       }
     }
-    // Arm the reinforcement timer if any enemy was alerted
+    // Fire the room-loud klaxon if any enemy was alerted
     if (anyAlerted) this.events.emit('room-alarm-klaxon');
   }
 
@@ -907,88 +889,16 @@ export class GameScene extends Phaser.Scene {
     return nearest;
   }
 
-  // ── Reinforcements ───────────────────────────────────────────────────────
+  // ── Room-loud klaxon ─────────────────────────────────────────────────────
+  // (The legacy per-room reinforcement spawner was replaced by the arena
+  //  drip/surge spawner in _tickArenaSurvival.)
 
   _onFirstAlarm() {
-    // Room just went loud — klaxon + banner, once per room (independent of
-    // whether this room actually has reinforcements configured).
     if (!this._roomLoud) {
       this._roomLoud = true;
       SFX.alarm();
       this.cameras.main.flash(160, 120, 0, 0, true);
       this.events.emit('show-banner', '⚠ DETECTED', '#ff2828');
-    }
-    if (this.reinforceArmed) return;
-    const cfg = this.roomSpec?.reinforce;
-    if (!cfg) return;
-    this.reinforceArmed = true;
-    this.reinforceTimer = cfg.afterMs;
-  }
-
-  _tickReinforcements(delta) {
-    if (!this.reinforceArmed || this.reinforceSpawned) return;
-    const cfg = this.roomSpec?.reinforce;
-    if (!cfg) return;
-    this.reinforceTimer -= delta;
-
-    // Visual: pulsing red highlight on the reinforce door
-    this._drawReinforceDoor(cfg.door);
-
-    // HUD countdown update
-    const secs = Math.max(0, Math.ceil(this.reinforceTimer / 1000));
-    this.events.emit('reinforce-tick', secs);
-
-    if (this.reinforceTimer <= 0) {
-      this._spawnReinforcements();
-    }
-  }
-
-  _drawReinforceDoor({ x, y }) {
-    const g = this.reinforceGraphics;
-    g.clear();
-    // Pulse opacity based on time remaining
-    const r = 60;
-    const t = (this.time.now * 0.005) % (Math.PI * 2);
-    const pulse = 0.5 + 0.5 * Math.sin(t);
-    g.fillStyle(0xff2020, 0.18 + pulse * 0.2);
-    g.fillCircle(x, y, r);
-    g.lineStyle(3, 0xff4040, 0.7 + pulse * 0.3);
-    g.strokeCircle(x, y, r);
-    g.lineStyle(2, 0xff8080, 0.5);
-    g.strokeCircle(x, y, r * 1.4);
-  }
-
-  _spawnReinforcements() {
-    const cfg = this.roomSpec.reinforce;
-    this.events.emit('reinforce-spawn');
-
-    // Big visual at the door
-    this.fx.explosion(cfg.door.x, cfg.door.y, 1.4);
-    this.fx.shake(0.012, 200);
-    SFX.bossRoar();
-
-    // Spawn enemies in a small spread around the door
-    for (let i = 0; i < cfg.count; i++) {
-      this.time.delayedCall(i * 220, () => {
-        const ox = Phaser.Math.Between(-30, 30);
-        const oy = Phaser.Math.Between(-10, 30);
-        const e  = this.spawnEnemyAt(cfg.type, cfg.door.x + ox, cfg.door.y + oy, {});
-        // Spawn in ALERT so they immediately engage
-        if (e) {
-          e.state = ST.ALERT;
-          e.alertTimer = 200;
-        }
-        this.fx.burst(cfg.door.x + ox, cfg.door.y + oy, 'red', 8);
-      });
-    }
-
-    // Repeated waves: if the room exit door hasn't opened yet, queue the next wave!
-    if (!this._roomDoorOpened) {
-      this.reinforceTimer = cfg.waveDelayMs || 18000;
-      this.events.emit('show-banner', 'WARNING: REINFORCEMENTS DEPLOYED', '#ff3333');
-    } else {
-      this.reinforceSpawned = true;
-      this.reinforceGraphics.clear();
     }
   }
 
@@ -1206,8 +1116,8 @@ export class GameScene extends Phaser.Scene {
         this.spawnTerminalSupportDrop(terminal);
       }
       
-      // Escalate wave immediately
-      this.triggerNextWave();
+      // Risk/reward: slicing a terminal escalates the horde immediately.
+      this.triggerSurge();
     });
 
     // Mini-game completion bridges to the terminal.
@@ -1526,7 +1436,6 @@ export class GameScene extends Phaser.Scene {
     this.handleBulletEnemyHits(this.playerRifleBullets, false);
     this.handleBulletEnemyHits(this.playerSuperBullets, true);
     this.handleEnemyBulletsVsPlayer();
-    this.handleEnemyBulletsVsAllies();
     this.handleBulletWallHits(this.playerBullets, false);
     this.handleBulletWallHits(this.playerRifleBullets, false);
     this.handleBulletWallHits(this.playerSuperBullets, true);
@@ -1725,21 +1634,6 @@ export class GameScene extends Phaser.Scene {
         this.player.damage(b.damage, dir);
         this.fx.impactRing(b.x, b.y, 0x40c8ff); // cyan shockwave for player
         b.kill();
-      }
-    }
-  }
-
-  handleEnemyBulletsVsAllies() {
-    for (const b of this.enemyBullets.getChildren()) {
-      if (!b.active) continue;
-      for (const a of this.allies.getChildren()) {
-        if (!a.active || !a.alive) continue;
-        if (this.circleOverlap(b, a)) {
-          a.damage(b.damage);
-          this.fx.impactRing(b.x, b.y, 0x00ffff);
-          b.kill();
-          break;
-        }
       }
     }
   }
@@ -2270,68 +2164,109 @@ export class GameScene extends Phaser.Scene {
       if (this.survivalTimeLeft > 0) {
         this.survivalTimeLeft--;
         this.events.emit('timer-update', this.survivalTimeLeft);
-        
+
         if (this.survivalTimeLeft <= 0) {
           this._onArenaCompleted();
+          return;
         }
       }
     }
 
-    // Wave spawning timer
-    this.waveTimer -= delta * 0.001;
-    if (this.waveTimer <= 0 && this.survivalTimeLeft > 0) {
-      this.triggerNextWave();
+    const cfg = this.arenaCfg;
+    if (!cfg || this.survivalTimeLeft <= 0) return;
+
+    // Continuous drip: interval ramps spawnRate → rampTo across the round,
+    // paused while the living-enemy count is at maxAlive.
+    const progress = 1 - this.survivalTimeLeft / cfg.time; // 0 → 1 over round
+    const interval = cfg.spawnRate + (cfg.rampTo - cfg.spawnRate) * progress;
+    this._dripMs = (this._dripMs ?? 0) + delta;
+    if (this._dripMs >= interval && this._livingEnemyCount() < cfg.maxAlive) {
+      this._dripMs = 0;
+      this.spawnAtGate(this._rollEnemyType());
+    }
+
+    // Surge cadence: a telegraphed burst on top of the drip.
+    this._surgeMs = (this._surgeMs ?? cfg.surgeEvery * 1000) - delta;
+    if (this._surgeMs <= 0) {
+      this._surgeMs = cfg.surgeEvery * 1000;
+      this.triggerSurge();
     }
   }
 
-  triggerNextWave() {
-    this.waveTimer = 20; // reset wave timer
-    
+  _livingEnemyCount() {
+    // die() keeps corpses "active" for the fade-out; count only live ones.
+    return this.enemies.getChildren().reduce((n, e) => n + (e.alive ? 1 : 0), 0);
+  }
+
+  _rollEnemyType() {
+    return Math.random() < (this.arenaCfg?.shooterMix ?? 0.3) ? 'shooter' : 'grunt';
+  }
+
+  // Surge: a burst of spawns staggered over ~1.5s with a warning banner.
+  // Fired on the surgeEvery cadence AND when a terminal is hacked.
+  triggerSurge() {
+    const cfg = this.arenaCfg;
+    if (!cfg || !this.arenaActive || this.survivalTimeLeft <= 0) return;
+
+    this.events.emit('show-banner', 'SURGE INCOMING', '#ff4040');
+    SFX.enemyShoot();
+    this.cameras.main.flash(150, 255, 60, 60, false);
+
+    const step = 1500 / cfg.surgeCount;
+    for (let i = 0; i < cfg.surgeCount; i++) {
+      this.time.delayedCall(i * step, () => {
+        if (!this.arenaActive || this.survivalTimeLeft <= 0) return;
+        // Surges may briefly exceed the drip cap, but never runaway.
+        if (this._livingEnemyCount() >= cfg.maxAlive + 4) return;
+        this.spawnAtGate(this._rollEnemyType());
+      });
+    }
+  }
+
+  // Spawn one enemy at a room gate: pick a random gate ≥400px from the
+  // player (else the farthest), telegraph it with a pulsing red ring for
+  // 600ms, then spawn with a burst. Falls back to the legacy random-edge
+  // picker for rooms without gates.
+  spawnAtGate(type) {
     const spec = this.roomSpec;
     if (!spec) return;
-    
-    const floorIdx = this.roomManager.index;
-    const spawnCount = 3 + floorIdx; // Hangar: 3, Corridor: 4, Detention: 5, etc.
-    
-    this.events.emit('show-banner', 'WARNING: ENEMY REINFORCEMENTS!', '#ff4040');
-    SFX.enemyShoot();
-    
-    this.cameras.main.flash(150, 255, 60, 60, false);
-    
-    for (let i = 0; i < spawnCount; i++) {
-      const type = Math.random() < 0.35 ? 'shooter' : 'grunt';
-      this.spawnSwarmEnemy(type);
-    }
+    const gates = spec.gates;
+    if (!gates?.length) { this.spawnEnemyRandom(type); return; }
+
+    const px = this.player.x, py = this.player.y;
+    const farEnough = gates.filter((g) => Math.hypot(g.x - px, g.y - py) >= 400);
+    const pool = farEnough.length
+      ? farEnough
+      : [gates.reduce((a, b) =>
+          Math.hypot(a.x - px, a.y - py) >= Math.hypot(b.x - px, b.y - py) ? a : b)];
+    const gate = pool[Phaser.Math.Between(0, pool.length - 1)];
+    const gx = gate.x + Phaser.Math.Between(-24, 24);
+    const gy = gate.y + Phaser.Math.Between(-24, 24);
+
+    // Telegraph: pulsing red ring, then the enemy materializes.
+    const tg = this.add.graphics().setDepth(6);
+    tg.lineStyle(3, 0xff3030, 0.9);
+    tg.strokeCircle(0, 0, 30);
+    tg.fillStyle(0xff2020, 0.25);
+    tg.fillCircle(0, 0, 22);
+    tg.setPosition(gx, gy).setScale(0.4);
+    this.tweens.add({
+      targets: tg, scale: 1.25, alpha: { from: 1, to: 0.15 },
+      duration: 600, ease: 'Cubic.easeOut',
+      onComplete: () => {
+        tg.destroy();
+        if (!this.arenaActive || this.survivalTimeLeft <= 0) return;
+        this.spawnEnemyAt(type, gx, gy, {});
+        this.fx.burst(gx, gy, 'red', 10);
+      },
+    });
   }
 
-  spawnSwarmEnemy(type) {
-    const e = this.spawnEnemyRandom(type);
-    if (e) {
-      e.state = ST.ALERT;
-      e.alertTimer = 150; // brief alert reaction
-      e.lastKnownX = this.player.x;
-      e.lastKnownY = this.player.y;
-    }
-    return e;
-  }
-
+  // Terminal support drop — allies (turret/soldier) are cut for now: their
+  // borrowed enemy/cover art read as unkillable enemies in playtests. 50/50
+  // between a heavy weapon and shield+bacta.
   spawnTerminalSupportDrop(t) {
-    const roll = Phaser.Math.Between(0, 3);
-    if (roll === 0) {
-      // Spawn automated turret
-      const turret = new AllyTurret(this, t.x, t.y);
-      this.allies.add(turret);
-      this.fx.pickupSparkle(t.x, t.y, 16);
-      this.events.emit('show-banner', 'SUPPORT: LASER TURRET ACTIVE', '#40c8ff');
-      SFX.uiClick();
-    } else if (roll === 1) {
-      // Spawn friendly mobile trooper
-      const soldier = new AllySoldier(this, t.x, t.y + 40);
-      this.allies.add(soldier);
-      this.fx.pickupSparkle(t.x, t.y + 40, 16);
-      this.events.emit('show-banner', 'SUPPORT: ALLY TROOPER DEPLOYED', '#40c8ff');
-      SFX.uiClick();
-    } else if (roll === 2) {
+    if (Math.random() < 0.5) {
       // Drop heavy weapon pickup
       const weapons = ['rifle', 'flamethrower', 'detonator'];
       const choice = weapons[Phaser.Math.Between(0, weapons.length - 1)];

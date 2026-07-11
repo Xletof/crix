@@ -167,12 +167,19 @@ export const COLORS = {
   textShadow:    0x000000,
 };
 
-// Survival Arena Mode settings
+// Survival Arena Mode settings.
+//   time       s   — round length
+//   spawnRate  ms  — drip-spawn interval at round start
+//   rampTo     ms  — drip interval at round end (pressure ramps linearly)
+//   maxAlive       — drip pauses at this many living enemies (surges may
+//                    briefly exceed it by a few)
+//   surgeEvery s   — a surge (burst of surgeCount spawns) fires on this cadence
+//   shooterMix 0-1 — chance a spawn is a shooter; the rest are grunt rushers
 export const ARENA = {
-  hangar: { time: 60, spawnRate: 3500 },
-  corridor: { time: 60, spawnRate: 3000 },
-  detention: { time: 75, spawnRate: 2500 },
-  vader: { time: 60, spawnRate: 2000 },
+  hangar:    { time: 60, spawnRate: 2600, rampTo: 1400, maxAlive: 10, surgeEvery: 20, surgeCount: 4, shooterMix: 0.25 },
+  corridor:  { time: 60, spawnRate: 2300, rampTo: 1200, maxAlive: 12, surgeEvery: 20, surgeCount: 5, shooterMix: 0.30 },
+  detention: { time: 75, spawnRate: 2000, rampTo: 1000, maxAlive: 14, surgeEvery: 18, surgeCount: 6, shooterMix: 0.35 },
+  vader:     { time: 60, spawnRate: 1800, rampTo: 1000, maxAlive: 14, surgeEvery: 15, surgeCount: 6, shooterMix: 0.40 },
 };
 
 // Ally settings (turrets and soldiers)

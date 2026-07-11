@@ -109,18 +109,6 @@ export class HUDScene extends Phaser.Scene {
       strokeThickness: 3,
     }).setOrigin(0.5);
 
-    // Reinforcement countdown badge (hidden by default)
-    this.reinforceGfx = this.add.graphics();
-    this.reinforceText = this.add.text(VIEW.width / 2, 100, ' ', {
-      fontFamily: 'Courier New, monospace',
-      fontSize: '16px',
-      fontStyle: 'bold',
-      color: '#ff4040',
-      stroke: '#000000',
-      strokeThickness: 3,
-      align: 'center',
-    }).setOrigin(0.5).setAlpha(0);
-
     // Banner (center, transient)
     this.banner = this.add
       .text(VIEW.width / 2, VIEW.height * 0.32, ' ', {
@@ -360,8 +348,6 @@ export class HUDScene extends Phaser.Scene {
     ge.on('lives-changed',        (n)              => this.drawLives(n));
     ge.on('secondary-equipped',     (id)           => this.refreshSecondary(id));
     ge.on('secondary-ammo-changed', ()             => this.refreshSecondary());
-    ge.on('reinforce-tick',         (secs)         => this.refreshReinforce(secs));
-    ge.on('reinforce-spawn',        ()             => this.onReinforceSpawn());
     ge.on('takedown-available',     (avail)        => this.setTakedownVisible(avail));
     ge.on('objective-update',       (done, total)  => this.refreshObjective(done, total));
     ge.on('timer-update',           (secs)         => this.refreshTimer(secs));
@@ -391,8 +377,6 @@ export class HUDScene extends Phaser.Scene {
       ge.off('lives-changed');
       ge.off('secondary-equipped');
       ge.off('secondary-ammo-changed');
-      ge.off('reinforce-tick');
-      ge.off('reinforce-spawn');
       ge.off('takedown-available');
       ge.off('objective-update');
       ge.off('timer-update');
@@ -591,38 +575,6 @@ export class HUDScene extends Phaser.Scene {
       g.fillStyle(lit ? 0xaaaacc : 0x1e2028, 1);
       g.fillRect(x - 3, y, 14, 4);
     }
-  }
-
-  refreshReinforce(secs) {
-    const g  = this.reinforceGfx;
-    g.clear();
-    if (secs <= 0) {
-      this.reinforceText.setAlpha(0);
-      return;
-    }
-    const cx = VIEW.width / 2;
-    const cy = 100;
-    const w  = 280, h = 36;
-    // Pulse intensity based on time remaining
-    const urgent = secs <= 5;
-    const t = (this.time.now * (urgent ? 0.018 : 0.008)) % (Math.PI * 2);
-    const pulse = 0.5 + 0.5 * Math.sin(t);
-    const col = urgent ? 0xff2020 : 0xff8020;
-
-    g.fillStyle(0x0a0c14, 0.85);
-    g.fillRoundedRect(cx - w / 2, cy - h / 2, w, h, 6);
-    g.lineStyle(2, col, 0.6 + pulse * 0.4);
-    g.strokeRoundedRect(cx - w / 2, cy - h / 2, w, h, 6);
-
-    this.reinforceText.setAlpha(1);
-    this.reinforceText.setColor(urgent ? '#ff2020' : '#ff8040');
-    this.reinforceText.setText(`⚠ REINFORCEMENTS INBOUND  ${secs}s`);
-  }
-
-  onReinforceSpawn() {
-    this.reinforceGfx.clear();
-    this.reinforceText.setAlpha(0);
-    this.showBanner('REINFORCEMENTS!', '#ff2020');
   }
 
   refreshSecondary(weaponId) {

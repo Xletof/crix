@@ -37,12 +37,10 @@ export const ROOMS = [
     terminals: [
       { x: 800, y: 700 },
     ],
-    reinforce: {
-      afterMs: 22000,
-      count: 2,
-      type: 'grunt',
-      door: { x: 1300, y: 100 },
-    },
+    // Horde spawn gates — arena drip/surge spawns telegraph + emerge here.
+    gates: [
+      { x: 1500, y: 200 }, { x: 1500, y: 1200 }, { x: 800, y: 100 },
+    ],
   },
 
   // ── 2. Service Corridor ────────────────────────────────────────────────
@@ -73,12 +71,9 @@ export const ROOMS = [
     terminals: [
       { x: 700, y: 700 },
     ],
-    reinforce: {
-      afterMs: 18000,
-      count: 1,
-      type: 'shooter',
-      door: { x: 700, y: 80 },
-    },
+    gates: [
+      { x: 700, y: 100 }, { x: 100, y: 700 }, { x: 1300, y: 700 },
+    ],
   },
 
   // ── 3. Detention Block ─────────────────────────────────────────────────
@@ -109,12 +104,10 @@ export const ROOMS = [
       { x: 500, y: 450 },
       { x: 1100, y: 950 },
     ],
-    reinforce: {
-      afterMs: 20000,
-      count: 3,
-      type: 'grunt',
-      door: { x: 800, y: 100 },
-    },
+    gates: [
+      { x: 800, y: 100 }, { x: 800, y: 1300 },
+      { x: 1450, y: 300 }, { x: 1450, y: 1100 },
+    ],
   },
 
   // ── 4. Vader's Chamber (boss) ──────────────────────────────────────────
@@ -133,5 +126,9 @@ export const ROOMS = [
     enemies: [],
     boss: true,
     bossSpawn: { x: 800, y: 400 },
+    gates: [
+      { x: 800, y: 100 }, { x: 800, y: 1500 },
+      { x: 100, y: 800 }, { x: 1500, y: 800 },
+    ],
   },
 ];
