@@ -3,8 +3,6 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - main
-      - claude/mobile-run-game-design-OZLYF
       - FRIX
   workflow_dispatch:
 
