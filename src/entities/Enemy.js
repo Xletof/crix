@@ -33,6 +33,12 @@ const TAKEDOWN_REAR_ARC = 1.62;    // rad — player must be within the enemy's 
 const LOS_LOST_RECLAIM  = 900;     // ms of no-LOS in SUPPRESS before re-picking cover
 const LOS_LOST_ADVANCE  = 1500;    // ms of no-LOS in COVER_MOVE before going ADVANCE
 
+// Swarm (horde/arena) behavior tunables — bypasses the stealth FSM entirely.
+const SWARM_RUSH_RANGE     = 150;  // px — grunts close to this range then orbit
+const SWARM_HOLD_RANGE     = 340;  // px — shooters hold and fire from here
+const SWARM_RETREAT_RANGE  = 160;  // px — shooters back off when player is closer
+const SWARM_STRAFE_FLIP_MS = 1200; // ms — strafe direction flip cadence
+
 // ── Base Enemy class ──────────────────────────────────────────────────────────
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, texture, cfg, spec = {}) {
@@ -66,8 +72,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.recoilT        = 0;
 
     // AI shared state — idle enemies (no patrol) still start PATROL (stand & scan).
-    // Only enemies explicitly flagged spec.alerted:true boot straight into combat.
-    this.state         = spec.alerted ? ST.ALERT : ST.PATROL;
+    // Swarm-behavior enemies (arena/horde mode) and spec.alerted enemies boot
+    // straight into combat: ALERT gives them 360° vision in canSee().
+    this.state         = (spec.behavior === 'swarm' || spec.alerted) ? ST.ALERT : ST.PATROL;
     this.patrolPath    = spec.patrol || [];
     this.patrolIdx     = 0;
     this.patrolWait    = 0;          // ms
@@ -90,7 +97,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     // Threat ring — red halo under the enemy so it pops on a dark floor.
     // Shadows the player's cyan "you are here" ring.
-    const ringColor = spec.alerted ? 0xff3030 : 0xff5040;
+    const ringColor = (spec.alerted || spec.behavior === 'swarm') ? 0xff3030 : 0xff5040;
     this.threatRing = scene.add.graphics().setDepth(this.depth - 2);
     this.threatRing.fillStyle(ringColor, 0.16);
     this.threatRing.fillCircle(0, 0, cfg.radius + 12);
@@ -664,6 +671,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // If we're in a movement state but physics keeps stopping us (wall/cover),
     // fire a brief perpendicular sidestep burst to escape the geometry.
     const _inMoveState = (
+      this.spec?.behavior === 'swarm' ||
       this.state === ST.CHASE || this.state === ST.COVER_MOVE ||
       this.state === ST.REPOSITION || this.state === ST.FLANK ||
       this.state === ST.SUSPICIOUS || this.state === ST.ADVANCE ||
@@ -742,6 +750,13 @@ export class EnemyShooter extends Enemy {
     if (this._staggerMs > 0) return;
     const player = this.scene.player;
     if (!player?.alive) { this.setVelocity(0, 0); return; }
+
+    // Horde mode: swarm enemies bypass the stealth FSM entirely — always
+    // hostile, always tracking, no vision-cone gating.
+    if (this.spec?.behavior === 'swarm') {
+      this._tickSwarm(delta, player);
+      return;
+    }
 
     switch (this.state) {
       case ST.PATROL:
@@ -1056,6 +1071,46 @@ export class EnemyShooter extends Enemy {
     }
   }
 
+  // ── Swarm behavior (horde/arena mode) ────────────────────────────────────
+  // Grunts are rushers: sprint to close range then orbit the player while
+  // firing. Shooters are ranged: advance to a hold range, strafe there, and
+  // back off if the player pushes in. No canSee cone — the swarm always knows
+  // where you are; only firing is still LOS-gated (via _maybeFireAt).
+  _tickSwarm(delta, player) {
+    this.lastKnownX = player.x;
+    this.lastKnownY = player.y;
+    const dx = player.x - this.x;
+    const dy = player.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    const toPlayer = Math.atan2(dy, dx);
+
+    const isRusher = this._animPrefix === 'grunt';
+    const near     = isRusher ? SWARM_RUSH_RANGE : SWARM_HOLD_RANGE;
+    const speed    = this.cfg.speed * (isRusher ? 1.2 : 1.0);
+
+    if (dist > near) {
+      // Close the gap (straight-line; stuck-sidestep handles cover bumps).
+      this._moveToward(player.x, player.y, speed);
+    } else if (!isRusher && dist < SWARM_RETREAT_RANGE) {
+      // Shooter too close — back off while keeping aim on the player.
+      this.setVelocity(-Math.cos(toPlayer) * speed, -Math.sin(toPlayer) * speed);
+      this._aim = toPlayer;
+    } else {
+      // In the pocket: strafe perpendicular, flipping direction periodically
+      // so the horde doesn't rotate in lockstep.
+      this._swarmStrafeMs = (this._swarmStrafeMs ?? 0) - delta;
+      if (this._swarmStrafeMs <= 0) {
+        this._swarmStrafeMs  = SWARM_STRAFE_FLIP_MS * (0.7 + Math.random() * 0.6);
+        this._swarmStrafeDir = Math.random() < 0.5 ? 1 : -1;
+      }
+      const perp = toPlayer + this._swarmStrafeDir * Math.PI / 2;
+      this.setVelocity(Math.cos(perp) * speed * 0.6, Math.sin(perp) * speed * 0.6);
+      this._aim = toPlayer;
+    }
+
+    this._maybeFireAt(delta, player);
+  }
+
   // ── Fire helper ─────────────────────────────────────────────────────────
 
   _maybeFireAt(delta, player) {
@@ -1097,7 +1152,15 @@ export class EnemyGrunt extends EnemyShooter {
     this.setTexture('grunt');
     this.cfg = ENEMY.grunt;
     this.hp  = this.cfg.hp;
+    this.hpMax = this.cfg.hp;
     this._animPrefix = 'grunt';
+    // Recompute the body circle — the base ctor sized it from the 'shooter'
+    // texture before setTexture('grunt') changed our frame dimensions.
+    this.body.setCircle(
+      this.cfg.radius,
+      this.width / 2 - this.cfg.radius,
+      this.height / 2 - this.cfg.radius,
+    );
     this.fireCd = Phaser.Math.Between(800, this.cfg.fireCooldownMs);
     if (this.anims.exists('grunt-idle-front')) {
       this.play('grunt-idle-front');

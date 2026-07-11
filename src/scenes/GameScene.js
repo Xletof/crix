@@ -995,6 +995,9 @@ export class GameScene extends Phaser.Scene {
   // ── Spawning ─────────────────────────────────────────────────────────────
 
   spawnEnemyAt(type, x, y, spec = {}) {
+    // Horde mode: every enemy — room-initial, wave, surge, boss minion —
+    // uses the aggressive swarm behavior. The stealth FSM stays dormant.
+    spec.behavior = 'swarm';
     let enemy;
     if (type === 'shooter') enemy = new EnemyShooter(this, x, y, spec);
     else                    enemy = new EnemyGrunt(this, x, y, spec);

@@ -26,7 +26,9 @@ export const ROOMS = [
     enemies: [
       { type: 'grunt', x: 800, y: 300 },
       { type: 'grunt', x: 800, y: 1100 },
-      { type: 'shooter', x: 1050, y: 700, role: 'suppress' },
+      { type: 'grunt', x: 1300, y: 400 },
+      { type: 'grunt', x: 1300, y: 1000 },
+      { type: 'shooter', x: 1050, y: 700 },
     ],
     pickups: [
       { x: 600, y: 350, weapon: 'rifle' },
@@ -61,7 +63,9 @@ export const ROOMS = [
     enemies: [
       { type: 'grunt', x: 450, y: 450 },
       { type: 'grunt', x: 950, y: 950 },
+      { type: 'grunt', x: 1150, y: 350 },
       { type: 'shooter', x: 700, y: 350 },
+      { type: 'shooter', x: 350, y: 1050 },
     ],
     pickups: [
       { x: 700, y: 1050, weapon: 'flamethrower' },
@@ -94,8 +98,9 @@ export const ROOMS = [
     enemies: [
       { type: 'grunt', x: 600, y: 450 },
       { type: 'grunt', x: 1000, y: 950 },
+      { type: 'grunt', x: 1350, y: 700 },
       { type: 'shooter', x: 550, y: 300 },
-      { type: 'shooter', x: 1050, y: 1100, role: 'flanker' },
+      { type: 'shooter', x: 1050, y: 1100 },
     ],
     pickups: [
       { x: 800, y: 700, weapon: 'detonator' },
