@@ -272,6 +272,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       const angle = base + offset;
       const cx = Phaser.Math.Clamp(spot.x + Math.cos(angle) * STAND_DIST, 60, w - 60);
       const cy = Phaser.Math.Clamp(spot.y + Math.sin(angle) * STAND_DIST, 60, h - 60);
+      const distToPlayer = Math.hypot(cx - px, cy - py);
+      if (distToPlayer > ALERT_VISION_RANGE) continue;
       if (this._hasLOS(cx, cy, px, py)) return { x: cx, y: cy };
     }
     return null;
@@ -361,10 +363,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         node = this._currentPath[this._pathNodeIdx];
       }
       if (node) {
-        return this._moveToward(node.x, node.y, speed);
+        this._moveToward(node.x, node.y, speed);
+        return Math.hypot(tx - this.x, ty - this.y);
       }
     }
-    return this._moveToward(tx, ty, speed);
+    this._moveToward(tx, ty, speed);
+    return Math.hypot(tx - this.x, ty - this.y);
   }
 
   _facePoint(tx, ty) {

@@ -9,36 +9,27 @@
 
 export const ROOMS = [
   // ── 1. Hangar Bay ──────────────────────────────────────────────────────
-  // Wide opening chamber. Two stormtroopers on patrol + a death trooper
-  // guarding the far end. Cover crates in the middle.
+  // Wide opening chamber. Symmetrical arena flanking the central terminal.
   {
     id: 'hangar',
     name: 'HANGAR BAY',
     bounds: { w: 1600, h: 1400 },
     spawn: { x: 200, y: 700 },
     exit: { x: 1500, y: 700, side: 'right' },
-    walls: [
-      { x: 500, y: 350 }, { x: 500, y: 1050 },
-    ],
+    walls: [], // opened up completely
     cover: [
-      { x: 450, y: 700 },
-      { x: 800, y: 350 }, { x: 950, y: 350 },
-      { x: 700, y: 620 }, { x: 700, y: 780 }, { x: 900, y: 700 },
-      { x: 800, y: 1050 }, { x: 950, y: 1050 },
+      { x: 500, y: 350 }, { x: 500, y: 1050 }, // moved walls to act as cover blocks
+      { x: 800, y: 350 }, { x: 800, y: 1050 },
+      { x: 1100, y: 350 }, { x: 1100, y: 1050 },
+      { x: 650, y: 700 }, { x: 950, y: 700 }
     ],
     enemies: [
-      {
-        type: 'grunt', x: 800, y: 250,
-        patrol: [{ x: 800, y: 250 }, { x: 500, y: 250 }, { x: 800, y: 250 }, { x: 1100, y: 250 }],
-      },
-      {
-        type: 'grunt', x: 800, y: 1150,
-        patrol: [{ x: 800, y: 1150 }, { x: 1100, y: 1150 }, { x: 800, y: 1150 }, { x: 500, y: 1150 }],
-      },
+      { type: 'grunt', x: 800, y: 300 },
+      { type: 'grunt', x: 800, y: 1100 },
       { type: 'shooter', x: 1050, y: 700, role: 'suppress' },
     ],
     pickups: [
-      { x: 600, y: 500, weapon: 'rifle' },
+      { x: 600, y: 350, weapon: 'rifle' },
     ],
     // Central terminal objective
     terminals: [
@@ -53,74 +44,58 @@ export const ROOMS = [
   },
 
   // ── 2. Service Corridor ────────────────────────────────────────────────
-  // S-shaped zig-zag maze to showcase pathfinding around blocking walls.
+  // Symmetrical square arena with central terminal and peripheral cover clusters.
   {
     id: 'corridor',
     name: 'SERVICE CORRIDOR',
-    bounds: { w: 1000, h: 1600 },
-    spawn: { x: 500, y: 120 },
-    exit: { x: 500, y: 1480, side: 'bottom' },
-    walls: [
-      // Left-extending partition wall
-      { x: 250, y: 500 }, { x: 400, y: 500 },
-      // Right-extending partition wall
-      { x: 750, y: 1000 }, { x: 600, y: 1000 },
-    ],
+    bounds: { w: 1400, h: 1400 },
+    spawn: { x: 200, y: 1200 }, // bottom-left spawn
+    exit: { x: 1200, y: 200, side: 'top' }, // top-right exit
+    walls: [], // removed zig-zag blockades
     cover: [
-      { x: 700, y: 350 }, { x: 300, y: 750 }, { x: 700, y: 1250 },
+      { x: 450, y: 950 }, { x: 950, y: 450 },
+      { x: 450, y: 450 }, { x: 950, y: 950 },
+      { x: 700, y: 350 }, { x: 700, y: 1050 },
+      { x: 350, y: 700 }, { x: 1050, y: 700 }
     ],
     enemies: [
-      {
-        type: 'grunt', x: 700, y: 450, alerted: true,
-        patrol: [{ x: 700, y: 450 }, { x: 850, y: 450 }],
-      },
-      {
-        type: 'grunt', x: 300, y: 950, alerted: true,
-        patrol: [{ x: 300, y: 950 }, { x: 150, y: 950 }],
-      },
-      { type: 'shooter', x: 500, y: 1250, alerted: true },
+      { type: 'grunt', x: 450, y: 450 },
+      { type: 'grunt', x: 950, y: 950 },
+      { type: 'shooter', x: 700, y: 350 },
     ],
     pickups: [
-      { x: 500, y: 1380, weapon: 'flamethrower' },
+      { x: 700, y: 1050, weapon: 'flamethrower' },
     ],
-    terminals: [],
+    terminals: [
+      { x: 700, y: 700 },
+    ],
     reinforce: {
       afterMs: 18000,
       count: 1,
       type: 'shooter',
-      door: { x: 500, y: 80 },
+      door: { x: 700, y: 80 },
     },
   },
 
   // ── 3. Detention Block ─────────────────────────────────────────────────
-  // Cell blocks layout with dual terminals requiring hacking.
+  // Open prison block with double terminals, allowing clean routing.
   {
     id: 'detention',
     name: 'DETENTION BLOCK',
     bounds: { w: 1600, h: 1400 },
     spawn: { x: 150, y: 700 },
     exit: { x: 1450, y: 700, side: 'right' },
-    walls: [
-      // Upper prison block cell walls
-      { x: 400, y: 300 }, { x: 800, y: 300 }, { x: 1200, y: 300 },
-      // Lower prison block cell walls
-      { x: 400, y: 1100 }, { x: 800, y: 1100 }, { x: 1200, y: 1100 },
-    ],
+    walls: [], // opened cells completely
     cover: [
-      { x: 600, y: 500 }, { x: 1000, y: 500 },
-      { x: 600, y: 900 }, { x: 1000, y: 900 },
+      { x: 400, y: 300 }, { x: 800, y: 300 }, { x: 1200, y: 300 },
+      { x: 400, y: 1100 }, { x: 800, y: 1100 }, { x: 1200, y: 1100 },
+      { x: 600, y: 700 }, { x: 1000, y: 700 },
     ],
     enemies: [
-      {
-        type: 'grunt', x: 800, y: 700,
-        patrol: [{ x: 500, y: 700 }, { x: 1100, y: 700 }],
-      },
-      {
-        type: 'grunt', x: 800, y: 650,
-        patrol: [{ x: 1100, y: 650 }, { x: 500, y: 650 }],
-      },
-      { type: 'shooter', x: 550, y: 400 },
-      { type: 'shooter', x: 1050, y: 1000, role: 'flanker' },
+      { type: 'grunt', x: 600, y: 450 },
+      { type: 'grunt', x: 1000, y: 950 },
+      { type: 'shooter', x: 550, y: 300 },
+      { type: 'shooter', x: 1050, y: 1100, role: 'flanker' },
     ],
     pickups: [
       { x: 800, y: 700, weapon: 'detonator' },

@@ -99,6 +99,16 @@ export class HUDScene extends Phaser.Scene {
     this.livesGfx = this.add.graphics();
     this.drawLives(3);
 
+    // Survival Timer text (top center, below HP bar)
+    this.timerText = this.add.text(VIEW.width / 2, 60, '', {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '18px',
+      fontStyle: 'bold',
+      color: '#ffaa30',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5);
+
     // Reinforcement countdown badge (hidden by default)
     this.reinforceGfx = this.add.graphics();
     this.reinforceText = this.add.text(VIEW.width / 2, 100, ' ', {
@@ -354,6 +364,7 @@ export class HUDScene extends Phaser.Scene {
     ge.on('reinforce-spawn',        ()             => this.onReinforceSpawn());
     ge.on('takedown-available',     (avail)        => this.setTakedownVisible(avail));
     ge.on('objective-update',       (done, total)  => this.refreshObjective(done, total));
+    ge.on('timer-update',           (secs)         => this.refreshTimer(secs));
     ge.on('hack-prompt',            (avail)        => this.setHackVisible(avail));
     ge.on('show-combo',             (n)            => this.showCombo(n));
     ge.on('hack-start',             (terminal)     => {
@@ -384,6 +395,7 @@ export class HUDScene extends Phaser.Scene {
       ge.off('reinforce-spawn');
       ge.off('takedown-available');
       ge.off('objective-update');
+      ge.off('timer-update');
       ge.off('hack-prompt');
       ge.off('hack-start');
       ge.off('hack-cancel');
@@ -774,6 +786,25 @@ export class HUDScene extends Phaser.Scene {
     const complete = done >= total;
     this.objText.setColor(complete ? '#40ff80' : '#ffd040');
     this.objText.setText(complete ? '✓ TERMINALS SLICED' : `⛁ SLICE TERMINALS ${done}/${total}`);
+  }
+
+  refreshTimer(seconds) {
+    if (seconds === undefined || seconds === null || seconds < 0) {
+      this.timerText.setText('');
+      return;
+    }
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    const timeStr = `${mins}:${secs.toString().padStart(2, '0')}`;
+    this.timerText.setText(`SURVIVE: ${timeStr}`);
+    if (seconds <= 10) {
+      this.timerText.setColor('#ff4040');
+      const pulse = 1.0 + 0.08 * Math.sin(this.time.now * 0.012);
+      this.timerText.setScale(pulse);
+    } else {
+      this.timerText.setColor('#ffaa30');
+      this.timerText.setScale(1.0);
+    }
   }
 
   refreshHackBar(ratio) {

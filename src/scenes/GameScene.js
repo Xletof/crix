@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS } from '../config.js';
+import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, ALLY } from '../config.js';
 import { Player } from '../entities/Player.js';
 import { EnemyGrunt, EnemyShooter, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
@@ -9,6 +9,7 @@ import { RoomManager } from '../systems/RoomManager.js';
 import { CoverRegistry } from '../systems/CoverRegistry.js';
 import { WeaponPickup } from '../entities/WeaponPickup.js';
 import { Terminal } from '../entities/Terminal.js';
+import { AllyTurret, AllySoldier } from '../entities/Ally.js';
 import { attachFX, SFX, startMusic, duckMusic, stopMusic } from '../systems/FX.js';
 import { ROOMS } from '../data/rooms.js';
 import { NARRATIVE } from '../data/narrative.js';
@@ -85,6 +86,11 @@ export class GameScene extends Phaser.Scene {
     // ── Enemy group ────────────────────────────────────────────────────────
     this.enemies = this.add.group({ runChildUpdate: false });
     this.boss    = null;
+
+    // ── Allies group ────────────────────────────────────────────────────────
+    this.allies = this.add.group({ runChildUpdate: true });
+    this.physics.add.collider(this.allies, this.walls);
+    this.physics.add.collider(this.allies, this.player);
 
     // ── Health orbs ────────────────────────────────────────────────────────
     this.healthOrbs = [];
@@ -256,9 +262,13 @@ export class GameScene extends Phaser.Scene {
 
     // Boss room
     if (spec.boss) {
-      this.time.delayedCall(600, () => {
-        this.spawnBoss(spec.bossSpawn.x, spec.bossSpawn.y);
-        this.events.emit('boss-start');
+      // Initialize dual climax: start with 60s survival round first, do NOT spawn Vader yet.
+      this.survivalTimeLeft = 60;
+      this.waveTimer = 20;
+      this.arenaActive = true;
+      this.events.emit('timer-update', this.survivalTimeLeft);
+      this.time.delayedCall(1700, () => {
+        this.events.emit('show-banner', 'SURVIVE THE SWARM', '#ff2020');
       });
     }
 
@@ -275,36 +285,19 @@ export class GameScene extends Phaser.Scene {
     this.events.emit('room-start', idx + 1, ROOMS.length, spec);
     this._roomLoud = false;
 
-    // Quest title + objective briefing banners (skip boss room — it has its
-    // own "VADER APPROACHES" intro). Quest title leads, objective follows, so
-    // each room reads as a beat in the questline.
+    // Arena wave survival announcement
     if (!spec.boss) {
-      const n = this._terminalsTotal;
-      const objMsg = n > 0
-        ? `SLICE ${n} TERMINAL${n > 1 ? 'S' : ''}`
-        : 'ELIMINATE ALL HOSTILES';
-      const quest = NARRATIVE.rooms[spec.id];
-      if (quest) {
-        this.time.delayedCall(650, () => this.events.emit('show-banner', quest.title, '#ff9050'));
-        this.time.delayedCall(1750, () => this.events.emit('show-banner', objMsg, '#ffd040'));
-      } else {
-        this.time.delayedCall(650, () => this.events.emit('show-banner', objMsg, '#ffd040'));
+      const arenaCfg = ARENA[spec.id];
+      if (arenaCfg) {
+        this.survivalTimeLeft = arenaCfg.time;
+        this.waveTimer = 20;
+        this.arenaActive = true;
+        this.events.emit('timer-update', this.survivalTimeLeft);
+        this.time.delayedCall(650, () => this.events.emit('show-banner', `SURVIVE FOR ${arenaCfg.time}s`, '#ff4040'));
+        if (this._terminalsTotal > 0) {
+          this.time.delayedCall(1750, () => this.events.emit('show-banner', 'SLICE TERMINALS FOR SUPPORT', '#ffd040'));
+        }
       }
-
-      // One-time tips on the very first room of a run (spaced after the brief).
-      if (idx === 0 && !this._shownStealthTip) {
-        this._shownStealthTip = true;
-        this.time.delayedCall(3200, () =>
-          this.events.emit('show-banner', 'SNEAK BEHIND FOES\nFOR SILENT TAKEDOWNS', '#80ffaa'));
-        this.time.delayedCall(5200, () =>
-          this.events.emit('show-banner', 'STAND ON TERMINALS\nTO SLICE THEM', '#ffd040'));
-      }
-    }
-
-    // Empty room with no objectives → open immediately. Otherwise the door is
-    // gated by _maybeCompleteRoom() (enemies cleared AND all terminals hacked).
-    if (spec.enemies.length === 0 && !spec.boss && this._terminalsTotal === 0) {
-      this.time.delayedCall(200, () => { this._enemiesCleared = true; this._maybeCompleteRoom(); });
     }
   }
 
@@ -314,6 +307,12 @@ export class GameScene extends Phaser.Scene {
       try { e.shadow?.destroy(); e.hpBar?.destroy(); if (e.scene) e.destroy(); } catch (_) {}
     });
     this.enemies.clear(false, false);
+
+    // Destroy all friendly allies
+    this.allies.getChildren().forEach((a) => {
+      try { a.hpBar?.destroy(); a.weaponSprite?.destroy(); if (a.scene) a.destroy(); } catch (_) {}
+    });
+    this.allies.clear(false, false);
 
     // Boss
     if (this.boss) {
@@ -1185,23 +1184,27 @@ export class GameScene extends Phaser.Scene {
     });
     this.events.on('grunt-melee', (g) => this.fx.burst(g.x, g.y, 'red', 6));
 
-    // Enemies cleared → mark it; the door only opens once terminals are also done.
+    // Room cleared logic: in wave survival mode, exits open only on timer reaching 0.
     this.events.on('room-cleared', (spec) => {
-      if (spec.boss) return; // boss room ends via boss-died
+      if (this.arenaActive || this.survivalTimeLeft > 0) return;
+      if (spec.boss) return;
       this._enemiesCleared = true;
       this.time.delayedCall(400, () => this._maybeCompleteRoom());
     });
 
-    // A terminal finished hacking → tally it and re-check room completion.
-    this.events.on('terminal-hacked', () => {
+    // A terminal finished hacking → trigger support drop and escalate wave!
+    this.events.on('terminal-hacked', (terminal) => {
       this._terminalsHacked += 1;
       this.events.emit('objective-update', this._terminalsHacked, this._terminalsTotal);
       this.fx.shake(0.004, 80);
-      const remaining = this._terminalsTotal - this._terminalsHacked;
-      this.events.emit('show-banner',
-        remaining > 0 ? `TERMINAL SLICED  ${this._terminalsHacked}/${this._terminalsTotal}` : 'ALL TERMINALS SLICED',
-        '#ffd040');
-      this._maybeCompleteRoom();
+      
+      // Spawn support drop
+      if (terminal) {
+        this.spawnTerminalSupportDrop(terminal);
+      }
+      
+      // Escalate wave immediately
+      this.triggerNextWave();
     });
 
     // Mini-game completion bridges to the terminal.
@@ -1211,9 +1214,7 @@ export class GameScene extends Phaser.Scene {
     });
     // Mini-game failure → trip the room alarm just like blowing your cover.
     this.events.on('hack-fail', () => {
-      // Alert every patrolling enemy in the room and arm reinforcements.
-      this.events.emit('room-alarm-klaxon');
-      this._onFirstAlarm();
+      // Alert every enemy in the room
       for (const e of this.enemies.getChildren()) {
         if (e.active && e.alive && (e.state === ST.PATROL || e.state === ST.SUSPICIOUS)) {
           e._triggerAlarm(true);
@@ -1477,8 +1478,8 @@ export class GameScene extends Phaser.Scene {
     // AI debug overlay (D key)
     this._drawAIDebug();
 
-    // Reinforcement timer + door
-    this._tickReinforcements(delta);
+    // Timed wave survival tick
+    this._tickArenaSurvival(delta);
 
     // Health orbs
     this.updateHealthOrbs(delta);
@@ -1522,6 +1523,7 @@ export class GameScene extends Phaser.Scene {
     this.handleBulletEnemyHits(this.playerRifleBullets, false);
     this.handleBulletEnemyHits(this.playerSuperBullets, true);
     this.handleEnemyBulletsVsPlayer();
+    this.handleEnemyBulletsVsAllies();
     this.handleBulletWallHits(this.playerBullets, false);
     this.handleBulletWallHits(this.playerRifleBullets, false);
     this.handleBulletWallHits(this.playerSuperBullets, true);
@@ -1673,7 +1675,7 @@ export class GameScene extends Phaser.Scene {
         if (this.circleOverlap(b, this.boss)) {
           b.hitSet.add(this.boss);
           b.hasHit = true;
-          if (!isSuper) this.player.onHitLanded();
+          if (!isSuper && b.owner === 'player') this.player.onHitLanded();
           // Boss ignores knockback in its damage override — pass it anyway.
           const kbVec = { x: b.body.velocity.x * 0.15, y: b.body.velocity.y * 0.15 };
           this.boss.damage(b.damage, kbVec);
@@ -1681,21 +1683,8 @@ export class GameScene extends Phaser.Scene {
           // Heavier directional spark — boss armor deflects more
           const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
           this.fx.burstDir(b.x, b.y, 'yellow', isSuper ? 18 : 10, flightAng, 100);
-          this.player.addSuperHit();
-          // Super-on-boss is the combo the loop is built around — give it a
-          // bigger explosion + red flash + distinct SFX. Super pellets pierce
-          // (7 overlap the boss), so gate the screen-wide FX behind an ~80ms
-          // cooldown to avoid stacking 7 flashes into one blinding frame.
-          if (isSuper) {
-            const now = this.time.now;
-            if (now - (this._superBossFxAt || 0) > 80) {
-              this._superBossFxAt = now;
-              this.fx.explosion(b.x, b.y, 2.6);
-              this.cameras.main.flash(120, 255, 40, 40, true);
-              SFX.superBossHit();
-            }
-          }
-          if (!b.piercing) { if (isSuper) this.fx.explosion(b.x, b.y, 1.8); b.kill(); }
+          if (b.owner === 'player') this.player.addSuperHit();
+          if (!b.piercing) { if (isSuper) this.fx.explosion(b.x, b.y, 2.6); b.kill(); }
         }
       }
       if (!b.active) continue;
@@ -1704,7 +1693,7 @@ export class GameScene extends Phaser.Scene {
         if (this.circleOverlap(b, e)) {
           b.hitSet.add(e);
           b.hasHit = true;
-          if (!isSuper) this.player.onHitLanded();
+          if (!isSuper && b.owner === 'player') this.player.onHitLanded();
           // Every bullet knocks: super pellets shove hard, normal shots
           // give a punchy stagger in flight direction. Hotline-feel.
           const kbScale = isSuper ? 0.32 : 0.18;
@@ -1715,7 +1704,7 @@ export class GameScene extends Phaser.Scene {
           // path with a wide cone, like a deflection ricochet.
           const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
           this.fx.burstDir(b.x, b.y, 'red', isSuper ? 14 : 7, flightAng, 80);
-          this.player.addSuperHit();
+          if (b.owner === 'player') this.player.addSuperHit();
           if (!b.piercing) { if (isSuper) this.fx.explosion(b.x, b.y, 1.4); b.kill(); break; }
         }
       }
@@ -1733,6 +1722,21 @@ export class GameScene extends Phaser.Scene {
         this.player.damage(b.damage, dir);
         this.fx.impactRing(b.x, b.y, 0x40c8ff); // cyan shockwave for player
         b.kill();
+      }
+    }
+  }
+
+  handleEnemyBulletsVsAllies() {
+    for (const b of this.enemyBullets.getChildren()) {
+      if (!b.active) continue;
+      for (const a of this.allies.getChildren()) {
+        if (!a.active || !a.alive) continue;
+        if (this.circleOverlap(b, a)) {
+          a.damage(b.damage);
+          this.fx.impactRing(b.x, b.y, 0x00ffff);
+          b.kill();
+          break;
+        }
       }
     }
   }
@@ -2249,5 +2253,131 @@ export class GameScene extends Phaser.Scene {
         maxCombo: this.player ? this.player.runMaxCombo || 1.0 : 1.0,
       }
     });
+  }
+
+  // ── Arena wave survival logic ──────────────────────────────────────────────
+
+  _tickArenaSurvival(delta) {
+    if (!this.arenaActive || !this.player?.alive) return;
+
+    // Seconds timer
+    this._survivalSecTimer = (this._survivalSecTimer || 0) + delta;
+    if (this._survivalSecTimer >= 1000) {
+      this._survivalSecTimer -= 1000;
+      if (this.survivalTimeLeft > 0) {
+        this.survivalTimeLeft--;
+        this.events.emit('timer-update', this.survivalTimeLeft);
+        
+        if (this.survivalTimeLeft <= 0) {
+          this._onArenaCompleted();
+        }
+      }
+    }
+
+    // Wave spawning timer
+    this.waveTimer -= delta * 0.001;
+    if (this.waveTimer <= 0 && this.survivalTimeLeft > 0) {
+      this.triggerNextWave();
+    }
+  }
+
+  triggerNextWave() {
+    this.waveTimer = 20; // reset wave timer
+    
+    const spec = this.roomSpec;
+    if (!spec) return;
+    
+    const floorIdx = this.roomManager.index;
+    const spawnCount = 3 + floorIdx; // Hangar: 3, Corridor: 4, Detention: 5, etc.
+    
+    this.events.emit('show-banner', 'WARNING: ENEMY REINFORCEMENTS!', '#ff4040');
+    SFX.enemyShoot();
+    
+    this.cameras.main.flash(150, 255, 60, 60, false);
+    
+    for (let i = 0; i < spawnCount; i++) {
+      const type = Math.random() < 0.35 ? 'shooter' : 'grunt';
+      this.spawnSwarmEnemy(type);
+    }
+  }
+
+  spawnSwarmEnemy(type) {
+    const e = this.spawnEnemyRandom(type);
+    if (e) {
+      e.state = ST.ALERT;
+      e.alertTimer = 150; // brief alert reaction
+      e.lastKnownX = this.player.x;
+      e.lastKnownY = this.player.y;
+    }
+    return e;
+  }
+
+  spawnTerminalSupportDrop(t) {
+    const roll = Phaser.Math.Between(0, 3);
+    if (roll === 0) {
+      // Spawn automated turret
+      const turret = new AllyTurret(this, t.x, t.y);
+      this.allies.add(turret);
+      this.fx.pickupSparkle(t.x, t.y, 16);
+      this.events.emit('show-banner', 'SUPPORT: LASER TURRET ACTIVE', '#40c8ff');
+      SFX.uiClick();
+    } else if (roll === 1) {
+      // Spawn friendly mobile trooper
+      const soldier = new AllySoldier(this, t.x, t.y + 40);
+      this.allies.add(soldier);
+      this.fx.pickupSparkle(t.x, t.y + 40, 16);
+      this.events.emit('show-banner', 'SUPPORT: ALLY TROOPER DEPLOYED', '#40c8ff');
+      SFX.uiClick();
+    } else if (roll === 2) {
+      // Drop heavy weapon pickup
+      const weapons = ['rifle', 'flamethrower', 'detonator'];
+      const choice = weapons[Phaser.Math.Between(0, weapons.length - 1)];
+      const wp = new WeaponPickup(this, t.x, t.y + 35, choice);
+      this.weaponPickups.push(wp);
+      this.fx.pickupSparkle(t.x, t.y + 35, 12);
+      this.events.emit('show-banner', `SUPPORT: ${choice.toUpperCase()} DROPPED`, '#ffd040');
+    } else {
+      // Spawn health pack + temporary shield
+      this.spawnHealthOrb(t.x, t.y + 30);
+      this.player.addShield(400);
+      this.events.emit('show-banner', 'SUPPORT: SHIELD CHARGED & BACTA VIAL', '#40ff80');
+    }
+  }
+
+  _onArenaCompleted() {
+    this.arenaActive = false;
+    this.events.emit('timer-update', null);
+    
+    const spec = this.roomSpec;
+    if (spec.boss) {
+      // Dual climax: survive swarm first, then spawn Darth Vader!
+      this.enemies.getChildren().forEach((e) => {
+        try { e.shadow?.destroy(); e.hpBar?.destroy(); if (e.scene) e.destroy(); } catch (_) {}
+      });
+      this.enemies.clear(false, false);
+
+      this.events.emit('show-banner', 'VADER APPROACHES!', '#ff2020');
+      SFX.bossRoar();
+      this.cameras.main.flash(400, 255, 0, 0, true);
+      
+      // Spawn Vader
+      this.time.delayedCall(800, () => {
+        this.spawnBoss(spec.bossSpawn.x, spec.bossSpawn.y);
+        this.events.emit('boss-start');
+      });
+    } else {
+      // Clear remaining enemies
+      this.enemies.getChildren().forEach((e) => {
+        try { e.shadow?.destroy(); e.hpBar?.destroy(); if (e.scene) e.destroy(); } catch (_) {}
+      });
+      this.enemies.clear(false, false);
+      
+      this._roomDoorOpened = true;
+      this._openDoor();
+      
+      this.cameras.main.flash(220, 64, 255, 128, true);
+      this.fx.shake(0.004, 120);
+      this.events.emit('show-banner', 'ARENA SURVIVED!', '#20ff60');
+    }
   }
 }

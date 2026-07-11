@@ -153,7 +153,7 @@ const fs = require('fs');
   if (detectedPlayer) {
     await page.evaluate(() => {
       const gs = window.game.scene.getScene('Game');
-      gs.player.x = 1200; gs.player.y = 1200;
+      gs.player.x = 3200; gs.player.y = 3200;
       gs.player.body.updateFromGameObject();
     });
     // Wait for alert → chase/combat transition (enemy must first finish alert anim ~400ms)
@@ -253,6 +253,7 @@ const fs = require('fs');
       gs.bushSystem.isInsideBush = gs._origIsInsideBush;
       delete gs._origIsInsideBush;
     }
+    if (gs._testWall) { gs._testWall.destroy(); delete gs._testWall; }
   });
 
   // ── Summary ───────────────────────────────────────────────────────────────

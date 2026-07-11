@@ -22,7 +22,7 @@ export class Terminal {
     scene.roomLayer.add(this.sprite);
 
     this.gfx = scene.add.graphics().setDepth(20);
-    this.label = scene.add.text(x, y - 34, 'HACK', {
+    this.label = scene.add.text(x, y - 34, 'SLICE', {
       fontFamily: 'Courier New, monospace',
       fontSize: '14px',
       fontStyle: 'bold',

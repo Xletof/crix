@@ -189,7 +189,11 @@ const fs = require('fs');
     // make sure enemies don't kill player and don't die during test
     gs.player.hp = 99999;
     gs.enemies.getChildren().forEach(e => {
-      if (e.alive) e.hp = 99999;
+      if (e.alive) {
+        e.hp = 99999;
+        e.state = 'alert';
+        e.alertTimer = 999999;
+      }
     });
   });
   
