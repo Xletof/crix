@@ -28,6 +28,8 @@ export class GameOverScene extends Phaser.Scene {
       globalStats.bestStealthKills = Math.max(globalStats.bestStealthKills || 0, stats.stealthKills);
       globalStats.bestMaxCombo = Math.max(globalStats.bestMaxCombo || 1.0, stats.maxCombo);
       globalStats.lastDamageTaken = stats.damageTaken;
+      globalStats.bestKills  = Math.max(globalStats.bestKills || 0, stats.kills || 0);
+      globalStats.totalKills = (globalStats.totalKills || 0) + (stats.kills || 0);
     }
     saveStats(globalStats);
 
@@ -156,7 +158,7 @@ export class GameOverScene extends Phaser.Scene {
       };
 
       this.add.text(px + 50, boxY + 20, `TIME:    ${formatTime(stats?.clearTime)}  (PB: ${formatTime(globalStats.bestTime)})`, statsStyle);
-      this.add.text(px + 50, boxY + 50, `STEALTH: ${stats?.stealthKills || 0}  (PB: ${globalStats.bestStealthKills || 0})`, statsStyle);
+      this.add.text(px + 50, boxY + 50, `KILLS:   ${stats?.kills || 0}  (PB: ${globalStats.bestKills || 0})`, statsStyle);
       this.add.text(px + 50, boxY + 80, `COMBO:   x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
       this.add.text(px + 50, boxY + 110, `DAMAGE:  ${stats?.damageTaken || 0} HP`, statsStyle);
 
@@ -289,7 +291,7 @@ export class GameOverScene extends Phaser.Scene {
       };
 
       this.add.text(px + 50, boxY + 18, `TIME ELAPSED: ${formatTime(stats?.clearTime)}`, statsStyle);
-      this.add.text(px + 50, boxY + 46, `STEALTH KILLS: ${stats?.stealthKills || 0}  (PB: ${globalStats.bestStealthKills || 0})`, statsStyle);
+      this.add.text(px + 50, boxY + 46, `KILLS:        ${stats?.kills || 0}  (PB: ${globalStats.bestKills || 0})`, statsStyle);
       this.add.text(px + 50, boxY + 74, `MAX COMBO:    x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
       this.add.text(px + 50, boxY + 102, `DAMAGE TAKEN: ${stats?.damageTaken || 0} HP`, statsStyle);
 

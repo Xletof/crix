@@ -109,6 +109,26 @@ export class HUDScene extends Phaser.Scene {
       strokeThickness: 3,
     }).setOrigin(0.5);
 
+    // Kill counter (left of the timer) — run-wide tally
+    this.killText = this.add.text(VIEW.width / 2 - 170, 60, '', {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '17px',
+      fontStyle: 'bold',
+      color: '#ff5050',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5);
+
+    // Next-surge ticker (right of the timer) — pulses red when imminent
+    this.surgeText = this.add.text(VIEW.width / 2 + 175, 60, '', {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '15px',
+      fontStyle: 'bold',
+      color: '#ff8040',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5);
+
     // Banner (center, transient)
     this.banner = this.add
       .text(VIEW.width / 2, VIEW.height * 0.32, ' ', {
@@ -351,6 +371,8 @@ export class HUDScene extends Phaser.Scene {
     ge.on('takedown-available',     (avail)        => this.setTakedownVisible(avail));
     ge.on('objective-update',       (done, total)  => this.refreshObjective(done, total));
     ge.on('timer-update',           (secs)         => this.refreshTimer(secs));
+    ge.on('kills-update',           (n)            => this.refreshKills(n));
+    ge.on('surge-in',               (secs)         => this.refreshSurge(secs));
     ge.on('hack-prompt',            (avail)        => this.setHackVisible(avail));
     ge.on('show-combo',             (n)            => this.showCombo(n));
     ge.on('hack-start',             (terminal)     => {
@@ -380,6 +402,8 @@ export class HUDScene extends Phaser.Scene {
       ge.off('takedown-available');
       ge.off('objective-update');
       ge.off('timer-update');
+      ge.off('kills-update');
+      ge.off('surge-in');
       ge.off('hack-prompt');
       ge.off('hack-start');
       ge.off('hack-cancel');
@@ -396,6 +420,7 @@ export class HUDScene extends Phaser.Scene {
     this.refreshHp();
     this.refreshAmmo();
     this.refreshSuper();
+    this.refreshKills(this.gameScene?.runKills ?? 0);
     this.refreshChamber(1, ROOMS.length, ROOMS[0]);
   }
 
@@ -740,9 +765,33 @@ export class HUDScene extends Phaser.Scene {
     this.objText.setText(complete ? '✓ TERMINALS SLICED' : `⛁ SLICE TERMINALS ${done}/${total}`);
   }
 
+  refreshKills(n) {
+    this.killText.setText(`KILLS ${n}`);
+    // Quick pop on each tick-up
+    this.tweens.killTweensOf(this.killText);
+    this.killText.setScale(1.25);
+    this.tweens.add({ targets: this.killText, scale: 1, duration: 130, ease: 'Back.easeOut' });
+  }
+
+  refreshSurge(secs) {
+    if (secs === undefined || secs === null || !this.timerText.text) {
+      this.surgeText.setText('');
+      return;
+    }
+    this.surgeText.setText(`SURGE ${secs}s`);
+    if (secs <= 3) {
+      this.surgeText.setColor('#ff2020');
+      this.surgeText.setScale(1.0 + 0.10 * Math.sin(this.time.now * 0.015));
+    } else {
+      this.surgeText.setColor('#ff8040');
+      this.surgeText.setScale(1.0);
+    }
+  }
+
   refreshTimer(seconds) {
     if (seconds === undefined || seconds === null || seconds < 0) {
       this.timerText.setText('');
+      this.surgeText?.setText('');
       return;
     }
     const mins = Math.floor(seconds / 60);

@@ -241,9 +241,10 @@ export class TitleScene extends Phaser.Scene {
       runsText.setText(`TOTAL MISSIONS:   ${currentStats.runs || 0}`);
       winsText.setText(`BOUNTIES CLAIMED: ${currentStats.wins || 0}`);
       timeText.setText(`BEST CLEAR TIME:  ${formatTime(currentStats.bestTime)}`);
-      stealthText.setText(`MAX STEALTH KILLS: ${currentStats.bestStealthKills || 0}`);
+      stealthText.setText(`BEST KILLS (RUN): ${currentStats.bestKills || 0}`);
       comboText.setText(`MAX COMBO MULT:   x${(currentStats.bestMaxCombo || 1.0).toFixed(1)}`);
       dmgText.setText(`LAST DAMAGE RECD: ${currentStats.lastDamageTaken || 0} HP`);
+      totalKillsText.setText(`TOTAL KILLS:      ${currentStats.totalKills || 0}`);
 
       recordsContainer.setVisible(true);
     });
@@ -295,8 +296,9 @@ export class TitleScene extends Phaser.Scene {
     const stealthText = this.add.text(cX + 50, startTextY + 3 * spacingY, '', textStyle);
     const comboText = this.add.text(cX + 50, startTextY + 4 * spacingY, '', textStyle);
     const dmgText = this.add.text(cX + 50, startTextY + 5 * spacingY, '', textStyle);
+    const totalKillsText = this.add.text(cX + 50, startTextY + 6 * spacingY, '', textStyle);
 
-    recordsContainer.add([runsText, winsText, timeText, stealthText, comboText, dmgText]);
+    recordsContainer.add([runsText, winsText, timeText, stealthText, comboText, dmgText, totalKillsText]);
 
     // Close button
     const closeY = cY + cH - 70;

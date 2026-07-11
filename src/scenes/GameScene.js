@@ -66,6 +66,7 @@ export class GameScene extends Phaser.Scene {
     this.runStartTime      = this.time.now;
     this.runStealthKills   = 0;
     this.runDamageTaken    = 0;
+    this.runKills          = 0;
 
     // ── Weapon pickups (cleared per room) ──────────────────────────────────
     this.weaponPickups = [];
@@ -1080,6 +1081,9 @@ export class GameScene extends Phaser.Scene {
       this._cameraPunch(1.04, 220);
       // Combo counter — chain kills within 2s show on screen
       this._tickKillCombo();
+      // Run-wide kill counter (drives the HUD readout + records)
+      this.runKills = (this.runKills || 0) + 1;
+      this.events.emit('kills-update', this.runKills);
       this.roomManager.onEnemyDied();
       if (Math.random() < HEALTH_ORB.dropChance) this.spawnHealthOrb(enemy.x, enemy.y);
     });
@@ -2135,6 +2139,7 @@ export class GameScene extends Phaser.Scene {
       stats: {
         clearTime: this.time.now - this.runStartTime,
         stealthKills: this.runStealthKills,
+        kills: this.runKills || 0,
         damageTaken: Math.ceil(this.runDamageTaken),
         maxCombo: this.player ? this.player.runMaxCombo || 1.0 : 1.0,
       }
@@ -2146,6 +2151,7 @@ export class GameScene extends Phaser.Scene {
       stats: {
         clearTime: this.time.now - this.runStartTime,
         stealthKills: this.runStealthKills,
+        kills: this.runKills || 0,
         damageTaken: Math.ceil(this.runDamageTaken),
         maxCombo: this.player ? this.player.runMaxCombo || 1.0 : 1.0,
       }
@@ -2164,6 +2170,7 @@ export class GameScene extends Phaser.Scene {
       if (this.survivalTimeLeft > 0) {
         this.survivalTimeLeft--;
         this.events.emit('timer-update', this.survivalTimeLeft);
+        this.events.emit('surge-in', Math.max(0, Math.ceil((this._surgeMs ?? 0) / 1000)));
 
         if (this.survivalTimeLeft <= 0) {
           this._onArenaCompleted();
@@ -2288,11 +2295,22 @@ export class GameScene extends Phaser.Scene {
     
     const spec = this.roomSpec;
     if (spec.boss) {
-      // Dual climax: survive swarm first, then spawn Darth Vader!
-      this.enemies.getChildren().forEach((e) => {
-        try { e.shadow?.destroy(); e.hpBar?.destroy(); if (e.scene) e.destroy(); } catch (_) {}
+      // Dual climax: survive the swarm first, then Vader. Up to 4 swarm
+      // survivors stay in the fight so the climax doesn't reset to a sterile
+      // 1v1 — the rest are culled (farthest from the player go first).
+      const living = this.enemies.getChildren()
+        .filter((e) => e.alive)
+        .sort((a, b) =>
+          Math.hypot(a.x - this.player.x, a.y - this.player.y) -
+          Math.hypot(b.x - this.player.x, b.y - this.player.y));
+      living.slice(4).forEach((e) => {
+        try {
+          this.enemies.remove(e);
+          e.shadow?.destroy(); e.hpBar?.destroy();
+          e.alertMark?.destroy(); e.threatRing?.destroy(); e.weaponSprite?.destroy();
+          if (e.scene) e.destroy();
+        } catch (_) {}
       });
-      this.enemies.clear(false, false);
 
       this.events.emit('show-banner', 'VADER APPROACHES!', '#ff2020');
       SFX.bossRoar();

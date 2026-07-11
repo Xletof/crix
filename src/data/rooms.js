@@ -18,10 +18,12 @@ export const ROOMS = [
     exit: { x: 1500, y: 700, side: 'right' },
     walls: [], // opened up completely
     cover: [
-      { x: 500, y: 350 }, { x: 500, y: 1050 }, // moved walls to act as cover blocks
+      // Two rows ~300px apart (one dash-vault chain) + offset diagonals in
+      // the middle — the center lane stays open for super volleys.
+      { x: 500, y: 350 }, { x: 500, y: 1050 },
       { x: 800, y: 350 }, { x: 800, y: 1050 },
       { x: 1100, y: 350 }, { x: 1100, y: 1050 },
-      { x: 650, y: 700 }, { x: 950, y: 700 }
+      { x: 650, y: 500 }, { x: 950, y: 900 },
     ],
     enemies: [
       { type: 'grunt', x: 800, y: 300 },
@@ -43,20 +45,22 @@ export const ROOMS = [
     ],
   },
 
-  // ── 2. Service Corridor ────────────────────────────────────────────────
-  // Symmetrical square arena with central terminal and peripheral cover clusters.
+  // ── 2. Reactor Junction ────────────────────────────────────────────────
+  // Symmetrical square arena: a diamond ring of cover orbits the central
+  // terminal so hacking mid-horde always has a vault-out escape.
   {
     id: 'corridor',
-    name: 'SERVICE CORRIDOR',
+    name: 'REACTOR JUNCTION',
     bounds: { w: 1400, h: 1400 },
     spawn: { x: 200, y: 1200 }, // bottom-left spawn
     exit: { x: 1200, y: 200, side: 'top' }, // top-right exit
-    walls: [], // removed zig-zag blockades
+    walls: [],
     cover: [
-      { x: 450, y: 950 }, { x: 950, y: 450 },
-      { x: 450, y: 450 }, { x: 950, y: 950 },
-      { x: 700, y: 350 }, { x: 700, y: 1050 },
-      { x: 350, y: 700 }, { x: 1050, y: 700 }
+      // Diamond ring around the terminal at (700,700), ~280px spacing
+      { x: 700, y: 420 }, { x: 700, y: 980 },
+      { x: 420, y: 700 }, { x: 980, y: 700 },
+      { x: 500, y: 500 }, { x: 900, y: 500 },
+      { x: 500, y: 900 }, { x: 900, y: 900 },
     ],
     enemies: [
       { type: 'grunt', x: 450, y: 450 },
