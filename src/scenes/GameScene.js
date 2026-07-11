@@ -53,7 +53,6 @@ export class GameScene extends Phaser.Scene {
 
     // ── Patrol vision cones (drawn under enemies) ─────────────────────────
     this.visionGraphics = this.add.graphics().setDepth(2);
-    this.patrolRouteGfx = this.add.graphics().setDepth(3);
 
     // ── Stealth takedown hint ring ─────────────────────────────────────────
     this.takedownGfx = this.add.graphics().setDepth(27);
@@ -199,6 +198,12 @@ export class GameScene extends Phaser.Scene {
 
     // Rebuild pathfinding navigation grid
     this.navGrid.build(w, h, this.walls.getChildren());
+
+    // Cache static wall/cover body rects for LOS checks — walls only change
+    // on room load, so enemies shouldn't rebuild Geom objects per raycast.
+    this.losRects = this.walls.getChildren()
+      .filter((w2) => w2.active && w2.body)
+      .map((w2) => new Phaser.Geom.Rectangle(w2.body.x, w2.body.y, w2.body.width, w2.body.height));
 
     // Remove any stale room-alarm / stealth listeners from previous rooms
     this.events.off('room-alarm-klaxon');
@@ -942,7 +947,9 @@ export class GameScene extends Phaser.Scene {
   spawnBoss(bx, by) {
     this.boss = new Boss(this, bx, by);
     this.physics.add.collider(this.boss, this.walls);
-    this.roomManager.registerEnemy(); // so boss death also triggers room-cleared (unused but consistent)
+    // NOTE: boss is deliberately NOT registered with roomManager — it isn't
+    // in this.enemies, and registering it skewed the alive count that
+    // room-cleared relies on. The boss room ends via boss-died → victory().
     this.fx.shake(0.012, 400);
     duckMusic(0.4, 800);
   }
@@ -1389,9 +1396,6 @@ export class GameScene extends Phaser.Scene {
     // Patrol enemy vision cones
     this._drawPatrolVision();
 
-    // Patrol enemy route indicators
-    this._drawPatrolRoutes();
-
     // AI debug overlay (D key)
     this._drawAIDebug();
 
@@ -1445,16 +1449,19 @@ export class GameScene extends Phaser.Scene {
     this.handleBulletWallHits(this.playerSuperBullets, true);
     this.handleBulletWallHits(this.enemyBullets, false);
 
-    // Bullet trails — drop one fading dust particle per active player bullet
-    // every frame. Gives bolts a proper motion-blur tail.
-    for (const b of this.playerBullets.getChildren())
-      if (b.active) this.fx.trail(b.x, b.y);
-    for (const b of this.playerRifleBullets.getChildren())
-      if (b.active) this.fx.trail(b.x, b.y);
-    for (const b of this.playerSuperBullets.getChildren()) {
-      if (b.active) {
-        this.fx.trail(b.x, b.y);
-        this.fx.smokeTrail(b.x, b.y); // missiles get extra smoke puff
+    // Bullet trails — every OTHER frame (frame parity), halving particle
+    // churn at horde bullet counts; the motion-blur tail still reads at 30Hz.
+    this._trailParity = !this._trailParity;
+    if (this._trailParity) {
+      for (const b of this.playerBullets.getChildren())
+        if (b.active) this.fx.trail(b.x, b.y);
+      for (const b of this.playerRifleBullets.getChildren())
+        if (b.active) this.fx.trail(b.x, b.y);
+      for (const b of this.playerSuperBullets.getChildren()) {
+        if (b.active) {
+          this.fx.trail(b.x, b.y);
+          this.fx.smokeTrail(b.x, b.y); // missiles get extra smoke puff
+        }
       }
     }
 
@@ -1764,68 +1771,6 @@ export class GameScene extends Phaser.Scene {
       // Subtle outline
       g.lineStyle(1, color, alpha * 2);
       g.strokePath();
-    }
-  }
-
-  _drawPatrolRoutes() {
-    if (!this.patrolRouteGfx) return;
-    const g = this.patrolRouteGfx;
-    g.clear();
-
-    for (const e of this.enemies.getChildren()) {
-      if (!e.active || !e.alive) continue;
-      if (!e.patrolPath || e.patrolPath.length <= 1) continue;
-
-      const alpha = e.patrolAlpha || 0;
-      if (alpha <= 0) continue;
-
-      // Dotted step constants
-      const dashLen = 8;
-      const gapLen = 6;
-      const step = dashLen + gapLen;
-      const dashOffset = (this.time.now * 0.015) % step;
-
-      // Close the loop to draw a full closed cycle
-      const pathPoints = [...e.patrolPath, e.patrolPath[0]];
-
-      // Draw scrolling dashed loops
-      g.lineStyle(2.5, 0x40b8ff, alpha * 0.38);
-      for (let i = 0; i < pathPoints.length - 1; i++) {
-        const p1 = pathPoints[i];
-        const p2 = pathPoints[i + 1];
-
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
-        const len = Math.hypot(dx, dy);
-        if (len <= 0) continue;
-
-        const ux = dx / len;
-        const uy = dy / len;
-
-        let currentLen = dashOffset;
-        while (currentLen < len) {
-          const sx = p1.x + ux * currentLen;
-          const sy = p1.y + uy * currentLen;
-          const endLen = Math.min(len, currentLen + dashLen);
-          const ex = p1.x + ux * endLen;
-          const ey = p1.y + uy * endLen;
-
-          g.beginPath();
-          g.moveTo(sx, sy);
-          g.lineTo(ex, ey);
-          g.strokePath();
-
-          currentLen += step;
-        }
-      }
-
-      // Draw glowing rings at waypoint nodes
-      for (const wp of e.patrolPath) {
-        g.fillStyle(0x40b8ff, alpha * 0.45);
-        g.fillCircle(wp.x, wp.y, 4);
-        g.lineStyle(1.5, 0x00ffff, alpha * 0.65);
-        g.strokeCircle(wp.x, wp.y, 6);
-      }
     }
   }
 

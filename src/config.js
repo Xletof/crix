@@ -95,7 +95,7 @@ export const ENEMY = {
     desiredRange: 350,
     fireCooldownMs: 1200,
     bulletSpeed: 360,     // slowed (was 520) for dodging
-    bulletDamage: 100,    // lowered (was 140) for swarms
+    bulletDamage: 80,     // density compensation — many more grunts on screen now
     bulletRange: 480,
     color: 0xdcdce8,
     eyeColor: 0x20ee20,
@@ -137,7 +137,7 @@ export const BOSS = {
 
 // Bacta vial healing pickup
 export const HEALTH_ORB = {
-  dropChance: 0.18,
+  dropChance: 0.22, // raised for horde density — more kills, more sustain
   healAmount: 120,
   radius: 14,
   color: 0x1898e8,

@@ -41,6 +41,9 @@ const SWARM_STRAFE_FLIP_MS = 1200; // ms — strafe direction flip cadence
 
 // ── Base Enemy class ──────────────────────────────────────────────────────────
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
+  // Shared scratch line for _hasLOS raycasts (avoids per-call allocation).
+  static _losLine = new Phaser.Geom.Line();
+
   constructor(scene, x, y, texture, cfg, spec = {}) {
     super(scene, x, y, texture, 0);
     scene.add.existing(this);
@@ -241,17 +244,17 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   // solid cover sprites). We exclude bodies the line *starts* or *ends*
   // inside so an enemy isn't blinded by its own cover.
   _hasLOS(x1, y1, x2, y2) {
-    const walls = this.scene.walls?.getChildren?.() ?? [];
-    if (!walls.length) return true;
-    const line = new Phaser.Geom.Line(x1, y1, x2, y2);
-    for (const w of walls) {
-      if (!w.active || !w.body) continue;
-      const b = w.body;
-      // Skip if endpoint is inside this body
-      if (x1 >= b.x && x1 <= b.x + b.width && y1 >= b.y && y1 <= b.y + b.height) continue;
-      if (x2 >= b.x && x2 <= b.x + b.width && y2 >= b.y && y2 <= b.y + b.height) continue;
-      const rect = new Phaser.Geom.Rectangle(b.x, b.y, b.width, b.height);
-      if (Phaser.Geom.Intersects.LineToRectangle(line, rect)) return false;
+    // Wall/cover rects are static per room; GameScene caches them in
+    // losRects on room load so we don't rebuild Geom objects per raycast.
+    const rects = this.scene.losRects;
+    if (!rects?.length) return true;
+    const line = Enemy._losLine;
+    line.setTo(x1, y1, x2, y2);
+    for (const r of rects) {
+      // Skip if either endpoint is inside this body (own-cover blindness fix)
+      if (x1 >= r.x && x1 <= r.right && y1 >= r.y && y1 <= r.bottom) continue;
+      if (x2 >= r.x && x2 <= r.right && y2 >= r.y && y2 <= r.bottom) continue;
+      if (Phaser.Geom.Intersects.LineToRectangle(line, r)) return false;
     }
     return true;
   }
@@ -355,7 +358,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const targetMoved = Math.hypot(tx - lastTarget.x, ty - lastTarget.y) > 40;
     const isStuck = (this._stuckSidestepMs || 0) > 0;
 
-    if (!this._currentPath || this._currentPath.length === 0 || targetMoved || isStuck) {
+    // Repath at most every 300ms — a chasing target trips targetMoved almost
+    // every frame otherwise, and BFS per enemy per frame is the perf killer.
+    const needRepath = !this._currentPath || this._currentPath.length === 0 || targetMoved || isStuck;
+    if (needRepath && this._pathTimer >= 300) {
       this._currentPath = this.scene.navGrid.findPath(this.x, this.y, tx, ty);
       this._pathNodeIdx = 0;
       this._pathTimer = 0;
