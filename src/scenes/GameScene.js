@@ -128,7 +128,29 @@ export class GameScene extends Phaser.Scene {
     // ── Desktop keyboard fallback ──────────────────────────────────────────
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.keys    = this.input.keyboard?.addKeys('W,A,S,D,SHIFT,F,ENTER,E');
-    this.input.keyboard?.on('keydown-SPACE', () => this.player?.keyboardFire());
+    // SPACE = super: tap → auto-aim + fire; hold ≥250ms → manual aim (cone
+    // tracks facing), fires on release. If the super isn't charged, tap falls
+    // back to a primary auto-aim shot so Space always does something.
+    this._spaceDownAt = 0;
+    this.input.keyboard?.on('keydown-SPACE', (ev) => {
+      if (ev.repeat) return;
+      const p = this.player;
+      if (!p?.alive) return;
+      if ((p.superCharge ?? 0) >= PLAYER.superHitsToCharge) {
+        this._spaceDownAt = this.time.now;
+        p.beginKeyboardSuperAim();
+      } else {
+        this._spaceDownAt = 0;
+        p.keyboardFire();
+      }
+    });
+    this.input.keyboard?.on('keyup-SPACE', () => {
+      const p = this.player;
+      if (!p?.alive || !this._spaceDownAt) return;
+      const held = this.time.now - this._spaceDownAt;
+      this._spaceDownAt = 0;
+      p.endKeyboardSuperAim(held >= 250);
+    });
     this.input.keyboard?.on('keydown-ENTER', () => this.player?.tryFireSuper());
     this.input.keyboard?.on('keydown-F', () => this.player?.tryFireSuper());
     this.input.keyboard?.on('keydown-SHIFT', () => this.player?.tryDash());
@@ -295,11 +317,21 @@ export class GameScene extends Phaser.Scene {
     this.events.emit('timer-update', this.survivalTimeLeft);
   }
 
+  // Full teardown of an enemy plus every attached scene object. Bulk-destroy
+  // paths MUST use this — partial cleanup orphans weaponSprite/threatRing/
+  // alertMark as unkillable visual ghosts.
+  _destroyEnemyFully(e) {
+    try {
+      this.enemies.remove(e);
+      e.shadow?.destroy(); e.hpBar?.destroy();
+      e.alertMark?.destroy(); e.threatRing?.destroy(); e.weaponSprite?.destroy();
+      if (e.scene) e.destroy();
+    } catch (_) {}
+  }
+
   _clearRoomEntities() {
     // Destroy all enemies still alive (dead ones already cleaned themselves up)
-    this.enemies.getChildren().forEach((e) => {
-      try { e.shadow?.destroy(); e.hpBar?.destroy(); if (e.scene) e.destroy(); } catch (_) {}
-    });
+    this.enemies.getChildren().slice().forEach((e) => this._destroyEnemyFully(e));
     this.enemies.clear(false, false);
 
     // Boss
@@ -1235,7 +1267,7 @@ export class GameScene extends Phaser.Scene {
     if (this.player.body) {
       this.player.body.velocity.x -= Math.cos(angle) * 350;
       this.player.body.velocity.y -= Math.sin(angle) * 350;
-      this.player._hurtStaggerMs = 150;
+      this.player._hurtStaggerMs = 80; // short — keep the super snappy
     }
 
     this.fx.shake(0.02, 240);
@@ -2248,14 +2280,7 @@ export class GameScene extends Phaser.Scene {
         .sort((a, b) =>
           Math.hypot(a.x - this.player.x, a.y - this.player.y) -
           Math.hypot(b.x - this.player.x, b.y - this.player.y));
-      living.slice(4).forEach((e) => {
-        try {
-          this.enemies.remove(e);
-          e.shadow?.destroy(); e.hpBar?.destroy();
-          e.alertMark?.destroy(); e.threatRing?.destroy(); e.weaponSprite?.destroy();
-          if (e.scene) e.destroy();
-        } catch (_) {}
-      });
+      living.slice(4).forEach((e) => this._destroyEnemyFully(e));
 
       this.events.emit('show-banner', 'VADER APPROACHES!', '#ff2020');
       SFX.bossRoar();
@@ -2267,18 +2292,18 @@ export class GameScene extends Phaser.Scene {
         this.events.emit('boss-start');
       });
     } else {
-      // Clear remaining enemies
-      this.enemies.getChildren().forEach((e) => {
-        try { e.shadow?.destroy(); e.hpBar?.destroy(); if (e.scene) e.destroy(); } catch (_) {}
-      });
-      this.enemies.clear(false, false);
-      
+      // Survivors stay alive and killable — spawning already stopped
+      // (arenaActive=false), so they're a finite mop-up. Full cleanup of any
+      // stragglers happens in _clearRoomEntities on the next room load.
       this._roomDoorOpened = true;
       this._openDoor();
-      
+
       this.cameras.main.flash(220, 64, 255, 128, true);
       this.fx.shake(0.004, 120);
-      this.events.emit('show-banner', 'ARENA SURVIVED!', '#20ff60');
+      const stragglers = this._livingEnemyCount();
+      this.events.emit('show-banner',
+        stragglers > 0 ? 'ARENA SURVIVED — FINISH THEM!' : 'ARENA SURVIVED!',
+        '#20ff60');
     }
   }
 }

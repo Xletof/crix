@@ -198,6 +198,22 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.tryFireSuper(angle);
   }
 
+  // Keyboard super (Space): tap = auto-aim fire, hold = manual aim that
+  // tracks facing (see preUpdate), fires on release.
+  beginKeyboardSuperAim() {
+    this._kbSuperHold = true;
+    this.setSuperAimInput(null);
+  }
+
+  endKeyboardSuperAim(manual) {
+    this._kbSuperHold = false;
+    if (manual) {
+      this.releaseSuperAim({ x: Math.cos(this.facing), y: Math.sin(this.facing), force: 1 });
+    } else {
+      this.releaseSuperAim(null); // auto-aim at nearest enemy
+    }
+  }
+
   // ── Firing ────────────────────────────────────────────────────────────────
 
   keyboardFire() {
@@ -361,12 +377,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       
       this.dashAngle = Math.atan2(dy, dx);
       // Adaptive slide duration timer: scale time to match travel distance to cover edge
-      const dashSpeed = PLAYER.dashSpeed || 780;
+      const dashSpeed = PLAYER.dashSpeed || 950;
       const travelDist = Math.max(40, dist - 35); // offset cover radius
       this.dashTimer = Math.max(100, Math.min(400, (travelDist / dashSpeed) * 1000));
     } else {
       this.dashAngle = desiredAngle;
-      this.dashTimer = PLAYER.dashDurationMs || 220;
+      this.dashTimer = PLAYER.dashDurationMs || 240;
     }
 
     if (isNaN(this.dashAngle) || !isFinite(this.dashAngle)) {
@@ -495,13 +511,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   preUpdate(time, delta) {
     super.preUpdate?.(time, delta);
 
+    // Keyboard super hold: aim cone tracks the current facing until release
+    if (this._kbSuperHold && this.superAiming) {
+      this.superAim = this.facing;
+    }
+
     // Recharge dash charges
     if (isNaN(this.dashCharges) || !isFinite(this.dashCharges)) {
       this.dashCharges = PLAYER.dashChargesMax || 3;
     }
     if (this.dashCharges < (PLAYER.dashChargesMax || 3)) {
       this.dashRechargeTimer += delta;
-      if (this.dashRechargeTimer >= (PLAYER.dashRechargeMs || 3500)) {
+      if (this.dashRechargeTimer >= (PLAYER.dashRechargeMs || 2800)) {
         this.dashCharges++;
         this.dashRechargeTimer = 0;
         this.scene.events.emit('player-dash-recharged', this.dashCharges);
@@ -520,8 +541,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         this.body.setVelocity(0, 0);
       } else {
         if (this.body) {
-          const vx = Math.cos(this.dashAngle) * (PLAYER.dashSpeed || 780);
-          const vy = Math.sin(this.dashAngle) * (PLAYER.dashSpeed || 780);
+          const vx = Math.cos(this.dashAngle) * (PLAYER.dashSpeed || 950);
+          const vy = Math.sin(this.dashAngle) * (PLAYER.dashSpeed || 950);
           if (!isNaN(vx) && !isNaN(vy) && isFinite(vx) && isFinite(vy)) {
             this.body.setVelocity(vx, vy);
           } else {

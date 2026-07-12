@@ -364,11 +364,11 @@ export function attachFX(scene) {
     // Dedicated bullet trail emitter — small near-stationary fading dust
     // dropped at each active player bullet's position once per frame.
     bulletTrail: scene.add.particles(0, 0, 'spark', {
-      lifespan: 200,
+      lifespan: 140,
       speed: { min: 0, max: 28 },
       angle: { min: 0, max: 360 },
-      scale: { start: 0.42, end: 0 },
-      alpha: { start: 0.55, end: 0 },
+      scale: { start: 0.28, end: 0 },
+      alpha: { start: 0.4, end: 0 },
       quantity: 0,
       emitting: false,
     }),
@@ -385,10 +385,10 @@ export function attachFX(scene) {
     }),
     // Missile smoke trail — slow expanding dark puffs behind a super shot.
     missileSmoke: scene.add.particles(0, 0, 'spark', {
-      lifespan: 620,
+      lifespan: 420,
       speed: { min: 0, max: 18 },
       angle: { min: 0, max: 360 },
-      scale: { start: 1.1, end: 0 },
+      scale: { start: 0.75, end: 0 },
       alpha: { start: 0.45, end: 0 },
       tint: 0x3a3a44,
       quantity: 0,
@@ -549,12 +549,12 @@ export function attachFX(scene) {
       // barrel tip in the aim direction instead of being centered.
       m.setOrigin(0.15, 0.5);
       m.setRotation(angle);
-      m.setScale(0.95);
+      m.setScale(0.75);
       scene.tweens.add({
         targets: m,
         scale: 0,
         alpha: 0,
-        duration: 110,
+        duration: 90,
         ease: 'Cubic.easeIn',
         onComplete: () => m.destroy(),
       });

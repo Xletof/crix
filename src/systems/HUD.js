@@ -168,13 +168,14 @@ export class HUDScene extends Phaser.Scene {
       strokeThickness: 3,
     }).setOrigin(0.5).setDepth(5);
 
-    // Super button (lightsaber hilt)
-    const superY = VIEW.height - HUDCFG.joystickBottom - HUDCFG.joystickRadius - 100;
-    const superX = VIEW.width - HUDCFG.joystickMargin - HUDCFG.joystickRadius * 2 - 50;
+    // Super button (lightsaber hilt) — big and inside the right-thumb arc.
+    // Tap auto-aims + fires; drag to aim manually.
+    const superY = VIEW.height - HUDCFG.joystickBottom - 260;
+    const superX = VIEW.width - HUDCFG.joystickMargin - 150;
     this.superButton = new SuperButton(this, {
       x: superX,
       y: superY,
-      radius: 46,
+      radius: 58,
       joystick: this.joystickRight,
       onAim: (v) => this.gameScene?.player?.setSuperAimInput(v),
       onRelease: (v) => this.gameScene?.player?.releaseSuperAim(v),
@@ -183,13 +184,13 @@ export class HUDScene extends Phaser.Scene {
         this.gameScene.player.superCharge >= PLAYER.superHitsToCharge,
     });
 
-    // Dash button (chevrons pointing right >>)
-    const dashY = superY + 110;
-    const dashX = superX - 100;
+    // Dash button (chevrons pointing right >>) — thumb-arc diagonal below super
+    const dashY = superY + 118;
+    const dashX = superX - 118;
     this.dashButton = new DashButton(this, {
       x: dashX,
       y: dashY,
-      radius: 42,
+      radius: 56,
       onPress: () => {
         const p = this.gameScene?.player;
         if (p?.alive) {
@@ -203,7 +204,7 @@ export class HUDScene extends Phaser.Scene {
     });
 
     // Combo multiplier text (above Super button)
-    this.multText = this.add.text(superX, superY - 62, ' ', {
+    this.multText = this.add.text(superX, superY - 78, ' ', {
       fontFamily: 'Courier New, monospace',
       fontSize: '17px',
       fontStyle: 'bold',

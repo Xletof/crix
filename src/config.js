@@ -22,9 +22,9 @@ export const PLAYER = {
   accelPerSec: 4200,
   decelPerSec: 5000,
   dashChargesMax: 2,
-  dashRechargeMs: 4000,
-  dashSpeed: 800,
-  dashDurationMs: 180,
+  dashRechargeMs: 2800, // recharge sooner — dash is the core loop
+  dashSpeed: 950,       // faster
+  dashDurationMs: 240,  // longer
   radius: 22,
   ammoMax: 3,
   ammoReloadMs: 520, // buffed by 35% (was 800ms)
@@ -41,8 +41,8 @@ export const PLAYER = {
   superPellets: 5,
   superSpreadDeg: 30,
   superDamage: 600,
-  superSpeed: 700,
-  superRange: 560,
+  superSpeed: 1080, // fast shotgun-burst feel
+  superRange: 620,
   superRadius: 12,
   superKnockback: 500,
   // HP regen

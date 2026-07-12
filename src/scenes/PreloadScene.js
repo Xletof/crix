@@ -51,9 +51,9 @@ export class PreloadScene extends Phaser.Scene {
     paintTerminal(this, 'terminal');  // hackable objective terminal
 
     // ── Projectiles ──────────────────────────────────────────────────
-    paintBolt(this, 'bullet',        PAL.boltRed,        PAL.boltRedGlow,   24);
+    paintBolt(this, 'bullet',        PAL.boltRed,        PAL.boltRedGlow,   14);
     paintMissile(this, 'bullet-super');
-    paintBolt(this, 'bullet-enemy',  PAL.boltGreen,      PAL.boltGreenGlow, 24);
+    paintBolt(this, 'bullet-enemy',  PAL.boltGreen,      PAL.boltGreenGlow, 14);
 
     // ── FX ───────────────────────────────────────────────────────────
     paintMuzzle(this, 'muzzle');
