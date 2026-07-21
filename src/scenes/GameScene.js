@@ -194,6 +194,15 @@ export class GameScene extends Phaser.Scene {
       .setDepth(-10);
     this.roomLayer.add(bgImg);
 
+    // Floor-decal RenderTexture — blood/scorch/craters are baked into this
+    // single canvas instead of staying live Graphics nodes. A 60-75s survival
+    // round can rack up hundreds of decals; individually they re-batch every
+    // frame and cause progressive FPS decay, baked they're one draw call at
+    // constant cost regardless of count. Destroyed with the room via the
+    // generic roomLayer sweep in _clearRoomEntities.
+    this.decalRT = this.add.renderTexture(0, 0, w, h).setOrigin(0, 0).setDepth(2);
+    this.roomLayer.add(this.decalRT);
+
     // Walls — Y-sorted by bottom edge of the 112-px tile so entities standing
     // south of a wall draw IN FRONT and entities north draw behind. This is
     // what gives the arena its top-down 3D-ish space.
@@ -661,9 +670,19 @@ export class GameScene extends Phaser.Scene {
 
   // ── Hotline-style kill juice helpers ──────────────────────────────────────
 
-  // Persistent blood splatter pool — irregular dark-red circles, lives in
-  // roomLayer so it gets purged on room change. Builds a "trail of bodies"
-  // visual that lingers as the player advances.
+  // Stamp a one-off decal Graphics into the room's decalRT, then free it. Bakes
+  // hundreds of individual live nodes down to a single GPU-resident texture, so
+  // decal count no longer costs per-frame render time (see decalRT comment in
+  // loadRoom). The decal draws itself at absolute world coords already, and the
+  // RT maps world (0,0)->(0,0) 1:1, so no offset math is needed.
+  _bakeDecal(g) {
+    if (this.decalRT) { this.decalRT.draw(g, 0, 0); g.destroy(); }
+    else this.roomLayer.add(g); // defensive fallback if called pre-room-load
+  }
+
+  // Persistent blood splatter pool — irregular dark-red circles, baked into
+  // decalRT so it survives for the room without costing a live node per kill.
+  // Builds a "trail of bodies" visual that lingers as the player advances.
   spawnBloodSplatter(x, y) {
     const g = this.add.graphics().setDepth(2);
     g.fillStyle(0x4a0000, 0.55);
@@ -679,7 +698,7 @@ export class GameScene extends Phaser.Scene {
       g.fillStyle(Math.random() < 0.5 ? 0x4a0000 : 0x6a0010, 0.45 + Math.random() * 0.25);
       g.fillCircle(x + Math.cos(a) * d, y + Math.sin(a) * d, r);
     }
-    this.roomLayer.add(g);
+    this._bakeDecal(g);
   }
 
   // Radial death glow — bright orange ring that expands and fades quickly
@@ -749,7 +768,7 @@ export class GameScene extends Phaser.Scene {
       const d = 14 + Math.random() * 14;
       g.fillCircle(x + Math.cos(a) * d, y + Math.sin(a) * d, 1 + Math.random() * 2.5);
     }
-    this.roomLayer.add(g);
+    this._bakeDecal(g);
   }
 
   // Small persistent scorch mark on the floor where a bullet hit a wall.
@@ -767,7 +786,7 @@ export class GameScene extends Phaser.Scene {
       const d = 4 + Math.random() * 8;
       g.fillCircle(x + Math.cos(a) * d, y + Math.sin(a) * d, 0.7 + Math.random() * 1.8);
     }
-    this.roomLayer.add(g);
+    this._bakeDecal(g);
   }
 
   // Persistent radial floor crack pattern when Vader enrages. More cracks and
@@ -807,7 +826,7 @@ export class GameScene extends Phaser.Scene {
     g.strokeCircle(cx, cy, phase >= 3 ? 22 : 14);
     g.fillStyle(0x000000, 0.35);
     g.fillCircle(cx, cy, phase >= 3 ? 16 : 10);
-    this.roomLayer.add(g);
+    this._bakeDecal(g);
   }
 
   // Smooth slow-mo ramp on physics + scene time. Falls to `floor` (e.g. 0.3)
