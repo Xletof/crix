@@ -112,6 +112,37 @@ export const ENEMY = {
     color: 0x181820,
     eyeColor: 0x20d020,
   },
+  // Bomber — sprints straight at the player and detonates on contact OR death.
+  // Low HP (kill it early from range) but a heavy dodgeable blast. Pure dash
+  // check: dashing i-frames negate the blast, so it feeds the core loop.
+  bomber: {
+    hp: 200,              // ~2 primary bolts — reward shooting it before it arrives
+    speed: 300,           // faster than a grunt (230) so it actually pressures
+    radius: 20,
+    contactRange: 48,     // detonate when this close to the player
+    blastRadius: 155,
+    blastDamage: 240,     // ~24% of player HP; dash-dodgeable
+    deathBlastScale: 0.8, // blast is slightly weaker when shot down vs contact
+    color: 0xff5020,
+    eyeColor: 0xffd020,
+  },
+  // Shielded trooper — a slow-turning frontal shield blocks non-piercing shots
+  // from the front arc. Flank it (dash around) or break it with the super
+  // (piercing). Tanky head-on, so it reshapes how you approach a pocket.
+  shielded: {
+    hp: 560,
+    speed: 140,           // slow advance
+    radius: 24,
+    desiredRange: 260,    // holds closer than a shooter so the shield matters
+    fireCooldownMs: 1500,
+    bulletSpeed: 420,
+    bulletDamage: 120,
+    bulletRange: 520,
+    shieldHalfArc: 1.35,  // rad — ~77° each side (~154° frontal cover)
+    shieldTurnRate: 2.6,  // rad/s — slow enough that a dash beats the turn
+    color: 0x8fa4c8,
+    eyeColor: 0x40c0ff,
+  },
 };
 
 export const BOSS = {
@@ -174,12 +205,15 @@ export const COLORS = {
 //   maxAlive       — drip pauses at this many living enemies (surges may
 //                    briefly exceed it by a few)
 //   surgeEvery s   — a surge (burst of surgeCount spawns) fires on this cadence
-//   shooterMix 0-1 — chance a spawn is a shooter; the rest are grunt rushers
+//   shooterMix 0-1 — chance a spawn is a shooter
+//   bomberMix  0-1 — chance a spawn is a bomber (introduced from room 2)
+//   shieldedMix 0-1— chance a spawn is a shielded trooper (from room 3)
+//   (remaining probability after the three mixes = grunt rushers)
 export const ARENA = {
   hangar:    { time: 60, spawnRate: 2600, rampTo: 1400, maxAlive: 10, surgeEvery: 20, surgeCount: 4, shooterMix: 0.25 },
-  corridor:  { time: 60, spawnRate: 2300, rampTo: 1200, maxAlive: 12, surgeEvery: 20, surgeCount: 5, shooterMix: 0.30 },
-  detention: { time: 75, spawnRate: 2000, rampTo: 1000, maxAlive: 14, surgeEvery: 18, surgeCount: 6, shooterMix: 0.35 },
-  vader:     { time: 60, spawnRate: 1800, rampTo: 1000, maxAlive: 14, surgeEvery: 15, surgeCount: 6, shooterMix: 0.40 },
+  corridor:  { time: 60, spawnRate: 2300, rampTo: 1200, maxAlive: 12, surgeEvery: 20, surgeCount: 5, shooterMix: 0.30, bomberMix: 0.15 },
+  detention: { time: 75, spawnRate: 2000, rampTo: 1000, maxAlive: 14, surgeEvery: 18, surgeCount: 6, shooterMix: 0.30, bomberMix: 0.15, shieldedMix: 0.15 },
+  vader:     { time: 60, spawnRate: 1800, rampTo: 1000, maxAlive: 14, surgeEvery: 15, surgeCount: 6, shooterMix: 0.30, bomberMix: 0.18, shieldedMix: 0.15 },
 };
 
 // Ally settings (turrets and soldiers)

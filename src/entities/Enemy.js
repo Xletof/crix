@@ -122,6 +122,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       strokeThickness: 4,
     }).setOrigin(0.5).setDepth(this.depth + 2).setAlpha(0);
 
+    // Extra scene objects a subclass attaches (e.g. a shield arc). Destroyed
+    // in die() AND by GameScene's bulk _destroyEnemyFully, so no archetype can
+    // reintroduce the orphaned-sprite ("floating gun") leak.
+    this._attachments = [];
+
     if (scene.anims.exists(`${texture}-idle-front`)) this.play(`${texture}-idle-front`);
   }
 
@@ -172,6 +177,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.alertMark.destroy();
     this.threatRing?.destroy();
     this.weaponSprite?.destroy();
+    this._attachments?.forEach((a) => a?.destroy?.());
     // Corpse slide: keep the body sprite around for ~350ms, carrying its
     // current knockback velocity (drag bleeds it down), then fade and clean.
     this.body.setDrag(900, 900);
@@ -1171,5 +1177,161 @@ export class EnemyGrunt extends EnemyShooter {
     if (this.anims.exists('grunt-idle-front')) {
       this.play('grunt-idle-front');
     }
+  }
+}
+
+// ── Bomber (Kamikaze) ──────────────────────────────────────────────────────
+// Sprints straight at the player and detonates on contact OR when shot down.
+// Reuses the grunt sprite/anims (tinted hot) but overrides swarm behavior:
+// no gunfire, just a rush + blast. A dash (i-frames) negates the blast.
+export class EnemyBomber extends EnemyGrunt {
+  constructor(scene, x, y, spec = {}) {
+    super(scene, x, y, spec);
+    this.cfg = ENEMY.bomber;
+    this.hp = this.cfg.hp;
+    this.hpMax = this.cfg.hp;
+    this._archetype = 'bomber';
+    this._detonated = false;
+    this._bombPulse = 0;
+    this.setTint(0xff6a33);
+    this.weaponSprite?.setVisible(false); // no gun — it IS the weapon
+    this.body.setCircle(
+      this.cfg.radius,
+      this.width / 2 - this.cfg.radius,
+      this.height / 2 - this.cfg.radius,
+    );
+  }
+
+  _tickSwarm(delta, player) {
+    this.lastKnownX = player.x;
+    this.lastKnownY = player.y;
+    const dx = player.x - this.x, dy = player.y - this.y;
+    const dist = Math.hypot(dx, dy);
+
+    // Proximity telegraph — pulse hotter/faster as it closes so the player
+    // gets a readable "dash NOW" cue.
+    const t = Phaser.Math.Clamp(1 - dist / 300, 0, 1);
+    this._bombPulse += delta * (0.006 + t * 0.03);
+    const flash = 0.5 + 0.5 * Math.sin(this._bombPulse);
+    const g = Math.round(106 + flash * t * 130);
+    const b = Math.round(51 + flash * t * 110);
+    this.setTint(Phaser.Display.Color.GetColor(255, g, b));
+
+    if (dist <= this.cfg.contactRange) { this._detonate(); return; }
+    this._moveToward(player.x, player.y, this.cfg.speed);
+  }
+
+  _blast(scale, dmgMult) {
+    const player = this.scene.player;
+    if (player?.alive) {
+      const d = Math.hypot(player.x - this.x, player.y - this.y);
+      if (d <= this.cfg.blastRadius) {
+        player.damage(this.cfg.blastDamage * dmgMult,
+          Math.atan2(player.y - this.y, player.x - this.x));
+      }
+    }
+    const fx = this.scene.fx;
+    fx?.explosion?.(this.x, this.y, scale);
+    fx?.impactRing?.(this.x, this.y, 0xff5020);
+    fx?.burst?.(this.x, this.y, 'red', 18);
+    fx?.shake?.(0.02, 220);
+    SFX.bossHit?.();
+  }
+
+  // Contact detonation (reached the player).
+  _detonate() {
+    if (this._detonated) return;
+    this._detonated = true;
+    this._blast(2.2, 1.0);
+    this.hp = 0;
+    this.die();
+  }
+
+  // Shot down before arrival → detonate where it fell (weaker). Contact
+  // detonations already set _detonated, so this never double-blasts.
+  die() {
+    if (!this._detonated) {
+      this._detonated = true;
+      this._blast(2.0, this.cfg.deathBlastScale);
+    }
+    super.die();
+  }
+}
+
+// ── Shielded Trooper ───────────────────────────────────────────────────────
+// A slow-turning frontal shield blocks non-piercing shots from the front arc.
+// Flank it with a dash or break it with the piercing super. Reuses the shooter
+// sprite/anims; the block itself is enforced in GameScene.handleBulletEnemyHits
+// via _blocksFrontal + isFrontalHit().
+export class EnemyShielded extends EnemyShooter {
+  constructor(scene, x, y, spec = {}) {
+    super(scene, x, y, spec);
+    this.cfg = ENEMY.shielded;
+    this.hp = this.cfg.hp;
+    this.hpMax = this.cfg.hp;
+    this._archetype = 'shielded';
+    this._blocksFrontal = true;
+    this._shieldHalfArc  = this.cfg.shieldHalfArc;
+    this._shieldTurnRate = this.cfg.shieldTurnRate;
+    this._shieldFacing   = this._aim;
+    this._shieldFlash    = 0;
+    this.setTint(0x9fb2d8);
+    this.body.setCircle(
+      this.cfg.radius,
+      this.width / 2 - this.cfg.radius,
+      this.height / 2 - this.cfg.radius,
+    );
+    this.fireCd = Phaser.Math.Between(1000, this.cfg.fireCooldownMs);
+    this.shieldArc = scene.add.graphics().setDepth(this.depth + 2);
+    this._attachments.push(this.shieldArc); // cleaned up on die/room-clear
+  }
+
+  // A hit traveling along flightAng strikes the side at (flightAng + PI) from
+  // this trooper's centre; blocked if that side is inside the shield arc.
+  isFrontalHit(flightAng) {
+    const impactSide = flightAng + Math.PI;
+    return Math.abs(Phaser.Math.Angle.Wrap(impactSide - this._shieldFacing)) < this._shieldHalfArc;
+  }
+
+  onBlock() { this._shieldFlash = 150; }
+
+  _tickSwarm(delta, player) {
+    this.lastKnownX = player.x;
+    this.lastKnownY = player.y;
+    const dx = player.x - this.x, dy = player.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    const toPlayer = Math.atan2(dy, dx);
+
+    // Slow-turn the shield toward the player — fast enough to track a walking
+    // player, slow enough that a dash around the flank beats it.
+    const maxTurn = this._shieldTurnRate * (delta / 1000);
+    const turnDiff = Phaser.Math.Angle.Wrap(toPlayer - this._shieldFacing);
+    this._shieldFacing += Phaser.Math.Clamp(turnDiff, -maxTurn, maxTurn);
+
+    if (dist > this.cfg.desiredRange + 30) {
+      this._moveToward(player.x, player.y, this.cfg.speed);
+    } else {
+      this.setVelocity(0, 0);
+    }
+    this._aim = this._shieldFacing; // gun + body track the shield, not the player
+
+    this._maybeFireAt(delta, player);
+    this._drawShield(delta);
+  }
+
+  _drawShield(delta) {
+    if (this._shieldFlash > 0) this._shieldFlash -= delta;
+    const g = this.shieldArc;
+    if (!g?.active) return;
+    g.clear();
+    const r  = this.cfg.radius + 14;
+    const a0 = this._shieldFacing - this._shieldHalfArc;
+    const a1 = this._shieldFacing + this._shieldHalfArc;
+    const lit = this._shieldFlash > 0;
+    g.lineStyle(lit ? 7 : 5, lit ? 0xffffff : 0x50b0ff, lit ? 1 : 0.85);
+    g.beginPath();
+    g.arc(this.x, this.y, r, a0, a1, false);
+    g.strokePath();
+    g.setDepth(this.y + 3);
   }
 }

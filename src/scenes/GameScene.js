@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, ALLY } from '../config.js';
 import { Player } from '../entities/Player.js';
-import { EnemyGrunt, EnemyShooter, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
+import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
 import { BulletGroup } from '../entities/Bullet.js';
 import { BushSystem } from '../systems/BushSystem.js';
@@ -325,6 +325,7 @@ export class GameScene extends Phaser.Scene {
       this.enemies.remove(e);
       e.shadow?.destroy(); e.hpBar?.destroy();
       e.alertMark?.destroy(); e.threatRing?.destroy(); e.weaponSprite?.destroy();
+      e._attachments?.forEach((a) => a?.destroy?.()); // shield arcs etc.
       if (e.scene) e.destroy();
     } catch (_) {}
   }
@@ -947,8 +948,10 @@ export class GameScene extends Phaser.Scene {
     // uses the aggressive swarm behavior. The stealth FSM stays dormant.
     spec.behavior = 'swarm';
     let enemy;
-    if (type === 'shooter') enemy = new EnemyShooter(this, x, y, spec);
-    else                    enemy = new EnemyGrunt(this, x, y, spec);
+    if      (type === 'shooter')  enemy = new EnemyShooter(this, x, y, spec);
+    else if (type === 'bomber')   enemy = new EnemyBomber(this, x, y, spec);
+    else if (type === 'shielded') enemy = new EnemyShielded(this, x, y, spec);
+    else                          enemy = new EnemyGrunt(this, x, y, spec);
     enemy.coverRegistry = this.coverRegistry;
     this.enemies.add(enemy);
     this.physics.add.collider(enemy, this.walls);
@@ -1647,6 +1650,16 @@ export class GameScene extends Phaser.Scene {
         if (!e.active || !e.alive || b.hitSet.has(e)) continue;
         if (this.circleOverlap(b, e)) {
           b.hitSet.add(e);
+          const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
+          // Shielded troopers deflect non-piercing frontal hits. The super is
+          // piercing, so it punches straight through the shield.
+          if (e._blocksFrontal && !b.piercing && e.isFrontalHit?.(flightAng)) {
+            e.onBlock?.();
+            this.fx.impactRing(b.x, b.y, 0x50b0ff);  // blue shield clang
+            this.fx.healingSparkle(b.x, b.y, 6);       // blue deflection sparks
+            b.kill();
+            break; // bullet stopped by the shield — no damage, no super credit
+          }
           b.hasHit = true;
           if (!isSuper && b.owner === 'player') this.player.onHitLanded();
           // Every bullet knocks: super pellets shove hard, normal shots
@@ -1657,7 +1670,6 @@ export class GameScene extends Phaser.Scene {
           this.fx.impactRing(b.x, b.y, 0xee3030); // red shockwave for troopers
           // Directional impact spray — sparks fly forward along the bullet
           // path with a wide cone, like a deflection ricochet.
-          const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
           this.fx.burstDir(b.x, b.y, 'red', isSuper ? 14 : 7, flightAng, 80);
           if (b.owner === 'player') this.player.addSuperHit();
           if (!b.piercing) { if (isSuper) this.fx.explosion(b.x, b.y, 1.4); b.kill(); break; }
@@ -2183,7 +2195,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   _rollEnemyType() {
-    return Math.random() < (this.arenaCfg?.shooterMix ?? 0.3) ? 'shooter' : 'grunt';
+    const c = this.arenaCfg || {};
+    const bomber   = c.bomberMix   ?? 0;
+    const shielded = c.shieldedMix ?? 0;
+    const shooter  = c.shooterMix  ?? 0.3;
+    const r = Math.random();
+    if (r < bomber)                     return 'bomber';
+    if (r < bomber + shielded)          return 'shielded';
+    if (r < bomber + shielded + shooter) return 'shooter';
+    return 'grunt';
   }
 
   // Surge: a burst of spawns staggered over ~1.5s with a warning banner.

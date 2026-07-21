@@ -65,7 +65,7 @@ export const ROOMS = [
     enemies: [
       { type: 'grunt', x: 450, y: 450 },
       { type: 'grunt', x: 950, y: 950 },
-      { type: 'grunt', x: 1150, y: 350 },
+      { type: 'bomber', x: 1150, y: 350 }, // introduce the kamikaze here
       { type: 'shooter', x: 700, y: 350 },
       { type: 'shooter', x: 350, y: 1050 },
     ],
@@ -97,8 +97,8 @@ export const ROOMS = [
     enemies: [
       { type: 'grunt', x: 600, y: 450 },
       { type: 'grunt', x: 1000, y: 950 },
-      { type: 'grunt', x: 1350, y: 700 },
-      { type: 'shooter', x: 550, y: 300 },
+      { type: 'bomber', x: 1350, y: 700 },   // both new archetypes meet the
+      { type: 'shielded', x: 550, y: 300 },  // player from t=0 in this room
       { type: 'shooter', x: 1050, y: 1100 },
     ],
     pickups: [
