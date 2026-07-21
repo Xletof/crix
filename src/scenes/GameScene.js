@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, ALLY } from '../config.js';
 import { Player } from '../entities/Player.js';
-import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
+import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, EnemySniper, EnemySwarmling, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
 import { BulletGroup } from '../entities/Bullet.js';
 import { BushSystem } from '../systems/BushSystem.js';
@@ -948,15 +948,45 @@ export class GameScene extends Phaser.Scene {
     // uses the aggressive swarm behavior. The stealth FSM stays dormant.
     spec.behavior = 'swarm';
     let enemy;
-    if      (type === 'shooter')  enemy = new EnemyShooter(this, x, y, spec);
-    else if (type === 'bomber')   enemy = new EnemyBomber(this, x, y, spec);
-    else if (type === 'shielded') enemy = new EnemyShielded(this, x, y, spec);
-    else                          enemy = new EnemyGrunt(this, x, y, spec);
+    if      (type === 'shooter')   enemy = new EnemyShooter(this, x, y, spec);
+    else if (type === 'bomber')    enemy = new EnemyBomber(this, x, y, spec);
+    else if (type === 'shielded')  enemy = new EnemyShielded(this, x, y, spec);
+    else if (type === 'sniper')    enemy = new EnemySniper(this, x, y, spec);
+    else if (type === 'swarmling') enemy = new EnemySwarmling(this, x, y, spec);
+    else                           enemy = new EnemyGrunt(this, x, y, spec);
+    if (spec.elite) this._makeElite(enemy);
     enemy.coverRegistry = this.coverRegistry;
     this.enemies.add(enemy);
     this.physics.add.collider(enemy, this.walls);
     this.roomManager.registerEnemy();
     return enemy;
+  }
+
+  // Upgrade a spawned enemy to an "elite": bigger, much tankier, gold-tinted,
+  // and it always drops a health orb (handled in the enemy-died listener).
+  _makeElite(enemy) {
+    enemy._elite = true;
+    enemy.hp = Math.round(enemy.hp * 2.5);
+    enemy.hpMax = enemy.hp;
+    enemy._baseScale = 1.4;
+    enemy.setScale(1.4);
+    enemy.setTint(0xffd040); // gold
+    // Grow the physics body + slow it slightly to match the heftier look.
+    const r = Math.round(enemy.cfg.radius * 1.35);
+    enemy.cfg = { ...enemy.cfg, radius: r, speed: enemy.cfg.speed * 0.9 };
+    enemy.body.setCircle(r, enemy.width / 2 - r, enemy.height / 2 - r);
+  }
+
+  // Spawn a cluster of swarmlings around a point (the fodder pack).
+  _spawnSwarmlingPack(cx, cy) {
+    const cfg = ENEMY.swarmling;
+    const n = Phaser.Math.Between(cfg.packMin, cfg.packMax);
+    for (let i = 0; i < n; i++) {
+      const ox = cx + Phaser.Math.Between(-40, 40);
+      const oy = cy + Phaser.Math.Between(-40, 40);
+      this.spawnEnemyAt('swarmling', ox, oy, {});
+    }
+    return n;
   }
 
   // Spawn at random room edge — used for boss minions (always alerted)
@@ -1127,7 +1157,8 @@ export class GameScene extends Phaser.Scene {
       this.runKills = (this.runKills || 0) + 1;
       this.events.emit('kills-update', this.runKills);
       this.roomManager.onEnemyDied();
-      if (Math.random() < HEALTH_ORB.dropChance) this.spawnHealthOrb(enemy.x, enemy.y);
+      // Elites always drop sustain; everyone else rolls the standard chance.
+      if (enemy._elite || Math.random() < HEALTH_ORB.dropChance) this.spawnHealthOrb(enemy.x, enemy.y);
     });
     this.events.on('player-hurt', (amount) => {
       this.fx.shake(0.008, 110);
@@ -2196,13 +2227,13 @@ export class GameScene extends Phaser.Scene {
 
   _rollEnemyType() {
     const c = this.arenaCfg || {};
-    const bomber   = c.bomberMix   ?? 0;
-    const shielded = c.shieldedMix ?? 0;
-    const shooter  = c.shooterMix  ?? 0.3;
     const r = Math.random();
-    if (r < bomber)                     return 'bomber';
-    if (r < bomber + shielded)          return 'shielded';
-    if (r < bomber + shielded + shooter) return 'shooter';
+    let acc = 0;
+    if (r < (acc += c.bomberMix    ?? 0)) return 'bomber';
+    if (r < (acc += c.shieldedMix  ?? 0)) return 'shielded';
+    if (r < (acc += c.sniperMix    ?? 0)) return 'sniper';
+    if (r < (acc += c.swarmlingMix ?? 0)) return 'swarmling';
+    if (r < (acc += c.shooterMix   ?? 0.3)) return 'shooter';
     return 'grunt';
   }
 
@@ -2260,7 +2291,13 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => {
         tg.destroy();
         if (!this.arenaActive || this.survivalTimeLeft <= 0) return;
-        this.spawnEnemyAt(type, gx, gy, {});
+        if (type === 'swarmling') {
+          this._spawnSwarmlingPack(gx, gy);
+        } else {
+          // Elite upgrade roll (not for fodder). eliteChance is per-room.
+          const elite = Math.random() < (this.arenaCfg?.eliteChance ?? 0);
+          this.spawnEnemyAt(type, gx, gy, elite ? { elite: true } : {});
+        }
         this.fx.burst(gx, gy, 'red', 10);
       },
     });

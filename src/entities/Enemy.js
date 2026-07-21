@@ -127,6 +127,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // reintroduce the orphaned-sprite ("floating gun") leak.
     this._attachments = [];
 
+    // Resting sprite scale — the recoil/idle block below multiplies by this
+    // instead of a hardcoded 1.0, so small (swarmling) / big (elite) archetypes
+    // keep their size instead of being reset to 1.0 every frame.
+    this._baseScale = 1.0;
+
     if (scene.anims.exists(`${texture}-idle-front`)) this.play(`${texture}-idle-front`);
   }
 
@@ -661,22 +666,23 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.play(animKey);
     }
 
-    // Recoil scale + lean animations
+    // Recoil scale + lean animations (all relative to _baseScale)
+    const bs = this._baseScale;
     if (this._staggerMs > 0) {
       const phase = (90 - this._staggerMs) * 0.22;
       const w = Math.sin(phase) * 0.10;
-      this.setScale(1.0 * (1 + w), 1.0 * (1 - w));
+      this.setScale(bs * (1 + w), bs * (1 - w));
       this.angle = 0;
     } else if (this.recoilT > 0) {
       this.recoilT -= delta;
-      this.setScale(1.0 * (1 - Math.max(0, this.recoilT / 80) * 0.12));
+      this.setScale(bs * (1 - Math.max(0, this.recoilT / 80) * 0.12));
       this.angle = 0;
     } else if (this.alive && isMoving) {
       this.angle = 0;
-      this.setScale(1.0);
+      this.setScale(bs);
     } else {
       this.angle = 0;
-      this.setScale(1.0);
+      this.setScale(bs);
     }
 
     // ── Stuck-state recovery ────────────────────────────────────────────────
@@ -1333,5 +1339,143 @@ export class EnemyShielded extends EnemyShooter {
     g.arc(this.x, this.y, r, a0, a1, false);
     g.strokePath();
     g.setDepth(this.y + 3);
+  }
+}
+
+// ── Sniper ─────────────────────────────────────────────────────────────────
+// Holds at long range and telegraphs a laser line, then fires a fast heavy
+// round along the angle it locked. The angle tracks the player until the final
+// lock window, so a dash across the beam dodges the shot. Reuses the shooter
+// sprite/anims + the standard enemy-bullet pipeline (via 'shooter-fire').
+export class EnemySniper extends EnemyShooter {
+  constructor(scene, x, y, spec = {}) {
+    super(scene, x, y, spec);
+    this.cfg = ENEMY.sniper;
+    this.hp = this.cfg.hp;
+    this.hpMax = this.cfg.hp;
+    this._animPrefix = 'shooter';
+    this._archetype = 'sniper';
+    this.setTint(0xc060ff);
+    this.body.setCircle(
+      this.cfg.radius,
+      this.width / 2 - this.cfg.radius,
+      this.height / 2 - this.cfg.radius,
+    );
+    this._charging = false;
+    this._chargeMs = 0;
+    this._lockAngle = this._aim;
+    this.fireCd = Phaser.Math.Between(600, this.cfg.fireCooldownMs);
+    this.laser = scene.add.graphics().setDepth(this.depth + 1);
+    this._attachments.push(this.laser);
+  }
+
+  _tickSwarm(delta, player) {
+    this.lastKnownX = player.x;
+    this.lastKnownY = player.y;
+    const dx = player.x - this.x, dy = player.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    const toPlayer = Math.atan2(dy, dx);
+
+    // Positioning: keep distance — back off if the player closes in.
+    if (dist < this.cfg.retreatRange) {
+      this.setVelocity(-Math.cos(toPlayer) * this.cfg.speed, -Math.sin(toPlayer) * this.cfg.speed);
+    } else if (dist > this.cfg.desiredRange + 80) {
+      this._moveToward(player.x, player.y, this.cfg.speed * 0.7);
+    } else {
+      this.setVelocity(0, 0);
+    }
+    this._aim = toPlayer;
+
+    const hasLOS = this.canSee(player) && this._hasLOS(this.x, this.y, player.x, player.y);
+
+    if (this._charging) {
+      this._chargeMs -= delta;
+      if (!hasLOS) { this._charging = false; this.laser.clear(); this.fireCd = 500; return; }
+      // Track the player until the lock window, then freeze the beam angle.
+      const locked = this._chargeMs <= this.cfg.lockMs;
+      if (!locked) this._lockAngle = toPlayer;
+      this._drawLaser(this._lockAngle, locked);
+      if (this._chargeMs <= 0) {
+        this._charging = false;
+        this.laser.clear();
+        this.recoilT = 120;
+        this._fireAnimTimer = 180;
+        this.scene.events.emit('shooter-fire', this, this._lockAngle);
+        this.fireCd = Phaser.Math.Between(this.cfg.fireCooldownMs * 0.85, this.cfg.fireCooldownMs * 1.15);
+      }
+    } else {
+      this.fireCd -= delta;
+      if (this.fireCd <= 0 && hasLOS) {
+        this._charging = true;
+        this._chargeMs = this.cfg.windupMs;
+        this._lockAngle = toPlayer;
+      }
+    }
+  }
+
+  _drawLaser(angle, locked) {
+    const g = this.laser;
+    if (!g?.active) return;
+    g.clear();
+    const ex = this.x + Math.cos(angle) * this.cfg.bulletRange;
+    const ey = this.y + Math.sin(angle) * this.cfg.bulletRange;
+    // Thin/dim while tracking → thick/bright when locked (shot is imminent).
+    if (locked) g.lineStyle(3, 0xff3020, 0.95);
+    else        g.lineStyle(1.5, 0xff5040, 0.5);
+    g.beginPath();
+    g.moveTo(this.x, this.y);
+    g.lineTo(ex, ey);
+    g.strokePath();
+    g.setDepth(this.y - 1);
+  }
+}
+
+// ── Swarmling ──────────────────────────────────────────────────────────────
+// Tiny, very fast, near-zero HP. Rushes to melee and swipes on a cooldown.
+// Spawns in packs (see GameScene._spawnSwarmlingPack) — pure super-fodder.
+export class EnemySwarmling extends EnemyGrunt {
+  constructor(scene, x, y, spec = {}) {
+    super(scene, x, y, spec);
+    this.cfg = ENEMY.swarmling;
+    this.hp = this.cfg.hp;
+    this.hpMax = this.cfg.hp;
+    this._archetype = 'swarmling';
+    this._baseScale = 0.7;             // small (persists via the recoil block)
+    this.setScale(this._baseScale);
+    this.setTint(0x70e838);
+    this.weaponSprite?.setVisible(false); // melee — no gun
+    this.body.setCircle(
+      this.cfg.radius,
+      this.width / 2 - this.cfg.radius,
+      this.height / 2 - this.cfg.radius,
+    );
+    this._swipeCd = Phaser.Math.Between(200, this.cfg.meleeCooldownMs);
+    this._swarmStrafeDir = Math.random() < 0.5 ? 1 : -1;
+  }
+
+  _tickSwarm(delta, player) {
+    this.lastKnownX = player.x;
+    this.lastKnownY = player.y;
+    const dx = player.x - this.x, dy = player.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    const toPlayer = Math.atan2(dy, dx);
+    this._swipeCd -= delta;
+
+    if (dist > this.cfg.meleeRange) {
+      this._moveToward(player.x, player.y, this.cfg.speed);
+    } else {
+      // In melee — jitter around the player and swipe on cooldown.
+      const perp = toPlayer + this._swarmStrafeDir * Math.PI / 2;
+      this.setVelocity(Math.cos(perp) * this.cfg.speed * 0.4, Math.sin(perp) * this.cfg.speed * 0.4);
+      this._aim = toPlayer;
+      if (this._swipeCd <= 0 && player.alive) {
+        this._swipeCd = this.cfg.meleeCooldownMs;
+        player.damage(this.cfg.meleeDamage, toPlayer);
+        this._fireAnimTimer = 120;
+        this.recoilT = 80;
+        this.scene.fx?.burstDir?.(player.x, player.y, 'red', 4, toPlayer, 60);
+        SFX.hit?.();
+      }
+    }
   }
 }

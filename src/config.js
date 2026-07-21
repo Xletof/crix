@@ -143,6 +143,39 @@ export const ENEMY = {
     color: 0x8fa4c8,
     eyeColor: 0x40c0ff,
   },
+  // Sniper — holds at long range and telegraphs a laser line before a fast,
+  // heavy shot. The angle locks for the final moment, so a dash across the
+  // beam dodges it. Punishes standing still; keeps you moving between packs.
+  sniper: {
+    hp: 260,              // glass cannon — flank and delete it
+    speed: 150,
+    radius: 22,
+    desiredRange: 560,    // holds far
+    retreatRange: 300,    // backs off when the player closes in
+    windupMs: 800,        // telegraph time before the shot
+    lockMs: 260,          // final window where the beam angle is frozen (dodge)
+    fireCooldownMs: 1900,
+    bulletSpeed: 1000,    // fast sniper round
+    bulletDamage: 220,    // heavy — do not stand in the beam
+    bulletRange: 900,
+    color: 0xc060ff,      // violet
+    eyeColor: 0xff40ff,
+  },
+  // Swarmling — tiny, very fast, near-zero HP. Spawns in packs and swipes in
+  // melee. Pure super-fodder: a well-placed super or dash-through deletes a
+  // whole cluster, which is exactly what makes those feel great.
+  swarmling: {
+    hp: 60,               // one primary bolt (120) kills
+    speed: 345,           // very fast
+    radius: 13,           // small
+    meleeRange: 40,
+    meleeDamage: 42,
+    meleeCooldownMs: 700,
+    packMin: 4,
+    packMax: 6,
+    color: 0x70e838,      // acid green
+    eyeColor: 0xd0ff40,
+  },
 };
 
 export const BOSS = {
@@ -208,12 +241,15 @@ export const COLORS = {
 //   shooterMix 0-1 — chance a spawn is a shooter
 //   bomberMix  0-1 — chance a spawn is a bomber (introduced from room 2)
 //   shieldedMix 0-1— chance a spawn is a shielded trooper (from room 3)
-//   (remaining probability after the three mixes = grunt rushers)
+//   sniperMix  0-1 — chance a spawn is a sniper (long-range zoner)
+//   swarmlingMix 0-1 — chance a spawn is a swarmling PACK (4-6 fodder)
+//   eliteChance 0-1— chance a non-fodder spawn is upgraded to an elite
+//   (remaining probability after the mixes = grunt rushers)
 export const ARENA = {
-  hangar:    { time: 60, spawnRate: 2600, rampTo: 1400, maxAlive: 10, surgeEvery: 20, surgeCount: 4, shooterMix: 0.25 },
-  corridor:  { time: 60, spawnRate: 2300, rampTo: 1200, maxAlive: 12, surgeEvery: 20, surgeCount: 5, shooterMix: 0.30, bomberMix: 0.15 },
-  detention: { time: 75, spawnRate: 2000, rampTo: 1000, maxAlive: 14, surgeEvery: 18, surgeCount: 6, shooterMix: 0.30, bomberMix: 0.15, shieldedMix: 0.15 },
-  vader:     { time: 60, spawnRate: 1800, rampTo: 1000, maxAlive: 14, surgeEvery: 15, surgeCount: 6, shooterMix: 0.30, bomberMix: 0.18, shieldedMix: 0.15 },
+  hangar:    { time: 60, spawnRate: 2600, rampTo: 1400, maxAlive: 10, surgeEvery: 20, surgeCount: 4, shooterMix: 0.25, swarmlingMix: 0.15 },
+  corridor:  { time: 60, spawnRate: 2300, rampTo: 1200, maxAlive: 12, surgeEvery: 20, surgeCount: 5, shooterMix: 0.28, bomberMix: 0.15, sniperMix: 0.12, swarmlingMix: 0.12, eliteChance: 0.05 },
+  detention: { time: 75, spawnRate: 2000, rampTo: 1000, maxAlive: 14, surgeEvery: 18, surgeCount: 6, shooterMix: 0.25, bomberMix: 0.15, shieldedMix: 0.15, sniperMix: 0.12, swarmlingMix: 0.10, eliteChance: 0.08 },
+  vader:     { time: 60, spawnRate: 1800, rampTo: 1000, maxAlive: 14, surgeEvery: 15, surgeCount: 6, shooterMix: 0.24, bomberMix: 0.15, shieldedMix: 0.12, sniperMix: 0.12, swarmlingMix: 0.10, eliteChance: 0.10 },
 };
 
 // Ally settings (turrets and soldiers)
