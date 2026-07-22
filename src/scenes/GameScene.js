@@ -9,7 +9,7 @@ import { RoomManager } from '../systems/RoomManager.js';
 import { CoverRegistry } from '../systems/CoverRegistry.js';
 import { WeaponPickup } from '../entities/WeaponPickup.js';
 import { Terminal } from '../entities/Terminal.js';
-import { attachFX, SFX, startMusic, duckMusic, stopMusic, setMusicIntensity } from '../systems/FX.js';
+import { attachFX, SFX, startMusic, duckMusic, stopMusic, setMusicIntensity, isLowQuality } from '../systems/FX.js';
 import { ROOMS } from '../data/rooms.js';
 import { NARRATIVE } from '../data/narrative.js';
 import { NavGrid } from '../systems/NavGrid.js';
@@ -1201,6 +1201,32 @@ export class GameScene extends Phaser.Scene {
     this.events.on('player-dash-sound', (x, y) => {
       this.propagateSound(x, y, 160);
     });
+    // Dash afterimage — mirrors the boss's saber-ghost pattern (Boss.js): a
+    // fading cyan-tinted copy of the sprite stamped every ~40ms for the dash's
+    // duration. Doubles as the dash's missing i-frame tell (nothing else
+    // signals invincibility today).
+    this.events.on('player-dash', () => {
+      this._cameraPunch(1.02, 120);
+      if (isLowQuality()) return;
+      const stampGhost = () => {
+        const p = this.player;
+        if (!p?.active || !p.isDashing) return;
+        const ghost = this.add.image(p.x, p.y, p.texture.key, p.frame.name)
+          .setOrigin(p.originX, p.originY)
+          .setScale(p.scaleX, p.scaleY)
+          .setFlipX(p.flipX)
+          .setDepth(p.depth - 1)
+          .setTint(0x40e0ff)
+          .setAlpha(0.5);
+        this.tweens.add({
+          targets: ghost, alpha: 0, scale: ghost.scaleX * 1.1,
+          duration: 260, ease: 'Cubic.easeOut',
+          onComplete: () => ghost.destroy(),
+        });
+      };
+      stampGhost();
+      this.time.addEvent({ delay: 40, repeat: 9, callback: stampGhost });
+    });
     this.events.on('player-shot-missed', () => {
       this.player?.onShotMissed();
     });
@@ -1270,26 +1296,59 @@ export class GameScene extends Phaser.Scene {
         this.fx.shake(0.005, 70);
       } else {
         this.fx.damageNumber(enemy.x, enemy.y - enemy.cfg.radius, Math.round(amount));
+        // Chipping a tank (elite or just high-HP) had zero screen response
+        // before — a hit that doesn't crit or kill still deserves a tiny bite.
+        if (enemy._elite || (enemy.hpMax || 0) >= 500) this.fx.shake(0.002, 40);
       }
       this.fx.burst(enemy.x, enemy.y, 'red', crit ? 8 : 4);
       SFX.hit();
     });
     this.events.on('enemy-died', (enemy) => {
       // ── HOTLINE-MIAMI KILL JUICE ──────────────────────────────────────
+      // Combo counter first — chain kills within 2s show on screen — so the
+      // rest of this beat can read the LIVE streak and scale with it.
+      this._tickKillCombo();
+      const comboMult = 1 + 0.06 * Math.min((this._comboCount || 1) - 1, 6); // up to ~1.36x
+
+      // Threat scale: a kill pops bigger the bigger the thing was (swarmling
+      // 0.7 through a 1.8-scale mini-boss), instead of every death being
+      // identical regardless of size/danger.
+      const threatScale = enemy._baseScale || 1;
+
       // Big blood burst + persistent splatter pool that stays for the room.
-      this.fx.burst(enemy.x, enemy.y, 'red', 26);
+      this.fx.burst(enemy.x, enemy.y, 'red', Phaser.Math.Clamp(Math.round(26 * threatScale), 14, 46));
       this.spawnBloodSplatter(enemy.x, enemy.y);
       // Radial death glow — bright orange ring expands and fades.
-      this._spawnDeathGlow(enemy.x, enemy.y, enemy.cfg.radius);
-      // Beefier shake than before for kill weight.
-      this.fx.shake(0.009, 110);
-      // Universal hit-pause on every kill — 45ms freeze for crisp impact.
-      this.physics.world.pause();
-      this.time.delayedCall(45, () => this.physics.world.resume());
-      // Camera punch-zoom — brief 1.04x snap that decays.
-      this._cameraPunch(1.04, 220);
-      // Combo counter — chain kills within 2s show on screen
-      this._tickKillCombo();
+      this._spawnDeathGlow(enemy.x, enemy.y, enemy.cfg.radius * threatScale);
+      // Elites and the mini-boss get a real explosion on top of the particles
+      // so a capstone kill reads bigger than fodder.
+      if (enemy._elite || enemy._miniBoss) this.fx.explosion(enemy.x, enemy.y, 1.0 + 0.4 * threatScale);
+      // Shake + camera punch scale with both threat and the current combo.
+      this.fx.shake(0.009 * threatScale * comboMult, Math.round(110 * Math.min(threatScale, 1.3)));
+      this._cameraPunch(1.04 + 0.015 * (threatScale - 1) + 0.01 * (comboMult - 1), 220);
+
+      // Same-frame multi-kill tracking (distinct from the 2s combo streak —
+      // several kills can resolve in one tick during a super wipe). Coalesce
+      // the hitstop to one pause/resume per frame instead of N redundant
+      // ones, and fire a single bigger beat once 3+ land together.
+      const now = this.time.now;
+      if (this._lastKillFrameTime !== now) {
+        this._lastKillFrameTime = now;
+        this._killsThisFrame = 0;
+        this._multiKillFired = false;
+      }
+      this._killsThisFrame++;
+      if (this._killsThisFrame === 1) {
+        // Universal hit-pause on every kill — 45ms freeze for crisp impact.
+        this.physics.world.pause();
+        this.time.delayedCall(45, () => this.physics.world.resume());
+      }
+      if (this._killsThisFrame >= 3 && !this._multiKillFired) {
+        this._multiKillFired = true;
+        this._slowMo(0.7, 160);
+        this.events.emit('show-banner', 'MULTIKILL', '#ff8020');
+      }
+
       // Run-wide kill counter (drives the HUD readout + records)
       this.runKills = (this.runKills || 0) + 1;
       this.events.emit('kills-update', this.runKills);
@@ -1305,8 +1364,13 @@ export class GameScene extends Phaser.Scene {
       this.fx.burst(this.player.x, this.player.y, 'red', 6);
     });
     this.events.on('player-dead', () => {
+      // Dying was quieter than killing a single grunt before — give it the
+      // heaviest beat in the game short of the boss dying.
       this.fx.burst(this.player.x, this.player.y, 'red', 30);
       this.fx.shake(0.02, 500);
+      this.cameras.main.flash(300, 200, 20, 20, true);
+      this._cameraPunch(1.08, 400);
+      this._slowMo(0.4, 700);
       this.time.delayedCall(900, () => this._handlePlayerDeath());
     });
     this.events.on('grunt-melee', (g) => this.fx.burst(g.x, g.y, 'red', 6));
@@ -2558,8 +2622,11 @@ export class GameScene extends Phaser.Scene {
       this._roomDoorOpened = true;
       setMusicIntensity(0); // room's done — calm through the upgrade picker
 
-      this.cameras.main.flash(220, 64, 255, 128, true);
-      this.fx.shake(0.004, 120);
+      // Beefed slightly over the old flash+shake — finishing a whole room is
+      // the biggest structural beat short of the boss, it should land like one.
+      this.cameras.main.flash(260, 64, 255, 128, true);
+      this.fx.shake(0.006, 160);
+      this._cameraPunch(1.06, 260);
       const stragglers = this._livingEnemyCount();
       this.events.emit('show-banner',
         stragglers > 0 ? 'ARENA SURVIVED — FINISH THEM!' : 'ARENA SURVIVED!',
