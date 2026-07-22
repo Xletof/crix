@@ -590,6 +590,10 @@ export class HUDScene extends Phaser.Scene {
   }
 
   refreshChamber(n, total, spec) {
+    if (this.gameScene?.mode === 'endless') {
+      this.chamberText.setText(`SECTOR ${this.gameScene.sector}`);
+      return;
+    }
     const name = spec?.name ?? '';
     this.chamberText.setText(`${name}   CHAMBER ${n}/${total}`);
   }

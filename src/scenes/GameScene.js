@@ -19,7 +19,18 @@ export class GameScene extends Phaser.Scene {
     super('Game');
   }
 
-  create() {
+  create(data) {
+    // ── Run mode ─────────────────────────────────────────────────────────
+    // 'campaign' plays the authored ROOMS sequence once to Vader. 'endless'
+    // loops the non-boss arena rooms forever with rising difficulty (see
+    // _applySectorScaling / _transitionToNext) until the player dies.
+    this.mode   = data?.mode || 'campaign';
+    this.sector = 1;
+    // Endless-only per-enemy multipliers, read by spawnEnemyAt; _applySectorScaling
+    // raises these as `sector` climbs. Campaign never touches them past 1.
+    this.enemyHpMult    = 1;
+    this.enemySpeedMult = 1;
+
     // ── Persistent bullet groups (survive room transitions) ────────────────
     this.playerBullets      = new BulletGroup(this, 'bullet');
     this.playerRifleBullets = new BulletGroup(this, 'bullet');   // rifle uses same bolt tex
@@ -329,9 +340,14 @@ export class GameScene extends Phaser.Scene {
     this.survivalTimeLeft = 0;   // legacy field kept 0 so old guards fall through
     this._waveIdx         = -1;  // _startWave(0) advances to 0
     this._lastLiving      = -1;
-    // Resolve this room's modifier (authored via cfg.modifier; Phase 3 can swap
-    // this lookup for a random roll). It reshapes every wave via _applyModifier.
-    this._roomModifier = MODIFIERS[cfg.modifier] || null;
+    // Resolve this room's modifier: campaign uses the authored cfg.modifier;
+    // endless rolls one at random every room for variety across the climb.
+    if (this.mode === 'endless') {
+      const pool = Object.values(MODIFIERS);
+      this._roomModifier = pool[Math.floor(Math.random() * pool.length)];
+    } else {
+      this._roomModifier = MODIFIERS[cfg.modifier] || null;
+    }
     this._startWave(0);
 
     // Announce after WAVE 1's banner so the modifier reads as the second beat,
@@ -355,6 +371,23 @@ export class GameScene extends Phaser.Scene {
     return out;
   }
 
+  // Endless-only difficulty ramp, composed after the room modifier. `sector`
+  // rises by 1 every room loop (_transitionToNext); scaling is deliberately
+  // gentle per step since it compounds indefinitely across a long run.
+  // Campaign never enters here (mode check), so it's a pure no-op there.
+  _applySectorScaling(cfg) {
+    if (this.mode !== 'endless') return cfg;
+    const s = Math.max(0, this.sector - 1); // 0 at the first endless room
+    const out = { ...cfg };
+    out.count       = Math.round(out.count * (1 + s * 0.12));
+    out.maxAlive    = out.maxAlive + Math.min(10, Math.floor(s * 1.2));
+    out.spawnRate   = Math.round(out.spawnRate * Math.max(0.55, 1 - s * 0.035));
+    out.eliteChance = Math.min(0.6, Math.max(out.eliteChance ?? 0, 0.05 + s * 0.025));
+    this.enemyHpMult    = 1 + s * 0.08;
+    this.enemySpeedMult = Math.min(1.6, 1 + s * 0.02);
+    return out;
+  }
+
   // Begin wave `idx`: merge its overrides over the room defaults, reset the
   // spawn budget, announce it, and (if a mini-boss wave) spawn the capstone.
   _startWave(idx) {
@@ -363,7 +396,8 @@ export class GameScene extends Phaser.Scene {
     const wave = waves[idx];
     this._waveIdx    = idx;
     this._wave       = wave;
-    this.arenaCfg    = this._applyModifier({ ...this._roomArenaCfg, ...wave }); // drip/roll/elite read this
+    // drip/roll/elite all read this merged object
+    this.arenaCfg    = this._applySectorScaling(this._applyModifier({ ...this._roomArenaCfg, ...wave }));
     this._wavePhase  = 'spawning';
     this._waveSpawned = 0;
     this._waveDripMs  = 0;
@@ -622,6 +656,22 @@ export class GameScene extends Phaser.Scene {
   }
 
   _transitionToNext() {
+    // Endless: loop the non-boss arena rooms (hangar/corridor/detention)
+    // forever instead of ending at the last room; each loop raises `sector`,
+    // the difficulty knob _applySectorScaling reads.
+    if (this.mode === 'endless') {
+      const nextIdx = (this.roomManager.index + 1) % 3;
+      this.sector++;
+      this.cameras.main.flash(200, 255, 255, 255);
+      this.cameras.main.fadeOut(350, 255, 255, 255);
+      this.cameras.main.once('camerafadeoutcomplete', () => {
+        if (this._doorLabel) { this._doorLabel.destroy(); this._doorLabel = null; }
+        this.loadRoom(ROOMS[nextIdx]);
+        this.cameras.main.fadeIn(350, 255, 255, 255);
+      });
+      return;
+    }
+
     if (this.roomManager.isLast) return;
     const nextIdx = this.roomManager.index + 1;
 
@@ -1031,6 +1081,13 @@ export class GameScene extends Phaser.Scene {
     // Room modifier speed (FRENZY): stacks on top of the elite's adjusted speed.
     const sm = this.arenaCfg?.speedMult;
     if (sm) enemy.cfg = { ...enemy.cfg, speed: enemy.cfg.speed * sm };
+    // Endless sector ramp: stacks on top of everything above (campaign leaves
+    // both multipliers at 1, so this is a no-op there).
+    if (this.enemyHpMult !== 1 || this.enemySpeedMult !== 1) {
+      enemy.hp    = Math.round(enemy.hp * this.enemyHpMult);
+      enemy.hpMax = enemy.hp;
+      enemy.cfg   = { ...enemy.cfg, speed: enemy.cfg.speed * this.enemySpeedMult };
+    }
     enemy.coverRegistry = this.coverRegistry;
     this.enemies.add(enemy);
     this.physics.add.collider(enemy, this.walls);
@@ -2248,12 +2305,14 @@ export class GameScene extends Phaser.Scene {
   defeat()  {
     this.scene.start('GameOver', {
       win: false,
+      mode: this.mode,
       stats: {
         clearTime: this.time.now - this.runStartTime,
         stealthKills: this.runStealthKills,
         kills: this.runKills || 0,
         damageTaken: Math.ceil(this.runDamageTaken),
         maxCombo: this.player ? this.player.runMaxCombo || 1.0 : 1.0,
+        sector: this.sector,
       }
     });
   }

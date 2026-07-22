@@ -9,7 +9,7 @@ export class GameOverScene extends Phaser.Scene {
     super('GameOver');
   }
 
-  create({ win, stats }) {
+  create({ win, stats, mode }) {
     stopMusic();
     if (win) SFX.victory();
     else SFX.defeat();
@@ -30,6 +30,9 @@ export class GameOverScene extends Phaser.Scene {
       globalStats.lastDamageTaken = stats.damageTaken;
       globalStats.bestKills  = Math.max(globalStats.bestKills || 0, stats.kills || 0);
       globalStats.totalKills = (globalStats.totalKills || 0) + (stats.kills || 0);
+      if (mode === 'endless') {
+        globalStats.bestEndlessSector = Math.max(globalStats.bestEndlessSector || 0, stats.sector || 0);
+      }
     }
     saveStats(globalStats);
 
@@ -290,15 +293,20 @@ export class GameOverScene extends Phaser.Scene {
         strokeThickness: 2,
       };
 
-      this.add.text(px + 50, boxY + 18, `TIME ELAPSED: ${formatTime(stats?.clearTime)}`, statsStyle);
+      // Endless runs care about depth reached more than elapsed time, so swap
+      // the first line for the sector record when that's the mode played.
+      const firstLine = mode === 'endless'
+        ? `SECTOR REACHED: ${stats?.sector || 0}  (PB: ${globalStats.bestEndlessSector || 0})`
+        : `TIME ELAPSED: ${formatTime(stats?.clearTime)}`;
+      this.add.text(px + 50, boxY + 18, firstLine, statsStyle);
       this.add.text(px + 50, boxY + 46, `KILLS:        ${stats?.kills || 0}  (PB: ${globalStats.bestKills || 0})`, statsStyle);
       this.add.text(px + 50, boxY + 74, `MAX COMBO:    x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
       this.add.text(px + 50, boxY + 102, `DAMAGE TAKEN: ${stats?.damageTaken || 0} HP`, statsStyle);
 
-      this.impButton(cx, py + ph - 160, 'RETRY MISSION', true, () => {
+      this.impButton(cx, py + ph - 160, mode === 'endless' ? 'RETRY ENDLESS' : 'RETRY MISSION', true, () => {
         SFX.uiClick();
         this.cameras.main.fadeOut(220, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Game'));
+        this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Game', mode === 'endless' ? { mode: 'endless' } : undefined));
       }, win);
       this.impButton(cx, py + ph - 60, 'MAIN MENU', false, () => {
         SFX.uiClick();

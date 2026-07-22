@@ -124,7 +124,7 @@ export class TitleScene extends Phaser.Scene {
     const recordsContainer = this.add.container(0, 0).setDepth(100).setVisible(false);
 
     // ── ENGAGE button — Imperial console style ────────────────────────────
-    const btnY = VIEW.height * 0.82;
+    const btnY = VIEW.height * 0.79;
     const btnW = 380, btnH = 65;
     const btnBg = this.add.graphics();
 
@@ -193,9 +193,52 @@ export class TitleScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
+    // ── ENDLESS button — starts an endless sector-climb run directly,
+    // skipping the campaign Intro. Amber to read as a distinct mode. ───────
+    const endY = VIEW.height * 0.865;
+    const endW = 380, endH = 55;
+    const endBg = this.add.graphics();
+
+    const drawEnd = (hover) => {
+      endBg.clear();
+      endBg.fillStyle(0x000000, 0.6);
+      endBg.fillRoundedRect(cx - endW / 2 + 4, endY - endH / 2 + 5, endW, endH, 6);
+      endBg.fillStyle(hover ? 0x2e3038 : 0x14161c, 1);
+      endBg.fillRoundedRect(cx - endW / 2, endY - endH / 2, endW, endH, 6);
+      endBg.lineStyle(2.5, hover ? 0xffaa30 : 0xaa6a00, 1);
+      endBg.strokeRoundedRect(cx - endW / 2, endY - endH / 2, endW, endH, 6);
+    };
+    drawEnd(false);
+
+    const endText = this.add
+      .text(cx, endY, 'ENDLESS', {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '26px',
+        fontStyle: 'bold',
+        color: '#ffaa30',
+        stroke: '#000000',
+        strokeThickness: 3,
+        letterSpacing: 4,
+      })
+      .setOrigin(0.5);
+
+    const endZone = this.add
+      .zone(cx, endY, endW, endH)
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    endZone.on('pointerover', () => drawEnd(true));
+    endZone.on('pointerout', () => drawEnd(false));
+    endZone.on('pointerdown', () => drawEnd(true));
+    endZone.on('pointerup', () => {
+      if (recordsContainer.visible) return;
+      SFX.uiClick();
+      this.cameras.main.fadeOut(220, 0, 0, 0);
+      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Game', { mode: 'endless' }));
+    });
+
     // ── RECORDS button — Imperial console style ───────────────────────────
-    const recY = VIEW.height * 0.91;
-    const recW = 380, recH = 55;
+    const recY = VIEW.height * 0.925;
+    const recW = 380, recH = 50;
     const recBg = this.add.graphics();
 
     const drawRec = (hover) => {
@@ -245,6 +288,7 @@ export class TitleScene extends Phaser.Scene {
       comboText.setText(`MAX COMBO MULT:   x${(currentStats.bestMaxCombo || 1.0).toFixed(1)}`);
       dmgText.setText(`LAST DAMAGE RECD: ${currentStats.lastDamageTaken || 0} HP`);
       totalKillsText.setText(`TOTAL KILLS:      ${currentStats.totalKills || 0}`);
+      bestSectorText.setText(`BEST ENDLESS SECTOR: ${currentStats.bestEndlessSector || 0}`);
 
       recordsContainer.setVisible(true);
     });
@@ -256,7 +300,7 @@ export class TitleScene extends Phaser.Scene {
     overlayBg.setInteractive(new Phaser.Geom.Rectangle(0, 0, VIEW.width, VIEW.height), Phaser.Geom.Rectangle.Contains);
     recordsContainer.add(overlayBg);
 
-    const cW = 500, cH = 620;
+    const cW = 500, cH = 670;
     const cX = cx - cW / 2, cY = VIEW.height * 0.22;
 
     const cardBg = this.add.graphics();
@@ -297,8 +341,9 @@ export class TitleScene extends Phaser.Scene {
     const comboText = this.add.text(cX + 50, startTextY + 4 * spacingY, '', textStyle);
     const dmgText = this.add.text(cX + 50, startTextY + 5 * spacingY, '', textStyle);
     const totalKillsText = this.add.text(cX + 50, startTextY + 6 * spacingY, '', textStyle);
+    const bestSectorText = this.add.text(cX + 50, startTextY + 7 * spacingY, '', textStyle);
 
-    recordsContainer.add([runsText, winsText, timeText, stealthText, comboText, dmgText, totalKillsText]);
+    recordsContainer.add([runsText, winsText, timeText, stealthText, comboText, dmgText, totalKillsText, bestSectorText]);
 
     // Close button
     const closeY = cY + cH - 70;
