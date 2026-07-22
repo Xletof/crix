@@ -84,6 +84,18 @@ export class HUDScene extends Phaser.Scene {
       })
       .setOrigin(1, 0);
 
+    // Room-modifier label (persistent while a modifier is active, top-right).
+    this.modifierText = this.add
+      .text(VIEW.width - 20, 54, '', {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '15px',
+        fontStyle: 'bold',
+        color: '#ff5030',
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(1, 0);
+
     // Hack progress bar (center, only while actively slicing)
     this.hackBarGfx = this.add.graphics().setDepth(12);
     this.hackBarText = this.add.text(VIEW.width / 2, VIEW.height * 0.46 - 22, ' ', {
@@ -374,6 +386,8 @@ export class HUDScene extends Phaser.Scene {
     ge.on('wave-update',            (n, total)     => this.refreshWave(n, total));
     ge.on('kills-update',           (n)            => this.refreshKills(n));
     ge.on('wave-remaining',         (k)            => this.refreshWaveRemaining(k));
+    ge.on('modifier-active',        (name, color)  => this.refreshModifier(name, color));
+    ge.on('set-darkness',           (on)           => this.setDarkness(on));
     ge.on('hack-prompt',            (avail)        => this.setHackVisible(avail));
     ge.on('show-combo',             (n)            => this.showCombo(n));
     ge.on('hack-start',             (terminal)     => {
@@ -405,11 +419,15 @@ export class HUDScene extends Phaser.Scene {
       ge.off('wave-update');
       ge.off('kills-update');
       ge.off('wave-remaining');
+      ge.off('modifier-active');
+      ge.off('set-darkness');
       ge.off('hack-prompt');
       ge.off('hack-start');
       ge.off('hack-cancel');
       ge.off('show-combo');
       this.comboText = null;
+      this.darknessOverlay?.destroy();
+      this.darknessOverlay = null;
       this.hackMinigame?.shutdown();
       this.hackMinigame = null;
       this.moveStick?.shutdown();
@@ -802,6 +820,61 @@ export class HUDScene extends Phaser.Scene {
     this.tweens.killTweensOf(this.timerText);
     this.timerText.setScale(1.25);
     this.tweens.add({ targets: this.timerText, scale: 1, duration: 180, ease: 'Back.easeOut' });
+  }
+
+  // Persistent room-modifier label (top-right). null/'' clears it.
+  refreshModifier(name, color) {
+    if (!name) { this.modifierText.setText(''); return; }
+    this.modifierText.setText(name);
+    this.modifierText.setColor(color || '#ff5030');
+    this.tweens.killTweensOf(this.modifierText);
+    this.modifierText.setScale(1.3);
+    this.tweens.add({ targets: this.modifierText, scale: 1, duration: 200, ease: 'Back.easeOut' });
+  }
+
+  // Lazily build the DARKNESS radial vignette. It's a screen-space image at a
+  // depth BELOW every HUD element, so it dims the gameplay showing through the
+  // HUD scene without ever dimming the HUD chrome itself. The camera follows
+  // the player near screen-center, so a screen-centered radial reads as a
+  // "sight radius" without any per-frame player tracking.
+  _ensureDarknessOverlay() {
+    if (this.darknessOverlay) return this.darknessOverlay;
+    const w = VIEW.width, h = VIEW.height, key = 'darknessVignette';
+    if (!this.textures.exists(key)) {
+      const tex = this.textures.createCanvas(key, w, h);
+      const ctx = tex.getContext();
+      const cx = w / 2, cy = h / 2;
+      const inner = Math.min(w, h) * 0.22;   // bright sight-radius
+      const outer = Math.hypot(w, h) * 0.62; // fully dark by the corners
+      const grad = ctx.createRadialGradient(cx, cy, inner, cx, cy, outer);
+      grad.addColorStop(0,    'rgba(2,2,6,0)');
+      grad.addColorStop(0.55, 'rgba(2,2,6,0.45)');
+      grad.addColorStop(1,    'rgba(2,2,6,0.82)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+      tex.refresh();
+    }
+    this.darknessOverlay = this.add.image(w / 2, h / 2, key)
+      .setScrollFactor(0)
+      .setDepth(-1)      // below all HUD chrome (≥0), above the game world
+      .setAlpha(0)
+      .setVisible(false);
+    return this.darknessOverlay;
+  }
+
+  setDarkness(on) {
+    if (!on && !this.darknessOverlay) return; // nothing to fade out
+    const ov = this._ensureDarknessOverlay();
+    this.tweens.killTweensOf(ov);
+    if (on) {
+      ov.setVisible(true);
+      this.tweens.add({ targets: ov, alpha: 1, duration: 420, ease: 'Sine.easeOut' });
+    } else {
+      this.tweens.add({
+        targets: ov, alpha: 0, duration: 420, ease: 'Sine.easeIn',
+        onComplete: () => ov.setVisible(false),
+      });
+    }
   }
 
   refreshHackBar(ratio) {

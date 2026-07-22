@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, ALLY } from '../config.js';
+import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, ALLY } from '../config.js';
 import { Player } from '../entities/Player.js';
 import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, EnemySniper, EnemySwarmling, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
@@ -309,7 +309,10 @@ export class GameScene extends Phaser.Scene {
       if (arenaCfg) {
         this._startArena(arenaCfg);
         if (this._terminalsTotal > 0) {
-          this.time.delayedCall(1750, () => this.events.emit('show-banner', 'SLICE TERMINALS FOR SUPPORT', '#ffd040'));
+          // Sequence behind the modifier banner (~1550ms) when one is present
+          // so the single banner object isn't clobbered mid-announce.
+          const hintAt = this._roomModifier ? 3100 : 1750;
+          this.time.delayedCall(hintAt, () => this.events.emit('show-banner', 'SLICE TERMINALS FOR SUPPORT', '#ffd040'));
         }
       }
     }
@@ -326,7 +329,30 @@ export class GameScene extends Phaser.Scene {
     this.survivalTimeLeft = 0;   // legacy field kept 0 so old guards fall through
     this._waveIdx         = -1;  // _startWave(0) advances to 0
     this._lastLiving      = -1;
+    // Resolve this room's modifier (authored via cfg.modifier; Phase 3 can swap
+    // this lookup for a random roll). It reshapes every wave via _applyModifier.
+    this._roomModifier = MODIFIERS[cfg.modifier] || null;
     this._startWave(0);
+
+    // Announce after WAVE 1's banner so the modifier reads as the second beat,
+    // and drive the persistent HUD label + darkness overlay.
+    const m = this._roomModifier;
+    this.events.emit('modifier-active', m?.name ?? null, m?.color ?? null);
+    this.events.emit('set-darkness', !!m?.darkness);
+    if (m) this.time.delayedCall(1550, () => this.events.emit('show-banner', m.name, m.color));
+  }
+
+  // Apply this room's modifier on top of the merged wave cfg. Effects: ELITE
+  // GUARD raises the elite floor (wins over a wave's own eliteChance), FRENZY
+  // speeds up spawns and carries a speedMult the spawn hook reads per-enemy.
+  _applyModifier(cfg) {
+    const m = this._roomModifier;
+    if (!m) return cfg;
+    const out = { ...cfg };
+    if (m.eliteChance   != null) out.eliteChance = Math.max(out.eliteChance ?? 0, m.eliteChance);
+    if (m.spawnRateMult)         out.spawnRate   = Math.round(out.spawnRate * m.spawnRateMult);
+    if (m.speedMult)             out.speedMult   = m.speedMult;
+    return out;
   }
 
   // Begin wave `idx`: merge its overrides over the room defaults, reset the
@@ -337,7 +363,7 @@ export class GameScene extends Phaser.Scene {
     const wave = waves[idx];
     this._waveIdx    = idx;
     this._wave       = wave;
-    this.arenaCfg    = { ...this._roomArenaCfg, ...wave }; // drip/roll/elite read this
+    this.arenaCfg    = this._applyModifier({ ...this._roomArenaCfg, ...wave }); // drip/roll/elite read this
     this._wavePhase  = 'spawning';
     this._waveSpawned = 0;
     this._waveDripMs  = 0;
@@ -1002,6 +1028,9 @@ export class GameScene extends Phaser.Scene {
     else if (type === 'swarmling') enemy = new EnemySwarmling(this, x, y, spec);
     else                           enemy = new EnemyGrunt(this, x, y, spec);
     if (spec.elite) this._makeElite(enemy);
+    // Room modifier speed (FRENZY): stacks on top of the elite's adjusted speed.
+    const sm = this.arenaCfg?.speedMult;
+    if (sm) enemy.cfg = { ...enemy.cfg, speed: enemy.cfg.speed * sm };
     enemy.coverRegistry = this.coverRegistry;
     this.enemies.add(enemy);
     this.physics.add.collider(enemy, this.walls);
@@ -2445,6 +2474,7 @@ export class GameScene extends Phaser.Scene {
           Math.hypot(b.x - this.player.x, b.y - this.player.y));
       living.slice(4).forEach((e) => this._destroyEnemyFully(e));
 
+      this.events.emit('set-darkness', false); // hand a dim room cleanly to the boss
       this.events.emit('show-banner', 'VADER APPROACHES!', '#ff2020');
       SFX.bossRoar();
       this.cameras.main.flash(400, 255, 0, 0, true);

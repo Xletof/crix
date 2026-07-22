@@ -231,6 +231,19 @@ export const COLORS = {
   textShadow:    0x000000,
 };
 
+// Room modifiers — a single named condition that reshapes a whole room. A
+// room opts in via its ARENA entry's `modifier` key; the modifier is announced
+// on entry and shown as a persistent HUD label for the duration. Effect fields:
+//   speedMult     — multiply every enemy's move speed (applied at spawn)
+//   spawnRateMult — multiply the drip interval (<1 = faster spawns)
+//   eliteChance   — floor for the elite-upgrade roll (max with the wave's own)
+//   darkness      — dim the screen to a bright sight-radius around the player
+export const MODIFIERS = {
+  frenzy:     { id: 'frenzy',     name: 'FRENZY',      color: '#ff5030', speedMult: 1.28, spawnRateMult: 0.8 },
+  eliteGuard: { id: 'eliteGuard', name: 'ELITE GUARD', color: '#ffd040', eliteChance: 0.35 },
+  darkness:   { id: 'darkness',   name: 'DARKNESS',    color: '#8a70ff', darkness: true },
+};
+
 // Wave-clear Arena Mode settings. Each room runs a sequence of `waves`; a wave
 // spawns its budget of enemies, then the player must clear them all to advance
 // (brief breather + reward between waves). Room-level fields are per-wave
@@ -259,7 +272,7 @@ export const ARENA = {
     ],
   },
   corridor: {
-    maxAlive: 14, surgeCount: 5,
+    maxAlive: 14, surgeCount: 5, modifier: 'frenzy',
     shooterMix: 0.28, bomberMix: 0.15, sniperMix: 0.12, swarmlingMix: 0.12, eliteChance: 0.05,
     waves: [
       { count: 8,  maxAlive: 10, spawnRate: 900 },
@@ -268,7 +281,7 @@ export const ARENA = {
     ],
   },
   detention: {
-    maxAlive: 14, surgeCount: 6,
+    maxAlive: 14, surgeCount: 6, modifier: 'darkness',
     shooterMix: 0.25, bomberMix: 0.15, shieldedMix: 0.15, sniperMix: 0.12, swarmlingMix: 0.10, eliteChance: 0.08,
     waves: [
       { count: 8,  maxAlive: 10, spawnRate: 850 },
@@ -278,7 +291,7 @@ export const ARENA = {
     ],
   },
   vader: {
-    maxAlive: 14, surgeCount: 6,
+    maxAlive: 14, surgeCount: 6, modifier: 'eliteGuard',
     shooterMix: 0.24, bomberMix: 0.15, shieldedMix: 0.12, sniperMix: 0.12, swarmlingMix: 0.10, eliteChance: 0.10,
     waves: [
       { count: 10, maxAlive: 12, spawnRate: 800, eliteChance: 0.12 },
