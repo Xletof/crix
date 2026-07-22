@@ -8,6 +8,7 @@ import { GameScene } from './scenes/GameScene.js';
 import { HUDScene } from './systems/HUD.js';
 import { GameOverScene } from './scenes/GameOverScene.js';
 import { PauseScene } from './scenes/PauseScene.js';
+import { UpgradeScene } from './scenes/UpgradeScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -37,7 +38,7 @@ const config = {
   input: {
     activePointers: 4,
   },
-  scene: [BootScene, PreloadScene, TitleScene, IntroScene, GameScene, HUDScene, GameOverScene, PauseScene],
+  scene: [BootScene, PreloadScene, TitleScene, IntroScene, GameScene, HUDScene, GameOverScene, PauseScene, UpgradeScene],
 };
 
 window.addEventListener('load', () => {

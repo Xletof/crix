@@ -1313,8 +1313,9 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(400, () => {
       this.cameras.main.fadeOut(300, 0, 0, 0);
       this.cameras.main.once('camerafadeoutcomplete', () => {
-        // Revive player
-        this.player.hp       = PLAYER.hp;
+        // Revive player — restore to the player's current hpMax (an ARMOR
+        // PLATING upgrade raises hpMax, and a revive shouldn't undo that).
+        this.player.hp       = this.player.hpMax;
         this.player.alive    = true;
         this.player.ammo     = PLAYER.ammoMax;
         this.player.ammoTimers = [];
@@ -1343,7 +1344,7 @@ export class GameScene extends Phaser.Scene {
     const half   = (PLAYER.pelletCount - 1) / 2;
     for (let i = 0; i < PLAYER.pelletCount; i++) {
       const a = angle + (i - half) * (spread / Math.max(1, PLAYER.pelletCount - 1));
-      this.playerBullets.fire(bx, by, a, PLAYER.pelletSpeed, PLAYER.pelletDamage, PLAYER.pelletRange, { owner: 'player' });
+      this.playerBullets.fire(bx, by, a, PLAYER.pelletSpeed, PLAYER.pelletDamage * this.player.dmgMult, PLAYER.pelletRange, { owner: 'player' });
     }
     this.fx.muzzleFlash(bx, by, angle);
     this.fx.ejectCasing(bx, by, angle);
@@ -1366,7 +1367,7 @@ export class GameScene extends Phaser.Scene {
     const half   = (PLAYER.superPellets - 1) / 2;
     for (let i = 0; i < PLAYER.superPellets; i++) {
       const a = angle + (i - half) * (spread / Math.max(1, PLAYER.superPellets - 1));
-      this.playerSuperBullets.fire(bx, by, a, PLAYER.superSpeed, PLAYER.superDamage, PLAYER.superRange,
+      this.playerSuperBullets.fire(bx, by, a, PLAYER.superSpeed, PLAYER.superDamage * this.player.dmgMult, PLAYER.superRange,
         { owner: 'player', piercing: true, knockback: PLAYER.superKnockback });
     }
     this.fx.muzzleFlash(bx, by, angle);
@@ -2488,8 +2489,10 @@ export class GameScene extends Phaser.Scene {
       // Survivors stay alive and killable — spawning already stopped
       // (arenaActive=false), so they're a finite mop-up. Full cleanup of any
       // stragglers happens in _clearRoomEntities on the next room load.
+      // The door stays SEALED until an upgrade is picked (UpgradeScene calls
+      // _openDoor() itself on pick) — _roomDoorOpened still latches now so
+      // _maybeCompleteRoom's terminal-completion path can't race it open.
       this._roomDoorOpened = true;
-      this._openDoor();
 
       this.cameras.main.flash(220, 64, 255, 128, true);
       this.fx.shake(0.004, 120);
@@ -2497,6 +2500,12 @@ export class GameScene extends Phaser.Scene {
       this.events.emit('show-banner',
         stragglers > 0 ? 'ARENA SURVIVED — FINISH THEM!' : 'ARENA SURVIVED!',
         '#20ff60');
+
+      this.time.delayedCall(900, () => {
+        this.scene.launch('Upgrade', { game: this });
+        this.scene.pause('Game');
+        this.scene.pause('HUD');
+      });
     }
   }
 }

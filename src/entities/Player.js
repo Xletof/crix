@@ -29,6 +29,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.hitStreak      = 0;
     this.runMaxCombo    = 1.0;
 
+    // ── Per-run upgrade stat layer ──────────────────────────────────────────
+    // Identity-valued multipliers applied at each stat's read site (never by
+    // mutating the shared PLAYER config — that would leak across runs). Reset
+    // for free every run since Player is only rebuilt on scene restart.
+    this.dmgMult           = 1;
+    this.reloadMult        = 1;
+    this.moveMult          = 1;
+    this.dashChargesBonus  = 0;
+    this.dashRechargeMult  = 1;
+    this.superGainMult     = 1;
+    this.regenMult         = 1;
+    this._upgrades         = [];
+
     // ── Aiming state ───────────────────────────────────────────────────────
     this.facing      = -Math.PI / 2;
     this.aim         = -Math.PI / 2;
@@ -55,7 +68,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this._fireAnimTimer = 0;
     this.recoilT        = 0;
     this.revealTimer    = 0; // timer to reveal player when firing in bush
-    this.dashCharges    = PLAYER.dashChargesMax || 3;
+    this.dashCharges    = (PLAYER.dashChargesMax || 3) + this.dashChargesBonus;
     this.dashRechargeTimer = 0;
     this.isDashing      = false;
     this.dashTimer      = 0;
@@ -113,8 +126,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // is actually visible before the player resumes control.
     if (this._hurtStaggerMs > 0) return;
     if (vec?.force > 0) {
-      this._moveTargetX = vec.x * PLAYER.speed * vec.force;
-      this._moveTargetY = vec.y * PLAYER.speed * vec.force;
+      const speed = PLAYER.speed * this.moveMult;
+      this._moveTargetX = vec.x * speed * vec.force;
+      this._moveTargetY = vec.y * speed * vec.force;
       this.facing = Math.atan2(vec.y, vec.x);
       // Body NEVER rotates — only the weapon overlay does (handled in preUpdate).
       // When not aiming, the weapon follows the movement direction.
@@ -246,7 +260,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.ammo <= 0) return false;
     this.fireCooldown  = PLAYER.fireCooldownMs;
     this.ammo         -= 1;
-    this.ammoTimers.push(PLAYER.ammoReloadMs);
+    this.ammoTimers.push(PLAYER.ammoReloadMs * this.reloadMult);
     this.recoilT       = 110;
     this._wKickT       = 80;
     this._fireAnimTimer = 140;
@@ -335,7 +349,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   tryDash() {
     if (!this.alive) return;
     if (isNaN(this.dashCharges) || !isFinite(this.dashCharges)) {
-      this.dashCharges = PLAYER.dashChargesMax || 3;
+      this.dashCharges = (PLAYER.dashChargesMax || 3) + this.dashChargesBonus;
     }
     if (this.dashCharges <= 0) return;
     if (this.isDashing) return;
@@ -485,7 +499,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const max        = PLAYER.superHitsToCharge;
     const before     = this.superCharge;
     // Charge gains scaled by current combo multiplier
-    this.superCharge = Math.min(max, this.superCharge + this.accuracyMult);
+    this.superCharge = Math.min(max, this.superCharge + this.accuracyMult * this.superGainMult);
     if (before < max && this.superCharge >= max) {
       SFX.superReady();
       this.scene.events.emit('player-super-ready');
@@ -517,12 +531,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     // Recharge dash charges
+    const dashMax = (PLAYER.dashChargesMax || 3) + this.dashChargesBonus;
     if (isNaN(this.dashCharges) || !isFinite(this.dashCharges)) {
-      this.dashCharges = PLAYER.dashChargesMax || 3;
+      this.dashCharges = dashMax;
     }
-    if (this.dashCharges < (PLAYER.dashChargesMax || 3)) {
+    if (this.dashCharges < dashMax) {
       this.dashRechargeTimer += delta;
-      if (this.dashRechargeTimer >= (PLAYER.dashRechargeMs || 2800)) {
+      if (this.dashRechargeTimer >= (PLAYER.dashRechargeMs || 2800) * this.dashRechargeMult) {
         this.dashCharges++;
         this.dashRechargeTimer = 0;
         this.scene.events.emit('player-dash-recharged', this.dashCharges);
@@ -613,7 +628,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const isHealing = this.alive && this.hp < this.hpMax && time - this.lastHurtAt > PLAYER.regenDelayMs;
     this.isRegenerating = isHealing;
     if (isHealing) {
-      this.hp = Math.min(this.hpMax, this.hp + (PLAYER.regenPerSec * delta) / 1000);
+      this.hp = Math.min(this.hpMax, this.hp + (PLAYER.regenPerSec * this.regenMult * delta) / 1000);
       this.scene.events.emit('player-hp-changed');
       
       // Spawn healing sparkles bubbling upward (cyan)
