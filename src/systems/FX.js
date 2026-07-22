@@ -5,6 +5,7 @@ import Phaser from 'phaser';
 
 let audioCtx = null;
 let masterGain = null;
+let compressor = null;
 let musicGain = null;
 let sfxGain = null;
 let musicVol = 0.18;
@@ -12,6 +13,7 @@ let sfxVol = 0.60;
 let lowQuality = false;
 let musicNodes = null;
 let musicStarted = false;
+let intensityGain = null;
 let muted = false;
 const MASTER_VOL = 0.5;
 
@@ -32,8 +34,18 @@ export function initAudio() {
     audioCtx = new AC();
     masterGain = audioCtx.createGain();
     masterGain.gain.value = muted ? 0 : MASTER_VOL;
-    masterGain.connect(audioCtx.destination);
-    
+
+    // Master compressor/limiter — glues the mix and clip-protects it once a
+    // horde of overlapping SFX stacks up (was raw gain -> destination before).
+    compressor = audioCtx.createDynamicsCompressor();
+    compressor.threshold.value = -10;
+    compressor.knee.value      = 20;
+    compressor.ratio.value     = 12;
+    compressor.attack.value    = 0.003;
+    compressor.release.value   = 0.25;
+    masterGain.connect(compressor);
+    compressor.connect(audioCtx.destination);
+
     musicGain = audioCtx.createGain();
     musicGain.gain.value = musicVol;
     musicGain.connect(masterGain);
@@ -53,15 +65,18 @@ function ensureCtx() {
   return audioCtx;
 }
 
-function tone({ freq = 440, type = 'sine', dur = 0.12, gain = 0.4, slide = 0, delay = 0 }) {
+function tone({ freq = 440, type = 'sine', dur = 0.12, gain = 0.4, slide = 0, delay = 0, vary = 0 }) {
   const ctx = ensureCtx();
   if (!ctx) return;
   const t = ctx.currentTime + delay;
+  // Per-call pitch variation (±vary fraction) so repeated calls (rapid-fire
+  // shoot/hit) don't sound like a perfectly looping machine-gun sample.
+  const f = vary ? freq * (1 + (Math.random() * 2 - 1) * vary) : freq;
   const osc = ctx.createOscillator();
   const g = ctx.createGain();
   osc.type = type;
-  osc.frequency.setValueAtTime(freq, t);
-  if (slide) osc.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), t + dur);
+  osc.frequency.setValueAtTime(f, t);
+  if (slide) osc.frequency.exponentialRampToValueAtTime(Math.max(40, f + slide), t + dur);
   g.gain.setValueAtTime(0, t);
   g.gain.linearRampToValueAtTime(gain, t + 0.005);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
@@ -111,11 +126,26 @@ export function getMusicVolume() { return musicVol; }
 export function setLowQuality(l) { lowQuality = !!l; }
 export function isLowQuality() { return lowQuality; }
 
+// Dev-only introspection hook for smoke tests — audio internals aren't
+// otherwise observable from outside the module (closures, not a class).
+export function __fxDebug() {
+  return {
+    hasAudioCtx: !!audioCtx,
+    hasCompressor: !!compressor,
+    compressorRatio: compressor ? compressor.ratio.value : null,
+    musicVol,
+    sfxVol,
+    musicGainValue: musicGain ? musicGain.gain.value : null,
+    hasIntensityGain: !!intensityGain,
+    intensityGainValue: intensityGain ? intensityGain.gain.value : null,
+  };
+}
+
 export const SFX = {
   // Mandalorian blaster — snappy high-pitched zap (Star Wars blaster feel)
   shoot() {
-    tone({ freq: 1400, type: 'square', dur: 0.05, gain: 0.16, slide: -900 });
-    tone({ freq: 700,  type: 'sine',   dur: 0.06, gain: 0.08, slide: -400 });
+    tone({ freq: 1400, type: 'square', dur: 0.05, gain: 0.16, slide: -900, vary: 0.04 });
+    tone({ freq: 700,  type: 'sine',   dur: 0.06, gain: 0.08, slide: -400, vary: 0.04 });
   },
   // Wrist-rocket barrage — deep whoosh + explosion rumble
   shootSuper() {
@@ -127,13 +157,13 @@ export const SFX = {
   },
   // Death Trooper green bolt — lower pitch, slightly different timbre
   enemyShoot() {
-    tone({ freq: 900, type: 'square', dur: 0.06, gain: 0.11, slide: -600 });
-    tone({ freq: 450, type: 'sine',   dur: 0.05, gain: 0.06, slide: -300 });
+    tone({ freq: 900, type: 'square', dur: 0.06, gain: 0.11, slide: -600, vary: 0.04 });
+    tone({ freq: 450, type: 'sine',   dur: 0.05, gain: 0.06, slide: -300, vary: 0.04 });
   },
   // Hit flash — crisp impact
   hit() {
     noise({ dur: 0.06, gain: 0.14, hp: 1400 });
-    tone({ freq: 300, type: 'square', dur: 0.04, gain: 0.10 });
+    tone({ freq: 300, type: 'square', dur: 0.04, gain: 0.10, vary: 0.04 });
   },
   // Player hurt — lower, painful
   hurt() {
@@ -142,14 +172,14 @@ export const SFX = {
   },
   // Enemy die — trooper helmet clatter
   enemyDie() {
-    tone({ freq: 500, type: 'square', dur: 0.12, gain: 0.14, slide: -350 });
+    tone({ freq: 500, type: 'square', dur: 0.12, gain: 0.14, slide: -350, vary: 0.04 });
     noise({ dur: 0.10, gain: 0.10, hp: 400 });
   },
   // Vader hit — heavy metallic thud
   bossHit() {
     noise({ dur: 0.22, gain: 0.30, hp: 120 });
-    tone({ freq: 80, type: 'sine', dur: 0.22, gain: 0.24, slide: -30 });
-    tone({ freq: 160, type: 'sawtooth', dur: 0.16, gain: 0.15, slide: -50 });
+    tone({ freq: 80, type: 'sine', dur: 0.22, gain: 0.24, slide: -30, vary: 0.04 });
+    tone({ freq: 160, type: 'sawtooth', dur: 0.16, gain: 0.15, slide: -50, vary: 0.04 });
   },
   // Vader death — dramatic orchestral descent
   bossDie() {
@@ -241,6 +271,20 @@ export const SFX = {
     tone({ freq: 660, type: 'sawtooth', dur: 0.18, gain: 0.14, slide: -180 });
     tone({ freq: 660, type: 'sawtooth', dur: 0.18, gain: 0.14, slide: -180, delay: 0.22 });
   },
+  // Kill-chain combo — two-note blip whose pitch climbs a semitone per streak
+  // step, so chaining kills sounds as escalating as the on-screen counter looks.
+  comboChime(n = 2) {
+    const step = Math.min(n, 8);
+    const base = 520 * Math.pow(2, step / 12);
+    tone({ freq: base,       type: 'triangle', dur: 0.07, gain: 0.14 });
+    tone({ freq: base * 1.5, type: 'triangle', dur: 0.09, gain: 0.12, delay: 0.05 });
+  },
+  // Dash whoosh — dedicated sound (was borrowing the stealth-takedown blade
+  // shink before). Fast filtered-noise sweep + a falling tone for air-push.
+  dash() {
+    noise({ dur: 0.14, gain: 0.16, hp: 900 });
+    tone({ freq: 900, type: 'sine', dur: 0.16, gain: 0.10, slide: -700 });
+  },
 };
 
 // --- Background music: Imperial march-inspired dark ambient + pulse ---
@@ -302,6 +346,27 @@ export function startMusic() {
     setTimeout(loop, marchNotes.length * marchDur * 1000);
   };
   setTimeout(loop, marchNotes.length * marchDur * 1000);
+
+  // Tension layer — a sustained detuned pad, silent by default, that
+  // GameScene swells via setMusicIntensity() during active combat and calms
+  // during breathers. Pure gain control; no new note scheduling, so it can't
+  // drift out of sync with the march loop above.
+  intensityGain = ctx.createGain();
+  intensityGain.gain.value = 0;
+  intensityGain.connect(musicGain);
+  [73, 74].forEach((semi) => { // tense minor-2nd cluster above the drone root
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = 55 * Math.pow(2, semi / 12);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 900;
+    o.connect(lp);
+    lp.connect(intensityGain);
+    o.start();
+    nodes.push(o);
+  });
+
   musicNodes = nodes;
 }
 
@@ -318,6 +383,20 @@ export function stopMusic() {
     });
     musicNodes = null;
   }
+  intensityGain = null;
+}
+
+// Combat-intensity dial for the music bed: 0 = calm (breather/menu), 1 = full
+// tension (an active wave or the boss fight). Ramped, not stepped, so wave
+// transitions swell/settle instead of snapping.
+const INTENSITY_MAX = 0.05;
+export function setMusicIntensity(x) {
+  if (!intensityGain || !audioCtx) return;
+  const t = audioCtx.currentTime;
+  const target = Math.max(0, Math.min(1, x)) * INTENSITY_MAX;
+  intensityGain.gain.cancelScheduledValues(t);
+  intensityGain.gain.setValueAtTime(intensityGain.gain.value, t);
+  intensityGain.gain.linearRampToValueAtTime(target, t + 0.4);
 }
 
 export function duckMusic(amount = 0.5, restoreInMs = 600) {
@@ -325,8 +404,10 @@ export function duckMusic(amount = 0.5, restoreInMs = 600) {
   const t = audioCtx.currentTime;
   musicGain.gain.cancelScheduledValues(t);
   musicGain.gain.setValueAtTime(musicGain.gain.value, t);
-  musicGain.gain.linearRampToValueAtTime(0.18 * (1 - amount), t + 0.05);
-  musicGain.gain.linearRampToValueAtTime(0.18, t + 0.05 + restoreInMs / 1000);
+  // Dip/restore relative to the user's current music volume, not a hard-coded
+  // default — otherwise every duck silently overwrote a lowered slider back to 0.18.
+  musicGain.gain.linearRampToValueAtTime(musicVol * (1 - amount), t + 0.05);
+  musicGain.gain.linearRampToValueAtTime(musicVol, t + 0.05 + restoreInMs / 1000);
 }
 
 // --- Visual FX helpers (attached to scenes via attach()) ---

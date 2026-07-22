@@ -9,7 +9,7 @@ import { RoomManager } from '../systems/RoomManager.js';
 import { CoverRegistry } from '../systems/CoverRegistry.js';
 import { WeaponPickup } from '../entities/WeaponPickup.js';
 import { Terminal } from '../entities/Terminal.js';
-import { attachFX, SFX, startMusic, duckMusic, stopMusic } from '../systems/FX.js';
+import { attachFX, SFX, startMusic, duckMusic, stopMusic, setMusicIntensity } from '../systems/FX.js';
 import { ROOMS } from '../data/rooms.js';
 import { NARRATIVE } from '../data/narrative.js';
 import { NavGrid } from '../systems/NavGrid.js';
@@ -402,6 +402,7 @@ export class GameScene extends Phaser.Scene {
     this._waveSpawned = 0;
     this._waveDripMs  = 0;
     this.events.emit('wave-update', idx + 1, waves.length);
+    setMusicIntensity(1); // combat is live again (also covers the breather->next-wave swell)
 
     if (wave.miniBoss) {
       this.events.emit('show-banner', 'MINI-BOSS', '#ff8020');
@@ -834,6 +835,7 @@ export class GameScene extends Phaser.Scene {
     this._lastKillTime = now;
     if (this._comboCount >= 2) {
       this.events.emit('show-combo', this._comboCount);
+      SFX.comboChime(this._comboCount);
     }
   }
 
@@ -2356,6 +2358,7 @@ export class GameScene extends Phaser.Scene {
         } else {
           this._wavePhase = 'breather';
           this._breatherMs = 2500;
+          setMusicIntensity(0.3); // calm but not dead — the wave clear just landed
         }
       }
     } else if (this._wavePhase === 'breather') {
@@ -2538,6 +2541,7 @@ export class GameScene extends Phaser.Scene {
       this.events.emit('show-banner', 'VADER APPROACHES!', '#ff2020');
       SFX.bossRoar();
       this.cameras.main.flash(400, 255, 0, 0, true);
+      setMusicIntensity(1); // full tension into the boss fight
       
       // Spawn Vader
       this.time.delayedCall(800, () => {
@@ -2552,6 +2556,7 @@ export class GameScene extends Phaser.Scene {
       // _openDoor() itself on pick) — _roomDoorOpened still latches now so
       // _maybeCompleteRoom's terminal-completion path can't race it open.
       this._roomDoorOpened = true;
+      setMusicIntensity(0); // room's done — calm through the upgrade picker
 
       this.cameras.main.flash(220, 64, 255, 128, true);
       this.fx.shake(0.004, 120);

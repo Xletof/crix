@@ -404,7 +404,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     this.scene.fx?.dustPuff?.(this.x, this.y + 14);
-    SFX.takedown(); // quick whoosh sound
+    SFX.dash();
     this.scene.events.emit('player-dash', this.dashCharges);
     this.scene.events.emit('player-dash-sound', this.x, this.y);
   }
