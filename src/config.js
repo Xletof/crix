@@ -231,25 +231,60 @@ export const COLORS = {
   textShadow:    0x000000,
 };
 
-// Survival Arena Mode settings.
-//   time       s   — round length
-//   spawnRate  ms  — drip-spawn interval at round start
-//   rampTo     ms  — drip interval at round end (pressure ramps linearly)
-//   maxAlive       — drip pauses at this many living enemies (surges may
-//                    briefly exceed it by a few)
-//   surgeEvery s   — a surge (burst of surgeCount spawns) fires on this cadence
-//   shooterMix 0-1 — chance a spawn is a shooter
-//   bomberMix  0-1 — chance a spawn is a bomber (introduced from room 2)
-//   shieldedMix 0-1— chance a spawn is a shielded trooper (from room 3)
-//   sniperMix  0-1 — chance a spawn is a sniper (long-range zoner)
-//   swarmlingMix 0-1 — chance a spawn is a swarmling PACK (4-6 fodder)
+// Wave-clear Arena Mode settings. Each room runs a sequence of `waves`; a wave
+// spawns its budget of enemies, then the player must clear them all to advance
+// (brief breather + reward between waves). Room-level fields are per-wave
+// DEFAULTS; each wave object overrides any of them (merged at wave start).
+//
+// Room-level (defaults for every wave):
+//   maxAlive       — concurrent living cap; the drip pauses at this count
+//   surgeCount     — burst size for a terminal-hack surge (risk/reward)
+//   shooterMix / bomberMix / shieldedMix / sniperMix / swarmlingMix 0-1
+//                  — cumulative spawn-type probabilities (remainder = grunt)
 //   eliteChance 0-1— chance a non-fodder spawn is upgraded to an elite
-//   (remaining probability after the mixes = grunt rushers)
+// Per-wave (in `waves[]`):
+//   count          — number of spawn EVENTS this wave (a swarmling event = one
+//                    pack); clearing requires every spawned enemy dead
+//   maxAlive/spawnRate/*Mix/eliteChance — optional overrides for escalation
+//   reward: 'weapon' — drop a weapon on clear (else default heal + shield)
+//   miniBoss: true   — spawn a super-elite at wave start (the room capstone)
 export const ARENA = {
-  hangar:    { time: 60, spawnRate: 2600, rampTo: 1400, maxAlive: 10, surgeEvery: 20, surgeCount: 4, shooterMix: 0.25, swarmlingMix: 0.15 },
-  corridor:  { time: 60, spawnRate: 2300, rampTo: 1200, maxAlive: 12, surgeEvery: 20, surgeCount: 5, shooterMix: 0.28, bomberMix: 0.15, sniperMix: 0.12, swarmlingMix: 0.12, eliteChance: 0.05 },
-  detention: { time: 75, spawnRate: 2000, rampTo: 1000, maxAlive: 14, surgeEvery: 18, surgeCount: 6, shooterMix: 0.25, bomberMix: 0.15, shieldedMix: 0.15, sniperMix: 0.12, swarmlingMix: 0.10, eliteChance: 0.08 },
-  vader:     { time: 60, spawnRate: 1800, rampTo: 1000, maxAlive: 14, surgeEvery: 15, surgeCount: 6, shooterMix: 0.24, bomberMix: 0.15, shieldedMix: 0.12, sniperMix: 0.12, swarmlingMix: 0.10, eliteChance: 0.10 },
+  hangar: {
+    maxAlive: 12, surgeCount: 4,
+    shooterMix: 0.25, swarmlingMix: 0.15,
+    waves: [
+      { count: 6,  maxAlive: 8,  spawnRate: 1000 },
+      { count: 10, maxAlive: 10, spawnRate: 850 },
+      { count: 14, maxAlive: 12, spawnRate: 750, reward: 'weapon' },
+    ],
+  },
+  corridor: {
+    maxAlive: 14, surgeCount: 5,
+    shooterMix: 0.28, bomberMix: 0.15, sniperMix: 0.12, swarmlingMix: 0.12, eliteChance: 0.05,
+    waves: [
+      { count: 8,  maxAlive: 10, spawnRate: 900 },
+      { count: 12, maxAlive: 12, spawnRate: 800, eliteChance: 0.10 },
+      { count: 16, maxAlive: 14, spawnRate: 700, eliteChance: 0.12, reward: 'weapon' },
+    ],
+  },
+  detention: {
+    maxAlive: 14, surgeCount: 6,
+    shooterMix: 0.25, bomberMix: 0.15, shieldedMix: 0.15, sniperMix: 0.12, swarmlingMix: 0.10, eliteChance: 0.08,
+    waves: [
+      { count: 8,  maxAlive: 10, spawnRate: 850 },
+      { count: 12, maxAlive: 12, spawnRate: 750, eliteChance: 0.12 },
+      { count: 14, maxAlive: 14, spawnRate: 700, eliteChance: 0.15 },
+      { count: 8,  maxAlive: 12, spawnRate: 800, miniBoss: true, reward: 'weapon' },
+    ],
+  },
+  vader: {
+    maxAlive: 14, surgeCount: 6,
+    shooterMix: 0.24, bomberMix: 0.15, shieldedMix: 0.12, sniperMix: 0.12, swarmlingMix: 0.10, eliteChance: 0.10,
+    waves: [
+      { count: 10, maxAlive: 12, spawnRate: 800, eliteChance: 0.12 },
+      { count: 14, maxAlive: 14, spawnRate: 700, eliteChance: 0.15 },
+    ],
+  },
 };
 
 // Ally settings (turrets and soldiers)

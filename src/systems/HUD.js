@@ -371,9 +371,9 @@ export class HUDScene extends Phaser.Scene {
     ge.on('secondary-ammo-changed', ()             => this.refreshSecondary());
     ge.on('takedown-available',     (avail)        => this.setTakedownVisible(avail));
     ge.on('objective-update',       (done, total)  => this.refreshObjective(done, total));
-    ge.on('timer-update',           (secs)         => this.refreshTimer(secs));
+    ge.on('wave-update',            (n, total)     => this.refreshWave(n, total));
     ge.on('kills-update',           (n)            => this.refreshKills(n));
-    ge.on('surge-in',               (secs)         => this.refreshSurge(secs));
+    ge.on('wave-remaining',         (k)            => this.refreshWaveRemaining(k));
     ge.on('hack-prompt',            (avail)        => this.setHackVisible(avail));
     ge.on('show-combo',             (n)            => this.showCombo(n));
     ge.on('hack-start',             (terminal)     => {
@@ -402,9 +402,9 @@ export class HUDScene extends Phaser.Scene {
       ge.off('secondary-ammo-changed');
       ge.off('takedown-available');
       ge.off('objective-update');
-      ge.off('timer-update');
+      ge.off('wave-update');
       ge.off('kills-update');
-      ge.off('surge-in');
+      ge.off('wave-remaining');
       ge.off('hack-prompt');
       ge.off('hack-start');
       ge.off('hack-cancel');
@@ -774,13 +774,14 @@ export class HUDScene extends Phaser.Scene {
     this.tweens.add({ targets: this.killText, scale: 1, duration: 130, ease: 'Back.easeOut' });
   }
 
-  refreshSurge(secs) {
-    if (secs === undefined || secs === null || !this.timerText.text) {
+  // Secondary readout under the timer: enemies remaining in the current wave.
+  refreshWaveRemaining(k) {
+    if (k === undefined || k === null || k <= 0 || !this.timerText.text) {
       this.surgeText.setText('');
       return;
     }
-    this.surgeText.setText(`SURGE ${secs}s`);
-    if (secs <= 3) {
+    this.surgeText.setText(`LEFT ${k}`);
+    if (k <= 3) {
       this.surgeText.setColor('#ff2020');
       this.surgeText.setScale(1.0 + 0.10 * Math.sin(this.time.now * 0.015));
     } else {
@@ -789,24 +790,18 @@ export class HUDScene extends Phaser.Scene {
     }
   }
 
-  refreshTimer(seconds) {
-    if (seconds === undefined || seconds === null || seconds < 0) {
+  // Primary readout: current wave number. null clears it (round over).
+  refreshWave(n, total) {
+    if (n === undefined || n === null) {
       this.timerText.setText('');
       this.surgeText?.setText('');
       return;
     }
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    const timeStr = `${mins}:${secs.toString().padStart(2, '0')}`;
-    this.timerText.setText(`SURVIVE: ${timeStr}`);
-    if (seconds <= 10) {
-      this.timerText.setColor('#ff4040');
-      const pulse = 1.0 + 0.08 * Math.sin(this.time.now * 0.012);
-      this.timerText.setScale(pulse);
-    } else {
-      this.timerText.setColor('#ffaa30');
-      this.timerText.setScale(1.0);
-    }
+    this.timerText.setText(`WAVE ${n}/${total}`);
+    this.timerText.setColor('#40c0ff');
+    this.tweens.killTweensOf(this.timerText);
+    this.timerText.setScale(1.25);
+    this.tweens.add({ targets: this.timerText, scale: 1, duration: 180, ease: 'Back.easeOut' });
   }
 
   refreshHackBar(ratio) {

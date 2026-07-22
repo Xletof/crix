@@ -302,12 +302,12 @@ export class GameScene extends Phaser.Scene {
     this.events.emit('room-start', idx + 1, ROOMS.length, spec);
     this._roomLoud = false;
 
-    // Arena wave survival announcement
+    // Arena wave survival announcement (non-boss). _startWave(0) fires the
+    // "WAVE 1" banner itself, so we just kick it off + the terminal hint.
     if (!spec.boss) {
       const arenaCfg = ARENA[spec.id];
       if (arenaCfg) {
         this._startArena(arenaCfg);
-        this.time.delayedCall(650, () => this.events.emit('show-banner', `SURVIVE FOR ${arenaCfg.time}s`, '#ff4040'));
         if (this._terminalsTotal > 0) {
           this.time.delayedCall(1750, () => this.events.emit('show-banner', 'SLICE TERMINALS FOR SUPPORT', '#ffd040'));
         }
@@ -315,15 +315,43 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // Initialize a survival round from an ARENA config entry: countdown timer,
-  // continuous drip spawner (first drip ~2s in), and the surge cadence.
+  // Initialize a wave-clear round from an ARENA config entry. The room-level
+  // cfg is kept as the per-wave default set (_roomArenaCfg); _startWave then
+  // merges each wave's overrides over it into this.arenaCfg (the object the
+  // drip/roll/spawn code already reads). Waves drive the round now — the old
+  // survival clock is gone.
   _startArena(cfg) {
-    this.arenaCfg         = cfg;
-    this.survivalTimeLeft = cfg.time;
+    this._roomArenaCfg    = cfg;
     this.arenaActive      = true;
-    this._dripMs          = Math.max(0, cfg.spawnRate - 2000); // first drip at ~2s
-    this._surgeMs         = cfg.surgeEvery * 1000;
-    this.events.emit('timer-update', this.survivalTimeLeft);
+    this.survivalTimeLeft = 0;   // legacy field kept 0 so old guards fall through
+    this._waveIdx         = -1;  // _startWave(0) advances to 0
+    this._lastLiving      = -1;
+    this._startWave(0);
+  }
+
+  // Begin wave `idx`: merge its overrides over the room defaults, reset the
+  // spawn budget, announce it, and (if a mini-boss wave) spawn the capstone.
+  _startWave(idx) {
+    const waves = this._roomArenaCfg?.waves;
+    if (!waves || idx >= waves.length) return;
+    const wave = waves[idx];
+    this._waveIdx    = idx;
+    this._wave       = wave;
+    this.arenaCfg    = { ...this._roomArenaCfg, ...wave }; // drip/roll/elite read this
+    this._wavePhase  = 'spawning';
+    this._waveSpawned = 0;
+    this._waveDripMs  = 0;
+    this.events.emit('wave-update', idx + 1, waves.length);
+
+    if (wave.miniBoss) {
+      this.events.emit('show-banner', 'MINI-BOSS', '#ff8020');
+      SFX.bossRoar?.();
+      this.cameras.main.flash(300, 255, 90, 20, false);
+      this.fx.shake(0.02, 300);
+      this._spawnMiniBoss();
+    } else {
+      this.events.emit('show-banner', `WAVE ${idx + 1}`, '#40c0ff');
+    }
   }
 
   // Full teardown of an enemy plus every attached scene object. Bulk-destroy
@@ -949,7 +977,7 @@ export class GameScene extends Phaser.Scene {
 
   // ── Room-loud klaxon ─────────────────────────────────────────────────────
   // (The legacy per-room reinforcement spawner was replaced by the arena
-  //  drip/surge spawner in _tickArenaSurvival.)
+  //  wave-clear spawner in _tickArena.)
 
   _onFirstAlarm() {
     if (!this._roomLoud) {
@@ -981,18 +1009,20 @@ export class GameScene extends Phaser.Scene {
     return enemy;
   }
 
-  // Upgrade a spawned enemy to an "elite": bigger, much tankier, gold-tinted,
-  // and it always drops a health orb (handled in the enemy-died listener).
-  _makeElite(enemy) {
+  // Upgrade a spawned enemy to an "elite": bigger, much tankier, tinted, and it
+  // always drops a health orb (handled in the enemy-died listener). Defaults
+  // reproduce the standard gold elite; the mini-boss passes heavier opts.
+  _makeElite(enemy, opts = {}) {
+    const { hpMult = 2.5, scale = 1.4, tint = 0xffd040, speedMult = 0.9 } = opts;
     enemy._elite = true;
-    enemy.hp = Math.round(enemy.hp * 2.5);
+    enemy.hp = Math.round(enemy.hp * hpMult);
     enemy.hpMax = enemy.hp;
-    enemy._baseScale = 1.4;
-    enemy.setScale(1.4);
-    enemy.setTint(0xffd040); // gold
-    // Grow the physics body + slow it slightly to match the heftier look.
-    const r = Math.round(enemy.cfg.radius * 1.35);
-    enemy.cfg = { ...enemy.cfg, radius: r, speed: enemy.cfg.speed * 0.9 };
+    enemy._baseScale = scale;
+    enemy.setScale(scale);
+    enemy.setTint(tint);
+    // Grow the physics body proportionally + slow it to match the heftier look.
+    const r = Math.round(enemy.cfg.radius * (0.6 + scale * 0.55));
+    enemy.cfg = { ...enemy.cfg, radius: r, speed: enemy.cfg.speed * speedMult };
     enemy.body.setCircle(r, enemy.width / 2 - r, enemy.height / 2 - r);
   }
 
@@ -1193,9 +1223,10 @@ export class GameScene extends Phaser.Scene {
     });
     this.events.on('grunt-melee', (g) => this.fx.burst(g.x, g.y, 'red', 6));
 
-    // Room cleared logic: in wave survival mode, exits open only on timer reaching 0.
+    // Room cleared logic: in wave mode, exits open only once all waves are done
+    // (arenaActive flips false in _onArenaCompleted).
     this.events.on('room-cleared', (spec) => {
-      if (this.arenaActive || this.survivalTimeLeft > 0) return;
+      if (this.arenaActive) return;
       if (spec.boss) return;
       this._enemiesCleared = true;
       this.time.delayedCall(400, () => this._maybeCompleteRoom());
@@ -1485,7 +1516,7 @@ export class GameScene extends Phaser.Scene {
     this._drawAIDebug();
 
     // Timed wave survival tick
-    this._tickArenaSurvival(delta);
+    this._tickArena(delta);
 
     // Health orbs
     this.updateHealthOrbs(delta);
@@ -2197,46 +2228,99 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  // ── Arena wave survival logic ──────────────────────────────────────────────
+  // ── Arena wave-clear logic ─────────────────────────────────────────────────
+  // A room is a sequence of waves. Each wave drips its `count` spawn events
+  // (capped at maxAlive), then the player must clear every enemy to advance;
+  // a WAVE CLEAR reward + brief breather sits between waves.
 
-  _tickArenaSurvival(delta) {
+  _tickArena(delta) {
     if (!this.arenaActive || !this.player?.alive) return;
+    const cfg = this.arenaCfg;
+    const wave = this._wave;
+    if (!cfg || !wave) return;
 
-    // Seconds timer
-    this._survivalSecTimer = (this._survivalSecTimer || 0) + delta;
-    if (this._survivalSecTimer >= 1000) {
-      this._survivalSecTimer -= 1000;
-      if (this.survivalTimeLeft > 0) {
-        this.survivalTimeLeft--;
-        this.events.emit('timer-update', this.survivalTimeLeft);
-        this.events.emit('surge-in', Math.max(0, Math.ceil((this._surgeMs ?? 0) / 1000)));
+    // Live "N left" feedback whenever the count changes.
+    const living = this._livingEnemyCount();
+    if (living !== this._lastLiving) {
+      this._lastLiving = living;
+      this.events.emit('wave-remaining', this._wavePhase === 'breather' ? 0 : living);
+    }
 
-        if (this.survivalTimeLeft <= 0) {
+    if (this._wavePhase === 'spawning') {
+      // Drip this wave's budget, capped at the concurrent maxAlive.
+      this._waveDripMs += delta;
+      if (this._waveSpawned < wave.count &&
+          this._waveDripMs >= cfg.spawnRate &&
+          living < cfg.maxAlive) {
+        this._waveDripMs = 0;
+        this.spawnAtGate(this._rollEnemyType());
+        this._waveSpawned++;
+      }
+      if (this._waveSpawned >= wave.count) this._wavePhase = 'clearing';
+    } else if (this._wavePhase === 'clearing') {
+      // Budget spent — wait for the arena to be swept clean.
+      if (living === 0) {
+        this._onWaveCleared(wave);
+        const waves = this._roomArenaCfg.waves;
+        if (this._waveIdx >= waves.length - 1) {
           this._onArenaCompleted();
-          return;
+        } else {
+          this._wavePhase = 'breather';
+          this._breatherMs = 2500;
         }
       }
+    } else if (this._wavePhase === 'breather') {
+      this._breatherMs -= delta;
+      if (this._breatherMs <= 0) this._startWave(this._waveIdx + 1);
     }
+  }
 
-    const cfg = this.arenaCfg;
-    if (!cfg || this.survivalTimeLeft <= 0) return;
+  // WAVE CLEAR: celebratory punctuation + a reward drop near the player.
+  _onWaveCleared(wave) {
+    this.events.emit('show-banner', 'WAVE CLEAR!', '#20ff60');
+    this.cameras.main.flash(200, 64, 255, 128, true);
+    this.fx.shake(0.005, 150);
+    SFX.superReady?.();
+    this._spawnWaveReward(wave);
+  }
 
-    // Continuous drip: interval ramps spawnRate → rampTo across the round,
-    // paused while the living-enemy count is at maxAlive.
-    const progress = 1 - this.survivalTimeLeft / cfg.time; // 0 → 1 over round
-    const interval = cfg.spawnRate + (cfg.rampTo - cfg.spawnRate) * progress;
-    this._dripMs = (this._dripMs ?? 0) + delta;
-    if (this._dripMs >= interval && this._livingEnemyCount() < cfg.maxAlive) {
-      this._dripMs = 0;
-      this.spawnAtGate(this._rollEnemyType());
+  // Reward template extracted from spawnTerminalSupportDrop: milestone/mini-boss
+  // waves grant a weapon; ordinary waves grant sustain (bacta + shield).
+  _spawnWaveReward(wave) {
+    const rx = this.player.x, ry = this.player.y - 40;
+    if (wave.reward === 'weapon') {
+      const weapons = ['rifle', 'flamethrower', 'detonator'];
+      const choice = weapons[Phaser.Math.Between(0, weapons.length - 1)];
+      const wp = new WeaponPickup(this, rx, ry, choice);
+      this.weaponPickups.push(wp);
+      this.fx.pickupSparkle(rx, ry, 14);
+      this.events.emit('show-banner', `REWARD: ${choice.toUpperCase()}`, '#ffd040');
+    } else {
+      this.spawnHealthOrb(rx, ry);
+      this.player.addShield(300);
+      this.fx.pickupSparkle(rx, ry, 10);
     }
+  }
 
-    // Surge cadence: a telegraphed burst on top of the drip.
-    this._surgeMs = (this._surgeMs ?? cfg.surgeEvery * 1000) - delta;
-    if (this._surgeMs <= 0) {
-      this._surgeMs = cfg.surgeEvery * 1000;
-      this.triggerSurge();
+  // Mini-boss: a super-elite spawned at wave start. Counts toward the clear.
+  _spawnMiniBoss() {
+    const spec = this.roomSpec;
+    const gates = spec?.gates;
+    let gx = spec?.bounds ? spec.bounds.w / 2 : this.player.x;
+    let gy = spec?.bounds ? spec.bounds.h / 2 : this.player.y;
+    if (gates?.length) {
+      // Farthest gate from the player so it makes an entrance.
+      const g = gates.reduce((a, b) =>
+        Math.hypot(a.x - this.player.x, a.y - this.player.y) >=
+        Math.hypot(b.x - this.player.x, b.y - this.player.y) ? a : b);
+      gx = g.x; gy = g.y;
     }
+    const type = Math.random() < 0.5 ? 'shielded' : 'shooter';
+    const e = this.spawnEnemyAt(type, gx, gy, {});
+    this._makeElite(e, { hpMult: 6, scale: 1.8, tint: 0xff4020, speedMult: 0.8 });
+    e._miniBoss = true;
+    this.fx.burst(gx, gy, 'red', 24);
+    return e;
   }
 
   _livingEnemyCount() {
@@ -2257,19 +2341,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Surge: a burst of spawns staggered over ~1.5s with a warning banner.
-  // Fired on the surgeEvery cadence AND when a terminal is hacked.
+  // Fired when a terminal is hacked (risk/reward) — extra enemies you must
+  // also clear before the wave ends. Never fires during a breather.
   triggerSurge() {
     const cfg = this.arenaCfg;
-    if (!cfg || !this.arenaActive || this.survivalTimeLeft <= 0) return;
+    if (!cfg || !this.arenaActive || this._wavePhase === 'breather') return;
 
     this.events.emit('show-banner', 'SURGE INCOMING', '#ff4040');
     SFX.enemyShoot();
     this.cameras.main.flash(150, 255, 60, 60, false);
 
-    const step = 1500 / cfg.surgeCount;
-    for (let i = 0; i < cfg.surgeCount; i++) {
+    const count = cfg.surgeCount ?? 4;
+    const step = 1500 / count;
+    for (let i = 0; i < count; i++) {
       this.time.delayedCall(i * step, () => {
-        if (!this.arenaActive || this.survivalTimeLeft <= 0) return;
+        if (!this.arenaActive) return;
         // Surges may briefly exceed the drip cap, but never runaway.
         if (this._livingEnemyCount() >= cfg.maxAlive + 4) return;
         this.spawnAtGate(this._rollEnemyType());
@@ -2309,7 +2395,7 @@ export class GameScene extends Phaser.Scene {
       duration: 600, ease: 'Cubic.easeOut',
       onComplete: () => {
         tg.destroy();
-        if (!this.arenaActive || this.survivalTimeLeft <= 0) return;
+        if (!this.arenaActive) return;
         if (type === 'swarmling') {
           this._spawnSwarmlingPack(gx, gy);
         } else {
@@ -2344,8 +2430,9 @@ export class GameScene extends Phaser.Scene {
 
   _onArenaCompleted() {
     this.arenaActive = false;
-    this.events.emit('timer-update', null);
-    
+    this.events.emit('wave-update', null, null); // clear the wave HUD
+    this.events.emit('wave-remaining', 0);
+
     const spec = this.roomSpec;
     if (spec.boss) {
       // Dual climax: survive the swarm first, then Vader. Up to 4 swarm
