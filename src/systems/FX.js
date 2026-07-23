@@ -16,6 +16,10 @@ let musicStarted = false;
 let intensityGain = null;
 let muted = false;
 const MASTER_VOL = 0.5;
+// Global camera-shake multiplier — every shake routes through fx.shake(), so
+// this one knob dials the whole game's shake up/down. Trimmed to calm the
+// "too much shake" feel while leaning harder on particles/flash for juice.
+const SHAKE_SCALE = 0.6;
 
 // Global mute toggle (driven by the pause menu). The `muted` flag lives at
 // module scope so it survives scene restarts; initAudio honours it on create.
@@ -687,7 +691,7 @@ export function attachFX(scene) {
     },
 
     shake(intensity = 0.005, duration = 80) {
-      scene.cameras.main.shake(duration, intensity);
+      scene.cameras.main.shake(duration, intensity * SHAKE_SCALE);
     },
 
     hitFlash(sprite) {

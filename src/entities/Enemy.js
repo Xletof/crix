@@ -139,6 +139,18 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   damage(amount, knockbackVec = null) {
     if (!this.alive) return;
+    // Mini-boss per-volley cap: a piercing super lands all ~5 pellets in one
+    // frame (~3000 dmg), which one-shot the capstone. Cap intake per 120ms
+    // window (like the Vader boss) so mini-bosses take several supers to fell.
+    if (this._miniBoss) {
+      const CAP = 1400, WIN = 120;
+      const now = this.scene.time.now;
+      if (now - (this._dmgWindowStart || 0) > WIN) { this._dmgWindowStart = now; this._dmgWindow = 0; }
+      const headroom = Math.max(0, CAP - (this._dmgWindow || 0));
+      amount = Math.min(amount, headroom);
+      if (amount <= 0) return; // fully absorbed this window
+      this._dmgWindow = (this._dmgWindow || 0) + amount;
+    }
     const wasPatrolling = this.state === ST.PATROL || this.state === ST.SUSPICIOUS;
     this.hp = Math.max(0, this.hp - amount);
     if (knockbackVec) {

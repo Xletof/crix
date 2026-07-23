@@ -1328,7 +1328,9 @@ export class GameScene extends Phaser.Scene {
       // so a capstone kill reads bigger than fodder.
       if (enemy._elite || enemy._miniBoss) this.fx.explosion(enemy.x, enemy.y, 1.0 + 0.4 * threatScale);
       // Shake + camera punch scale with both threat and the current combo.
-      this.fx.shake(0.009 * threatScale * comboMult, Math.round(110 * Math.min(threatScale, 1.3)));
+      // Base trimmed (0.009 -> 0.005) so ordinary grunt kills barely nudge the
+      // camera; big/elite kills and long combos still ramp up.
+      this.fx.shake(0.005 * threatScale * comboMult, Math.round(110 * Math.min(threatScale, 1.3)));
       this._cameraPunch(1.04 + 0.015 * (threatScale - 1) + 0.01 * (comboMult - 1), 220);
 
       // Same-frame multi-kill tracking (distinct from the 2s combo streak —
@@ -1483,10 +1485,8 @@ export class GameScene extends Phaser.Scene {
       this.player.body.velocity.x -= Math.cos(angle) * 75;
       this.player.body.velocity.y -= Math.sin(angle) * 75;
     }
-
-    // Tiny shake on every shot — gives the pistol some weight without
-    // overwhelming the bigger super/explosion shakes.
-    this.fx.shake(0.0035, 55);
+    // No per-bolt camera shake — firing every frame made the whole screen
+    // jitter constantly. The muzzle flash + casing + recoil carry the weight.
   }
 
   firePlayerSuper(angle) {
@@ -1881,7 +1881,10 @@ export class GameScene extends Phaser.Scene {
           // Heavier directional spark — boss armor deflects more
           const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
           this.fx.burstDir(b.x, b.y, 'yellow', isSuper ? 18 : 10, flightAng, 100);
-          if (b.owner === 'player') this.player.addSuperHit();
+          // Super pellets don't recharge the meter off the boss — otherwise one
+          // volley refills the next and supers chain-kill the boss. Primary hits
+          // still build charge, so you earn each super by chipping the boss.
+          if (b.owner === 'player' && !isSuper) this.player.addSuperHit();
           if (!b.piercing) { if (isSuper) this.fx.explosion(b.x, b.y, 2.6); b.kill(); }
         }
       }
@@ -1911,7 +1914,10 @@ export class GameScene extends Phaser.Scene {
           // Directional impact spray — sparks fly forward along the bullet
           // path with a wide cone, like a deflection ricochet.
           this.fx.burstDir(b.x, b.y, 'red', isSuper ? 14 : 7, flightAng, 80);
-          if (b.owner === 'player') this.player.addSuperHit();
+          // Super pellets recharge off normal enemies (keeps horde supers
+          // chaining — the fun part) but NOT off mini-bosses, so a mini-boss
+          // can't be spam-supered the way a swarm can.
+          if (b.owner === 'player' && !(isSuper && e._miniBoss)) this.player.addSuperHit();
           if (!b.piercing) { if (isSuper) this.fx.explosion(b.x, b.y, 1.4); b.kill(); break; }
         }
       }
