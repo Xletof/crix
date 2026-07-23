@@ -1229,30 +1229,43 @@ export class GameScene extends Phaser.Scene {
     this.events.on('player-dash-sound', (x, y) => {
       this.propagateSound(x, y, 160);
     });
-    // Dash afterimage — a bright, dense, additive cyan trail plus a leading
-    // motion-streak along the dash line. Doubles as the dash's i-frame tell.
-    // Much stronger than the old flat single ghost (which barely read).
+    // Dash afterimage — a bright screen flash, a hand-drawn speed-streak
+    // (a tiny texture scaled up reads as nothing, so this is drawn with
+    // Graphics for a guaranteed-visible size), plus a trail of SOLID cyan
+    // silhouette ghosts. setTintFill (not setTint) is critical here: setTint
+    // multiplies onto the sprite's existing dark colors and barely shows;
+    // setTintFill replaces the pixel colour outright for a real "was here"
+    // afterimage. Doubles as the dash's i-frame tell.
     this.events.on('player-dash', () => {
       const p = this.player;
       const ang = p?.dashAngle ?? p?.facing ?? 0;
       const low = isLowQuality();
-      this._cameraPunch(1.03, 130);
-      // Leading whoosh — a stretched jet-flame smear pointing along the dash,
-      // reusing the (otherwise-unused) jet-flame particle texture.
-      if (!low) {
-        const streak = this.add.image(p.x, p.y, 'jet-flame')
-          .setRotation(ang)
-          .setScale(3.4, 1.7)
-          .setTint(0x60f0ff)
-          .setAlpha(0.7)
-          .setDepth(p.depth - 1)
-          .setBlendMode(Phaser.BlendModes.ADD);
-        this.tweens.add({
-          targets: streak, alpha: 0, scaleX: 5.4,
-          duration: 220, ease: 'Cubic.easeOut',
-          onComplete: () => streak.destroy(),
-        });
-      }
+      this.cameras.main.flash(150, 130, 225, 255, true);
+      this._cameraPunch(1.06, 160);
+
+      // Big tapered speed-streak, drawn behind the player along the dash line.
+      const streakLen = 150, streakW = 34;
+      const g = this.add.graphics().setDepth(p.depth - 1).setBlendMode(Phaser.BlendModes.ADD);
+      const cos = Math.cos(ang), sin = Math.sin(ang);
+      const perpX = -sin, perpY = cos;
+      const tailX = p.x - cos * streakLen, tailY = p.y - sin * streakLen;
+      const drawTaper = (alpha, w) => {
+        g.fillStyle(0x80f0ff, alpha);
+        g.beginPath();
+        g.moveTo(p.x + perpX * w, p.y + perpY * w);
+        g.lineTo(p.x - perpX * w, p.y - perpY * w);
+        g.lineTo(tailX, tailY);
+        g.closePath();
+        g.fillPath();
+      };
+      drawTaper(0.55, streakW);
+      drawTaper(0.8, streakW * 0.5);
+      this.tweens.add({
+        targets: g, alpha: 0,
+        duration: 280, ease: 'Cubic.easeOut',
+        onComplete: () => g.destroy(),
+      });
+
       const stampGhost = () => {
         const pl = this.player;
         if (!pl?.active || !pl.isDashing) return;
@@ -1261,19 +1274,18 @@ export class GameScene extends Phaser.Scene {
           .setScale(pl.scaleX, pl.scaleY)
           .setFlipX(pl.flipX)
           .setDepth(pl.depth - 1)
-          .setTint(0x50e8ff)
-          .setAlpha(low ? 0.45 : 0.65)
-          .setBlendMode(Phaser.BlendModes.ADD);
+          .setTintFill(0x60ecff)
+          .setAlpha(low ? 0.55 : 0.85);
         this.tweens.add({
-          targets: ghost, alpha: 0, scale: ghost.scaleX * 1.25,
-          duration: 300, ease: 'Cubic.easeOut',
+          targets: ghost, alpha: 0, scale: ghost.scaleX * 1.2,
+          duration: 320, ease: 'Cubic.easeOut',
           onComplete: () => ghost.destroy(),
         });
       };
       stampGhost();
-      // Denser stamps than before (~24ms vs 40ms) for a smooth continuous trail;
-      // kept on in low-quality (lighter) instead of disabled entirely.
-      this.time.addEvent({ delay: low ? 40 : 24, repeat: low ? 6 : 15, callback: stampGhost });
+      // Dense stamps for a smooth continuous trail; kept on in low-quality
+      // (fewer, lighter) instead of disabled entirely.
+      this.time.addEvent({ delay: low ? 35 : 20, repeat: low ? 6 : 16, callback: stampGhost });
     });
     this.events.on('player-shot-missed', () => {
       this.player?.onShotMissed();

@@ -48,6 +48,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.aiming      = false;
     this.superAim    = -Math.PI / 2;
     this.superAiming = false;
+    // Firing forces a facing snap toward the shot; this holds it against
+    // continuous movement input (which otherwise overwrites `facing` every
+    // frame you're still holding a direction) so the turn is actually visible
+    // instead of being stomped on the very next tick.
+    this._facingLockMs = 0;
 
     // ── Secondary weapon slot ──────────────────────────────────────────────
     // null means pistol only. Set by equipSecondary(weaponId).
@@ -124,7 +129,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       const speed = PLAYER.speed * this.moveMult;
       this._moveTargetX = vec.x * speed * vec.force;
       this._moveTargetY = vec.y * speed * vec.force;
-      this.facing = Math.atan2(vec.y, vec.x);
+      // Don't let movement steal facing back while a fire-snap is holding —
+      // otherwise firing while walking snaps for one frame then immediately
+      // reverts to the move direction.
+      if (this._facingLockMs <= 0) this.facing = Math.atan2(vec.y, vec.x);
       // Body NEVER rotates — only the weapon overlay does (handled in preUpdate).
       // When not aiming, the weapon follows the movement direction.
     } else {
@@ -156,6 +164,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         dir = Math.atan2(target.y - this.y, target.x - this.x);
         this.facing = dir;
         this.aim = dir;
+        this._facingLockMs = 260;
       } else {
         dir = this.aim;
       }
@@ -235,9 +244,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Unify visual + shot direction: whatever we fire along, the body/weapon
     // face it too. Without this, an auto-aim shot flies at the target while the
     // gun still points along the move stick — bolts appear to leave the player's
-    // back and the character never turns to the enemy.
+    // back and the character never turns to the enemy. The facing lock makes
+    // this snap hold even while a movement key is still held (mandatory turn
+    // on fire, not just a same-frame flicker that movement immediately undoes).
     this.facing = dir;
     this.aim    = dir;
+    this._facingLockMs = 260;
 
     this.revealTimer = 1500; // Reveal player when shooting
 
@@ -322,6 +334,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.facing   = dir;
     this.superAim = dir;
     this.aim      = dir;
+    this._facingLockMs = 260;
     this.recoilT        = 260;
     this._wKickT        = 180;   // bigger kick for the super
     this._fireAnimTimer = 240;
@@ -505,6 +518,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   preUpdate(time, delta) {
     super.preUpdate?.(time, delta);
+
+    if (this._facingLockMs > 0) this._facingLockMs -= delta;
 
     // Keyboard super hold: the aim cone tracks the nearest enemy (the auto-aim
     // target) so it previews exactly where the shot will go on release.
@@ -751,7 +766,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       angAnim = this.superAim;
     } else if (this.aiming) {
       angAnim = this.aim;
-    } else if (isMoving && this.body && (Math.abs(this.body.velocity.x) > 10 || Math.abs(this.body.velocity.y) > 10)) {
+    } else if (this._facingLockMs <= 0 && isMoving && this.body && (Math.abs(this.body.velocity.x) > 10 || Math.abs(this.body.velocity.y) > 10)) {
+      // Second place facing gets derived from movement — same conflict as
+      // setMoveInput (see there): gated on the fire-snap lock too, or a shot
+      // fired while walking gets its facing overwritten back to the walk
+      // direction on this very same frame's animation pass.
       angAnim = Math.atan2(this.body.velocity.y, this.body.velocity.x);
       this.facing = angAnim; // update facing to walk direction
     }
