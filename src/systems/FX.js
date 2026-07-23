@@ -8,8 +8,9 @@ let masterGain = null;
 let compressor = null;
 let musicGain = null;
 let sfxGain = null;
-let musicVol = 0.18;
+let musicVol = 0.40;   // was 0.18 — music sat ~20dB under SFX and was inaudible
 let sfxVol = 0.60;
+let sfxDelay = null;   // shared feedback-delay send for SFX "tails" (combo chime)
 let lowQuality = false;
 let musicNodes = null;
 let musicStarted = false;
@@ -57,6 +58,17 @@ export function initAudio() {
     sfxGain = audioCtx.createGain();
     sfxGain.gain.value = sfxVol;
     sfxGain.connect(masterGain);
+
+    // Feedback-delay send: SFX can opt in (tone({echo})) to get a short
+    // repeating tail — used by the combo chime so a kill-streak note rings out
+    // instead of blipping dry. Wet path only; dry still goes straight to sfxGain.
+    sfxDelay = audioCtx.createDelay(0.6);
+    sfxDelay.delayTime.value = 0.16;
+    const fb = audioCtx.createGain();
+    fb.gain.value = 0.32;
+    sfxDelay.connect(fb);
+    fb.connect(sfxDelay);
+    sfxDelay.connect(sfxGain);
   };
   ['pointerdown', 'touchstart', 'keydown'].forEach((evt) =>
     window.addEventListener(evt, create, { once: true })
@@ -69,7 +81,7 @@ function ensureCtx() {
   return audioCtx;
 }
 
-function tone({ freq = 440, type = 'sine', dur = 0.12, gain = 0.4, slide = 0, delay = 0, vary = 0 }) {
+function tone({ freq = 440, type = 'sine', dur = 0.12, gain = 0.4, slide = 0, delay = 0, vary = 0, echo = 0 }) {
   const ctx = ensureCtx();
   if (!ctx) return;
   const t = ctx.currentTime + delay;
@@ -86,6 +98,13 @@ function tone({ freq = 440, type = 'sine', dur = 0.12, gain = 0.4, slide = 0, de
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   osc.connect(g);
   g.connect(sfxGain || masterGain);
+  // Optional wet send into the shared feedback delay for a ringing tail.
+  if (echo && sfxDelay) {
+    const s = ctx.createGain();
+    s.gain.value = echo;
+    g.connect(s);
+    s.connect(sfxDelay);
+  }
   osc.start(t);
   osc.stop(t + dur + 0.02);
 }
@@ -142,14 +161,15 @@ export function __fxDebug() {
     musicGainValue: musicGain ? musicGain.gain.value : null,
     hasIntensityGain: !!intensityGain,
     intensityGainValue: intensityGain ? intensityGain.gain.value : null,
+    hasSfxDelay: !!sfxDelay,
   };
 }
 
 export const SFX = {
   // Mandalorian blaster — snappy high-pitched zap (Star Wars blaster feel)
   shoot() {
-    tone({ freq: 1400, type: 'square', dur: 0.05, gain: 0.16, slide: -900, vary: 0.04 });
-    tone({ freq: 700,  type: 'sine',   dur: 0.06, gain: 0.08, slide: -400, vary: 0.04 });
+    tone({ freq: 1400, type: 'square', dur: 0.05, gain: 0.16, slide: -900, vary: 0.12 });
+    tone({ freq: 700,  type: 'sine',   dur: 0.06, gain: 0.08, slide: -400, vary: 0.12 });
   },
   // Wrist-rocket barrage — deep whoosh + explosion rumble
   shootSuper() {
@@ -161,13 +181,13 @@ export const SFX = {
   },
   // Death Trooper green bolt — lower pitch, slightly different timbre
   enemyShoot() {
-    tone({ freq: 900, type: 'square', dur: 0.06, gain: 0.11, slide: -600, vary: 0.04 });
-    tone({ freq: 450, type: 'sine',   dur: 0.05, gain: 0.06, slide: -300, vary: 0.04 });
+    tone({ freq: 900, type: 'square', dur: 0.06, gain: 0.11, slide: -600, vary: 0.12 });
+    tone({ freq: 450, type: 'sine',   dur: 0.05, gain: 0.06, slide: -300, vary: 0.12 });
   },
   // Hit flash — crisp impact
   hit() {
     noise({ dur: 0.06, gain: 0.14, hp: 1400 });
-    tone({ freq: 300, type: 'square', dur: 0.04, gain: 0.10, vary: 0.04 });
+    tone({ freq: 300, type: 'square', dur: 0.04, gain: 0.10, vary: 0.12 });
   },
   // Player hurt — lower, painful
   hurt() {
@@ -176,14 +196,14 @@ export const SFX = {
   },
   // Enemy die — trooper helmet clatter
   enemyDie() {
-    tone({ freq: 500, type: 'square', dur: 0.12, gain: 0.14, slide: -350, vary: 0.04 });
+    tone({ freq: 500, type: 'square', dur: 0.12, gain: 0.14, slide: -350, vary: 0.12 });
     noise({ dur: 0.10, gain: 0.10, hp: 400 });
   },
   // Vader hit — heavy metallic thud
   bossHit() {
     noise({ dur: 0.22, gain: 0.30, hp: 120 });
-    tone({ freq: 80, type: 'sine', dur: 0.22, gain: 0.24, slide: -30, vary: 0.04 });
-    tone({ freq: 160, type: 'sawtooth', dur: 0.16, gain: 0.15, slide: -50, vary: 0.04 });
+    tone({ freq: 80, type: 'sine', dur: 0.22, gain: 0.24, slide: -30, vary: 0.12 });
+    tone({ freq: 160, type: 'sawtooth', dur: 0.16, gain: 0.15, slide: -50, vary: 0.12 });
   },
   // Vader death — dramatic orchestral descent
   bossDie() {
@@ -275,13 +295,16 @@ export const SFX = {
     tone({ freq: 660, type: 'sawtooth', dur: 0.18, gain: 0.14, slide: -180 });
     tone({ freq: 660, type: 'sawtooth', dur: 0.18, gain: 0.14, slide: -180, delay: 0.22 });
   },
-  // Kill-chain combo — two-note blip whose pitch climbs a semitone per streak
-  // step, so chaining kills sounds as escalating as the on-screen counter looks.
+  // Kill-chain combo — a bright rising arpeggio (root-3rd-5th) with a noise
+  // transient and an echo tail, climbing a semitone per streak step so a long
+  // chain literally sings upward. Far punchier than the old two-note blip.
   comboChime(n = 2) {
-    const step = Math.min(n, 8);
-    const base = 520 * Math.pow(2, step / 12);
-    tone({ freq: base,       type: 'triangle', dur: 0.07, gain: 0.14 });
-    tone({ freq: base * 1.5, type: 'triangle', dur: 0.09, gain: 0.12, delay: 0.05 });
+    const step = Math.min(n, 12);
+    const base = 523.25 * Math.pow(2, step / 12); // C5 and up
+    noise({ dur: 0.025, gain: 0.10, hp: 3200 });   // crisp attack tick
+    tone({ freq: base,        type: 'triangle', dur: 0.10, gain: 0.17, echo: 0.28 });
+    tone({ freq: base * 1.26, type: 'triangle', dur: 0.10, gain: 0.15, delay: 0.045, echo: 0.28 });
+    tone({ freq: base * 1.5,  type: 'square',   dur: 0.14, gain: 0.14, delay: 0.09,  echo: 0.34 });
   },
   // Dash whoosh — dedicated sound (was borrowing the stealth-takedown blade
   // shink before). Fast filtered-noise sweep + a falling tone for air-push.
@@ -299,30 +322,71 @@ export function startMusic() {
   musicStarted = true;
   const nodes = [];
 
-  // Low drone pad (Vader breathing rhythm feel)
-  [55, 58, 62].forEach((semi, idx) => {
+  // Low drone pad — a dark A-minor triad in the SUB register (A1/C2/E2). The
+  // old version mis-computed 55*2^(semi/12) with semitone values 55/58/62,
+  // landing at ~1.3-2kHz then lowpassing it to silence. These are the real low
+  // frequencies, so the pad is actually audible under the beat.
+  [55, 65.41, 82.41].forEach((f, idx) => {
     const o1 = ctx.createOscillator();
     const o2 = ctx.createOscillator();
     o1.type = 'sawtooth';
     o2.type = 'sawtooth';
-    const f = 55 * Math.pow(2, semi / 12);
     o1.frequency.value = f;
     o2.frequency.value = f * 1.004;  // slight detune for thickness
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 400;
+    lp.frequency.value = 500;
     lp.Q.value = 2;
     const g = ctx.createGain();
-    g.gain.value = 0.028 - idx * 0.005;
+    g.gain.value = 0.05 - idx * 0.008;
     o1.connect(lp); o2.connect(lp);
     lp.connect(g); g.connect(musicGain);
     o1.start(); o2.start();
     nodes.push(o1, o2);
   });
 
-  // Imperial march-inspired bass pulse (4/4 pattern: strong on 1 and 3)
-  // Notes: A2, A2, A2, F2, C3 (simplified "dun dun dun DUN da DUN")
+  // Shared white-noise buffer reused by the percussion hits below.
+  const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.3, ctx.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+
+  // --- Percussion synth (routed to musicGain so the music slider owns it) ---
+  const kick = (t) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(165, t);
+    o.frequency.exponentialRampToValueAtTime(48, t + 0.12);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.30, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+    o.connect(g); g.connect(musicGain);
+    o.start(t); o.stop(t + 0.26);
+  };
+  const snare = (t) => {
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1400;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.16, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    src.connect(hp); hp.connect(g); g.connect(musicGain);
+    src.start(t); src.stop(t + 0.16);
+  };
+  const hat = (t, open = false) => {
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 8000;
+    const g = ctx.createGain();
+    const dur = open ? 0.10 : 0.03;
+    g.gain.setValueAtTime(0.05, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(hp); hp.connect(g); g.connect(musicGain);
+    src.start(t); src.stop(t + dur + 0.02);
+  };
+
+  // Imperial-march bass pulse ("dun dun dun DUN da DUN") + a driving drum kit.
   const marchNotes = [110, 110, 110, 87, 131, 110, 87, 131];
+  const kickSteps  = [0, 2, 4, 6];   // steady four-on-the-pulse
+  const snareSteps = [2, 6];         // backbeat
   const marchDur = 0.38;
   const startMarch = (offset) => {
     marchNotes.forEach((freq, i) => {
@@ -332,12 +396,17 @@ export function startMusic() {
       o.type = 'square';
       o.frequency.value = freq;
       g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.06, t + 0.01);
+      g.gain.linearRampToValueAtTime(0.085, t + 0.01);
       g.gain.exponentialRampToValueAtTime(0.0001, t + marchDur * 0.85);
       o.connect(g);
       g.connect(musicGain);
       o.start(t);
       o.stop(t + marchDur);
+      // Drums locked to the same grid
+      if (kickSteps.includes(i))  kick(t);
+      if (snareSteps.includes(i)) snare(t);
+      hat(t, false);                       // hat on every step
+      hat(t + marchDur / 2, i % 2 === 1);  // and an off-beat hat (open on odds)
     });
   };
 
@@ -351,20 +420,20 @@ export function startMusic() {
   };
   setTimeout(loop, marchNotes.length * marchDur * 1000);
 
-  // Tension layer — a sustained detuned pad, silent by default, that
-  // GameScene swells via setMusicIntensity() during active combat and calms
-  // during breathers. Pure gain control; no new note scheduling, so it can't
-  // drift out of sync with the march loop above.
+  // Tension layer — a sustained detuned minor-2nd cluster (A3/A#3), silent by
+  // default, that GameScene swells via setMusicIntensity() during combat and
+  // calms during breathers. Now in an audible mid band (was ~3.7kHz, inaudible
+  // through its lowpass). Pure gain control; stays in sync with the march loop.
   intensityGain = ctx.createGain();
   intensityGain.gain.value = 0;
   intensityGain.connect(musicGain);
-  [73, 74].forEach((semi) => { // tense minor-2nd cluster above the drone root
+  [220, 233.08].forEach((f) => {
     const o = ctx.createOscillator();
     o.type = 'sawtooth';
-    o.frequency.value = 55 * Math.pow(2, semi / 12);
+    o.frequency.value = f;
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 900;
+    lp.frequency.value = 1400;
     o.connect(lp);
     lp.connect(intensityGain);
     o.start();
@@ -393,7 +462,7 @@ export function stopMusic() {
 // Combat-intensity dial for the music bed: 0 = calm (breather/menu), 1 = full
 // tension (an active wave or the boss fight). Ramped, not stepped, so wave
 // transitions swell/settle instead of snapping.
-const INTENSITY_MAX = 0.05;
+const INTENSITY_MAX = 0.12;
 export function setMusicIntensity(x) {
   if (!intensityGain || !audioCtx) return;
   const t = audioCtx.currentTime;
