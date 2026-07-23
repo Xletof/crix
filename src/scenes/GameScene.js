@@ -1204,31 +1204,51 @@ export class GameScene extends Phaser.Scene {
     this.events.on('player-dash-sound', (x, y) => {
       this.propagateSound(x, y, 160);
     });
-    // Dash afterimage — mirrors the boss's saber-ghost pattern (Boss.js): a
-    // fading cyan-tinted copy of the sprite stamped every ~40ms for the dash's
-    // duration. Doubles as the dash's missing i-frame tell (nothing else
-    // signals invincibility today).
+    // Dash afterimage — a bright, dense, additive cyan trail plus a leading
+    // motion-streak along the dash line. Doubles as the dash's i-frame tell.
+    // Much stronger than the old flat single ghost (which barely read).
     this.events.on('player-dash', () => {
-      this._cameraPunch(1.02, 120);
-      if (isLowQuality()) return;
-      const stampGhost = () => {
-        const p = this.player;
-        if (!p?.active || !p.isDashing) return;
-        const ghost = this.add.image(p.x, p.y, p.texture.key, p.frame.name)
-          .setOrigin(p.originX, p.originY)
-          .setScale(p.scaleX, p.scaleY)
-          .setFlipX(p.flipX)
+      const p = this.player;
+      const ang = p?.dashAngle ?? p?.facing ?? 0;
+      const low = isLowQuality();
+      this._cameraPunch(1.03, 130);
+      // Leading whoosh — a stretched jet-flame smear pointing along the dash,
+      // reusing the (otherwise-unused) jet-flame particle texture.
+      if (!low) {
+        const streak = this.add.image(p.x, p.y, 'jet-flame')
+          .setRotation(ang)
+          .setScale(3.4, 1.7)
+          .setTint(0x60f0ff)
+          .setAlpha(0.7)
           .setDepth(p.depth - 1)
-          .setTint(0x40e0ff)
-          .setAlpha(0.5);
+          .setBlendMode(Phaser.BlendModes.ADD);
         this.tweens.add({
-          targets: ghost, alpha: 0, scale: ghost.scaleX * 1.1,
-          duration: 260, ease: 'Cubic.easeOut',
+          targets: streak, alpha: 0, scaleX: 5.4,
+          duration: 220, ease: 'Cubic.easeOut',
+          onComplete: () => streak.destroy(),
+        });
+      }
+      const stampGhost = () => {
+        const pl = this.player;
+        if (!pl?.active || !pl.isDashing) return;
+        const ghost = this.add.image(pl.x, pl.y, pl.texture.key, pl.frame.name)
+          .setOrigin(pl.originX, pl.originY)
+          .setScale(pl.scaleX, pl.scaleY)
+          .setFlipX(pl.flipX)
+          .setDepth(pl.depth - 1)
+          .setTint(0x50e8ff)
+          .setAlpha(low ? 0.45 : 0.65)
+          .setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({
+          targets: ghost, alpha: 0, scale: ghost.scaleX * 1.25,
+          duration: 300, ease: 'Cubic.easeOut',
           onComplete: () => ghost.destroy(),
         });
       };
       stampGhost();
-      this.time.addEvent({ delay: 40, repeat: 9, callback: stampGhost });
+      // Denser stamps than before (~24ms vs 40ms) for a smooth continuous trail;
+      // kept on in low-quality (lighter) instead of disabled entirely.
+      this.time.addEvent({ delay: low ? 40 : 24, repeat: low ? 6 : 15, callback: stampGhost });
     });
     this.events.on('player-shot-missed', () => {
       this.player?.onShotMissed();
@@ -1299,9 +1319,10 @@ export class GameScene extends Phaser.Scene {
         this.fx.shake(0.005, 70);
       } else {
         this.fx.damageNumber(enemy.x, enemy.y - enemy.cfg.radius, Math.round(amount));
-        // Chipping a tank (elite or just high-HP) had zero screen response
-        // before — a hit that doesn't crit or kill still deserves a tiny bite.
-        if (enemy._elite || (enemy.hpMax || 0) >= 500) this.fx.shake(0.002, 40);
+        // Chipping a tank (elite or just high-HP): the old 0.002 shake was
+        // invisible (and now scaled down further). Give it a real visible bite —
+        // a bright impact ring — so hitting armor reads as landing, not whiffing.
+        if (enemy._elite || (enemy.hpMax || 0) >= 500) this.fx.impactRing(enemy.x, enemy.y, 0xffd8a0);
       }
       this.fx.burst(enemy.x, enemy.y, 'red', crit ? 8 : 4);
       SFX.hit();
@@ -1369,13 +1390,16 @@ export class GameScene extends Phaser.Scene {
       this.fx.burst(this.player.x, this.player.y, 'red', 6);
     });
     this.events.on('player-dead', () => {
-      // Dying was quieter than killing a single grunt before — give it the
-      // heaviest beat in the game short of the boss dying.
-      this.fx.burst(this.player.x, this.player.y, 'red', 30);
-      this.fx.shake(0.02, 500);
-      this.cameras.main.flash(300, 200, 20, 20, true);
-      this._cameraPunch(1.08, 400);
-      this._slowMo(0.4, 700);
+      // The heaviest beat in the game short of the boss dying: a deep slow-mo
+      // crawl, a sustained blood-red flash, a hard zoom kick, and a low death
+      // thud — unmistakably different from an ordinary kill.
+      this.fx.burst(this.player.x, this.player.y, 'red', 36);
+      this.fx.shake(0.032, 520);              // pre-global-scale; nets ~0.019
+      this.cameras.main.flash(420, 190, 16, 16, true);
+      this._cameraPunch(1.11, 460);
+      this._slowMo(0.2, 850);                 // deeper + longer crawl
+      SFX.hurt();
+      this.time.delayedCall(110, () => SFX.bossSlam?.()); // heavy death thud
       this.time.delayedCall(900, () => this._handlePlayerDeath());
     });
     this.events.on('grunt-melee', (g) => this.fx.burst(g.x, g.y, 'red', 6));
@@ -2571,11 +2595,15 @@ export class GameScene extends Phaser.Scene {
       this._roomDoorOpened = true;
       setMusicIntensity(0); // room's done — calm through the upgrade picker
 
-      // Beefed slightly over the old flash+shake — finishing a whole room is
-      // the biggest structural beat short of the boss, it should land like one.
-      this.cameras.main.flash(260, 64, 255, 128, true);
-      this.fx.shake(0.006, 160);
-      this._cameraPunch(1.06, 260);
+      // Finishing a whole room is the biggest structural beat short of the
+      // boss — give it a real, legible moment: a brief slow-mo, a bright green
+      // flash, a zoom kick, and a triumphant fanfare (the old flash+shake alone
+      // didn't read as distinct from a kill).
+      this._slowMo(0.5, 300);
+      this.cameras.main.flash(320, 80, 255, 150, true);
+      this.fx.shake(0.012, 220);
+      this._cameraPunch(1.07, 300);
+      SFX.roomClear?.();
       const stragglers = this._livingEnemyCount();
       this.events.emit('show-banner',
         stragglers > 0 ? 'ARENA SURVIVED — FINISH THEM!' : 'ARENA SURVIVED!',

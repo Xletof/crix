@@ -274,6 +274,14 @@ export const SFX = {
     tone({ freq: 440, type: 'square', dur: 0.08, gain: 0.18 });
     tone({ freq: 660, type: 'square', dur: 0.12, gain: 0.18, delay: 0.1 });
   },
+  // Room cleared — a short triumphant rising triad over a low boom, so
+  // finishing a whole room lands as its own beat (not just a bigger kill pop).
+  roomClear() {
+    [523, 784, 1046].forEach((f, i) =>
+      tone({ freq: f, type: 'triangle', dur: 0.16, gain: 0.20, delay: i * 0.08, echo: 0.22 })
+    );
+    tone({ freq: 130, type: 'sine', dur: 0.32, gain: 0.18, slide: -30 });
+  },
   // Stealth takedown — a quick blade shink + muffled thud (no alarm)
   takedown() {
     noise({ dur: 0.05, gain: 0.16, hp: 2600 });        // blade shink
