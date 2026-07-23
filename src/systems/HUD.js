@@ -637,9 +637,9 @@ export class HUDScene extends Phaser.Scene {
       return;
     }
 
-    const ICON = { rifle: 'pickup-rifle', flamethrower: 'pickup-flamer', detonator: 'pickup-det' };
-    const NAMES = { rifle: 'DC-15', flamethrower: 'FLAMER', detonator: 'DET.' };
-    const COLS  = { rifle: 0xff8010, flamethrower: 0xff4010, detonator: 0xff2020 };
+    const ICON = { rifle: 'pickup-rifle', detonator: 'pickup-det' };
+    const NAMES = { rifle: 'DC-15', detonator: 'DET.' };
+    const COLS  = { rifle: 0xff8010, detonator: 0xff2020 };
 
     const ammo  = p?.secondaryAmmo ?? 0;
     const col   = COLS[id] ?? 0xffaa40;
@@ -656,14 +656,14 @@ export class HUDScene extends Phaser.Scene {
     this.secIcon.setPosition(cx, cy - 14);
 
     // Ammo bar / counter
-    const maxAmmo = id === 'rifle' ? 27 : id === 'flamethrower' ? 100 : 3;
+    const maxAmmo = id === 'rifle' ? 27 : 3;
     const ratio   = Math.max(0, ammo / maxAmmo);
     g.fillStyle(0x1a1c22, 1);
     g.fillRoundedRect(cx - 38, cy + 26, 76, 8, 3);
     g.fillStyle(col, 1);
     g.fillRoundedRect(cx - 38, cy + 26, 76 * ratio, 8, 3);
 
-    const label = id === 'rifle' ? `${ammo}` : id === 'flamethrower' ? `${ammo}%` : `×${ammo}`;
+    const label = id === 'rifle' ? `${ammo}` : `×${ammo}`;
     this.secText.setText(`${NAMES[id]}  ${label}`);
     this.secText.setPosition(cx, cy + 44);
   }
@@ -672,10 +672,6 @@ export class HUDScene extends Phaser.Scene {
     const p = this.gameScene?.player;
     if (p && p.ammoTimers.length > 0) {
       this.refreshAmmo();
-    }
-    // Flamethrower: drain is continuous, refresh every frame while active
-    if (p?.flameActive) {
-      this.refreshSecondary();
     }
     // HP Regeneration visual pulse on health bar
     if (p && p.alive && p.isRegenerating) {

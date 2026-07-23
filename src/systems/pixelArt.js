@@ -1563,29 +1563,6 @@ export function paintWeaponPickups(scene) {
   rifle.rect(4, 11, 4, 3, PAL.impGrey);
   rifle.finish();
 
-  // Flamethrower — squat tank + nozzle, orange flame
-  const flame = new PixelCanvas(scene, 'pickup-flamer', 16, 16, 4);
-  for (let x = 2; x <= 13; x++) { flame.px(x, 0, '#602800'); flame.px(x, 15, '#602800'); }
-  for (let y = 1; y <= 14; y++) { flame.px(1,  y, '#602800'); flame.px(14, y, '#602800'); }
-  // Tank body
-  flame.rect(2, 5, 8, 7, PAL.impMid);
-  flame.rect(3, 6, 6, 5, PAL.impGrey);
-  flame.rect(3, 5, 6, 1, PAL.impLight);
-  // Tank straps
-  flame.rect(5, 5, 1, 7, PAL.impDark);
-  flame.rect(7, 5, 1, 7, PAL.impDark);
-  // Nozzle
-  flame.rect(10, 7, 4, 3, PAL.impMid);
-  flame.rect(11, 8, 2, 1, PAL.impLight);
-  // Flame at tip
-  flame.px(14, 7, '#ff8010');
-  flame.px(14, 8, '#ffb040');
-  flame.px(14, 9, '#ff8010');
-  flame.px(15, 8, '#ffd060');
-  // Pressure gauge (small detail)
-  flame.rect(3, 9, 2, 2, '#1040aa');
-  flame.finish();
-
   // Thermal Detonator — round sphere, red button, silver band
   const det = new PixelCanvas(scene, 'pickup-det', 16, 16, 4);
   for (let x = 3; x <= 12; x++) { det.px(x, 1, '#880000'); det.px(x, 14, '#880000'); }

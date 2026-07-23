@@ -3,13 +3,11 @@ import { PLAYER, WEAPONS } from '../config.js';
 
 const TEXTURE = {
   rifle:        'pickup-rifle',
-  flamethrower: 'pickup-flamer',
   detonator:    'pickup-det',
 };
 
 const GLOW_COLOR = {
   rifle:        0xff8010,
-  flamethrower: 0xff4010,
   detonator:    0xff2020,
 };
 

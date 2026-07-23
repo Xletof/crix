@@ -52,17 +52,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // ── Secondary weapon slot ──────────────────────────────────────────────
     // null means pistol only. Set by equipSecondary(weaponId).
     this.secondary      = null;  // weapon id string
-    this.secondaryAmmo  = 0;     // rifle ammo / detonator charges / flame fuel %
+    this.secondaryAmmo  = 0;     // rifle ammo / detonator charges
 
     // Burst fire state (rifle)
     this._burstRemaining = 0;
     this._burstTimer     = 0;
     this._burstAngle     = 0;
-
-    // Flamethrower held-fire state
-    this.flameActive  = false;   // read by GameScene for damage cone
-    this.flameAngle   = 0;
-    this._flameDrain  = 0;       // accumulator for fuel drain
 
     // ── Animation helpers ──────────────────────────────────────────────────
     this._fireAnimTimer = 0;
@@ -143,24 +138,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (vec?.force > 0) {
       this.aiming = true;
       this.aim    = Math.atan2(vec.y, vec.x);
-      // Flamethrower: fire while held
-      if (this.secondary === 'flamethrower' && this.secondaryAmmo > 0) {
-        this.flameActive = true;
-        this.flameAngle  = this.aim;
-      }
     } else {
-      this.aiming      = false;
-      this.flameActive = false;
+      this.aiming = false;
     }
   }
 
   releaseAim(vec) {
     if (!this.alive) return;
-    this.flameActive = false; // always stop flame on release
-    if (this.secondary === 'flamethrower') {
-      this.aiming = false;
-      return;
-    }
 
     let dir;
     if (vec && vec.force > 0.05) {
@@ -325,23 +309,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     return true;
   }
 
-  // Flamethrower: drains each frame via GameScene; we just expose flameActive
-  consumeFlame(delta) {
-    const cfg = WEAPONS.flamethrower;
-    this.revealTimer = 1000; // Keep player revealed during flamethrower
-    this._flameDrain += cfg.drainPerSec * delta / 1000;
-    if (this._flameDrain >= 1) {
-      const drain        = Math.floor(this._flameDrain);
-      this._flameDrain  -= drain;
-      this.secondaryAmmo = Math.max(0, this.secondaryAmmo - drain);
-      this.scene.events.emit('secondary-ammo-changed');
-    }
-    if (this.secondaryAmmo <= 0) {
-      this.flameActive = false;
-      this._equipNothing();
-    }
-  }
-
   // ── Super ─────────────────────────────────────────────────────────────────
 
   tryFireSuper(angleOverride) {
@@ -433,9 +400,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (!cfg) return;
     this.secondary  = weaponId;
     // Set initial ammo/fuel/charges
-    if (weaponId === 'rifle')        this.secondaryAmmo = cfg.totalAmmo;
-    else if (weaponId === 'flamethrower') this.secondaryAmmo = cfg.fuel;
-    else if (weaponId === 'detonator')    this.secondaryAmmo = cfg.charges;
+    if (weaponId === 'rifle')          this.secondaryAmmo = cfg.totalAmmo;
+    else if (weaponId === 'detonator') this.secondaryAmmo = cfg.charges;
     this.scene.events.emit('secondary-equipped', weaponId);
     this.scene.events.emit('secondary-ammo-changed');
     SFX.waveStart(); // pickup chime
@@ -444,7 +410,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   _equipNothing() {
     this.secondary     = null;
     this.secondaryAmmo = 0;
-    this.flameActive   = false;
     this.scene.events.emit('secondary-equipped', null);
     this.scene.events.emit('secondary-ammo-changed');
   }
@@ -531,7 +496,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   die() {
     this.alive       = false;
-    this.flameActive = false;
     this.setVelocity(0, 0);
     this.jetEmitter?.stop();
     this.scene.events.emit('player-dead');
@@ -666,7 +630,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
                 : this.facing;
       // Pick the right weapon sprite for the equipped secondary.
       const wantTex = this.secondary === 'rifle' ? 'wpn-rifle'
-                    : this.secondary === 'flamethrower' ? 'wpn-rifle'
                     : 'wpn-pistol';
       if (this.weaponSprite.texture.key !== wantTex) this.weaponSprite.setTexture(wantTex);
       // Recoil kick — when firing, the weapon visually slides BACKWARDS

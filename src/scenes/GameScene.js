@@ -58,9 +58,8 @@ export class GameScene extends Phaser.Scene {
     // ── NavGrid pathfinding ────────────────────────────────────────────────
     this.navGrid = new NavGrid(this, 80);
 
-    // ── Aim cone + flame cone overlays ────────────────────────────────────
+    // ── Aim cone overlay ──────────────────────────────────────────────────
     this.aimGraphics   = this.add.graphics().setDepth(25);
-    this.flameGraphics = this.add.graphics().setDepth(24);
 
     // ── Patrol vision cones (drawn under enemies) ─────────────────────────
     this.visionGraphics = this.add.graphics().setDepth(2);
@@ -1711,9 +1710,6 @@ export class GameScene extends Phaser.Scene {
     // Stealth takedown target
     this._updateTakedownTarget();
 
-    // Flamethrower continuous damage cone
-    this.handleFlamethrower(delta);
-
     // Bullets
     this.handleBulletEnemyHits(this.playerBullets, false);
     this.handleBulletEnemyHits(this.playerRifleBullets, false);
@@ -1801,65 +1797,6 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // ── Flamethrower ──────────────────────────────────────────────────────────
-
-  handleFlamethrower(delta) {
-    const p = this.player;
-    const g = this.flameGraphics;
-    g.clear();
-    if (!p?.alive || !p.flameActive || p.secondary !== 'flamethrower') return;
-
-    const cfg     = WEAPONS.flamethrower;
-    const angle   = p.flameAngle;
-    const range   = cfg.range;
-    const halfRad = Phaser.Math.DegToRad(cfg.halfAngleDeg);
-
-    // Draw flame cone (orange-yellow gradient bands)
-    const bands = [
-      { reach: 1.0, color: 0xff4400, alpha: 0.30 },
-      { reach: 0.65, color: 0xff8800, alpha: 0.42 },
-      { reach: 0.35, color: 0xffcc00, alpha: 0.55 },
-    ];
-    const steps = 14;
-    for (const band of bands) {
-      const r = range * band.reach;
-      g.fillStyle(band.color, band.alpha);
-      g.beginPath();
-      g.moveTo(p.x, p.y);
-      for (let i = 0; i <= steps; i++) {
-        const a = angle - halfRad + (halfRad * 2 * i) / steps;
-        g.lineTo(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r);
-      }
-      g.closePath();
-      g.fillPath();
-    }
-
-    // Damage tick
-    this._flameTick = (this._flameTick || 0) + delta;
-    const tickMs = 120;
-    if (this._flameTick >= tickMs) {
-      this._flameTick -= tickMs;
-      const dmgPerTick = (cfg.damagePerSec * tickMs) / 1000;
-      const targets = [...this.enemies.getChildren()];
-      if (this.boss?.alive) targets.push(this.boss);
-      for (const t of targets) {
-        if (!t.active || !t.alive) continue;
-        const dx = t.x - p.x, dy = t.y - p.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist > range + t.cfg.radius) continue;
-        const angleTo = Math.atan2(dy, dx);
-        const diff    = Math.abs(Phaser.Math.Angle.Wrap(angleTo - angle));
-        if (diff < halfRad) {
-          t.damage(dmgPerTick);
-          p.addSuperHit();
-          this.fx.burst(t.x, t.y, 'yellow', 2);
-        }
-      }
-    }
-
-    // Drain fuel
-    p.consumeFlame(delta);
-  }
 
   // ── Collision helpers ─────────────────────────────────────────────────────
 
@@ -2457,7 +2394,7 @@ export class GameScene extends Phaser.Scene {
   _spawnWaveReward(wave) {
     const rx = this.player.x, ry = this.player.y - 40;
     if (wave.reward === 'weapon') {
-      const weapons = ['rifle', 'flamethrower', 'detonator'];
+      const weapons = ['rifle', 'detonator'];
       const choice = weapons[Phaser.Math.Between(0, weapons.length - 1)];
       const wp = new WeaponPickup(this, rx, ry, choice);
       this.weaponPickups.push(wp);
@@ -2582,7 +2519,7 @@ export class GameScene extends Phaser.Scene {
   spawnTerminalSupportDrop(t) {
     if (Math.random() < 0.5) {
       // Drop heavy weapon pickup
-      const weapons = ['rifle', 'flamethrower', 'detonator'];
+      const weapons = ['rifle', 'detonator'];
       const choice = weapons[Phaser.Math.Between(0, weapons.length - 1)];
       const wp = new WeaponPickup(this, t.x, t.y + 35, choice);
       this.weaponPickups.push(wp);

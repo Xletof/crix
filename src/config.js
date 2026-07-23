@@ -67,15 +67,6 @@ export const WEAPONS = {
     range: 500,
     fireCooldownMs: 300,
   },
-  flamethrower: {
-    id: 'flamethrower',
-    name: 'FLAMETHROWER',
-    fuel: 100,            // percentage
-    drainPerSec: 22,      // ~4.5 s of continuous fire
-    damagePerSec: 250,
-    range: 190,
-    halfAngleDeg: 28,
-  },
   detonator: {
     id: 'detonator',
     name: 'THERMAL DET.',

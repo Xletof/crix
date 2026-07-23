@@ -70,7 +70,7 @@ export const ROOMS = [
       { type: 'shooter', x: 350, y: 1050 },
     ],
     pickups: [
-      { x: 700, y: 1050, weapon: 'flamethrower' },
+      { x: 700, y: 1050, weapon: 'rifle' },
     ],
     terminals: [
       { x: 700, y: 700 },
