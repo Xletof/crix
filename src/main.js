@@ -42,8 +42,16 @@ const config = {
 };
 
 window.addEventListener('load', () => {
-  const loading = document.getElementById('loading');
-  if (loading) loading.remove();
-  const game = new Phaser.Game(config);
-  if (import.meta.env.DEV) window.game = game;
+  // Canvas text (unlike DOM text) doesn't block on webfont load automatically —
+  // if we start the game before Orbitron/Rajdhani are ready, the very first
+  // frame bakes in the fallback font and never re-renders. Wait for
+  // document.fonts.ready (capped so a stalled font load can't hang the boot).
+  const ready = document.fonts?.ready ?? Promise.resolve();
+  const timeout = new Promise((r) => setTimeout(r, 1500));
+  Promise.race([ready, timeout]).then(() => {
+    const loading = document.getElementById('loading');
+    if (loading) loading.remove();
+    const game = new Phaser.Game(config);
+    if (import.meta.env.DEV) window.game = game;
+  });
 });

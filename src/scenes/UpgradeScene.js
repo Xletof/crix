@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW } from '../config.js';
+import { VIEW, FONTS } from '../config.js';
 import { SFX } from '../systems/FX.js';
 import { pickThree } from '../data/upgrades.js';
 
@@ -29,12 +29,12 @@ export class UpgradeScene extends Phaser.Scene {
 
     // Header
     this.add.text(cx, VIEW.height * 0.12, 'UPGRADE ACQUIRED', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.display,
       fontSize: '42px', fontStyle: 'bold',
       color: '#40ff90', stroke: '#000000', strokeThickness: 8, letterSpacing: 4,
     }).setOrigin(0.5);
     this.add.text(cx, VIEW.height * 0.12 + 48, 'CHOOSE ONE', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '20px', fontStyle: 'bold',
       color: '#90d8ff', stroke: '#000000', strokeThickness: 3, letterSpacing: 3,
     }).setOrigin(0.5);
@@ -73,13 +73,13 @@ export class UpgradeScene extends Phaser.Scene {
     draw(false);
 
     const name = this.add.text(cx, cy - 26, up.name, {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.display,
       fontSize: '30px', fontStyle: 'bold',
       color: up.color, stroke: '#000000', strokeThickness: 5, letterSpacing: 2,
     }).setOrigin(0.5);
 
     const desc = this.add.text(cx, cy + 26, up.desc, {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '20px',
       color: '#c0d8f0', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5);

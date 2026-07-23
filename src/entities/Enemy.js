@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { ENEMY } from '../config.js';
+import { ENEMY, FONTS } from '../config.js';
 import { SFX } from '../systems/FX.js';
 
 // ── AI state constants ────────────────────────────────────────────────────────
@@ -114,7 +114,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     // "!" alert indicator (shown briefly when spotting player)
     this.alertMark = scene.add.text(x, y - cfg.radius - 24, '!', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '28px',
       fontStyle: 'bold',
       color: '#ffff20',

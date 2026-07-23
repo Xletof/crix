@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW } from '../config.js';
+import { VIEW, FONTS } from '../config.js';
 import { SFX, stopMusic } from '../systems/FX.js';
 import { loadStats, saveStats } from './TitleScene.js';
 import { NARRATIVE } from '../data/narrative.js';
@@ -79,7 +79,7 @@ export class GameOverScene extends Phaser.Scene {
 
       // "TRANSMISSION RECEIVED" header
       this.add.text(cx, py + 40, '[ TRANSMISSION RECEIVED ]', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.display,
         fontSize: '22px',
         color: '#4080ff',
         stroke: '#000000',
@@ -89,22 +89,22 @@ export class GameOverScene extends Phaser.Scene {
       // Main outcome
       const outcomeY = py + 200;
       const outcomeShadow = this.add.text(cx + 4, outcomeY + 4, 'BOUNTY\nDELIVERED', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.display,
         fontSize: '82px',
         fontStyle: 'bold',
         color: '#000000',
         align: 'center',
-      }).setOrigin(0.5).setAlpha(0.5);
+      }).setOrigin(0.5).setAlpha(0.5).setResolution(2);
 
       const outcome = this.add.text(cx, outcomeY, 'BOUNTY\nDELIVERED', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.display,
         fontSize: '82px',
         fontStyle: 'bold',
         color: '#4080ff',
         stroke: '#001060',
         strokeThickness: 6,
         align: 'center',
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setResolution(2);
 
       // Pop-in
       outcome.setScale(0.3);
@@ -130,7 +130,7 @@ export class GameOverScene extends Phaser.Scene {
 
       // Subtitle — questline closing line.
       this.add.text(cx, py + 370, NARRATIVE.victoryLine, {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.body,
         fontSize: '20px',
         fontStyle: 'italic',
         color: '#8ab8ff',
@@ -153,7 +153,7 @@ export class GameOverScene extends Phaser.Scene {
       };
       
       const statsStyle = {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.body,
         fontSize: '18px',
         color: '#8ab8ff',
         stroke: '#000000',
@@ -200,7 +200,7 @@ export class GameOverScene extends Phaser.Scene {
 
       // "IMPERIAL ALERT" header
       this.add.text(cx, py + 40, '[ IMPERIAL ALERT ]', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.display,
         fontSize: '24px',
         color: '#ff2020',
         stroke: '#000000',
@@ -225,22 +225,22 @@ export class GameOverScene extends Phaser.Scene {
       // Main outcome
       const outcomeY = py + 230;
       const outcomeShadow = this.add.text(cx + 4, outcomeY + 4, 'TARGET\nNEUTRALIZED', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.display,
         fontSize: '78px',
         fontStyle: 'bold',
         color: '#000000',
         align: 'center',
-      }).setOrigin(0.5).setAlpha(0.5);
+      }).setOrigin(0.5).setAlpha(0.5).setResolution(2);
 
       const outcome = this.add.text(cx, outcomeY, 'TARGET\nNEUTRALIZED', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.display,
         fontSize: '78px',
         fontStyle: 'bold',
         color: '#ff2020',
         stroke: '#440000',
         strokeThickness: 6,
         align: 'center',
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setResolution(2);
 
       outcome.setScale(0.3);
       outcomeShadow.setScale(0.3);
@@ -263,7 +263,7 @@ export class GameOverScene extends Phaser.Scene {
       });
 
       this.add.text(cx, py + 405, 'The bounty hunter has been eliminated.', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.body,
         fontSize: '20px',
         fontStyle: 'italic',
         color: '#aa4040',
@@ -286,7 +286,7 @@ export class GameOverScene extends Phaser.Scene {
       };
 
       const statsStyle = {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.body,
         fontSize: '18px',
         color: '#ff8080',
         stroke: '#000000',
@@ -360,7 +360,7 @@ export class GameOverScene extends Phaser.Scene {
     draw(false);
 
     const text = this.add.text(cx, cy, label, {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.display,
       fontSize: '36px',
       fontStyle: 'bold',
       color: textColor,

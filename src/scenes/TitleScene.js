@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW } from '../config.js';
+import { VIEW, FONTS } from '../config.js';
 import { SFX } from '../systems/FX.js';
 
 export class TitleScene extends Phaser.Scene {
@@ -64,24 +64,26 @@ export class TitleScene extends Phaser.Scene {
     // Shadow
     this.add
       .text(cx + 6, VIEW.height * 0.52 + 6, 'CRIX', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.display,
         fontSize: '160px',
         fontStyle: 'bold',
         color: '#000000',
       })
       .setOrigin(0.5)
-      .setAlpha(0.5);
+      .setAlpha(0.5)
+      .setResolution(2); // large display text — keep it crisp under pixelArt rendering
 
     const title = this.add
       .text(cx, VIEW.height * 0.52, 'CRIX', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.display,
         fontSize: '160px',
         fontStyle: 'bold',
         color: '#ff2020',
         stroke: '#660000',
         strokeThickness: 10,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setResolution(2);
 
     // Saber glow tween on title
     this.tweens.add({
@@ -96,7 +98,7 @@ export class TitleScene extends Phaser.Scene {
     // Subtitle
     this.add
       .text(cx, VIEW.height * 0.60, 'A BOUNTY HUNTER\'S TALE', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.display,
         fontSize: '24px',
         fontStyle: 'bold',
         color: '#90d8ff',
@@ -159,7 +161,7 @@ export class TitleScene extends Phaser.Scene {
 
     const btnText = this.add
       .text(cx, btnY, 'ENGAGE', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.display,
         fontSize: '38px',
         fontStyle: 'bold',
         color: '#ff2828',
@@ -229,7 +231,7 @@ export class TitleScene extends Phaser.Scene {
 
     const endText = this.add
       .text(cx, endY, 'ENDLESS', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.display,
         fontSize: '34px',
         fontStyle: 'bold',
         color: '#ffbb40',
@@ -280,7 +282,7 @@ export class TitleScene extends Phaser.Scene {
 
     const recText = this.add
       .text(cx, recY, 'RECORDS', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.display,
         fontSize: '26px',
         fontStyle: 'bold',
         color: '#90d8ff',
@@ -334,7 +336,7 @@ export class TitleScene extends Phaser.Scene {
     recordsContainer.add(cardBg);
 
     const recHeader = this.add.text(cx, cY + 45, '[ BOUNTY LOG RECORDS ]', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.display,
       fontSize: '26px', fontStyle: 'bold',
       color: '#40a0ff', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5);
@@ -348,7 +350,7 @@ export class TitleScene extends Phaser.Scene {
     };
 
     const textStyle = {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '22px', fontStyle: 'bold',
       color: '#8ab8ff', stroke: '#000000', strokeThickness: 2,
     };
@@ -385,7 +387,7 @@ export class TitleScene extends Phaser.Scene {
     recordsContainer.add(closeBg);
 
     const closeText = this.add.text(cx, closeY, 'CLOSE', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.display,
       fontSize: '24px', fontStyle: 'bold',
       color: '#ff8080', stroke: '#000000', strokeThickness: 3, letterSpacing: 4,
     }).setOrigin(0.5);
@@ -404,7 +406,7 @@ export class TitleScene extends Phaser.Scene {
     // Tip line
     this.add
       .text(cx, VIEW.height - 50, 'Left stick: move    Right stick: aim & fire    Star: MISSILES', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.body,
         fontSize: '16px',
         color: '#4a5a80',
         stroke: '#000000',

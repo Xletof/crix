@@ -5,6 +5,16 @@ export const VIEW = {
   height: 1280,
 };
 
+// Self-hosted sci-fi type pair (see public/fonts/, @font-face in index.html).
+// `display` = titles/headers/banners (Orbitron: wide, geometric, iconic sci-fi
+// display face). `body` = HUD numbers, labels, body copy (Rajdhani: condensed,
+// techy, reads well small). Both fall back to the old Courier New mono if a
+// font somehow fails to load.
+export const FONTS = {
+  display: "'Orbitron', 'Courier New', monospace",
+  body:    "'Rajdhani', 'Courier New', monospace",
+};
+
 export const WORLD = {
   width: 1600,
   height: 1600,

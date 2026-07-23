@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { FONTS } from '../config.js';
 import { SFX } from '../systems/FX.js';
 
 // A hackable objective terminal. The actual slicing happens through a HUD
@@ -23,7 +24,7 @@ export class Terminal {
 
     this.gfx = scene.add.graphics().setDepth(20);
     this.label = scene.add.text(x, y - 34, 'SLICE', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '14px',
       fontStyle: 'bold',
       color: '#ffaa30',

@@ -1,4 +1,4 @@
-import { VIEW } from '../config.js';
+import { VIEW, FONTS } from '../config.js';
 import { SFX } from './FX.js';
 
 // Three-round Imperial-cipher timing puzzle. The cursor sweeps a horizontal
@@ -48,7 +48,7 @@ export class HackMinigame {
     this.cursorGfx = hudScene.add.graphics();
     this.flashGfx  = hudScene.add.graphics();
     this.headerText = hudScene.add.text(0, -84, '', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.display,
       fontSize: '24px',
       fontStyle: 'bold',
       color: '#ffd040',
@@ -56,14 +56,14 @@ export class HackMinigame {
       strokeThickness: 4,
     }).setOrigin(0.5);
     this.subText = hudScene.add.text(0, -52, '', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '14px',
       color: '#aaaa88',
       stroke: '#000000',
       strokeThickness: 3,
     }).setOrigin(0.5);
     this.hintText = hudScene.add.text(0, 56, 'TAP TO LOCK', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '20px',
       fontStyle: 'bold',
       color: '#ffd040',

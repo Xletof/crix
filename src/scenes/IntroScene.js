@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW } from '../config.js';
+import { VIEW, FONTS } from '../config.js';
 import { SFX } from '../systems/FX.js';
 import { NARRATIVE } from '../data/narrative.js';
 
@@ -57,7 +57,7 @@ export class IntroScene extends Phaser.Scene {
 
     // ── Header ──
     this.add.text(cx, VIEW.height * 0.27, '[ MISSION BRIEFING ]', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.display,
       fontSize: '22px', fontStyle: 'bold',
       color: '#40b8ff', stroke: '#000000', strokeThickness: 4,
       letterSpacing: 3,
@@ -68,7 +68,7 @@ export class IntroScene extends Phaser.Scene {
     this._charIndex = 0;
     this._done = false;
     this.bodyText = this.add.text(cx, VIEW.height * 0.32, '', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '23px', fontStyle: 'bold',
       color: '#cfe6ff', stroke: '#000000', strokeThickness: 3,
       align: 'center', lineSpacing: 9,
@@ -92,7 +92,7 @@ export class IntroScene extends Phaser.Scene {
 
     // A subtle prompt at the very bottom.
     this.skipHint = this.add.text(cx, VIEW.height - 30, 'TAP TO SKIP', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '15px', color: '#4a5a80', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5);
 
@@ -144,7 +144,7 @@ export class IntroScene extends Phaser.Scene {
     bg.setVisible(false);
 
     const txt = this.add.text(cx, btnY, 'CONTINUE', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.display,
       fontSize: '34px', fontStyle: 'bold',
       color: '#90d8ff', stroke: '#000000', strokeThickness: 4, letterSpacing: 4,
     }).setOrigin(0.5).setVisible(false);

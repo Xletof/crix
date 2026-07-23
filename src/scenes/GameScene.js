@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, ALLY } from '../config.js';
+import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, ALLY, FONTS } from '../config.js';
 import { Player } from '../entities/Player.js';
 import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, EnemySniper, EnemySwarmling, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
@@ -542,7 +542,7 @@ export class GameScene extends Phaser.Scene {
     const ly = side === 'bottom' ? h - 80 : side === 'top' ? 80 : y - 24;
     if (!this._doorLabel || !this._doorLabel.active) {
       this._doorLabel = this.add.text(lx, ly, label, {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.body,
         fontSize: '18px',
         color: sealed ? '#ff4040' : '#40ff80',
         stroke: '#000000',

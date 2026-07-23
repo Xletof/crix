@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, PLAYER, WEAPONS, COLORS, HUDCFG } from '../config.js';
+import { VIEW, PLAYER, WEAPONS, COLORS, HUDCFG, FONTS } from '../config.js';
 import { Joystick } from './Joystick.js';
 import { SuperButton } from './SuperButton.js';
 import { DashButton } from './DashButton.js';
@@ -51,7 +51,7 @@ export class HUDScene extends Phaser.Scene {
     this.hpFront = this.add.graphics();
     this.hpText = this.add
       .text(VIEW.width / 2, 30, '', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.body,
         fontSize: '20px',
         fontStyle: 'bold',
         color: '#90d8ff',
@@ -63,7 +63,7 @@ export class HUDScene extends Phaser.Scene {
     // Chamber label (right) — e.g. "HANGAR BAY  CHAMBER 1/4"
     this.chamberText = this.add
       .text(VIEW.width - 20, 10, '', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.body,
         fontSize: '17px',
         fontStyle: 'bold',
         color: '#ff2828',
@@ -75,7 +75,7 @@ export class HUDScene extends Phaser.Scene {
     // Objective readout (under the chamber label, top-right)
     this.objText = this.add
       .text(VIEW.width - 20, 32, '', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.body,
         fontSize: '15px',
         fontStyle: 'bold',
         color: '#ffd040',
@@ -87,7 +87,7 @@ export class HUDScene extends Phaser.Scene {
     // Room-modifier label (persistent while a modifier is active, top-right).
     this.modifierText = this.add
       .text(VIEW.width - 20, 54, '', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.body,
         fontSize: '15px',
         fontStyle: 'bold',
         color: '#ff5030',
@@ -99,7 +99,7 @@ export class HUDScene extends Phaser.Scene {
     // Hack progress bar (center, only while actively slicing)
     this.hackBarGfx = this.add.graphics().setDepth(12);
     this.hackBarText = this.add.text(VIEW.width / 2, VIEW.height * 0.46 - 22, ' ', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '16px',
       fontStyle: 'bold',
       color: '#ffd040',
@@ -113,7 +113,7 @@ export class HUDScene extends Phaser.Scene {
 
     // Survival Timer text (top center, below HP bar)
     this.timerText = this.add.text(VIEW.width / 2, 60, '', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '18px',
       fontStyle: 'bold',
       color: '#ffaa30',
@@ -123,7 +123,7 @@ export class HUDScene extends Phaser.Scene {
 
     // Kill counter (left of the timer) — run-wide tally
     this.killText = this.add.text(VIEW.width / 2 - 170, 60, '', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '17px',
       fontStyle: 'bold',
       color: '#ff5050',
@@ -133,7 +133,7 @@ export class HUDScene extends Phaser.Scene {
 
     // Next-surge ticker (right of the timer) — pulses red when imminent
     this.surgeText = this.add.text(VIEW.width / 2 + 175, 60, '', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '15px',
       fontStyle: 'bold',
       color: '#ff8040',
@@ -144,7 +144,7 @@ export class HUDScene extends Phaser.Scene {
     // Banner (center, transient)
     this.banner = this.add
       .text(VIEW.width / 2, VIEW.height * 0.32, ' ', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.display,
         fontSize: '60px',
         fontStyle: 'bold',
         color: '#ff2828',
@@ -152,7 +152,8 @@ export class HUDScene extends Phaser.Scene {
         strokeThickness: 8,
       })
       .setOrigin(0.5)
-      .setAlpha(0);
+      .setAlpha(0)
+      .setResolution(2);
 
     // Energy cell ammo pips (above right joystick)
     this.ammoPips = [];
@@ -172,7 +173,7 @@ export class HUDScene extends Phaser.Scene {
     this.secGfx = this.add.graphics();
     this.secIcon = this.add.image(secX, secY, 'pickup-rifle').setDepth(5).setScale(0.7).setVisible(false);
     this.secText = this.add.text(secX, secY + 42, ' ', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '15px',
       fontStyle: 'bold',
       color: '#ffaa40',
@@ -217,7 +218,7 @@ export class HUDScene extends Phaser.Scene {
 
     // Combo multiplier text (above Super button)
     this.multText = this.add.text(superX, superY - 78, ' ', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '17px',
       fontStyle: 'bold',
       color: '#ffd040',
@@ -274,7 +275,7 @@ export class HUDScene extends Phaser.Scene {
     tdBg.fillStyle(0x40ff80, 1);
     tdBg.fillRect(-7, 10, 14, 4);
     const tdLabel = this.add.text(0, 28, 'TAKEDOWN', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '15px',
       fontStyle: 'bold',
       color: '#80ffaa',
@@ -317,7 +318,7 @@ export class HUDScene extends Phaser.Scene {
     hkBg.fillStyle(0x80ffaa, 1);
     hkBg.fillRect(-6, 4, 12, 4);  // green base LED
     const hkLabel = this.add.text(0, 28, 'HACK', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '15px',
       fontStyle: 'bold',
       color: '#ffd060',
@@ -912,13 +913,13 @@ export class HUDScene extends Phaser.Scene {
     // Reuse a single text object — kill any previous tween/state.
     if (!this.comboText) {
       this.comboText = this.add.text(VIEW.width / 2, VIEW.height * 0.36, ' ', {
-        fontFamily: 'Courier New, monospace',
+        fontFamily: FONTS.display,
         fontSize: '64px',
         fontStyle: 'bold',
         color: '#ffd040',
         stroke: '#000000',
         strokeThickness: 7,
-      }).setOrigin(0.5).setDepth(35).setAlpha(0);
+      }).setOrigin(0.5).setDepth(35).setAlpha(0).setResolution(2);
     }
     this.tweens.killTweensOf(this.comboText);
     const colors = [null, null, '#ffd040', '#ffaa20', '#ff8020', '#ff4020', '#ff2020'];

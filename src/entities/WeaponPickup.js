@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PLAYER, WEAPONS } from '../config.js';
+import { PLAYER, WEAPONS, FONTS } from '../config.js';
 
 const TEXTURE = {
   rifle:        'pickup-rifle',
@@ -41,7 +41,7 @@ export class WeaponPickup {
 
     const name = WEAPONS[weaponId]?.name ?? weaponId;
     this.label = scene.add.text(x, y + 46, name, {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '14px',
       color: '#ffaa40',
       stroke: '#000000',

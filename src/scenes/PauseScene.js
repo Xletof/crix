@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW } from '../config.js';
+import { VIEW, FONTS } from '../config.js';
 import {
   SFX,
   stopMusic,
@@ -50,7 +50,7 @@ export class PauseScene extends Phaser.Scene {
 
     // Title
     this.add.text(cx, cardY + 65, 'PAUSED', {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.display,
       fontSize: '60px', fontStyle: 'bold',
       color: '#90d8ff', stroke: '#000000', strokeThickness: 8, letterSpacing: 6,
     }).setOrigin(0.5);
@@ -127,7 +127,7 @@ export class PauseScene extends Phaser.Scene {
 
     // Label text
     const label = this.add.text(cx - trackW / 2, cy - 26, labelText, {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.body,
       fontSize: '22px', fontStyle: 'bold',
       color: '#90d8ff', stroke: '#000000', strokeThickness: 3, letterSpacing: 2,
     });
@@ -214,7 +214,7 @@ export class PauseScene extends Phaser.Scene {
     draw(false);
 
     const label = this.add.text(cx, cy, text, {
-      fontFamily: 'Courier New, monospace',
+      fontFamily: FONTS.display,
       fontSize: '28px', fontStyle: 'bold',
       color: '#90d8ff', stroke: '#000000', strokeThickness: 4, letterSpacing: 3,
     }).setOrigin(0.5);
