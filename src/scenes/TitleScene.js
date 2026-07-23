@@ -194,33 +194,55 @@ export class TitleScene extends Phaser.Scene {
     });
 
     // ── ENDLESS button — starts an endless sector-climb run directly,
-    // skipping the campaign Intro. Amber to read as a distinct mode. ───────
+    // skipping the campaign Intro. A full-weight amber console plate (matching
+    // ENGAGE) so it reads as a real, co-equal mode instead of a footnote. ───
     const endY = VIEW.height * 0.865;
-    const endW = 380, endH = 55;
+    const endW = 380, endH = 62;
     const endBg = this.add.graphics();
 
     const drawEnd = (hover) => {
       endBg.clear();
+      // Drop shadow
       endBg.fillStyle(0x000000, 0.6);
-      endBg.fillRoundedRect(cx - endW / 2 + 4, endY - endH / 2 + 5, endW, endH, 6);
+      endBg.fillRoundedRect(cx - endW / 2 + 4, endY - endH / 2 + 6, endW, endH, 6);
+      // Console plate
       endBg.fillStyle(hover ? 0x2e3038 : 0x14161c, 1);
       endBg.fillRoundedRect(cx - endW / 2, endY - endH / 2, endW, endH, 6);
-      endBg.lineStyle(2.5, hover ? 0xffaa30 : 0xaa6a00, 1);
+      // Amber LED border
+      endBg.lineStyle(3, hover ? 0xffbb40 : 0xaa6a00, 1);
       endBg.strokeRoundedRect(cx - endW / 2, endY - endH / 2, endW, endH, 6);
+      // Inner highlight
+      endBg.fillStyle(hover ? 0xffbb40 : 0x553300, 0.25);
+      endBg.fillRoundedRect(cx - endW / 2 + 6, endY - endH / 2 + 6, endW - 12, 9, 4);
+      // Corner pips
+      [
+        [cx - endW / 2 + 12, endY - endH / 2 + 10],
+        [cx + endW / 2 - 12, endY - endH / 2 + 10],
+        [cx - endW / 2 + 12, endY + endH / 2 - 10],
+        [cx + endW / 2 - 12, endY + endH / 2 - 10],
+      ].forEach(([px, py]) => {
+        endBg.fillStyle(hover ? 0xffbb40 : 0xaa6a00, 1);
+        endBg.fillRect(px - 3, py - 3, 6, 6);
+      });
     };
     drawEnd(false);
 
     const endText = this.add
       .text(cx, endY, 'ENDLESS', {
         fontFamily: 'Courier New, monospace',
-        fontSize: '26px',
+        fontSize: '34px',
         fontStyle: 'bold',
-        color: '#ffaa30',
+        color: '#ffbb40',
         stroke: '#000000',
-        strokeThickness: 3,
-        letterSpacing: 4,
+        strokeThickness: 4,
+        letterSpacing: 5,
       })
       .setOrigin(0.5);
+    // Gentle pulse (offset from ENGAGE's) so both buttons feel "live".
+    this.tweens.add({
+      targets: endText, scale: 1.04, duration: 800, yoyo: true, repeat: -1,
+      ease: 'Sine.easeInOut', delay: 350,
+    });
 
     const endZone = this.add
       .zone(cx, endY, endW, endH)

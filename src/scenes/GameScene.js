@@ -340,6 +340,7 @@ export class GameScene extends Phaser.Scene {
     this.survivalTimeLeft = 0;   // legacy field kept 0 so old guards fall through
     this._waveIdx         = -1;  // _startWave(0) advances to 0
     this._lastLiving      = -1;
+    this._applySectorTint();     // endless: escalating per-sector colour wash
     // Resolve this room's modifier: campaign uses the authored cfg.modifier;
     // endless rolls one at random every room for variety across the climb.
     if (this.mode === 'endless') {
@@ -356,6 +357,25 @@ export class GameScene extends Phaser.Scene {
     this.events.emit('modifier-active', m?.name ?? null, m?.color ?? null);
     this.events.emit('set-darkness', !!m?.darkness);
     if (m) this.time.delayedCall(1550, () => this.events.emit('show-banner', m.name, m.color));
+  }
+
+  // Endless: a camera-locked colour wash that rotates hue and deepens each
+  // sector, so the same looped rooms visibly escalate instead of looking
+  // identical run after run. No-op in campaign.
+  _applySectorTint() {
+    if (this.mode !== 'endless') return;
+    const hue   = ((this.sector - 1) * 0.11) % 1;               // rotate per sector
+    const color = Phaser.Display.Color.HSVToRGB(hue, 0.7, 1).color;
+    const alpha = Math.min(0.05 + (this.sector - 1) * 0.02, 0.20);
+    if (!this._sectorTint) {
+      this._sectorTint = this.add.rectangle(0, 0, this.cameras.main.width, this.cameras.main.height, color, alpha)
+        .setOrigin(0, 0)
+        .setScrollFactor(0)
+        .setDepth(9000)
+        .setBlendMode(Phaser.BlendModes.ADD);
+    } else {
+      this._sectorTint.setFillStyle(color, alpha);
+    }
   }
 
   // Apply this room's modifier on top of the merged wave cfg. Effects: ELITE
@@ -413,6 +433,11 @@ export class GameScene extends Phaser.Scene {
       this.cameras.main.flash(300, 255, 90, 20, false);
       this.fx.shake(0.02, 300);
       this._spawnMiniBoss();
+    } else if (this.mode === 'endless' && idx === 0) {
+      // First wave of an endless room headlines the SECTOR — the run's main
+      // progress unit — instead of a generic "WAVE 1", so endless reads as its
+      // own escalating mode.
+      this.events.emit('show-banner', `SECTOR ${this.sector}`, '#ffbb40');
     } else {
       this.events.emit('show-banner', `WAVE ${idx + 1}`, '#40c0ff');
     }
