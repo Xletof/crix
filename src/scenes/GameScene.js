@@ -139,9 +139,10 @@ export class GameScene extends Phaser.Scene {
     // ── Desktop keyboard fallback ──────────────────────────────────────────
     this.cursors = this.input.keyboard?.createCursorKeys();
     this.keys    = this.input.keyboard?.addKeys('W,A,S,D,SHIFT,F,ENTER,E');
-    // SPACE = super: tap → auto-aim + fire; hold ≥250ms → manual aim (cone
-    // tracks facing), fires on release. If the super isn't charged, tap falls
-    // back to a primary auto-aim shot so Space always does something.
+    // SPACE = super: auto-aims the nearest enemy (the cone previews the target
+    // while held, and the shot fires along it on release). If the super isn't
+    // charged, tap falls back to a primary auto-aim shot so Space always does
+    // something.
     this._spaceDownAt = 0;
     this.input.keyboard?.on('keydown-SPACE', (ev) => {
       if (ev.repeat) return;
@@ -398,6 +399,9 @@ export class GameScene extends Phaser.Scene {
     this._wave       = wave;
     // drip/roll/elite all read this merged object
     this.arenaCfg    = this._applySectorScaling(this._applyModifier({ ...this._roomArenaCfg, ...wave }));
+    // Wipe the baked blood/scorch from the previous wave — each wave (and each
+    // new room/sector, since those start at wave 0) begins on a clean floor.
+    this.decalRT?.clear();
     this._wavePhase  = 'spawning';
     this._waveSpawned = 0;
     this._waveDripMs  = 0;
@@ -1461,8 +1465,10 @@ export class GameScene extends Phaser.Scene {
   // ── Firing helpers ────────────────────────────────────────────────────────
 
   firePlayerPrimary(angle) {
-    const bx = this.player.x + Math.cos(angle) * (PLAYER.radius + 4);
-    const by = this.player.y + Math.sin(angle) * (PLAYER.radius + 4);
+    // Spawn from the gun muzzle: player center + a barrel-length offset along the
+    // (now unified) aim angle, so bolts leave the tip of the weapon.
+    const bx = this.player.x + Math.cos(angle) * (PLAYER.radius + 12);
+    const by = this.player.y + Math.sin(angle) * (PLAYER.radius + 12);
     const spread = Phaser.Math.DegToRad(PLAYER.pelletSpreadDeg);
     const half   = (PLAYER.pelletCount - 1) / 2;
     for (let i = 0; i < PLAYER.pelletCount; i++) {
@@ -1484,8 +1490,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   firePlayerSuper(angle) {
-    const bx = this.player.x + Math.cos(angle) * (PLAYER.radius + 6);
-    const by = this.player.y + Math.sin(angle) * (PLAYER.radius + 6);
+    const bx = this.player.x + Math.cos(angle) * (PLAYER.radius + 14);
+    const by = this.player.y + Math.sin(angle) * (PLAYER.radius + 14);
     const spread = Phaser.Math.DegToRad(PLAYER.superSpreadDeg);
     const half   = (PLAYER.superPellets - 1) / 2;
     for (let i = 0; i < PLAYER.superPellets; i++) {
@@ -1515,8 +1521,8 @@ export class GameScene extends Phaser.Scene {
 
   firePlayerRifle(angle) {
     const cfg = WEAPONS.rifle;
-    const bx  = this.player.x + Math.cos(angle) * (PLAYER.radius + 4);
-    const by  = this.player.y + Math.sin(angle) * (PLAYER.radius + 4);
+    const bx  = this.player.x + Math.cos(angle) * (PLAYER.radius + 12);
+    const by  = this.player.y + Math.sin(angle) * (PLAYER.radius + 12);
     // Single tight bolt per burst shot
     this.playerRifleBullets.fire(bx, by, angle, cfg.speed, cfg.damage, cfg.range, { owner: 'player' });
     this.fx.muzzleFlash(bx, by, angle);

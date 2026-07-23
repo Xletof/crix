@@ -187,8 +187,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.superAiming = true;
       this.superAim    = Math.atan2(vec.y, vec.x);
     } else {
+      // Auto mode: preview the nearest enemy so the cone points where the shot
+      // will actually go (kept in sync each frame while held — see preUpdate).
       this.superAiming = true;
-      this.superAim    = this.facing;
+      this.superAim    = this._autoAimAngle();
     }
   }
 
@@ -219,28 +221,39 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setSuperAimInput(null);
   }
 
-  endKeyboardSuperAim(manual) {
+  endKeyboardSuperAim() {
     this._kbSuperHold = false;
-    if (manual) {
-      this.releaseSuperAim({ x: Math.cos(this.facing), y: Math.sin(this.facing), force: 1 });
-    } else {
-      this.releaseSuperAim(null); // auto-aim at nearest enemy
-    }
+    // Keyboard super always auto-aims the nearest enemy — matches the previewed
+    // cone. Manual precision aiming stays on the touch super stick.
+    this.releaseSuperAim(null);
   }
 
   // ── Firing ────────────────────────────────────────────────────────────────
 
+  // Angle to the nearest enemy (what an auto-aim shot will use), or the current
+  // facing if the room is empty. Used to make the aim cone preview the actual
+  // auto-target instead of the move direction.
+  _autoAimAngle() {
+    const t = this.scene.findNearestEnemy?.(this.x, this.y);
+    return t ? Math.atan2(t.y - this.y, t.x - this.x) : this.facing;
+  }
+
   keyboardFire() {
     if (!this.alive) return;
-    const nearest = this.scene.findNearestEnemy(this.x, this.y);
-    const angle = nearest ? Math.atan2(nearest.y - this.y, nearest.x - this.x) : this.facing;
-    this.tryFire(angle);
+    this.tryFire(this._autoAimAngle());
   }
 
   tryFire(angleOverride) {
     if (!this.alive) return false;
     const dir = typeof angleOverride === 'number' ? angleOverride
       : this.aiming ? this.aim : this.facing;
+
+    // Unify visual + shot direction: whatever we fire along, the body/weapon
+    // face it too. Without this, an auto-aim shot flies at the target while the
+    // gun still points along the move stick — bolts appear to leave the player's
+    // back and the character never turns to the enemy.
+    this.facing = dir;
+    this.aim    = dir;
 
     this.revealTimer = 1500; // Reveal player when shooting
 
@@ -337,7 +350,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.superCharge = 0;
     this.revealTimer = 1500; // Reveal player
     const dir = typeof angleOverride === 'number' ? angleOverride
-      : this.aiming ? this.aim : this.facing;
+      : this.superAiming ? this.superAim : this.aiming ? this.aim : this.facing;
+    // Face the super the same way — see tryFire.
+    this.facing   = dir;
+    this.superAim = dir;
+    this.aim      = dir;
     this.recoilT        = 260;
     this._wKickT        = 180;   // bigger kick for the super
     this._fireAnimTimer = 240;
@@ -525,9 +542,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   preUpdate(time, delta) {
     super.preUpdate?.(time, delta);
 
-    // Keyboard super hold: aim cone tracks the current facing until release
+    // Keyboard super hold: the aim cone tracks the nearest enemy (the auto-aim
+    // target) so it previews exactly where the shot will go on release.
     if (this._kbSuperHold && this.superAiming) {
-      this.superAim = this.facing;
+      this.superAim = this._autoAimAngle();
     }
 
     // Recharge dash charges

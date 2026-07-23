@@ -24,6 +24,10 @@ export class PauseScene extends Phaser.Scene {
 
   create(data) {
     this.gs = data?.game || null;
+    // PauseScene is a persistent singleton — Phaser reuses the same instance on
+    // every launch. Reset the guard here or a second pause stays frozen (all of
+    // _resume/_restart/_quit early-return on a stale _closing === true).
+    this._closing = false;
     const cx = VIEW.width / 2;
 
     // Dim backdrop
