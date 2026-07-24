@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, ALLY, FONTS } from '../config.js';
+import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, ALLY, FONTS, HUDCFG, VIEW } from '../config.js';
 import { Player } from '../entities/Player.js';
 import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, EnemySniper, EnemySwarmling, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
@@ -51,6 +51,10 @@ export class GameScene extends Phaser.Scene {
     // 0.22 lets the ramp register on screen as actual physical motion.
     // The aim-lookahead `_camOX/_camOY` smoothing still carries the snap.
     this.cameras.main.startFollow(this.player, true, 0.22, 0.22);
+    // Inset the game viewport below the HUD top bar so the world never renders
+    // behind it (the bar is a separate overlay scene drawn above everything).
+    // This also un-hides the top room exit, which used to sit under the bar.
+    this.cameras.main.setViewport(0, HUDCFG.topBarHeight, VIEW.width, VIEW.height - HUDCFG.topBarHeight);
 
     // ── Bush / cover system ────────────────────────────────────────────────
     this.bushSystem = new BushSystem(this);

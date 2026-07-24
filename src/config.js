@@ -221,6 +221,10 @@ export const HUDCFG = {
   joystickKnobRadius: 42,
   joystickMargin: 36,
   joystickBottom: 36,
+  // Height of the HUD top bar. The game camera is inset by this much so the
+  // world never renders behind the (opaque) bar — shared by the HUD bar fill
+  // and the GameScene camera viewport so the two can't drift apart.
+  topBarHeight: 84,
 };
 
 export const COLORS = {

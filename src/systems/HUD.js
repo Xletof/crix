@@ -37,20 +37,23 @@ export class HUDScene extends Phaser.Scene {
     this._bossPhase = 1;
 
     // ── Imperial top bar ────────────────────────────────────────────────
+    // Its height is the shared inset the game camera is pushed down by, so the
+    // world never renders behind it (see GameScene camera setViewport).
+    const barH = HUDCFG.topBarHeight;
     const top = this.add.graphics();
-    // Dark metal base
-    top.fillStyle(0x0a0c14, 0.88);
-    top.fillRect(0, 0, VIEW.width, 84);
+    // Dark metal base — opaque so the transparent world edge behind reads clean.
+    top.fillStyle(0x0a0c14, 1);
+    top.fillRect(0, 0, VIEW.width, barH);
     // Blue LED strip bottom (Imperial)
     top.fillStyle(0x0038bb, 0.8);
-    top.fillRect(0, 80, VIEW.width, 3);
+    top.fillRect(0, barH - 4, VIEW.width, 3);
     // Subtle top edge sheen
     top.fillStyle(0x2e3038, 0.5);
     top.fillRect(0, 0, VIEW.width, 2);
     // Side accent lines
     top.fillStyle(0x1e2028, 1);
-    top.fillRect(0, 0, 2, 84);
-    top.fillRect(VIEW.width - 2, 0, 2, 84);
+    top.fillRect(0, 0, 2, barH);
+    top.fillRect(VIEW.width - 2, 0, 2, barH);
 
     // HP bar (bacta blue theme)
     this.hpBack = this.add.graphics();
@@ -761,8 +764,13 @@ export class HUDScene extends Phaser.Scene {
     const vw  = cam.worldView;             // world rect currently on screen
     if (!vw || vw.width <= 0) return;
     const zoom = cam.zoom;
-    const cx = VIEW.width  / 2;
-    const cy = VIEW.height / 2;
+    // The game camera is inset below the HUD bar, so chevrons pin to the visible
+    // game viewport rect (screen space), not the full screen.
+    const vpx = cam.x, vpy = cam.y;        // viewport top-left in screen px
+    const cx = vpx + cam.width  / 2;
+    const cy = vpy + cam.height / 2;
+    const halfW = cam.width  / 2;
+    const halfH = cam.height / 2;
 
     const MAX_ENEMY = 6;   // nearest N off-screen enemies
     const MAX_PROJ  = 4;   // nearest N off-screen incoming fast projectiles
@@ -797,10 +805,12 @@ export class HUDScene extends Phaser.Scene {
     projs.sort((a, b) => a.d - b.d);
 
     const drawChevron = (wx, wy, coreColor, glowColor, boss) => {
-      const ang = Math.atan2((wy - vw.y) * zoom - cy, (wx - vw.x) * zoom - cx);
+      const sx = vpx + (wx - vw.x) * zoom;   // threat position in screen space
+      const sy = vpy + (wy - vw.y) * zoom;
+      const ang = Math.atan2(sy - cy, sx - cx);
       const absC = Math.abs(Math.cos(ang));
       const absS = Math.abs(Math.sin(ang));
-      const R = (absC < 0.001 ? cy : absS < 0.001 ? cx : Math.min(cx / absC, cy / absS)) * 0.9;
+      const R = (absC < 0.001 ? halfH : absS < 0.001 ? halfW : Math.min(halfW / absC, halfH / absS)) * 0.9;
       const px = cx + Math.cos(ang) * R;
       const py = cy + Math.sin(ang) * R;
       const d = Math.hypot(wx - p.x, wy - p.y);
