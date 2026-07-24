@@ -14,6 +14,13 @@ export class SuperButton {
     this.radius = opts.radius || 60;
     this.dragRadius = opts.dragRadius || 90;
     this.deadzone = opts.deadzone ?? 0.18;
+    // Peak-drag tap threshold: the finger must travel at least this far from
+    // its touch-down point *at some point during the hold* for the gesture to
+    // count as a deliberate aim-drag. Below it, we treat the release as a tap
+    // and auto-aim the nearest enemy — this immunises taps against the ~20–30px
+    // of incidental finger roll that used to read as a manual drag and fire the
+    // super in a random direction.
+    this.tapMax = (opts.tapMax ?? 0.42) * this.dragRadius;
     this.onAim = opts.onAim || (() => {});
     this.onRelease = opts.onRelease || (() => {});
     this.isReady = opts.isReady || (() => true);
@@ -25,6 +32,10 @@ export class SuperButton {
 
     this.pointerId = null;
     this.vec = { x: 0, y: 0, force: 0, angle: 0 };
+    // Gesture tracking for the tap/drag classifier.
+    this._downX = 0;
+    this._downY = 0;
+    this._peakDist = 0;
 
     scene.input.on('pointerdown', this.handleDown, this);
     scene.input.on('pointermove', this.handleMove, this);
@@ -41,22 +52,26 @@ export class SuperButton {
     if (!this.containsPoint(pointer.x, pointer.y)) return;
     if (!this.isReady()) return;
     this.pointerId = pointer.id;
+    // Anchor the gesture at the touch-down point and reset drag travel.
+    this._downX = pointer.x;
+    this._downY = pointer.y;
+    this._peakDist = 0;
     this.knob.setAlpha(0.9);
     this.image.setScale(1.08);
     this.updateVec(pointer.x, pointer.y);
-    this.onAim(this.vec); // initial fire of aim event (cone appears immediately)
+    this.onAim(this._emitVec()); // initial fire of aim event (cone appears immediately)
   }
 
   handleMove(pointer) {
     if (this.pointerId !== pointer.id) return;
     this.updateVec(pointer.x, pointer.y);
-    this.onAim(this.vec);
+    this.onAim(this._emitVec());
   }
 
   handleUp(pointer) {
     if (this.pointerId !== pointer.id) return;
     this.pointerId = null;
-    const final = { ...this.vec };
+    const final = this._emitVec();
     this.vec.x = 0;
     this.vec.y = 0;
     this.vec.force = 0;
@@ -66,10 +81,28 @@ export class SuperButton {
     this.onRelease(final);
   }
 
+  // The vec handed to the aim/release callbacks. Until the finger has moved a
+  // deliberate distance from the touch-down point (peak drag ≥ tapMax), force
+  // is reported as 0 so both the preview cone and the fire path take the
+  // auto-aim branch — a tap can't be misread as a manual drag. Once it's a real
+  // drag, the true force and center-relative direction pass through unchanged.
+  _emitVec() {
+    if (this._peakDist < this.tapMax) {
+      return { x: this.vec.x, y: this.vec.y, force: 0, angle: this.vec.angle };
+    }
+    return { ...this.vec };
+  }
+
   updateVec(px, py) {
     const dx = px - this.x;
     const dy = py - this.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
+    // Track how far the finger has drifted from where it landed (peak over the
+    // whole hold) — this drives the tap/drag classification, independent of the
+    // center-relative aim direction below.
+    const mdx = px - this._downX;
+    const mdy = py - this._downY;
+    this._peakDist = Math.max(this._peakDist, Math.sqrt(mdx * mdx + mdy * mdy));
     const max = this.dragRadius;
     const clamped = Math.min(dist, max);
     const nx = dist > 0 ? (dx / dist) * clamped : 0;
