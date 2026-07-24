@@ -177,7 +177,7 @@ export class HUDScene extends Phaser.Scene {
     const secX = HUDCFG.joystickMargin + HUDCFG.joystickRadius;
     const secY = VIEW.height - HUDCFG.joystickBottom - HUDCFG.joystickRadius * 2 - 60;
     this.secGfx = this.add.graphics();
-    this.secIcon = this.add.image(secX, secY, 'pickup-rifle').setDepth(5).setScale(0.7).setVisible(false);
+    this.secIcon = this.add.image(secX, secY, 'pickup-rifle').setDepth(5).setScale(0.42).setVisible(false);
     this.secText = this.add.text(secX, secY + 42, ' ', {
       fontFamily: FONTS.body,
       fontSize: '15px',

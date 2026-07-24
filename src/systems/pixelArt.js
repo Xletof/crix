@@ -1537,51 +1537,62 @@ export function paintSuperButton(scene) {
 }
 
 // ── WEAPON PICKUPS ────────────────────────────────────────────────────────────
-// Each pickup is 16×16 logical pixels @ scale 4 = 64×64 texture.
-// Glowing outline so they read clearly on the dark floor.
+// Bold, readable weapon icons at 24×24 logical @ scale 4 = 96×96 texture, so
+// they stay recognizable while floating above the drop. Both share the canvas
+// size so the pickup + HUD can use one scale. Identity color/outline comes from
+// WeaponPickup + the WEAPONS config; here we just draw a crisp, shaded weapon.
 
 export function paintWeaponPickups(scene) {
-  // DC-15 Rifle — angular dark barrel, orange glow
-  const rifle = new PixelCanvas(scene, 'pickup-rifle', 16, 16, 4);
-  // Outer glow halo
-  for (let x = 2; x <= 13; x++) { rifle.px(x, 0, '#804010'); rifle.px(x, 15, '#804010'); }
-  for (let y = 1; y <= 14; y++) { rifle.px(1,  y, '#804010'); rifle.px(14, y, '#804010'); }
-  // Barrel (long horizontal rectangle, top half)
-  rifle.rect(2, 3, 12, 3, PAL.impDark);
-  rifle.rect(3, 4, 10, 1, PAL.impGrey);
-  rifle.rect(3, 3, 10, 1, PAL.impLight);
-  // Muzzle tip orange
-  rifle.rect(13, 3, 1, 3, '#ff8010');
-  // Body / grip
-  rifle.rect(3, 6, 7, 5, PAL.impMid);
-  rifle.rect(4, 7, 5, 3, PAL.impGrey);
-  rifle.rect(5, 6, 3, 1, PAL.impLight);
-  // Scope
-  rifle.rect(5, 2, 3, 2, PAL.impLight);
-  rifle.rect(6, 2, 1, 1, PAL.bactaLight);
-  // Mag
-  rifle.rect(4, 11, 4, 3, PAL.impGrey);
-  rifle.finish();
+  // ── DC-15 rifle — clean side profile, grip down, barrel to the right ──────
+  const r = new PixelCanvas(scene, 'pickup-rifle', 24, 24, 4);
+  // Stock (left)
+  r.rect(2, 9, 4, 5, PAL.impMid);
+  r.rect(2, 9, 4, 1, PAL.impLight);      // top highlight
+  r.rect(2, 13, 4, 1, PAL.black);        // bottom shadow
+  // Receiver / body
+  r.rect(5, 8, 9, 7, PAL.impGrey);
+  r.rect(5, 8, 9, 1, PAL.impLight);
+  r.rect(6, 9, 6, 1, PAL.impSheen);      // sheen line
+  r.rect(5, 14, 9, 1, PAL.black);
+  r.px(5, 8, PAL.metalLight); r.px(13, 8, PAL.metalLight); // bright corners
+  // Scope on top
+  r.rect(7, 5, 5, 3, PAL.impMid);
+  r.rect(7, 5, 5, 1, PAL.impLight);
+  r.px(9, 6, PAL.bactaLight);            // lens glint
+  // Grip (down)
+  r.rect(6, 15, 3, 5, PAL.impMid);
+  r.rect(6, 15, 3, 1, PAL.impGrey);
+  r.rect(6, 19, 3, 1, PAL.black);
+  // Magazine (down, ahead of the grip)
+  r.rect(10, 15, 3, 6, PAL.impGrey);
+  r.rect(10, 15, 3, 1, PAL.impLight);
+  r.rect(10, 20, 3, 1, PAL.black);
+  // Long barrel to the right
+  r.rect(14, 10, 8, 3, PAL.impGrey);
+  r.rect(14, 10, 8, 1, PAL.impLight);
+  r.rect(14, 12, 8, 1, PAL.black);
+  // Amber muzzle tip (rifle identity accent)
+  r.rect(21, 10, 2, 3, '#ffb020');
+  r.px(22, 9, '#ffd870');
+  r.finish();
 
-  // Thermal Detonator — round sphere, red button, silver band
-  const det = new PixelCanvas(scene, 'pickup-det', 16, 16, 4);
-  for (let x = 3; x <= 12; x++) { det.px(x, 1, '#880000'); det.px(x, 14, '#880000'); }
-  for (let y = 2; y <= 13; y++) { det.px(2,  y, '#880000'); det.px(13, y, '#880000'); }
-  // Sphere body
-  det.rect(4, 3, 8, 10, PAL.impMid);
-  det.rect(3, 4, 10, 8, PAL.impMid);
-  det.rect(5, 4, 6, 8, PAL.impGrey);
-  det.rect(4, 5, 8, 6, PAL.impGrey);
-  // Highlight
-  det.rect(5, 4, 3, 2, PAL.impLight);
-  // Equatorial silver band
-  det.rect(3, 7, 10, 2, PAL.metalLight);
-  det.rect(3, 7, 10, 1, PAL.impSheen);
-  // Red activation button
-  det.rect(6, 7, 4, 2, '#cc0000');
-  det.rect(7, 7, 2, 2, '#ff2020');
-  det.rect(7, 7, 2, 1, '#ff8888');
-  det.finish();
+  // ── Thermal detonator — round sphere, silver band, red button ─────────────
+  const d = new PixelCanvas(scene, 'pickup-det', 24, 24, 4);
+  const cx = 12, cy = 12;
+  d.circle(cx, cy, 9, PAL.impDark);              // dark rim
+  d.circle(cx, cy, 8, PAL.impMid);
+  d.circle(cx - 1, cy - 1, 7, PAL.impGrey);      // body
+  d.circle(cx - 2, cy - 2, 4, PAL.impLight);     // upper-left light
+  d.circle(cx - 3, cy - 3, 2, PAL.impSheen);     // hot highlight
+  d.px(cx - 4, cy - 3, PAL.metalLight);
+  // Equatorial silver band (kept inside the disc so it stays round)
+  d.hline(cy,     cx - 7, cx + 7, PAL.metalLight);
+  d.hline(cy + 1, cx - 6, cx + 6, PAL.impSheen);
+  // Red activation button (top)
+  d.rect(cx - 1, cy - 6, 3, 2, '#cc0000');
+  d.rect(cx - 1, cy - 6, 2, 1, '#ff2828');
+  d.px(cx, cy - 6, '#ff8888');
+  d.finish();
 }
 
 // ── GRENADE PROJECTILE ────────────────────────────────────────────────────────
