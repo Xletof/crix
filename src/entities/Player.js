@@ -25,6 +25,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.isRegenerating = false;
     this._hurtStaggerMs = 0;
     this._wKickT        = 0;
+    this._wKickDur      = 80;
+    this._wKickMag      = 7;
     this.accuracyMult   = 1.0;
     this.hitStreak      = 0;
     this.runMaxCombo    = 1.0;
@@ -66,7 +68,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     // ── Animation helpers ──────────────────────────────────────────────────
     this._fireAnimTimer = 0;
+    // Recoil is a timer + the duration it started from (so the 0..1 ratio is
+    // normalized per weapon) + a signed magnitude: negative squashes the body
+    // inward (light weapons), positive pops it outward (the super).
     this.recoilT        = 0;
+    this.recoilDur      = 110;
+    this.recoilMag      = -0.12;
     this.revealTimer    = 0; // timer to reveal player when firing in bush
     this.dashCharges    = (PLAYER.dashChargesMax || 3) + this.dashChargesBonus;
     this.dashRechargeTimer = 0;
@@ -271,7 +278,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.ammo         -= 1;
     this.ammoTimers.push(PLAYER.ammoReloadMs * this.reloadMult);
     this.recoilT       = 110;
+    this.recoilDur     = 110;
+    this.recoilMag     = -0.12;  // light inward squash
     this._wKickT       = 80;
+    this._wKickDur     = 80;
+    this._wKickMag     = 7;
     this._fireAnimTimer = 140;
     this.scene.events.emit('player-fire', dir);
     SFX.shoot();
@@ -286,7 +297,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this._burstTimer     = 0;
     this._burstAngle     = dir;
     this.recoilT         = 80;
+    this.recoilDur       = 80;
+    this.recoilMag       = -0.0873; // matches the rifle's previous peak (0.913)
     this._wKickT         = 60;
+    this._wKickDur       = 60;
+    this._wKickMag       = 5.25;
     this._fireAnimTimer  = 160;
     SFX.shoot();
     return true;
@@ -310,6 +325,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.fireCooldown    = 400;
     this._fireAnimTimer  = 200;
     this.recoilT         = 80;
+    this.recoilDur       = 80;
+    this.recoilMag       = -0.0873; // matches the throw's previous peak
     const spd = cfg.throwSpeed;
     const bx  = this.x + Math.cos(dir) * (PLAYER.radius + 10);
     const by  = this.y + Math.sin(dir) * (PLAYER.radius + 10);
@@ -336,7 +353,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.aim      = dir;
     this._facingLockMs = 260;
     this.recoilT        = 260;
+    this.recoilDur      = 260;
+    // The super POPS OUTWARD (positive) instead of squashing in — the heavy
+    // blast shoves the body big for a beat and it settles back. Previously this
+    // reused the pistol's 110ms divisor unclamped and shrank the player to ~73%,
+    // which read as the shot imploding rather than punching.
+    this.recoilMag      = 0.20;
     this._wKickT        = 180;   // bigger kick for the super
+    this._wKickDur      = 180;
+    this._wKickMag      = 16;
     this._fireAnimTimer = 240;
     this.scene.events.emit('player-fire-super', dir);
     SFX.shootSuper();
@@ -651,7 +676,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       // from the player for ~80ms then springs back. Pure visual, doesn't
       // affect bullet spawn positions.
       if (this._wKickT > 0) this._wKickT -= delta;
-      const kickBack = this._wKickT > 0 ? (this._wKickT / 80) * 7 : 0;
+      // Normalized by this shot's own kick duration (was hardcoded to the
+      // pistol's 80ms, which made the super's 180ms kick overshoot by accident).
+      const kickBack = this._wKickT > 0
+        ? Phaser.Math.Clamp(this._wKickT / (this._wKickDur || 80), 0, 1) * this._wKickMag
+        : 0;
       const offset = PLAYER.radius - 4 - kickBack;
       this.weaponSprite.x = this.x + Math.cos(ang) * offset;
       this.weaponSprite.y = this.y + Math.sin(ang) * offset;
@@ -818,7 +847,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.setScale(1.0);
     } else if (this.recoilT > 0) {
       this.recoilT -= delta;
-      this.setScale(1.0 * (1 - Math.max(0, this.recoilT / 110) * 0.12));
+      // Ratio is normalized by the shot's OWN duration and clamped, so a long
+      // recoil (the super) can't overshoot the way it used to. Sign of
+      // recoilMag decides squash-in vs pop-out.
+      const rt = Phaser.Math.Clamp(this.recoilT / (this.recoilDur || 110), 0, 1);
+      this.setScale(1 + rt * this.recoilMag);
       this.angle = 0;
     } else if (this.alive && this._hurtStaggerMs <= 0) {
       if (isMoving) {
