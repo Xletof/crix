@@ -1797,15 +1797,32 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Camera aim-lookahead — shift the follow target ~70px toward the
-    // current aim/facing direction so you can see further down the barrel.
-    // Smoothly interpolated to avoid camera snap.
+    // Camera lookahead — shift the follow target toward where the player is
+    // looking AND where they're moving, so you see further down the barrel and
+    // get extra reaction room ahead of movement in the narrow portrait view.
+    // Both leads feed one smoothed offset (no snap); the total is clamped.
     if (this.player.alive) {
       const aim = this.player.aiming ? this.player.aim
                 : this.player.superAiming ? this.player.superAim
                 : this.player.facing;
-      const tx = Math.cos(aim) * 50;
-      const ty = Math.sin(aim) * 50;
+      // Aim lead (unchanged): look down the barrel.
+      let tx = Math.cos(aim) * 50;
+      let ty = Math.sin(aim) * 50;
+      // Velocity lead: push ahead of travel, scaled by how fast we're moving.
+      // A dash gets a bigger transient lead that eases back via the smoother.
+      const vx = this.player.body.velocity.x;
+      const vy = this.player.body.velocity.y;
+      const sp = Math.hypot(vx, vy);
+      if (sp > 1) {
+        const speedN  = Math.min(1, sp / PLAYER.speed);
+        const velLead = (this.player.isDashing ? 120 : 60) * speedN;
+        tx += (vx / sp) * velLead;
+        ty += (vy / sp) * velLead;
+      }
+      // Clamp the combined offset so aim + velocity can't stack too far.
+      const mag = Math.hypot(tx, ty);
+      const MAXO = 150;
+      if (mag > MAXO) { tx = (tx / mag) * MAXO; ty = (ty / mag) * MAXO; }
       this._camOX = (this._camOX ?? 0) * 0.92 + tx * 0.08;
       this._camOY = (this._camOY ?? 0) * 0.92 + ty * 0.08;
       this.cameras.main.setFollowOffset(-this._camOX, -this._camOY);
