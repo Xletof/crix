@@ -991,6 +991,15 @@ export class GameScene extends Phaser.Scene {
   // Brief camera punch-zoom: pulse the zoom up to `to` over half the
   // duration, then back to 1.0. Decay handled by a tween so it's safe
   // through scene transitions.
+  // Distance falloff for super-hit shake: full punch on enemies near the
+  // player, dropping to a floor of 0.15x by ~700px out. Keeps a super that
+  // wipes a spread crowd from ringing the camera on every distant kill.
+  _superShakeFalloff(enemy) {
+    if (!this.player) return 1;
+    const d = Math.hypot(enemy.x - this.player.x, enemy.y - this.player.y);
+    return Phaser.Math.Clamp(1 - d / 700, 0.15, 1);
+  }
+
   _cameraPunch(to = 1.04, durMs = 220) {
     const cam = this.cameras.main;
     if (this._cameraPunchTween) this._cameraPunchTween.stop();
@@ -1117,6 +1126,13 @@ export class GameScene extends Phaser.Scene {
       enemy.hp    = Math.round(enemy.hp * this.enemyHpMult);
       enemy.hpMax = enemy.hp;
       enemy.cfg   = { ...enemy.cfg, speed: enemy.cfg.speed * this.enemySpeedMult };
+    }
+    // Swarmlings must stay escapable: cap their effective (post-modifier) speed
+    // just under the player so FRENZY / endless scaling can't make the "dash
+    // through the pack" fodder outrun you outright.
+    if (type === 'swarmling') {
+      const cap = PLAYER.speed * 0.95;
+      if (enemy.cfg.speed > cap) enemy.cfg = { ...enemy.cfg, speed: cap };
     }
     enemy.coverRegistry = this.coverRegistry;
     this.enemies.add(enemy);
@@ -1353,7 +1369,8 @@ export class GameScene extends Phaser.Scene {
           'CRIT!', '#ffe040', true);
         this.fx.damageNumber(enemy.x + 18, enemy.y - enemy.cfg.radius,
           Math.round(amount), '#ff8020', false);
-        this.fx.shake(0.005, 70);
+        // Super hits far from the player shake much less than close ones.
+        this.fx.shake(0.005 * this._superShakeFalloff(enemy), 70);
       } else {
         this.fx.damageNumber(enemy.x, enemy.y - enemy.cfg.radius, Math.round(amount));
         // Chipping a tank (elite or just high-HP): the old 0.002 shake was
@@ -1387,7 +1404,12 @@ export class GameScene extends Phaser.Scene {
       // Shake + camera punch scale with both threat and the current combo.
       // Base trimmed (0.009 -> 0.005) so ordinary grunt kills barely nudge the
       // camera; big/elite kills and long combos still ramp up.
-      this.fx.shake(0.005 * threatScale * comboMult, Math.round(110 * Math.min(threatScale, 1.3)));
+      // For super kills, drop the combo ramp and fall off with distance instead
+      // — a super wiping a spread crowd shouldn't ring the camera on far kills.
+      const killShakeScale = this._superHitCtx
+        ? this._superShakeFalloff(enemy)
+        : threatScale * comboMult;
+      this.fx.shake(0.005 * killShakeScale, Math.round(110 * Math.min(threatScale, 1.3)));
       this._cameraPunch(1.04 + 0.015 * (threatScale - 1) + 0.01 * (comboMult - 1), 220);
 
       // Same-frame multi-kill tracking (distinct from the 2s combo streak —
@@ -1924,7 +1946,13 @@ export class GameScene extends Phaser.Scene {
           // give a punchy stagger in flight direction. Hotline-feel.
           const kbScale = isSuper ? 0.32 : 0.18;
           const kbVec = { x: b.body.velocity.x * kbScale, y: b.body.velocity.y * kbScale };
+          // Flag super-caused damage so the enemy-hit/enemy-died shake handlers
+          // (which fire synchronously inside damage()) can fall the shake off
+          // with the enemy's distance — a super wiping a spread-out crowd was
+          // ringing the camera on every far kill.
+          this._superHitCtx = isSuper && b.owner === 'player';
           e.damage(b.damage, kbVec);
+          this._superHitCtx = false;
           this.fx.impactRing(b.x, b.y, 0xee3030); // red shockwave for troopers
           // Directional impact spray — sparks fly forward along the bullet
           // path with a wide cone, like a deflection ricochet.

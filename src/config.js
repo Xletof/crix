@@ -174,7 +174,7 @@ export const ENEMY = {
   // whole cluster, which is exactly what makes those feel great.
   swarmling: {
     hp: 60,               // one primary bolt (120) kills
-    speed: 345,           // very fast
+    speed: 310,           // fast, but the player (380) can make space with a dash
     radius: 13,           // small
     meleeRange: 40,
     meleeDamage: 42,
