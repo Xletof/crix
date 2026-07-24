@@ -1246,9 +1246,53 @@ export function paintBolt(scene, key, coreColor, glowColor, len = 22) {
   c.finish();
 }
 
+// Super slug — the overcharged version of paintBolt's energy language. Points
+// EAST (head right, tail left) so setRotation(travelAngle) orients it.
+//
+// IMPORTANT: the canvas MUST stay 18×8 @ scale 3 (= 54×24 px). Bullet.fire()
+// derives the physics body from the texture with setCircle(this.width / 2), so
+// the texture width IS the hitbox. All the added weight comes from filling the
+// full height and pushing values white-hot — never from a bigger canvas.
+export function paintSuperSlug(scene, key = 'bullet-super') {
+  const c = new PixelCanvas(scene, key, 18, 8, 3);
+
+  // ── Long fading tail (leftmost) — plasma bleeding off the back ──────
+  c.px(0, 4, PAL.boltRed);
+  c.px(1, 3, PAL.boltRed);      c.px(1, 4, PAL.boltRedGlow); c.px(1, 5, PAL.boltRed);
+  c.px(2, 2, PAL.boltRed);      c.px(2, 3, PAL.boltRedGlow);
+  c.px(2, 4, PAL.boltRedCore);  c.px(2, 5, PAL.boltRedGlow); c.px(2, 6, PAL.boltRed);
+
+  // ── Heavy body — thick saturated slug filling most of the height ────
+  c.rect(3, 2, 12, 5, PAL.boltRed);          // outer mass (5px tall vs bolt's 3)
+  c.rect(3, 3, 12, 3, PAL.boltRedGlow);      // inner heat
+  c.rect(3, 4, 12, 1, PAL.boltRedCore);      // core band
+
+  // ── Pure white core line running the full length ────────────────────
+  c.rect(4, 4, 11, 1, '#ffffff');
+  c.rect(6, 3, 8, 1, '#ffffff');             // widened white belly (mass)
+
+  // ── Soft glow halo top/bottom — the "bake the glow in" pass ─────────
+  c.rect(4, 1, 10, 1, PAL.boltRed);
+  c.rect(4, 7, 10, 1, PAL.boltRed);
+  c.rect(5, 1, 7, 1, PAL.boltRedGlow);
+  c.rect(5, 7, 7, 1, PAL.boltRedGlow);
+
+  // ── Incandescent head — white-hot leading edge with a forward flare ─
+  c.rect(15, 2, 1, 5, PAL.boltRedCore);
+  c.rect(15, 3, 1, 3, '#ffffff');
+  c.rect(16, 3, 1, 3, '#ffffff');
+  c.px(17, 4, '#ffffff');
+  c.px(16, 2, PAL.boltRedGlow);  c.px(16, 6, PAL.boltRedGlow);
+  c.px(17, 3, PAL.boltRedCore);  c.px(17, 5, PAL.boltRedCore);
+
+  c.finish();
+}
+
 // Wrist-rocket / missile — points EAST in the texture (nose right, flame left)
 // so setRotation(travelAngle) orients it naturally to its velocity.
-export function paintMissile(scene, key = 'bullet-super') {
+// Currently unused (the super moved to paintSuperSlug); kept for a future
+// rocket-type weapon since it's self-contained.
+export function paintMissile(scene, key = 'bullet-missile') {
   const c = new PixelCanvas(scene, key, 18, 8, 3);
 
   // ── Exhaust flame (leftmost) — bright multi-layer plume ─────────────
