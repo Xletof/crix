@@ -693,10 +693,14 @@ export class HUDScene extends Phaser.Scene {
 
     // Tick the timing-puzzle mini-game (no-op when idle)
     this.hackMinigame?.update(delta);
-    // Update dash button loading gauge
+    // Update dash button loading gauge — use the player's UPGRADED values so
+    // EXTRA THRUSTER (more charges) and QUICK CHARGE (faster recharge) actually
+    // show on the button, not the bare config constants.
     if (p && p.alive && this.dashButton) {
-      const rechargeRatio = p.dashCharges < PLAYER.dashChargesMax ? p.dashRechargeTimer / PLAYER.dashRechargeMs : 0;
-      this.dashButton.drawGauge(p.dashCharges, PLAYER.dashChargesMax, rechargeRatio);
+      const maxCharges = (PLAYER.dashChargesMax || 3) + (p.dashChargesBonus || 0);
+      const rechargeMs = (PLAYER.dashRechargeMs || 2800) * (p.dashRechargeMult || 1);
+      const rechargeRatio = p.dashCharges < maxCharges ? p.dashRechargeTimer / rechargeMs : 0;
+      this.dashButton.drawGauge(p.dashCharges, maxCharges, rechargeRatio);
     }
     // Low-HP red vignette pulse
     this._drawVignette(time);
