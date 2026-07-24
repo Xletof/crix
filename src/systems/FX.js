@@ -705,6 +705,85 @@ export function attachFX(scene) {
       e.emitParticleAt(x, y, count);
     },
 
+    // The super's blast bloom — the "pop". Three layers, all gone inside
+    // ~150ms so it punches without lingering or cluttering the screen:
+    // a big white-hot bloom, a wide cone flare along the fire axis, and an
+    // expanding shockwave ring. Deliberately much larger than muzzleFlash,
+    // which the super used to share with the pistol.
+    superMuzzleFlash(x, y, angle) {
+      // 1. Oversized bloom off the muzzle texture, additive so it blows out.
+      const m = scene.add.image(x, y, 'muzzle').setDepth(35);
+      m.setOrigin(0.15, 0.5);
+      m.setRotation(angle);
+      m.setScale(2.4, 1.9);
+      m.setBlendMode(Phaser.BlendModes.ADD);
+      scene.tweens.add({
+        targets: m, scaleX: 0.4, scaleY: 0.2, alpha: 0,
+        duration: 130, ease: 'Cubic.easeIn',
+        onComplete: () => m.destroy(),
+      });
+
+      // 2. Wide white-hot cone flare hugging the blast direction.
+      const SPREAD = Phaser.Math.DegToRad(34);
+      const LEN = 110;
+      const cone = scene.add.graphics().setDepth(34);
+      cone.setBlendMode(Phaser.BlendModes.ADD);
+      cone.fillStyle(0xff6040, 0.5);
+      cone.beginPath();
+      cone.moveTo(0, 0);
+      cone.lineTo(Math.cos(-SPREAD) * LEN, Math.sin(-SPREAD) * LEN);
+      cone.lineTo(Math.cos(SPREAD) * LEN, Math.sin(SPREAD) * LEN);
+      cone.closePath();
+      cone.fillPath();
+      cone.fillStyle(0xffffff, 0.65);
+      cone.beginPath();
+      cone.moveTo(0, 0);
+      cone.lineTo(Math.cos(-SPREAD * 0.45) * LEN * 0.7, Math.sin(-SPREAD * 0.45) * LEN * 0.7);
+      cone.lineTo(Math.cos(SPREAD * 0.45) * LEN * 0.7, Math.sin(SPREAD * 0.45) * LEN * 0.7);
+      cone.closePath();
+      cone.fillPath();
+      cone.setPosition(x, y);
+      cone.setRotation(angle);
+      scene.tweens.add({
+        targets: cone, scaleX: 1.35, scaleY: 0.6, alpha: 0,
+        duration: 110, ease: 'Quad.easeOut',
+        onComplete: () => cone.destroy(),
+      });
+
+      // 3. Shockwave ring punching outward from the barrel.
+      const ring = scene.add.graphics().setDepth(34);
+      ring.setBlendMode(Phaser.BlendModes.ADD);
+      ring.lineStyle(4, 0xffd0b0, 0.9);
+      ring.strokeCircle(0, 0, 16);
+      ring.setPosition(x, y);
+      scene.tweens.add({
+        targets: ring, scale: 3.4, alpha: 0,
+        duration: 190, ease: 'Cubic.easeOut',
+        onComplete: () => ring.destroy(),
+      });
+    },
+
+    // Pulsing charge orb shown at the muzzle while the super is aimed and
+    // ready — the "tell" that costs no shot delay because it lives in the
+    // aim-hold window that already exists.
+    superChargeOrb(x, y, t) {
+      const g = this._superOrb || (this._superOrb = scene.add.graphics().setDepth(33));
+      g.clear();
+      g.setVisible(true);
+      g.setBlendMode(Phaser.BlendModes.ADD);
+      const pulse = 0.75 + Math.sin(t * 0.012) * 0.25;
+      g.fillStyle(0xff3020, 0.30 * pulse);
+      g.fillCircle(x, y, 17 * pulse);
+      g.fillStyle(0xff8060, 0.55 * pulse);
+      g.fillCircle(x, y, 10 * pulse);
+      g.fillStyle(0xffffff, 0.95 * pulse);
+      g.fillCircle(x, y, 4.5 * pulse);
+    },
+
+    hideSuperChargeOrb() {
+      if (this._superOrb) { this._superOrb.clear(); this._superOrb.setVisible(false); }
+    },
+
     muzzleFlash(x, y, angle) {
       const m = scene.add.image(x, y, 'muzzle').setDepth(34);
       // Origin near the "core" end so the flame extends forward from the

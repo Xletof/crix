@@ -1575,7 +1575,40 @@ export class GameScene extends Phaser.Scene {
     // jitter constantly. The muzzle flash + casing + recoil carry the weight.
   }
 
+  // Short wind-up before the super's blast. Tunable: set to 0 to fire instantly
+  // (the aim-hold charge orb alone then carries the tell).
+  static SUPER_WINDUP_MS = 70;
+
   firePlayerSuper(angle) {
+    // ── Wind-up tell: a bright ring converges into the muzzle, then it blows.
+    const wind = GameScene.SUPER_WINDUP_MS;
+    if (wind > 0) {
+      const wx = this.player.x + Math.cos(angle) * (PLAYER.radius + 14);
+      const wy = this.player.y + Math.sin(angle) * (PLAYER.radius + 14);
+      const g = this.add.graphics().setDepth(34);
+      g.setBlendMode(Phaser.BlendModes.ADD);
+      g.lineStyle(3, 0xffc0a0, 0.95);
+      g.strokeCircle(0, 0, 34);
+      g.setPosition(wx, wy);
+      this.tweens.add({
+        targets: g, scale: 0.15, alpha: 0.2,
+        duration: wind, ease: 'Quad.easeIn',
+        onComplete: () => g.destroy(),
+      });
+      // Fire the blast after the wind-up. The player can move or die in that
+      // window, so recompute the muzzle then and bail if they're gone.
+      this.time.delayedCall(wind, () => {
+        if (!this.player?.alive || !this.scene.isActive()) return;
+        this._superBlast(angle);
+      });
+      return;
+    }
+    this._superBlast(angle);
+  }
+
+  // The actual super discharge. Split out so the wind-up can defer it while
+  // recomputing the muzzle from the player's live position.
+  _superBlast(angle) {
     const bx = this.player.x + Math.cos(angle) * (PLAYER.radius + 14);
     const by = this.player.y + Math.sin(angle) * (PLAYER.radius + 14);
     const spread = Phaser.Math.DegToRad(PLAYER.superSpreadDeg);
@@ -1585,12 +1618,21 @@ export class GameScene extends Phaser.Scene {
       this.playerSuperBullets.fire(bx, by, a, PLAYER.superSpeed, PLAYER.superDamage * this.player.dmgMult, PLAYER.superRange,
         { owner: 'player', piercing: true, knockback: PLAYER.superKnockback });
     }
-    this.fx.muzzleFlash(bx, by, angle);
-    
-    // Eject multiple casings for super rocket barrage
+    // Big blast bloom — the super no longer shares the pistol's little flash.
+    this.fx.superMuzzleFlash(bx, by, angle);
+    this.fx.burstDir(bx, by, 'yellow', 10, angle, 40);
+
+    // Eject multiple casings for the super barrage
     this.fx.ejectCasing(bx, by, angle);
     this.time.delayedCall(40, () => this.fx.ejectCasing(bx, by, angle));
     this.time.delayedCall(80, () => this.fx.ejectCasing(bx, by, angle));
+
+    // Re-arm the pop so its peak lands ON the blast. tryFireSuper arms it at
+    // button-press; across the wind-up it would already be decaying, so the
+    // pre-blast window reads as a small swell and this is the real punch.
+    const p = this.player;
+    p.recoilT = 260; p.recoilDur = 260; p.recoilMag = 0.20;
+    p._wKickT = 180; p._wKickDur = 180; p._wKickMag = 16;
 
     // Heavy physics recoil force + slide stagger
     if (this.player.body) {
@@ -1957,6 +1999,12 @@ export class GameScene extends Phaser.Scene {
           this._superHitCtx = isSuper && b.owner === 'player';
           e.damage(b.damage, kbVec);
           this._superHitCtx = false;
+          // Super pellets are piercing, so the explosion below (gated on
+          // !b.piercing) never fires for them — a super punching through a
+          // crowd had no weight at the point of contact. Give super hits a
+          // brighter, larger ring instead. Deliberately restrained: this
+          // stacks per pellet per enemy.
+          if (isSuper) this.fx.impactRing(b.x, b.y, 0xffd0a0);
           this.fx.impactRing(b.x, b.y, 0xee3030); // red shockwave for troopers
           // Directional impact spray — sparks fly forward along the bullet
           // path with a wide cone, like a deflection ricochet.
@@ -2327,21 +2375,32 @@ export class GameScene extends Phaser.Scene {
     const g = this.aimGraphics;
     g.clear();
     const p = this.player;
-    if (!p?.alive) return;
+    if (!p?.alive) { this.fx?.hideSuperChargeOrb?.(); return; }
     const gap = PLAYER.radius + 6;
     let activeAim = null, activeRange = 0, activeSpread = 0;
     if (p.superAiming && p.superCharge >= PLAYER.superHitsToCharge) {
+      // Hotter cone while the super is aimed and ready — it should read as
+      // charged, not the same weight as the primary cone.
       this.drawCone(g, p.x, p.y, p.superAim,
         Phaser.Math.DegToRad(PLAYER.superSpreadDeg), PLAYER.superRange, gap,
-        0xff2020, 0xff8080, 0.30);
+        0xff4020, 0xffc0a0, 0.42);
+      // Charge tell: pulsing white-hot orb at the muzzle during the aim hold.
+      // Free — this window already exists, so it costs the shot no delay.
+      const mx = p.x + Math.cos(p.superAim) * (PLAYER.radius + 14);
+      const my = p.y + Math.sin(p.superAim) * (PLAYER.radius + 14);
+      this.fx?.superChargeOrb?.(mx, my, this.time.now);
       activeAim = p.superAim;
       activeRange = PLAYER.superRange;
-    } else if (p.aiming) {
-      this.drawCone(g, p.x, p.y, p.aim,
-        Phaser.Math.DegToRad(PLAYER.pelletSpreadDeg), PLAYER.pelletRange, gap,
-        0xff2828, 0xff9090, 0.18);
-      activeAim = p.aim;
-      activeRange = PLAYER.pelletRange;
+    } else {
+      // Not holding a charged super — make sure the charge orb is cleared.
+      this.fx?.hideSuperChargeOrb?.();
+      if (p.aiming) {
+        this.drawCone(g, p.x, p.y, p.aim,
+          Phaser.Math.DegToRad(PLAYER.pelletSpreadDeg), PLAYER.pelletRange, gap,
+          0xff2828, 0xff9090, 0.18);
+        activeAim = p.aim;
+        activeRange = PLAYER.pelletRange;
+      }
     }
     // Aim laser — thin red line + dot to first wall hit. Only when actively
     // aiming (right stick held). Sits on top of the cone for clarity.
