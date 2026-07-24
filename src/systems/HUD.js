@@ -25,6 +25,12 @@ export class HUDScene extends Phaser.Scene {
     this.hitArcGfx = this.add.graphics().setDepth(35);
     this._hitArcs  = []; // { angle: rad, age: ms }
 
+    // ── Off-screen threat chevrons ───────────────────────────────────────
+    // Edge-pinned arrows pointing at enemies and fast incoming projectiles
+    // that are outside the narrow portrait viewport. Sits just under the hit
+    // arcs so a hit flash reads on top of the ambient threat markers.
+    this.chevronGfx = this.add.graphics().setDepth(34);
+
     // ── Boss enrage tint: subtle red ambient overlay when boss is in
     // phase 2 or 3. Sits below the vignette so low-HP still dominates.
     this.bossTint = this.add.graphics().setDepth(6);
@@ -698,6 +704,8 @@ export class HUDScene extends Phaser.Scene {
     this._drawBossTint(time);
     // Directional hit arcs
     this._drawHitArcs(delta);
+    // Off-screen threat chevrons
+    this._drawThreatChevrons();
   }
 
   _addHitArc(hitDirRad) {
@@ -733,6 +741,92 @@ export class HUDScene extends Phaser.Scene {
       g.beginPath(); g.arc(cx, cy, R, ang - SPAN, ang + SPAN); g.strokePath();
       return true;
     });
+  }
+
+  // Edge-pinned arrows pointing at threats outside the viewport. Enemies (and
+  // the boss) get a warm chevron; fast incoming projectiles get a sharper,
+  // brighter one. Counts are capped and sorted by nearness so dense waves don't
+  // flood the screen edge.
+  _drawThreatChevrons() {
+    const g  = this.chevronGfx;
+    g.clear();
+    const gs = this.gameScene;
+    const p  = gs?.player;
+    if (!p || !p.alive) return;
+    const cam = gs.cameras.main;
+    const vw  = cam.worldView;             // world rect currently on screen
+    if (!vw || vw.width <= 0) return;
+    const zoom = cam.zoom;
+    const cx = VIEW.width  / 2;
+    const cy = VIEW.height / 2;
+
+    const MAX_ENEMY = 6;   // nearest N off-screen enemies
+    const MAX_PROJ  = 4;   // nearest N off-screen incoming fast projectiles
+    const FAST_PROJ = 600; // px/s — only genuinely fast rounds get a marker
+    const MIND = 260, MAXD = 1500; // proximity ramp (world px)
+
+    // world → screen (full-viewport camera, uniform zoom)
+    const onScreen = (wx, wy) =>
+      wx >= vw.x && wx <= vw.x + vw.width && wy >= vw.y && wy <= vw.y + vw.height;
+
+    // Collect off-screen enemies (nearest first); the boss is handled
+    // separately so it always gets a marker regardless of the enemy cap.
+    const enemies = [];
+    gs.enemies?.getChildren().forEach((e) => {
+      if (!e.alive || onScreen(e.x, e.y)) return;
+      enemies.push({ x: e.x, y: e.y, d: Math.hypot(e.x - p.x, e.y - p.y) });
+    });
+    enemies.sort((a, b) => a.d - b.d);
+    const boss = gs.boss;
+    const bossOff = boss && boss.active && boss.alive !== false && !onScreen(boss.x, boss.y);
+
+    // Collect off-screen fast, incoming enemy projectiles, nearest first.
+    const projs = [];
+    gs.enemyBullets?.getChildren().forEach((b) => {
+      if (!b.active || onScreen(b.x, b.y)) return;
+      const vx = b.body?.velocity.x || 0, vy = b.body?.velocity.y || 0;
+      if (Math.hypot(vx, vy) < FAST_PROJ) return;
+      // incoming = moving toward the player (velocity dotted with bullet→player)
+      if (vx * (p.x - b.x) + vy * (p.y - b.y) <= 0) return;
+      projs.push({ x: b.x, y: b.y, d: Math.hypot(b.x - p.x, b.y - p.y) });
+    });
+    projs.sort((a, b) => a.d - b.d);
+
+    const drawChevron = (wx, wy, coreColor, glowColor, boss) => {
+      const ang = Math.atan2((wy - vw.y) * zoom - cy, (wx - vw.x) * zoom - cx);
+      const absC = Math.abs(Math.cos(ang));
+      const absS = Math.abs(Math.sin(ang));
+      const R = (absC < 0.001 ? cy : absS < 0.001 ? cx : Math.min(cx / absC, cy / absS)) * 0.9;
+      const px = cx + Math.cos(ang) * R;
+      const py = cy + Math.sin(ang) * R;
+      const d = Math.hypot(wx - p.x, wy - p.y);
+      const prox = Math.max(0.35, Math.min(1, (MAXD - d) / (MAXD - MIND)));
+      const s = (boss ? 1.5 : 1) * (0.7 + prox * 0.6);
+      const alpha = 0.4 + prox * 0.55;
+      const dcx = Math.cos(ang), dcy = Math.sin(ang);   // outward
+      const pcx = -dcy, pcy = dcx;                       // perpendicular
+      const hh = 20 * s, hw = 13 * s;
+      const tip = [px + dcx * hh, py + dcy * hh];
+      const bl  = [px + pcx * hw - dcx * hh * 0.55, py + pcy * hw - dcy * hh * 0.55];
+      const br  = [px - pcx * hw - dcx * hh * 0.55, py - pcy * hw - dcy * hh * 0.55];
+      // Glow pass (fatter, faint) then solid core.
+      g.fillStyle(glowColor, alpha * 0.35);
+      g.fillTriangle(
+        tip[0] + dcx * 4, tip[1] + dcy * 4,
+        bl[0] + pcx * 3, bl[1] + pcy * 3,
+        br[0] - pcx * 3, br[1] - pcy * 3,
+      );
+      g.fillStyle(coreColor, alpha);
+      g.fillTriangle(tip[0], tip[1], bl[0], bl[1], br[0], br[1]);
+    };
+
+    if (bossOff) drawChevron(boss.x, boss.y, 0xff40c0, 0xff90e0, true);
+    for (let i = 0; i < enemies.length && i < MAX_ENEMY; i++) {
+      drawChevron(enemies[i].x, enemies[i].y, 0xff5828, 0xffa060, false);
+    }
+    for (let i = 0; i < projs.length && i < MAX_PROJ; i++) {
+      drawChevron(projs[i].x, projs[i].y, 0xffe030, 0xfff7a0, false);
+    }
   }
 
   // Soft pulsing red full-screen tint while the boss is enraged (phase ≥ 2).
