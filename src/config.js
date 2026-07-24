@@ -76,6 +76,10 @@ export const WEAPONS = {
     speed: 940,
     range: 500,
     fireCooldownMs: 300,
+    // Pickup identity: distinct hue + outline shape so it reads at a glance.
+    tex: 'pickup-rifle',
+    color: 0xffb020,     // amber — clearly apart from the detonator's red
+    outline: 'hex',
   },
   detonator: {
     id: 'detonator',
@@ -85,6 +89,9 @@ export const WEAPONS = {
     fuseMs: 1100,
     blastRadius: 130,
     damage: 500,
+    tex: 'pickup-det',
+    color: 0xff2828,     // red — matches its grenade/blast identity
+    outline: 'diamond',
   },
 };
 
