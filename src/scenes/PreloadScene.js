@@ -27,6 +27,7 @@ import {
   paintSaberOverlay,
   paintCasing,
   paintDashButton,
+  paintMeleeButton,
 } from '../systems/pixelArt.js';
 import { WORLD } from '../config.js';
 
@@ -67,6 +68,7 @@ export class PreloadScene extends Phaser.Scene {
     paintJetFlame(this, 'jet-flame');
     paintCasing(this);
     paintDashButton(this);
+    paintMeleeButton(this);
 
     // ── HUD ──────────────────────────────────────────────────────────
     paintJoystick(this);

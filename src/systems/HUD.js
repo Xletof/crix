@@ -3,6 +3,7 @@ import { VIEW, PLAYER, WEAPONS, COLORS, HUDCFG, FONTS } from '../config.js';
 import { Joystick } from './Joystick.js';
 import { SuperButton } from './SuperButton.js';
 import { DashButton } from './DashButton.js';
+import { MeleeButton } from './MeleeButton.js';
 import { HackMinigame } from './HackMinigame.js';
 import { ROOMS } from '../data/rooms.js';
 import { SFX } from './FX.js';
@@ -239,6 +240,25 @@ export class HUDScene extends Phaser.Scene {
       }
     });
 
+    // Melee "Broken Wings" button — left of super, above dash. Must also be
+    // listed in fireStick.shouldClaim above or taps here leak into the primary.
+    this.meleeButton = new MeleeButton(this, {
+      x: superX - 118,
+      y: superY,
+      radius: 46,
+      onPress: () => {
+        const p = this.gameScene?.player;
+        if (p?.alive) p.tryMeleeCombo();
+      },
+      isReady: () => {
+        const p = this.gameScene?.player;
+        if (!p?.alive) return false;
+        // Mid-combo the button stays live even with an empty meter, because
+        // casts 2 and 3 are free inside the window.
+        return p.meleeReady || (p._comboStage > 0 && p._comboWindowMs > 0);
+      },
+    });
+
     // Combo multiplier text (above Super button)
     this.multText = this.add.text(superX, superY - 78, ' ', {
       fontFamily: FONTS.body,
@@ -266,6 +286,9 @@ export class HUDScene extends Phaser.Scene {
         if (this.hackMinigame && this.hackMinigame.state !== 'idle') return false;
         return !this.superButton.containsPoint(pointer.x, pointer.y)
           && !this.dashButton.containsPoint(pointer.x, pointer.y)
+          // Optional chaining: the stick is constructed before the buttons, so
+          // before meleeButton exists this correctly falls through to "claim".
+          && !this.meleeButton?.containsPoint(pointer.x, pointer.y)
           && !this._overPauseBtn(pointer.x, pointer.y);
       },
       onStart: () => this.gameScene?.player?.setAimInput({ x: 0, y: 0, force: 0 }),
@@ -370,6 +393,9 @@ export class HUDScene extends Phaser.Scene {
     ge.on('player-fire',          this.refreshAmmo,  this);
     ge.on('player-super-changed', this.refreshSuper, this);
     ge.on('player-super-ready',   this.refreshSuper, this);
+    ge.on('player-melee-changed', this.refreshMelee, this);
+    ge.on('player-melee-ready',   this.refreshMelee, this);
+    ge.on('player-melee-cast',    this.refreshMelee, this);
     this._onMultChanged = (mult, streak) => {
       if (streak > 0) {
         this.multText.setText(`COMBO x${mult.toFixed(1)}`);
@@ -600,6 +626,15 @@ export class HUDScene extends Phaser.Scene {
     this.scene.launch('Pause', { game: this.gameScene });
     this.scene.pause('Game');
     this.scene.pause('HUD');
+  }
+
+  refreshMelee() {
+    const p = this.gameScene?.player;
+    if (!p || !this.meleeButton) return;
+    const max = PLAYER.meleeHitsToCharge;
+    const inCombo = p._comboStage > 0 && p._comboWindowMs > 0;
+    this.meleeButton.setReady(p.meleeCharge >= max || inCombo);
+    this.meleeButton.drawGauge(p.meleeCharge, max, inCombo ? p._comboStage : 0);
   }
 
   refreshSuper() {

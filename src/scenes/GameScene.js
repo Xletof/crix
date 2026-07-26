@@ -169,6 +169,10 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-ENTER', () => this.player?.tryFireSuper());
     this.input.keyboard?.on('keydown-F', () => this.player?.tryFireSuper());
     this.input.keyboard?.on('keydown-SHIFT', () => this.player?.tryDash());
+    // R = melee Broken Wings combo (tap three times to chain the finisher).
+    // NOT Q: HUD.js already binds Q to the stealth takedown, and doubling up
+    // would fire both a takedown and a combo cast from one press.
+    this.input.keyboard?.on('keydown-R', () => this.player?.tryMeleeCombo());
     this.input.keyboard?.on('keydown-E', () => {
       if (this._takedownTarget) {
         this.performTakedown();

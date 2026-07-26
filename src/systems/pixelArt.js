@@ -1706,3 +1706,57 @@ export function paintDashButton(scene) {
   make('dash-btn', true);
   make('dash-btn-off', false);
 }
+
+// Melee "Broken Wings" button — a curved blade slash. Cyan/white to match the
+// melee slash FX, so the button and the ability read as the same thing.
+export function paintMeleeButton(scene) {
+  const make = (key, active) => {
+    const r = 42;
+    const size = r * 2 + 8;
+    const tex = scene.textures.createCanvas(key, size, size);
+    const ctx = tex.getContext();
+    const cx = size / 2, cy = size / 2;
+
+    // Background disc
+    ctx.fillStyle = active ? 'rgba(12, 40, 60, 0.78)' : 'rgba(20, 20, 25, 0.6)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Rim
+    ctx.strokeStyle = active ? '#90d8ff' : '#607080';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Sweeping slash arc — the signature of the ability.
+    ctx.strokeStyle = active ? '#ffffff' : '#4a5a6a';
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.arc(cx - 6, cy + 4, 22, -Math.PI * 0.95, -Math.PI * 0.15);
+    ctx.stroke();
+
+    // Trailing thinner echo, so it reads as motion not a ring.
+    ctx.strokeStyle = active ? '#90d8ff' : '#3a4a58';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx - 6, cy + 11, 24, -Math.PI * 0.9, -Math.PI * 0.25);
+    ctx.stroke();
+
+    // Blade tip spark.
+    if (active) {
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(cx + 15, cy - 4, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    tex.refresh();
+  };
+  make('melee-btn', true);
+  make('melee-btn-off', false);
+}
