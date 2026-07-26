@@ -1015,30 +1015,60 @@ export class GameScene extends Phaser.Scene {
   // One arc swing in front of the player. Every enemy inside the cone is hit
   // exactly ONCE per swing (per-swing Set) — an arc that re-tests the same
   // enemy across frames is the classic multi-hit bug for this kind of attack.
+  // Cast = the wind-up, fired the instant the button is pressed. Damage does
+  // NOT happen here: the lunge travels up to ~280px first, so resolving hits
+  // now would damage whatever stood at the launch point and then sail past it.
+  // Player emits 'player-melee-land' when the travel ends (see performMeleeLand).
   performMeleeCast(dir, stage, finisher) {
     const p = this.player;
     if (!p?.alive) return;
+    SFX.dash?.();
+    if (finisher) this._cameraPunch(1.02, 140);
+  }
 
-    const range  = PLAYER.meleeRange;
-    const arc    = Phaser.Math.DegToRad(finisher ? PLAYER.meleeFinisherArcDeg : PLAYER.meleeArcDeg);
+  // Land = the swing connects. Casts 1-2 sweep a cone in front; the finisher is
+  // a RADIAL ground slam centred on the landing point that launches everything
+  // outward and stuns it.
+  performMeleeLand(dir, stage, finisher) {
+    const p = this.player;
+    if (!p?.alive) return;
+
     const dmg    = (finisher ? PLAYER.meleeFinisherDamage : PLAYER.meleeDamage) * p.dmgMult;
-    const kb     = finisher ? PLAYER.meleeFinisherKnockback : PLAYER.meleeKnockback;
     const hitSet = new Set();
 
-    const swingX = p.x + Math.cos(dir) * range * 0.55;
-    const swingY = p.y + Math.sin(dir) * range * 0.55;
+    const arc   = Phaser.Math.DegToRad(PLAYER.meleeArcDeg);
+    const range = PLAYER.meleeRange;
 
     const tryHit = (e) => {
       if (!e || !e.active || !e.alive || hitSet.has(e)) return;
       const d = Math.hypot(e.x - p.x, e.y - p.y);
-      const reach = range + (e.cfg?.radius ?? 22);
-      if (d > reach) return;
-      // Inside the cone? Compare the angle to the enemy against the swing dir.
-      const da = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(e.y - p.y, e.x - p.x) - dir));
-      if (da > arc / 2) return;
+      const er = e.cfg?.radius ?? 22;
+
+      let kbx, kby;
+      if (finisher) {
+        // Full circle — no cone test at all. An enemy directly BEHIND the
+        // player is inside the slam and must be hit.
+        if (d > PLAYER.meleeSlamRadius + er) return;
+        // Launch outward from the epicentre, not along the swing direction.
+        const out = d > 0.001 ? Math.atan2(e.y - p.y, e.x - p.x) : dir;
+        kbx = Math.cos(out) * PLAYER.meleeSlamKnockback;
+        kby = Math.sin(out) * PLAYER.meleeSlamKnockback;
+      } else {
+        if (d > range + er) return;
+        const da = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(e.y - p.y, e.x - p.x) - dir));
+        if (da > arc / 2) return;
+        kbx = Math.cos(dir) * PLAYER.meleeKnockback;
+        kby = Math.sin(dir) * PLAYER.meleeKnockback;
+      }
+
       hitSet.add(e);
-      e.damage(dmg, { x: Math.cos(dir) * kb, y: Math.sin(dir) * kb });
-      this.fx.burstDir(e.x, e.y, 'yellow', finisher ? 14 : 8, dir, 70);
+      e.damage(dmg, { x: kbx, y: kby });
+      // The slam's stun is the top-down stand-in for Riven's knockup. damage()
+      // sets a 90ms stagger; widen it so the slam buys a real reset window.
+      // Applied after, since damage() writes _staggerMs itself.
+      if (finisher && e.alive) e._staggerMs = PLAYER.meleeSlamStunMs;
+      this.fx.burstDir(e.x, e.y, 'yellow', finisher ? 14 : 8,
+        finisher ? Math.atan2(kby, kbx) : dir, 70);
       this.fx.impactRing(e.x, e.y, 0x90d8ff);
     };
     this.enemies.getChildren().forEach(tryHit);
@@ -1048,10 +1078,17 @@ export class GameScene extends Phaser.Scene {
     // skills feed each other instead of competing for the same input.
     if (hitSet.size > 0) p.addSuperHit();
 
-    // Blade arc — cyan/white so it reads as neither the red ranged super nor
-    // the green stealth takedown.
-    this.fx.slashSwipe(swingX, swingY, dir, finisher ? 78 : 54, finisher ? 0xd8f4ff : 0x90d8ff);
-    SFX.dash?.();
+    this._meleeImpactFx(dir, stage, finisher, hitSet.size);
+  }
+
+  // Impact presentation, split out so C3 can rework the visuals without
+  // touching hit resolution.
+  _meleeImpactFx(dir, stage, finisher, hits) {
+    const p = this.player;
+    const swingX = p.x + Math.cos(dir) * PLAYER.meleeRange * 0.55;
+    const swingY = p.y + Math.sin(dir) * PLAYER.meleeRange * 0.55;
+    this.fx.slashSwipe(swingX, swingY, dir, finisher ? 78 : 54,
+      finisher ? 0xd8f4ff : 0x90d8ff);
 
     if (finisher) {
       this.fx.shake(0.014, 200);
@@ -1158,6 +1195,26 @@ export class GameScene extends Phaser.Scene {
         minDist = d;
         nearest = e;
       }
+    }
+    return nearest;
+  }
+
+  // Same as findNearestEnemy, but restricted to a cone around `dir`. Used by
+  // the melee gap-close so the lunge only ever commits toward something the
+  // player is actually facing.
+  findNearestEnemyInCone(x, y, dir, maxRange, coneRad) {
+    let nearest = null;
+    let minDist = maxRange;
+    const list = [...this.enemies.getChildren()];
+    if (this.boss && this.boss.alive) list.push(this.boss);
+    for (const e of list) {
+      if (!e.active || !e.alive) continue;
+      const d = Phaser.Math.Distance.Between(x, y, e.x, e.y);
+      if (d >= minDist) continue;
+      const da = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(e.y - y, e.x - x) - dir));
+      if (da > coneRad / 2) continue;
+      minDist = d;
+      nearest = e;
     }
     return nearest;
   }
@@ -1380,6 +1437,9 @@ export class GameScene extends Phaser.Scene {
     });
     this.events.on('player-melee-cast', (dir, stage, finisher) => {
       this.performMeleeCast(dir, stage, finisher);
+    });
+    this.events.on('player-melee-land', (dir, stage, finisher) => {
+      this.performMeleeLand(dir, stage, finisher);
     });
     this.events.on('player-fire-super', (angle) => {
       this.firePlayerSuper(angle);

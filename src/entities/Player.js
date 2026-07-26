@@ -26,6 +26,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this._comboStage  = 0;   // 0 = not in a combo, 1..2 = casts already spent
     this._comboWindowMs = 0; // time left to chain the next cast
     this._meleeLungeMs  = 0; // remaining lunge drive time
+    // The cast in flight. Damage resolves when the lunge LANDS, not when it is
+    // fired, so a 260px dash hits what it arrives at rather than what it left.
+    this._meleeCastDir      = 0;
+    this._meleeCastStage    = 0;
+    this._meleeCastFinisher = false;
+    // Pose timers. Same convention as recoilT/recoilDur: each timer carries its
+    // own duration, so no branch can normalise by another's constant.
+    this._meleeAnimT     = 0;
+    this._meleeAnimDur   = 0;
+    this._meleeAnimStage = 0;
     this.alive        = true;
     this.hiddenInBush = false;
     this.isRegenerating = false;
@@ -468,6 +478,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   damage(amount, hitDirRad = null) {
     if (!this.alive) return;
     if (this.isDashing) return; // i-frames (invincibility during dash)
+    // Melee lunges are i-framed for their travel only — not the gaps between
+    // casts — so charging a crowd is viable without the combo becoming a
+    // multi-second invulnerability button.
+    if (PLAYER.meleeIframes !== false && this._meleeLungeMs > 0) return;
     
     // Shield absorption logic
     if (this.shieldHp > 0) {
@@ -583,8 +597,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Velocity-driven lunge (NOT a position tween) so walls still collide.
     const spd = finisher ? PLAYER.meleeFinisherLungeSpeed : PLAYER.meleeLungeSpeed;
-    this._meleeLungeMs = finisher ? PLAYER.meleeFinisherLungeMs : PLAYER.meleeLungeMs;
+    this._meleeLungeMs = this._gapCloseMs(dir, spd, finisher);
     this.setVelocity(Math.cos(dir) * spd, Math.sin(dir) * spd);
+
+    // Remember the cast so the landing can resolve it (see preUpdate).
+    this._meleeCastDir      = dir;
+    this._meleeCastStage    = stage;
+    this._meleeCastFinisher = finisher;
+
+    // Pose driver for the swing / flip animation (Player pose chain).
+    this._meleeAnimDur   = this._meleeLungeMs + (finisher ? 140 : 90);
+    this._meleeAnimT     = this._meleeAnimDur;
+    this._meleeAnimStage = stage;
 
     // Third cast ends the chain; otherwise open the window for the next one.
     this._comboWindowMs = finisher ? 0 : PLAYER.meleeComboWindowMs;
@@ -594,11 +618,35 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     return true;
   }
 
+  // How long to drive the lunge for. With no target it is a flat directional
+  // dash; with one, the duration is solved so the dash ENDS at contact range
+  // instead of stopping short or sailing past. Capped by meleeGapCloseMax so a
+  // distant enemy can't teleport the player across the room.
+  _gapCloseMs(dir, spd, finisher) {
+    const baseMs = finisher ? PLAYER.meleeFinisherLungeMs : PLAYER.meleeLungeMs;
+    const cone   = Phaser.Math.DegToRad(PLAYER.meleeGapCloseConeDeg);
+    const t = this.scene.findNearestEnemyInCone?.(
+      this.x, this.y, dir, PLAYER.meleeGapCloseMax + PLAYER.meleeRange, cone,
+    );
+    if (!t) return baseMs;
+
+    // Stop a little inside reach so the arc/slam definitely covers the target.
+    const contact = (t.cfg?.radius ?? 22) + PLAYER.meleeRange * 0.5;
+    const travel  = Phaser.Math.Clamp(
+      Math.hypot(t.x - this.x, t.y - this.y) - contact,
+      0, PLAYER.meleeGapCloseMax,
+    );
+    // Never shorter than a token hop — a zero-length lunge reads as a stutter.
+    return Phaser.Math.Clamp((travel / spd) * 1000, 60, baseMs * 1.6);
+  }
+
   // Single place to drop a combo so no path can leave a stale stage behind.
   resetMeleeCombo() {
     this._comboStage = 0;
     this._comboWindowMs = 0;
     this._meleeLungeMs = 0;
+    this._meleeAnimT = 0;
+    this._meleeAnimStage = 0;
   }
 
   die() {
@@ -624,6 +672,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         this._comboStage = 0;
         this.scene.events.emit('player-melee-changed');
       }
+    }
+    // Pose timer for the swing / flip. Decays independently of the lunge so
+    // the animation can run slightly past the end of the travel.
+    if (this._meleeAnimT > 0) {
+      this._meleeAnimT -= delta;
+      if (this._meleeAnimT <= 0) { this._meleeAnimT = 0; this._meleeAnimStage = 0; }
     }
 
     // Keyboard super hold: the aim cone tracks the nearest enemy (the auto-aim
@@ -678,6 +732,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       if (this._meleeLungeMs <= 0) {
         this.body.velocity.x *= 0.35;
         this.body.velocity.y *= 0.35;
+        // Resolve the swing HERE, at the end of the travel. Firing it at cast
+        // time would damage whatever was next to the launch point and then fly
+        // past it. Frame-driven rather than a delayedCall so it stays in step
+        // with the lunge even when the frame rate sags.
+        this.scene.events.emit('player-melee-land',
+          this._meleeCastDir, this._meleeCastStage, this._meleeCastFinisher);
       }
     } else if (this._hurtStaggerMs > 0) {
       this._hurtStaggerMs -= delta;

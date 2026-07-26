@@ -61,17 +61,28 @@ export const PLAYER = {
   // inside meleeComboWindowMs, so the three swings are one ability.
   meleeHitsToCharge: 3,     // cheaper than the ranged super (4)
   meleeComboWindowMs: 2000, // time to land the next cast before it resets
-  meleeLungeSpeed: 620,     // velocity-driven so walls still stop it
-  meleeLungeMs: 130,
-  meleeFinisherLungeSpeed: 780,
-  meleeFinisherLungeMs: 160,
-  meleeRange: 95,
+  // Casts 1-2 are real dashes: ~260px of travel, not the ~80px the first pass
+  // shipped. Duration is what the gap-close solves for; speed is fixed.
+  meleeLungeSpeed: 1450,
+  meleeLungeMs: 180,        // 1450 * 0.180 = 261px
+  meleeFinisherLungeSpeed: 1500,
+  meleeFinisherLungeMs: 200, // 1500 * 0.200 = 300px
+  // Gap-close: the dash shortens/extends to land at contact range on the
+  // nearest enemy inside the aim cone, never travelling further than this.
+  meleeGapCloseMax: 280,
+  meleeGapCloseConeDeg: 100,
+  meleeIframes: true,       // invulnerable while a lunge is travelling
+  meleeRange: 130,
   meleeArcDeg: 110,
-  meleeFinisherArcDeg: 160,
   meleeDamage: 320,
   meleeFinisherDamage: 700,
   meleeKnockback: 260,
-  meleeFinisherKnockback: 620,
+  // Finisher is a RADIAL ground slam, not a wider cone: full circle around the
+  // landing point, hard outward launch, plus a stun long enough to be a real
+  // reset window (the top-down stand-in for Riven's knockup).
+  meleeSlamRadius: 210,
+  meleeSlamKnockback: 900,
+  meleeSlamStunMs: 600,
   // HP regen
   regenDelayMs: 4000,
   regenPerSec: 100,
