@@ -31,6 +31,12 @@ export class HUDScene extends Phaser.Scene {
     // arcs so a hit flash reads on top of the ambient threat markers.
     this.chevronGfx = this.add.graphics().setDepth(34);
 
+    // ── Exit waypoint (endless "move to next sector") ────────────────────
+    // Own layer, drawn above the threat chevrons so guidance always wins over
+    // ambient threat markers. Kept separate from chevronGfx so the threat
+    // routine stays untouched.
+    this.waypointGfx = this.add.graphics().setDepth(36);
+
     // ── Boss enrage tint: subtle red ambient overlay when boss is in
     // phase 2 or 3. Sits below the vignette so low-HP still dominates.
     this.bossTint = this.add.graphics().setDepth(6);
@@ -713,6 +719,8 @@ export class HUDScene extends Phaser.Scene {
     this._drawHitArcs(delta);
     // Off-screen threat chevrons
     this._drawThreatChevrons();
+    // Exit waypoint guidance (endless)
+    this._drawExitWaypoint(time);
   }
 
   _addHitArc(hitDirRad) {
@@ -841,6 +849,79 @@ export class HUDScene extends Phaser.Scene {
     for (let i = 0; i < projs.length && i < MAX_PROJ; i++) {
       drawChevron(projs[i].x, projs[i].y, 0xffe030, 0xfff7a0, false);
     }
+  }
+
+  // Guidance to the open exit so a cleared room never leaves the player
+  // hunting for the way out. Off-screen → a big pulsing arrow pinned to the
+  // viewport edge; on-screen → a pulsing ring at the door itself. Styled
+  // green/amber and larger than threat chevrons so the two never confuse.
+  _drawExitWaypoint(time) {
+    const g = this.waypointGfx;
+    g.clear();
+    const gs = this.gameScene;
+    const p  = gs?.player;
+    // Only while an exit is actually open and unused.
+    if (!p || !p.alive || !gs.doorZone || gs._doorTriggered) return;
+
+    const cam = gs.cameras.main;
+    const vw  = cam.worldView;
+    if (!vw || vw.width <= 0) return;
+    const zoom = cam.zoom;
+    const wx = gs.doorZone.x, wy = gs.doorZone.y;
+
+    // Same projection contract as the threat chevrons: the game camera is
+    // inset below the HUD bar, so screen space is viewport-relative.
+    const sx = cam.x + (wx - vw.x) * zoom;
+    const sy = cam.y + (wy - vw.y) * zoom;
+    const pulse = 0.72 + Math.sin(time * 0.006) * 0.28;
+    const COL = 0x40ff90, GLOW = 0xc0ffd8;
+
+    const onScreen = wx >= vw.x && wx <= vw.x + vw.width
+                  && wy >= vw.y && wy <= vw.y + vw.height;
+
+    if (onScreen) {
+      // Door is visible — mark it in place instead of pointing off-screen.
+      g.lineStyle(4, COL, 0.55 + pulse * 0.4);
+      g.strokeCircle(sx, sy, 26 + pulse * 12);
+      g.lineStyle(2, GLOW, 0.5 * pulse);
+      g.strokeCircle(sx, sy, 40 + pulse * 16);
+      return;
+    }
+
+    // Off-screen — pin a large arrow to the viewport edge along the ray from
+    // viewport centre toward the door.
+    const cx = cam.x + cam.width / 2;
+    const cy = cam.y + cam.height / 2;
+    const halfW = cam.width / 2;
+    const halfH = cam.height / 2;
+    const ang = Math.atan2(sy - cy, sx - cx);
+    const absC = Math.abs(Math.cos(ang));
+    const absS = Math.abs(Math.sin(ang));
+    const R = (absC < 0.001 ? halfH : absS < 0.001 ? halfW
+              : Math.min(halfW / absC, halfH / absS)) * 0.84;
+    const ax = cx + Math.cos(ang) * R;
+    const ay = cy + Math.sin(ang) * R;
+
+    const s = 1.5 * (0.9 + pulse * 0.25);       // deliberately bigger than a chevron
+    const dcx = Math.cos(ang), dcy = Math.sin(ang);
+    const pcx = -dcy, pcy = dcx;
+    const hh = 22 * s, hw = 15 * s;
+    const tip = [ax + dcx * hh, ay + dcy * hh];
+    const bl  = [ax + pcx * hw - dcx * hh * 0.5, ay + pcy * hw - dcy * hh * 0.5];
+    const br  = [ax - pcx * hw - dcx * hh * 0.5, ay - pcy * hw - dcy * hh * 0.5];
+    g.fillStyle(GLOW, 0.3 * pulse);
+    g.fillTriangle(tip[0] + dcx * 5, tip[1] + dcy * 5,
+                   bl[0] + pcx * 4, bl[1] + pcy * 4,
+                   br[0] - pcx * 4, br[1] - pcy * 4);
+    g.fillStyle(COL, 0.55 + pulse * 0.4);
+    g.fillTriangle(tip[0], tip[1], bl[0], bl[1], br[0], br[1]);
+    // Small trailing bar so it reads as a "go this way" marker, not a threat.
+    g.fillStyle(COL, 0.4 + pulse * 0.3);
+    g.fillTriangle(
+      ax - dcx * hh * 0.55 + pcx * hw * 0.45, ay - dcy * hh * 0.55 + pcy * hw * 0.45,
+      ax - dcx * hh * 0.55 - pcx * hw * 0.45, ay - dcy * hh * 0.55 - pcy * hw * 0.45,
+      ax - dcx * hh * 1.05, ay - dcy * hh * 1.05,
+    );
   }
 
   // Soft pulsing red full-screen tint while the boss is enraged (phase ≥ 2).

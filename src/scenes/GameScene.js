@@ -610,6 +610,13 @@ export class GameScene extends Phaser.Scene {
       .setDepth(62);
 
     this._doorTriggered = false;
+
+    // Endless: name the next objective explicitly. The HUD waypoint (which
+    // keys off doorZone) lights up at the same moment, so the player is told
+    // where to go and pointed at it together, keeping the run loop unbroken.
+    if (this.mode === 'endless') {
+      this.events.emit('show-banner', 'MOVE TO NEXT SECTOR', '#40ff90');
+    }
   }
 
   // Sliding-panel unseal animation that plays once when an exit unlocks.
