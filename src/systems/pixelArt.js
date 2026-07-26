@@ -1755,8 +1755,10 @@ export function paintDashButton(scene) {
   make('dash-btn-off', false);
 }
 
-// Melee "Broken Wings" button — a curved blade slash. Cyan/white to match the
-// melee slash FX, so the button and the ability read as the same thing.
+// Melee "Broken Wings" button. Draws the BLADE, not a slash arc: the previous
+// icon was two stroked arcs, which is the exact shape the swing FX draws, so
+// the button and the effect were indistinguishable from each other. An icon
+// should name the ability (the weapon), not duplicate its animation.
 export function paintMeleeButton(scene) {
   const make = (key, active) => {
     const r = 42;
@@ -1781,27 +1783,54 @@ export function paintMeleeButton(scene) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Sweeping slash arc — the signature of the ability.
-    ctx.strokeStyle = active ? '#ffffff' : '#4a5a6a';
-    ctx.lineWidth = 7;
-    ctx.beginPath();
-    ctx.arc(cx - 6, cy + 4, 22, -Math.PI * 0.95, -Math.PI * 0.15);
-    ctx.stroke();
+    // Sword, held on the diagonal so it fills a round button better than an
+    // upright one and can't be mistaken for the vertical dash glyph.
+    const blade  = active ? '#7ccdf5' : '#3d4a56';
+    const core   = active ? '#ffffff' : '#5a6a78';
+    const hilt   = active ? '#c2d2e2' : '#4a5662';
+    const hiltLo = active ? '#5c7182' : '#39434d';
 
-    // Trailing thinner echo, so it reads as motion not a ring.
-    ctx.strokeStyle = active ? '#90d8ff' : '#3a4a58';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(cx - 6, cy + 11, 24, -Math.PI * 0.9, -Math.PI * 0.25);
-    ctx.stroke();
+    ctx.save();
+    ctx.translate(cx, cy + 2);
+    ctx.rotate(-Math.PI / 4);          // tip toward upper-right
 
-    // Blade tip spark.
-    if (active) {
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(cx + 15, cy - 4, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    // Blade: tapered, tip at the top.
+    ctx.fillStyle = blade;
+    ctx.beginPath();
+    ctx.moveTo(0, -30);                // point
+    ctx.lineTo(7, -19);
+    ctx.lineTo(7, 4);
+    ctx.lineTo(-7, 4);
+    ctx.lineTo(-7, -19);
+    ctx.closePath();
+    ctx.fill();
+
+    // White-hot centre channel, matching the in-game blade's construction.
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.moveTo(0, -26);
+    ctx.lineTo(2.6, -18);
+    ctx.lineTo(2.6, 3);
+    ctx.lineTo(-2.6, 3);
+    ctx.lineTo(-2.6, -18);
+    ctx.closePath();
+    ctx.fill();
+
+    // Crossguard — the widest element, so the silhouette reads as a sword.
+    ctx.fillStyle = hilt;
+    ctx.fillRect(-16, 4, 32, 6);
+    ctx.fillStyle = hiltLo;
+    ctx.fillRect(-16, 8, 32, 2);
+
+    // Grip and pommel.
+    ctx.fillStyle = hiltLo;
+    ctx.fillRect(-3.5, 10, 7, 13);
+    ctx.fillStyle = hilt;
+    ctx.beginPath();
+    ctx.arc(0, 25, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
 
     tex.refresh();
   };
