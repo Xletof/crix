@@ -25,6 +25,23 @@ export class SuperButton {
     this.onRelease = opts.onRelease || (() => {});
     this.isReady = opts.isReady || (() => true);
 
+    // Ready-glow sits UNDER the button so it reads as a halo bleeding out from
+    // behind it. Created once and driven by a looping tween rather than
+    // redrawn per frame — HUD.refreshSuper() is event-driven (it only fires on
+    // player-super-changed / -ready), so a redraw-based pulse would never
+    // animate, and per-frame redrawing would churn graphics every tick.
+    this.readyGlow = scene.add.graphics().setDepth(39);
+    this.readyGlow.setBlendMode(Phaser.BlendModes.ADD);
+    this.readyGlow.fillStyle(COLORS.superReady, 0.16);
+    this.readyGlow.fillCircle(0, 0, this.radius + 22);
+    this.readyGlow.fillStyle(COLORS.superReady, 0.22);
+    this.readyGlow.fillCircle(0, 0, this.radius + 11);
+    this.readyGlow.lineStyle(3, COLORS.superReady, 0.55);
+    this.readyGlow.strokeCircle(0, 0, this.radius + 6);
+    this.readyGlow.setPosition(this.x, this.y).setVisible(false).setAlpha(0);
+    this._glowTween = null;
+    this._wasReady = false;
+
     this.image = scene.add.image(this.x, this.y, 'super-btn-off').setDepth(40);
     this.gauge = scene.add.graphics().setDepth(41);
     // Optional drag knob — only visible while dragging.
@@ -131,18 +148,95 @@ export class SuperButton {
   }
 
   drawGauge(charge, max) {
-    this.gauge.clear();
+    const g = this.gauge;
+    g.clear();
     const ready = charge >= max;
+    const R = this.radius - 4;
+    const TOP = -Math.PI / 2;
+
     if (!ready) {
-      const r = charge / max;
-      this.gauge.lineStyle(6, COLORS.superGauge, 0.95);
-      this.gauge.beginPath();
-      this.gauge.arc(this.x, this.y, this.radius - 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * r, false);
-      this.gauge.strokePath();
+      const r = Phaser.Math.Clamp(charge / max, 0, 1);
+      // Dim track so the remaining charge is legible, not just absent.
+      g.lineStyle(6, COLORS.superGauge, 0.20);
+      g.strokeCircle(this.x, this.y, R);
+      // Segmented fill — one arc per charge step with a small gap, so the
+      // player can count progress toward the super at a glance.
+      const GAP = 0.10;
+      const step = (Math.PI * 2) / max;
+      for (let i = 0; i < Math.floor(charge); i++) {
+        const a0 = TOP + i * step;
+        g.lineStyle(6, COLORS.superGauge, 0.95);
+        g.beginPath();
+        g.arc(this.x, this.y, R, a0 + GAP / 2, a0 + step - GAP / 2, false);
+        g.strokePath();
+      }
+      // Partial segment for the in-progress step.
+      const frac = charge - Math.floor(charge);
+      if (frac > 0.01) {
+        const a0 = TOP + Math.floor(charge) * step;
+        g.lineStyle(6, COLORS.superGauge, 0.75);
+        g.beginPath();
+        g.arc(this.x, this.y, R, a0 + GAP / 2, a0 + (step - GAP) * frac, false);
+        g.strokePath();
+      }
+      // Bright leading edge marking where the fill has reached.
+      if (r > 0) {
+        const lead = TOP + Math.PI * 2 * r;
+        g.fillStyle(0xffd0c0, 0.95);
+        g.fillCircle(this.x + Math.cos(lead) * R, this.y + Math.sin(lead) * R, 3.5);
+      }
     } else {
-      this.gauge.lineStyle(5, COLORS.superReady, 1);
-      this.gauge.strokeCircle(this.x, this.y, this.radius - 2);
+      // Fully charged: solid hot ring plus an inner accent.
+      g.lineStyle(5, COLORS.superReady, 1);
+      g.strokeCircle(this.x, this.y, this.radius - 2);
+      g.lineStyle(2, 0xffe0d0, 0.8);
+      g.strokeCircle(this.x, this.y, this.radius - 8);
     }
+
+    // Ready-edge transitions drive the glow + one-shot snap.
+    if (ready && !this._wasReady) this._onBecameReady();
+    else if (!ready && this._wasReady) this.setReadyGlow(false);
+    this._wasReady = ready;
+  }
+
+  // Start/stop the faint pulsing red halo. Idempotent and leak-free: it reuses
+  // the single readyGlow graphics and one tween.
+  setReadyGlow(on) {
+    if (on) {
+      if (this._glowTween) return;               // already pulsing
+      this.readyGlow.setVisible(true).setAlpha(0.35).setScale(1);
+      this._glowTween = this.scene.tweens.add({
+        targets: this.readyGlow,
+        alpha: { from: 0.30, to: 0.85 },
+        scale: { from: 0.97, to: 1.09 },
+        duration: 620, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      });
+    } else {
+      this._glowTween?.remove();
+      this._glowTween = null;
+      this.readyGlow.setVisible(false).setAlpha(0);
+    }
+  }
+
+  // One-shot "charged!" snap on the ready edge — a bright ring that expands and
+  // vanishes, then the persistent pulse takes over.
+  _onBecameReady() {
+    this.setReadyGlow(true);
+    const snap = this.scene.add.graphics().setDepth(43);
+    snap.setBlendMode(Phaser.BlendModes.ADD);
+    snap.lineStyle(4, 0xffffff, 0.95);
+    snap.strokeCircle(0, 0, this.radius);
+    snap.setPosition(this.x, this.y);
+    this.scene.tweens.add({
+      targets: snap, scale: 1.8, alpha: 0,
+      duration: 260, ease: 'Cubic.easeOut',
+      onComplete: () => snap.destroy(),
+    });
+    this.scene.tweens.killTweensOf(this.image);
+    this.image.setScale(1.3);
+    this.scene.tweens.add({
+      targets: this.image, scale: 1, duration: 260, ease: 'Back.easeOut',
+    });
   }
 
   shutdown() {
@@ -151,8 +245,11 @@ export class SuperButton {
     scene.input.off('pointermove', this.handleMove, this);
     scene.input.off('pointerup', this.handleUp, this);
     scene.input.off('pointerupoutside', this.handleUp, this);
+    this._glowTween?.remove();
+    this._glowTween = null;
     this.image.destroy();
     this.gauge.destroy();
+    this.readyGlow.destroy();
     this.knob.destroy();
   }
 }
