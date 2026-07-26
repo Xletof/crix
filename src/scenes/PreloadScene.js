@@ -25,6 +25,7 @@ import {
   paintRifleOverlay,
   paintEnemyRifleOverlay,
   paintSaberOverlay,
+  paintEnergyBlade,
   paintCasing,
   paintDashButton,
   paintMeleeButton,
@@ -81,6 +82,7 @@ export class PreloadScene extends Phaser.Scene {
     paintRifleOverlay(this, 'wpn-rifle');
     paintEnemyRifleOverlay(this, 'wpn-enemy-rifle');
     paintSaberOverlay(this, 'wpn-saber');
+    paintEnergyBlade(this, 'wpn-blade');
 
     // ── Animations ───────────────────────────────────────────────────
     const chars = [

@@ -640,6 +640,32 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     return Phaser.Math.Clamp((travel / spd) * 1000, 60, baseMs * 1.6);
   }
 
+  // 0..1 through the current melee cast's animation. Normalised by THIS cast's
+  // own duration (recoilT/recoilDur convention) — a shared divisor is what made
+  // the super shrink the player instead of popping it.
+  _meleeProgress() {
+    if (this._meleeAnimT <= 0) return 1;
+    return Phaser.Math.Clamp(1 - this._meleeAnimT / (this._meleeAnimDur || 1), 0, 1);
+  }
+
+  // Full 360 of the finisher's somersault, front-loaded so the spin reads fast
+  // and the landing settles.
+  _meleeFlipRad(mp) {
+    return Phaser.Math.Easing.Cubic.Out(mp) * Math.PI * 2;
+  }
+
+  // Blade angle relative to the aim direction. Casts 1-2 sweep a wide arc in
+  // mirrored directions; the finisher cartwheels in lockstep with the body so
+  // player and sword somersault as one.
+  _meleeBladeOffset() {
+    const mp = this._meleeProgress();
+    if (this._meleeAnimStage >= 3) return this._meleeFlipRad(mp);
+    const SWEEP = 1.35;                                  // ~77 degrees each way
+    const e = Phaser.Math.Easing.Cubic.Out(mp);
+    const from = this._meleeAnimStage === 2 ? -SWEEP : SWEEP;
+    return from - e * from * 2;
+  }
+
   // Single place to drop a combo so no path can leave a stale stage behind.
   resetMeleeCombo() {
     this._comboStage = 0;
@@ -814,11 +840,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // they're walking. The overlay sits a small radius out from the character
     // center so it visually reads as "held in front" of them.
     if (this.weaponSprite) {
-      const ang = this.superAiming ? this.superAim
-                : this.aiming      ? this.aim
-                : this.facing;
-      // Pick the right weapon sprite for the equipped secondary.
-      const wantTex = this.secondary === 'rifle' ? 'wpn-rifle'
+      const baseAng = this.superAiming ? this.superAim
+                    : this.aiming      ? this.aim
+                    : this.facing;
+      // Mid-combo the pistol is swapped for the energy blade — a melee ability
+      // with no visible weapon has nothing to animate, which is why the first
+      // pass read as a stray arc rather than a swing.
+      const inCombo = this._meleeAnimT > 0;
+      const wantTex = inCombo ? 'wpn-blade'
+                    : this.secondary === 'rifle' ? 'wpn-rifle'
                     : 'wpn-pistol';
       if (this.weaponSprite.texture.key !== wantTex) this.weaponSprite.setTexture(wantTex);
       // Recoil kick — when firing, the weapon visually slides BACKWARDS
@@ -830,11 +860,30 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       const kickBack = this._wKickT > 0
         ? Phaser.Math.Clamp(this._wKickT / (this._wKickDur || 80), 0, 1) * this._wKickMag
         : 0;
-      const offset = PLAYER.radius - 4 - kickBack;
+
+      // The overlay's transform is driven by the aim angle alone and is
+      // completely independent of this.angle, so it does NOT follow the body.
+      // During the finisher's 360 that would leave a sword hovering upright
+      // beside a cartwheeling player — so the swing offset is applied here by
+      // hand, and for the flip it is exactly the body's rotation.
+      let ang = baseAng, offset = PLAYER.radius - 4 - kickBack;
+      if (inCombo) {
+        ang = baseAng + this._meleeBladeOffset();
+        // Pivot at the GRIP, not the texture centre. With the default centre
+        // origin a 96px sword is centred ~30px out, burying the hilt behind the
+        // player and reading as a glowing stick floating nearby rather than a
+        // held weapon. Guns keep the centre origin — it suits a hip-carry.
+        if (this.weaponSprite.originX !== 0.14) this.weaponSprite.setOrigin(0.14, 0.5);
+        offset = PLAYER.radius - 8;
+      } else if (this.weaponSprite.originX !== 0.5) {
+        this.weaponSprite.setOrigin(0.5, 0.5);
+      }
       this.weaponSprite.x = this.x + Math.cos(ang) * offset;
       this.weaponSprite.y = this.y + Math.sin(ang) * offset;
       this.weaponSprite.rotation = ang;
-      this.weaponSprite.setFlipY(Math.abs(ang) > Math.PI / 2);
+      // Keyed off the AIM angle, not the swung one: using `ang` here would pop
+      // the blade upside-down mid-sweep every time it crossed +/-90 degrees.
+      this.weaponSprite.setFlipY(Math.abs(baseAng) > Math.PI / 2);
       this.weaponSprite.setAlpha(this.alive ? (this.hiddenInBush ? PLAYER.bushAlpha : 1) : 0);
     }
 
@@ -861,8 +910,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const sDriftY = Phaser.Math.Clamp(sVy * 0.008, -2, 2);
     const kickLift = this._wKickT > 0 ? -1 : 0;
     const staggerSquash = this._hurtStaggerMs > 0 ? 0.85 : 1;
-    this.shadow.setPosition(this.x + sDriftX, this.y + 18 + sDriftY + kickLift);
-    this.shadow.setScale(staggerSquash, staggerSquash);
+    // Airborne read for the finisher: while the body rises and spins, the
+    // shadow shrinks and drops away beneath it. Without this the flip looks
+    // like the player is scaling up on the floor rather than leaving it.
+    const airT = (this._meleeAnimT > 0 && this._meleeAnimStage >= 3)
+      ? Math.sin(this._meleeProgress() * Math.PI) : 0;
+    const airShrink = 1 - airT * 0.45;
+    this.shadow.setPosition(this.x + sDriftX, this.y + 18 + sDriftY + kickLift + airT * 8);
+    this.shadow.setScale(staggerSquash * airShrink, staggerSquash * airShrink);
     this.shadow.setDepth(this.y - 1);
     this._glowPulse += delta * 0.005;
     const pulse = 0.85 + 0.15 * Math.sin(this._glowPulse);
@@ -994,6 +1049,25 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.isDashing) {
       this.angle = Math.sin(time * 0.05) * 15; // fast dodge roll spin
       this.setScale(1.0);
+    } else if (this._meleeAnimT > 0) {
+      // Melee combo pose. This branch is the whole reason the melee can animate
+      // at all: without it the chain falls through to the `alive` branch below,
+      // which zeroes angle and scale EVERY frame and erases any pose set
+      // elsewhere. Sits above recoil so a leftover shot can't fight the swing.
+      const mp   = this._meleeProgress();
+      const bump = Math.sin(mp * Math.PI);        // 0 -> 1 -> 0
+      if (this._meleeAnimStage >= 3) {
+        // Cast 3: the horizontal flip. A full 360 with an airborne rise/fall,
+        // deliberately breaking this project's "body never rotates" rule.
+        this.angle = Phaser.Math.RadToDeg(this._meleeFlipRad(mp));
+        this.setScale(1 + bump * 0.26);
+      } else {
+        // Casts 1-2: lean hard into the swing, mirrored between the two so the
+        // pair reads as a combo rather than the same move played twice.
+        const side = this._meleeAnimStage === 2 ? -1 : 1;
+        this.angle = bump * 26 * side;
+        this.setScale(1 + bump * 0.10, 1 - bump * 0.06);
+      }
     } else if (this.recoilT > 0) {
       this.recoilT -= delta;
       // Ratio is normalized by the shot's OWN duration and clamped, so a long

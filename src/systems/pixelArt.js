@@ -41,6 +41,14 @@ export const PAL = {
   vaderArmor:   '#12121a',
   vaderSheen:   '#202028',
   vaderBreath:  '#282832',
+  // Melee energy blade ("Broken Wings")
+  bladeSteel:   '#3a4652',
+  bladeSteelMid:'#54677a',
+  bladeSteelLt: '#8ba4bc',
+  bladeEdge:    '#1a2028',
+  energyCyan:   '#3aa8e8',
+  energyGlow:   '#90d8ff',
+  energyCore:   '#eafbff',
   // Lightsaber / energy
   saberRed:     '#ee1010',
   saberRedGlow: '#ff6040',
@@ -263,6 +271,46 @@ export function paintSaberOverlay(scene, key = 'wpn-saber') {
   c.hline(3, 5, 21, PAL.saberRedCore);
   c.px(21, 2, PAL.saberRedTip);
   c.px(21, 3, PAL.saberRedTip);
+  c.finish();
+}
+
+// ── MELEE: energy greatsword overlay ──────────────────────────────────────
+// Held-end LEFT, tip RIGHT, same convention as the pistol/rifle overlays so
+// the existing weaponSprite rotation maths applies unchanged. Deliberately
+// broader and longer than the rifle (20x8): the melee combo needs a weapon the
+// player can actually SEE being swung, which the first pass never gave it.
+// The chipped top edge is the "broken" blade read.
+export function paintEnergyBlade(scene, key = 'wpn-blade') {
+  const c = new PixelCanvas(scene, key, 24, 10, 4);
+  const P = PAL;
+
+  // Dark hilt: pommel, two-handed grip, wide crossguard. Kept dark and compact
+  // so the bright blade owns the silhouette.
+  c.rect(0, 3, 1, 4, P.bladeSteelMid);
+  c.rect(1, 4, 4, 2, P.bladeEdge);
+  c.px(2, 4, P.bladeSteelLt);
+  c.rect(5, 1, 1, 8, P.bladeSteelMid);   // crossguard
+  c.rect(6, 2, 1, 6, P.bladeSteel);
+  c.px(5, 4, P.energyGlow);              // emitter gem
+  c.px(5, 5, P.energyCore);
+
+  // Blade: a bright energy slab, symmetric about the centre line, stepping down
+  // in even widths to a point. Body / glow / core layering is the same
+  // construction as paintSaberOverlay — it reads instantly at sprite scale,
+  // which a mid-tone steel slab did not.
+  const COLS = [
+    [7, 2, 7], [8, 2, 7], [9, 2, 7], [10, 2, 7], [11, 2, 7], [12, 2, 7],
+    [13, 3, 6], [14, 3, 6], [15, 3, 6], [16, 3, 6], [17, 3, 6],
+    [18, 4, 5], [19, 4, 5], [20, 4, 5], [21, 4, 5], [22, 4, 5],
+  ];
+  for (const [x, top, bot] of COLS) {
+    c.vline(x, top, bot, P.energyCyan);  // body
+    c.px(x, 4, P.energyGlow);            // inner glow
+    c.px(x, 5, P.energyCore);            // white-hot core
+  }
+  // Point.
+  c.px(23, 4, P.energyGlow);
+  c.px(23, 5, P.energyGlow);
   c.finish();
 }
 
