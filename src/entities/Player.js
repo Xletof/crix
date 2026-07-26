@@ -756,6 +756,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       // the duration, then we damp out rather than hard-stopping.
       this._meleeLungeMs -= delta;
       if (this._meleeLungeMs <= 0) {
+        this._meleeLungeMs = 0;   // clamp; leaving it negative is just litter
         this.body.velocity.x *= 0.35;
         this.body.velocity.y *= 0.35;
         // Resolve the swing HERE, at the end of the travel. Firing it at cast
