@@ -316,6 +316,8 @@ export class GameScene extends Phaser.Scene {
     const idx = this.roomManager.index;
     this.events.emit('room-start', idx + 1, ROOMS.length, spec);
     this._roomLoud = false;
+    // Never carry a mid-combo stage across a room boundary.
+    this.player?.resetMeleeCombo?.();
     // Baseline for the sector sign's "N HOSTILES DOWN" line — kills made in
     // THIS room are runKills minus whatever the count was on entry.
     this._roomKillsAtStart = this.runKills || 0;
@@ -1005,6 +1007,58 @@ export class GameScene extends Phaser.Scene {
   // Brief camera punch-zoom: pulse the zoom up to `to` over half the
   // duration, then back to 1.0. Decay handled by a tween so it's safe
   // through scene transitions.
+  // ── Melee "Broken Wings" cast ─────────────────────────────────────────
+  // One arc swing in front of the player. Every enemy inside the cone is hit
+  // exactly ONCE per swing (per-swing Set) — an arc that re-tests the same
+  // enemy across frames is the classic multi-hit bug for this kind of attack.
+  performMeleeCast(dir, stage, finisher) {
+    const p = this.player;
+    if (!p?.alive) return;
+
+    const range  = PLAYER.meleeRange;
+    const arc    = Phaser.Math.DegToRad(finisher ? PLAYER.meleeFinisherArcDeg : PLAYER.meleeArcDeg);
+    const dmg    = (finisher ? PLAYER.meleeFinisherDamage : PLAYER.meleeDamage) * p.dmgMult;
+    const kb     = finisher ? PLAYER.meleeFinisherKnockback : PLAYER.meleeKnockback;
+    const hitSet = new Set();
+
+    const swingX = p.x + Math.cos(dir) * range * 0.55;
+    const swingY = p.y + Math.sin(dir) * range * 0.55;
+
+    const tryHit = (e) => {
+      if (!e || !e.active || !e.alive || hitSet.has(e)) return;
+      const d = Math.hypot(e.x - p.x, e.y - p.y);
+      const reach = range + (e.cfg?.radius ?? 22);
+      if (d > reach) return;
+      // Inside the cone? Compare the angle to the enemy against the swing dir.
+      const da = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(e.y - p.y, e.x - p.x) - dir));
+      if (da > arc / 2) return;
+      hitSet.add(e);
+      e.damage(dmg, { x: Math.cos(dir) * kb, y: Math.sin(dir) * kb });
+      this.fx.burstDir(e.x, e.y, 'yellow', finisher ? 14 : 8, dir, 70);
+      this.fx.impactRing(e.x, e.y, 0x90d8ff);
+    };
+    this.enemies.getChildren().forEach(tryHit);
+    if (this.boss) tryHit(this.boss);
+
+    // Melee builds the RANGED meter (and vice versa via bullets), so the two
+    // skills feed each other instead of competing for the same input.
+    if (hitSet.size > 0) p.addSuperHit();
+
+    // Blade arc — cyan/white so it reads as neither the red ranged super nor
+    // the green stealth takedown.
+    this.fx.slashSwipe(swingX, swingY, dir, finisher ? 78 : 54, finisher ? 0xd8f4ff : 0x90d8ff);
+    SFX.dash?.();
+
+    if (finisher) {
+      this.fx.shake(0.014, 200);
+      this._cameraPunch(1.06, 220);
+      this._slowMo(0.55, 200);
+      this.cameras.main.flash(120, 140, 220, 255, true);
+    } else {
+      this.fx.shake(0.006, 90);
+    }
+  }
+
   // Distance falloff for super-hit shake: full punch on enemies near the
   // player, dropping to a floor of 0.15x by ~700px out. Keeps a super that
   // wipes a spread crowd from ringing the camera on every distant kill.
@@ -1319,6 +1373,9 @@ export class GameScene extends Phaser.Scene {
     });
     this.events.on('player-shot-missed', () => {
       this.player?.onShotMissed();
+    });
+    this.events.on('player-melee-cast', (dir, stage, finisher) => {
+      this.performMeleeCast(dir, stage, finisher);
     });
     this.events.on('player-fire-super', (angle) => {
       this.firePlayerSuper(angle);
@@ -2033,7 +2090,12 @@ export class GameScene extends Phaser.Scene {
           // Super pellets recharge off normal enemies (keeps horde supers
           // chaining — the fun part) but NOT off mini-bosses, so a mini-boss
           // can't be spam-supered the way a swarm can.
-          if (b.owner === 'player' && !(isSuper && e._miniBoss)) this.player.addSuperHit();
+          if (b.owner === 'player' && !(isSuper && e._miniBoss)) {
+            this.player.addSuperHit();
+            // Melee has its OWN meter; feed it from the same hits so both
+            // skills come online through normal play.
+            this.player.addMeleeHit();
+          }
           if (!b.piercing) { if (isSuper) this.fx.explosion(b.x, b.y, 1.4); b.kill(); break; }
         }
       }

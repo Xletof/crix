@@ -55,6 +55,23 @@ export const PLAYER = {
   superRange: 620,
   superRadius: 12,
   superKnockback: 500,
+  // ── Melee skill: "Broken Wings" — a 3-cast chain of lunging arc slashes.
+  // Its own meter, independent of the ranged super, so both can be ready at
+  // once. The meter is spent on the FIRST cast only; casts 2 and 3 are free
+  // inside meleeComboWindowMs, so the three swings are one ability.
+  meleeHitsToCharge: 3,     // cheaper than the ranged super (4)
+  meleeComboWindowMs: 2000, // time to land the next cast before it resets
+  meleeLungeSpeed: 620,     // velocity-driven so walls still stop it
+  meleeLungeMs: 130,
+  meleeFinisherLungeSpeed: 780,
+  meleeFinisherLungeMs: 160,
+  meleeRange: 95,
+  meleeArcDeg: 110,
+  meleeFinisherArcDeg: 160,
+  meleeDamage: 320,
+  meleeFinisherDamage: 700,
+  meleeKnockback: 260,
+  meleeFinisherKnockback: 620,
   // HP regen
   regenDelayMs: 4000,
   regenPerSec: 100,

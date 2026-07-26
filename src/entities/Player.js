@@ -20,6 +20,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.fireCooldown = 0;
     this.lastHurtAt   = -99999;
     this.superCharge  = 0;
+    // ── Melee "Broken Wings" skill — a SEPARATE meter from superCharge so both
+    // skills can be ready at once. Nothing here may touch superCharge.
+    this.meleeCharge  = 0;
+    this._comboStage  = 0;   // 0 = not in a combo, 1..2 = casts already spent
+    this._comboWindowMs = 0; // time left to chain the next cast
+    this._meleeLungeMs  = 0; // remaining lunge drive time
     this.alive        = true;
     this.hiddenInBush = false;
     this.isRegenerating = false;
@@ -532,8 +538,72 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  // Melee meter — deliberately a mirror of addSuperHit on its OWN field, so the
+  // two skills charge independently and neither can drain the other.
+  addMeleeHit() {
+    const max    = PLAYER.meleeHitsToCharge;
+    const before = this.meleeCharge;
+    this.meleeCharge = Math.min(max, this.meleeCharge + this.accuracyMult * this.superGainMult);
+    if (before < max && this.meleeCharge >= max) {
+      this.scene.events.emit('player-melee-ready');
+    } else {
+      this.scene.events.emit('player-melee-changed');
+    }
+  }
+
+  get meleeReady() {
+    return this.meleeCharge >= PLAYER.meleeHitsToCharge;
+  }
+
+  // "Broken Wings": three chained casts. The meter is consumed on the FIRST
+  // cast only — casts 2 and 3 are free while the combo window is live, so the
+  // whole chain is one ability. Letting the window lapse resets to stage 0.
+  tryMeleeCombo() {
+    if (!this.alive) return false;
+    if (this.isDashing) return false;
+    if (this._hurtStaggerMs > 0) return false;
+
+    const inCombo = this._comboStage > 0 && this._comboWindowMs > 0;
+    if (!inCombo) {
+      if (!this.meleeReady) return false;
+      this.meleeCharge = 0;              // spend once, at the start of the chain
+      this._comboStage = 0;
+      this.scene.events.emit('player-melee-changed');
+    }
+
+    const stage = this._comboStage + 1;  // 1..3
+    this._comboStage = stage;
+    const finisher = stage >= 3;
+
+    // Face the cast so the lunge and arc agree with what the player sees.
+    const dir = this._autoAimAngle();
+    this.facing = dir;
+    this.aim = dir;
+    this._facingLockMs = 220;
+
+    // Velocity-driven lunge (NOT a position tween) so walls still collide.
+    const spd = finisher ? PLAYER.meleeFinisherLungeSpeed : PLAYER.meleeLungeSpeed;
+    this._meleeLungeMs = finisher ? PLAYER.meleeFinisherLungeMs : PLAYER.meleeLungeMs;
+    this.setVelocity(Math.cos(dir) * spd, Math.sin(dir) * spd);
+
+    // Third cast ends the chain; otherwise open the window for the next one.
+    this._comboWindowMs = finisher ? 0 : PLAYER.meleeComboWindowMs;
+    if (finisher) this._comboStage = 0;
+
+    this.scene.events.emit('player-melee-cast', dir, stage, finisher);
+    return true;
+  }
+
+  // Single place to drop a combo so no path can leave a stale stage behind.
+  resetMeleeCombo() {
+    this._comboStage = 0;
+    this._comboWindowMs = 0;
+    this._meleeLungeMs = 0;
+  }
+
   die() {
     this.alive       = false;
+    this.resetMeleeCombo();
     this.setVelocity(0, 0);
     this.jetEmitter?.stop();
     this.scene.events.emit('player-dead');
@@ -545,6 +615,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     super.preUpdate?.(time, delta);
 
     if (this._facingLockMs > 0) this._facingLockMs -= delta;
+    // Combo window: let it lapse and the chain drops back to stage 0, so the
+    // next cast has to pay for a fresh meter.
+    if (this._comboWindowMs > 0) {
+      this._comboWindowMs -= delta;
+      if (this._comboWindowMs <= 0) {
+        this._comboWindowMs = 0;
+        this._comboStage = 0;
+        this.scene.events.emit('player-melee-changed');
+      }
+    }
 
     // Keyboard super hold: the aim cone tracks the nearest enemy (the auto-aim
     // target) so it previews exactly where the shot will go on release.
@@ -589,6 +669,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         if (Math.random() < 0.45) {
           this.scene.fx?.dustPuff?.(this.x, this.y + 14);
         }
+      }
+    } else if (this._meleeLungeMs > 0) {
+      // Melee lunge drive. Velocity is left as tryMeleeCombo set it so Arcade
+      // collision still resolves against walls; movement input is ignored for
+      // the duration, then we damp out rather than hard-stopping.
+      this._meleeLungeMs -= delta;
+      if (this._meleeLungeMs <= 0) {
+        this.body.velocity.x *= 0.35;
+        this.body.velocity.y *= 0.35;
       }
     } else if (this._hurtStaggerMs > 0) {
       this._hurtStaggerMs -= delta;
