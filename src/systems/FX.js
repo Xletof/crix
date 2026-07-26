@@ -662,6 +662,129 @@ export function attachFX(scene) {
       });
     },
 
+    // ── Melee combo: sweeping blade arc ──────────────────────────────────
+    // The melee used to borrow slashSwipe (below), which is the stealth
+    // TAKEDOWN's effect: one 5px arc stroke that appears whole and fades in
+    // 180ms. A lone thin crescent flickering on and off reads as a rendering
+    // glitch, not a sword swing.
+    //
+    // This one is built as a tapered crescent that actually SWEEPS: the arc is
+    // redrawn each frame growing from the tail toward the leading edge, so the
+    // eye tracks a blade travelling through an arc. Two layers (soft outer
+    // glow + white-hot core) and a spark riding the leading edge.
+    //
+    // `stage` picks the escalation: casts 1 and 2 sweep in mirrored directions
+    // so the pair reads as a combo, and the finisher is fatter and whiter.
+    bladeArc(x, y, angle, radius = 92, stage = 1) {
+      const dir   = stage === 2 ? -1 : 1;              // mirror the second cast
+      const span  = stage >= 3 ? Math.PI * 1.5 : Math.PI * 0.95;
+      const maxT  = stage >= 3 ? 26 : 17;              // crescent half-thickness
+      const dur   = stage >= 3 ? 260 : 200;
+      const a0    = angle - dir * span / 2;
+      const g     = scene.add.graphics().setDepth(33);
+      const state = { t: 0 };
+
+      // One tapered band: pointed at the tail, fattest near the leading edge.
+      const band = (t, thick, colour, alpha) => {
+        const N = 20;
+        const pts = [];
+        for (let i = 0; i <= N; i++) {
+          const u  = i / N;
+          const a  = a0 + dir * span * t * u;
+          const ht = thick * Math.sqrt(u) * (1 - 0.3 * Math.pow(u, 6));
+          pts.push(new Phaser.Geom.Point(x + Math.cos(a) * (radius + ht),
+                                         y + Math.sin(a) * (radius + ht)));
+        }
+        for (let i = N; i >= 0; i--) {
+          const u  = i / N;
+          const a  = a0 + dir * span * t * u;
+          const ht = thick * Math.sqrt(u) * (1 - 0.3 * Math.pow(u, 6));
+          pts.push(new Phaser.Geom.Point(x + Math.cos(a) * (radius - ht),
+                                         y + Math.sin(a) * (radius - ht)));
+        }
+        g.fillStyle(colour, alpha);
+        g.fillPoints(pts, true);
+      };
+
+      scene.tweens.add({
+        targets: state, t: 1, duration: dur, ease: 'Cubic.easeOut',
+        onUpdate: () => {
+          const t = state.t;
+          const fade = 1 - Math.pow(t, 2.2);           // holds, then drops away
+          g.clear();
+          band(t, maxT * 1.45, stage >= 3 ? 0x8fe4ff : 0x3aa8e8, 0.34 * fade);
+          band(t, maxT,        stage >= 3 ? 0xd8f4ff : 0x90d8ff, 0.72 * fade);
+          band(t, maxT * 0.42, 0xffffff,                         0.95 * fade);
+          // Spark riding the leading edge.
+          const ha = a0 + dir * span * t;
+          g.fillStyle(0xffffff, fade);
+          g.fillCircle(x + Math.cos(ha) * radius, y + Math.sin(ha) * radius,
+                       (stage >= 3 ? 9 : 6) * fade);
+        },
+        onComplete: () => g.destroy(),
+      });
+    },
+
+    // Ground slam: expanding shockwave ring + dust plume + radial debris. The
+    // finisher's radial AoE had no radial effect at all before this — it drew
+    // the same forward crescent as the other two casts.
+    slamShockwave(x, y, radius = 210) {
+      const ring = scene.add.graphics().setDepth(24);
+      const s = { t: 0 };
+      scene.tweens.add({
+        targets: s, t: 1, duration: 380, ease: 'Cubic.easeOut',
+        onUpdate: () => {
+          const t = s.t;
+          const r = radius * t;
+          const a = 1 - t;
+          ring.clear();
+          ring.lineStyle(14 * (1 - t * 0.7), 0x3aa8e8, 0.30 * a);
+          ring.strokeCircle(x, y, r);
+          ring.lineStyle(6 * (1 - t * 0.6), 0xd8f4ff, 0.85 * a);
+          ring.strokeCircle(x, y, r);
+          ring.lineStyle(2, 0xffffff, a);
+          ring.strokeCircle(x, y, r * 0.96);
+        },
+        onComplete: () => ring.destroy(),
+      });
+
+      // Energy fractures splitting the floor outward from the epicentre. These
+      // linger past the ring so the slam leaves a mark instead of vanishing.
+      // (The existing _spawnVaderGroundCrack was the obvious thing to reuse, but
+      // it draws 0x1a1a22 at 0.55 alpha — black on a near-black floor. It is
+      // meant to be a subtle darkening in the boss arena and is invisible here.)
+      const frac = scene.add.graphics().setDepth(23);
+      const spokes = 11;
+      for (let i = 0; i < spokes; i++) {
+        const base = (i / spokes) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+        const len  = radius * (0.45 + Math.random() * 0.5);
+        const segs = 3 + Math.floor(Math.random() * 3);
+        let px = x, py = y;
+        frac.lineStyle(2.5, 0x90d8ff, 0.9);
+        frac.beginPath();
+        frac.moveTo(px, py);
+        for (let s = 0; s < segs; s++) {
+          const jit = (Math.random() - 0.5) * 0.5;
+          px += Math.cos(base + jit) * (len / segs);
+          py += Math.sin(base + jit) * (len / segs);
+          frac.lineTo(px, py);
+        }
+        frac.strokePath();
+      }
+      scene.tweens.add({
+        targets: frac, alpha: 0, duration: 620, ease: 'Quad.easeIn',
+        onComplete: () => frac.destroy(),
+      });
+
+      // Dust plume kicked up at the epicentre, plus debris thrown outward along
+      // the ring so the slam reads as hitting the FLOOR, not the air.
+      this.burst(x, y, 'white', 16);
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2 + Math.random() * 0.3;
+        this.burstDir(x + Math.cos(a) * 26, y + Math.sin(a) * 26, 'yellow', 3, a, 24);
+      }
+    },
+
     // A sweeping curved arc for takedown animations
     slashSwipe(x, y, angle, radius = 45, color = 0x40ff80) {
       const g = scene.add.graphics().setDepth(32);

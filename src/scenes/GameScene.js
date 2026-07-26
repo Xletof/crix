@@ -1085,18 +1085,22 @@ export class GameScene extends Phaser.Scene {
   // touching hit resolution.
   _meleeImpactFx(dir, stage, finisher, hits) {
     const p = this.player;
-    const swingX = p.x + Math.cos(dir) * PLAYER.meleeRange * 0.55;
-    const swingY = p.y + Math.sin(dir) * PLAYER.meleeRange * 0.55;
-    this.fx.slashSwipe(swingX, swingY, dir, finisher ? 78 : 54,
-      finisher ? 0xd8f4ff : 0x90d8ff);
 
     if (finisher) {
-      this.fx.shake(0.014, 200);
-      this._cameraPunch(1.06, 220);
-      this._slowMo(0.55, 200);
-      this.cameras.main.flash(120, 140, 220, 255, true);
+      // Radial slam: a wide blade arc carried round by the flip, plus a
+      // shockwave sized to the actual AoE so what you see is what it hits.
+      this.fx.bladeArc(p.x, p.y, dir, PLAYER.meleeSlamRadius * 0.55, 3);
+      this.fx.slamShockwave(p.x, p.y, PLAYER.meleeSlamRadius);
+      this.fx.shake(0.020, 260);
+      this._cameraPunch(1.08, 260);
+      this._slowMo(0.5, 240);
+      this.cameras.main.flash(140, 150, 225, 255, true);
     } else {
-      this.fx.shake(0.006, 90);
+      // Casts 1-2: the arc is centred on the player and sized to the reach, so
+      // the sweep covers the ground the cone actually hits.
+      this.fx.bladeArc(p.x, p.y, dir, PLAYER.meleeRange * 0.78, stage);
+      this.fx.shake(hits > 0 ? 0.009 : 0.005, 100);
+      if (hits > 0) this._cameraPunch(1.02, 110);
     }
   }
 
