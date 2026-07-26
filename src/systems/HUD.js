@@ -170,6 +170,14 @@ export class HUDScene extends Phaser.Scene {
       .setAlpha(0)
       .setResolution(2);
 
+    // ── Persistent sector directive sign ────────────────────────────────
+    // Deliberately NOT routed through showBanner: that auto-fades in ~1.6s and
+    // shrinks any text over 14 chars to 34px, which is exactly why the old
+    // prompt read as brief and small. This one holds until the player leaves.
+    // Upper third so it's readable from anywhere in the room without covering
+    // the combat zone around the player.
+    this._buildSectorSign();
+
     // Energy cell ammo pips (above right joystick)
     this.ammoPips = [];
     const ammoY = VIEW.height - HUDCFG.joystickBottom - HUDCFG.joystickRadius * 2 - 50;
@@ -389,7 +397,13 @@ export class HUDScene extends Phaser.Scene {
       }
     };
     ge.on('player-mult-changed',  this._onMultChanged);
-    ge.on('room-start',           (n, total, spec) => this.refreshChamber(n, total, spec));
+    ge.on('room-start',           (n, total, spec) => {
+      // Belt-and-braces hide: the per-frame driver also clears the sign when
+      // doorZone is destroyed on room load, but a stale permanent sign burned
+      // onto a fresh room is the worst failure mode for this element.
+      this.hideSectorSign();
+      this.refreshChamber(n, total, spec);
+    });
     ge.on('boss-start',           ()               => this.showBanner('VADER APPROACHES', '#ff2828'));
     ge.on('boss-phase',           (phase)          => { this._bossPhase = phase; this.showBanner('ENRAGED!', '#ff8888'); });
     ge.on('boss-died',            ()               => { this._bossPhase = 1; });
@@ -851,6 +865,113 @@ export class HUDScene extends Phaser.Scene {
     }
   }
 
+  // ── Persistent sector directive sign ──────────────────────────────────
+  // Cold, clinical signage: a flat after-action line above a flat order. The
+  // "cold" here is attitude, not colour — it states the body count and issues
+  // the directive without ceremony, then just sits there.
+  _buildSectorSign() {
+    const W = VIEW.width - 56;
+    const H = 128;
+    const cx = VIEW.width / 2;
+    const cy = 214;                       // upper third, clear of the 84px bar
+    const COL = 0x40ff90;
+
+    this.sectorSign = this.add.container(cx, cy).setDepth(37).setVisible(false).setAlpha(0);
+
+    const plate = this.add.graphics();
+    // Dark plate — semi-transparent so the arena still reads behind it.
+    plate.fillStyle(0x04140c, 0.78);
+    plate.fillRect(-W / 2, -H / 2, W, H);
+    // Hard rules top and bottom (engraved signage, not a soft glow).
+    plate.fillStyle(COL, 0.95);
+    plate.fillRect(-W / 2, -H / 2, W, 3);
+    plate.fillRect(-W / 2, H / 2 - 3, W, 3);
+    plate.fillStyle(COL, 0.25);
+    plate.fillRect(-W / 2, -H / 2 + 5, W, 1);
+    plate.fillRect(-W / 2, H / 2 - 6, W, 1);
+    // Corner ticks.
+    plate.fillStyle(COL, 0.9);
+    const T = 22;
+    [[-W / 2, -H / 2], [W / 2 - T, -H / 2], [-W / 2, H / 2 - 3], [W / 2 - T, H / 2 - 3]]
+      .forEach(([x, y]) => plate.fillRect(x, y, T, 3));
+    plate.fillRect(-W / 2, -H / 2, 3, 20);
+    plate.fillRect(W / 2 - 3, -H / 2, 3, 20);
+    plate.fillRect(-W / 2, H / 2 - 20, 3, 20);
+    plate.fillRect(W / 2 - 3, H / 2 - 20, 3, 20);
+
+    // After-action line — small, dim, matter-of-fact.
+    this.signSub = this.add.text(0, -H / 2 + 26, '', {
+      fontFamily: FONTS.body,
+      fontSize: '19px',
+      color: '#8fdfae',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setResolution(2);
+
+    // The directive — large. This is the fix for "very small".
+    this.signMain = this.add.text(0, 16, 'MOVE TO NEXT SECTOR', {
+      fontFamily: FONTS.display,
+      fontSize: '46px',
+      fontStyle: 'bold',
+      color: '#40ff90',
+      stroke: '#00160a',
+      strokeThickness: 8,
+      letterSpacing: 2,
+    }).setOrigin(0.5).setResolution(2);
+
+    // Scanline — a thin bright bar that sweeps down the plate on a loop.
+    this.signScan = this.add.graphics();
+    this.signScan.fillStyle(0xc0ffd8, 0.22);
+    this.signScan.fillRect(-W / 2 + 3, -2, W - 6, 4);
+
+    this.sectorSign.add([plate, this.signScan, this.signSub, this.signMain]);
+    this._signH = H;
+    this._signShown = false;
+    this._signTweens = [];
+  }
+
+  // Idempotent. Latched by _signShown so the per-frame driver can call this
+  // every tick without restarting tweens or leaking graphics.
+  showSectorSign(sector, kills) {
+    const sub = kills > 0
+      ? `SECTOR ${sector} CLEARED — ${kills} HOSTILES DOWN`
+      : `SECTOR ${sector} CLEARED`;
+    this.signSub.setText(sub);
+    if (this._signShown) return;
+    this._signShown = true;
+
+    const c = this.sectorSign;
+    c.setVisible(true).setAlpha(0).setScale(1.14, 0.7);
+    // Arrival: slam in, then hold indefinitely.
+    this._signTweens.push(this.tweens.add({
+      targets: c, alpha: 1, scaleX: 1, scaleY: 1,
+      duration: 260, ease: 'Back.easeOut',
+    }));
+    // Sustained breathing — subtle enough to ignore mid-fight.
+    this._signTweens.push(this.tweens.add({
+      targets: c, alpha: { from: 1, to: 0.86 },
+      duration: 1400, yoyo: true, repeat: -1, delay: 300, ease: 'Sine.easeInOut',
+    }));
+    // Scanline sweep, bounded to the plate so no mask is needed.
+    const h = this._signH;
+    this.signScan.y = -h / 2;
+    this._signTweens.push(this.tweens.add({
+      targets: this.signScan, y: { from: -h / 2 + 4, to: h / 2 - 4 },
+      duration: 2200, repeat: -1, ease: 'Sine.easeInOut',
+    }));
+    SFX.uiClick?.();
+  }
+
+  hideSectorSign() {
+    if (!this._signShown) return;
+    this._signShown = false;
+    this._signTweens.forEach((t) => t?.remove());
+    this._signTweens = [];
+    this.tweens.killTweensOf(this.sectorSign);
+    this.tweens.killTweensOf(this.signScan);
+    this.sectorSign.setVisible(false).setAlpha(0);
+  }
+
   // Guidance to the open exit so a cleared room never leaves the player
   // hunting for the way out. Off-screen → a big pulsing arrow pinned to the
   // viewport edge; on-screen → a pulsing ring at the door itself. Styled
@@ -860,8 +981,21 @@ export class HUDScene extends Phaser.Scene {
     g.clear();
     const gs = this.gameScene;
     const p  = gs?.player;
-    // Only while an exit is actually open and unused.
-    if (!p || !p.alive || !gs.doorZone || gs._doorTriggered) return;
+    // One condition drives BOTH the arrow and the sign, so they can never
+    // disagree: an exit exists, is open, and hasn't been taken yet.
+    const active = !!(p && p.alive && gs.doorZone && !gs._doorTriggered);
+
+    // The persistent directive sign is endless-only. Both calls are latched, so
+    // driving them per frame costs nothing and self-heals across room changes
+    // (doorZone is destroyed on room load, which flips `active` false).
+    if (active && gs.mode === 'endless') {
+      this.showSectorSign(gs.sector ?? 1,
+        Math.max(0, (gs.runKills || 0) - (gs._roomKillsAtStart || 0)));
+    } else {
+      this.hideSectorSign();
+    }
+
+    if (!active) return;
 
     const cam = gs.cameras.main;
     const vw  = cam.worldView;

@@ -316,6 +316,9 @@ export class GameScene extends Phaser.Scene {
     const idx = this.roomManager.index;
     this.events.emit('room-start', idx + 1, ROOMS.length, spec);
     this._roomLoud = false;
+    // Baseline for the sector sign's "N HOSTILES DOWN" line — kills made in
+    // THIS room are runKills minus whatever the count was on entry.
+    this._roomKillsAtStart = this.runKills || 0;
 
     // Arena wave survival announcement (non-boss). _startWave(0) fires the
     // "WAVE 1" banner itself, so we just kick it off + the terminal hint.
@@ -611,12 +614,12 @@ export class GameScene extends Phaser.Scene {
 
     this._doorTriggered = false;
 
-    // Endless: name the next objective explicitly. The HUD waypoint (which
-    // keys off doorZone) lights up at the same moment, so the player is told
-    // where to go and pointed at it together, keeping the run loop unbroken.
-    if (this.mode === 'endless') {
-      this.events.emit('show-banner', 'MOVE TO NEXT SECTOR', '#40ff90');
-    }
+    // Endless: the HUD's persistent sector sign and the edge arrow both key off
+    // doorZone existing, so they light up together the moment the exit unlocks.
+    // Deliberately NOT a show-banner emit — that path auto-fades in ~1.6s and
+    // shrinks long text to 34px, which is what made the old prompt brief and
+    // small. The sign holds until the player actually leaves.
+    if (this.mode === 'endless') this.fx?.shake?.(0.006, 160);
   }
 
   // Sliding-panel unseal animation that plays once when an exit unlocks.
