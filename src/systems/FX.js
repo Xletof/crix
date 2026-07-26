@@ -715,17 +715,40 @@ export function attachFX(scene) {
       const m = scene.add.image(x, y, 'muzzle').setDepth(35);
       m.setOrigin(0.15, 0.5);
       m.setRotation(angle);
-      m.setScale(2.4, 1.9);
+      m.setScale(3.4, 2.7);
       m.setBlendMode(Phaser.BlendModes.ADD);
       scene.tweens.add({
         targets: m, scaleX: 0.4, scaleY: 0.2, alpha: 0,
-        duration: 130, ease: 'Cubic.easeIn',
+        duration: 150, ease: 'Cubic.easeIn',
         onComplete: () => m.destroy(),
+      });
+
+      // 1b. Explosive detonation right at the barrel — this is what sells the
+      // shotgun "blam" rather than a laser puff. Two staggered pops slightly
+      // ahead of the muzzle so the blast has depth along the fire direction.
+      this.explosion(x + Math.cos(angle) * 16, y + Math.sin(angle) * 16, 1.5);
+      scene.time.delayedCall(45, () => {
+        this.explosion(x + Math.cos(angle) * 44, y + Math.sin(angle) * 44, 1.1);
+      });
+
+      // 1c. Hard white frame at the muzzle — one bright disc that snaps away in
+      // ~70ms, giving the blast its instantaneous violence.
+      const hot = scene.add.graphics().setDepth(36);
+      hot.setBlendMode(Phaser.BlendModes.ADD);
+      hot.fillStyle(0xffffff, 0.85);
+      hot.fillCircle(0, 0, 26);
+      hot.fillStyle(0xffe0c0, 0.5);
+      hot.fillCircle(0, 0, 40);
+      hot.setPosition(x + Math.cos(angle) * 10, y + Math.sin(angle) * 10);
+      scene.tweens.add({
+        targets: hot, scale: 0.2, alpha: 0,
+        duration: 70, ease: 'Quad.easeIn',
+        onComplete: () => hot.destroy(),
       });
 
       // 2. Wide white-hot cone flare hugging the blast direction.
       const SPREAD = Phaser.Math.DegToRad(34);
-      const LEN = 110;
+      const LEN = 150;
       const cone = scene.add.graphics().setDepth(34);
       cone.setBlendMode(Phaser.BlendModes.ADD);
       cone.fillStyle(0xff6040, 0.5);
@@ -753,12 +776,12 @@ export function attachFX(scene) {
       // 3. Shockwave ring punching outward from the barrel.
       const ring = scene.add.graphics().setDepth(34);
       ring.setBlendMode(Phaser.BlendModes.ADD);
-      ring.lineStyle(4, 0xffd0b0, 0.9);
-      ring.strokeCircle(0, 0, 16);
+      ring.lineStyle(5, 0xffd0b0, 0.95);
+      ring.strokeCircle(0, 0, 18);
       ring.setPosition(x, y);
       scene.tweens.add({
-        targets: ring, scale: 3.4, alpha: 0,
-        duration: 190, ease: 'Cubic.easeOut',
+        targets: ring, scale: 4.6, alpha: 0,
+        duration: 220, ease: 'Cubic.easeOut',
         onComplete: () => ring.destroy(),
       });
     },

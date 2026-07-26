@@ -1615,12 +1615,22 @@ export class GameScene extends Phaser.Scene {
     const half   = (PLAYER.superPellets - 1) / 2;
     for (let i = 0; i < PLAYER.superPellets; i++) {
       const a = angle + (i - half) * (spread / Math.max(1, PLAYER.superPellets - 1));
-      this.playerSuperBullets.fire(bx, by, a, PLAYER.superSpeed, PLAYER.superDamage * this.player.dmgMult, PLAYER.superRange,
+      const b = this.playerSuperBullets.fire(bx, by, a, PLAYER.superSpeed, PLAYER.superDamage * this.player.dmgMult, PLAYER.superRange,
         { owner: 'player', piercing: true, knockback: PLAYER.superKnockback });
+      // Big, chunky pellets — scale THICKNESS ONLY (Y), never X.
+      // circleOverlap() derives a bullet's hit radius from body.width / 2, and
+      // Phaser's Body.updateBounds() recomputes width as sourceWidth * |scaleX|.
+      // So scaling X would silently inflate the super's hit radius (27 -> ~46),
+      // while scaling Y only touches body.height, which nothing reads. This
+      // makes the pellets visibly fat with a provably identical hitbox.
+      // Verified by asserting body.width / radius parity in the smoke test.
+      b?.setScale(1, 1.9);
     }
     // Big blast bloom — the super no longer shares the pistol's little flash.
     this.fx.superMuzzleFlash(bx, by, angle);
-    this.fx.burstDir(bx, by, 'yellow', 10, angle, 40);
+    // Heavy spark spray in the blast direction — shotgun grit, not a laser puff.
+    this.fx.burstDir(bx, by, 'yellow', 18, angle, 55);
+    this.fx.burstDir(bx, by, 'red', 12, angle, 70);
 
     // Eject multiple casings for the super barrage
     this.fx.ejectCasing(bx, by, angle);
@@ -1642,7 +1652,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.fx.shake(0.02, 240);
-    // Warm screen flash punctuates the super shot — orange/red wash.
+    // Hard zoom punch + warm screen flash — the shotgun "blam" beat.
+    this._cameraPunch(1.07, 200);
     this.cameras.main.flash(220, 255, 150, 60, true);
     duckMusic(0.4, 400);
   }
