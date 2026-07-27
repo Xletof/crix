@@ -18,8 +18,9 @@ export class Grenade extends Phaser.Physics.Arcade.Image {
     this.body.setDrag(180);
     this.body.setVelocity(vx, vy);
 
-    this.fuse = CFG.fuseMs;
+    this.fuse = CFG.riseMs;
     this._blinking = false;
+    this._z = 0;   // fake altitude, read by GameScene when the burst fires
 
     // Projected shadow and visual representations
     this.shadow = scene.add.image(x, y + 4, 'shadow').setDepth(21).setAlpha(0.35);
@@ -33,8 +34,8 @@ export class Grenade extends Phaser.Physics.Arcade.Image {
       loop: true,
     });
 
-    // Safety: always detonate even if stuck
-    scene.time.delayedCall(CFG.fuseMs + 200, () => {
+    // Safety: always burst even if stuck
+    scene.time.delayedCall(CFG.riseMs + 200, () => {
       if (this.active) this._detonate();
     });
   }
@@ -60,11 +61,14 @@ export class Grenade extends Phaser.Physics.Arcade.Image {
     // Spin visual representation
     this.visual.rotation += delta * 0.005;
 
-    // Calculate height along a parabolic arc
-    const progress = Math.max(0, Math.min(1, (CFG.fuseMs - this.fuse) / CFG.fuseMs));
-    const maxH = 64; // max peak height in px
-    const z = Math.sin(Math.PI * progress) * maxH;
-    
+    // Altitude. This CLIMBS to the apex and bursts there — it does not arc back
+    // down, which is what the old sin() curve did. Eased out so it decelerates
+    // into the top of its flight and hangs for a beat before the burst.
+    const progress = Math.max(0, Math.min(1, (CFG.riseMs - this.fuse) / CFG.riseMs));
+    const maxH = CFG.burstHeight;
+    const z = (1 - Math.pow(1 - progress, 2.2)) * maxH;
+    this._z = z;
+
     // Scale visual sprite based on height to give a 3D feel
     const scale = 1.0 + (z / maxH) * 0.5; // grows up to 1.5x at peak
     this.visual.setScale(scale);
@@ -85,7 +89,9 @@ export class Grenade extends Phaser.Physics.Arcade.Image {
     this._blinkTimer?.remove();
     // The blink is now a split timer rather than a detonation fuse — same tell,
     // different payoff.
-    this.scene.events.emit('grenade-cluster', this.x, this.y);
+    // Pass the altitude: the burst has to happen where the canister LOOKS, not
+    // where its physics body sits on the floor.
+    this.scene.events.emit('grenade-cluster', this.x, this.y, this._z);
     this.destroy();
   }
 

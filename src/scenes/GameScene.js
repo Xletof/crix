@@ -1554,7 +1554,7 @@ export class GameScene extends Phaser.Scene {
       this._cameraPunch(1.012, 100);
     });
     this.events.on('grenade-detonate',  (x, y, dmg, r) => this.detonateGrenade(x, y, dmg, r));
-    this.events.on('grenade-cluster',   (x, y)  => this.clusterSplit(x, y));
+    this.events.on('grenade-cluster',   (x, y, z) => this.clusterSplit(x, y, z));
     this.events.on('shooter-fire',      (s, a)  => this.fireShooter(s, a));
     this.events.on('boss-fan',          (b, a)  => this.fireBossFan(b, a));
     this.events.on('boss-spawn',        ()      => this.bossSpawnMinions());
@@ -1908,39 +1908,108 @@ export class GameScene extends Phaser.Scene {
   // Cluster canister split. Deliberately a small pop rather than the detonator's
   // full explosion — the payoff is the missiles, and a big blast here would both
   // steal that beat and hide the fan of contrails behind a fireball.
-  clusterSplit(x, y) {
+  clusterSplit(x, y, z = 0) {
     const cfg = WEAPONS.cluster;
-    this.fx.burst(x, y, 'yellow', 12);
-    this.fx.impactRing(x, y, 0xffd020);
+    // The burst happens at ALTITUDE — draw it where the canister appeared, not
+    // on the floor beneath it.
+    const by = y - z;
+    this.fx.burst(x, by, 'yellow', 16);
+    this.fx.impactRing(x, by, 0xffd020);
     this.fx.shake(0.008, 140);
     SFX.shootSuper?.();
 
     // Fanned evenly over a full circle so the spread reads as a burst opening
-    // out, then each missile turns toward whatever it finds. Offset by half a
-    // step per throw so repeat throws don't stamp the identical pattern.
+    // out. Offset by a random amount per throw so repeat throws don't stamp
+    // the identical pattern.
     const step = (Math.PI * 2) / cfg.fragments;
     const base = Math.random() * step;
     for (let i = 0; i < cfg.fragments; i++) {
       const a = base + i * step;
-      const b = this.playerBullets.fire(
-        x + Math.cos(a) * 14, y + Math.sin(a) * 14, a,
-        cfg.fragSpeed, cfg.fragDamage * (this.player?.dmgMult ?? 1), cfg.fragRange,
-        {
-          owner: 'player',
-          knockback: 120,
-          homing: { turnRate: cfg.fragTurnRate, searchRadius: cfg.fragSearchRadius },
-        },
-      );
-      if (!b) continue;
-      // Swap the look AFTER fire(), which pools the group's shared 'bullet'
-      // texture. fire() sized the hitbox from THAT texture's width, so the
-      // circle has to be re-derived here or the missile keeps the pistol
-      // bolt's collision radius (Bullet.fire's setCircle(width / 2) is the
-      // texture-size trap called out in CLAUDE.md).
-      b.setTexture('frag-missile');
-      b.body.setCircle(b.width / 2);
-      this._missileTrail(b);
+      // Where this one lands. Randomised radius so they don't touch down in a
+      // perfect ring — the brief asked for scatter, and an even circle reads
+      // as a mechanism rather than debris.
+      const reach = cfg.scatterRadius * (0.45 + Math.random() * 0.75);
+      const lx = x + Math.cos(a) * reach;
+      const ly = y + Math.sin(a) * reach;
+      this._clusterFragment(x, by, lx, ly, a);
     }
+  }
+
+  // One micro-missile, in two phases.
+  //
+  // Phase 1 is a pure visual fall from the burst point to its landing spot with
+  // the physics body DISABLED — a missile still in the air must not be able to
+  // hit a ground enemy, and this is also what lets it travel "downward" at all
+  // without fighting Arcade's body-follows-sprite coupling.
+  // Phase 2 re-enables the body and hands over to the homing steering already
+  // on Bullet, unchanged.
+  _clusterFragment(bx, by, lx, ly, angle) {
+    const cfg = WEAPONS.cluster;
+    const b = this.playerBullets.fire(
+      bx, by, angle,
+      cfg.fragSpeed, cfg.fragDamage * (this.player?.dmgMult ?? 1), cfg.fragRange,
+      {
+        owner: 'player',
+        knockback: 120,
+        homing: { turnRate: cfg.fragTurnRate, searchRadius: cfg.fragSearchRadius },
+      },
+    );
+    if (!b) return null;
+    // Swap the look AFTER fire(), which pools the group's shared 'bullet'
+    // texture. fire() sized the hitbox from THAT texture's width, so the circle
+    // has to be re-derived here or the missile keeps the pistol bolt's collision
+    // radius (Bullet.fire's setCircle(width / 2) is the texture-size trap
+    // called out in CLAUDE.md).
+    b.setTexture('frag-missile');
+    b.body.setCircle(b.width / 2);
+
+    // --- Phase 1: falling, inert ---
+    b.body.enable = false;
+    b.body.stop();
+    b.homing = null;                    // no steering until it is actually flying
+    b.setPosition(bx, by);
+    const shadow = this.add.image(bx, ly, 'shadow')
+      .setDepth(b.depth - 2).setAlpha(0.1).setScale(0.3);
+    const dur = cfg.descentMs;
+    // Horizontal travel is linear; the vertical component eases IN so it reads
+    // as accelerating under gravity rather than drifting down.
+    this.tweens.add({
+      targets: b, x: lx, duration: dur, ease: 'Linear',
+    });
+    this.tweens.add({
+      targets: b, y: ly, duration: dur, ease: 'Quad.easeIn',
+    });
+    this.tweens.add({
+      targets: shadow, alpha: 0.38, scaleX: 0.85, scaleY: 0.85,
+      duration: dur, ease: 'Quad.easeIn',
+    });
+    // Point it along its actual fall, so it noses over as it comes down.
+    b.setRotation(Math.atan2(ly - by, lx - bx));
+    this._missileTrail(b);
+
+    this.time.delayedCall(dur, () => {
+      shadow.destroy();
+      // The bullet may have been recycled by the pool during the fall.
+      if (!b.active || !b.scene) return;
+      // --- Phase 2: live, seeking ---
+      b.body.enable = true;
+      b.body.reset(b.x, b.y);           // resync the body to where it landed
+      b.body.setCircle(b.width / 2);
+      b.homing = { turnRate: cfg.fragTurnRate, searchRadius: cfg.fragSearchRadius };
+      b.traveled = 0;                   // range budget starts at touchdown
+      b.lastX = b.x; b.lastY = b.y;
+      // Launch TOWARD a target, not along the outward burst angle. Firing
+      // outward meant a missile landed and then flew further away before the
+      // steering could haul it around — it burned range and read as the swarm
+      // scattering a second time instead of converging. The scatter already
+      // happened during the descent; touchdown is when they should commit.
+      const t = this.findNearestEnemy?.(b.x, b.y);
+      const dir = t ? Math.atan2(t.y - b.y, t.x - b.x) : angle;
+      b.setVelocity(Math.cos(dir) * cfg.fragSpeed, Math.sin(dir) * cfg.fragSpeed);
+      b.setRotation(dir);
+      this.fx.burst(b.x, b.y, 'yellow', 3);
+    });
+    return b;
   }
 
   // Contrail for a seeking missile. Same taper-and-fade shape as the melee

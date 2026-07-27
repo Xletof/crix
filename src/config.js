@@ -121,8 +121,17 @@ export const WEAPONS = {
     id: 'cluster',
     name: 'CLUSTER POD',
     charges: 3,
-    throwSpeed: 510,
-    fuseMs: 900,         // shorter than the old fuse — the split IS the payoff
+    throwSpeed: 380,     // slower: the canister is climbing, not skimming
+    // Airburst. The canister CLIMBS for riseMs and bursts at the top — it never
+    // comes back down. The old 64px fake arc split at ground level, which read
+    // as the missiles being on the same plane as everything else instead of
+    // raining in from above.
+    riseMs: 1000,
+    burstHeight: 300,    // px of fake altitude at the apex
+    // Descent: missiles fall from the burst to the ground with their bodies
+    // DISABLED, so something in the air cannot hit a ground enemy.
+    descentMs: 450,
+    scatterRadius: 240,  // how far they fling from the burst point on the way down
     // Fragmentation. Total damage (5 x 130 = 650) sits above the detonator's
     // flat 500 because the missiles can miss a fleeing target, where the old
     // blast could not.
