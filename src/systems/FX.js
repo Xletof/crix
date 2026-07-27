@@ -309,6 +309,76 @@ function stack({
   }
 }
 
+// ── Blade voice: ring modulation, formants, Doppler ─────────────────────────
+// The melee read as "pew pew laser guns" for one reason: a FALLING PITCH ON A
+// TONAL OSCILLATOR IS A LASER. That is literally how SFX.shoot() is built in
+// this file, and every tonal melee layer was doing the same thing. These three
+// helpers are what an energy blade needs instead.
+
+// Ring modulation: multiply two signals. A GainNode with its base gain at 0,
+// driven by an oscillator connected to the .gain AudioParam, outputs
+// carrier * modulator — which produces sum and difference sidebands that are
+// NOT harmonics of either input.
+//
+// That inharmonicity is the whole point. A detuned sawtooth stack, however
+// thick, is still a neat harmonic series and reads as a musical tone. "ZZZ" is
+// the sound of frequencies that do not belong to one series. Keep the modulator
+// low (55-90Hz) so the sidebands sit close to the carrier and read as roughness
+// rather than as a second audible pitch.
+function ringMod(modFreq, t, dur, depth = 1) {
+  const ctx = ensureCtx();
+  if (!ctx) return null;
+  const ring = ctx.createGain();
+  ring.gain.value = 0;                  // fully modulated: no dry carrier through
+  const mod = ctx.createOscillator();
+  mod.type = 'sine';
+  mod.frequency.setValueAtTime(modFreq, t);
+  const modAmp = ctx.createGain();
+  modAmp.gain.value = depth;
+  mod.connect(modAmp);
+  modAmp.connect(ring.gain);            // audio-rate modulation of the gain
+  mod.start(t);
+  mod.stop(t + dur + 0.05);
+  return ring;
+}
+
+// Formant filter — two parallel resonant bandpass peaks, summed. This is what
+// turns a buzz into a VOWEL, and nothing else in this file does it.
+//
+// The brief was "ZZZUUUBB / ZUUUOB", and those vowels are specifications:
+// /u/ (as in "boot") sits at roughly F1 300Hz, F2 870Hz; /o/ at F1 500Hz,
+// F2 1000Hz. Gliding between them across the swing literally produces "uuu-oo".
+// Both bands are comfortably inside what a phone speaker reproduces.
+function formant({ f1 = 300, f2 = 870, f1To = 0, f2To = 0, q = 8, t = 0, dur = 0.3 }) {
+  const ctx = ensureCtx();
+  if (!ctx) return null;
+  const input = ctx.createGain();
+  const out = ctx.createGain();
+  [[f1, f1To, 1], [f2, f2To, 0.7]].forEach(([f, to, amp]) => {
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = q;
+    bp.frequency.setValueAtTime(f, t);
+    if (to) bp.frequency.linearRampToValueAtTime(to, t + dur);
+    const g = ctx.createGain();
+    g.gain.value = amp;
+    input.connect(bp); bp.connect(g); g.connect(out);
+  });
+  return { input, out };
+}
+
+// Doppler pitch arc: rise INTO the pass, fall out of it.
+//
+// This replaces the monotonic `slide` that every melee layer used. A Ben Burtt
+// lightsaber swing is a hum Doppler-shifted by the blade approaching and then
+// receding — an arc. A straight descent is a blaster bolt. That distinction is
+// the single biggest difference between the two sounds.
+function pitchArc(osc, base, peakMult, t, dur) {
+  osc.frequency.setValueAtTime(base, t);
+  osc.frequency.linearRampToValueAtTime(base * peakMult, t + dur * 0.38);
+  osc.frequency.linearRampToValueAtTime(base * 0.82, t + dur);
+}
+
 // Sub-channel volume adjustments (bindable to sliders in the UI)
 export function setSFXVolume(vol) {
   sfxVol = Math.max(0, Math.min(1, vol));
@@ -528,41 +598,109 @@ export const SFX = {
   // bandpass — a static-filtered burst is a hiss, one racing 700 -> 5000Hz in
   // 90ms is a blade passing you. Cast 2 sits a fourth up so the pair reads as a
   // combo rather than the same sound twice.
+  // "ZZZUUUBB" — a Doppler saber pass, not a blaster bolt.
+  //
+  // Casts differ by Doppler DEPTH and duration, never by pitch. The old version
+  // put cast 2 a perfect fourth up, and a tuned musical interval reads as two
+  // notes: "pew", then a higher "pew". A real blade differs by how fast it is
+  // swung, so that is what varies here.
   meleeSwing(stage = 1) {
-    const up = stage === 2 ? 1.335 : 1;      // perfect fourth on the second cast
-    // The cut: narrow band racing upward, with the resonance rising alongside
-    // it so the filter rings up as it sweeps rather than just sliding.
-    noise({ dur: 0.16, gain: 0.24, hp: 600 * up, sweepTo: 4200 * up,
+    const ctx = ensureCtx();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const hard = stage === 2;
+    const dur  = hard ? 0.34 : 0.40;      // cast 2 is the faster, tighter swing
+    const peak = hard ? 1.85 : 1.55;      // and Dopplers harder past you
+
+    // ── The blade core: hum -> ring mod (ZZZ) -> formant glide (UUU->OB) ──
+    const outGain = ctx.createGain();
+    outGain.gain.setValueAtTime(0.0001, t);
+    outGain.gain.linearRampToValueAtTime(0.30, t + 0.035);   // swells in
+    outGain.gain.setValueAtTime(0.30, t + dur * 0.62);
+    // Hard stop — the "B". A stop consonant is an abrupt closure, not a fade,
+    // and fading out here is exactly what left the old version trailing off
+    // like a laser.
+    outGain.gain.linearRampToValueAtTime(0.0001, t + dur * 0.8 + 0.016);
+
+    // Vowel glide /u/ -> /o/ across the swing.
+    const fmt = formant({
+      f1: 300, f2: 870, f1To: 500, f2To: 1000, q: 7, t, dur: dur * 0.8,
+    });
+    const ring = ringMod(hard ? 78 : 62, t, dur);
+    const ws = shaper(3);
+
+    // hum -> ring -> formant -> saturation -> out
+    ring.connect(fmt.input);
+    fmt.out.connect(ws);
+    ws.connect(outGain);
+    outGain.connect(sfxGain || masterGain);
+
+    // Three detuned saws Doppler-bent together. The arc (rise into the pass,
+    // fall out of it) is the load-bearing detail of this whole sound.
+    [-7, 0, 7].forEach((cents) => {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      const base = 150 * Math.pow(2, cents / 1200);
+      pitchArc(o, base, peak, t, dur);
+      o.connect(ring);
+      o.start(t);
+      o.stop(t + dur + 0.05);
+    });
+
+    // ── Air: something moved fast. The one layer from the previous pass that
+    // was already right, kept unchanged.
+    noise({ dur: 0.16, gain: 0.20, hp: 600, sweepTo: 4200,
             type: 'bandpass', q: 3, qTo: 9, attack: 0.014, drive: 2 });
-    // Second, slower pass underneath for air displacement.
-    noise({ dur: 0.28, gain: 0.09, hp: 350, sweepTo: 1800,
+    noise({ dur: 0.28, gain: 0.08, hp: 350, sweepTo: 1800,
             type: 'bandpass', q: 1.5, sustain: 0.07 });
-    // The blade itself. Was two bare oscillators at 900/1400Hz; now a saturated
-    // detuned stack that sustains through the swing instead of blipping for
-    // 85ms. This is the difference between "bip" and a blade with a voice.
+
+    // ── Deep body, running parallel to the formant path rather than through
+    // it. The formant filter is band-limited by definition, so routing
+    // everything through it left the swing 10dB lighter in the 150-500Hz band
+    // than the hit — measurably thin on a phone speaker, against a brief that
+    // asked for "thick deep". FLAT pitch, no slide: this is weight, and a
+    // sliding version of it is exactly the laser being removed.
     stack({
-      freq: 420 * up, count: 3, detune: 10, type: 'sawtooth',
-      dur: 0.30, gain: 0.11, slide: -150, drive: 2.5,
-      filter: 2600, filterTo: 700, q: 3, attack: 0.01, sustain: 0.09,
+      freq: 155, count: 3, detune: 12, type: 'triangle',
+      dur: dur * 0.8, gain: 0.15, drive: 2, attack: 0.02, sustain: dur * 0.4,
     });
-    // Weight, in the 150-400Hz band a phone speaker actually reproduces.
-    stack({
-      freq: 165, count: 2, detune: 14, type: 'triangle',
-      dur: 0.22, gain: 0.13, slide: -60, sustain: 0.06,
-    });
+
+    // ── The stop itself: a short low resonant thud on the closure.
+    punch({ freq: 130, to: 78, dur: 0.09, gain: 0.20, drive: 3, delay: dur * 0.78 });
   },
 
   // Casts 1-2 connecting. The land was completely silent before, so a swing
   // that hit sounded exactly like one that missed.
   meleeHit() {
+    const ctx = ensureCtx();
+    if (!ctx) return;
+    const t = ctx.currentTime;
     // Saturated crack in the presence band — this is what a phone speaker
     // reproduces best, so the impact's identity lives here.
     noise({ dur: 0.07, gain: 0.22, hp: 2800, sweepTo: 900,
             type: 'bandpass', q: 1.2, qTo: 4, drive: 3 });
-    stack({
-      freq: 380, count: 3, detune: 12, type: 'square',
-      dur: 0.14, gain: 0.13, slide: -190, drive: 2, filter: 3000, filterTo: 900,
+
+    // Contact discharge: a short ring-modded burst rather than the descending
+    // square stack that used to be here. That slide was the last "pew" on the
+    // connect — a falling tone on impact reads as a gun, not a blade biting.
+    const dur = 0.13;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.16, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    const fmt = formant({ f1: 440, f2: 980, q: 6, t, dur });
+    const ring = ringMod(96, t, dur);
+    const ws = shaper(3);
+    ring.connect(fmt.input); fmt.out.connect(ws); ws.connect(g);
+    g.connect(sfxGain || masterGain);
+    [-9, 9].forEach((cents) => {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = 240 * Math.pow(2, cents / 1200);   // flat: no sweep
+      o.connect(ring);
+      o.start(t); o.stop(t + dur + 0.04);
     });
+
     // Weight. punch() instead of sub(): the old 70Hz drop was inaudible on a
     // small speaker, so a connect and a whiff weighed the same on the device
     // this is actually played on.
@@ -585,22 +723,38 @@ export const SFX = {
     // Kept underneath for anyone on headphones, where it IS audible. It is a
     // bonus layer now, not the load-bearing one.
     sub({ freq: 90, to: 30, dur: 0.7, gain: 0.18 });
-    // Body — the crack of the ground giving way. Saturated stack with a filter
-    // sweeping shut, sustained so it has mass rather than a click.
+    // Body — the crack of the ground giving way. The slide is GONE: it was the
+    // last descending tonal sweep in the melee set, and a falling pitch under
+    // an impact is what made even the smash read as a big laser.
     stack({
       freq: 300, count: 4, detune: 16, type: 'sawtooth',
-      dur: 0.40, gain: 0.20, slide: -190, drive: 4,
+      dur: 0.40, gain: 0.20, drive: 4,
       filter: 3200, filterTo: 380, q: 2, sustain: 0.10,
     });
-    // Impact transient.
+    // Impact transient — the hard front edge of "impact first".
     noise({ dur: 0.09, gain: 0.26, hp: 3600, sweepTo: 700,
             type: 'lowpass', q: 1, qTo: 5, drive: 3 });
-    // Rubble: long, dark, settling — now with a resonance envelope so it reads
-    // as debris in a space rather than a flat hiss fading out.
-    noise({ dur: 0.75, gain: 0.20, hp: 1600, sweepTo: 220,
-            type: 'lowpass', q: 0.7, qTo: 3, sustain: 0.12 });
-    // Debris skittering, thrown late and bright so the tail has detail.
-    noise({ dur: 0.34, gain: 0.08, hp: 2400, type: 'highpass', delay: 0.13, echo: 0.22 });
+
+    // ── "FFUSHH": the discharge wash, AFTER the impact ──────────────────────
+    // The old rubble layers swept their filters SHUT (1600 -> 220Hz), which is
+    // debris settling — a closing sound. A wash opens OUT.
+    //
+    // Built as TWO layers rather than one long sweep, because one long sweep
+    // does not work: noise() ramps its filter across the whole duration, so a
+    // 300 -> 5200Hz sweep over 0.9s only reaches the top once the amplitude
+    // envelope has already decayed away. Measured, that gave 145ms of high-band
+    // energy — indistinguishable from the old closing rubble (151ms). The sweep
+    // and the decay were cancelling each other out.
+    //
+    // So: a fast opening sweep for the "FFUSH" gesture, then a long broadband
+    // tail that actually sustains up there for the "HHH".
+    noise({ dur: 0.26, gain: 0.24, hp: 400, sweepTo: 5200,
+            type: 'bandpass', q: 2.2, qTo: 0.6, attack: 0.04, delay: 0.05, drive: 2 });
+    noise({ dur: 0.85, gain: 0.17, hp: 900,
+            type: 'highpass', attack: 0.05, sustain: 0.42, delay: 0.14 });
+    // Low half of the wash, so the release has body and not just hiss.
+    noise({ dur: 0.70, gain: 0.14, hp: 200, sweepTo: 1400,
+            type: 'lowpass', q: 1.4, attack: 0.05, sustain: 0.15, delay: 0.05 });
   },
 
   // The "ZZZZZ" phase — an energy-blade hum that holds for as long as the combo
