@@ -309,63 +309,15 @@ function stack({
   }
 }
 
-// ── Blade voice: ring modulation, formants, Doppler ─────────────────────────
-// The melee read as "pew pew laser guns" for one reason: a FALLING PITCH ON A
-// TONAL OSCILLATOR IS A LASER. That is literally how SFX.shoot() is built in
-// this file, and every tonal melee layer was doing the same thing. These three
-// helpers are what an energy blade needs instead.
-
-// Ring modulation: multiply two signals. A GainNode with its base gain at 0,
-// driven by an oscillator connected to the .gain AudioParam, outputs
-// carrier * modulator — which produces sum and difference sidebands that are
-// NOT harmonics of either input.
-//
-// That inharmonicity is the whole point. A detuned sawtooth stack, however
-// thick, is still a neat harmonic series and reads as a musical tone. "ZZZ" is
-// the sound of frequencies that do not belong to one series. Keep the modulator
-// low (55-90Hz) so the sidebands sit close to the carrier and read as roughness
-// rather than as a second audible pitch.
-function ringMod(modFreq, t, dur, depth = 1) {
-  const ctx = ensureCtx();
-  if (!ctx) return null;
-  const ring = ctx.createGain();
-  ring.gain.value = 0;                  // fully modulated: no dry carrier through
-  const mod = ctx.createOscillator();
-  mod.type = 'sine';
-  mod.frequency.setValueAtTime(modFreq, t);
-  const modAmp = ctx.createGain();
-  modAmp.gain.value = depth;
-  mod.connect(modAmp);
-  modAmp.connect(ring.gain);            // audio-rate modulation of the gain
-  mod.start(t);
-  mod.stop(t + dur + 0.05);
-  return ring;
-}
-
-// Formant filter — two parallel resonant bandpass peaks, summed. This is what
-// turns a buzz into a VOWEL, and nothing else in this file does it.
-//
-// The brief was "ZZZUUUBB / ZUUUOB", and those vowels are specifications:
-// /u/ (as in "boot") sits at roughly F1 300Hz, F2 870Hz; /o/ at F1 500Hz,
-// F2 1000Hz. Gliding between them across the swing literally produces "uuu-oo".
-// Both bands are comfortably inside what a phone speaker reproduces.
-function formant({ f1 = 300, f2 = 870, f1To = 0, f2To = 0, q = 8, t = 0, dur = 0.3 }) {
-  const ctx = ensureCtx();
-  if (!ctx) return null;
-  const input = ctx.createGain();
-  const out = ctx.createGain();
-  [[f1, f1To, 1], [f2, f2To, 0.7]].forEach(([f, to, amp]) => {
-    const bp = ctx.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.Q.value = q;
-    bp.frequency.setValueAtTime(f, t);
-    if (to) bp.frequency.linearRampToValueAtTime(to, t + dur);
-    const g = ctx.createGain();
-    g.gain.value = amp;
-    input.connect(bp); bp.connect(g); g.connect(out);
-  });
-  return { input, out };
-}
+// ── Blade voice ─────────────────────────────────────────────────────────────
+// A `ringMod` and a `formant` helper lived here. They were built to decompose
+// an onomatopoeic brief ("ZZZUUUBB") into ring modulation for the buzz and
+// formant filtering for the vowel — and the result was described, accurately,
+// as "a weird metallic fart". Ring modulation is the standard way to make
+// metallic inharmonic tones, and a narrow resonant formant band over a low
+// buzzy waveform is a nasal honk. Both are deleted rather than left available
+// to be reached for again: a lightsaber is a smooth HARMONIC hum, and the
+// swing, the hit and the sustained combo hum are all built that way now.
 
 // Doppler pitch arc: rise INTO the pass, fall out of it.
 //
@@ -594,79 +546,102 @@ export const SFX = {
   // -> pitched layers on short staggers -> echo tail), which is this file's own
   // reference for a sound that reads as an event rather than a beep.
 
-  // Casts 1 and 2: an energy blade cutting air. The character is in the swept
-  // bandpass — a static-filtered burst is a hiss, one racing 700 -> 5000Hz in
-  // 90ms is a blade passing you. Cast 2 sits a fourth up so the pair reads as a
-  // combo rather than the same sound twice.
-  // "ZZZUUUBB" — a Doppler saber pass, not a blaster bolt.
+  // A lightsaber sweep. Nothing more elaborate than that.
   //
-  // Casts differ by Doppler DEPTH and duration, never by pitch. The old version
-  // put cast 2 a perfect fourth up, and a tuned musical interval reads as two
-  // notes: "pew", then a higher "pew". A real blade differs by how fast it is
-  // swung, so that is what varies here.
+  // The previous version decomposed the brief's onomatopoeia ("ZZZUUUBB") into
+  // ring modulation for the buzz and formant filters for the vowel. That was
+  // clever and it sounded terrible — "a weird metallic fart". Ring modulation
+  // is the textbook way to make metallic inharmonic tones, and feeding it a
+  // 150Hz sawtooth, squeezing that through Q=7 bandpasses at 300-1000Hz and
+  // saturating the result is a recipe for a nasal buzz. A real saber has none
+  // of it: it is a smooth HARMONIC hum, Doppler-shifted by the swing.
+  //
+  // It also rose in pitch at the end, because three of its four moving parts
+  // swept upward (both formants, both noise layers) and only the carrier fell.
+  //
+  // THE RULE FOR THIS SOUND: everything that moves must end lower and darker
+  // than it started. A swing that brightens as it dies is the defect.
   meleeSwing(stage = 1) {
     const ctx = ensureCtx();
     if (!ctx) return;
     const t = ctx.currentTime;
+
+    // Cast 3 is the finisher's wind-up, not a full sweep. It has to be SHORT
+    // and out of the way, because meleeSlam fires when the lunge lands and the
+    // old 400ms swing smeared straight over it — which is why the smash could
+    // not be heard at all.
+    const windup = stage >= 3;
     const hard = stage === 2;
-    const dur  = hard ? 0.34 : 0.40;      // cast 2 is the faster, tighter swing
-    const peak = hard ? 1.85 : 1.55;      // and Dopplers harder past you
+    const dur  = windup ? 0.15 : (hard ? 0.30 : 0.34);
+    const peak = windup ? 1.20 : (hard ? 1.45 : 1.35);
+    const base = windup ? 88 : 110;      // the wind-up sits lower and heavier
 
-    // ── The blade core: hum -> ring mod (ZZZ) -> formant glide (UUU->OB) ──
+    // ── Blade core: a harmonic hum, Doppler-bent, behind a closing lowpass ──
     const outGain = ctx.createGain();
+    const coreGain = windup ? 0.30 : 0.26;
     outGain.gain.setValueAtTime(0.0001, t);
-    outGain.gain.linearRampToValueAtTime(0.30, t + 0.035);   // swells in
-    outGain.gain.setValueAtTime(0.30, t + dur * 0.62);
-    // Hard stop — the "B". A stop consonant is an abrupt closure, not a fade,
-    // and fading out here is exactly what left the old version trailing off
-    // like a laser.
-    outGain.gain.linearRampToValueAtTime(0.0001, t + dur * 0.8 + 0.016);
+    outGain.gain.linearRampToValueAtTime(coreGain, t + 0.03);
+    // Hold the low hum most of the way, THEN release. An immediate exponential
+    // decay left the tonal layers gone by the tail, so the last third was
+    // nothing but mid-band air noise — measurably brighter than the start,
+    // which is exactly the "goes up at the end" complaint. The blade has to
+    // outlast the air it displaces.
+    outGain.gain.setValueAtTime(coreGain, t + dur * 0.55);
+    // Smooth release, no cliff. The old hard cut at dur*0.8 chopped a buzzy
+    // waveform off mid-cycle, which clicks.
+    outGain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
 
-    // Vowel glide /u/ -> /o/ across the swing.
-    const fmt = formant({
-      f1: 300, f2: 870, f1To: 500, f2To: 1000, q: 7, t, dur: dur * 0.8,
-    });
-    const ring = ringMod(hard ? 78 : 62, t, dur);
-    const ws = shaper(3);
-
-    // hum -> ring -> formant -> saturation -> out
-    ring.connect(fmt.input);
-    fmt.out.connect(ws);
-    ws.connect(outGain);
+    // The lowpass CLOSES. This is the fix for "goes up at the end": the sound
+    // must get darker as it dies, not brighter.
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.Q.value = 1.2;
+    lp.frequency.setValueAtTime(2400, t);
+    lp.frequency.linearRampToValueAtTime(3000, t + dur * 0.3);   // opens briefly
+    lp.frequency.exponentialRampToValueAtTime(420, t + dur);     // then shuts
+    lp.connect(outGain);
     outGain.connect(sfxGain || masterGain);
 
-    // Three detuned saws Doppler-bent together. The arc (rise into the pass,
-    // fall out of it) is the load-bearing detail of this whole sound.
-    [-7, 0, 7].forEach((cents) => {
-      const o = ctx.createOscillator();
-      o.type = 'sawtooth';
-      const base = 150 * Math.pow(2, cents / 1200);
-      pitchArc(o, base, peak, t, dur);
-      o.connect(ring);
-      o.start(t);
-      o.stop(t + dur + 0.05);
-    });
+    // Harmonic partials (1x, 2x, 3x), lightly detuned. Harmonic and smooth is
+    // the whole point — this is the opposite of ring-modulated sidebands.
+    [[1, 0.55, 'triangle'], [2, 0.22, 'sine'], [3, 0.12, 'sine']].forEach(
+      ([mult, amp, type]) => {
+        [-5, 5].forEach((cents) => {
+          const o = ctx.createOscillator();
+          o.type = type;
+          const f = base * mult * Math.pow(2, cents / 1200);
+          // Rise into the pass, fall out of it — and land clearly BELOW the
+          // start, so the gesture resolves downward.
+          o.frequency.setValueAtTime(f, t);
+          o.frequency.linearRampToValueAtTime(f * peak, t + dur * 0.34);
+          o.frequency.exponentialRampToValueAtTime(f * 0.68, t + dur);
+          const g = ctx.createGain();
+          g.gain.value = amp * 0.5;
+          o.connect(g); g.connect(lp);
+          o.start(t); o.stop(t + dur + 0.04);
+        });
+      },
+    );
 
-    // ── Air: something moved fast. The one layer from the previous pass that
-    // was already right, kept unchanged.
-    noise({ dur: 0.16, gain: 0.20, hp: 600, sweepTo: 4200,
-            type: 'bandpass', q: 3, qTo: 9, attack: 0.014, drive: 2 });
-    noise({ dur: 0.28, gain: 0.08, hp: 350, sweepTo: 1800,
-            type: 'bandpass', q: 1.5, sustain: 0.07 });
+    // ── Air. Sweeps UP on the approach only, and is over well before the tail
+    // so nothing is still climbing at the end.
+    noise({ dur: dur * 0.42, gain: 0.16, hp: 500, sweepTo: 2600,
+            type: 'bandpass', q: 2.5, attack: 0.012 });
+    // Second pass sweeps DOWN and lands LOW, carrying the blade away from you.
+    // Its endpoint used to be 400Hz at gain 0.10, which left it as the loudest
+    // thing still sounding at the tail — mid-band noise outliving the low hum
+    // is what made the sound brighten as it died.
+    noise({ dur: dur * 0.6, gain: 0.07, hp: 1800, sweepTo: 220,
+            type: 'bandpass', q: 1.4, delay: dur * 0.25 });
 
-    // ── Deep body, running parallel to the formant path rather than through
-    // it. The formant filter is band-limited by definition, so routing
-    // everything through it left the swing 10dB lighter in the 150-500Hz band
-    // than the hit — measurably thin on a phone speaker, against a brief that
-    // asked for "thick deep". FLAT pitch, no slide: this is weight, and a
-    // sliding version of it is exactly the laser being removed.
+    // ── Deep body: flat pitch, no sweep. This is what kept the swing audible
+    // on a phone speaker (it recovered 10dB in the 150-500Hz band), so it
+    // stays — and now runs the FULL duration so there is still low energy
+    // present at the end to weigh the tail down.
     stack({
-      freq: 155, count: 3, detune: 12, type: 'triangle',
-      dur: dur * 0.8, gain: 0.15, drive: 2, attack: 0.02, sustain: dur * 0.4,
+      freq: 150, count: 3, detune: 10, type: 'triangle',
+      dur, gain: 0.15, attack: 0.02, sustain: dur * 0.55,
     });
-
-    // ── The stop itself: a short low resonant thud on the closure.
-    punch({ freq: 130, to: 78, dur: 0.09, gain: 0.20, drive: 3, delay: dur * 0.78 });
   },
 
   // Casts 1-2 connecting. The land was completely silent before, so a swing
@@ -680,25 +655,33 @@ export const SFX = {
     noise({ dur: 0.07, gain: 0.22, hp: 2800, sweepTo: 900,
             type: 'bandpass', q: 1.2, qTo: 4, drive: 3 });
 
-    // Contact discharge: a short ring-modded burst rather than the descending
-    // square stack that used to be here. That slide was the last "pew" on the
-    // connect — a falling tone on impact reads as a gun, not a blade biting.
+    // Contact: a short harmonic burst behind a closing lowpass. The ring mod
+    // and formant filter that used to be here are gone for the same reason
+    // they left the swing — that pairing is what read as metallic, and this
+    // fires on every single connect, so it was smearing the character across
+    // the whole combo.
     const dur = 0.13;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(0.16, t + 0.006);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    const fmt = formant({ f1: 440, f2: 980, q: 6, t, dur });
-    const ring = ringMod(96, t, dur);
-    const ws = shaper(3);
-    ring.connect(fmt.input); fmt.out.connect(ws); ws.connect(g);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.Q.value = 1;
+    lp.frequency.setValueAtTime(2800, t);
+    lp.frequency.exponentialRampToValueAtTime(500, t + dur);   // darkens
+    lp.connect(g);
     g.connect(sfxGain || masterGain);
-    [-9, 9].forEach((cents) => {
-      const o = ctx.createOscillator();
-      o.type = 'sawtooth';
-      o.frequency.value = 240 * Math.pow(2, cents / 1200);   // flat: no sweep
-      o.connect(ring);
-      o.start(t); o.stop(t + dur + 0.04);
+    [[1, 0.5, 'triangle'], [2, 0.25, 'sine']].forEach(([mult, amp, type]) => {
+      [-6, 6].forEach((cents) => {
+        const o = ctx.createOscillator();
+        o.type = type;
+        o.frequency.value = 220 * mult * Math.pow(2, cents / 1200);  // flat
+        const vg = ctx.createGain();
+        vg.gain.value = amp * 0.5;
+        o.connect(vg); vg.connect(lp);
+        o.start(t); o.stop(t + dur + 0.04);
+      });
     });
 
     // Weight. punch() instead of sub(): the old 70Hz drop was inaudible on a
@@ -770,29 +753,37 @@ export const SFX = {
     const t = ctx.currentTime;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.075, t + 0.08);
-    // Resonant band gives it the electric buzz rather than a flat drone. Sits
-    // at 380Hz so it survives a phone speaker — a 260Hz band over a 92Hz
-    // fundamental was mostly below what the device reproduces.
-    const bp = ctx.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = 380;
-    bp.Q.value = 2.6;
-    const ws = shaper(2);
-    bp.connect(ws || g);
-    if (ws) ws.connect(g);
+    g.gain.exponentialRampToValueAtTime(0.055, t + 0.08);
+    // A gentle lowpass, NOT a narrow resonant bandpass.
+    //
+    // This used to be four saturated sawtooths through a Q=2.6 bandpass, which
+    // is the same nasal-buzz recipe as the old swing — and unlike the swing it
+    // droned underneath the entire combo window, so it was contributing to the
+    // "metallic fart" on every cast. Saturation and the resonant peak are gone.
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 900;
+    lp.Q.value = 0.7;
+    lp.connect(g);
     g.connect(sfxGain);
-    // Four saws spread over ±9 cents. Deliberately CENTS, not the semitone
-    // that made the old music intensity layer throb: a few cents reads as a
-    // rich electric shimmer, 100 cents reads as two things fighting.
-    const oscs = [-9, -3, 3, 9].map((cents) => {
-      const o = ctx.createOscillator();
-      o.type = 'sawtooth';
-      o.frequency.value = 184 * Math.pow(2, cents / 1200);
-      o.connect(bp);
-      o.start(t);
-      return o;
-    });
+    // Harmonic partials of a 110Hz fundamental, lightly detuned. Smooth and
+    // harmonic — a saber idle hum, not an electrical buzz. The 2nd and 3rd
+    // partials (220/330Hz) are what carry it on a phone speaker.
+    const oscs = [];
+    [[1, 0.5, 'triangle'], [2, 0.3, 'sine'], [3, 0.16, 'sine']].forEach(
+      ([mult, amp, type]) => {
+        [-4, 4].forEach((cents) => {
+          const o = ctx.createOscillator();
+          o.type = type;
+          o.frequency.value = 110 * mult * Math.pow(2, cents / 1200);
+          const vg = ctx.createGain();
+          vg.gain.value = amp * 0.5;
+          o.connect(vg); vg.connect(lp);
+          o.start(t);
+          oscs.push(o);
+        });
+      },
+    );
     meleeHumNodes = { oscs, gain: g };
   },
 
