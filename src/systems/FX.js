@@ -16,6 +16,7 @@ let musicNodes = null;
 let musicStarted = false;
 let musicLoopTimer = null;  // pending setTimeout for the next bar (see startMusic)
 let musicBarNodes = [];     // one-shot voices of the bar currently scheduled
+let meleeHumNodes = null;   // sustained blade hum while a combo chain is live
 let intensityGain = null;
 let muted = false;
 const MASTER_VOL = 0.5;
@@ -228,6 +229,7 @@ export function __fxDebug() {
     musicStarted,
     musicBarVoices: musicBarNodes.length,
     hasMusicLoopTimer: musicLoopTimer !== null,
+    meleeHumming: meleeHumNodes !== null,
   };
 }
 
@@ -403,23 +405,31 @@ export const SFX = {
     noise({ dur: 0.09, gain: 0.26, hp: 700 * up, sweepTo: 5000 * up,
             type: 'bandpass', q: 5.5, attack: 0.012 });
     noise({ dur: 0.16, gain: 0.10, hp: 400, sweepTo: 2200, type: 'bandpass', q: 2 });
-    // The blade itself ringing — two partials, not a single pure tone.
-    tone({ freq: 2400 * up, type: 'triangle', dur: 0.075, gain: 0.15,
-           slide: -900, echo: 0.16 });
-    tone({ freq: 3600 * up, type: 'sine', dur: 0.05, gain: 0.075,
-           slide: -1400, delay: 0.012 });
-    // Body, kept deliberately short and quiet: it is there to give the edge
-    // something to cut against. Measured louder than the ring at first, which
-    // made the swing thump rather than cut — the brief was "crisp".
-    tone({ freq: 150, type: 'sawtooth', dur: 0.09, gain: 0.075, slide: -70 });
+    // The blade ringing. These used to sit at 2400Hz and 3600Hz, which is
+    // squarely where a small speaker is harshest — that pair is what read as
+    // "high-pitched chirping" rather than a sword. Down an octave and a bit,
+    // and quieter, so the swept noise above carries the edge and these only
+    // colour it.
+    tone({ freq: 900 * up, type: 'triangle', dur: 0.085, gain: 0.10,
+           slide: -420, echo: 0.16 });
+    tone({ freq: 1400 * up, type: 'sine', dur: 0.055, gain: 0.045,
+           slide: -600, delay: 0.012 });
+    // Body. Longer and louder than before: with the shrill partials pulled
+    // down, the swing needs weight underneath or it thins out into a hiss.
+    tone({ freq: 150, type: 'sawtooth', dur: 0.16, gain: 0.14, slide: -70 });
   },
 
   // Casts 1-2 connecting. The land was completely silent before, so a swing
   // that hit sounded exactly like one that missed.
   meleeHit() {
-    noise({ dur: 0.045, gain: 0.17, hp: 2000, sweepTo: 700, type: 'bandpass', q: 1.5 });
+    // Sharper transient than before (shorter, brighter start) so the contact
+    // reads as a cut landing rather than a soft thud.
+    noise({ dur: 0.035, gain: 0.20, hp: 2600, sweepTo: 600, type: 'bandpass', q: 1.5 });
     tone({ freq: 520, type: 'square', dur: 0.06, gain: 0.13, slide: -280, vary: 0.06 });
     tone({ freq: 110, type: 'sine', dur: 0.14, gain: 0.14, slide: -45, delay: 0.01 });
+    // Chest punch. The brief asked for low-end on the connects specifically —
+    // without this a landed hit and a whiffed swing weigh the same.
+    sub({ freq: 70, to: 28, dur: 0.20, gain: 0.22 });
   },
 
   // Cast 3's ground slam — the thomp. This made no sound at all before.
@@ -438,6 +448,50 @@ export const SFX = {
     noise({ dur: 0.55, gain: 0.20, hp: 1400, sweepTo: 160, type: 'lowpass', q: 0.7 });
     // Debris skittering, thrown late and bright so the tail has detail.
     noise({ dur: 0.26, gain: 0.075, hp: 2600, type: 'highpass', delay: 0.11, echo: 0.2 });
+  },
+
+  // The "ZZZZZ" phase — an energy-blade hum that holds for as long as the combo
+  // window is live, so the chain reads as one continuous ability instead of
+  // three unrelated swings with silence between them.
+  //
+  // Sustained, so unlike everything else in SFX these are long-lived nodes that
+  // must be torn down explicitly. Held at module scope (see meleeHumNodes) so a
+  // scene restart mid-combo can't strand an oscillator running forever.
+  meleeHumStart() {
+    const ctx = ensureCtx();
+    if (!ctx || meleeHumNodes) return;   // already humming; don't stack a second
+    const t = ctx.currentTime;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.075, t + 0.08);
+    // Resonant band gives it the electric buzz rather than a flat drone.
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 260;
+    bp.Q.value = 3.2;
+    bp.connect(g);
+    g.connect(sfxGain);
+    // Detuned pair — the beating between them is the "electric" part.
+    const oscs = [92, 92 * 1.007].map((f) => {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = f;
+      o.connect(bp);
+      o.start(t);
+      return o;
+    });
+    meleeHumNodes = { oscs, gain: g };
+  },
+
+  meleeHumStop() {
+    if (!meleeHumNodes || !audioCtx) return;
+    const { oscs, gain } = meleeHumNodes;
+    meleeHumNodes = null;                // clear first: stop is idempotent
+    const t = audioCtx.currentTime;
+    gain.gain.cancelScheduledValues(t);
+    gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    oscs.forEach((o) => { try { o.stop(t + 0.15); } catch (_) { /* noop */ } });
   },
 };
 

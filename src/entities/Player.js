@@ -693,6 +693,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this._comboWindowMs = finisher ? 0 : PLAYER.meleeComboWindowMs;
     if (finisher) this._comboStage = 0;
 
+    // Blade hum holds across the whole chain so three casts read as one
+    // ability rather than three unrelated swings. The finisher ends it — the
+    // slam is the punctuation and shouldn't have a drone under its tail.
+    if (finisher) SFX.meleeHumStop?.();
+    else          SFX.meleeHumStart?.();
+
     this.scene.events.emit('player-melee-cast', dir, stage, finisher);
     return true;
   }
@@ -747,6 +753,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   // Single place to drop a combo so no path can leave a stale stage behind.
   resetMeleeCombo() {
+    // Catch-all for the remaining exits (death, scene teardown, external
+    // cancels). meleeHumStop is idempotent, so the overlap with the other two
+    // call sites is harmless.
+    SFX.meleeHumStop?.();
     this._comboStage = 0;
     this._comboWindowMs = 0;
     this._meleeLungeMs = 0;
@@ -781,6 +791,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       if (this._comboWindowMs <= 0) {
         this._comboWindowMs = 0;
         this._comboStage = 0;
+        // Chain timed out — the blade hum has to die with it. This path zeroes
+        // the state inline rather than going through resetMeleeCombo, so it
+        // needs its own stop or the hum outlives the combo it belonged to.
+        SFX.meleeHumStop?.();
         this.scene.events.emit('player-melee-changed');
       }
     }
