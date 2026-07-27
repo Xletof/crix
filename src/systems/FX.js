@@ -17,7 +17,8 @@ let musicStarted = false;
 let musicLoopTimer = null;  // pending setTimeout for the next bar (see startMusic)
 let musicBarNodes = [];     // one-shot voices of the bar currently scheduled
 let meleeHumNodes = null;   // sustained blade hum while a combo chain is live
-let intensityGain = null;
+let musicIntensity = 0;     // 0 = calm, 1 = full combat (see setMusicIntensity)
+let intensityTargets = [];  // pad filters that open as intensity rises
 let muted = false;
 const MASTER_VOL = 0.5;
 // Global camera-shake multiplier — every shake routes through fx.shake(), so
@@ -210,8 +211,9 @@ export function __fxDebug() {
     musicVol,
     sfxVol,
     musicGainValue: musicGain ? musicGain.gain.value : null,
-    hasIntensityGain: !!intensityGain,
-    intensityGainValue: intensityGain ? intensityGain.gain.value : null,
+    musicIntensity,
+    intensityTargetCount: intensityTargets.length,
+    padCutoff: intensityTargets[0] ? intensityTargets[0].filter.frequency.value : null,
     hasSfxDelay: !!sfxDelay,
     // Live node handles, so a test can hang an AnalyserNode off the SFX bus and
     // measure what the synthesis actually produces. Asserting on the parameters
@@ -507,6 +509,7 @@ export function startMusic() {
   // old version mis-computed 55*2^(semi/12) with semitone values 55/58/62,
   // landing at ~1.3-2kHz then lowpassing it to silence. These are the real low
   // frequencies, so the pad is actually audible under the beat.
+  intensityTargets = [];
   [55, 65.41, 82.41].forEach((f, idx) => {
     const o1 = ctx.createOscillator();
     const o2 = ctx.createOscillator();
@@ -516,14 +519,19 @@ export function startMusic() {
     o2.frequency.value = f * 1.004;  // slight detune for thickness
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 500;
-    lp.Q.value = 2;
+    lp.frequency.value = 420;
+    // Q was 2 — a resonant peak parked right on the march's fundamental, which
+    // rang every time the bass line hit that note. The pad is meant to sit
+    // under the music, not whistle along with it.
+    lp.Q.value = 0.7;
     const g = ctx.createGain();
     g.gain.value = 0.05 - idx * 0.008;
     o1.connect(lp); o2.connect(lp);
     lp.connect(g); g.connect(musicGain);
     o1.start(); o2.start();
     nodes.push(o1, o2);
+    // Combat intensity opens these up, so the bed brightens under pressure.
+    intensityTargets.push({ filter: lp, base: 420, span: 900 });
   });
 
   // Shared white-noise buffer reused by the percussion hits below.
@@ -569,10 +577,35 @@ export function startMusic() {
   };
 
   // Imperial-march bass pulse ("dun dun dun DUN da DUN") + a driving drum kit.
-  const marchNotes = [110, 110, 110, 87, 131, 110, 87, 131];
-  const kickSteps  = [0, 2, 4, 6];   // steady four-on-the-pulse
-  const snareSteps = [2, 6];         // backbeat
-  const marchDur = 0.38;
+  //
+  // The pitches were always right — A A A F C A F C is the motif in A minor.
+  // What made it read as flat elevator beats was that every note got the SAME
+  // 0.38s length, so the famous dotted rhythm was flattened into eight
+  // identical quarter notes. The motif lives in its rhythm: three long notes,
+  // then dotted-long/short, dotted-long/short.
+  //
+  // BEAT is the quarter-note unit; `len` is in beats. Notes are also
+  // articulated (`hold` < len) so they detach instead of running together.
+  const BEAT = 0.46;
+  const marchNotes = [
+    { f: 110,  len: 1,    accent: 1    },  // A  — statement
+    { f: 110,  len: 1,    accent: 0.9  },  // A
+    { f: 110,  len: 1,    accent: 0.9  },  // A
+    { f: 87.31, len: 0.75, accent: 1   },  // F  — dotted, the hook
+    { f: 130.81, len: 0.25, accent: 0.7 }, // C  — the short pickup
+    { f: 110,  len: 1,    accent: 1    },  // A
+    { f: 87.31, len: 0.75, accent: 0.95 }, // F  — dotted again
+    { f: 130.81, len: 0.25, accent: 0.7 }, // C
+  ];
+  // Onset beat of each note, accumulated from the durations above.
+  const marchOnsets = [];
+  let acc = 0;
+  marchNotes.forEach((n) => { marchOnsets.push(acc); acc += n.len; });
+  const barBeats = acc;                      // 6 beats
+  // Drums are placed on BEATS now, not on note indices — the notes are no
+  // longer evenly spaced, so indexing them would scatter the pulse.
+  const kickBeats  = [0, 2, 3, 5];
+  const snareBeats = [2, 5];
   // `at` is an ABSOLUTE AudioContext time, not an offset. It used to be an
   // offset that this function added ctx.currentTime to — and the loop below
   // then passed `offset - ctx.currentTime`, so the two cancelled and every bar
@@ -581,36 +614,80 @@ export function startMusic() {
   // fires past-dated events immediately, so each loop dumped all 8 notes, 4
   // kicks, 2 snares and 16 hats into the same instant. That was the "clipping
   // on sustained notes" — the march had never actually played as written.
+  // One march note: a detuned saw stack through a lowpass with its own filter
+  // envelope. A single static square (what this was) has no attack transient,
+  // which is the other half of why the line sounded lifeless — brass gets its
+  // character from the filter opening fast and closing again, not from pitch.
+  const marchVoice = (t, freq, beats, accent) => {
+    const hold = beats * BEAT * 0.82;      // articulation gap between notes
+    const g = ctx.createGain();
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.Q.value = 6;
+    lp.frequency.setValueAtTime(freq * 2, t);
+    lp.frequency.linearRampToValueAtTime(freq * 9, t + 0.035);   // bite
+    lp.frequency.exponentialRampToValueAtTime(freq * 2.5, t + hold);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.075 * accent, t + 0.012);
+    g.gain.setValueAtTime(0.075 * accent, t + hold * 0.55);      // sustain, then
+    g.gain.exponentialRampToValueAtTime(0.0001, t + hold);       // release
+    lp.connect(g);
+    g.connect(musicGain);
+    // Three saws, ±6 cents. Detuning is the cheapest way to turn one thin
+    // oscillator into something with body.
+    [-6, 0, 6].forEach((cents) => {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = freq * Math.pow(2, cents / 1200);
+      o.connect(lp);
+      o.start(t);
+      o.stop(t + hold + 0.03);
+      keep(o);
+    });
+    // Sub an octave down so the line still has weight on a small speaker, where
+    // the saw stack's fundamental at 87-131Hz is barely reproduced.
+    const s = ctx.createOscillator();
+    const sg = ctx.createGain();
+    s.type = 'triangle';
+    s.frequency.value = freq;
+    sg.gain.setValueAtTime(0.0001, t);
+    sg.gain.linearRampToValueAtTime(0.05 * accent, t + 0.015);
+    sg.gain.exponentialRampToValueAtTime(0.0001, t + hold);
+    s.connect(sg); sg.connect(musicGain);
+    s.start(t); s.stop(t + hold + 0.03); keep(s);
+  };
+
   const startMarch = (at) => {
     // Only ever one bar in flight, so the previous bar's (already finished)
     // voices drop out of the list instead of accumulating for the whole run.
     musicBarNodes = [];
-    marchNotes.forEach((freq, i) => {
-      const t = at + i * marchDur;
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = 'square';
-      o.frequency.value = freq;
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.085, t + 0.01);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + marchDur * 0.85);
-      o.connect(g);
-      g.connect(musicGain);
-      o.start(t);
-      o.stop(t + marchDur);
-      keep(o);
-      // Drums locked to the same grid
-      if (kickSteps.includes(i))  kick(t);
-      if (snareSteps.includes(i)) snare(t);
-      hat(t, false);                       // hat on every step
-      hat(t + marchDur / 2, i % 2 === 1);  // and an off-beat hat (open on odds)
+    marchNotes.forEach((n, i) => {
+      marchVoice(at + marchOnsets[i] * BEAT, n.f, n.len, n.accent);
     });
+    // Drums on the beat grid, independent of where the notes fall.
+    kickBeats.forEach((b) => kick(at + b * BEAT));
+    snareBeats.forEach((b) => snare(at + b * BEAT));
+    for (let b = 0; b < barBeats; b += 0.5) {
+      hat(at + b * BEAT, b % 1 !== 0);     // closed on beats, open off them
+    }
+    // Combat intensity adds percussion rather than a drone: sixteenth-note hats
+    // and extra snare pushes fill in as pressure rises. Read at SCHEDULE time,
+    // so a wave starting mid-bar takes effect on the next one.
+    if (musicIntensity > 0.35) {
+      for (let b = 0.25; b < barBeats; b += 0.5) hat(at + b * BEAT, false);
+    }
+    if (musicIntensity > 0.7) {
+      snare(at + 3.5 * BEAT);
+      snare(at + (barBeats - 0.5) * BEAT);
+    }
   };
 
   // Bar cursor in absolute context time. Each pass schedules the NEXT bar and
   // re-arms off the real clock, so a slow frame or a throttled background tab
   // can't let the wall-clock timer drift away from the audio timeline.
-  const barDur = marchNotes.length * marchDur;
+  // Bar length comes from the accumulated note durations now, NOT from a note
+  // count times a fixed step — the notes are no longer evenly spaced.
+  const barDur = barBeats * BEAT;
   let next = ctx.currentTime;
   const LOOKAHEAD = 0.2;  // schedule this far ahead of the bar's start time
   const loop = () => {
@@ -622,26 +699,6 @@ export function startMusic() {
     musicLoopTimer = setTimeout(loop, waitMs);
   };
   loop();
-
-  // Tension layer — a sustained detuned minor-2nd cluster (A3/A#3), silent by
-  // default, that GameScene swells via setMusicIntensity() during combat and
-  // calms during breathers. Now in an audible mid band (was ~3.7kHz, inaudible
-  // through its lowpass). Pure gain control; stays in sync with the march loop.
-  intensityGain = ctx.createGain();
-  intensityGain.gain.value = 0;
-  intensityGain.connect(musicGain);
-  [220, 233.08].forEach((f) => {
-    const o = ctx.createOscillator();
-    o.type = 'sawtooth';
-    o.frequency.value = f;
-    const lp = ctx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 1400;
-    o.connect(lp);
-    lp.connect(intensityGain);
-    o.start();
-    nodes.push(o);
-  });
 
   musicNodes = nodes;
 }
@@ -671,21 +728,34 @@ export function stopMusic() {
     });
     musicNodes = null;
   }
-  intensityGain = null;
+  intensityTargets = [];
 }
 
 // Combat-intensity dial for the music bed: 0 = calm (breather/menu), 1 = full
-// tension (an active wave or the boss fight). Ramped, not stepped, so wave
-// transitions swell/settle instead of snapping.
-const INTENSITY_MAX = 0.12;
+// tension (an active wave or the boss fight).
+//
+// This used to swell a SUSTAINED detuned cluster at 220Hz + 233.08Hz — a minor
+// second. Two tones that close beat against each other ~13 times a second, and
+// so does every harmonic pair above them, through a lowpass wide enough to keep
+// the lot. It was a dissonant throb by construction, ramped to full every time
+// a wave started, which is exactly "the noise gets so much when enemies come".
+//
+// There is no sustained tone here any more, so nothing can beat. Intensity now
+// drives percussion density and how far open the pad's filter sits — the bed
+// gets busier and brighter under pressure instead of buzzing. Ramped rather
+// than stepped so wave transitions still swell.
 export function setMusicIntensity(x) {
-  if (!intensityGain || !audioCtx) return;
+  musicIntensity = Math.max(0, Math.min(1, x));
+  if (!audioCtx) return;
   const t = audioCtx.currentTime;
-  const target = Math.max(0, Math.min(1, x)) * INTENSITY_MAX;
-  intensityGain.gain.cancelScheduledValues(t);
-  intensityGain.gain.setValueAtTime(intensityGain.gain.value, t);
-  intensityGain.gain.linearRampToValueAtTime(target, t + 0.4);
+  intensityTargets.forEach(({ filter, base, span }) => {
+    filter.frequency.cancelScheduledValues(t);
+    filter.frequency.setValueAtTime(filter.frequency.value, t);
+    filter.frequency.linearRampToValueAtTime(base + span * musicIntensity, t + 0.4);
+  });
 }
+
+export function getMusicIntensity() { return musicIntensity; }
 
 export function duckMusic(amount = 0.5, restoreInMs = 600) {
   if (!musicGain || !audioCtx) return;
