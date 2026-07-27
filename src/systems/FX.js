@@ -123,7 +123,8 @@ function tone({ freq = 440, type = 'sine', dur = 0.12, gain = 0.4, slide = 0, de
 // the same delay send tone() already had.
 function noise({
   dur = 0.15, gain = 0.3, hp = 600, delay = 0,
-  type = 'highpass', q = 0, sweepTo = 0, attack = 0, echo = 0,
+  type = 'highpass', q = 0, qTo = 0, sweepTo = 0, attack = 0, echo = 0,
+  drive = 0, sustain = 0,
 }) {
   const ctx = ensureCtx();
   if (!ctx) return;
@@ -140,6 +141,13 @@ function noise({
     filter.frequency.exponentialRampToValueAtTime(Math.max(20, sweepTo), t + dur);
   }
   if (q) filter.Q.value = q;
+  // Resonance envelope. Sweeping cutoff alone still reads as a static texture
+  // being panned; Q moving alongside it is what makes noise sound like a
+  // physical event — a resonance that rings up and damps away.
+  if (qTo) {
+    filter.Q.setValueAtTime(q || 0.0001, t);
+    filter.Q.linearRampToValueAtTime(qTo, t + dur);
+  }
   const g = ctx.createGain();
   if (attack > 0) {
     g.gain.setValueAtTime(0.0001, t);
@@ -147,10 +155,15 @@ function noise({
   } else {
     g.gain.setValueAtTime(gain, t);
   }
+  // Optional sustain shelf before the release, so a noise layer can hold as a
+  // body instead of decaying straight from its transient.
+  if (sustain > 0) g.gain.setValueAtTime(gain, t + Math.min(sustain, dur * 0.8));
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   src.connect(filter);
   filter.connect(g);
-  g.connect(sfxGain || masterGain);
+  const ws = drive ? shaper(drive) : null;
+  if (ws) { g.connect(ws); ws.connect(sfxGain || masterGain); }
+  else g.connect(sfxGain || masterGain);
   if (echo && sfxDelay) {
     const s = ctx.createGain();
     s.gain.value = echo;
@@ -180,6 +193,120 @@ function sub({ freq = 90, to = 32, dur = 0.5, gain = 0.3, delay = 0 }) {
   g.connect(sfxGain || masterGain);
   osc.start(t);
   osc.stop(t + dur + 0.02);
+}
+
+// ── Synthesis engine ────────────────────────────────────────────────────────
+// Everything above is one or two bare oscillators through a gain envelope,
+// which is why the whole game sounded thin and "procedurally generated". These
+// three helpers are the shared foundation for sounds that read as events.
+
+// Cached waveshaper curves. Saturation adds harmonics, which is what turns a
+// clean oscillator into something with grit — and, crucially for a phone
+// speaker, moves energy UP into a band the speaker can actually reproduce.
+// Curves are cached by drive: building a 2048-sample Float32Array on every hit
+// would churn hard during a fight.
+const shaperCurves = new Map();
+function shaper(drive = 3) {
+  const ctx = ensureCtx();
+  if (!ctx) return null;
+  const key = Math.round(drive * 10);
+  if (!shaperCurves.has(key)) {
+    const n = 2048;
+    const curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * 2 - 1;
+      curve[i] = Math.tanh(x * drive) / Math.tanh(drive);  // normalised soft clip
+    }
+    shaperCurves.set(key, curve);
+  }
+  const ws = ctx.createWaveShaper();
+  ws.curve = shaperCurves.get(key);
+  ws.oversample = '2x';
+  return ws;
+}
+
+// Impact voice. Replaces sub() at every hit site.
+//
+// sub() put its entire weight at 30-95Hz, which a phone speaker physically
+// cannot move — so on the target device the game's heaviest sounds had no
+// bottom at all. This drops the same pitch but runs it through a waveshaper,
+// generating harmonics at 2x/3x/4x the fundamental. Those land in the
+// 150-500Hz band a small speaker does reproduce, and the ear reconstructs the
+// missing fundamental from them. On headphones the real sub is still there.
+function punch({ freq = 150, to = 45, dur = 0.5, gain = 0.3, drive = 4, delay = 0 }) {
+  const ctx = ensureCtx();
+  if (!ctx) return;
+  const t = ctx.currentTime + delay;
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq, t);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(18, to), t + dur * 0.65);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(gain, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  const ws = shaper(drive);
+  osc.connect(g);
+  if (ws) {
+    g.connect(ws);
+    ws.connect(sfxGain || masterGain);
+  } else {
+    g.connect(sfxGain || masterGain);
+  }
+  osc.start(t);
+  osc.stop(t + dur + 0.02);
+}
+
+// N detuned oscillators as a single voice. Thickness is the cheapest cure for
+// a sound that reads as "one bare oscillator", and detuning beats adding more
+// gain because it widens the sound without making it louder.
+//
+// Note the detunes here are a handful of CENTS. The music intensity bug was a
+// reminder of the other end of that scale: two tones a semitone (100 cents)
+// apart beat audibly and unpleasantly. A few cents reads as richness.
+function stack({
+  freq = 300, count = 3, detune = 8, type = 'sawtooth',
+  dur = 0.2, gain = 0.12, slide = 0, delay = 0, drive = 0,
+  filter = 0, filterTo = 0, q = 1, attack = 0.008, sustain = 0,
+}) {
+  const ctx = ensureCtx();
+  if (!ctx) return;
+  const t = ctx.currentTime + delay;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(gain, t + attack);
+  // Multi-stage envelope: an optional sustain shelf before the release, so a
+  // sound can hold instead of blipping. A pure attack-decay is what made every
+  // impact in this game sound like a short "bip".
+  if (sustain > 0) g.gain.setValueAtTime(gain, t + Math.min(sustain, dur * 0.8));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+
+  let head = g;
+  if (filter) {
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.Q.value = q;
+    lp.frequency.setValueAtTime(filter, t);
+    if (filterTo) lp.frequency.exponentialRampToValueAtTime(Math.max(40, filterTo), t + dur);
+    g.connect(lp);
+    head = lp;
+  }
+  const ws = drive ? shaper(drive) : null;
+  if (ws) { head.connect(ws); head = ws; }
+  head.connect(sfxGain || masterGain);
+
+  for (let i = 0; i < count; i++) {
+    // Spread symmetrically around the centre frequency.
+    const cents = count === 1 ? 0 : (i / (count - 1) - 0.5) * 2 * detune;
+    const o = ctx.createOscillator();
+    o.type = type;
+    const f = freq * Math.pow(2, cents / 1200);
+    o.frequency.setValueAtTime(f, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), t + dur);
+    o.connect(g);
+    o.start(t);
+    o.stop(t + dur + 0.03);
+  }
 }
 
 // Sub-channel volume adjustments (bindable to sliders in the UI)
@@ -403,35 +530,43 @@ export const SFX = {
   // combo rather than the same sound twice.
   meleeSwing(stage = 1) {
     const up = stage === 2 ? 1.335 : 1;      // perfect fourth on the second cast
-    // The cut: narrow band racing upward, plus a second slower pass under it.
-    noise({ dur: 0.09, gain: 0.26, hp: 700 * up, sweepTo: 5000 * up,
-            type: 'bandpass', q: 5.5, attack: 0.012 });
-    noise({ dur: 0.16, gain: 0.10, hp: 400, sweepTo: 2200, type: 'bandpass', q: 2 });
-    // The blade ringing. These used to sit at 2400Hz and 3600Hz, which is
-    // squarely where a small speaker is harshest — that pair is what read as
-    // "high-pitched chirping" rather than a sword. Down an octave and a bit,
-    // and quieter, so the swept noise above carries the edge and these only
-    // colour it.
-    tone({ freq: 900 * up, type: 'triangle', dur: 0.085, gain: 0.10,
-           slide: -420, echo: 0.16 });
-    tone({ freq: 1400 * up, type: 'sine', dur: 0.055, gain: 0.045,
-           slide: -600, delay: 0.012 });
-    // Body. Longer and louder than before: with the shrill partials pulled
-    // down, the swing needs weight underneath or it thins out into a hiss.
-    tone({ freq: 150, type: 'sawtooth', dur: 0.16, gain: 0.14, slide: -70 });
+    // The cut: narrow band racing upward, with the resonance rising alongside
+    // it so the filter rings up as it sweeps rather than just sliding.
+    noise({ dur: 0.16, gain: 0.24, hp: 600 * up, sweepTo: 4200 * up,
+            type: 'bandpass', q: 3, qTo: 9, attack: 0.014, drive: 2 });
+    // Second, slower pass underneath for air displacement.
+    noise({ dur: 0.28, gain: 0.09, hp: 350, sweepTo: 1800,
+            type: 'bandpass', q: 1.5, sustain: 0.07 });
+    // The blade itself. Was two bare oscillators at 900/1400Hz; now a saturated
+    // detuned stack that sustains through the swing instead of blipping for
+    // 85ms. This is the difference between "bip" and a blade with a voice.
+    stack({
+      freq: 420 * up, count: 3, detune: 10, type: 'sawtooth',
+      dur: 0.30, gain: 0.11, slide: -150, drive: 2.5,
+      filter: 2600, filterTo: 700, q: 3, attack: 0.01, sustain: 0.09,
+    });
+    // Weight, in the 150-400Hz band a phone speaker actually reproduces.
+    stack({
+      freq: 165, count: 2, detune: 14, type: 'triangle',
+      dur: 0.22, gain: 0.13, slide: -60, sustain: 0.06,
+    });
   },
 
   // Casts 1-2 connecting. The land was completely silent before, so a swing
   // that hit sounded exactly like one that missed.
   meleeHit() {
-    // Sharper transient than before (shorter, brighter start) so the contact
-    // reads as a cut landing rather than a soft thud.
-    noise({ dur: 0.035, gain: 0.20, hp: 2600, sweepTo: 600, type: 'bandpass', q: 1.5 });
-    tone({ freq: 520, type: 'square', dur: 0.06, gain: 0.13, slide: -280, vary: 0.06 });
-    tone({ freq: 110, type: 'sine', dur: 0.14, gain: 0.14, slide: -45, delay: 0.01 });
-    // Chest punch. The brief asked for low-end on the connects specifically —
-    // without this a landed hit and a whiffed swing weigh the same.
-    sub({ freq: 70, to: 28, dur: 0.20, gain: 0.22 });
+    // Saturated crack in the presence band — this is what a phone speaker
+    // reproduces best, so the impact's identity lives here.
+    noise({ dur: 0.07, gain: 0.22, hp: 2800, sweepTo: 900,
+            type: 'bandpass', q: 1.2, qTo: 4, drive: 3 });
+    stack({
+      freq: 380, count: 3, detune: 12, type: 'square',
+      dur: 0.14, gain: 0.13, slide: -190, drive: 2, filter: 3000, filterTo: 900,
+    });
+    // Weight. punch() instead of sub(): the old 70Hz drop was inaudible on a
+    // small speaker, so a connect and a whiff weighed the same on the device
+    // this is actually played on.
+    punch({ freq: 190, to: 60, dur: 0.26, gain: 0.24, drive: 4 });
   },
 
   // Cast 3's ground slam — the thomp. This made no sound at all before.
@@ -440,16 +575,32 @@ export const SFX = {
   // skittering off. Music ducks under it (see the caller) because the master
   // compressor is a hard limiter and would otherwise eat the sub.
   meleeSlam() {
-    sub({ freq: 95, to: 30, dur: 0.55, gain: 0.34 });
-    sub({ freq: 58, to: 24, dur: 0.75, gain: 0.20, delay: 0.02 });
-    tone({ freq: 140, type: 'sawtooth', dur: 0.30, gain: 0.22, slide: -95 });
-    tone({ freq: 320, type: 'square', dur: 0.07, gain: 0.13, slide: -240 });
-    // Impact crack: broadband transient right on the hit.
-    noise({ dur: 0.07, gain: 0.24, hp: 3000, sweepTo: 600, type: 'lowpass', q: 1 });
-    // Rubble: long, dark, settling.
-    noise({ dur: 0.55, gain: 0.20, hp: 1400, sweepTo: 160, type: 'lowpass', q: 0.7 });
+    // The whole point of this sound was its bottom end, and the whole bottom
+    // end was at 30-95Hz — below what a phone speaker can move. It measured as
+    // a big sub drop and was heard as nothing. Rebuilt an octave up and
+    // saturated, so the harmonics land where a small speaker lives and the ear
+    // fills in the fundamental it can't hear.
+    punch({ freq: 160, to: 48, dur: 0.60, gain: 0.34, drive: 6 });
+    punch({ freq: 240, to: 80, dur: 0.34, gain: 0.20, drive: 5, delay: 0.012 });
+    // Kept underneath for anyone on headphones, where it IS audible. It is a
+    // bonus layer now, not the load-bearing one.
+    sub({ freq: 90, to: 30, dur: 0.7, gain: 0.18 });
+    // Body — the crack of the ground giving way. Saturated stack with a filter
+    // sweeping shut, sustained so it has mass rather than a click.
+    stack({
+      freq: 300, count: 4, detune: 16, type: 'sawtooth',
+      dur: 0.40, gain: 0.20, slide: -190, drive: 4,
+      filter: 3200, filterTo: 380, q: 2, sustain: 0.10,
+    });
+    // Impact transient.
+    noise({ dur: 0.09, gain: 0.26, hp: 3600, sweepTo: 700,
+            type: 'lowpass', q: 1, qTo: 5, drive: 3 });
+    // Rubble: long, dark, settling — now with a resonance envelope so it reads
+    // as debris in a space rather than a flat hiss fading out.
+    noise({ dur: 0.75, gain: 0.20, hp: 1600, sweepTo: 220,
+            type: 'lowpass', q: 0.7, qTo: 3, sustain: 0.12 });
     // Debris skittering, thrown late and bright so the tail has detail.
-    noise({ dur: 0.26, gain: 0.075, hp: 2600, type: 'highpass', delay: 0.11, echo: 0.2 });
+    noise({ dur: 0.34, gain: 0.08, hp: 2400, type: 'highpass', delay: 0.13, echo: 0.22 });
   },
 
   // The "ZZZZZ" phase — an energy-blade hum that holds for as long as the combo
@@ -466,18 +617,24 @@ export const SFX = {
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(0.075, t + 0.08);
-    // Resonant band gives it the electric buzz rather than a flat drone.
+    // Resonant band gives it the electric buzz rather than a flat drone. Sits
+    // at 380Hz so it survives a phone speaker — a 260Hz band over a 92Hz
+    // fundamental was mostly below what the device reproduces.
     const bp = ctx.createBiquadFilter();
     bp.type = 'bandpass';
-    bp.frequency.value = 260;
-    bp.Q.value = 3.2;
-    bp.connect(g);
+    bp.frequency.value = 380;
+    bp.Q.value = 2.6;
+    const ws = shaper(2);
+    bp.connect(ws || g);
+    if (ws) ws.connect(g);
     g.connect(sfxGain);
-    // Detuned pair — the beating between them is the "electric" part.
-    const oscs = [92, 92 * 1.007].map((f) => {
+    // Four saws spread over ±9 cents. Deliberately CENTS, not the semitone
+    // that made the old music intensity layer throb: a few cents reads as a
+    // rich electric shimmer, 100 cents reads as two things fighting.
+    const oscs = [-9, -3, 3, 9].map((cents) => {
       const o = ctx.createOscillator();
       o.type = 'sawtooth';
-      o.frequency.value = f;
+      o.frequency.value = 184 * Math.pow(2, cents / 1200);
       o.connect(bp);
       o.start(t);
       return o;
