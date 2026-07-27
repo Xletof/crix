@@ -1038,7 +1038,7 @@ export class GameScene extends Phaser.Scene {
   performMeleeCast(dir, stage, finisher) {
     const p = this.player;
     if (!p?.alive) return;
-    SFX.dash?.();
+    SFX.meleeSwing?.(stage);
     this._meleeLungeTrail(dir, finisher);
     if (finisher) this._cameraPunch(1.02, 140);
   }
@@ -1166,6 +1166,10 @@ export class GameScene extends Phaser.Scene {
       // shockwave sized to the actual AoE so what you see is what it hits.
       this.fx.bladeArc(p.x, p.y, dir, PLAYER.meleeSlamRadius * 0.55, 3);
       this.fx.slamShockwave(p.x, p.y, PLAYER.meleeSlamRadius);
+      // Duck the music under the thomp: the master bus is a hard limiter
+      // (threshold -10, ratio 12) and would squash the sub otherwise.
+      SFX.meleeSlam?.();
+      duckMusic(0.35, 520);
       this.fx.shake(0.020, 260);
       this._cameraPunch(1.08, 260);
       this._slowMo(0.5, 240);
@@ -1178,8 +1182,11 @@ export class GameScene extends Phaser.Scene {
       // swing — the cast used to end with nothing but the arc.
       this.fx.dustPuff(p.x, p.y + 14);
       this.fx.dustPuff(p.x - Math.cos(dir) * 16, p.y + 12);
-      if (hits > 0) this.fx.burstDir(p.x + Math.cos(dir) * 30, p.y + Math.sin(dir) * 30,
-        'white', 7, dir, 80);
+      if (hits > 0) {
+        this.fx.burstDir(p.x + Math.cos(dir) * 30, p.y + Math.sin(dir) * 30,
+          'white', 7, dir, 80);
+        SFX.meleeHit?.();
+      }
       this.fx.shake(hits > 0 ? 0.009 : 0.005, 100);
       if (hits > 0) this._cameraPunch(1.02, 110);
     }

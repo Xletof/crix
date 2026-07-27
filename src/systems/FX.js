@@ -109,25 +109,73 @@ function tone({ freq = 440, type = 'sine', dur = 0.12, gain = 0.4, slide = 0, de
   osc.stop(t + dur + 0.02);
 }
 
-function noise({ dur = 0.15, gain = 0.3, hp = 600, delay = 0 }) {
+// Filtered noise burst.
+//
+// `type`/`q`/`sweepTo` were added for the melee: a static highpass is the only
+// shape this had, which is why every noise layer in the game came out as the
+// same flat "psst". A bandpass swept upward is what turns a hiss into a blade
+// cutting air; a lowpass swept downward is what turns it into rubble settling.
+// `attack` lets a layer swell in instead of clicking on, and `echo` gives noise
+// the same delay send tone() already had.
+function noise({
+  dur = 0.15, gain = 0.3, hp = 600, delay = 0,
+  type = 'highpass', q = 0, sweepTo = 0, attack = 0, echo = 0,
+}) {
   const ctx = ensureCtx();
   if (!ctx) return;
   const t = ctx.currentTime + delay;
-  const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+  const buf = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * dur)), ctx.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
   const src = ctx.createBufferSource();
   src.buffer = buf;
   const filter = ctx.createBiquadFilter();
-  filter.type = 'highpass';
-  filter.frequency.value = hp;
+  filter.type = type;
+  filter.frequency.setValueAtTime(Math.max(20, hp), t);
+  if (sweepTo) {
+    filter.frequency.exponentialRampToValueAtTime(Math.max(20, sweepTo), t + dur);
+  }
+  if (q) filter.Q.value = q;
   const g = ctx.createGain();
-  g.gain.setValueAtTime(gain, t);
+  if (attack > 0) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(gain, t + attack);
+  } else {
+    g.gain.setValueAtTime(gain, t);
+  }
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   src.connect(filter);
   filter.connect(g);
   g.connect(sfxGain || masterGain);
+  if (echo && sfxDelay) {
+    const s = ctx.createGain();
+    s.gain.value = echo;
+    g.connect(s);
+    s.connect(sfxDelay);
+  }
   src.start(t);
+}
+
+// Sub-bass drop. Modelled on the music kick() below, but routed to sfxGain —
+// the music one is on musicGain and cannot be borrowed for an SFX. This is what
+// makes an impact land in the chest rather than in the ears; tone() bottoms out
+// at 40Hz on its slide and has a 5ms linear attack that clicks at these depths.
+function sub({ freq = 90, to = 32, dur = 0.5, gain = 0.3, delay = 0 }) {
+  const ctx = ensureCtx();
+  if (!ctx) return;
+  const t = ctx.currentTime + delay;
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq, t);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(18, to), t + dur * 0.7);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(gain, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(g);
+  g.connect(sfxGain || masterGain);
+  osc.start(t);
+  osc.stop(t + dur + 0.02);
 }
 
 // Sub-channel volume adjustments (bindable to sliders in the UI)
@@ -162,6 +210,13 @@ export function __fxDebug() {
     hasIntensityGain: !!intensityGain,
     intensityGainValue: intensityGain ? intensityGain.gain.value : null,
     hasSfxDelay: !!sfxDelay,
+    // Live node handles, so a test can hang an AnalyserNode off the SFX bus and
+    // measure what the synthesis actually produces. Asserting on the parameters
+    // passed to tone()/noise() would only prove the call was typed as intended;
+    // the melee slam has to be verified as real sub-bass in the output.
+    ctx: audioCtx,
+    sfxGain,
+    masterGain,
   };
 }
 
@@ -319,6 +374,59 @@ export const SFX = {
   dash() {
     noise({ dur: 0.14, gain: 0.16, hp: 900 });
     tone({ freq: 900, type: 'sine', dur: 0.16, gain: 0.10, slide: -700 });
+  },
+
+  // ── Melee "Broken Wings" ──────────────────────────────────────────────────
+  // All three casts used to play SFX.dash() — one borrowed whoosh, no blade in
+  // it, identical every time. These follow comboChime's shape (noise transient
+  // -> pitched layers on short staggers -> echo tail), which is this file's own
+  // reference for a sound that reads as an event rather than a beep.
+
+  // Casts 1 and 2: an energy blade cutting air. The character is in the swept
+  // bandpass — a static-filtered burst is a hiss, one racing 700 -> 5000Hz in
+  // 90ms is a blade passing you. Cast 2 sits a fourth up so the pair reads as a
+  // combo rather than the same sound twice.
+  meleeSwing(stage = 1) {
+    const up = stage === 2 ? 1.335 : 1;      // perfect fourth on the second cast
+    // The cut: narrow band racing upward, plus a second slower pass under it.
+    noise({ dur: 0.09, gain: 0.26, hp: 700 * up, sweepTo: 5000 * up,
+            type: 'bandpass', q: 5.5, attack: 0.012 });
+    noise({ dur: 0.16, gain: 0.10, hp: 400, sweepTo: 2200, type: 'bandpass', q: 2 });
+    // The blade itself ringing — two partials, not a single pure tone.
+    tone({ freq: 2400 * up, type: 'triangle', dur: 0.075, gain: 0.15,
+           slide: -900, echo: 0.16 });
+    tone({ freq: 3600 * up, type: 'sine', dur: 0.05, gain: 0.075,
+           slide: -1400, delay: 0.012 });
+    // Body, kept deliberately short and quiet: it is there to give the edge
+    // something to cut against. Measured louder than the ring at first, which
+    // made the swing thump rather than cut — the brief was "crisp".
+    tone({ freq: 150, type: 'sawtooth', dur: 0.09, gain: 0.075, slide: -70 });
+  },
+
+  // Casts 1-2 connecting. The land was completely silent before, so a swing
+  // that hit sounded exactly like one that missed.
+  meleeHit() {
+    noise({ dur: 0.045, gain: 0.17, hp: 2000, sweepTo: 700, type: 'bandpass', q: 1.5 });
+    tone({ freq: 520, type: 'square', dur: 0.06, gain: 0.13, slide: -280, vary: 0.06 });
+    tone({ freq: 110, type: 'sine', dur: 0.14, gain: 0.14, slide: -45, delay: 0.01 });
+  },
+
+  // Cast 3's ground slam — the thomp. This made no sound at all before.
+  // Built bottom-up: sub drop for the chest hit, saw body for the crack, a
+  // long lowpassed tail for rubble, and a late highpassed scatter for debris
+  // skittering off. Music ducks under it (see the caller) because the master
+  // compressor is a hard limiter and would otherwise eat the sub.
+  meleeSlam() {
+    sub({ freq: 95, to: 30, dur: 0.55, gain: 0.34 });
+    sub({ freq: 58, to: 24, dur: 0.75, gain: 0.20, delay: 0.02 });
+    tone({ freq: 140, type: 'sawtooth', dur: 0.30, gain: 0.22, slide: -95 });
+    tone({ freq: 320, type: 'square', dur: 0.07, gain: 0.13, slide: -240 });
+    // Impact crack: broadband transient right on the hit.
+    noise({ dur: 0.07, gain: 0.24, hp: 3000, sweepTo: 600, type: 'lowpass', q: 1 });
+    // Rubble: long, dark, settling.
+    noise({ dur: 0.55, gain: 0.20, hp: 1400, sweepTo: 160, type: 'lowpass', q: 0.7 });
+    // Debris skittering, thrown late and bright so the tail has detail.
+    noise({ dur: 0.26, gain: 0.075, hp: 2600, type: 'highpass', delay: 0.11, echo: 0.2 });
   },
 };
 
