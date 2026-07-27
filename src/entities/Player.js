@@ -542,10 +542,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   damage(amount, hitDirRad = null) {
     if (!this.alive) return;
     if (this.isDashing) return; // i-frames (invincibility during dash)
-    // Melee lunges are i-framed for their travel only — not the gaps between
-    // casts — so charging a crowd is viable without the combo becoming a
-    // multi-second invulnerability button.
-    if (PLAYER.meleeIframes !== false && this._meleeLungeMs > 0) return;
+    // Melee casts are i-framed for the WHOLE cast — lunge plus the swing and
+    // recovery frames after it lands (_meleeAnimT spans exactly that, and is
+    // zeroed by resetMeleeCombo and die()). Gating on _meleeLungeMs instead
+    // dropped protection the instant the lunge stopped travelling, so the
+    // committed, un-cancellable swing animation was the most dangerous part of
+    // using the ability.
+    //
+    // Still per-cast, NOT per-chain: the ~2s combo window between casts stays
+    // vulnerable, so the chain can't be paced out into a long invulnerability.
+    if (PLAYER.meleeIframes !== false && this._meleeAnimT > 0) return;
     
     // Shield absorption logic
     if (this.shieldHp > 0) {
