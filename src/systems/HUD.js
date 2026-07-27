@@ -246,10 +246,14 @@ export class HUDScene extends Phaser.Scene {
       x: superX - 118,
       y: superY,
       radius: 46,
-      onPress: () => {
+      onAim: (v) => {
         const p = this.gameScene?.player;
-        if (p?.alive) p.tryMeleeCombo();
+        if (!p?.alive) return;
+        // First aim event of a press starts the hold clock; the rest just steer.
+        if (!p._meleeHoldActive) p.beginMeleeAim();
+        p.setMeleeAimInput(v);
       },
+      onRelease: (v) => this.gameScene?.player?.releaseMeleeAim(v),
       isReady: () => {
         const p = this.gameScene?.player;
         if (!p?.alive) return false;
@@ -604,10 +608,16 @@ export class HUDScene extends Phaser.Scene {
       this.moveStick?.forceRelease();
       this.fireStick?.forceRelease();
       this.superButton?.forceRelease();
+      this.meleeButton?.forceRelease();
       const p = this.gameScene?.player;
       if (p) {
         p.setMoveInput({ x: 0, y: 0, force: 0 });
         p.setAimInput({ x: 0, y: 0, force: 0 });
+        // Drop a melee hold outright rather than releasing it — resuming from
+        // pause must not cast the combo the player never let go of.
+        p._meleeHoldActive = false;
+        p._kbMeleeHold     = false;
+        p.meleeAiming      = false;
       }
     });
   }

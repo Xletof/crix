@@ -72,6 +72,10 @@ export const PLAYER = {
   meleeGapCloseMax: 280,
   meleeGapCloseConeDeg: 100,
   meleeIframes: true,       // invulnerable while a lunge is travelling
+  // Hold-to-aim. A press shorter than this fires instantly with no telegraph
+  // (the "tap" path); holding past it arms the aim state and shows the cone.
+  // Shorter than the super's 250ms Space threshold — melee wants to stay snappy.
+  meleeAimArmMs: 130,
   meleeRange: 130,
   meleeArcDeg: 110,
   meleeDamage: 320,

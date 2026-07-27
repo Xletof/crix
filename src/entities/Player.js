@@ -66,6 +66,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.aiming      = false;
     this.superAim    = -Math.PI / 2;
     this.superAiming = false;
+    // Melee aim hold — a deliberate mirror of superAim/superAiming on its own
+    // fields, so the two abilities can never stomp each other's telegraph.
+    this.meleeAim         = -Math.PI / 2;
+    this.meleeAiming      = false;
+    this._meleeHoldActive = false;  // a press is down (either input path)
+    this._meleeHeldMs     = 0;      // how long, for the tap/hold split
+    this._kbMeleeHold     = false;  // that press is the R key, so steer by mouse
     // Firing forces a facing snap toward the shot; this holds it against
     // continuous movement input (which otherwise overwrites `facing` every
     // frame you're still holding a direction) so the turn is actually visible
@@ -242,6 +249,58 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Keyboard super always auto-aims the nearest enemy — matches the previewed
     // cone. Manual precision aiming stays on the touch super stick.
     this.releaseSuperAim(null);
+  }
+
+  // ── Melee aim hold ────────────────────────────────────────────────────────
+  // Same shape as the super's aim stick above, with one deliberate difference:
+  // the super shows its cone the instant you touch down, this one must NOT. A
+  // tap has to fire with no telegraph at all, so the aim state only arms once
+  // the gesture has proved itself — either the finger dragged past the button's
+  // tap threshold (force > 0) or the press outlived PLAYER.meleeAimArmMs.
+
+  beginMeleeAim() {
+    if (!this.alive) return;
+    this._meleeHoldActive = true;
+    this._meleeHeldMs     = 0;
+    this.meleeAiming      = false;
+    this.meleeAim         = this._autoAimAngle();
+  }
+
+  beginKeyboardMeleeAim() {
+    this._kbMeleeHold = true;
+    this.beginMeleeAim();
+  }
+
+  setMeleeAimInput(vec) {
+    if (!this.alive) return;
+    if (vec?.force > 0) {
+      // An unambiguous drag arms the telegraph immediately — no point making
+      // the player also wait out the hold timer once they've clearly aimed.
+      this.meleeAiming = true;
+      this.meleeAim    = Math.atan2(vec.y, vec.x);
+    } else if (!this.meleeAiming) {
+      // Still undecided: keep previewing where a tap would actually go.
+      this.meleeAim = this._autoAimAngle();
+    }
+  }
+
+  releaseMeleeAim(vec) {
+    // Clear the hold BEFORE the alive check — dying mid-hold must not leave the
+    // telegraph armed on the corpse.
+    const wasAiming = this.meleeAiming;
+    this._meleeHoldActive = false;
+    this._kbMeleeHold     = false;
+    this._meleeHeldMs     = 0;
+    this.meleeAiming      = false;
+    if (!this.alive) return false;
+    if (vec && vec.force > 0.05) return this.tryMeleeCombo(Math.atan2(vec.y, vec.x));
+    // Held long enough to see the telegraph: fire exactly where it pointed. A
+    // tap passes no angle at all and tryMeleeCombo auto-aims as it always has.
+    return wasAiming ? this.tryMeleeCombo(this.meleeAim) : this.tryMeleeCombo();
+  }
+
+  endKeyboardMeleeAim() {
+    return this.releaseMeleeAim(null);
   }
 
   // ── Firing ────────────────────────────────────────────────────────────────
@@ -572,7 +631,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   // "Broken Wings": three chained casts. The meter is consumed on the FIRST
   // cast only — casts 2 and 3 are free while the combo window is live, so the
   // whole chain is one ability. Letting the window lapse resets to stage 0.
-  tryMeleeCombo() {
+  tryMeleeCombo(angleOverride) {
     if (!this.alive) return false;
     if (this.isDashing) return false;
     if (this._hurtStaggerMs > 0) return false;
@@ -589,8 +648,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this._comboStage = stage;
     const finisher = stage >= 3;
 
-    // Face the cast so the lunge and arc agree with what the player sees.
-    const dir = this._autoAimAngle();
+    // Face the cast so the lunge and arc agree with what the player sees. An
+    // explicit angle comes from a held aim (mouse or drag); without one this
+    // auto-aims exactly as it always has, which is the tap path.
+    const dir = typeof angleOverride === 'number' ? angleOverride : this._autoAimAngle();
     this.facing = dir;
     this.aim = dir;
     this._facingLockMs = 220;
@@ -673,6 +734,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this._meleeLungeMs = 0;
     this._meleeAnimT = 0;
     this._meleeAnimStage = 0;
+    // Drop any live aim hold too, so nothing can leave a telegraph on screen
+    // after the combo it belonged to is gone.
+    this._meleeHoldActive = false;
+    this._kbMeleeHold     = false;
+    this._meleeHeldMs     = 0;
+    this.meleeAiming      = false;
   }
 
   die() {
@@ -710,6 +777,31 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // target) so it previews exactly where the shot will go on release.
     if (this._kbSuperHold && this.superAiming) {
       this.superAim = this._autoAimAngle();
+    }
+
+    // Melee aim hold. Ticked here rather than from input events because a still
+    // finger emits no pointermove at all — the arm timer has to advance anyway.
+    if (this._meleeHoldActive) {
+      this._meleeHeldMs += delta;
+      if (this._kbMeleeHold) {
+        // Desktop steers with the mouse. positionToCamera is required rather
+        // than raw pointer.x/y: the game camera is inset below the HUD top bar,
+        // so screen and world coordinates do not share an origin.
+        const ptr = this.scene.input?.activePointer;
+        if (ptr) {
+          const w = ptr.positionToCamera(this.scene.cameras.main);
+          this.meleeAim = Math.atan2(w.y - this.y, w.x - this.x);
+        }
+      }
+      if (!this.meleeAiming && this._meleeHeldMs >= (PLAYER.meleeAimArmMs ?? 130)) {
+        this.meleeAiming = true;
+      }
+      // Face the telegraph, and hold it against move input so the body doesn't
+      // swing back to the stick direction while you're lining the cast up.
+      if (this.meleeAiming) {
+        this.facing = this.meleeAim;
+        this._facingLockMs = Math.max(this._facingLockMs, 60);
+      }
     }
 
     // Recharge dash charges

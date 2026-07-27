@@ -1,8 +1,16 @@
 import Phaser from 'phaser';
 
-// Melee "Broken Wings" button. A plain tap widget (no drag-aim — the combo
-// lunges along the auto-aim direction), plus a 0..1 charge gauge and combo
-// pips showing how far through the 3-cast chain you are.
+// Melee "Broken Wings" button. A drag-aim widget: tap-release lunges along the
+// auto-aim direction, press-and-drag points the cast anywhere and shows the
+// telegraph while held. Plus a 0..1 charge gauge and combo pips showing how far
+// through the 3-cast chain you are.
+//
+// The gesture rig below is a port of SuperButton's, with one deliberate
+// difference: this one does NOT fire onAim at touch-down. The super's cone
+// appears the instant you touch it; a melee tap has to fire with no telegraph
+// at all, so the aim state arms only once the drag passes `tapMax` or the hold
+// outlives PLAYER.meleeAimArmMs (that timer lives on Player, which is the only
+// place that sees frames).
 //
 // NOTE: anything placed in the right-thumb zone must also be added to the fire
 // joystick's `shouldClaim` exclusion list in HUD.js, or the stick will claim
@@ -13,7 +21,14 @@ export class MeleeButton {
     this.x = opts.x;
     this.y = opts.y;
     this.radius = opts.radius || 46;
-    this.onPress = opts.onPress || (() => {});
+    this.dragRadius = opts.dragRadius || 78;
+    this.deadzone = opts.deadzone ?? 0.18;
+    // Peak-drag tap threshold — see SuperButton.js:17. Below it the release is
+    // treated as a tap and reports force 0, immunising taps against the ~20-30px
+    // of incidental finger roll that would otherwise read as a deliberate aim.
+    this.tapMax = (opts.tapMax ?? 0.42) * this.dragRadius;
+    this.onAim = opts.onAim || (() => {});
+    this.onRelease = opts.onRelease || (() => {});
     this.isReady = opts.isReady || (() => true);
 
     this.image = scene.add.image(this.x, this.y, 'melee-btn-off').setDepth(40);
@@ -31,8 +46,18 @@ export class MeleeButton {
     this._glowTween = null;
     this._wasReady = false;
 
+    // Drag knob — only visible once the gesture becomes a real aim-drag.
+    this.knob = scene.add.image(this.x, this.y, 'joystick-knob')
+      .setDepth(42).setAlpha(0).setScale(0.6);
+
     this.pointerId = null;
+    this.vec = { x: 0, y: 0, force: 0, angle: 0 };
+    this._downX = 0;
+    this._downY = 0;
+    this._peakDist = 0;
+
     scene.input.on('pointerdown', this.handleDown, this);
+    scene.input.on('pointermove', this.handleMove, this);
     scene.input.on('pointerup', this.handleUp, this);
     scene.input.on('pointerupoutside', this.handleUp, this);
   }
@@ -46,13 +71,72 @@ export class MeleeButton {
     if (!this.containsPoint(pointer.x, pointer.y)) return;
     if (!this.isReady()) return;
     this.pointerId = pointer.id;
+    this._downX = pointer.x;
+    this._downY = pointer.y;
+    this._peakDist = 0;
     this.image.setScale(1.12);
-    this.onPress();
+    this.updateVec(pointer.x, pointer.y);
+    // Note: no onAim() here, unlike SuperButton. Firing it now would flash the
+    // telegraph on every tap, which is exactly what this must not do.
+    this.onAim(this._emitVec());
+  }
+
+  handleMove(pointer) {
+    if (this.pointerId !== pointer.id) return;
+    this.updateVec(pointer.x, pointer.y);
+    // The knob only appears once the drag is unambiguous, so a tap shows no
+    // aiming affordance at all.
+    this.knob.setAlpha(this._peakDist >= this.tapMax ? 0.9 : 0);
+    this.onAim(this._emitVec());
   }
 
   handleUp(pointer) {
     if (this.pointerId !== pointer.id) return;
     this.pointerId = null;
+    const final = this._emitVec();
+    this.vec.x = 0;
+    this.vec.y = 0;
+    this.vec.force = 0;
+    this.knob.setPosition(this.x, this.y).setAlpha(0);
+    this.image.setScale(1);
+    this.onRelease(final);
+  }
+
+  // Reports force 0 until the finger has travelled a deliberate distance from
+  // its touch-down point, so both the telegraph and the fire path take the
+  // auto-aim branch for a tap.
+  _emitVec() {
+    if (this._peakDist < this.tapMax) {
+      return { x: this.vec.x, y: this.vec.y, force: 0, angle: this.vec.angle };
+    }
+    return { ...this.vec };
+  }
+
+  updateVec(px, py) {
+    const dx = px - this.x;
+    const dy = py - this.y;
+    const dist = Math.hypot(dx, dy);
+    const mdx = px - this._downX;
+    const mdy = py - this._downY;
+    this._peakDist = Math.max(this._peakDist, Math.hypot(mdx, mdy));
+    const clamped = Math.min(dist, this.dragRadius);
+    const nx = dist > 0 ? (dx / dist) * clamped : 0;
+    const ny = dist > 0 ? (dy / dist) * clamped : 0;
+    this.knob.setPosition(this.x + nx, this.y + ny);
+    const raw = clamped / this.dragRadius;
+    const force = raw < this.deadzone ? 0 : (raw - this.deadzone) / (1 - this.deadzone);
+    this.vec.x = dist > 0 ? dx / dist : 0;
+    this.vec.y = dist > 0 ? dy / dist : 0;
+    this.vec.force = force;
+    this.vec.angle = Math.atan2(dy, dx);
+  }
+
+  // Hard reset without casting (used on resume from pause).
+  forceRelease() {
+    this.pointerId = null;
+    this.vec = { x: 0, y: 0, force: 0, angle: 0 };
+    this._peakDist = 0;
+    this.knob.setPosition(this.x, this.y).setAlpha(0);
     this.image.setScale(1);
   }
 
@@ -131,6 +215,7 @@ export class MeleeButton {
   shutdown() {
     const scene = this.scene;
     scene.input.off('pointerdown', this.handleDown, this);
+    scene.input.off('pointermove', this.handleMove, this);
     scene.input.off('pointerup', this.handleUp, this);
     scene.input.off('pointerupoutside', this.handleUp, this);
     this._glowTween?.remove();
@@ -138,5 +223,6 @@ export class MeleeButton {
     this.image.destroy();
     this.gauge.destroy();
     this.readyGlow.destroy();
+    this.knob.destroy();
   }
 }

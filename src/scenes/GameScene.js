@@ -172,7 +172,23 @@ export class GameScene extends Phaser.Scene {
     // R = melee Broken Wings combo (tap three times to chain the finisher).
     // NOT Q: HUD.js already binds Q to the stealth takedown, and doubling up
     // would fire both a takedown and a combo cast from one press.
-    this.input.keyboard?.on('keydown-R', () => this.player?.tryMeleeCombo());
+    // Tap fires instantly along the auto-aim; holding past PLAYER.meleeAimArmMs
+    // raises the telegraph and steers it with the mouse, casting on release.
+    // Same shape as the SPACE super hold above.
+    this._rDownAt = 0;
+    this.input.keyboard?.on('keydown-R', (ev) => {
+      if (ev.repeat) return;
+      const p = this.player;
+      if (!p?.alive) return;
+      this._rDownAt = this.time.now;
+      p.beginKeyboardMeleeAim();
+    });
+    this.input.keyboard?.on('keyup-R', () => {
+      const p = this.player;
+      if (!this._rDownAt) return;
+      this._rDownAt = 0;
+      p?.endKeyboardMeleeAim();
+    });
     this.input.keyboard?.on('keydown-E', () => {
       if (this._takedownTarget) {
         this.performTakedown();
@@ -2526,7 +2542,7 @@ export class GameScene extends Phaser.Scene {
     const g = this.aimGraphics;
     g.clear();
     const p = this.player;
-    if (!p?.alive) { this.fx?.hideSuperChargeOrb?.(); return; }
+    if (!p?.alive) { this.fx?.hideSuperChargeOrb?.(); this._hideMeleeGhost(); return; }
     const gap = PLAYER.radius + 6;
     let activeAim = null, activeRange = 0, activeSpread = 0;
     if (p.superAiming && p.superCharge >= PLAYER.superHitsToCharge) {
@@ -2556,6 +2572,150 @@ export class GameScene extends Phaser.Scene {
     // Aim laser — thin red line + dot to first wall hit. Only when actively
     // aiming (right stick held). Sits on top of the cone for clarity.
     if (activeAim != null) this._drawAimLaser(g, p.x, p.y, activeAim, activeRange, gap);
+
+    // Melee telegraph, drawn last so it sits over the gun's cone if both are up.
+    // Deliberately cyan — the super's cone is hot red and the two must never be
+    // confusable at a glance.
+    if (p.meleeAiming) this._drawMeleeTelegraph(g, p, gap);
+    else this._hideMeleeGhost();
+  }
+
+  // What the next cast will actually do. Casts 1-2 preview the swing cone;
+  // cast 3 previews the RADIAL slam as a full circle, because that is the shape
+  // it hits — a cone there would be a lie.
+  _drawMeleeTelegraph(g, p, gap) {
+    const CY = 0x3aa8e8, GLOW = 0x90d8ff;
+    const PREVIEW_MS = 1000;   // one dry run of the cast per second, looping
+    const dir = p.meleeAim;
+    const finisher = p._comboStage >= 2;
+
+    // Where the gap-close lunge will actually put the player. Derived from the
+    // same solver the lunge uses, so the preview cannot disagree with it.
+    const spd = finisher ? PLAYER.meleeFinisherLungeSpeed : PLAYER.meleeLungeSpeed;
+    const travel = (p._gapCloseMs(dir, spd, finisher) / 1000) * spd;
+    const lx = p.x + Math.cos(dir) * travel;
+    const ly = p.y + Math.sin(dir) * travel;
+
+    // The telegraph is a faint DRY RUN of the cast, looping while held: a ghost
+    // of the player standing where the lunge will actually drop them, playing
+    // the pose the cast will play, with the blade sweep it will sweep. An
+    // abstract wedge told you the numbers; this tells you the move.
+    const loop = (this.time.now % PREVIEW_MS) / PREVIEW_MS;
+    const ease = Phaser.Math.Easing.Cubic.Out(loop);
+    const fade = 1 - Math.pow(loop, 2.2);   // holds, then drops — as bladeArc does
+
+    // Footprint of what actually gets hit, dimmed right back: it is reference,
+    // not the subject.
+    if (finisher) {
+      g.fillStyle(CY, 0.10);
+      g.fillCircle(lx, ly, PLAYER.meleeSlamRadius);
+      g.lineStyle(2, GLOW, 0.40);
+      g.strokeCircle(lx, ly, PLAYER.meleeSlamRadius);
+      // Preview of the shockwave: a ring running the same expansion the slam
+      // will run, on the same loop as the ghost's flip.
+      g.lineStyle(3, GLOW, 0.55 * fade);
+      g.strokeCircle(lx, ly, PLAYER.meleeSlamRadius * ease);
+    } else {
+      const half = Phaser.Math.DegToRad(PLAYER.meleeArcDeg) / 2;
+      g.fillStyle(CY, 0.10);
+      g.beginPath();
+      g.moveTo(lx, ly);
+      g.arc(lx, ly, PLAYER.meleeRange, dir - half, dir + half, false);
+      g.closePath();
+      g.fillPath();
+      g.lineStyle(2, GLOW, 0.40);
+      g.beginPath();
+      g.arc(lx, ly, PLAYER.meleeRange, dir - half, dir + half, false);
+      g.strokePath();
+    }
+
+    // The swing itself, swept on the loop — same crescent geometry the real
+    // bladeArc draws, at a fraction of its opacity.
+    this._drawPreviewArc(g, lx, ly, dir,
+      finisher ? PLAYER.meleeSlamRadius * 0.55 : PLAYER.meleeRange * 0.78,
+      p._comboStage + 1, ease, fade);
+
+    // Run-up. Dashes crawl along the path on the same loop so the telegraph
+    // reads as travel rather than a static line.
+    if (travel > gap + 4) {
+      const DASH = 13, STEP = 24;
+      g.lineStyle(2, GLOW, 0.45);
+      for (let d = gap + loop * STEP; d < travel - 2; d += STEP) {
+        const e = Math.min(d + DASH, travel - 2);
+        g.beginPath();
+        g.moveTo(p.x + Math.cos(dir) * d, p.y + Math.sin(dir) * d);
+        g.lineTo(p.x + Math.cos(dir) * e, p.y + Math.sin(dir) * e);
+        g.strokePath();
+      }
+    }
+
+    this._drawMeleeGhost(p, lx, ly, dir, finisher, ease);
+  }
+
+  // Translucent stand-in for the player at the landing point, posed the way the
+  // cast will pose them: casts 1-2 lean into the swing, the finisher cartwheels
+  // through a full 360 (Player._meleeFlipRad). setTintFill, not setTint — the
+  // sprite is already near-black, so a multiply tint would show nothing (the
+  // same trap the dash afterimage documents at _spawnDashAfterimage).
+  _drawMeleeGhost(p, lx, ly, dir, finisher, ease) {
+    let ghost = this._meleeGhost;
+    if (!ghost) {
+      ghost = this._meleeGhost = this.add.image(lx, ly, p.texture.key, p.frame.name)
+        .setTintFill(0x7fe0ff)
+        .setBlendMode(Phaser.BlendModes.ADD);
+    }
+    ghost.setTexture(p.texture.key, p.frame.name)
+      .setPosition(lx, ly)
+      .setVisible(true)
+      .setDepth(ly - 2)
+      .setFlipX(Math.cos(dir) < 0);
+    if (finisher) {
+      // Airborne somersault: spin, plus the rise-and-fall of the leap.
+      const air = Math.sin(ease * Math.PI);
+      ghost.setAngle(Phaser.Math.RadToDeg(ease * Math.PI * 2));
+      ghost.setScale(p.scaleX * (1 + air * 0.22));
+      ghost.setAlpha(0.30 + air * 0.16);
+    } else {
+      const side = p._comboStage === 1 ? -1 : 1;   // casts 1 and 2 mirror
+      ghost.setAngle(Math.sin(ease * Math.PI) * 26 * side);
+      ghost.setScale(p.scaleX);
+      ghost.setAlpha(0.34);
+    }
+  }
+
+  _hideMeleeGhost() {
+    if (this._meleeGhost) this._meleeGhost.setVisible(false);
+  }
+
+  // The crescent bladeArc will sweep, at preview weight. Kept in step with
+  // FX.bladeArc's geometry so the dry run and the real thing agree.
+  _drawPreviewArc(g, x, y, angle, radius, stage, t, fade) {
+    const d = stage === 2 ? -1 : 1;
+    const span = stage >= 3 ? Math.PI * 1.5 : Math.PI * 0.95;
+    const maxT = stage >= 3 ? 22 : 14;
+    const a0 = angle - d * span / 2;
+    const N = 18;
+    const band = (thick, colour, alpha) => {
+      const pts = [];
+      for (let i = 0; i <= N; i++) {
+        const u = i / N;
+        const a = a0 + d * span * t * u;
+        const ht = thick * Math.sqrt(u);
+        pts.push(new Phaser.Geom.Point(x + Math.cos(a) * (radius + ht),
+                                       y + Math.sin(a) * (radius + ht)));
+      }
+      for (let i = N; i >= 0; i--) {
+        const u = i / N;
+        const a = a0 + d * span * t * u;
+        const ht = thick * Math.sqrt(u);
+        pts.push(new Phaser.Geom.Point(x + Math.cos(a) * (radius - ht),
+                                       y + Math.sin(a) * (radius - ht)));
+      }
+      g.fillStyle(colour, alpha);
+      g.fillPoints(pts, true);
+    };
+    band(maxT, 0x3aa8e8, 0.28 * fade);
+    band(maxT * 0.45, 0x90d8ff, 0.45 * fade);
   }
 
   // Thin red laser line from the gun tip out to the first wall hit (or full
