@@ -717,9 +717,9 @@ export class HUDScene extends Phaser.Scene {
       return;
     }
 
-    const ICON = { rifle: 'pickup-rifle', detonator: 'pickup-det' };
-    const NAMES = { rifle: 'DC-15', detonator: 'DET.' };
-    const COLS  = { rifle: 0xff8010, detonator: 0xff2020 };
+    const ICON = { rifle: 'pickup-rifle', cluster: 'pickup-cluster' };
+    const NAMES = { rifle: 'DC-15', cluster: 'CLUSTER' };
+    const COLS  = { rifle: 0xff8010, cluster: 0xff2020 };
 
     const ammo  = p?.secondaryAmmo ?? 0;
     const col   = COLS[id] ?? 0xffaa40;

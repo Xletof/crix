@@ -1554,6 +1554,7 @@ export class GameScene extends Phaser.Scene {
       this._cameraPunch(1.012, 100);
     });
     this.events.on('grenade-detonate',  (x, y, dmg, r) => this.detonateGrenade(x, y, dmg, r));
+    this.events.on('grenade-cluster',   (x, y)  => this.clusterSplit(x, y));
     this.events.on('shooter-fire',      (s, a)  => this.fireShooter(s, a));
     this.events.on('boss-fan',          (b, a)  => this.fireBossFan(b, a));
     this.events.on('boss-spawn',        ()      => this.bossSpawnMinions());
@@ -1902,6 +1903,73 @@ export class GameScene extends Phaser.Scene {
       this.player.body.velocity.x -= Math.cos(angle) * 45;
       this.player.body.velocity.y -= Math.sin(angle) * 45;
     }
+  }
+
+  // Cluster canister split. Deliberately a small pop rather than the detonator's
+  // full explosion — the payoff is the missiles, and a big blast here would both
+  // steal that beat and hide the fan of contrails behind a fireball.
+  clusterSplit(x, y) {
+    const cfg = WEAPONS.cluster;
+    this.fx.burst(x, y, 'yellow', 12);
+    this.fx.impactRing(x, y, 0xffd020);
+    this.fx.shake(0.008, 140);
+    SFX.shootSuper?.();
+
+    // Fanned evenly over a full circle so the spread reads as a burst opening
+    // out, then each missile turns toward whatever it finds. Offset by half a
+    // step per throw so repeat throws don't stamp the identical pattern.
+    const step = (Math.PI * 2) / cfg.fragments;
+    const base = Math.random() * step;
+    for (let i = 0; i < cfg.fragments; i++) {
+      const a = base + i * step;
+      const b = this.playerBullets.fire(
+        x + Math.cos(a) * 14, y + Math.sin(a) * 14, a,
+        cfg.fragSpeed, cfg.fragDamage * (this.player?.dmgMult ?? 1), cfg.fragRange,
+        {
+          owner: 'player',
+          knockback: 120,
+          homing: { turnRate: cfg.fragTurnRate, searchRadius: cfg.fragSearchRadius },
+        },
+      );
+      if (!b) continue;
+      // Swap the look AFTER fire(), which pools the group's shared 'bullet'
+      // texture. fire() sized the hitbox from THAT texture's width, so the
+      // circle has to be re-derived here or the missile keeps the pistol
+      // bolt's collision radius (Bullet.fire's setCircle(width / 2) is the
+      // texture-size trap called out in CLAUDE.md).
+      b.setTexture('frag-missile');
+      b.body.setCircle(b.width / 2);
+      this._missileTrail(b);
+    }
+  }
+
+  // Contrail for a seeking missile. Same taper-and-fade shape as the melee
+  // lunge trail, stamped along the flight path each frame instead of once.
+  _missileTrail(bullet) {
+    const low = isLowQuality();
+    const ev = this.time.addEvent({
+      delay: low ? 60 : 32,
+      loop: true,
+      callback: () => {
+        // The bullet is pooled, so `active` going false IS the death signal —
+        // the object itself is reused rather than destroyed.
+        if (!bullet.active || !bullet.scene) { ev.remove(); return; }
+        const g = this.add.graphics().setDepth(bullet.depth - 1)
+          .setBlendMode(Phaser.BlendModes.ADD);
+        g.fillStyle(0xffb040, 0.5);
+        g.fillCircle(bullet.x, bullet.y, 5);
+        g.fillStyle(0xfff0c0, 0.6);
+        g.fillCircle(bullet.x, bullet.y, 2.5);
+        this.tweens.add({
+          targets: g, alpha: 0, scale: 0.4,
+          duration: low ? 180 : 300, ease: 'Cubic.easeOut',
+          onComplete: () => g.destroy(),
+        });
+      },
+    });
+    // Belt and braces: a missile that somehow never deactivates can't leave the
+    // emitter running for the rest of the room.
+    this.time.delayedCall(4000, () => ev.remove());
   }
 
   detonateGrenade(x, y, damage, radius) {
@@ -2962,7 +3030,7 @@ export class GameScene extends Phaser.Scene {
   _spawnWaveReward(wave) {
     const rx = this.player.x, ry = this.player.y - 40;
     if (wave.reward === 'weapon') {
-      const weapons = ['rifle', 'detonator'];
+      const weapons = ['rifle', 'cluster'];
       const choice = weapons[Phaser.Math.Between(0, weapons.length - 1)];
       const wp = new WeaponPickup(this, rx, ry, choice);
       this.weaponPickups.push(wp);
@@ -3087,7 +3155,7 @@ export class GameScene extends Phaser.Scene {
   spawnTerminalSupportDrop(t) {
     if (Math.random() < 0.5) {
       // Drop heavy weapon pickup
-      const weapons = ['rifle', 'detonator'];
+      const weapons = ['rifle', 'cluster'];
       const choice = weapons[Phaser.Math.Between(0, weapons.length - 1)];
       const wp = new WeaponPickup(this, t.x, t.y + 35, choice);
       this.weaponPickups.push(wp);

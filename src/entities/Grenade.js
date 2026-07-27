@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
 import { WEAPONS } from '../config.js';
 
-const CFG = WEAPONS.detonator;
+const CFG = WEAPONS.cluster;
 
-// Thermal detonator — thrown in arc direction, detonates after fuseMs.
-// GameScene listens to 'grenade-detonate' and handles AoE.
+// Cluster canister — thrown in arc direction, splits after fuseMs.
+// GameScene listens to 'grenade-cluster' and spawns the homing micro-missiles.
 export class Grenade extends Phaser.Physics.Arcade.Image {
   constructor(scene, x, y, vx, vy) {
     super(scene, x, y, 'grenade');
@@ -83,7 +83,9 @@ export class Grenade extends Phaser.Physics.Arcade.Image {
   _detonate() {
     if (!this.active) return;
     this._blinkTimer?.remove();
-    this.scene.events.emit('grenade-detonate', this.x, this.y, CFG.damage, CFG.blastRadius);
+    // The blink is now a split timer rather than a detonation fuse — same tell,
+    // different payoff.
+    this.scene.events.emit('grenade-cluster', this.x, this.y);
     this.destroy();
   }
 

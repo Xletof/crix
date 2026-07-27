@@ -102,7 +102,7 @@ export const ROOMS = [
       { type: 'sniper', x: 1050, y: 1100 },
     ],
     pickups: [
-      { x: 800, y: 700, weapon: 'detonator' },
+      { x: 800, y: 700, weapon: 'cluster' },
     ],
     terminals: [
       { x: 500, y: 450 },

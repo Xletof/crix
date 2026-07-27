@@ -16,6 +16,11 @@ export class Bullet extends Phaser.Physics.Arcade.Image {
     this.hitSet = new Set();
     this.owner = null; // 'player' | 'enemy' | 'boss'
     this.knockback = 0;
+    // Seeking config, or null for a straight shot. Living on Bullet rather than
+    // in a parallel Missile class is deliberate: every collision, damage,
+    // knockback and impact-FX path downstream already handles bullets, so a
+    // homing round needs no new wiring anywhere else.
+    this.homing = null;
   }
 
   fire(x, y, angle, speed, damage, range, opts = {}) {
@@ -34,6 +39,8 @@ export class Bullet extends Phaser.Physics.Arcade.Image {
     this.piercing = opts.piercing || false;
     this.knockback = opts.knockback || 0;
     this.owner = opts.owner || 'player';
+    this.homing = opts.homing || null;
+    this._speed = speed;   // steering re-applies this so a turn never accelerates
     this.hasHit = false;
     this.hitSet.clear();
     this.body.setCircle(this.width / 2);
@@ -43,6 +50,7 @@ export class Bullet extends Phaser.Physics.Arcade.Image {
   preUpdate(time, delta) {
     super.preUpdate?.(time, delta);
     if (!this.active) return;
+    if (this.homing) this._steer(delta);
     const dx = this.x - this.lastX;
     const dy = this.y - this.lastY;
     this.traveled += Math.sqrt(dx * dx + dy * dy);
@@ -53,8 +61,29 @@ export class Bullet extends Phaser.Physics.Arcade.Image {
     }
   }
 
+  // Turn toward the nearest enemy at a bounded rate. Capping the turn (rather
+  // than snapping the velocity at the target) is what makes it read as a
+  // missile tracking rather than a magnet: it can overshoot a fast crosser and
+  // has to swing back around.
+  _steer(delta) {
+    const { turnRate = 4, searchRadius = 520 } = this.homing;
+    const t = this.scene?.findNearestEnemy?.(this.x, this.y);
+    if (!t) return;
+    if (Math.hypot(t.x - this.x, t.y - this.y) > searchRadius) return;
+
+    const want = Math.atan2(t.y - this.y, t.x - this.x);
+    const have = Math.atan2(this.body.velocity.y, this.body.velocity.x);
+    const max  = turnRate * (delta / 1000);
+    const a    = have + Phaser.Math.Clamp(Phaser.Math.Angle.Wrap(want - have), -max, max);
+    // Re-apply the ORIGINAL speed, so repeated steering can't compound into an
+    // ever-faster round.
+    this.setVelocity(Math.cos(a) * this._speed, Math.sin(a) * this._speed);
+    this.setRotation(a);
+  }
+
   kill() {
     const isMiss = this.owner === 'player' && !this.piercing && !this.hasHit && this.active;
+    this.homing = null;
     this.setActive(false);
     this.setVisible(false);
     if (this.body) this.body.stop();

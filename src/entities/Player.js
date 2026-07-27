@@ -82,7 +82,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // ── Secondary weapon slot ──────────────────────────────────────────────
     // null means pistol only. Set by equipSecondary(weaponId).
     this.secondary      = null;  // weapon id string
-    this.secondaryAmmo  = 0;     // rifle ammo / detonator charges
+    this.secondaryAmmo  = 0;     // rifle ammo / cluster charges
 
     // Burst fire state (rifle)
     this._burstRemaining = 0;
@@ -339,8 +339,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.secondary === 'rifle' && this.secondaryAmmo > 0) {
       return this._startBurst(dir);
     }
-    if (this.secondary === 'detonator' && this.secondaryAmmo > 0) {
-      return this._throwDetonator(dir);
+    if (this.secondary === 'cluster' && this.secondaryAmmo > 0) {
+      return this._throwCluster(dir);
     }
     // Default: pistol
     return this._firePistol(dir);
@@ -393,9 +393,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  _throwDetonator(dir) {
+  _throwCluster(dir) {
     if (this.fireCooldown > 0) return false;
-    const cfg            = WEAPONS.detonator;
+    const cfg            = WEAPONS.cluster;
     this.secondaryAmmo  -= 1;
     this.fireCooldown    = 400;
     this._fireAnimTimer  = 200;
@@ -519,7 +519,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.secondary  = weaponId;
     // Set initial ammo/fuel/charges
     if (weaponId === 'rifle')          this.secondaryAmmo = cfg.totalAmmo;
-    else if (weaponId === 'detonator') this.secondaryAmmo = cfg.charges;
+    else if (weaponId === 'cluster')   this.secondaryAmmo = cfg.charges;
     this.scene.events.emit('secondary-equipped', weaponId);
     this.scene.events.emit('secondary-ammo-changed');
     SFX.waveStart(); // pickup chime

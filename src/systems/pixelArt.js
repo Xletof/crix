@@ -1338,8 +1338,8 @@ export function paintSuperSlug(scene, key = 'bullet-super') {
 
 // Wrist-rocket / missile — points EAST in the texture (nose right, flame left)
 // so setRotation(travelAngle) orients it naturally to its velocity.
-// Currently unused (the super moved to paintSuperSlug); kept for a future
-// rocket-type weapon since it's self-contained.
+// This is the "future rocket-type weapon" it was kept for: the cluster pod's
+// seeking micro-missiles paint it as 'frag-missile'.
 export function paintMissile(scene, key = 'bullet-missile') {
   const c = new PixelCanvas(scene, key, 18, 8, 3);
 
@@ -1701,22 +1701,32 @@ export function paintWeaponPickups(scene) {
   r.px(22, 9, '#ffd870');
   r.finish();
 
-  // ── Thermal detonator — round sphere, silver band, red button ─────────────
-  const d = new PixelCanvas(scene, 'pickup-det', 24, 24, 4);
+  // ── Cluster pod — canister with visible sub-munitions in a loading rack ────
+  // Reads as "this comes apart" at a glance, which the old smooth detonator
+  // sphere did not: the split is the whole point of the weapon now.
+  const d = new PixelCanvas(scene, 'pickup-cluster', 24, 24, 4);
   const cx = 12, cy = 12;
-  d.circle(cx, cy, 9, PAL.impDark);              // dark rim
-  d.circle(cx, cy, 8, PAL.impMid);
-  d.circle(cx - 1, cy - 1, 7, PAL.impGrey);      // body
-  d.circle(cx - 2, cy - 2, 4, PAL.impLight);     // upper-left light
-  d.circle(cx - 3, cy - 3, 2, PAL.impSheen);     // hot highlight
-  d.px(cx - 4, cy - 3, PAL.metalLight);
-  // Equatorial silver band (kept inside the disc so it stays round)
-  d.hline(cy,     cx - 7, cx + 7, PAL.metalLight);
-  d.hline(cy + 1, cx - 6, cx + 6, PAL.impSheen);
-  // Red activation button (top)
-  d.rect(cx - 1, cy - 6, 3, 2, '#cc0000');
-  d.rect(cx - 1, cy - 6, 2, 1, '#ff2828');
-  d.px(cx, cy - 6, '#ff8888');
+  // Canister body — a capsule, deliberately NOT a sphere.
+  d.rect(cx - 5, cy - 8, 10, 16, PAL.impDark);
+  d.rect(cx - 4, cy - 7, 8, 14, PAL.impMid);
+  d.rect(cx - 4, cy - 7, 3, 14, PAL.impGrey);    // left light face
+  d.rect(cx - 4, cy - 7, 2, 5, PAL.impLight);    // upper highlight
+  d.px(cx - 4, cy - 7, PAL.impSheen);
+  // Nose cone.
+  d.rect(cx - 3, cy - 9, 6, 1, PAL.impMid);
+  d.rect(cx - 2, cy - 10, 4, 1, PAL.metalLight);
+  // Rack bands — three seams where it splits open.
+  [-4, 0, 4].forEach((oy) => {
+    d.hline(cy + oy, cx - 5, cx + 4, PAL.metalLight);
+    d.hline(cy + oy + 1, cx - 5, cx + 4, PAL.impDark);
+  });
+  // Sub-munition tips poking out of the rack, red so they read as live.
+  [-6, -2, 2, 6].forEach((oy) => {
+    d.px(cx + 5, cy + oy, '#cc0000');
+    d.px(cx + 6, cy + oy, '#ff2828');
+  });
+  // Warning stripe.
+  d.rect(cx - 3, cy + 6, 5, 1, '#ff2828');
   d.finish();
 }
 

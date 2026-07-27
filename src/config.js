@@ -113,16 +113,38 @@ export const WEAPONS = {
     color: 0xffb020,     // amber — clearly apart from the detonator's red
     outline: 'hex',
   },
-  detonator: {
-    id: 'detonator',
-    name: 'THERMAL DET.',
+  // Cluster canister — thrown like the old thermal detonator, but instead of a
+  // flat blast it splits into homing micro-missiles. Replaces the detonator:
+  // a deployed weapon that just dealt radius damage where it landed was the
+  // most passive thing in the kit, and this turns it into active crowd control.
+  cluster: {
+    id: 'cluster',
+    name: 'CLUSTER POD',
     charges: 3,
     throwSpeed: 510,
-    fuseMs: 1100,
-    blastRadius: 130,
-    damage: 500,
-    tex: 'pickup-det',
-    color: 0xff2828,     // red — matches its grenade/blast identity
+    fuseMs: 900,         // shorter than the old fuse — the split IS the payoff
+    // Fragmentation. Total damage (5 x 130 = 650) sits above the detonator's
+    // flat 500 because the missiles can miss a fleeing target, where the old
+    // blast could not.
+    fragments: 5,
+    fragDamage: 130,
+    fragSpeed: 620,
+    // Range and turn rate are coupled, and getting them wrong is what makes a
+    // homing weapon feel broken. A bounded turn gives a minimum turning circle
+    // of speed/turnRate; at 5.2 rad/s that was 119px, so a missile launched
+    // away from its target spent ~375px of arc just coming about and hit its
+    // 900px range limit before arriving. Only 2 of 5 connected against a lone
+    // STATIONARY target 420px out. Tightening the turn to a 69px circle and
+    // extending the range takes that to 3-4 of 5 (it varies with the fan's
+    // random start offset; the one launched straight away is the usual miss).
+    // That is the intended shape — a real spread weapon, not a guaranteed
+    // 5-hit magnet — and it lands more in practice, since enemies engage from
+    // 250-380px and each missile picks its own nearest target.
+    fragRange: 1400,
+    fragTurnRate: 9.0,   // rad/s
+    fragSearchRadius: 560,
+    tex: 'pickup-cluster',
+    color: 0xff2828,     // red — keeps the explosive-slot identity
     outline: 'diamond',
   },
 };
