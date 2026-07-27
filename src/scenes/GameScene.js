@@ -207,6 +207,9 @@ export class GameScene extends Phaser.Scene {
       this.scene.stop('HUD');
       this.healthOrbs.forEach((o) => { this.tweens.killTweensOf(o.gfx); o.gfx.destroy(); });
       this.healthOrbs = [];
+      // Drop the cached melee telegraph ghost: the scene instance is reused on
+      // restart, so a stale handle to a destroyed image would survive with it.
+      this._meleeGhost = null;
     });
   }
 
@@ -396,7 +399,11 @@ export class GameScene extends Phaser.Scene {
     const hue   = ((this.sector - 1) * 0.11) % 1;               // rotate per sector
     const color = Phaser.Display.Color.HSVToRGB(hue, 0.7, 1).color;
     const alpha = Math.min(0.05 + (this.sector - 1) * 0.02, 0.20);
-    if (!this._sectorTint) {
+    // `.active` as well as existence, for the reason _meleeGhost documents: the
+    // scene instance survives a restart, so this handle can outlive its object.
+    // Here it fails silently rather than crashing — the tint would be applied to
+    // a destroyed rectangle and simply never appear.
+    if (!this._sectorTint || !this._sectorTint.active) {
       this._sectorTint = this.add.rectangle(0, 0, this.cameras.main.width, this.cameras.main.height, color, alpha)
         .setOrigin(0, 0)
         .setScrollFactor(0)
@@ -2730,8 +2737,13 @@ export class GameScene extends Phaser.Scene {
   // sprite is already near-black, so a multiply tint would show nothing (the
   // same trap the dash afterimage documents at _spawnDashAfterimage).
   _drawMeleeGhost(p, lx, ly, dir, finisher, ease) {
+    // Phaser REUSES the scene instance across a restart, so this cached handle
+    // outlives the image it points at: shutdown destroys the game object and
+    // clears its `scene`, but the property survives into the next run. Checking
+    // `.scene` (not just truthiness) is what makes the cache safe — without it
+    // the first aim after a restart crashed inside setTexture on `scene.sys`.
     let ghost = this._meleeGhost;
-    if (!ghost) {
+    if (!ghost || !ghost.scene) {
       ghost = this._meleeGhost = this.add.image(lx, ly, p.texture.key, p.frame.name)
         .setTintFill(0x7fe0ff)
         .setBlendMode(Phaser.BlendModes.ADD);
@@ -2756,7 +2768,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   _hideMeleeGhost() {
-    if (this._meleeGhost) this._meleeGhost.setVisible(false);
+    if (this._meleeGhost?.scene) this._meleeGhost.setVisible(false);
   }
 
   // The crescent bladeArc will sweep, at preview weight. Kept in step with
