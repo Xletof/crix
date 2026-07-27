@@ -996,19 +996,18 @@ export function attachFX(scene) {
         });
       }
 
-      // The glow burns off; the scar stays. Baked into the room's decal texture
-      // at high alpha so the slam leaves a mark you can still read a minute
-      // later, rather than vanishing with the tween.
+      // Both layers burn off and the fractures are GONE inside ~2.4s. They used
+      // to bake into the room's decal texture and persist, which read well for
+      // a single slam but stacked into a dark web across the playfield once the
+      // combo was used repeatedly — the floor stopped reading as floor.
       scene.tweens.add({
-        targets: glow, alpha: 0, duration: 700, ease: 'Quad.easeIn',
+        targets: glow, alpha: 0, duration: 650, ease: 'Quad.easeIn',
         onComplete: () => glow.destroy(),
       });
       scene.tweens.add({
-        targets: scar, alpha: 0.92, duration: 900, ease: 'Quad.easeIn',
-        onComplete: () => {
-          if (scene._bakeDecal) scene._bakeDecal(scar);   // destroys it
-          else scar.destroy();
-        },
+        targets: scar, alpha: 0,
+        duration: 1800, delay: 550, ease: 'Quad.easeIn',
+        onComplete: () => scar.destroy(),
       });
     },
 
@@ -1188,8 +1187,30 @@ export function attachFX(scene) {
         .setDepth(30)
         .setScale(0.2);
 
-      const dx = Phaser.Math.Between(-55, 55);
-      const dy = Phaser.Math.Between(-85, -60);
+      // Fan successive numbers around a circle by the golden angle instead of
+      // rolling an independent random offset each time. Random offsets cluster:
+      // several hits landing on one enemy in the same frame drew their numbers
+      // within a few pixels of each other, stacking into an illegible blob.
+      // A golden-angle sequence guarantees consecutive labels separate.
+      // Numbers used to spawn on the hit point with only a random drift, so a
+      // burst of hits in one frame stacked into a single unreadable blob.
+      //
+      // Deal them into 8 fixed slots instead — two rings of four, the outer ring
+      // rotated 45 degrees between the inner ones. Fixed slots beat both random
+      // offsets and a golden-angle spiral here: with only a handful of labels on
+      // screen, random clusters and a spiral squashed into a top-down ellipse
+      // still puts consecutive points ~10px apart. This guarantees ~34px.
+      this._dmgSeq = (this._dmgSeq || 0) + 1;
+      const slot  = this._dmgSeq % 8;
+      const outer = slot >= 4;
+      const a     = ((slot % 4) * 90 + (outer ? 45 : 0)) * Math.PI / 180;
+      const rad   = outer ? 62 : 34;
+      const ox = Math.cos(a) * rad, oy = Math.sin(a) * rad * 0.75;
+      t.setPosition(x + ox, y + oy);
+      // Then keep drifting outward along the same bearing, so the pop reads as
+      // scatter rather than as a ring that sits still.
+      const dx = ox * 0.9;
+      const dy = oy * 0.9 - 58;                              // biased upward
 
       // Bounce scale tween
       scene.tweens.add({

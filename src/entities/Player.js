@@ -419,6 +419,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (!this.alive) return false;
     if (this.superCharge < PLAYER.superHitsToCharge) return false;
     this.superCharge = 0;
+    // Tell the HUD the meter was spent. refreshSuper is event-driven ONLY, so
+    // without this the button kept its lit texture and pulsing ready-glow until
+    // the next hit happened to tick the meter — it read as still available.
+    // tryMeleeCombo already emits its equivalent when it spends the melee meter.
+    this.scene.events.emit('player-super-changed');
     this.revealTimer = 1500; // Reveal player
     const dir = typeof angleOverride === 'number' ? angleOverride
       : this.superAiming ? this.superAim : this.aiming ? this.aim : this.facing;

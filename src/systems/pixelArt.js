@@ -1573,7 +1573,13 @@ export function paintJoystick(scene) {
 }
 
 export function paintSuperButton(scene) {
-  // Lightsaber hilt button (ready = glowing red, off = dark)
+  // Shotgun-spread button (ready = hot red, off = dark grey).
+  //
+  // Was a red lightsaber hilt, which described neither the ability nor anything
+  // else in the game — the super is a 5-pellet scatter blast. Drawn in the same
+  // idiom as the melee sword button (disc, rim, then a solid glyph with a bright
+  // core), so the two action buttons read as a matched pair. The pellet count is
+  // literally PLAYER.superPellets, so the icon states what the shot does.
   const make = (key, ready) => {
     const r = 60;
     const size = r * 2 + 8;
@@ -1594,33 +1600,60 @@ export function paintSuperButton(scene) {
     ctx.arc(cx, cy, r - 4, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Saber blade (vertical, centered)
-    if (ready) {
-      // Glow aura
-      const grad = ctx.createLinearGradient(cx, cy - r * 0.55, cx, cy + r * 0.1);
-      grad.addColorStop(0, 'rgba(255, 200, 200, 0.0)');
-      grad.addColorStop(0.3, 'rgba(255, 80, 80, 0.35)');
-      grad.addColorStop(1, 'rgba(255, 30, 30, 0.0)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(cx - 10, cy - r * 0.55, 20, r * 0.65);
-      // Blade
-      ctx.fillStyle = PAL.saberRedCore;
-      ctx.fillRect(cx - 3, cy - r * 0.5, 6, r * 0.55);
-      ctx.fillStyle = PAL.saberRed;
-      ctx.fillRect(cx - 5, cy - r * 0.5, 10, r * 0.55);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(cx - 2, cy - r * 0.48, 4, r * 0.5);
-    }
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
-    // Hilt body (crossguard style)
-    const hiltY = cy + r * 0.05;
-    ctx.fillStyle = ready ? PAL.impGrey : PAL.impDark;
-    ctx.fillRect(cx - 4, hiltY, 8, r * 0.4);
-    // Crossguard
-    ctx.fillRect(cx - r * 0.35, hiltY + 2, r * 0.7, 5);
-    ctx.fillStyle = PAL.impSheen;
-    ctx.fillRect(cx - 3, hiltY, 2, r * 0.4);
-    ctx.fillRect(cx - r * 0.33, hiltY + 3, r * 0.66, 2);
+    const bolt   = ready ? PAL.boltRed : '#4a3a3e';
+    const core   = ready ? '#ffffff'   : '#6a5a5e';
+    const barrel = ready ? PAL.impSilver : '#4a5058';
+    const barrLo = ready ? PAL.impGrey   : '#343a42';
+
+    ctx.save();
+    ctx.translate(cx, cy + 20);        // muzzle sits low, spread opens upward
+
+    // Muzzle: a stubby double barrel, the anchor the fan comes out of.
+    ctx.fillStyle = barrLo;
+    ctx.fillRect(-13, 0, 26, 16);
+    ctx.fillStyle = barrel;
+    ctx.fillRect(-13, 0, 26, 4);
+    ctx.fillStyle = barrLo;
+    ctx.fillRect(-2, 0, 4, 16);        // centre seam -> reads as two barrels
+
+    // Five pellet streaks fanning out — one per PLAYER.superPellets. Tapered
+    // polygons rather than strokes, so they keep weight at button size.
+    const SPREAD = [-40, -20, 0, 20, 40];
+    SPREAD.forEach((deg, i) => {
+      const a = (deg - 90) * Math.PI / 180;
+      const near = 8;
+      const far  = i === 2 ? 46 : (i === 1 || i === 3 ? 42 : 35);
+      const nx = Math.cos(a), ny = Math.sin(a);
+      const px = -ny, py = nx;         // perpendicular
+      const w0 = 4.8, w1 = 2.2;        // weight matched to the sword glyph
+      ctx.fillStyle = bolt;
+      ctx.beginPath();
+      ctx.moveTo(nx * near + px * w0, ny * near + py * w0);
+      ctx.lineTo(nx * far + px * w1, ny * far + py * w1);
+      ctx.lineTo(nx * far - px * w1, ny * far - py * w1);
+      ctx.lineTo(nx * near - px * w0, ny * near - py * w0);
+      ctx.closePath();
+      ctx.fill();
+      // Hot pellet head, so each streak terminates in something solid.
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(nx * (far + 2), ny * (far + 2), 3.2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Muzzle flash wedge tying the fan back to the barrel.
+    ctx.fillStyle = ready ? 'rgba(255,120,90,0.45)' : 'rgba(120,100,100,0.20)';
+    ctx.beginPath();
+    ctx.moveTo(0, 2);
+    ctx.lineTo(-16, -20);
+    ctx.lineTo(16, -20);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
 
     tex.refresh();
   };

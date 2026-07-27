@@ -158,8 +158,11 @@ export class HUDScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // Banner (center, transient)
+    // Banner sits just under the top bar, NOT at 32% height: at 60px with a
+    // 1.3x pop it covered the upper play area where enemies close in, and big
+    // streak text landing on top of the fight is what made the screen unreadable.
     this.banner = this.add
-      .text(VIEW.width / 2, VIEW.height * 0.32, ' ', {
+      .text(VIEW.width / 2, HUDCFG.topBarHeight + 66, ' ', {
         fontFamily: FONTS.display,
         fontSize: '60px',
         fontStyle: 'bold',
@@ -263,15 +266,17 @@ export class HUDScene extends Phaser.Scene {
       },
     });
 
-    // Combo multiplier text (above Super button)
-    this.multText = this.add.text(superX, superY - 78, ' ', {
+    // Combo multiplier badge — top-LEFT, just under the bar. It used to sit
+    // above the super button, i.e. inside the right-thumb zone directly over the
+    // action buttons, where a hand covers it exactly when a combo is running.
+    this.multText = this.add.text(18, HUDCFG.topBarHeight + 10, ' ', {
       fontFamily: FONTS.body,
       fontSize: '17px',
       fontStyle: 'bold',
       color: '#ffd040',
       stroke: '#000000',
       strokeThickness: 3
-    }).setOrigin(0.5).setAlpha(0);
+    }).setOrigin(0, 0).setAlpha(0);
 
     // Pause button — top-right play-area corner (right half, excluded from the
     // fire stick's claim region so tapping it never starts an aim drag).
@@ -1280,7 +1285,10 @@ export class HUDScene extends Phaser.Scene {
   showCombo(n) {
     // Reuse a single text object — kill any previous tween/state.
     if (!this.comboText) {
-      this.comboText = this.add.text(VIEW.width / 2, VIEW.height * 0.36, ' ', {
+      // Stacked below the banner, both under the top bar — the two can fire in
+      // the same instant (a multikill emits a banner AND a streak pop), so they
+      // need their own lanes or they overlap into an unreadable pile.
+      this.comboText = this.add.text(VIEW.width / 2, HUDCFG.topBarHeight + 146, ' ', {
         fontFamily: FONTS.display,
         fontSize: '64px',
         fontStyle: 'bold',

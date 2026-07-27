@@ -2950,6 +2950,10 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.flash(200, 64, 255, 128, true);
     this.fx.shake(0.005, 150);
     SFX.superReady?.();
+    // Wipe the floor between waves. _startWave already clears on the way IN,
+    // but a wave's worth of blood, scorch and craters otherwise stays on screen
+    // through the whole clear/breather beat and reads as leftover mess.
+    this.decalRT?.clear();
     this._spawnWaveReward(wave);
   }
 
