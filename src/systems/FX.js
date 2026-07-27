@@ -14,6 +14,8 @@ let sfxDelay = null;   // shared feedback-delay send for SFX "tails" (combo chim
 let lowQuality = false;
 let musicNodes = null;
 let musicStarted = false;
+let musicLoopTimer = null;  // pending setTimeout for the next bar (see startMusic)
+let musicBarNodes = [];     // one-shot voices of the bar currently scheduled
 let intensityGain = null;
 let muted = false;
 const MASTER_VOL = 0.5;
@@ -217,6 +219,15 @@ export function __fxDebug() {
     ctx: audioCtx,
     sfxGain,
     masterGain,
+    // musicGain lets a test measure the bed in isolation — tapping masterGain
+    // in a live arena just measures gunfire.
+    musicGain,
+    // Loop bookkeeping: exactly one bar of voices and at most one pending timer
+    // should exist at any moment. A stop/start cycle that leaks either is what
+    // stacks bars and brings the clipping back.
+    musicStarted,
+    musicBarVoices: musicBarNodes.length,
+    hasMusicLoopTimer: musicLoopTimer !== null,
   };
 }
 
@@ -467,6 +478,10 @@ export function startMusic() {
   for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
 
   // --- Percussion synth (routed to musicGain so the music slider owns it) ---
+  // Every one-shot voice is registered so stopMusic can silence the bar that is
+  // already queued. Without this, quitting to the title left up to a full bar
+  // still scheduled and the march kept playing over the menu.
+  const keep = (n) => { musicBarNodes.push(n); return n; };
   const kick = (t) => {
     const o = ctx.createOscillator();
     const g = ctx.createGain();
@@ -477,7 +492,7 @@ export function startMusic() {
     g.gain.exponentialRampToValueAtTime(0.30, t + 0.006);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
     o.connect(g); g.connect(musicGain);
-    o.start(t); o.stop(t + 0.26);
+    o.start(t); o.stop(t + 0.26); keep(o);
   };
   const snare = (t) => {
     const src = ctx.createBufferSource(); src.buffer = noiseBuf;
@@ -486,7 +501,7 @@ export function startMusic() {
     g.gain.setValueAtTime(0.16, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
     src.connect(hp); hp.connect(g); g.connect(musicGain);
-    src.start(t); src.stop(t + 0.16);
+    src.start(t); src.stop(t + 0.16); keep(src);
   };
   const hat = (t, open = false) => {
     const src = ctx.createBufferSource(); src.buffer = noiseBuf;
@@ -496,7 +511,7 @@ export function startMusic() {
     g.gain.setValueAtTime(0.05, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(hp); hp.connect(g); g.connect(musicGain);
-    src.start(t); src.stop(t + dur + 0.02);
+    src.start(t); src.stop(t + dur + 0.02); keep(src);
   };
 
   // Imperial-march bass pulse ("dun dun dun DUN da DUN") + a driving drum kit.
@@ -504,9 +519,20 @@ export function startMusic() {
   const kickSteps  = [0, 2, 4, 6];   // steady four-on-the-pulse
   const snareSteps = [2, 6];         // backbeat
   const marchDur = 0.38;
-  const startMarch = (offset) => {
+  // `at` is an ABSOLUTE AudioContext time, not an offset. It used to be an
+  // offset that this function added ctx.currentTime to — and the loop below
+  // then passed `offset - ctx.currentTime`, so the two cancelled and every bar
+  // after the first was scheduled at absolute time `offset`, permanently ~T0 in
+  // the past (music starts after the title screen, so T0 is 10s+). Web Audio
+  // fires past-dated events immediately, so each loop dumped all 8 notes, 4
+  // kicks, 2 snares and 16 hats into the same instant. That was the "clipping
+  // on sustained notes" — the march had never actually played as written.
+  const startMarch = (at) => {
+    // Only ever one bar in flight, so the previous bar's (already finished)
+    // voices drop out of the list instead of accumulating for the whole run.
+    musicBarNodes = [];
     marchNotes.forEach((freq, i) => {
-      const t = ctx.currentTime + offset + i * marchDur;
+      const t = at + i * marchDur;
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.type = 'square';
@@ -518,6 +544,7 @@ export function startMusic() {
       g.connect(musicGain);
       o.start(t);
       o.stop(t + marchDur);
+      keep(o);
       // Drums locked to the same grid
       if (kickSteps.includes(i))  kick(t);
       if (snareSteps.includes(i)) snare(t);
@@ -526,15 +553,21 @@ export function startMusic() {
     });
   };
 
-  let offset = 0;
-  startMarch(offset);
+  // Bar cursor in absolute context time. Each pass schedules the NEXT bar and
+  // re-arms off the real clock, so a slow frame or a throttled background tab
+  // can't let the wall-clock timer drift away from the audio timeline.
+  const barDur = marchNotes.length * marchDur;
+  let next = ctx.currentTime;
+  const LOOKAHEAD = 0.2;  // schedule this far ahead of the bar's start time
   const loop = () => {
+    musicLoopTimer = null;
     if (!musicStarted) return;
-    offset += marchNotes.length * marchDur;
-    startMarch(offset - ctx.currentTime);
-    setTimeout(loop, marchNotes.length * marchDur * 1000);
+    startMarch(next);
+    next += barDur;
+    const waitMs = Math.max(0, (next - ctx.currentTime - LOOKAHEAD) * 1000);
+    musicLoopTimer = setTimeout(loop, waitMs);
   };
-  setTimeout(loop, marchNotes.length * marchDur * 1000);
+  loop();
 
   // Tension layer — a sustained detuned minor-2nd cluster (A3/A#3), silent by
   // default, that GameScene swells via setMusicIntensity() during combat and
@@ -562,6 +595,18 @@ export function startMusic() {
 export function stopMusic() {
   if (!musicStarted) return;
   musicStarted = false;
+  // Kill the pending bar timer as well as the oscillators. Leaving it armed let
+  // a stop/start cycle run two loops against one context, which stacks bars and
+  // reproduces the original clipping by a different route.
+  if (musicLoopTimer !== null) {
+    clearTimeout(musicLoopTimer);
+    musicLoopTimer = null;
+  }
+  // Voices already scheduled for the queued bar. Calling stop() with no
+  // argument on a node whose start time is still in the future cancels it
+  // outright, so this covers both "playing now" and "about to play".
+  musicBarNodes.forEach((n) => { try { n.stop(); } catch (_) { /* noop */ } });
+  musicBarNodes = [];
   if (musicNodes) {
     musicNodes.forEach((n) => {
       try {
