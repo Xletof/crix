@@ -177,7 +177,7 @@ export class GameScene extends Phaser.Scene {
     // Same shape as the SPACE super hold above.
     this._rDownAt = 0;
     this.input.keyboard?.on('keydown-R', (ev) => {
-      if (ev.repeat) return;
+      if (ev?.repeat) return;   // optional: the event is absent if emitted directly
       const p = this.player;
       if (!p?.alive) return;
       this._rDownAt = this.time.now;
