@@ -706,38 +706,42 @@ export const SFX = {
     // Kept underneath for anyone on headphones, where it IS audible. It is a
     // bonus layer now, not the load-bearing one.
     sub({ freq: 90, to: 30, dur: 0.7, gain: 0.18 });
-    // Body — the crack of the ground giving way. The slide is GONE: it was the
-    // last descending tonal sweep in the melee set, and a falling pitch under
-    // an impact is what made even the smash read as a big laser.
+    // ── The "OO": a low, dark, SHORT body.
+    //
+    // This was a saturated 300Hz sawtooth held for 400ms behind a Q=2 resonant
+    // filter — a pitched, sustained, bright tone, which is exactly the ringing
+    // "DIIIIN" the smash was landing on. A smash has no note in it. Dropped an
+    // octave and a half, halved in length, no saturation and no resonance, so
+    // it reads as weight rather than as a pitch.
     stack({
-      freq: 300, count: 4, detune: 16, type: 'sawtooth',
-      dur: 0.40, gain: 0.20, drive: 4,
-      filter: 3200, filterTo: 380, q: 2, sustain: 0.10,
+      freq: 120, count: 2, detune: 8, type: 'triangle',
+      dur: 0.18, gain: 0.17,
+      filter: 800, filterTo: 260, q: 0.7,
     });
-    // Impact transient — the hard front edge of "impact first".
+    // Impact transient — the hard front edge, the "D".
     noise({ dur: 0.09, gain: 0.26, hp: 3600, sweepTo: 700,
             type: 'lowpass', q: 1, qTo: 5, drive: 3 });
 
-    // ── "FFUSHH": the discharge wash, AFTER the impact ──────────────────────
-    // The old rubble layers swept their filters SHUT (1600 -> 220Hz), which is
-    // debris settling — a closing sound. A wash opens OUT.
+    // ── The "SH": a broadband wash that DARKENS. ────────────────────────────
+    // Every layer here used to sweep upward — a Q=2.2 bandpass rising to
+    // 5200Hz and a lowpass opening 200 -> 1400Hz. A resonant filter travelling
+    // up is heard as a whistle, and that was the other half of the "DIIIIN".
     //
-    // Built as TWO layers rather than one long sweep, because one long sweep
-    // does not work: noise() ramps its filter across the whole duration, so a
-    // 300 -> 5200Hz sweep over 0.9s only reaches the top once the amplitude
-    // envelope has already decayed away. Measured, that gave 145ms of high-band
-    // energy — indistinguishable from the old closing rubble (151ms). The sweep
-    // and the decay were cancelling each other out.
-    //
-    // So: a fast opening sweep for the "FFUSH" gesture, then a long broadband
-    // tail that actually sustains up there for the "HHH".
-    noise({ dur: 0.26, gain: 0.24, hp: 400, sweepTo: 5200,
-            type: 'bandpass', q: 2.2, qTo: 0.6, attack: 0.04, delay: 0.05, drive: 2 });
-    noise({ dur: 0.85, gain: 0.17, hp: 900,
-            type: 'highpass', attack: 0.05, sustain: 0.42, delay: 0.14 });
-    // Low half of the wash, so the release has body and not just hiss.
-    noise({ dur: 0.70, gain: 0.14, hp: 200, sweepTo: 1400,
-            type: 'lowpass', q: 1.4, attack: 0.05, sustain: 0.15, delay: 0.05 });
+    // Noise wants to fall away, not climb. All three layers now open wide at
+    // the impact and close down, with the resonance taken out so there is no
+    // pitch anywhere in the tail.
+    noise({ dur: 0.30, gain: 0.26, hp: 4500, sweepTo: 800,
+            type: 'lowpass', q: 0.5, attack: 0.015, delay: 0.02 });
+    // Long tail — the "HH". A HIGHPASS was wrong for this: it has no ceiling,
+    // so it passes everything up to Nyquist and stays bright forever. Being the
+    // longest layer, it was the last thing still sounding and dragged the whole
+    // tail upward even with the ring removed. A lowpass closing from 5kHz to
+    // 700Hz keeps the broadband "sh" at the front and lets it darken away.
+    noise({ dur: 0.70, gain: 0.16, hp: 3600, sweepTo: 450,
+            type: 'lowpass', q: 0.6, attack: 0.04, sustain: 0.28, delay: 0.10 });
+    // Low half of the wash — rumble settling, sweeping DOWN.
+    noise({ dur: 0.65, gain: 0.15, hp: 1200, sweepTo: 220,
+            type: 'lowpass', q: 0.8, attack: 0.04, sustain: 0.14, delay: 0.04 });
   },
 
   // The "ZZZZZ" phase — an energy-blade hum that holds for as long as the combo
