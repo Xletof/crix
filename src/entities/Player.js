@@ -624,6 +624,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  // True only while a cast's lunge is actually travelling. The afterimage rig
+  // guards on this the way the dash's guards on isDashing, so the trail stops
+  // exactly where the player does.
+  get isMeleeLunging() {
+    return this._meleeLungeMs > 0;
+  }
+
   get meleeReady() {
     return this.meleeCharge >= PLAYER.meleeHitsToCharge;
   }

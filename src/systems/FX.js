@@ -681,7 +681,12 @@ export function attachFX(scene) {
       const maxT  = stage >= 3 ? 26 : 17;              // crescent half-thickness
       const dur   = stage >= 3 ? 260 : 200;
       const a0    = angle - dir * span / 2;
-      const g     = scene.add.graphics().setDepth(33);
+      // Depth keyed to world Y, not a flat 33. Entities overwrite their depth
+      // with their own y every frame (Player.setDepth(this.y)), and in a 1600px
+      // arena that puts every one of them far above 33 — so the swing was being
+      // drawn UNDER the enemies it was cutting.
+      const g     = scene.add.graphics().setDepth(y + 40)
+        .setBlendMode(Phaser.BlendModes.ADD);
       const state = { t: 0 };
 
       // One tapered band: pointed at the tail, fattest near the leading edge.
@@ -729,7 +734,10 @@ export function attachFX(scene) {
     // finisher's radial AoE had no radial effect at all before this — it drew
     // the same forward crescent as the other two casts.
     slamShockwave(x, y, radius = 210) {
-      const ring = scene.add.graphics().setDepth(24);
+      // ADD blend, so the ring blooms against the dark floor the way the super's
+      // muzzle flash does — without it the slam read flat next to the shotgun.
+      const ring = scene.add.graphics().setDepth(24)
+        .setBlendMode(Phaser.BlendModes.ADD);
       const s = { t: 0 };
       scene.tweens.add({
         targets: s, t: 1, duration: 380, ease: 'Cubic.easeOut',
@@ -748,33 +756,30 @@ export function attachFX(scene) {
         onComplete: () => ring.destroy(),
       });
 
-      // Energy fractures splitting the floor outward from the epicentre. These
-      // linger past the ring so the slam leaves a mark instead of vanishing.
-      // (The existing _spawnVaderGroundCrack was the obvious thing to reuse, but
-      // it draws 0x1a1a22 at 0.55 alpha — black on a near-black floor. It is
-      // meant to be a subtle darkening in the boss arena and is invisible here.)
-      const frac = scene.add.graphics().setDepth(23);
-      const spokes = 11;
-      for (let i = 0; i < spokes; i++) {
-        const base = (i / spokes) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
-        const len  = radius * (0.45 + Math.random() * 0.5);
-        const segs = 3 + Math.floor(Math.random() * 3);
-        let px = x, py = y;
-        frac.lineStyle(2.5, 0x90d8ff, 0.9);
-        frac.beginPath();
-        frac.moveTo(px, py);
-        for (let s = 0; s < segs; s++) {
-          const jit = (Math.random() - 0.5) * 0.5;
-          px += Math.cos(base + jit) * (len / segs);
-          py += Math.sin(base + jit) * (len / segs);
-          frac.lineTo(px, py);
-        }
-        frac.strokePath();
-      }
+      // Second ring, launched late and run wider — one ring reads as a pulse,
+      // two read as a shock travelling out through the floor.
+      const echo = scene.add.graphics().setDepth(24)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      const e2 = { t: 0 };
       scene.tweens.add({
-        targets: frac, alpha: 0, duration: 620, ease: 'Quad.easeIn',
-        onComplete: () => frac.destroy(),
+        targets: e2, t: 1, duration: 520, delay: 90, ease: 'Cubic.easeOut',
+        onUpdate: () => {
+          const t = e2.t, a = 1 - t;
+          echo.clear();
+          echo.lineStyle(7 * (1 - t * 0.6), 0x3aa8e8, 0.40 * a);
+          echo.strokeCircle(x, y, radius * 1.28 * t);
+          echo.lineStyle(2.5, 0x90d8ff, 0.6 * a);
+          echo.strokeCircle(x, y, radius * 1.28 * t);
+        },
+        onComplete: () => echo.destroy(),
       });
+
+      // Dust column punched straight up out of the epicentre.
+      for (let i = 0; i < 5; i++) {
+        this.dustPuff(x + (Math.random() - 0.5) * 26, y + (Math.random() - 0.5) * 18);
+      }
+
+      this.groundFractures(x, y, radius);
 
       // Dust plume kicked up at the epicentre, plus debris thrown outward along
       // the ring so the slam reads as hitting the FLOOR, not the air.
@@ -783,6 +788,120 @@ export function attachFX(scene) {
         const a = (i / 10) * Math.PI * 2 + Math.random() * 0.3;
         this.burstDir(x + Math.cos(a) * 26, y + Math.sin(a) * 26, 'yellow', 3, a, 24);
       }
+    },
+
+    // The floor actually breaking. The first pass drew 11 polylines at
+    // lineStyle(2.5) — thin wires with no width, no branching and nothing
+    // separating them from the tile pattern. Fractures here are GEOMETRY:
+    // filled polygons that start wide at the epicentre and taper to a point,
+    // each throwing off angular branch shards, over a near-black drop shadow.
+    //
+    // The shadow is what makes them read. The floor is #161620 (paintBackdrop),
+    // so a mid-dark crack is invisible — which is exactly why the obvious reuse,
+    // _spawnVaderGroundCrack at 0x1a1a22, showed nothing at all here.
+    groundFractures(x, y, radius = 210) {
+      const SHADOW = 0x05050a, BODY = 0x2f7fb8, HOT = 0x90d8ff, CORE = 0xeafbff;
+      // Scar palette. The pit alone baked down to a flat dark star that barely
+      // separated from the floor, so the permanent mark is built in three
+      // layers: a lit RIM on the raised broken edge, the dark PIT over it, and
+      // a COOL line of spent energy still sitting in the split.
+      const RIM = 0x424a5c, COOL = 0x2e6f96;
+      const scar = scene.add.graphics().setDepth(18);     // ground decal layer
+      const glow = scene.add.graphics().setDepth(19);
+
+      // One shard: a triangle-ish quad from `w` wide at (ax,ay) down to a point
+      // `len` away, with a slight kink so it doesn't read as a clean cone.
+      const shard = (g, ax, ay, ang, len, w, colour, alpha, dx = 0, dy = 0) => {
+        const nx = Math.cos(ang + Math.PI / 2), ny = Math.sin(ang + Math.PI / 2);
+        const mid = 0.45 + Math.random() * 0.2;
+        const kink = (Math.random() - 0.5) * 0.28;
+        const mx = ax + Math.cos(ang) * len * mid;
+        const my = ay + Math.sin(ang) * len * mid;
+        const tx = mx + Math.cos(ang + kink) * len * (1 - mid);
+        const ty = my + Math.sin(ang + kink) * len * (1 - mid);
+        g.fillStyle(colour, alpha);
+        g.fillPoints([
+          new Phaser.Geom.Point(ax + nx * w + dx,        ay + ny * w + dy),
+          new Phaser.Geom.Point(mx + nx * w * 0.45 + dx, my + ny * w * 0.45 + dy),
+          new Phaser.Geom.Point(tx + dx,                 ty + dy),
+          new Phaser.Geom.Point(mx - nx * w * 0.45 + dx, my - ny * w * 0.45 + dy),
+          new Phaser.Geom.Point(ax - nx * w + dx,        ay - ny * w + dy),
+        ], true);
+        return { tx, ty, mx, my };
+      };
+
+      const SPOKES = 10;
+      for (let i = 0; i < SPOKES; i++) {
+        const ang = (i / SPOKES) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+        // Reach out to roughly the shockwave ring. Shorter than this and the
+        // broken floor visibly undersells the area the slam actually damages.
+        const len = radius * (0.66 + Math.random() * 0.4);
+        const w   = 7 + Math.random() * 3;
+        // Scar: lit rim offset up-left, dark pit over it offset down-right, so
+        // the crack has a raised edge and a depth to it rather than being a
+        // silhouette. Drawn once and left behind when the glow burns off.
+        shard(scar, x, y, ang, len * 1.08, w * 1.5, RIM, 0.85, -2.5, -3);
+        shard(scar, x, y, ang, len * 1.04, w * 1.3, SHADOW, 1, 2, 2);
+        shard(scar, x, y, ang, len * 0.92, w * 0.32, COOL, 0.9);
+        shard(glow, x, y, ang, len, w, BODY, 0.92);
+        // Hot centre line down the spine — the split itself, glowing.
+        shard(glow, x, y, ang, len * 0.9, w * 0.34, HOT, 0.95);
+        shard(glow, x, y, ang, len * 0.6, w * 0.14, CORE, 1);
+
+        // Branch shards, thrown off at a hard angle so the pattern reads as
+        // fractured rather than as clean radiating spokes.
+        const branches = 1 + Math.floor(Math.random() * 2);
+        for (let b = 0; b < branches; b++) {
+          const at = 0.35 + Math.random() * 0.4;
+          const bx = x + Math.cos(ang) * len * at;
+          const by = y + Math.sin(ang) * len * at;
+          const bang = ang + (Math.random() < 0.5 ? -1 : 1) * (0.55 + Math.random() * 0.35);
+          const blen = len * (0.3 + Math.random() * 0.3);
+          shard(scar, bx, by, bang, blen * 1.08, w * 0.9, RIM, 0.8, -2, -2.5);
+          shard(scar, bx, by, bang, blen * 1.04, w * 0.75, SHADOW, 1, 1.5, 1.5);
+          shard(scar, bx, by, bang, blen * 0.9, w * 0.2, COOL, 0.85);
+          shard(glow, bx, by, bang, blen, w * 0.55, BODY, 0.9);
+          shard(glow, bx, by, bang, blen * 0.85, w * 0.2, HOT, 0.9);
+        }
+      }
+
+      // Floor slabs knocked loose around the epicentre, lifted and dropped.
+      const slabs = [];
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + Math.random() * 0.6;
+        const d = 26 + Math.random() * 48;
+        const sx = x + Math.cos(a) * d, sy = y + Math.sin(a) * d;
+        const sw = 14 + Math.random() * 16, sh = 9 + Math.random() * 11;
+        const s = scene.add.graphics().setDepth(20);
+        s.fillStyle(0x05050a, 0.8);
+        s.fillRect(-sw / 2 + 2, -sh / 2 + 3, sw, sh);
+        s.fillStyle(0x282838, 1);                     // PAL.floorLight
+        s.fillRect(-sw / 2, -sh / 2, sw, sh);
+        s.fillStyle(HOT, 0.85);
+        s.fillRect(-sw / 2, -sh / 2, sw, 2);          // lit upper edge
+        s.setPosition(sx, sy).setAngle(Math.random() * 40 - 20);
+        slabs.push(s);
+        scene.tweens.add({
+          targets: s, y: sy - (10 + Math.random() * 12),
+          duration: 170, ease: 'Quad.easeOut', yoyo: true,
+          onComplete: () => { s.destroy(); },
+        });
+      }
+
+      // The glow burns off; the scar stays. Baked into the room's decal texture
+      // at high alpha so the slam leaves a mark you can still read a minute
+      // later, rather than vanishing with the tween.
+      scene.tweens.add({
+        targets: glow, alpha: 0, duration: 700, ease: 'Quad.easeIn',
+        onComplete: () => glow.destroy(),
+      });
+      scene.tweens.add({
+        targets: scar, alpha: 0.92, duration: 900, ease: 'Quad.easeIn',
+        onComplete: () => {
+          if (scene._bakeDecal) scene._bakeDecal(scar);   // destroys it
+          else scar.destroy();
+        },
+      });
     },
 
     // A sweeping curved arc for takedown animations

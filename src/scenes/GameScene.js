@@ -1039,7 +1039,66 @@ export class GameScene extends Phaser.Scene {
     const p = this.player;
     if (!p?.alive) return;
     SFX.dash?.();
+    this._meleeLungeTrail(dir, finisher);
     if (finisher) this._cameraPunch(1.02, 140);
+  }
+
+  // Velocity for the lunge itself. The combo used to have no travel FX at all —
+  // the player teleported 260px with only the arc at the far end to show for it.
+  // This is the dash's afterimage rig (see the 'player-dash' handler): a tapered
+  // ADD speed-streak plus a trail of solid silhouette stamps.
+  //
+  // setTintFill, NOT setTint — setTint multiplies onto an already-dark sprite and
+  // barely shows; setTintFill replaces the pixel outright. Same trap the dash
+  // afterimage documents.
+  _meleeLungeTrail(dir, finisher) {
+    const p = this.player;
+    const low = isLowQuality();
+    const cos = Math.cos(dir), sin = Math.sin(dir);
+    const perpX = -sin, perpY = cos;
+    const len = finisher ? 170 : 130;
+    const wid = finisher ? 32 : 24;
+
+    const g = this.add.graphics().setDepth(p.depth - 1)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    const tailX = p.x - cos * len, tailY = p.y - sin * len;
+    const taper = (alpha, w) => {
+      g.fillStyle(0x80f0ff, alpha);
+      g.beginPath();
+      g.moveTo(p.x + perpX * w, p.y + perpY * w);
+      g.lineTo(p.x - perpX * w, p.y - perpY * w);
+      g.lineTo(tailX, tailY);
+      g.closePath();
+      g.fillPath();
+    };
+    taper(0.42, wid);
+    taper(0.7, wid * 0.5);
+    this.tweens.add({
+      targets: g, alpha: 0, duration: 240, ease: 'Cubic.easeOut',
+      onComplete: () => g.destroy(),
+    });
+
+    // Ghost stamps run only while the lunge is actually travelling, so the trail
+    // ends where the player stops rather than smearing past it.
+    const stamp = () => {
+      const pl = this.player;
+      if (!pl?.active || !pl.isMeleeLunging) return;
+      const ghost = this.add.image(pl.x, pl.y, pl.texture.key, pl.frame.name)
+        .setOrigin(pl.originX, pl.originY)
+        .setScale(pl.scaleX, pl.scaleY)
+        .setFlipX(pl.flipX)
+        .setAngle(pl.angle)
+        .setDepth(pl.depth - 1)
+        .setTintFill(0x60ecff)
+        .setAlpha(low ? 0.5 : 0.8);
+      this.tweens.add({
+        targets: ghost, alpha: 0, scale: ghost.scaleX * 1.15,
+        duration: 300, ease: 'Cubic.easeOut',
+        onComplete: () => ghost.destroy(),
+      });
+    };
+    stamp();
+    this.time.addEvent({ delay: low ? 34 : 20, repeat: low ? 5 : 12, callback: stamp });
   }
 
   // Land = the swing connects. Casts 1-2 sweep a cone in front; the finisher is
@@ -1115,6 +1174,12 @@ export class GameScene extends Phaser.Scene {
       // Casts 1-2: the arc is centred on the player and sized to the reach, so
       // the sweep covers the ground the cone actually hits.
       this.fx.bladeArc(p.x, p.y, dir, PLAYER.meleeRange * 0.78, stage);
+      // Landing kicks up floor dust, and a connect throws sparks along the
+      // swing — the cast used to end with nothing but the arc.
+      this.fx.dustPuff(p.x, p.y + 14);
+      this.fx.dustPuff(p.x - Math.cos(dir) * 16, p.y + 12);
+      if (hits > 0) this.fx.burstDir(p.x + Math.cos(dir) * 30, p.y + Math.sin(dir) * 30,
+        'white', 7, dir, 80);
       this.fx.shake(hits > 0 ? 0.009 : 0.005, 100);
       if (hits > 0) this._cameraPunch(1.02, 110);
     }
