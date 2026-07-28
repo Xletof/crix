@@ -158,30 +158,25 @@ export const WEAPONS = {
     popMs: 320,          // phase A: climbing away from the burst
     popHeight: 260,      // extra altitude gained ABOVE the burst point
     fanRadius: 240,      // how far they fling outward during the pop
-    descentMs: 620,      // phase B: the cascade down (was 450, and too quick to read)
-    // The descent aims at the target's AREA, not at the target. Landing right
-    // on top of an enemy would turn a spread weapon into a guaranteed 5-hit
-    // magnet; the ground-phase homing below is still what does the real work.
-    landScatter: 90,
+    descentMs: 620,      // phase B: the dive onto a locked target
+    // Small. These are bomblets, not rockets. Held FLAT for the whole flight —
+    // the old altitude scaling (1 + h * 0.5) made them balloon to 1.5x at apex
+    // and taper on the way down, which read as the wrong size and the wrong
+    // motion. Altitude is already legible from the shadow's size and alpha.
+    fragScale: 0.55,
+    // How close the munition has to land to its locked target to hurt it. The
+    // dive tracks a moving enemy, so a miss means the target outran the fall or
+    // died mid-air — the lock is strong, not guaranteed.
+    impactRadius: 74,
     // Fragmentation. Total damage (5 x 130 = 650) sits above the detonator's
     // flat 500 because the missiles can miss a fleeing target, where the old
     // blast could not.
     fragments: 5,
     fragDamage: 130,
-    fragSpeed: 620,
-    // Range and turn rate are coupled, and getting them wrong is what makes a
-    // homing weapon feel broken. A bounded turn gives a minimum turning circle
-    // of speed/turnRate; at 5.2 rad/s that was 119px, so a missile launched
-    // away from its target spent ~375px of arc just coming about and hit its
-    // 900px range limit before arriving. Only 2 of 5 connected against a lone
-    // STATIONARY target 420px out. Tightening the turn to a 69px circle and
-    // extending the range takes that to 3-4 of 5 (it varies with the fan's
-    // random start offset; the one launched straight away is the usual miss).
-    // That is the intended shape — a real spread weapon, not a guaranteed
-    // 5-hit magnet — and it lands more in practice, since enemies engage from
-    // 250-380px and each missile picks its own nearest target.
-    fragRange: 1400,
-    fragTurnRate: 9.0,   // rad/s
+    // Lock acquisition radius, measured from the burst point. Targets are
+    // assigned round-robin across DISTINCT enemies in this radius, so five
+    // munitions over three enemies go 3 + 2 rather than all five onto whichever
+    // one happens to be nearest.
     fragSearchRadius: 560,
     tex: 'pickup-cluster',
     color: 0xff2828,     // red — keeps the explosive-slot identity

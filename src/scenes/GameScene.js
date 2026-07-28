@@ -1643,7 +1643,10 @@ export class GameScene extends Phaser.Scene {
         if (enemy._elite || (enemy.hpMax || 0) >= 500) this.fx.impactRing(enemy.x, enemy.y, 0xffd8a0);
       }
       this.fx.burst(enemy.x, enemy.y, 'red', crit ? 8 : 4);
-      SFX.hit();
+      // A cluster munition plays its own explosion at the detonation site, so
+      // the generic hit beep would only smear underneath it. _clusterImpact
+      // raises this flag for the duration of its damage() call.
+      if (!this._suppressHitSfx) SFX.hit();
     });
     this.events.on('enemy-died', (enemy) => {
       // ── HOTLINE-MIAMI KILL JUICE ──────────────────────────────────────
@@ -1950,6 +1953,18 @@ export class GameScene extends Phaser.Scene {
     this.fx.shake(0.008, 140);
     SFX.shootSuper?.();
 
+    // Assign targets HERE, where all five munitions are being created together
+    // and the assignment can be coordinated. Bullet._steer resolves
+    // findNearestEnemy independently every frame and stores nothing, which is
+    // precisely why every munition used to converge on whichever enemy was
+    // closest. Nearest-first, then round-robin: five munitions over three
+    // enemies go 3 + 2, never 5 + 0.
+    const targets = this.enemies.getChildren()
+      .filter((e) => e.active && e.alive
+                     && Math.hypot(e.x - x, e.y - y) <= cfg.fragSearchRadius)
+      .sort((p, q) => Math.hypot(p.x - x, p.y - y) - Math.hypot(q.x - x, q.y - y));
+    if (this.boss?.alive) targets.push(this.boss);
+
     // Fanned evenly over a full circle so the spread reads as a burst opening
     // out. Offset by a random amount per throw so repeat throws don't stamp
     // the identical pattern.
@@ -1961,7 +1976,8 @@ export class GameScene extends Phaser.Scene {
       // don't climb in a perfect ring — an even circle reads as a mechanism
       // rather than debris.
       const reach = cfg.fanRadius * (0.45 + Math.random() * 0.75);
-      this._clusterFragment(x, y, z, a, reach);
+      const target = targets.length ? targets[i % targets.length] : null;
+      this._clusterFragment(x, y, z, a, reach, target);
     }
   }
 
@@ -1974,36 +1990,42 @@ export class GameScene extends Phaser.Scene {
   // tweening the sprite's own y directly, as this used to, conflates the two,
   // which is why the old version could only ever fall straight down.
   //
-  // A: POP    — climbs above the burst and fans outward. Tumbling, no target.
-  // B: CASCADE— picks a target area at apex, noses over, accelerates down.
-  // C: LAND   — body back on, hands over to Bullet's homing steering unchanged.
+  // A: POP    — climbs above the burst and fans outward. No lock yet.
+  // B: DIVE   — locks on, and falls onto its target tracking it live. The
+  //             guidance line appearing IS the lock-on tell.
+  // C: IMPACT — detonates. There is no ground phase; these never touch down and
+  //             crawl after anything.
   //
-  // The body stays DISABLED for A and B. Both hit handlers now honour that (see
-  // handleBulletEnemyHits), so nothing in the air can touch a ground enemy.
-  _clusterFragment(bx, by, bz, angle, reach) {
+  // The body is NEVER enabled. Damage is resolved by an explicit radius test at
+  // detonation, which is also why the sprite can be freely scaled — the hitbox
+  // trap in CLAUDE.md (Bullet.fire sizing the body off texture width) simply
+  // does not apply to a munition that never collides.
+  _clusterFragment(bx, by, bz, angle, reach, target = null) {
     const cfg = WEAPONS.cluster;
     const b = this.playerFragBullets.fire(
       bx, by, angle,
-      cfg.fragSpeed, cfg.fragDamage * (this.player?.dmgMult ?? 1), cfg.fragRange,
-      {
-        owner: 'player',
-        knockback: 120,
-        homing: { turnRate: cfg.fragTurnRate, searchRadius: cfg.fragSearchRadius },
-      },
+      0, cfg.fragDamage * (this.player?.dmgMult ?? 1), 1e9,
+      { owner: 'player', knockback: 120 },
     );
     if (!b) return null;
     const gen = b._gen;   // identity, not liveness — see Bullet._gen
 
     b.body.enable = false;
     b.body.stop();
-    b.homing = null;                    // no steering until it is actually flying
+    b.homing = null;                    // never steers; the dive does the work
+    b.setScale(cfg.fragScale);
     b.setPosition(bx, by - bz);
 
     // Ground position and altitude, tracked apart from the sprite.
-    const st = { gx: bx, gy: by, z: bz };
+    const st = { gx: bx, gy: by, z: bz, target, locked: false };
     const maxZ = bz + cfg.popHeight;
     const shadow = this.add.image(bx, by, 'shadow')
       .setAlpha(0.10).setScale(0.28);
+    // Guidance line. Same idiom as the sniper's laser (Enemy._drawLaser): a
+    // persistent graphics cleared and redrawn every frame, with its depth
+    // re-stamped each time — a depth set once goes stale the moment the world
+    // Y-sorts past it.
+    const line = this.add.graphics();
 
     const draw = () => {
       b.setPosition(st.gx, st.gy - st.z);
@@ -2016,16 +2038,30 @@ export class GameScene extends Phaser.Scene {
       // layer like every other shadow.
       b.setDepth(DEPTH.AIR + st.gy);
       shadow.setDepth(st.gy - 1);
-      // Higher = bigger and further from its shadow, the same altitude cue the
-      // canister itself uses on the way up.
+      // Scale is FLAT. Altitude is read from the shadow instead, which grows
+      // and darkens as the gap closes.
       const h = maxZ > 0 ? st.z / maxZ : 0;
-      b.setScale(1 + h * 0.5);
       shadow.setPosition(st.gx, st.gy);
       shadow.setScale(0.28 + (1 - h) * 0.62);
       shadow.setAlpha(0.10 + (1 - h) * 0.30);
+
+      // The trajectory the munition is about to follow, drawn ahead of it to
+      // the enemy it has locked. Only once the lock is live — during the pop
+      // there is nothing to point at yet.
+      line.clear();
+      const t = st.target;
+      if (st.locked && t?.active && t.alive) {
+        line.setDepth(DEPTH.AIR + st.gy - 1);
+        line.lineStyle(1.6, 0xff9030, 0.5);
+        line.beginPath();
+        line.moveTo(b.x, b.y);
+        line.lineTo(t.x, t.y);
+        line.strokePath();
+        line.fillStyle(0xffc060, 0.75);
+        line.fillCircle(t.x, t.y, 3);
+      }
     };
     draw();
-    this._missileTrail(b, gen);
 
     // ── Phase A: the pop ────────────────────────────────────────────────────
     // Up and out. easeOut on both so it bursts away hard and decelerates into
@@ -2041,8 +2077,8 @@ export class GameScene extends Phaser.Scene {
       duration: cfg.popMs, ease: 'Quad.easeOut',
       onUpdate: draw,
       onComplete: () => {
-        if (!b.active || b._gen !== gen) { shadow.destroy(); return; }
-        this._clusterCascade(b, gen, st, shadow, maxZ, angle, draw);
+        if (!b.active || b._gen !== gen) { shadow.destroy(); line.destroy(); return; }
+        this._clusterDive(b, gen, st, shadow, line, angle, draw);
       },
     });
 
@@ -2053,115 +2089,99 @@ export class GameScene extends Phaser.Scene {
     return b;
   }
 
-  // Phase B + C. Split out so the pop reads as one gesture and the dive as
-  // another; they have opposite easing and opposite intent.
-  _clusterCascade(b, gen, st, shadow, maxZ, angle, draw) {
+  // Phase B + C: lock on, dive, detonate.
+  //
+  // The lock goes live here rather than at spawn, so the guidance line snapping
+  // on IS the tell that the munition has chosen its target. Which enemy that is
+  // was decided back in clusterSplit, where all five could be assigned across
+  // DISTINCT targets — resolving it here per-missile is what used to send every
+  // one of them at whichever enemy happened to be nearest.
+  _clusterDive(b, gen, st, shadow, line, angle, draw) {
     const cfg = WEAPONS.cluster;
+    st.locked = true;
 
-    // Pick the target AREA from up here. Deliberately not the target itself:
-    // landing on top of an enemy would make this a guaranteed 5-hit magnet
-    // instead of a spread weapon, and the ground-phase homing is what was
-    // tuned to do the real work.
-    const t = this.findNearestEnemy?.(st.gx, st.gy);
-    const inRange = t && Math.hypot(t.x - st.gx, t.y - st.gy) <= cfg.fragSearchRadius;
-    let lx, ly;
-    if (inRange) {
-      const jitter = Math.random() * Math.PI * 2;
-      const spread = cfg.landScatter * Math.sqrt(Math.random());
-      lx = t.x + Math.cos(jitter) * spread;
-      ly = t.y + Math.sin(jitter) * spread;
-    } else {
-      // Nothing worth diving at — carry on along the fan and land out there.
-      lx = st.gx + Math.cos(angle) * cfg.landScatter * 1.5;
-      ly = st.gy + Math.sin(angle) * cfg.landScatter * 1.5;
-    }
-
+    // Where it falls if there is nothing to dive at, or if the target dies
+    // mid-air: carry on along the fan and detonate out there.
+    const fallbackX = st.gx + Math.cos(angle) * 140;
+    const fallbackY = st.gy + Math.sin(angle) * 140;
     const dur = cfg.descentMs;
-    // The track curves: easeInOut horizontally means it drifts, then commits,
-    // then settles over the impact point rather than sliding at a constant rate.
-    this.tweens.add({
-      targets: st, gx: lx, gy: ly, duration: dur, ease: 'Sine.easeInOut',
-      onUpdate: draw,
-    });
+
+    // Ground track. Driven manually from the altitude tween's onUpdate rather
+    // than tweened to a fixed point, because the aim point MOVES — this is what
+    // makes the lock track a running enemy instead of hitting where it used to
+    // be. Progress is read off the fall so the two stay in lockstep.
+    const startX = st.gx, startY = st.gy;
+    const track = () => {
+      const t = st.target;
+      const live = t?.active && t.alive;
+      const aimX = live ? t.x : fallbackX;
+      const aimY = live ? t.y : fallbackY;
+      // Ease the horizontal in step with how far it has fallen, so it commits
+      // as it drops rather than sliding flat at a constant rate.
+      const p = 1 - (st.z / Math.max(1, st.z0));
+      const e = p * p * (3 - 2 * p);            // smoothstep
+      st.gx = startX + (aimX - startX) * e;
+      st.gy = startY + (aimY - startY) * e;
+      // Nose toward where it is going. Allowed to be a bit off — a bomblet is
+      // not a guided rocket and does not need to be perfectly aligned.
+      if (live) b.setRotation(Math.atan2(aimY - b.y, aimX - b.x));
+      draw();
+    };
+
+    st.z0 = st.z;
     // Gravity. easeIn so the last third of the fall is the fast part.
     this.tweens.add({
       targets: st, z: 0, duration: dur, ease: 'Quad.easeIn',
-      onUpdate: draw,
+      onUpdate: track,
       onComplete: () => {
         shadow.destroy();
+        line.destroy();
         // Identity, not liveness: `active` alone cannot tell "still my missile"
         // from "recycled and re-fired as something else", which is how this
         // callback used to turn other people's bullets into homing missiles.
         if (!b.active || !b.scene || b._gen !== gen) return;
-        // ── Phase C: live, seeking ──
-        b.setScale(1);
-        // On the ground now, so it sorts with the ground layer rather than
-        // staying up in the air band above the whole room.
-        b.ySort = true;
-        b.body.enable = true;
-        b.body.reset(b.x, b.y);           // resync the body to where it landed
-        b.body.setCircle(b.width / 2);
-        b.homing = { turnRate: cfg.fragTurnRate, searchRadius: cfg.fragSearchRadius };
-        b.traveled = 0;                   // range budget starts at touchdown
-        b.lastX = b.x; b.lastY = b.y;
-        const tgt = this.findNearestEnemy?.(b.x, b.y);
-        const dir = tgt ? Math.atan2(tgt.y - b.y, tgt.x - b.x) : angle;
-        b.setVelocity(Math.cos(dir) * cfg.fragSpeed, Math.sin(dir) * cfg.fragSpeed);
-        b.setRotation(dir);
-        this.fx.burst(b.x, b.y, 'yellow', 3);
+        this._clusterImpact(b, st);
       },
-    });
-
-    // Nose over onto the dive heading as it starts to fall.
-    //
-    // Tween the SHORTEST way round. Phaser interpolates `rotation` as a plain
-    // number, so tweening to a raw atan2 result can take the long way and spin
-    // the sprite most of a full turn to reach a heading a few degrees away.
-    // Same wrap idiom as Bullet._steer and the melee cone test.
-    const want = Math.atan2(ly - st.gy, lx - st.gx);
-    this.tweens.add({
-      targets: b,
-      rotation: b.rotation + Phaser.Math.Angle.Wrap(want - b.rotation),
-      duration: dur * 0.4, ease: 'Sine.easeInOut',
     });
   }
 
-  // Contrail for a seeking missile. Same taper-and-fade shape as the melee
-  // lunge trail, stamped along the flight path each frame instead of once.
-  _missileTrail(bullet, gen = null) {
-    const low = isLowQuality();
-    const ev = this.time.addEvent({
-      delay: low ? 60 : 32,
-      loop: true,
-      callback: () => {
-        // The bullet is pooled, so `active` going false is ONE death signal —
-        // but not a sufficient one. If the object gets recycled and re-fired
-        // between two ticks this loop never observes the gap, and would happily
-        // keep stamping an orange contrail on somebody else's bullet for the
-        // rest of its 4s lifetime. The generation token closes that hole.
-        if (!bullet.active || !bullet.scene) { ev.remove(); return; }
-        if (gen !== null && bullet._gen !== gen) { ev.remove(); return; }
-        // Smoke puff alongside the spark core — reuses the existing missile
-        // emitter, so an airborne munition leaves a real contrail rather than
-        // just a glow.
-        this.fx.smokeTrail(bullet.x, bullet.y);
-        const g = this.add.graphics().setDepth(bullet.depth - 1)
-          .setBlendMode(Phaser.BlendModes.ADD);
-        g.fillStyle(0xffb040, 0.5);
-        g.fillCircle(bullet.x, bullet.y, 5);
-        g.fillStyle(0xfff0c0, 0.6);
-        g.fillCircle(bullet.x, bullet.y, 2.5);
-        this.tweens.add({
-          targets: g, alpha: 0, scale: 0.4,
-          duration: low ? 180 : 300, ease: 'Cubic.easeOut',
-          onComplete: () => g.destroy(),
-        });
-      },
-    });
-    // Belt and braces: a missile that somehow never deactivates can't leave the
-    // emitter running for the rest of the room.
-    this.time.delayedCall(4000, () => ev.remove());
+  // Detonation. There is no ground phase — the munition never touches down and
+  // hunts, so damage is resolved here by an explicit radius test rather than by
+  // enabling the body and letting the collision handlers run. That is also what
+  // frees the sprite to be scaled freely: a bullet that never collides cannot
+  // have its hitbox broken by its texture size.
+  _clusterImpact(b, st) {
+    const cfg = WEAPONS.cluster;
+    const x = st.gx, y = st.gy;
+    const t = st.target;
+
+    if (t?.active && t.alive && Math.hypot(t.x - x, t.y - y) <= cfg.impactRadius) {
+      const kb = 120;
+      const a  = Math.atan2(t.y - y, t.x - x);
+      // A fragment hit plays its own explosion, so the generic hit beep that
+      // e.damage() triggers through the 'enemy-hit' listener has to be muted or
+      // it just layers underneath. The emit is synchronous, so a plain flag
+      // around the call is exact — no timing window to get wrong.
+      this._suppressHitSfx = true;
+      t.damage(b.damage, { x: Math.cos(a) * kb, y: Math.sin(a) * kb });
+      this._suppressHitSfx = false;
+      this.player?.onHitLanded?.();
+      this.player?.addSuperHit?.();
+    }
+
+    this.fx.explosion(x, y, 0.8);
+    this.fx.impactRing(x, y, 0xff8020);
+    this.fx.burst(x, y, 'yellow', 6);
+    SFX.fragImpact?.();
+    b.hasHit = true;      // a detonation is not a miss, whatever it landed on
+    b.kill();
   }
+
+  // _missileTrail lived here — a per-frame smoke-and-spark contrail stamped
+  // behind a flying munition. Removed with its only caller: the trail was read
+  // as a failed attempt at an aim indicator, and the guidance line drawn AHEAD
+  // of each munition to its locked target replaces it. Two line-ish elements
+  // competing was the whole problem, so this is not coming back alongside it.
 
   detonateGrenade(x, y, damage, radius) {
     this.fx.explosion(x, y, 2.5);

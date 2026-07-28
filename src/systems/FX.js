@@ -558,6 +558,34 @@ export const SFX = {
     tone({ freq: 660, type: 'sawtooth', dur: 0.18, gain: 0.14, slide: -180 });
     tone({ freq: 660, type: 'sawtooth', dur: 0.18, gain: 0.14, slide: -180, delay: 0.22 });
   },
+  // Cluster bomblet detonating. Small and pixelated, deliberately NOT the
+  // generic hit beep — a cluster strike used to sound exactly like gunfire
+  // because the only thing it played was SFX.hit() via the damage event.
+  //
+  // The retro character is a falling SQUARE with per-call `vary`, which is this
+  // game's own idiom for a pixel impact (see hit() and enemyDie()) and pairs
+  // with fx.explosion's actual 3-frame pixel sprite. No bit-crusher: shaper()
+  // is a soft tanh clip, and adding a quantiser for one sound is not worth it.
+  //
+  // Shape follows the rules meleeSlam's comments encode — everything DARKENS
+  // and FALLS. No rising resonance (whistles) and no highpass tail (has no
+  // ceiling, so it stays bright forever and drags the sound upward).
+  //
+  // Kept short and modest: five of these land inside a few hundred ms, and the
+  // master compressor will pump hard if each one is a full-sized explosion.
+  fragImpact() {
+    // Crack — the pixel identity, falling and slightly detuned per call so a
+    // volley doesn't sound like one sample looping.
+    tone({ freq: 420, type: 'square', dur: 0.07, gain: 0.10, slide: -300, vary: 0.18 });
+    // Body — small saturated thump. punch() rather than sub() so its harmonics
+    // land where a phone speaker actually lives.
+    punch({ freq: 150, to: 52, dur: 0.20, gain: 0.20, drive: 5 });
+    // Wash — one short lowpassed burst closing downward. This is the "explosion"
+    // half; without it the square alone is just another beep.
+    noise({ dur: 0.22, gain: 0.20, hp: 3200, sweepTo: 500,
+            type: 'lowpass', q: 0.7, drive: 2 });
+  },
+
   // Kill-chain combo — a bright rising arpeggio (root-3rd-5th) with a noise
   // transient and an echo tail, climbing a semitone per streak step so a long
   // chain literally sings upward. Far punchier than the old two-note blip.
