@@ -9,7 +9,7 @@ import { RoomManager } from '../systems/RoomManager.js';
 import { CoverRegistry } from '../systems/CoverRegistry.js';
 import { WeaponPickup } from '../entities/WeaponPickup.js';
 import { Terminal } from '../entities/Terminal.js';
-import { attachFX, SFX, startMusic, duckMusic, stopMusic, setMusicIntensity, isLowQuality } from '../systems/FX.js';
+import { attachFX, SFX, startMusic, duckMusic, duckSfx, stopMusic, setMusicIntensity, isLowQuality } from '../systems/FX.js';
 import { ROOMS } from '../data/rooms.js';
 import { NARRATIVE } from '../data/narrative.js';
 import { NavGrid } from '../systems/NavGrid.js';
@@ -906,7 +906,17 @@ export class GameScene extends Phaser.Scene {
     this._lastKillTime = now;
     if (this._comboCount >= 2) {
       this.events.emit('show-combo', this._comboCount);
-      SFX.comboChime(this._comboCount);
+      // A finisher slam resolves its kills BEFORE it plays its own sound, so
+      // without this the chime — and its ~800ms echo tail — started first and
+      // buried the impact under a high-frequency ring. Inside a slam window the
+      // visual "x3!" still pops immediately; only the audio waits, landing in
+      // the slam's tail rather than on its transient, and dry.
+      const n = this._comboCount;
+      if (now < (this._slamChimeHoldUntil ?? 0)) {
+        this.time.delayedCall(350, () => SFX.comboChime(n, true));
+      } else {
+        SFX.comboChime(n);
+      }
     }
   }
 
@@ -1121,6 +1131,11 @@ export class GameScene extends Phaser.Scene {
     const arc   = Phaser.Math.DegToRad(PLAYER.meleeArcDeg);
     const range = PLAYER.meleeRange;
 
+    // Open the slam window BEFORE any damage resolves. tryHit() below kills
+    // enemies, which runs _tickKillCombo synchronously — so the flag has to be
+    // up already or the chime it fires won't see it.
+    if (finisher) this._slamChimeHoldUntil = this.time.now + 700;
+
     const tryHit = (e) => {
       if (!e || !e.active || !e.alive || hitSet.has(e)) return;
       const d = Math.hypot(e.x - p.x, e.y - p.y);
@@ -1177,6 +1192,11 @@ export class GameScene extends Phaser.Scene {
       // (threshold -10, ratio 12) and would squash the sub otherwise.
       SFX.meleeSlam?.();
       duckMusic(0.35, 520);
+      // Clear the general SFX bus too — death beeps, hit crunches and gunfire
+      // all sit in the band a phone speaker reproduces best, right where the
+      // slam is weakest. meleeBus is a sibling of the ducked bus, so the slam
+      // itself is untouched.
+      duckSfx(0.6, 600);
       this.fx.shake(0.020, 260);
       this._cameraPunch(1.08, 260);
       this._slowMo(0.5, 240);

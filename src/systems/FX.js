@@ -8,6 +8,14 @@ let masterGain = null;
 let compressor = null;
 let musicGain = null;
 let sfxGain = null;
+// Two buses under sfxGain. Everything used to share one node, which meant the
+// melee competed head-on with kill feedback and lost — the slam's energy is
+// deliberately low (where a phone speaker is weakest) while the kill chime sits
+// at 523-1600Hz (where it is strongest). Splitting them lets the melee be
+// boosted and everything else be ducked out from under it independently, while
+// the user's SFX slider still lives on sfxGain above both.
+let sfxBus = null;      // default route for every SFX; duckable
+let meleeBus = null;    // Riven melee only; boosted, never ducked
 let musicVol = 0.40;   // was 0.18 — music sat ~20dB under SFX and was inaudible
 let sfxVol = 0.60;
 let sfxDelay = null;   // shared feedback-delay send for SFX "tails" (combo chime)
@@ -63,16 +71,33 @@ export function initAudio() {
     sfxGain.gain.value = sfxVol;
     sfxGain.connect(masterGain);
 
+    // General SFX. duckSfx() dips THIS, not sfxGain, so a duck can never stomp
+    // on the volume the player set (the bug duckMusic's comment describes).
+    sfxBus = audioCtx.createGain();
+    sfxBus.gain.value = 1;
+    sfxBus.connect(sfxGain);
+
+    // Melee bus. Sits ~4dB hot and is exempt from ducking, so the Riven combo
+    // reads as the loudest thing on screen when it lands. The boost alone is not
+    // enough — the master compressor (threshold -10, ratio 12) eats a chunk of
+    // it — which is why duckSfx() clearing the other bus matters just as much.
+    meleeBus = audioCtx.createGain();
+    meleeBus.gain.value = 1.6;
+    meleeBus.connect(sfxGain);
+
     // Feedback-delay send: SFX can opt in (tone({echo})) to get a short
     // repeating tail — used by the combo chime so a kill-streak note rings out
-    // instead of blipping dry. Wet path only; dry still goes straight to sfxGain.
+    // instead of blipping dry. Wet path only; dry still goes straight to sfxBus.
+    // Deliberately NOT reachable from meleeBus: the melee has no echo send and
+    // must not acquire one, since a ringing tail is the exact defect that was
+    // just designed out of it.
     sfxDelay = audioCtx.createDelay(0.6);
     sfxDelay.delayTime.value = 0.16;
     const fb = audioCtx.createGain();
     fb.gain.value = 0.32;
     sfxDelay.connect(fb);
     fb.connect(sfxDelay);
-    sfxDelay.connect(sfxGain);
+    sfxDelay.connect(sfxBus);
   };
   ['pointerdown', 'touchstart', 'keydown'].forEach((evt) =>
     window.addEventListener(evt, create, { once: true })
@@ -85,7 +110,9 @@ function ensureCtx() {
   return audioCtx;
 }
 
-function tone({ freq = 440, type = 'sine', dur = 0.12, gain = 0.4, slide = 0, delay = 0, vary = 0, echo = 0 }) {
+// `bus` picks the destination sub-bus; omitted means the general (duckable) one,
+// so no existing call site changes behaviour. The melee voices pass meleeBus.
+function tone({ freq = 440, type = 'sine', dur = 0.12, gain = 0.4, slide = 0, delay = 0, vary = 0, echo = 0, bus = null }) {
   const ctx = ensureCtx();
   if (!ctx) return;
   const t = ctx.currentTime + delay;
@@ -101,7 +128,7 @@ function tone({ freq = 440, type = 'sine', dur = 0.12, gain = 0.4, slide = 0, de
   g.gain.linearRampToValueAtTime(gain, t + 0.005);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   osc.connect(g);
-  g.connect(sfxGain || masterGain);
+  g.connect(bus || sfxBus || masterGain);
   // Optional wet send into the shared feedback delay for a ringing tail.
   if (echo && sfxDelay) {
     const s = ctx.createGain();
@@ -124,7 +151,7 @@ function tone({ freq = 440, type = 'sine', dur = 0.12, gain = 0.4, slide = 0, de
 function noise({
   dur = 0.15, gain = 0.3, hp = 600, delay = 0,
   type = 'highpass', q = 0, qTo = 0, sweepTo = 0, attack = 0, echo = 0,
-  drive = 0, sustain = 0,
+  drive = 0, sustain = 0, bus = null,
 }) {
   const ctx = ensureCtx();
   if (!ctx) return;
@@ -162,8 +189,9 @@ function noise({
   src.connect(filter);
   filter.connect(g);
   const ws = drive ? shaper(drive) : null;
-  if (ws) { g.connect(ws); ws.connect(sfxGain || masterGain); }
-  else g.connect(sfxGain || masterGain);
+  const dest = bus || sfxBus || masterGain;
+  if (ws) { g.connect(ws); ws.connect(dest); }
+  else g.connect(dest);
   if (echo && sfxDelay) {
     const s = ctx.createGain();
     s.gain.value = echo;
@@ -177,7 +205,7 @@ function noise({
 // the music one is on musicGain and cannot be borrowed for an SFX. This is what
 // makes an impact land in the chest rather than in the ears; tone() bottoms out
 // at 40Hz on its slide and has a 5ms linear attack that clicks at these depths.
-function sub({ freq = 90, to = 32, dur = 0.5, gain = 0.3, delay = 0 }) {
+function sub({ freq = 90, to = 32, dur = 0.5, gain = 0.3, delay = 0, bus = null }) {
   const ctx = ensureCtx();
   if (!ctx) return;
   const t = ctx.currentTime + delay;
@@ -190,7 +218,7 @@ function sub({ freq = 90, to = 32, dur = 0.5, gain = 0.3, delay = 0 }) {
   g.gain.linearRampToValueAtTime(gain, t + 0.006);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   osc.connect(g);
-  g.connect(sfxGain || masterGain);
+  g.connect(bus || sfxBus || masterGain);
   osc.start(t);
   osc.stop(t + dur + 0.02);
 }
@@ -233,7 +261,7 @@ function shaper(drive = 3) {
 // generating harmonics at 2x/3x/4x the fundamental. Those land in the
 // 150-500Hz band a small speaker does reproduce, and the ear reconstructs the
 // missing fundamental from them. On headphones the real sub is still there.
-function punch({ freq = 150, to = 45, dur = 0.5, gain = 0.3, drive = 4, delay = 0 }) {
+function punch({ freq = 150, to = 45, dur = 0.5, gain = 0.3, drive = 4, delay = 0, bus = null }) {
   const ctx = ensureCtx();
   if (!ctx) return;
   const t = ctx.currentTime + delay;
@@ -246,12 +274,13 @@ function punch({ freq = 150, to = 45, dur = 0.5, gain = 0.3, drive = 4, delay = 
   g.gain.linearRampToValueAtTime(gain, t + 0.006);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   const ws = shaper(drive);
+  const dest = bus || sfxBus || masterGain;
   osc.connect(g);
   if (ws) {
     g.connect(ws);
-    ws.connect(sfxGain || masterGain);
+    ws.connect(dest);
   } else {
-    g.connect(sfxGain || masterGain);
+    g.connect(dest);
   }
   osc.start(t);
   osc.stop(t + dur + 0.02);
@@ -267,7 +296,7 @@ function punch({ freq = 150, to = 45, dur = 0.5, gain = 0.3, drive = 4, delay = 
 function stack({
   freq = 300, count = 3, detune = 8, type = 'sawtooth',
   dur = 0.2, gain = 0.12, slide = 0, delay = 0, drive = 0,
-  filter = 0, filterTo = 0, q = 1, attack = 0.008, sustain = 0,
+  filter = 0, filterTo = 0, q = 1, attack = 0.008, sustain = 0, bus = null,
 }) {
   const ctx = ensureCtx();
   if (!ctx) return;
@@ -293,7 +322,7 @@ function stack({
   }
   const ws = drive ? shaper(drive) : null;
   if (ws) { head.connect(ws); head = ws; }
-  head.connect(sfxGain || masterGain);
+  head.connect(bus || sfxBus || masterGain);
 
   for (let i = 0; i < count; i++) {
     // Spread symmetrically around the centre frequency.
@@ -371,6 +400,12 @@ export function __fxDebug() {
     ctx: audioCtx,
     sfxGain,
     masterGain,
+    // The two sub-buses, so a test can measure the melee and everything else
+    // separately — tapping sfxGain alone just sums them back together.
+    sfxBus,
+    meleeBus,
+    sfxBusGain: sfxBus ? sfxBus.gain.value : null,
+    meleeBusGain: meleeBus ? meleeBus.gain.value : null,
     // musicGain lets a test measure the bed in isolation — tapping masterGain
     // in a live arena just measures gunfire.
     musicGain,
@@ -525,13 +560,20 @@ export const SFX = {
   // Kill-chain combo — a bright rising arpeggio (root-3rd-5th) with a noise
   // transient and an echo tail, climbing a semitone per streak step so a long
   // chain literally sings upward. Far punchier than the old two-note blip.
-  comboChime(n = 2) {
+  // `muffled` is for kills caused by the melee finisher. The echo send is the
+  // real offender there: at 160ms with 0.32 feedback it rings for ~800ms, which
+  // is longer than the slam itself, so a multi-kill slam was being covered by
+  // its own kill reward. Dry and halved, arriving after the impact, it reads as
+  // a tally instead of a ring.
+  comboChime(n = 2, muffled = false) {
     const step = Math.min(n, 12);
     const base = 523.25 * Math.pow(2, step / 12); // C5 and up
-    noise({ dur: 0.025, gain: 0.10, hp: 3200 });   // crisp attack tick
-    tone({ freq: base,        type: 'triangle', dur: 0.10, gain: 0.17, echo: 0.28 });
-    tone({ freq: base * 1.26, type: 'triangle', dur: 0.10, gain: 0.15, delay: 0.045, echo: 0.28 });
-    tone({ freq: base * 1.5,  type: 'square',   dur: 0.14, gain: 0.14, delay: 0.09,  echo: 0.34 });
+    const v = muffled ? 0.5 : 1;
+    const e = muffled ? 0 : 1;
+    noise({ dur: 0.025, gain: 0.10 * v, hp: 3200 });   // crisp attack tick
+    tone({ freq: base,        type: 'triangle', dur: 0.10, gain: 0.17 * v, echo: 0.28 * e });
+    tone({ freq: base * 1.26, type: 'triangle', dur: 0.10, gain: 0.15 * v, delay: 0.045, echo: 0.28 * e });
+    tone({ freq: base * 1.5,  type: 'square',   dur: 0.14, gain: 0.14 * v, delay: 0.09,  echo: 0.34 * e });
   },
   // Dash whoosh — dedicated sound (was borrowing the stealth-takedown blade
   // shink before). Fast filtered-noise sweep + a falling tone for air-push.
@@ -600,7 +642,7 @@ export const SFX = {
     lp.frequency.linearRampToValueAtTime(3000, t + dur * 0.3);   // opens briefly
     lp.frequency.exponentialRampToValueAtTime(420, t + dur);     // then shuts
     lp.connect(outGain);
-    outGain.connect(sfxGain || masterGain);
+    outGain.connect(meleeBus || sfxBus || masterGain);
 
     // Harmonic partials (1x, 2x, 3x), lightly detuned. Harmonic and smooth is
     // the whole point — this is the opposite of ring-modulated sidebands.
@@ -626,13 +668,13 @@ export const SFX = {
     // ── Air. Sweeps UP on the approach only, and is over well before the tail
     // so nothing is still climbing at the end.
     noise({ dur: dur * 0.42, gain: 0.16, hp: 500, sweepTo: 2600,
-            type: 'bandpass', q: 2.5, attack: 0.012 });
+            type: 'bandpass', q: 2.5, attack: 0.012, bus: meleeBus });
     // Second pass sweeps DOWN and lands LOW, carrying the blade away from you.
     // Its endpoint used to be 400Hz at gain 0.10, which left it as the loudest
     // thing still sounding at the tail — mid-band noise outliving the low hum
     // is what made the sound brighten as it died.
     noise({ dur: dur * 0.6, gain: 0.07, hp: 1800, sweepTo: 220,
-            type: 'bandpass', q: 1.4, delay: dur * 0.25 });
+            type: 'bandpass', q: 1.4, delay: dur * 0.25, bus: meleeBus });
 
     // ── Deep body: flat pitch, no sweep. This is what kept the swing audible
     // on a phone speaker (it recovered 10dB in the 150-500Hz band), so it
@@ -640,7 +682,7 @@ export const SFX = {
     // present at the end to weigh the tail down.
     stack({
       freq: 150, count: 3, detune: 10, type: 'triangle',
-      dur, gain: 0.15, attack: 0.02, sustain: dur * 0.55,
+      dur, gain: 0.15, attack: 0.02, sustain: dur * 0.55, bus: meleeBus,
     });
   },
 
@@ -653,7 +695,7 @@ export const SFX = {
     // Saturated crack in the presence band — this is what a phone speaker
     // reproduces best, so the impact's identity lives here.
     noise({ dur: 0.07, gain: 0.22, hp: 2800, sweepTo: 900,
-            type: 'bandpass', q: 1.2, qTo: 4, drive: 3 });
+            type: 'bandpass', q: 1.2, qTo: 4, drive: 3, bus: meleeBus });
 
     // Contact: a short harmonic burst behind a closing lowpass. The ring mod
     // and formant filter that used to be here are gone for the same reason
@@ -671,7 +713,7 @@ export const SFX = {
     lp.frequency.setValueAtTime(2800, t);
     lp.frequency.exponentialRampToValueAtTime(500, t + dur);   // darkens
     lp.connect(g);
-    g.connect(sfxGain || masterGain);
+    g.connect(meleeBus || sfxBus || masterGain);
     [[1, 0.5, 'triangle'], [2, 0.25, 'sine']].forEach(([mult, amp, type]) => {
       [-6, 6].forEach((cents) => {
         const o = ctx.createOscillator();
@@ -687,7 +729,7 @@ export const SFX = {
     // Weight. punch() instead of sub(): the old 70Hz drop was inaudible on a
     // small speaker, so a connect and a whiff weighed the same on the device
     // this is actually played on.
-    punch({ freq: 190, to: 60, dur: 0.26, gain: 0.24, drive: 4 });
+    punch({ freq: 190, to: 60, dur: 0.26, gain: 0.24, drive: 4, bus: meleeBus });
   },
 
   // Cast 3's ground slam — the thomp. This made no sound at all before.
@@ -701,11 +743,11 @@ export const SFX = {
     // a big sub drop and was heard as nothing. Rebuilt an octave up and
     // saturated, so the harmonics land where a small speaker lives and the ear
     // fills in the fundamental it can't hear.
-    punch({ freq: 160, to: 48, dur: 0.60, gain: 0.34, drive: 6 });
-    punch({ freq: 240, to: 80, dur: 0.34, gain: 0.20, drive: 5, delay: 0.012 });
+    punch({ freq: 160, to: 48, dur: 0.60, gain: 0.34, drive: 6, bus: meleeBus });
+    punch({ freq: 240, to: 80, dur: 0.34, gain: 0.20, drive: 5, delay: 0.012, bus: meleeBus });
     // Kept underneath for anyone on headphones, where it IS audible. It is a
     // bonus layer now, not the load-bearing one.
-    sub({ freq: 90, to: 30, dur: 0.7, gain: 0.18 });
+    sub({ freq: 90, to: 30, dur: 0.7, gain: 0.18, bus: meleeBus });
     // ── The "OO": a low, dark, SHORT body.
     //
     // This was a saturated 300Hz sawtooth held for 400ms behind a Q=2 resonant
@@ -716,11 +758,11 @@ export const SFX = {
     stack({
       freq: 120, count: 2, detune: 8, type: 'triangle',
       dur: 0.18, gain: 0.17,
-      filter: 800, filterTo: 260, q: 0.7,
+      filter: 800, filterTo: 260, q: 0.7, bus: meleeBus,
     });
     // Impact transient — the hard front edge, the "D".
     noise({ dur: 0.09, gain: 0.26, hp: 3600, sweepTo: 700,
-            type: 'lowpass', q: 1, qTo: 5, drive: 3 });
+            type: 'lowpass', q: 1, qTo: 5, drive: 3, bus: meleeBus });
 
     // ── The "SH": a broadband wash that DARKENS. ────────────────────────────
     // Every layer here used to sweep upward — a Q=2.2 bandpass rising to
@@ -731,17 +773,17 @@ export const SFX = {
     // the impact and close down, with the resonance taken out so there is no
     // pitch anywhere in the tail.
     noise({ dur: 0.30, gain: 0.26, hp: 4500, sweepTo: 800,
-            type: 'lowpass', q: 0.5, attack: 0.015, delay: 0.02 });
+            type: 'lowpass', q: 0.5, attack: 0.015, delay: 0.02, bus: meleeBus });
     // Long tail — the "HH". A HIGHPASS was wrong for this: it has no ceiling,
     // so it passes everything up to Nyquist and stays bright forever. Being the
     // longest layer, it was the last thing still sounding and dragged the whole
     // tail upward even with the ring removed. A lowpass closing from 5kHz to
     // 700Hz keeps the broadband "sh" at the front and lets it darken away.
     noise({ dur: 0.70, gain: 0.16, hp: 3600, sweepTo: 450,
-            type: 'lowpass', q: 0.6, attack: 0.04, sustain: 0.28, delay: 0.10 });
+            type: 'lowpass', q: 0.6, attack: 0.04, sustain: 0.28, delay: 0.10, bus: meleeBus });
     // Low half of the wash — rumble settling, sweeping DOWN.
     noise({ dur: 0.65, gain: 0.15, hp: 1200, sweepTo: 220,
-            type: 'lowpass', q: 0.8, attack: 0.04, sustain: 0.14, delay: 0.04 });
+            type: 'lowpass', q: 0.8, attack: 0.04, sustain: 0.14, delay: 0.04, bus: meleeBus });
   },
 
   // The "ZZZZZ" phase — an energy-blade hum that holds for as long as the combo
@@ -769,7 +811,7 @@ export const SFX = {
     lp.frequency.value = 900;
     lp.Q.value = 0.7;
     lp.connect(g);
-    g.connect(sfxGain);
+    g.connect(meleeBus || sfxBus);
     // Harmonic partials of a 110Hz fundamental, lightly detuned. Smooth and
     // harmonic — a saber idle hum, not an electrical buzz. The 2nd and 3rd
     // partials (220/330Hz) are what carry it on a phone speaker.
@@ -1072,6 +1114,19 @@ export function duckMusic(amount = 0.5, restoreInMs = 600) {
   // default — otherwise every duck silently overwrote a lowered slider back to 0.18.
   musicGain.gain.linearRampToValueAtTime(musicVol * (1 - amount), t + 0.05);
   musicGain.gain.linearRampToValueAtTime(musicVol, t + 0.05 + restoreInMs / 1000);
+}
+
+// Duck everything EXCEPT the melee. Same shape as duckMusic, on sfxBus — which
+// sits under sfxGain, so the dip is relative to a fixed 1.0 and can never
+// overwrite the player's volume slider. meleeBus is a sibling and is untouched,
+// so the slam gets the whole mix to itself for the length of the window.
+export function duckSfx(amount = 0.5, restoreInMs = 600) {
+  if (!sfxBus || !audioCtx) return;
+  const t = audioCtx.currentTime;
+  sfxBus.gain.cancelScheduledValues(t);
+  sfxBus.gain.setValueAtTime(sfxBus.gain.value, t);
+  sfxBus.gain.linearRampToValueAtTime(1 - amount, t + 0.03);
+  sfxBus.gain.linearRampToValueAtTime(1, t + 0.03 + restoreInMs / 1000);
 }
 
 // --- Visual FX helpers (attached to scenes via attach()) ---
