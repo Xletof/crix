@@ -168,11 +168,16 @@ export const WEAPONS = {
     // dive tracks a moving enemy, so a miss means the target outran the fall or
     // died mid-air — the lock is strong, not guaranteed.
     impactRadius: 74,
-    // Fragmentation. Total damage (5 x 130 = 650) sits above the detonator's
-    // flat 500 because the missiles can miss a fleeing target, where the old
-    // blast could not.
-    fragments: 5,
-    fragDamage: 130,
+    // Fragmentation. Each bomblet is meant to nearly kill a grunt on its own:
+    // 290 against 320hp leaves a ~9% sliver, so one munition is a real threat
+    // and any second source finishes the job. Elites (2.5x hp) and later
+    // sectors still need two.
+    //
+    // Total is 8 x 290 = 2320, up from 5 x 130 = 650. That is a large increase,
+    // and it is deliberate — a pod with 3 charges is now a genuine crowd-clear
+    // rather than chip damage. Keep an eye on it against a full arena.
+    fragments: 8,
+    fragDamage: 290,
     // Lock acquisition radius, measured from the burst point. Targets are
     // assigned round-robin across DISTINCT enemies in this radius, so five
     // munitions over three enemies go 3 + 2 rather than all five onto whichever

@@ -576,18 +576,23 @@ export const SFX = {
   fragImpact() {
     // Crack — the pixel identity, falling and slightly detuned per call so a
     // volley doesn't sound like one sample looping.
-    tone({ freq: 520, type: 'square', dur: 0.06, gain: 0.11, slide: -340, vary: 0.20 });
+    // NOTE: gains here and in fragBoost are scaled for EIGHT munitions landing
+    // together (x0.79 from the five-munition tuning, i.e. sqrt(5/8), which holds
+    // the summed level constant). The count went 5 -> 8; without this the volley
+    // would be ~2dB hotter and, more audibly, would pump the master compressor
+    // (threshold -10, ratio 12) hard enough to duck everything else under it.
+    tone({ freq: 520, type: 'square', dur: 0.06, gain: 0.087, slide: -340, vary: 0.20 });
     // Body. Deliberately THIN: this was a 150Hz punch held for 200ms at gain
     // 0.20 with drive 5, which is a full-sized explosion thump — a "THONK" —
     // and five of them landing together turned into mud. Up an octave-ish,
     // roughly half the length, half the level and less saturation, so it reads
     // as a bomblet rather than a demolition charge.
-    punch({ freq: 210, to: 90, dur: 0.11, gain: 0.10, drive: 3 });
+    punch({ freq: 210, to: 90, dur: 0.11, gain: 0.079, drive: 3 });
     // Wash — short lowpassed burst closing downward. This is the "explosion"
     // half; without it the square alone is just another beep. Opened up and
     // shortened along with the body so the sound stays crisp rather than
     // filling in the low end the punch just vacated.
-    noise({ dur: 0.16, gain: 0.17, hp: 4200, sweepTo: 900,
+    noise({ dur: 0.16, gain: 0.134, hp: 4200, sweepTo: 900,
             type: 'lowpass', q: 0.6, drive: 2 });
   },
 
@@ -603,24 +608,25 @@ export const SFX = {
   // own band and start time — without that they phase-align into one loud "PSH"
   // instead of five small ones. Same reason tone() has `vary`.
   //
-  // Gains are BELOW the old blip's on purpose. Five sustained sources summing
-  // for 600ms is far more energy than five overlapping 200ms transients, so
+  // Gains are BELOW the old blip's on purpose. Eight sustained sources summing
+  // for 600ms is far more energy than eight overlapping 200ms transients, so
   // holding the old level would have made the boost louder than the detonation
-  // it exists to lead into.
+  // it exists to lead into. Trimmed again (x0.79) when the count went 5 -> 8;
+  // all eight ignite on the same frame, so they sum almost perfectly.
   fragBoost(durMs = 620) {
     const d  = Math.max(0.14, durMs / 1000);
     const lo = 700 + Math.random() * 260;
     // The burn. Sustains almost the whole way, then falls away as it lands —
     // noise() clamps the shelf to 80% of duration, so the last fifth is release.
     noise({
-      dur: d, gain: 0.085, hp: lo, sweepTo: lo * 2.2,
+      dur: d, gain: 0.067, hp: lo, sweepTo: lo * 2.2,
       type: 'bandpass', q: 1.1, attack: 0.05, sustain: d * 0.8,
       delay: Math.random() * 0.05,
     });
     // A whisper of low air under it so it has a body on a phone speaker, where
     // a pure 1-3kHz hiss is all that would survive.
     noise({
-      dur: d, gain: 0.05, hp: 420, sweepTo: 240,
+      dur: d, gain: 0.040, hp: 420, sweepTo: 240,
       type: 'lowpass', q: 0.6, attack: 0.04, sustain: d * 0.8,
       delay: Math.random() * 0.05,
     });
