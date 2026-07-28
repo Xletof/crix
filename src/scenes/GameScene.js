@@ -2048,17 +2048,35 @@ export class GameScene extends Phaser.Scene {
       // The trajectory the munition is about to follow, drawn ahead of it to
       // the enemy it has locked. Only once the lock is live — during the pop
       // there is nothing to point at yet.
+      //
+      // DOTTED and faint, deliberately. A solid stroke reads as a tether
+      // physically connecting two objects; a broken one reads as a projected
+      // path. Phaser's Graphics has no dash support, so the segments are walked
+      // out along the vector by hand. The dash offset crawls toward the target
+      // so the path has direction rather than sitting there like a rope.
       line.clear();
       const t = st.target;
       if (st.locked && t?.active && t.alive) {
         line.setDepth(DEPTH.AIR + st.gy - 1);
-        line.lineStyle(1.6, 0xff9030, 0.5);
-        line.beginPath();
-        line.moveTo(b.x, b.y);
-        line.lineTo(t.x, t.y);
-        line.strokePath();
-        line.fillStyle(0xffc060, 0.75);
-        line.fillCircle(t.x, t.y, 3);
+        const dx = t.x - b.x, dy = t.y - b.y;
+        const len = Math.hypot(dx, dy);
+        if (len > 1) {
+          const ux = dx / len, uy = dy / len;
+          const dash = 7, gap = 9, period = dash + gap;
+          // Crawl. Negative so the dashes travel from the munition toward its
+          // target, not backwards up the line.
+          const off = -(this.time.now * 0.06) % period;
+          line.lineStyle(1.1, 0xffa040, 0.22);
+          line.beginPath();
+          for (let d = off; d < len; d += period) {
+            const s = Math.max(0, d);
+            const e = Math.min(d + dash, len);
+            if (e <= s) continue;
+            line.moveTo(b.x + ux * s, b.y + uy * s);
+            line.lineTo(b.x + ux * e, b.y + uy * e);
+          }
+          line.strokePath();
+        }
       }
     };
     draw();
@@ -2099,6 +2117,7 @@ export class GameScene extends Phaser.Scene {
   _clusterDive(b, gen, st, shadow, line, angle, draw) {
     const cfg = WEAPONS.cluster;
     st.locked = true;
+    SFX.fragBoost?.();   // the "fff" as it commits to the dive
 
     // Where it falls if there is nothing to dive at, or if the target dies
     // mid-air: carry on along the fan and detonate out there.

@@ -576,14 +576,42 @@ export const SFX = {
   fragImpact() {
     // Crack — the pixel identity, falling and slightly detuned per call so a
     // volley doesn't sound like one sample looping.
-    tone({ freq: 420, type: 'square', dur: 0.07, gain: 0.10, slide: -300, vary: 0.18 });
-    // Body — small saturated thump. punch() rather than sub() so its harmonics
-    // land where a phone speaker actually lives.
-    punch({ freq: 150, to: 52, dur: 0.20, gain: 0.20, drive: 5 });
-    // Wash — one short lowpassed burst closing downward. This is the "explosion"
-    // half; without it the square alone is just another beep.
-    noise({ dur: 0.22, gain: 0.20, hp: 3200, sweepTo: 500,
-            type: 'lowpass', q: 0.7, drive: 2 });
+    tone({ freq: 520, type: 'square', dur: 0.06, gain: 0.11, slide: -340, vary: 0.20 });
+    // Body. Deliberately THIN: this was a 150Hz punch held for 200ms at gain
+    // 0.20 with drive 5, which is a full-sized explosion thump — a "THONK" —
+    // and five of them landing together turned into mud. Up an octave-ish,
+    // roughly half the length, half the level and less saturation, so it reads
+    // as a bomblet rather than a demolition charge.
+    punch({ freq: 210, to: 90, dur: 0.11, gain: 0.10, drive: 3 });
+    // Wash — short lowpassed burst closing downward. This is the "explosion"
+    // half; without it the square alone is just another beep. Opened up and
+    // shortened along with the body so the sound stays crisp rather than
+    // filling in the low end the punch just vacated.
+    noise({ dur: 0.16, gain: 0.17, hp: 4200, sweepTo: 900,
+            type: 'lowpass', q: 0.6, drive: 2 });
+  },
+
+  // Sub-munition lighting its booster the instant it locks on — the "fff" as it
+  // leaves the apex and commits to the dive.
+  //
+  // Air, not tone: a pitched layer here would fight the impact that follows a
+  // beat later. Five of these fire within a frame of each other, so each call
+  // jitters its own band and start time — without that they phase-align into one
+  // loud "PSH" instead of five small ones. Same reason tone() has `vary`.
+  fragBoost() {
+    const lo = 700 + Math.random() * 260;
+    noise({
+      dur: 0.20, gain: 0.13, hp: lo, sweepTo: lo * 3.1,
+      type: 'bandpass', q: 1.1, attack: 0.04,
+      delay: Math.random() * 0.05,
+    });
+    // A whisper of low air under it so it has a body on a phone speaker, where
+    // a pure 1-3kHz hiss is all that would survive.
+    noise({
+      dur: 0.16, gain: 0.08, hp: 420, sweepTo: 200,
+      type: 'lowpass', q: 0.6, attack: 0.03,
+      delay: Math.random() * 0.05,
+    });
   },
 
   // Kill-chain combo — a bright rising arpeggio (root-3rd-5th) with a noise
