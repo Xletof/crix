@@ -591,25 +591,37 @@ export const SFX = {
             type: 'lowpass', q: 0.6, drive: 2 });
   },
 
-  // Sub-munition lighting its booster the instant it locks on — the "fff" as it
-  // leaves the apex and commits to the dive.
+  // Sub-munition's booster, burning for the whole dive — lit the instant it
+  // locks on, still running when it hits.
   //
-  // Air, not tone: a pitched layer here would fight the impact that follows a
-  // beat later. Five of these fire within a frame of each other, so each call
-  // jitters its own band and start time — without that they phase-align into one
-  // loud "PSH" instead of five small ones. Same reason tone() has `vary`.
-  fragBoost() {
+  // `durMs` is the dive length, so the thrust ends when the munition does. It
+  // was a fixed 200ms blip, which read as an ignition rather than a burn: the
+  // sound was over long before the thing it was propelling arrived.
+  //
+  // Air, not tone: a pitched layer here would fight the impact that follows.
+  // Five of these run concurrently for the full dive, so each call jitters its
+  // own band and start time — without that they phase-align into one loud "PSH"
+  // instead of five small ones. Same reason tone() has `vary`.
+  //
+  // Gains are BELOW the old blip's on purpose. Five sustained sources summing
+  // for 600ms is far more energy than five overlapping 200ms transients, so
+  // holding the old level would have made the boost louder than the detonation
+  // it exists to lead into.
+  fragBoost(durMs = 620) {
+    const d  = Math.max(0.14, durMs / 1000);
     const lo = 700 + Math.random() * 260;
+    // The burn. Sustains almost the whole way, then falls away as it lands —
+    // noise() clamps the shelf to 80% of duration, so the last fifth is release.
     noise({
-      dur: 0.20, gain: 0.13, hp: lo, sweepTo: lo * 3.1,
-      type: 'bandpass', q: 1.1, attack: 0.04,
+      dur: d, gain: 0.085, hp: lo, sweepTo: lo * 2.2,
+      type: 'bandpass', q: 1.1, attack: 0.05, sustain: d * 0.8,
       delay: Math.random() * 0.05,
     });
     // A whisper of low air under it so it has a body on a phone speaker, where
     // a pure 1-3kHz hiss is all that would survive.
     noise({
-      dur: 0.16, gain: 0.08, hp: 420, sweepTo: 200,
-      type: 'lowpass', q: 0.6, attack: 0.03,
+      dur: d, gain: 0.05, hp: 420, sweepTo: 240,
+      type: 'lowpass', q: 0.6, attack: 0.04, sustain: d * 0.8,
       delay: Math.random() * 0.05,
     });
   },

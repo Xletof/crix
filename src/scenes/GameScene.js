@@ -2117,7 +2117,8 @@ export class GameScene extends Phaser.Scene {
   _clusterDive(b, gen, st, shadow, line, angle, draw) {
     const cfg = WEAPONS.cluster;
     st.locked = true;
-    SFX.fragBoost?.();   // the "fff" as it commits to the dive
+    // Burns for the whole dive, so it is still running when the munition hits.
+    SFX.fragBoost?.(cfg.descentMs);
 
     // Where it falls if there is nothing to dive at, or if the target dies
     // mid-air: carry on along the fan and detonate out there.
