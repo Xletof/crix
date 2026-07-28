@@ -128,10 +128,22 @@ export const WEAPONS = {
     // raining in from above.
     riseMs: 1000,
     burstHeight: 300,    // px of fake altitude at the apex
-    // Descent: missiles fall from the burst to the ground with their bodies
-    // DISABLED, so something in the air cannot hit a ground enemy.
-    descentMs: 450,
-    scatterRadius: 240,  // how far they fling from the burst point on the way down
+    // ── Sub-munition flight ────────────────────────────────────────────────
+    // Three phases, all with the physics body DISABLED until touchdown, so
+    // something in the air can never hit a ground enemy.
+    //
+    // The missiles used to drop almost straight down from the burst and only
+    // pick a target once they landed, which read as them deploying at ground
+    // level. They now POP upward out of the canister first, fan out, and only
+    // then nose over and cascade onto the pack.
+    popMs: 320,          // phase A: climbing away from the burst
+    popHeight: 260,      // extra altitude gained ABOVE the burst point
+    fanRadius: 240,      // how far they fling outward during the pop
+    descentMs: 620,      // phase B: the cascade down (was 450, and too quick to read)
+    // The descent aims at the target's AREA, not at the target. Landing right
+    // on top of an enemy would turn a spread weapon into a guaranteed 5-hit
+    // magnet; the ground-phase homing below is still what does the real work.
+    landScatter: 90,
     // Fragmentation. Total damage (5 x 130 = 650) sits above the detonator's
     // flat 500 because the missiles can miss a fleeing target, where the old
     // blast could not.

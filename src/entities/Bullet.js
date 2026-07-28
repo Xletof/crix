@@ -21,9 +21,17 @@ export class Bullet extends Phaser.Physics.Arcade.Image {
     // knockback and impact-FX path downstream already handles bullets, so a
     // homing round needs no new wiring anywhere else.
     this.homing = null;
+    // Bumped on every fire(). Anything that schedules work against a bullet —
+    // a delayedCall, a repeating timer — captures this and bails if it no
+    // longer matches, because these objects are pooled and `active`/`scene`
+    // only tell you the bullet is ALIVE, not that it is still the same shot.
+    // A cluster fragment that died mid-flight and got recycled into a primary
+    // bolt was still being written to by its own 450ms descent callback.
+    this._gen = 0;
   }
 
   fire(x, y, angle, speed, damage, range, opts = {}) {
+    this._gen++;
     this.scene.physics.world.enable(this);
     this.enableBody(true, x, y, true, true);
     this.setActive(true);
@@ -109,6 +117,12 @@ export class BulletGroup extends Phaser.Physics.Arcade.Group {
     /** @type {Bullet} */
     const b = this.get(x, y, this.texture);
     if (!b) return null;
+    // Phaser's Group.get only applies the `key` argument when it CREATES a
+    // child; a recycled one keeps whatever texture it last had. Re-asserting it
+    // here is what stops one group's look leaking into another's — and it is
+    // not cosmetic: Bullet.fire() sizes the hitbox with setCircle(this.width/2),
+    // so a stale texture silently resizes the body too.
+    if (b.texture?.key !== this.texture) b.setTexture(this.texture);
     b.fire(x, y, angle, speed, damage, range, opts);
     return b;
   }

@@ -35,6 +35,13 @@ export class GameScene extends Phaser.Scene {
     this.playerBullets      = new BulletGroup(this, 'bullet');
     this.playerRifleBullets = new BulletGroup(this, 'bullet');   // rifle uses same bolt tex
     this.playerSuperBullets = new BulletGroup(this, 'bullet-super');
+    // Cluster fragments get their OWN pool. They used to share playerBullets,
+    // and because a fragment is a pooled Bullet that gets mutated after fire()
+    // — different texture, deferred homing/velocity writes — a fragment that
+    // died early handed a contaminated object straight back to primary fire.
+    // That is what made pistol bolts turn into missiles. Primary and secondary
+    // are isolated at the input layer already; this isolates them at the pool.
+    this.playerFragBullets  = new BulletGroup(this, 'frag-missile');
     this.enemyBullets       = new BulletGroup(this, 'bullet-enemy');
 
     // ── Grenades group ─────────────────────────────────────────────────────
@@ -524,7 +531,9 @@ export class GameScene extends Phaser.Scene {
 
     // Kill in-flight bullets
     [...this.playerBullets.getChildren(),
+     ...this.playerRifleBullets.getChildren(),
      ...this.playerSuperBullets.getChildren(),
+     ...this.playerFragBullets.getChildren(),
      ...this.enemyBullets.getChildren()].forEach((b) => { if (b.active) b.kill(); });
 
     // Health orbs
@@ -1945,27 +1954,32 @@ export class GameScene extends Phaser.Scene {
     const base = Math.random() * step;
     for (let i = 0; i < cfg.fragments; i++) {
       const a = base + i * step;
-      // Where this one lands. Randomised radius so they don't touch down in a
-      // perfect ring — the brief asked for scatter, and an even circle reads
-      // as a mechanism rather than debris.
-      const reach = cfg.scatterRadius * (0.45 + Math.random() * 0.75);
-      const lx = x + Math.cos(a) * reach;
-      const ly = y + Math.sin(a) * reach;
-      this._clusterFragment(x, by, lx, ly, a);
+      // How far this one flings outward during the pop. Randomised so they
+      // don't climb in a perfect ring — an even circle reads as a mechanism
+      // rather than debris.
+      const reach = cfg.fanRadius * (0.45 + Math.random() * 0.75);
+      this._clusterFragment(x, y, z, a, reach);
     }
   }
 
-  // One micro-missile, in two phases.
+  // One micro-missile, in three phases.
   //
-  // Phase 1 is a pure visual fall from the burst point to its landing spot with
-  // the physics body DISABLED — a missile still in the air must not be able to
-  // hit a ground enemy, and this is also what lets it travel "downward" at all
-  // without fighting Arcade's body-follows-sprite coupling.
-  // Phase 2 re-enables the body and hands over to the homing steering already
-  // on Bullet, unchanged.
-  _clusterFragment(bx, by, lx, ly, angle) {
+  // Altitude is a RENDER offset, exactly as Grenade.js does it: the ground
+  // position is the real (x, y) the physics body and the shadow live at, and
+  // the sprite is drawn at (gx, gy - z). Tweening a plain state object and
+  // writing the sprite in onUpdate is what makes that separation possible —
+  // tweening the sprite's own y directly, as this used to, conflates the two,
+  // which is why the old version could only ever fall straight down.
+  //
+  // A: POP    — climbs above the burst and fans outward. Tumbling, no target.
+  // B: CASCADE— picks a target area at apex, noses over, accelerates down.
+  // C: LAND   — body back on, hands over to Bullet's homing steering unchanged.
+  //
+  // The body stays DISABLED for A and B. Both hit handlers now honour that (see
+  // handleBulletEnemyHits), so nothing in the air can touch a ground enemy.
+  _clusterFragment(bx, by, bz, angle, reach) {
     const cfg = WEAPONS.cluster;
-    const b = this.playerBullets.fire(
+    const b = this.playerFragBullets.fire(
       bx, by, angle,
       cfg.fragSpeed, cfg.fragDamage * (this.player?.dmgMult ?? 1), cfg.fragRange,
       {
@@ -1975,74 +1989,141 @@ export class GameScene extends Phaser.Scene {
       },
     );
     if (!b) return null;
-    // Swap the look AFTER fire(), which pools the group's shared 'bullet'
-    // texture. fire() sized the hitbox from THAT texture's width, so the circle
-    // has to be re-derived here or the missile keeps the pistol bolt's collision
-    // radius (Bullet.fire's setCircle(width / 2) is the texture-size trap
-    // called out in CLAUDE.md).
-    b.setTexture('frag-missile');
-    b.body.setCircle(b.width / 2);
+    const gen = b._gen;   // identity, not liveness — see Bullet._gen
 
-    // --- Phase 1: falling, inert ---
     b.body.enable = false;
     b.body.stop();
     b.homing = null;                    // no steering until it is actually flying
-    b.setPosition(bx, by);
-    const shadow = this.add.image(bx, ly, 'shadow')
-      .setDepth(b.depth - 2).setAlpha(0.1).setScale(0.3);
-    const dur = cfg.descentMs;
-    // Horizontal travel is linear; the vertical component eases IN so it reads
-    // as accelerating under gravity rather than drifting down.
-    this.tweens.add({
-      targets: b, x: lx, duration: dur, ease: 'Linear',
-    });
-    this.tweens.add({
-      targets: b, y: ly, duration: dur, ease: 'Quad.easeIn',
-    });
-    this.tweens.add({
-      targets: shadow, alpha: 0.38, scaleX: 0.85, scaleY: 0.85,
-      duration: dur, ease: 'Quad.easeIn',
-    });
-    // Point it along its actual fall, so it noses over as it comes down.
-    b.setRotation(Math.atan2(ly - by, lx - bx));
-    this._missileTrail(b);
+    b.setPosition(bx, by - bz);
 
-    this.time.delayedCall(dur, () => {
-      shadow.destroy();
-      // The bullet may have been recycled by the pool during the fall.
-      if (!b.active || !b.scene) return;
-      // --- Phase 2: live, seeking ---
-      b.body.enable = true;
-      b.body.reset(b.x, b.y);           // resync the body to where it landed
-      b.body.setCircle(b.width / 2);
-      b.homing = { turnRate: cfg.fragTurnRate, searchRadius: cfg.fragSearchRadius };
-      b.traveled = 0;                   // range budget starts at touchdown
-      b.lastX = b.x; b.lastY = b.y;
-      // Launch TOWARD a target, not along the outward burst angle. Firing
-      // outward meant a missile landed and then flew further away before the
-      // steering could haul it around — it burned range and read as the swarm
-      // scattering a second time instead of converging. The scatter already
-      // happened during the descent; touchdown is when they should commit.
-      const t = this.findNearestEnemy?.(b.x, b.y);
-      const dir = t ? Math.atan2(t.y - b.y, t.x - b.x) : angle;
-      b.setVelocity(Math.cos(dir) * cfg.fragSpeed, Math.sin(dir) * cfg.fragSpeed);
-      b.setRotation(dir);
-      this.fx.burst(b.x, b.y, 'yellow', 3);
+    // Ground position and altitude, tracked apart from the sprite.
+    const st = { gx: bx, gy: by, z: bz };
+    const maxZ = bz + cfg.popHeight;
+    const shadow = this.add.image(bx, by, 'shadow')
+      .setDepth(b.depth - 2).setAlpha(0.10).setScale(0.28);
+
+    const draw = () => {
+      b.setPosition(st.gx, st.gy - st.z);
+      // Higher = bigger and further from its shadow, the same altitude cue the
+      // canister itself uses on the way up.
+      const h = maxZ > 0 ? st.z / maxZ : 0;
+      b.setScale(1 + h * 0.5);
+      shadow.setPosition(st.gx, st.gy);
+      shadow.setScale(0.28 + (1 - h) * 0.62);
+      shadow.setAlpha(0.10 + (1 - h) * 0.30);
+    };
+    draw();
+    this._missileTrail(b, gen);
+
+    // ── Phase A: the pop ────────────────────────────────────────────────────
+    // Up and out. easeOut on both so it bursts away hard and decelerates into
+    // the apex, which is what sells it as being thrown rather than falling.
+    this.tweens.add({
+      targets: st, z: maxZ, duration: cfg.popMs, ease: 'Quad.easeOut',
+      onUpdate: draw,
+    });
+    this.tweens.add({
+      targets: st,
+      gx: bx + Math.cos(angle) * reach,
+      gy: by + Math.sin(angle) * reach,
+      duration: cfg.popMs, ease: 'Quad.easeOut',
+      onUpdate: draw,
+      onComplete: () => {
+        if (!b.active || b._gen !== gen) { shadow.destroy(); return; }
+        this._clusterCascade(b, gen, st, shadow, maxZ, angle, draw);
+      },
+    });
+
+    // Tumbling on the way up — it has no heading yet.
+    this.tweens.add({
+      targets: b, rotation: angle + Math.PI * 2.5,
+      duration: cfg.popMs, ease: 'Sine.easeOut',
     });
     return b;
   }
 
+  // Phase B + C. Split out so the pop reads as one gesture and the dive as
+  // another; they have opposite easing and opposite intent.
+  _clusterCascade(b, gen, st, shadow, maxZ, angle, draw) {
+    const cfg = WEAPONS.cluster;
+
+    // Pick the target AREA from up here. Deliberately not the target itself:
+    // landing on top of an enemy would make this a guaranteed 5-hit magnet
+    // instead of a spread weapon, and the ground-phase homing is what was
+    // tuned to do the real work.
+    const t = this.findNearestEnemy?.(st.gx, st.gy);
+    const inRange = t && Math.hypot(t.x - st.gx, t.y - st.gy) <= cfg.fragSearchRadius;
+    let lx, ly;
+    if (inRange) {
+      const jitter = Math.random() * Math.PI * 2;
+      const spread = cfg.landScatter * Math.sqrt(Math.random());
+      lx = t.x + Math.cos(jitter) * spread;
+      ly = t.y + Math.sin(jitter) * spread;
+    } else {
+      // Nothing worth diving at — carry on along the fan and land out there.
+      lx = st.gx + Math.cos(angle) * cfg.landScatter * 1.5;
+      ly = st.gy + Math.sin(angle) * cfg.landScatter * 1.5;
+    }
+
+    const dur = cfg.descentMs;
+    // The track curves: easeInOut horizontally means it drifts, then commits,
+    // then settles over the impact point rather than sliding at a constant rate.
+    this.tweens.add({
+      targets: st, gx: lx, gy: ly, duration: dur, ease: 'Sine.easeInOut',
+      onUpdate: draw,
+    });
+    // Gravity. easeIn so the last third of the fall is the fast part.
+    this.tweens.add({
+      targets: st, z: 0, duration: dur, ease: 'Quad.easeIn',
+      onUpdate: draw,
+      onComplete: () => {
+        shadow.destroy();
+        // Identity, not liveness: `active` alone cannot tell "still my missile"
+        // from "recycled and re-fired as something else", which is how this
+        // callback used to turn other people's bullets into homing missiles.
+        if (!b.active || !b.scene || b._gen !== gen) return;
+        // ── Phase C: live, seeking ──
+        b.setScale(1);
+        b.body.enable = true;
+        b.body.reset(b.x, b.y);           // resync the body to where it landed
+        b.body.setCircle(b.width / 2);
+        b.homing = { turnRate: cfg.fragTurnRate, searchRadius: cfg.fragSearchRadius };
+        b.traveled = 0;                   // range budget starts at touchdown
+        b.lastX = b.x; b.lastY = b.y;
+        const tgt = this.findNearestEnemy?.(b.x, b.y);
+        const dir = tgt ? Math.atan2(tgt.y - b.y, tgt.x - b.x) : angle;
+        b.setVelocity(Math.cos(dir) * cfg.fragSpeed, Math.sin(dir) * cfg.fragSpeed);
+        b.setRotation(dir);
+        this.fx.burst(b.x, b.y, 'yellow', 3);
+      },
+    });
+
+    // Nose over onto the dive heading as it starts to fall.
+    this.tweens.add({
+      targets: b, rotation: Math.atan2(ly - st.gy, lx - st.gx),
+      duration: dur * 0.4, ease: 'Sine.easeInOut',
+    });
+  }
+
   // Contrail for a seeking missile. Same taper-and-fade shape as the melee
   // lunge trail, stamped along the flight path each frame instead of once.
-  _missileTrail(bullet) {
+  _missileTrail(bullet, gen = null) {
     const low = isLowQuality();
     const ev = this.time.addEvent({
       delay: low ? 60 : 32,
       loop: true,
       callback: () => {
-        // The bullet is pooled, so `active` going false IS the death signal —
-        // the object itself is reused rather than destroyed.
+        // The bullet is pooled, so `active` going false is ONE death signal —
+        // but not a sufficient one. If the object gets recycled and re-fired
+        // between two ticks this loop never observes the gap, and would happily
+        // keep stamping an orange contrail on somebody else's bullet for the
+        // rest of its 4s lifetime. The generation token closes that hole.
         if (!bullet.active || !bullet.scene) { ev.remove(); return; }
+        if (gen !== null && bullet._gen !== gen) { ev.remove(); return; }
+        // Smoke puff alongside the spark core — reuses the existing missile
+        // emitter, so an airborne munition leaves a real contrail rather than
+        // just a glow.
+        this.fx.smokeTrail(bullet.x, bullet.y);
         const g = this.add.graphics().setDepth(bullet.depth - 1)
           .setBlendMode(Phaser.BlendModes.ADD);
         g.fillStyle(0xffb040, 0.5);
@@ -2241,10 +2322,12 @@ export class GameScene extends Phaser.Scene {
     this.handleBulletEnemyHits(this.playerBullets, false);
     this.handleBulletEnemyHits(this.playerRifleBullets, false);
     this.handleBulletEnemyHits(this.playerSuperBullets, true);
+    this.handleBulletEnemyHits(this.playerFragBullets, false);
     this.handleEnemyBulletsVsPlayer();
     this.handleBulletWallHits(this.playerBullets, false);
     this.handleBulletWallHits(this.playerRifleBullets, false);
     this.handleBulletWallHits(this.playerSuperBullets, true);
+    this.handleBulletWallHits(this.playerFragBullets, false);
     this.handleBulletWallHits(this.enemyBullets, false);
 
     // Bullet trails — every OTHER frame (frame parity), halving particle
@@ -2349,6 +2432,12 @@ export class GameScene extends Phaser.Scene {
     const enemies  = this.enemies.getChildren();
     for (const b of bullets) {
       if (!b.active) continue;
+      // An airborne cluster munition disables its body for the whole flight.
+      // These handlers only ever checked `active`, and circleOverlap reads
+      // body.width — which a disabled body still has — so falling fragments
+      // were hitting things mid-air and dying early. That is what made the
+      // recycle window constant rather than rare.
+      if (b.body && b.body.enable === false) continue;
       // Boss
       if (this.boss?.alive && !b.hitSet.has(this.boss)) {
         if (this.circleOverlap(b, this.boss)) {
@@ -2443,6 +2532,7 @@ export class GameScene extends Phaser.Scene {
     const walls = this.walls.getChildren();
     for (const b of bullets) {
       if (!b.active) continue;
+      if (b.body && b.body.enable === false) continue;   // still in the air
       for (const w of walls) {
         if (!w.active) continue;
         if (b.x > w.x - 56 && b.x < w.x + 56 && b.y > w.y - 56 && b.y < w.y + 56) {
@@ -2463,7 +2553,8 @@ export class GameScene extends Phaser.Scene {
           if (isSuper) { this.fx.explosion(b.x, b.y, 1.2); this.fx.shake(0.005, 60); }
           
           // Propagate sound if it is player's bullet hitting the wall
-          if (group === this.playerBullets || group === this.playerRifleBullets) {
+          if (group === this.playerBullets || group === this.playerRifleBullets
+              || group === this.playerFragBullets) {
             this.propagateSound(b.x, b.y, 250);
           }
           
