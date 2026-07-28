@@ -24,6 +24,25 @@ export const WORLD = {
   wallColor: 0x1e2028,
 };
 
+// Draw-order bands.
+//
+// This game has TWO depth conventions running at once, and mixing them up is a
+// recurring bug. Ground actors Y-sort — they write their own depth from their
+// own world y every frame (Player/Enemy `setDepth(this.y)`), and walls/cover
+// sort by their bottom edge at `y + 56`. In a 1600px arena that band occupies
+// roughly 150-1656. Everything else in the game uses small flat constants
+// (bullets 26, grenade 22, particles 0), which puts it permanently UNDERNEATH
+// the entire Y-sorted layer. `bladeArc` and `ambientMotes` in FX.js were both
+// bitten by this and carry comments about it.
+//
+// AIR is for things that are genuinely flying OVER the room and must clear all
+// of it. Add the object's GROUND y (where its shadow is), never its rendered y
+// — a sprite drawn at `gy - z` would otherwise change draw order as it climbs,
+// which is the exact bug this is fixing.
+export const DEPTH = {
+  AIR: 2000,
+};
+
 export const PLAYER = {
   hp: 1000,
   speed: 380,

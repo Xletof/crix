@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { WEAPONS } from '../config.js';
+import { WEAPONS, DEPTH } from '../config.js';
 
 const CFG = WEAPONS.cluster;
 
@@ -11,7 +11,7 @@ export class Grenade extends Phaser.Physics.Arcade.Image {
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setVisible(false); // Base physics body is invisible
-    this.setDepth(22);
+    this.setDepth(DEPTH.AIR + y);
     this.body.setCircle(6, -6, -6);
     this.body.setCollideWorldBounds(true);
     this.body.setBounce(0.35);
@@ -22,9 +22,13 @@ export class Grenade extends Phaser.Physics.Arcade.Image {
     this._blinking = false;
     this._z = 0;   // fake altitude, read by GameScene when the burst fires
 
-    // Projected shadow and visual representations
-    this.shadow = scene.add.image(x, y + 4, 'shadow').setDepth(21).setAlpha(0.35);
-    this.visual = scene.add.image(x, y, 'grenade').setDepth(22);
+    // Projected shadow and visual representations.
+    //
+    // The shadow lies on the FLOOR, so it Y-sorts with the ground layer like
+    // every other shadow in the game (Player.js, Enemy.js both use `y - 1`).
+    // The canister itself is in the air and has to clear the whole room.
+    this.shadow = scene.add.image(x, y + 4, 'shadow').setDepth(y - 1).setAlpha(0.35);
+    this.visual = scene.add.image(x, y, 'grenade').setDepth(DEPTH.AIR + y);
 
     // Fuse blink tween (speeds up near detonation)
     this._blinkTimer = scene.time.addEvent({
@@ -75,6 +79,13 @@ export class Grenade extends Phaser.Physics.Arcade.Image {
     
     // Position visual sprite offset by -z
     this.visual.setPosition(this.x, this.y - z);
+
+    // Draw order tracks the GROUND position (this.y), not the rendered one
+    // (this.y - z) — otherwise the canister would sink through the room's
+    // Y-sort as it climbed.
+    this.visual.setDepth(DEPTH.AIR + this.y);
+    this.setDepth(DEPTH.AIR + this.y);
+    this.shadow.setDepth(this.y - 1);
 
     // Shadow stays on the floor (at physics position)
     this.shadow.setPosition(this.x, this.y + 4);

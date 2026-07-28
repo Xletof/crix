@@ -28,6 +28,12 @@ export class Bullet extends Phaser.Physics.Arcade.Image {
     // A cluster fragment that died mid-flight and got recycled into a primary
     // bolt was still being written to by its own 450ms descent callback.
     this._gen = 0;
+    // Opt in to the world's Y-sort convention (depth = world y) instead of the
+    // flat 26 below. Off by default so no existing projectile changes: only the
+    // cluster munition needs it, because it is a large slow sprite that visibly
+    // passes in front of and behind cover, where a bolt crossing the screen in
+    // 400ms does not.
+    this.ySort = false;
   }
 
   fire(x, y, angle, speed, damage, range, opts = {}) {
@@ -48,6 +54,7 @@ export class Bullet extends Phaser.Physics.Arcade.Image {
     this.knockback = opts.knockback || 0;
     this.owner = opts.owner || 'player';
     this.homing = opts.homing || null;
+    this.ySort = opts.ySort || false;
     this._speed = speed;   // steering re-applies this so a turn never accelerates
     this.hasHit = false;
     this.hitSet.clear();
@@ -58,6 +65,7 @@ export class Bullet extends Phaser.Physics.Arcade.Image {
   preUpdate(time, delta) {
     super.preUpdate?.(time, delta);
     if (!this.active) return;
+    if (this.ySort) this.setDepth(this.y);
     if (this.homing) this._steer(delta);
     const dx = this.x - this.lastX;
     const dy = this.y - this.lastY;

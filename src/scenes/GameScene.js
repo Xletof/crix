@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, ALLY, FONTS, HUDCFG, VIEW } from '../config.js';
+import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, ALLY, FONTS, HUDCFG, VIEW, DEPTH } from '../config.js';
 import { Player } from '../entities/Player.js';
 import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, EnemySniper, EnemySwarmling, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
@@ -1942,8 +1942,11 @@ export class GameScene extends Phaser.Scene {
     // The burst happens at ALTITUDE — draw it where the canister appeared, not
     // on the floor beneath it.
     const by = y - z;
-    this.fx.burst(x, by, 'yellow', 16);
-    this.fx.impactRing(x, by, 0xffd020);
+    // Air-depth variants: this goes off ~300px above the floor, and the normal
+    // burst emitter sits at depth 0 — under every wall and actor in the room.
+    // Keyed to the canister's GROUND y, so it sorts against the room correctly.
+    this.fx.airBurst(x, by, 16);
+    this.fx.impactRing(x, by, 0xffd020, DEPTH.AIR + y);
     this.fx.shake(0.008, 140);
     SFX.shootSuper?.();
 
@@ -2000,10 +2003,19 @@ export class GameScene extends Phaser.Scene {
     const st = { gx: bx, gy: by, z: bz };
     const maxZ = bz + cfg.popHeight;
     const shadow = this.add.image(bx, by, 'shadow')
-      .setDepth(b.depth - 2).setAlpha(0.10).setScale(0.28);
+      .setAlpha(0.10).setScale(0.28);
 
     const draw = () => {
       b.setPosition(st.gx, st.gy - st.z);
+      // Draw order, every frame. The munition is flying OVER the room, so it
+      // has to clear the Y-sorted ground layer entirely — at the flat 26 that
+      // Bullet.fire() stamps on it, a console at y=700 (depth 756) drew on top
+      // of a missile 300px above it. Keyed to the GROUND y (st.gy, where the
+      // shadow is), never to the rendered y, or the sort order would drift as
+      // it gains altitude. The shadow is on the floor and joins the ground
+      // layer like every other shadow.
+      b.setDepth(DEPTH.AIR + st.gy);
+      shadow.setDepth(st.gy - 1);
       // Higher = bigger and further from its shadow, the same altitude cue the
       // canister itself uses on the way up.
       const h = maxZ > 0 ? st.z / maxZ : 0;
@@ -2034,11 +2046,10 @@ export class GameScene extends Phaser.Scene {
       },
     });
 
-    // Tumbling on the way up — it has no heading yet.
-    this.tweens.add({
-      targets: b, rotation: angle + Math.PI * 2.5,
-      duration: cfg.popMs, ease: 'Sine.easeOut',
-    });
+    // No spin. This used to tumble 450 degrees across the pop, which read as the
+    // munitions doing backflips out of the canister. A guided round points where
+    // it is going: Bullet.fire() has already aimed it along `angle`, which is
+    // exactly the outward heading it travels during the pop.
     return b;
   }
 
@@ -2084,6 +2095,9 @@ export class GameScene extends Phaser.Scene {
         if (!b.active || !b.scene || b._gen !== gen) return;
         // ── Phase C: live, seeking ──
         b.setScale(1);
+        // On the ground now, so it sorts with the ground layer rather than
+        // staying up in the air band above the whole room.
+        b.ySort = true;
         b.body.enable = true;
         b.body.reset(b.x, b.y);           // resync the body to where it landed
         b.body.setCircle(b.width / 2);
@@ -2099,8 +2113,15 @@ export class GameScene extends Phaser.Scene {
     });
 
     // Nose over onto the dive heading as it starts to fall.
+    //
+    // Tween the SHORTEST way round. Phaser interpolates `rotation` as a plain
+    // number, so tweening to a raw atan2 result can take the long way and spin
+    // the sprite most of a full turn to reach a heading a few degrees away.
+    // Same wrap idiom as Bullet._steer and the melee cone test.
+    const want = Math.atan2(ly - st.gy, lx - st.gx);
     this.tweens.add({
-      targets: b, rotation: Math.atan2(ly - st.gy, lx - st.gx),
+      targets: b,
+      rotation: b.rotation + Phaser.Math.Angle.Wrap(want - b.rotation),
       duration: dur * 0.4, ease: 'Sine.easeInOut',
     });
   }

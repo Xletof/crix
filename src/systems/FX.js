@@ -2,6 +2,7 @@
 // via Web Audio API. No external sound assets needed for the vertical slice.
 
 import Phaser from 'phaser';
+import { DEPTH } from '../config.js';
 
 let audioCtx = null;
 let masterGain = null;
@@ -1161,6 +1162,24 @@ export function attachFX(scene) {
       quantity: 0,
       emitting: false,
     }),
+    // Airborne burst emitter. Identical to sparksYellow except for its depth.
+    //
+    // Every other emitter here has no setDepth at all, so they sit at Phaser's
+    // default 0 — beneath the whole Y-sorted layer of actors and walls. That is
+    // survivable for ground FX (they read as sparks behind an actor) but not for
+    // an airburst 300px above the floor, which was being drawn behind the room
+    // it was exploding over. A separate emitter rather than re-depthing the
+    // shared ones: those feed every effect in the game, and moving them is a
+    // game-wide visual change, not a cluster-pod fix.
+    airSparks: scene.add.particles(0, 0, 'spark-yellow', {
+      lifespan: 280,
+      speed: { min: 60, max: 220 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 1.2, end: 0 },
+      alpha: { start: 1, end: 0 },
+      quantity: 0,
+      emitting: false,
+    }).setDepth(DEPTH.AIR + 500),
     // Dedicated bullet trail emitter — small near-stationary fading dust
     // dropped at each active player bullet's position once per frame.
     bulletTrail: scene.add.particles(0, 0, 'spark', {
@@ -1284,9 +1303,17 @@ export function attachFX(scene) {
       this.casings.emitParticleAt(x, y, 1);
     },
 
-    // A fading shockwave ring visual at the impact point of a bullet
-    impactRing(x, y, color = 0xffffff) {
-      const g = scene.add.graphics().setDepth(25);
+    // Burst for something happening in the AIR, above the room.
+    airBurst(x, y, count = 12) {
+      this.airSparks.ops.angle.onChange({ min: 0, max: 360 });
+      this.airSparks.emitParticleAt(x, y, count);
+    },
+
+    // A fading shockwave ring visual at the impact point of a bullet.
+    // `depth` is for rings drawn at altitude, which must clear the Y-sorted
+    // ground layer — see the DEPTH comment in config.js.
+    impactRing(x, y, color = 0xffffff, depth = 25) {
+      const g = scene.add.graphics().setDepth(depth);
       g.lineStyle(2, color, 0.8);
       g.strokeCircle(0, 0, 8);
       g.setPosition(x, y);
