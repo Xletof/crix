@@ -24,8 +24,14 @@ the finding is already established earlier in the conversation.
 - **Deploys only happen from the `FRIX` branch.** `.github/workflows/deploy.yml`
   triggers on pushes to `FRIX` only. Work lands on the dev branch
   (`claude/mobile-run-game-design-OZLYF`); GitHub Pages will serve a **stale build**
-  until `FRIX` is fast-forwarded. Never push to `FRIX` without explicit permission —
-  always ask first.
+  until `FRIX` is fast-forwarded.
+- **Always deploy — don't ask.** The user tests on a phone against GitHub Pages,
+  so a dev-branch push they can't play is not a finished task. Fast-forward `FRIX`
+  in the same turn as the commit, then confirm the workflow went green. This
+  reverses an earlier "always ask first" rule that made every batch end in a wait.
+  The one exception: if the push is **not** a fast-forward
+  (`git merge-base --is-ancestor origin/FRIX HEAD` fails), stop and ask. Never
+  force-push `FRIX`.
 - **Bullet hitboxes come from texture width.** `Bullet.fire()` calls
   `setCircle(this.width / 2)`, so changing a projectile texture's dimensions silently
   changes its collision size. Keep canvas dimensions fixed when redrawing projectiles,
