@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { PLAYER, WEAPONS } from '../config.js';
 import { SFX } from '../systems/FX.js';
+import { isGodMode } from '../systems/debug.js';
 import { Grenade } from './Grenade.js';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
@@ -541,6 +542,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   damage(amount, hitDirRad = null) {
     if (!this.alive) return;
+    // Debug invincibility. Sits with the other i-frame guards rather than being
+    // a heal-on-a-timer elsewhere, because this is the only entry point that
+    // ever reduces hp — so one line here covers every damage source in the game.
+    if (isGodMode()) return;
     if (this.isDashing) return; // i-frames (invincibility during dash)
     // Melee casts are i-framed for the WHOLE cast — lunge plus the swing and
     // recovery frames after it lands (_meleeAnimT spans exactly that, and is

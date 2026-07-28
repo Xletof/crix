@@ -41,7 +41,9 @@ export class PauseScene extends Phaser.Scene {
     }
 
     // Glassmorphism settings panel card
-    const cardW = 540, cardH = 880;
+    // Height grown from 880 to fit the sixth button — at a 92px pitch the DEBUG
+    // row bottoms out at y~981, which overflowed the old card by 24px.
+    const cardW = 540, cardH = 950;
     const cardX = cx - cardW / 2, cardY = VIEW.height * 0.06;
     g.fillStyle(0x0c101d, 0.88); // dark translucent glass background
     g.fillRoundedRect(cardX, cardY, cardW, cardH, 16);
@@ -68,6 +70,7 @@ export class PauseScene extends Phaser.Scene {
     
     this.qualityBtn = this._button(cx, baseY + gap * 3, this._qualityLabel(), () => this._toggleQuality());
     this.muteBtn = this._button(cx, baseY + gap * 4, this._muteLabel(), () => this._toggleMute());
+    this._button(cx, baseY + gap * 5, 'DEBUG', () => this._debug());
 
     // Hardware/keyboard: Esc or P resumes too.
     this.input.keyboard?.on('keydown-ESC', () => this._resume());
@@ -106,6 +109,17 @@ export class PauseScene extends Phaser.Scene {
     this.scene.stop('Game');
     this.scene.stop('HUD');
     this.scene.start('Title'); // stops self (Pause) and runs Title
+  }
+
+  // Hand off to the debug panel. Game and HUD are already paused; this scene
+  // stops itself so only one overlay is live, and DebugScene resumes them both
+  // when it closes.
+  _debug() {
+    if (this._closing) return;
+    this._closing = true;
+    SFX.uiClick();
+    this.scene.launch('Debug', { game: this.gs });
+    this.scene.stop();
   }
 
   _toggleQuality() {
