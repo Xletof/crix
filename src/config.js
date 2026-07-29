@@ -158,7 +158,41 @@ export const WEAPONS = {
     popMs: 320,          // phase A: climbing away from the burst
     popHeight: 260,      // extra altitude gained ABOVE the burst point
     fanRadius: 240,      // how far they fling outward during the pop
-    descentMs: 620,      // phase B: the dive onto a locked target
+    // ── Phase B: the powered attack run ────────────────────────────────────
+    // This used to be a tween: altitude fell on Quad.easeIn while the ground
+    // position was LERPED from the apex to the target. That is a falling object
+    // being slid along rails, and it read exactly like one — thrown knives, not
+    // missiles. There is no such thing as a flight model in a position lerp.
+    //
+    // It is now integrated: each munition carries a 3D velocity, steers its
+    // heading toward the target at a limited turn rate, and accelerates along
+    // that heading under thrust. Momentum is what sells it — because the pop
+    // flings it OUTWARD and the motor cannot turn it instantly, it has to swing
+    // wide and curve back onto the target, which is the swooping attack run.
+    //
+    // There is deliberately no flight-duration tunable any more. The old
+    // descentMs set the dive length directly, which is only meaningful for a
+    // tween; the run now takes however long the physics takes (~1.0-1.8s from
+    // this fan), and the booster SFX length is estimated from the range left to
+    // cover rather than read from config.
+    pitchOverMs: 150,    // motor-off beat at apex — the nose visibly swings over
+    // The arc lives entirely in the relationship between these two. Exit speed
+    // is the momentum the motor has to fight; turn rate is how fast it can. At
+    // 150 / 6.5 the munition snapped onto the target heading inside two frames
+    // and flew a straight line — a guided rocket, not a swoop. Turn radius is
+    // v / turnRate, so 520 / 3.4 gives a ~150px arc against a 240px fan: it
+    // visibly banks around before committing.
+    fragExitSpeed: 400,  // outward speed carried out of the pop
+    fragThrust: 2400,    // px/s^2 along the nose once the motor lights
+    fragMaxSpeed: 980,  // terminal speed of the run
+    fragTurnRate: 4.5,   // rad/s. Lower = wider, lazier arc; too low and it
+                         // orbits its target instead of hitting it.
+    fragGravity: 420,    // px/s^2, during the motor-off beat only
+    fragMinSink: 40,     // px/s floor on the descent, so a munition that is
+                         // still a long way out is always losing altitude
+    fragMaxSink: 2200,   // px/s ceiling on the descent, so a fast final approach
+                         // cannot yank the munition straight down
+    fragMaxFlightMs: 1600, // hard stop, so a munition can never circle forever
     // Small. These are bomblets, not rockets. Held FLAT for the whole flight —
     // the old altitude scaling (1 + h * 0.5) made them balloon to 1.5x at apex
     // and taper on the way down, which read as the wrong size and the wrong

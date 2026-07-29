@@ -2029,6 +2029,11 @@ export class GameScene extends Phaser.Scene {
 
     const draw = () => {
       b.setPosition(st.gx, st.gy - st.z);
+      // Where the munition actually is on the floor. The sprite's y is the
+      // RENDERED position (ground minus altitude), so it cannot answer "where
+      // over the room is this thing" — and that is the only position that means
+      // anything for draw order, blast placement or measuring the flight path.
+      b.groundY = st.gy;
       // Draw order, every frame. The munition is flying OVER the room, so it
       // has to clear the Y-sorted ground layer entirely — at the flat 26 that
       // Bullet.fire() stamps on it, a console at y=700 (depth 756) drew on top
@@ -2040,7 +2045,9 @@ export class GameScene extends Phaser.Scene {
       shadow.setDepth(st.gy - 1);
       // Scale is FLAT. Altitude is read from the shadow instead, which grows
       // and darkens as the gap closes.
-      const h = maxZ > 0 ? st.z / maxZ : 0;
+      // Clamped: under the powered run the altitude is integrated rather than
+      // tweened, so it is free to overshoot maxZ or dip below zero for a frame.
+      const h = Phaser.Math.Clamp(maxZ > 0 ? st.z / maxZ : 0, 0, 1);
       shadow.setPosition(st.gx, st.gy);
       shadow.setScale(0.28 + (1 - h) * 0.62);
       shadow.setAlpha(0.10 + (1 - h) * 0.30);
@@ -2117,52 +2124,200 @@ export class GameScene extends Phaser.Scene {
   _clusterDive(b, gen, st, shadow, line, angle, draw) {
     const cfg = WEAPONS.cluster;
     st.locked = true;
-    // Burns for the whole dive, so it is still running when the munition hits.
-    SFX.fragBoost?.(cfg.descentMs);
+    st.z0 = st.z;
 
-    // Where it falls if there is nothing to dive at, or if the target dies
-    // mid-air: carry on along the fan and detonate out there.
-    const fallbackX = st.gx + Math.cos(angle) * 140;
-    const fallbackY = st.gy + Math.sin(angle) * 140;
-    const dur = cfg.descentMs;
+    // Where it flies if there is nothing to attack, or if the target dies
+    // mid-run: carry on along the fan and detonate out there.
+    const fallbackX = st.gx + Math.cos(angle) * 260;
+    const fallbackY = st.gy + Math.sin(angle) * 260;
 
-    // Ground track. Driven manually from the altitude tween's onUpdate rather
-    // than tweened to a fixed point, because the aim point MOVES — this is what
-    // makes the lock track a running enemy instead of hitting where it used to
-    // be. Progress is read off the fall so the two stay in lockstep.
-    const startX = st.gx, startY = st.gy;
-    const track = () => {
+    // Velocity, in px/s. It leaves the apex still carrying the pop's outward
+    // momentum — that is the whole reason the run curves. The motor cannot turn
+    // this vector instantly, so a munition flung away from its target has to
+    // swing wide and bank back onto it.
+    st.vx = Math.cos(angle) * cfg.fragExitSpeed;
+    st.vy = Math.sin(angle) * cfg.fragExitSpeed;
+    st.vz = 0;
+    st.prevH = Infinity;
+
+    // Exhaust. Only exists while the motor is burning, which is what makes it a
+    // cue rather than decoration — you can see which munitions are under power.
+    // The muzzle texture is a forward-pointing flame (EAST in the texture), so
+    // it is turned 180 degrees to blow backwards out of the tail.
+    let flame = null;
+
+    let elapsed = 0;
+    let lit = false;
+
+    const cleanup = () => {
+      this.events.off('update', step);
+      shadow.destroy();
+      line.destroy();
+      flame?.destroy();
+    };
+
+    const step = (_time, deltaMs) => {
+      // Identity, not liveness: `active` alone cannot tell "still my missile"
+      // from "recycled and re-fired as something else", which is how the old
+      // deferred callback used to turn other people's bullets into missiles.
+      if (!b.active || !b.scene || b._gen !== gen) { cleanup(); return; }
+
+      // Clamped, so a frame hitch integrates a plausible step instead of
+      // teleporting the munition across the room.
+      const dt = Math.min(deltaMs, 50) / 1000;
+      elapsed += deltaMs;
+
       const t = st.target;
       const live = t?.active && t.alive;
       const aimX = live ? t.x : fallbackX;
       const aimY = live ? t.y : fallbackY;
-      // Ease the horizontal in step with how far it has fallen, so it commits
-      // as it drops rather than sliding flat at a constant rate.
-      const p = 1 - (st.z / Math.max(1, st.z0));
-      const e = p * p * (3 - 2 * p);            // smoothstep
-      st.gx = startX + (aimX - startX) * e;
-      st.gy = startY + (aimY - startY) * e;
-      // Nose toward where it is going. Allowed to be a bit off — a bomblet is
-      // not a guided rocket and does not need to be perfectly aligned.
-      if (live) b.setRotation(Math.atan2(aimY - b.y, aimX - b.x));
+
+      // Ignition, after a short motor-off beat at apex. The munition drops and
+      // its nose swings over during that beat, so the burn reads as a decision
+      // rather than as something that was always falling.
+      if (!lit && elapsed >= cfg.pitchOverMs) {
+        lit = true;
+        // Estimate the run from the range left to cover, so the burn lasts
+        // roughly as long as the flight instead of a fixed length — the flight
+        // time is now an outcome of the physics and varies with distance.
+        const d = Math.hypot(aimX - st.gx, aimY - st.gy, st.z);
+        const est = Phaser.Math.Clamp((d / 700) * 1000 * 1.25, 300, cfg.fragMaxFlightMs);
+        SFX.fragBoost?.(est);
+        flame = this.add.image(b.x, b.y, 'muzzle').setScale(0.30);
+      }
+
+      // ── Steering ────────────────────────────────────────────────────────
+      // One 3D velocity, steered toward the target and speed-capped. Descent is
+      // NOT a separate system — the aim vector points down at a target on the
+      // floor, so thrust brings the munition down as a consequence of flying at
+      // it. Two earlier attempts split the axes and solved the vertical on its
+      // own; both failed, and both failed by fighting the horizontal:
+      //
+      //   sink = z / time-to-target  — back-loaded and singular. The munition
+      //     held its height, then got yanked into the ground at ~3300px/s.
+      //   sink = z proportional to range remaining — a munition circling at a
+      //     constant range never closes, so it never descends either. Turned
+      //     through 1049 degrees, orbiting until the flight timeout.
+      // The two axes are solved by different means, and which means goes on
+      // which axis is the whole design:
+      //
+      //   HORIZONTAL — real momentum-limited flight. Steering a velocity that
+      //     cannot turn instantly is what produces the arc, and it is the thing
+      //     that stopped this reading as a puppet.
+      //   VERTICAL — solved from the horizontal CLOSING RATE, so altitude and
+      //     range run out together no matter what path the horizontal takes.
+      //
+      // Aiming a single 3D vector at the target instead does not work, and
+      // failed twice: the munition spends its altitude on whatever heading it
+      // currently holds, so one still mid-bank flies itself into the floor, and
+      // one that has closed to short range aims almost straight down and drops
+      // 200px short of an enemy it was about to reach.
+      const hdist = Math.max(1, Math.hypot(aimX - st.gx, aimY - st.gy));
+      let dx = (aimX - st.gx) / hdist;
+      let dy = (aimY - st.gy) / hdist;
+
+      let sp = Math.hypot(st.vx, st.vy);
+      let hx, hy;
+      if (sp < 1) { hx = dx; hy = dy; sp = 1; }
+      else { hx = st.vx / sp; hy = st.vy / sp; }
+
+      // Anti-orbit. `sp / hdist` is the angular rate needed to circle the target
+      // at this range, so turning faster than that guarantees the munition
+      // curves INSIDE its own approach and converges instead of sling-shotting
+      // past. Far out the term is negligible and fragTurnRate governs, which is
+      // where the opening bank comes from. Measured horizontally: a munition
+      // 400px up and 80px out has a 3D range of 408, which badly understates how
+      // hard it must turn to stay over its target. The 3.0 margin is sized for
+      // the worst case rather than the typical one: at 2.2 most munitions
+      // converged fine but roughly one in three volleys had a straggler fly an
+      // extra 600-degree lap before coming in.
+      const omega = Math.max(cfg.fragTurnRate, (sp / hdist) * 3.0);
+
+      const cross = hx * dy - hy * dx;
+      const off = Math.atan2(Math.abs(cross), Phaser.Math.Clamp(hx * dx + hy * dy, -1, 1));
+      // Steering stops once the munition is over its target — it is committed
+      // and dropping, and there is nothing useful left to correct. Without this
+      // the anti-orbit term (which scales as 1/hdist, so it is enormous at close
+      // range) whipped the nose round and round through the last few frames.
+      // Since rotation now follows velocity, that came out as the munitions
+      // spinning on impact: 3.6 full turns a flight, which is the exact tumble
+      // that was designed out of the pop.
+      if (off > 1e-4 && hdist >= 40) {
+        const turn = Math.min(off, omega * dt) * Math.sign(cross || 1);
+        const c = Math.cos(turn), s = Math.sin(turn);
+        const nx = hx * c - hy * s;
+        hy = hx * s + hy * c; hx = nx;
+      }
+
+      // Thrust along the nose once the motor is lit.
+      if (lit) sp = Math.min(cfg.fragMaxSpeed, sp + cfg.fragThrust * dt);
+      st.vx = hx * sp; st.vy = hy * sp;
+
+      // ── Descent ─────────────────────────────────────────────────────────
+      // Sink in proportion to how fast the range is actually closing. Integrate
+      // that and altitude stays proportional to range, so z reaches 0 exactly as
+      // the munition arrives — a glide slope that follows whatever path the
+      // horizontal flies rather than assuming a straight one.
+      //
+      // While banking outward the range is not closing at all, so the munition
+      // holds height (bar the minimum sink) and spends that time turning. It
+      // descends when, and only when, it is actually making progress.
+      if (!lit) {
+        st.vz -= cfg.fragGravity * dt;
+      } else if (hdist < 40) {
+        // Terminal. Directly over the target, so there is no range left for the
+        // slope to work with — the closing rate has gone to zero and the law
+        // above would leave it hovering down at the minimum sink. Drop.
+        st.vz = -cfg.fragMaxSink;
+      } else {
+        const closing = (st.prevH - hdist) / dt;
+        st.vz = -Phaser.Math.Clamp(
+          closing > 0 ? st.z * (closing / hdist) : 0,
+          cfg.fragMinSink, cfg.fragMaxSink,
+        );
+      }
+      st.prevH = hdist;
+
+      st.gx += st.vx * dt;
+      st.gy += st.vy * dt;
+      st.z  += st.vz * dt;
+
+      // Nose along the velocity: rotation is now a CONSEQUENCE of where it is
+      // going, not a decoration pointed at the target. A munition banking
+      // through a turn is visibly not aimed at anything, which is exactly the
+      // read we want.
+      if (sp > 1) b.setRotation(Math.atan2(st.vy, st.vx));
+
+      // Arriving on top of the target counts as impact even if the descent has
+      // a few pixels left in it — otherwise a munition that got there early
+      // would fly through and have to come back round.
+      // Ground contact, not proximity. Detonating on horizontal range alone
+      // let a munition that arrived overhead before it had spent its altitude
+      // go off 300px in the air, which reads as a dud airburst rather than a
+      // strike. It now always comes down and hits the floor.
+      if (st.z <= 0 || elapsed >= cfg.fragMaxFlightMs) {
+        st.z = 0;
+        draw();
+        cleanup();
+        this._clusterImpact(b, st);
+        return;
+      }
+
       draw();
+
+      if (flame) {
+        // Out of the tail, blowing backwards, flickering. Sits just under its
+        // own munition so the sprite always reads on top of its exhaust.
+        const r = b.rotation;
+        flame.setPosition(b.x - Math.cos(r) * 11, b.y - Math.sin(r) * 11);
+        flame.setRotation(r + Math.PI);
+        flame.setDepth(DEPTH.AIR + st.gy - 0.5);
+        flame.setScale(0.26 + Math.random() * 0.10, 0.24 + Math.random() * 0.08);
+        flame.setAlpha(0.75 + Math.random() * 0.25);
+      }
     };
 
-    st.z0 = st.z;
-    // Gravity. easeIn so the last third of the fall is the fast part.
-    this.tweens.add({
-      targets: st, z: 0, duration: dur, ease: 'Quad.easeIn',
-      onUpdate: track,
-      onComplete: () => {
-        shadow.destroy();
-        line.destroy();
-        // Identity, not liveness: `active` alone cannot tell "still my missile"
-        // from "recycled and re-fired as something else", which is how this
-        // callback used to turn other people's bullets into homing missiles.
-        if (!b.active || !b.scene || b._gen !== gen) return;
-        this._clusterImpact(b, st);
-      },
-    });
+    this.events.on('update', step);
   }
 
   // Detonation. There is no ground phase — the munition never touches down and
