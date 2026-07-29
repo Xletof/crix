@@ -83,7 +83,12 @@ export function initAudio() {
     // enough — the master compressor (threshold -10, ratio 12) eats a chunk of
     // it — which is why duckSfx() clearing the other bus matters just as much.
     meleeBus = audioCtx.createGain();
-    meleeBus.gain.value = 1.6;
+    // 1.6 -> 2.0 (~+2dB). A moderate lift for phone speakers, applied to the bus
+    // rather than to each voice so the balance between swing, hum and slam that
+    // was tuned by ear is preserved exactly. Note the lift alone was NOT the fix
+    // for the inaudible hum — see meleeHumStart; that was a spectrum problem and
+    // no amount of gain here would have solved it.
+    meleeBus.gain.value = 2.0;
     meleeBus.connect(sfxGain);
 
     // Feedback-delay send: SFX can opt in (tone({echo})) to get a short
@@ -874,24 +879,37 @@ export const SFX = {
     const t = ctx.currentTime;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.055, t + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.088, t + 0.08);
     // A gentle lowpass, NOT a narrow resonant bandpass.
     //
     // This used to be four saturated sawtooths through a Q=2.6 bandpass, which
     // is the same nasal-buzz recipe as the old swing — and unlike the swing it
     // droned underneath the entire combo window, so it was contributing to the
     // "metallic fart" on every cast. Saturation and the resonant peak are gone.
+    //
+    // Opened from 900Hz to 2000Hz. At 900 this filter was removing the exact
+    // partials a phone can reproduce and leaving only the ones it cannot, which
+    // is why the hum was inaudible on mobile no matter how loud it was set.
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 900;
+    lp.frequency.value = 2000;
     lp.Q.value = 0.7;
     lp.connect(g);
     g.connect(meleeBus || sfxBus);
     // Harmonic partials of a 110Hz fundamental, lightly detuned. Smooth and
-    // harmonic — a saber idle hum, not an electrical buzz. The 2nd and 3rd
-    // partials (220/330Hz) are what carry it on a phone speaker.
+    // harmonic — a saber idle hum, not an electrical buzz.
+    //
+    // Extended from 3 partials to 5. A phone speaker has essentially no output
+    // below ~400Hz, so a hum built only from 110/220/330Hz has nowhere to come
+    // out — raising the gain just makes the rest of the mix louder around a hole
+    // where the hum should be. The 4th and 5th (440/550Hz) are the first ones a
+    // handset can actually move air with, so they carry the sound on mobile
+    // while the low three still give it body on headphones. Weighted so the
+    // series still falls away with frequency: it stays a saber hum rather than
+    // becoming a thin whine.
     const oscs = [];
-    [[1, 0.5, 'triangle'], [2, 0.3, 'sine'], [3, 0.16, 'sine']].forEach(
+    [[1, 0.50, 'triangle'], [2, 0.34, 'sine'], [3, 0.22, 'sine'],
+     [4, 0.20, 'sine'], [5, 0.13, 'sine']].forEach(
       ([mult, amp, type]) => {
         [-4, 4].forEach((cents) => {
           const o = ctx.createOscillator();
