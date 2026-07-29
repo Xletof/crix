@@ -20,35 +20,36 @@ export class MeleeButton {
     this.scene = scene;
     this.x = opts.x;
     this.y = opts.y;
-    this.radius = opts.radius || 46;
-    this.dragRadius = opts.dragRadius || 78;
+    this.scale = opts.scale || 1;
+    this.baseRadius = opts.radius || 46;
+    this.baseDragRadius = opts.dragRadius || 78;
+    this.radius = this.baseRadius * this.scale;
+    this.dragRadius = this.baseDragRadius * this.scale;
     this.deadzone = opts.deadzone ?? 0.18;
     // Peak-drag tap threshold — see SuperButton.js:17. Below it the release is
     // treated as a tap and reports force 0, immunising taps against the ~20-30px
     // of incidental finger roll that would otherwise read as a deliberate aim.
-    this.tapMax = (opts.tapMax ?? 0.42) * this.dragRadius;
+    this.tapFrac = opts.tapMax ?? 0.42;
+    this.tapMax = this.tapFrac * this.dragRadius;
     this.onAim = opts.onAim || (() => {});
     this.onRelease = opts.onRelease || (() => {});
     this.isReady = opts.isReady || (() => true);
 
-    this.image = scene.add.image(this.x, this.y, 'melee-btn-off').setDepth(40);
+    this.image = scene.add.image(this.x, this.y, 'melee-btn-off').setDepth(40).setScale(this.scale);
     this.gauge = scene.add.graphics().setDepth(41);
 
     // Ready halo — built once and driven by a looping tween, never redrawn per
     // frame (the HUD refresh that feeds this is event-driven).
     this.readyGlow = scene.add.graphics().setDepth(39);
     this.readyGlow.setBlendMode(Phaser.BlendModes.ADD);
-    this.readyGlow.fillStyle(0x90d8ff, 0.14);
-    this.readyGlow.fillCircle(0, 0, this.radius + 18);
-    this.readyGlow.lineStyle(3, 0x90d8ff, 0.5);
-    this.readyGlow.strokeCircle(0, 0, this.radius + 5);
+    this._drawGlow();
     this.readyGlow.setPosition(this.x, this.y).setVisible(false).setAlpha(0);
     this._glowTween = null;
     this._wasReady = false;
 
     // Drag knob — only visible once the gesture becomes a real aim-drag.
     this.knob = scene.add.image(this.x, this.y, 'joystick-knob')
-      .setDepth(42).setAlpha(0).setScale(0.6);
+      .setDepth(42).setAlpha(0).setScale(0.6 * this.scale);
 
     this.pointerId = null;
     this.vec = { x: 0, y: 0, force: 0, angle: 0 };
@@ -66,6 +67,31 @@ export class MeleeButton {
     return Math.hypot(x - this.x, y - this.y) <= this.radius;
   }
 
+  // The halo is baked at the current radius, so resizing has to repaint it.
+  _drawGlow() {
+    const g = this.readyGlow;
+    g.clear();
+    g.fillStyle(0x90d8ff, 0.14);
+    g.fillCircle(0, 0, this.radius + 18);
+    g.lineStyle(3, 0x90d8ff, 0.5);
+    g.strokeCircle(0, 0, this.radius + 5);
+  }
+
+  // Apply a layout from controlLayout.js — see SuperButton.setLayout().
+  setLayout({ x, y, scale }) {
+    this.x = x ?? this.x;
+    this.y = y ?? this.y;
+    this.scale = scale ?? this.scale;
+    this.radius = this.baseRadius * this.scale;
+    this.dragRadius = this.baseDragRadius * this.scale;
+    this.tapMax = this.tapFrac * this.dragRadius;
+    this.image.setPosition(this.x, this.y).setScale(this.scale);
+    this.knob.setPosition(this.x, this.y).setScale(0.6 * this.scale);
+    this.readyGlow.setPosition(this.x, this.y);
+    this._drawGlow();
+    this.gauge.clear();   // repainted by HUD.refreshMelee()
+  }
+
   handleDown(pointer) {
     if (this.pointerId !== null) return;
     if (!this.containsPoint(pointer.x, pointer.y)) return;
@@ -74,7 +100,7 @@ export class MeleeButton {
     this._downX = pointer.x;
     this._downY = pointer.y;
     this._peakDist = 0;
-    this.image.setScale(1.12);
+    this.image.setScale(this.scale * 1.12);
     this.updateVec(pointer.x, pointer.y);
     // Note: no onAim() here, unlike SuperButton. Firing it now would flash the
     // telegraph on every tap, which is exactly what this must not do.
@@ -98,7 +124,7 @@ export class MeleeButton {
     this.vec.y = 0;
     this.vec.force = 0;
     this.knob.setPosition(this.x, this.y).setAlpha(0);
-    this.image.setScale(1);
+    this.image.setScale(this.scale);
     this.onRelease(final);
   }
 
@@ -137,7 +163,7 @@ export class MeleeButton {
     this.vec = { x: 0, y: 0, force: 0, angle: 0 };
     this._peakDist = 0;
     this.knob.setPosition(this.x, this.y).setAlpha(0);
-    this.image.setScale(1);
+    this.image.setScale(this.scale);
   }
 
   setReady(ready) {

@@ -24,6 +24,7 @@ would corrupt each other's world state.
 | `smoke-arc.mjs` | Cluster canister pops *above* the burst before descending |
 | `smoke-boost.mjs` | Booster SFX sustains for the whole dive instead of blipping |
 | `smoke-cluster.mjs` | Munitions lock **distinct** targets, flat scale, no ground phase, guidance lines cleaned up, generic hit beep suppressed |
+| `smoke-controls.mjs` | The control-layout editor moves the real hit regions (not just sprites), persists, and resets |
 | `smoke-debug.mjs` | Debug menu actions actually apply *and* the HUD re-syncs |
 | `smoke-depth.mjs` | Airborne objects draw over the room; nose tracks travel (no tumble) |
 | `smoke-flight.mjs` | The attack run banks, arrives under power, honours both speed caps, lights its exhaust |

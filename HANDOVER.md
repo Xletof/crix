@@ -69,7 +69,7 @@ src/
   scenes/
     BootScene / PreloadScene / TitleScene / IntroScene
     GameScene.js   The arena loop. 3.6k lines — by far the biggest file
-    GameOverScene / PauseScene / UpgradeScene / DebugScene
+    GameOverScene / PauseScene / UpgradeScene / DebugScene / ControlsScene
   systems/
     HUD.js         Exports HUDScene — a PARALLEL scene, not a scene-file
     FX.js          Particles, screen shake, and ALL audio synthesis
@@ -77,6 +77,7 @@ src/
     Joystick / DashButton / MeleeButton / SuperButton   touch controls
     NavGrid / CoverRegistry / BushSystem / RoomManager
     HackMinigame.js
+    controlLayout.js  Touch-control positions/scales + localStorage
     debug.js       Module-scope debug flags (god mode)
 tests/             Headless Playwright smoke suite — see tests/README.md
 ```
@@ -303,6 +304,31 @@ there is **no console and no other way in**. Hence `DebugScene`, reached from
 - **Meters** — fill super, fill melee, refill dash
 - **Encounter** — cycle enemy type + spawn ×4, clear wave, skip wave
 
+### Touch-control layout (Pause → CONTROLS)
+
+`ControlsScene` is a layout editor for the five touch widgets — move stick, aim
+stick, super, melee, dash. Drag a proxy to move it, tap to select, then the SIZE
+slider resizes it. State lives in `src/systems/controlLayout.js`, persisted to
+`localStorage` under `crix.controls`.
+
+- **`controlLayout.js` is the source of truth for control geometry, not
+  `HUDCFG`.** The `HUDCFG.joystick*` constants are now only the *defaults* the
+  store seeds from. Read positions with `getControl(id)`.
+- **`scale` is not cosmetic.** Each widget multiplies its `radius` (hit test,
+  force normalisation, drag throw, tap/drag threshold) by it, so a bigger stick
+  really does have a longer throw. Every widget takes it through `setLayout()`.
+- **The sticks float**, so a stick's x/y is only where it *rests* — it does not
+  decide where you may touch. Each stick still claims its own half of the
+  screen, which is why the store clamps a stick to that half.
+- **The button pop tweens multiply `this.scale`.** Anything that writes
+  `image.setScale(1)` or tweens `scale: 1` on a touch widget will silently
+  resize a customised button back to 100%.
+- Ammo pips and the secondary-weapon readout ride with their stick
+  (`HUD._layoutChrome()`), so they follow it around.
+- `HUD.applyControlLayout()` is what makes an edit take effect mid-run;
+  `ControlsScene` calls it on close, along with `setTouchControlsVisible()` to
+  blank the real widgets while the proxies are up.
+
 God mode lives at **module scope** in `src/systems/debug.js`, not on the scene or
 player, because `PauseScene._restart()` builds a fresh Player — a flag stored on
 either would silently switch itself off exactly when you least want it to.
@@ -316,6 +342,7 @@ with the dev branch, deploy run green.
 
 **Recently completed** (most recent first):
 
+- Touch-control layout editor at Pause → CONTROLS
 - Powered attack run for cluster munitions + exhaust flame (`084904d`)
 - Saber hum re-voiced for phone speakers, melee bus +2dB (`cd0f9b4`)
 - 8 munitions at 290 damage each (`faf7809`)
@@ -324,10 +351,8 @@ with the dev branch, deploy run green.
 - Distinct-target locking and dive (`9981d17`)
 - In-game debug menu (`9c8e1cb`)
 
-**Open, not started** — both are the user's call, not oversights:
+**Open, not started** — the user's call, not an oversight:
 
-1. **Touch control customisation** — a position/scale editor for the on-screen
-   controls. The last item from an earlier punch list, deferred by the user.
-2. **The game-wide depth bug** in §6.
+1. **The game-wide depth bug** in §6.
 
 **Watch:** the cluster's total damage output (§5) against a full arena.

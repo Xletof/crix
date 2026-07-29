@@ -9,8 +9,11 @@ export class Joystick {
   constructor(scene, side, opts = {}) {
     this.scene = scene;
     this.side = side; // 'left' | 'right'
-    this.radius = opts.radius || HUDCFG.joystickRadius;
-    this.knobRadius = opts.knobRadius || HUDCFG.joystickKnobRadius;
+    this.baseRadius = opts.radius || HUDCFG.joystickRadius;
+    this.baseKnobRadius = opts.knobRadius || HUDCFG.joystickKnobRadius;
+    this.scale = opts.scale || 1;
+    this.radius = this.baseRadius * this.scale;
+    this.knobRadius = this.baseKnobRadius * this.scale;
     this.deadzone = opts.deadzone ?? 0.18;
     this.onMove = opts.onMove || (() => {});
     this.onEnd = opts.onEnd || (() => {});
@@ -18,14 +21,14 @@ export class Joystick {
     this.shouldClaim = opts.shouldClaim || (() => true);
     this.holdAutoFire = opts.holdAutoFire || false;
 
-    // Base + knob — placed bottom-left or bottom-right of the screen.
+    // Resting spot. Defaults to the bottom-left / bottom-right corner; the
+    // control-layout editor overrides it via opts.x / opts.y.
     const margin = HUDCFG.joystickMargin;
     const bottom = HUDCFG.joystickBottom;
-    this.homeX =
-      side === 'left'
-        ? margin + this.radius
-        : VIEW.width - margin - this.radius;
-    this.homeY = VIEW.height - bottom - this.radius;
+    this.homeX = opts.x ?? (side === 'left'
+      ? margin + this.radius
+      : VIEW.width - margin - this.radius);
+    this.homeY = opts.y ?? VIEW.height - bottom - this.radius;
 
     this.base = scene.add.image(this.homeX, this.homeY, 'joystick-base').setDepth(50).setAlpha(0.6);
     this.knob = scene.add.image(this.homeX, this.homeY, 'joystick-knob').setDepth(51).setAlpha(0.85);
@@ -113,6 +116,21 @@ export class Joystick {
     this.knob.setPosition(this.homeX, this.homeY);
     this.base.setAlpha(0.6);
     this.knob.setAlpha(0.85);
+  }
+
+  // Apply a layout from controlLayout.js. Scale changes the throw distance as
+  // well as the drawn size, so it is applied to `radius` (the force
+  // normaliser), not just to the sprites. Snaps the stick home: a live drag
+  // measured against the old anchor would jump.
+  setLayout({ x, y, scale }) {
+    this.scale = scale ?? this.scale;
+    this.homeX = x ?? this.homeX;
+    this.homeY = y ?? this.homeY;
+    this.radius = this.baseRadius * this.scale;
+    this.knobRadius = this.baseKnobRadius * this.scale;
+    this.base.setScale(this.radius / 110);
+    this.knob.setScale(this.knobRadius / 50);
+    this.forceRelease();
   }
 
   updateVec(px, py) {

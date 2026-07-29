@@ -5,6 +5,7 @@ import { SuperButton } from './SuperButton.js';
 import { DashButton } from './DashButton.js';
 import { MeleeButton } from './MeleeButton.js';
 import { HackMinigame } from './HackMinigame.js';
+import { getControl } from './controlLayout.js';
 import { ROOMS } from '../data/rooms.js';
 import { SFX } from './FX.js';
 
@@ -182,21 +183,14 @@ export class HUDScene extends Phaser.Scene {
     // the combat zone around the player.
     this._buildSectorSign();
 
-    // Energy cell ammo pips (above right joystick)
+    // Energy cell ammo pips (above the aim stick) and the secondary-weapon
+    // readout (above the move stick). Both ride with their stick, so their
+    // positions come from _layoutChrome() rather than from HUDCFG directly.
     this.ammoPips = [];
-    const ammoY = VIEW.height - HUDCFG.joystickBottom - HUDCFG.joystickRadius * 2 - 50;
-    const ammoCx = VIEW.width - HUDCFG.joystickMargin - HUDCFG.joystickRadius;
-    const pipSpacing = 28;
-    for (let i = 0; i < PLAYER.ammoMax; i++) {
-      const pip = this.add.graphics();
-      pip.x = ammoCx + (i - (PLAYER.ammoMax - 1) / 2) * pipSpacing;
-      pip.y = ammoY;
-      this.ammoPips.push(pip);
-    }
+    for (let i = 0; i < PLAYER.ammoMax; i++) this.ammoPips.push(this.add.graphics());
 
-    // Secondary weapon display (left side, above left joystick)
-    const secX = HUDCFG.joystickMargin + HUDCFG.joystickRadius;
-    const secY = VIEW.height - HUDCFG.joystickBottom - HUDCFG.joystickRadius * 2 - 60;
+    const sec = getControl('moveStick');
+    const secX = sec.x, secY = sec.y - sec.radius - 60;
     this.secGfx = this.add.graphics();
     this.secIcon = this.add.image(secX, secY, 'pickup-rifle').setDepth(5).setScale(0.42).setVisible(false);
     this.secText = this.add.text(secX, secY + 42, ' ', {
@@ -208,13 +202,17 @@ export class HUDScene extends Phaser.Scene {
       strokeThickness: 3,
     }).setOrigin(0.5).setDepth(5);
 
-    // Super button (lightsaber hilt) — big and inside the right-thumb arc.
-    // Tap auto-aims + fires; drag to aim manually.
-    const superY = VIEW.height - HUDCFG.joystickBottom - 260;
-    const superX = VIEW.width - HUDCFG.joystickMargin - 150;
+    // Super button (lightsaber hilt) — by default big and inside the right-thumb
+    // arc. Tap auto-aims + fires; drag to aim manually.
+    //
+    // Every touch widget below takes its x / y / scale from controlLayout.js
+    // (Pause > CONTROLS edits it). The `radius` passed here is the *unscaled*
+    // base; the widget multiplies it by the layout scale itself.
+    const superL = getControl('superBtn');
     this.superButton = new SuperButton(this, {
-      x: superX,
-      y: superY,
+      x: superL.x,
+      y: superL.y,
+      scale: superL.scale,
       radius: 58,
       joystick: this.joystickRight,
       onAim: (v) => this.gameScene?.player?.setSuperAimInput(v),
@@ -225,11 +223,11 @@ export class HUDScene extends Phaser.Scene {
     });
 
     // Dash button (chevrons pointing right >>) — thumb-arc diagonal below super
-    const dashY = superY + 118;
-    const dashX = superX - 118;
+    const dashL = getControl('dashBtn');
     this.dashButton = new DashButton(this, {
-      x: dashX,
-      y: dashY,
+      x: dashL.x,
+      y: dashL.y,
+      scale: dashL.scale,
       radius: 56,
       onPress: () => {
         const p = this.gameScene?.player;
@@ -245,9 +243,11 @@ export class HUDScene extends Phaser.Scene {
 
     // Melee "Broken Wings" button — left of super, above dash. Must also be
     // listed in fireStick.shouldClaim above or taps here leak into the primary.
+    const meleeL = getControl('meleeBtn');
     this.meleeButton = new MeleeButton(this, {
-      x: superX - 118,
-      y: superY,
+      x: meleeL.x,
+      y: meleeL.y,
+      scale: meleeL.scale,
       radius: 46,
       onAim: (v) => {
         const p = this.gameScene?.player;
@@ -283,11 +283,15 @@ export class HUDScene extends Phaser.Scene {
     this._buildPauseButton();
 
     // Joysticks
+    const moveL = getControl('moveStick');
+    const fireL = getControl('fireStick');
     this.moveStick = new Joystick(this, 'left', {
+      x: moveL.x, y: moveL.y, scale: moveL.scale,
       onMove: (v) => this.gameScene?.player?.setMoveInput(v),
       onEnd: () => this.gameScene?.player?.setMoveInput({ x: 0, y: 0, force: 0 }),
     });
     this.fireStick = new Joystick(this, 'right', {
+      x: fireL.x, y: fireL.y, scale: fireL.scale,
       shouldClaim: (pointer) => {
         // Don't claim the pointer if the user is interacting with the
         // hack mini-game or the super button — keeps fire input from
@@ -501,6 +505,7 @@ export class HUDScene extends Phaser.Scene {
       this.dashButton?.shutdown();
     });
 
+    this._layoutChrome();
     this.refreshHp();
     this.refreshAmmo();
     this.refreshSuper();
@@ -585,6 +590,67 @@ export class HUDScene extends Phaser.Scene {
         pip.fillRect(-3, -9, 6, 18);
       }
     }
+  }
+
+  // ── Touch-control layout ───────────────────────────────────────────────
+  // Re-read controlLayout.js and push it into the live widgets. Called by
+  // ControlsScene when the editor closes, so a layout edited mid-run applies
+  // without a restart.
+  applyControlLayout() {
+    this.moveStick?.setLayout(getControl('moveStick'));
+    this.fireStick?.setLayout(getControl('fireStick'));
+    this.superButton?.setLayout(getControl('superBtn'));
+    this.meleeButton?.setLayout(getControl('meleeBtn'));
+    this.dashButton?.setLayout(getControl('dashBtn'));
+    this._layoutChrome();
+    // The gauges were cleared by setLayout; these repaint them at the new
+    // radius. The dash gauge is polled every frame, so it needs no nudge.
+    this.refreshAmmo();
+    this.refreshSuper();
+    this.refreshMelee();
+    this.refreshSecondary();
+  }
+
+  // Every sprite that makes up a touch control. Order is stable across calls,
+  // which is what lets setTouchControlsVisible() restore by index.
+  _touchControlObjects() {
+    return [
+      this.moveStick?.base, this.moveStick?.knob,
+      this.fireStick?.base, this.fireStick?.knob,
+      this.superButton?.image, this.superButton?.gauge, this.superButton?.knob, this.superButton?.readyGlow,
+      this.meleeButton?.image, this.meleeButton?.gauge, this.meleeButton?.knob, this.meleeButton?.readyGlow,
+      this.dashButton?.image, this.dashButton?.gauge,
+    ].filter(Boolean);
+  }
+
+  // Used by ControlsScene, which draws its own draggable proxies on top: two
+  // sets of controls on screen at once is unreadable. Restores the PREVIOUS
+  // visibility rather than forcing true — the ready-glows are shown and hidden
+  // on charge edges, so blanket-restoring would light a halo that should be off.
+  setTouchControlsVisible(visible) {
+    const objs = this._touchControlObjects();
+    if (!visible) {
+      this._ctrlVisWas = objs.map((o) => o.visible);
+      objs.forEach((o) => o.setVisible(false));
+    } else if (this._ctrlVisWas) {
+      objs.forEach((o, i) => o.setVisible(this._ctrlVisWas[i] ?? true));
+      this._ctrlVisWas = null;
+    }
+  }
+
+  // Position the readouts that ride with a stick: ammo pips above the aim
+  // stick, secondary-weapon panel above the move stick. Both were pinned to the
+  // HUDCFG defaults before the sticks could move.
+  _layoutChrome() {
+    const fire = getControl('fireStick');
+    const pipSpacing = 28;
+    for (let i = 0; i < this.ammoPips.length; i++) {
+      this.ammoPips[i].x = fire.x + (i - (this.ammoPips.length - 1) / 2) * pipSpacing;
+      this.ammoPips[i].y = fire.y - fire.radius - 50;
+    }
+    const move = getControl('moveStick');
+    this._secX = move.x;
+    this._secY = move.y - move.radius - 60;
   }
 
   // ── Pause button ───────────────────────────────────────────────────────
@@ -723,8 +789,8 @@ export class HUDScene extends Phaser.Scene {
 
     const ammo  = p?.secondaryAmmo ?? 0;
     const col   = COLS[id] ?? 0xffaa40;
-    const cx    = HUDCFG.joystickMargin + HUDCFG.joystickRadius;
-    const cy    = VIEW.height - HUDCFG.joystickBottom - HUDCFG.joystickRadius * 2 - 60;
+    const cx    = this._secX;
+    const cy    = this._secY;
 
     // Background panel
     g.fillStyle(0x0a0c14, 0.75);

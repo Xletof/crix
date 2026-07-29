@@ -52,8 +52,8 @@ await page.screenshot({ path: `${OUT}/debug-1-pause.png` });
 const pauseOpen = await page.evaluate(() =>
   !!window.game.scene.getScene('Pause')?.sys?.isActive());
 
-// DEBUG button: cardY = 1280*0.06, baseY = cardY + 410, gap*5.
-await page.mouse.click(360, Math.round(1280 * 0.06 + 410 + 92 * 5));
+// DEBUG button: cardY = 1280*0.06, baseY = cardY + 410, gap*6 (CONTROLS took gap*5).
+await page.mouse.click(360, Math.round(1280 * 0.06 + 410 + 92 * 6));
 await page.waitForTimeout(900);
 await page.screenshot({ path: `${OUT}/debug-2-panel.png` });
 

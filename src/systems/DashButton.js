@@ -5,11 +5,13 @@ export class DashButton {
     this.scene = scene;
     this.x = opts.x;
     this.y = opts.y;
-    this.radius = opts.radius || 42;
+    this.scale = opts.scale || 1;
+    this.baseRadius = opts.radius || 42;
+    this.radius = this.baseRadius * this.scale;
     this.onPress = opts.onPress || (() => {});
     this.isReady = opts.isReady || (() => true);
 
-    this.image = scene.add.image(this.x, this.y, 'dash-btn').setDepth(40);
+    this.image = scene.add.image(this.x, this.y, 'dash-btn').setDepth(40).setScale(this.scale);
     this.gauge = scene.add.graphics().setDepth(41);
 
     this.pointerId = null;
@@ -27,14 +29,25 @@ export class DashButton {
     if (!this.containsPoint(pointer.x, pointer.y)) return;
     if (!this.isReady()) return;
     this.pointerId = pointer.id;
-    this.image.setScale(1.1);
+    this.image.setScale(this.scale * 1.1);
     this.onPress();
   }
 
   handleUp(pointer) {
     if (this.pointerId !== pointer.id) return;
     this.pointerId = null;
-    this.image.setScale(1);
+    this.image.setScale(this.scale);
+  }
+
+  // Apply a layout from controlLayout.js. The gauge is redrawn from x/y/radius
+  // every frame by HUD.update(), so it needs no explicit repaint here.
+  setLayout({ x, y, scale }) {
+    this.x = x ?? this.x;
+    this.y = y ?? this.y;
+    this.scale = scale ?? this.scale;
+    this.radius = this.baseRadius * this.scale;
+    this.image.setPosition(this.x, this.y).setScale(this.scale);
+    this.gauge.clear();
   }
 
   drawGauge(charges, maxCharges, rechargeRatio) {

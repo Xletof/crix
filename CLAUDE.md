@@ -45,6 +45,12 @@ the finding is already established earlier in the conversation.
 - **The super is hardcoded.** `superPellets` / `superDamage` are flat `PLAYER` config
   constants feeding a single `tryFireSuper → player-fire-super → firePlayerSuper` path.
   There is no super-*type* concept; adding alternative supers requires a registry.
+- **Touch-control geometry comes from `controlLayout.js`, not `HUDCFG`.** The
+  `HUDCFG.joystick*` constants are only the defaults the store seeds from; the
+  player can move and resize every control at Pause → CONTROLS. A widget's
+  `scale` multiplies its hit radius and drag throw as well as its sprite, so any
+  code that writes a bare `image.setScale(1)` or tweens `scale: 1` on a touch
+  widget quietly resets a customised button to 100%.
 - **The game camera is inset below the HUD top bar** by `HUDCFG.topBarHeight` (84px)
   via `setViewport`. Any screen-space overlay maths must account for that offset —
   see `HUD._drawThreatChevrons`.
