@@ -340,10 +340,11 @@ either would silently switch itself off exactly when you least want it to.
 Everything is committed, pushed and deployed. Working tree clean, `FRIX` level
 with the dev branch, deploy run #114 green.
 
-> **Note on branches.** The touch-control work landed on
-> `claude/touch-control-customisation-0e4nvk`, not on the older
-> `claude/mobile-run-game-design-OZLYF` named in §1 — that branch stops at
-> `c2de5ed`. `FRIX` is level with the newer one.
+> **Note on branches.** The touch-control work was developed on
+> `claude/touch-control-customisation-0e4nvk` (a per-task branch), then
+> fast-forwarded onto the dev branch named in §1. Both dev branches and `FRIX`
+> now point at the same commit, so either name is a valid place to continue
+> from. `origin/main` is unrelated and unused — Pages builds from `FRIX` only.
 
 **Recently completed** (most recent first):
 
