@@ -3,7 +3,7 @@
 Orientation for a session starting cold. Read `CLAUDE.md` first for the rules
 that must not be broken; this file is the map.
 
-Last verified against `084904d` (2026-07-29). Everything below was read out of
+Last verified against `3dcf45f` (2026-07-29). Everything below was read out of
 the code at that commit, not remembered.
 
 ---
@@ -338,7 +338,12 @@ either would silently switch itself off exactly when you least want it to.
 ## 11. State as of this handover
 
 Everything is committed, pushed and deployed. Working tree clean, `FRIX` level
-with the dev branch, deploy run green.
+with the dev branch, deploy run #114 green.
+
+> **Note on branches.** The touch-control work landed on
+> `claude/touch-control-customisation-0e4nvk`, not on the older
+> `claude/mobile-run-game-design-OZLYF` named in §1 — that branch stops at
+> `c2de5ed`. `FRIX` is level with the newer one.
 
 **Recently completed** (most recent first):
 
