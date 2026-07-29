@@ -1,5 +1,9 @@
 # Frix — project notes for Claude
 
+**New session?** `HANDOVER.md` is the map — what the game is, how it is laid out,
+what is dead code, and what is in flight. This file is the rules and the traps.
+`tests/README.md` covers the test harness and the ways it will lie to you.
+
 ## Interaction rules (read first)
 
 **Never re-ask a question that has already been asked and left unanswered.**
@@ -44,23 +48,52 @@ the finding is already established earlier in the conversation.
 - **The game camera is inset below the HUD top bar** by `HUDCFG.topBarHeight` (84px)
   via `setViewport`. Any screen-space overlay maths must account for that offset —
   see `HUD._drawThreatChevrons`.
+- **Two depth conventions run at once.** Actors Y-sort (`setDepth(this.y)`), walls
+  and cover sort at `y + 56` — a band spanning ~150-1656 in a 1600px arena.
+  Everything else uses flat constants (bullets 26, grenade 22, particles 0), which
+  puts it permanently *under* that whole band. `DEPTH.AIR` (2000) is for things
+  flying over the room, and anything in it must add its **ground y** (where the
+  shadow is), never its rendered y — otherwise draw order drifts as it climbs.
+  Ordinary bullets and shared emitters are still on the flat constants; that is a
+  known open issue, not something to fix in passing.
+- **A flying object's `y` is not where it is.** Anything airborne renders at
+  `groundY - altitude`. Distance, curvature and collision maths against `.y`
+  silently fold in the altitude — a munition directly above an enemy measures as
+  560px away. Cluster fragments publish `b.groundY` every frame for this reason.
+  This has caused a real bug and two bad tests.
+- **`meleeBus` is reserved for the Riven melee.** It is ~+6dB, exempt from
+  ducking, and has no echo send. Do not route new sounds to it; use `sfxBus`.
+- **On a phone, spectrum beats gain.** Handset speakers have almost no output
+  below ~400Hz, so a sound whose energy sits there cannot be fixed by turning it
+  up — the saber hum was inaudible on mobile for exactly this reason. Measure the
+  bands (`tests/smoke-hum.mjs`) before reaching for the volume.
 - **Recoil/kick timers carry their own duration.** `recoilT`/`recoilDur`/`recoilMag`
   and `_wKickT`/`_wKickDur`/`_wKickMag`. Never reintroduce a hardcoded divisor; that
   bug made the super shrink the player instead of popping it.
 
 ## Testing
 
-Headless Playwright against the Vite dev server on `:5173`, Chromium at
-`/opt/pw-browsers/chromium`, importing Playwright by absolute path.
+The suite lives in `tests/` — `npm run dev` in one shell, `npm run smoke` in
+another. **`tests/README.md` is the real reference**: it lists what each test
+protects and documents six specific ways this harness produces false passes.
+The short version:
 
 - **Headless runs at ~20 FPS**, so Phaser `TimerEvent`s resolve coarsely — a bare
   `delayedCall(70)` measures 150–220ms. Use generous waits; that is a harness
   artifact, not a game bug.
+- **Sample from inside the page** via a `postupdate` hook. `page.evaluate`
+  polling costs 200–400ms a round trip and will miss most of a fast animation —
+  that has already produced a false pass here.
 - **Short-lived FX (<150ms) can't be screenshotted reliably** at that frame rate.
   Freeze the clock first: `scene.tweens.timeScale = 0` (and `physics.world.pause()`),
   then capture.
 - This project is heavily visual: **verify with screenshots**, not just assertion
   counts. Several past "passing" tests were wrong assertions, not working code.
+- **A/B every measurement against the pre-change build** (`git stash`) before
+  trusting it. If the test doesn't fail on the old code, it isn't testing the
+  change.
+- **Intermittent failure means the measurement is wrong, not the threshold.**
+  Both flaky tests found here turned out to be measurement bugs.
 
 ## Conventions
 

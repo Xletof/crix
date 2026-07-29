@@ -3,3 +3,7 @@ dist/
 .vite/
 *.log
 .DS_Store
+
+# Smoke-test screenshots and captures
+tests/out/*
+!tests/out/.gitkeep

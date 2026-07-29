@@ -1,391 +1,333 @@
-# Crix — Full Session Handover
+# Frix — project handover
 
-## Project Identity
+Orientation for a session starting cold. Read `CLAUDE.md` first for the rules
+that must not be broken; this file is the map.
 
-- **Name:** Crix (Death Star infiltration top-down twin-stick shooter)
-- **Theme:** Brawl Stars-style mobile arena shooter, Star Wars / Mandalorian skin
-- **Repo:** `xletof/crix` (GitHub)
-- **Working branch:** `claude/mobile-run-game-design-OZLYF`
-- **Deployed:** https://xletof.github.io/crix/
-- **Stack:** Phaser 3.90 + Vite, vanilla JS modules, no framework
+Last verified against `084904d` (2026-07-29). Everything below was read out of
+the code at that commit, not remembered.
 
-## Critical Constraints (never break these)
+---
 
-1. DEVELOP on branch `claude/mobile-run-game-design-OZLYF` only — never push to another branch without explicit user permission.
-2. GitHub MCP tools restricted to `xletof/crix` only.
-3. Do NOT create a pull request unless the user explicitly asks.
-4. Always push with `git push -u origin claude/mobile-run-game-design-OZLYF`.
-5. Retry push on network failure up to 4 times (2s, 4s, 8s, 16s backoff).
+## 1. What this is
 
-## Last Commit
+**Frix** — a mobile-first, portrait, top-down twin-stick **wave-survival**
+shooter. Brawl Stars-style controls, Star Wars / Death Star skin. Phaser 3.90 +
+Vite, vanilla JS ES modules, no TypeScript, no framework.
 
+- **Repo:** `Xletof/crix` — GitHub MCP tools are restricted to it
+- **Live:** https://xletof.github.io/crix/
+- **Dev branch:** `claude/mobile-run-game-design-OZLYF`
+- **Deploy branch:** `FRIX` — Pages builds **only** from this (see §8)
+- **Logical resolution:** 720×1280 portrait, `Phaser.Scale.FIT`
+- **Arena:** 1600×1600 world, camera follows the player with aim-lookahead
+
+Every sprite and every sound is generated **procedurally at runtime**. There are
+no image or audio assets — pixel art is painted into textures in
+`src/systems/pixelArt.js`, audio is synthesised through Web Audio in
+`src/systems/FX.js`. The only binary assets in the repo are three webfonts.
+
+> **The game has changed shape twice.** It began as a stealth-infiltration game
+> (patrol routes, vision cones, backstab takedowns), became a horde-survival
+> game, and is now **wave-clear arena**. Old code from earlier shapes is still
+> in the tree and dormant — see §9. If something in the code looks like it
+> belongs to a different game, it probably does.
+
+---
+
+## 2. Run it
+
+```bash
+npm install
+npm run dev        # http://localhost:5173
+npm run build      # → dist/
+npm run smoke      # headless test suite (needs `npm run dev` running)
 ```
-7546e39  Stack: camera fire kick, enemy pre-fire ping, boss flicker, item bounce
-```
 
-## Architecture
+`npm run build` must pass clean before every commit.
 
-### Two-scene layout
-- `GameScene` ("Game") — world + Arcade Physics, world camera, all entities
-- `HUDScene` ("HUD") — fixed UI camera, launched as a parallel scene from GameScene.create()
+---
 
-### Logical resolution
-- Portrait 720×1280 (`VIEW` in config.js), `Phaser.Scale.FIT`
-- World camera shows 1600×1600 arena; player-follow with setFollowOffset for aim-lookahead
-
-### Key architectural decision: static body + rotating weapon overlay
-- **Body sprite NEVER rotates.** No `setRotation()` on Player or Enemy bodies.
-- Each entity has a separate `weaponSprite` image that orbits it, positioned + rotated to `_aim` each frame in `preUpdate`.
-- `_aim` is a plain float (radians) tracking the entity's facing/aim direction.
-- This is how Brawl Stars / Hotline Miami handle it. Rotating the body causes the "upside-down plane" bug.
-
-## File Map
+## 3. Layout
 
 ```
 src/
-  config.js                  All gameplay tunables (single source of truth)
-  main.js                    Phaser.Game config, scene registry
+  main.js          Phaser config + scene registry
+  config.js        EVERY gameplay tunable (single source of truth)
   data/
-    rooms.js                 4 hand-authored room specs (hangar, corridor, detention, vader)
+    rooms.js       4 arena layouts (walls, cover, gates, terminals)
+    upgrades.js    8 between-wave upgrade cards
+    narrative.js   Intro / interstitial text
   entities/
-    Player.js                Movement, aim, fire, ammo, super, HP regen, weapon overlay
-    Enemy.js                 Base class + EnemyGrunt + EnemyShooter AI state machine
-    Boss.js                  Vader — 3-phase, charge/fan/spawn patterns, sabre afterimage
-    Bullet.js                BulletGroup with pool, fire(), kill()
-    Grenade.js               Thermal detonator — fuse + AoE
-    Terminal.js              Hackable objective terminal
-    WeaponPickup.js          Drops in rooms, magnet pull, landing bounce
+    Player.js      Movement, aim, fire, dash, super, melee combo, HP/shield
+    Enemy.js       Base + 6 archetypes, swarm AI, dormant stealth FSM
+    Boss.js        Vader — 3 phases, charge / fan / spawn
+    Bullet.js      Pooled BulletGroup: fire() / kill(), _gen identity token
+    Grenade.js     Cluster canister — climbs, airbursts
+    Terminal.js    Hackable objective
+    WeaponPickup.js
+    Ally.js        DEAD CODE — imported nowhere (see §9)
   scenes/
-    BootScene.js             Splash → Preload
-    PreloadScene.js          Loads all assets, calls pixelArt painters
-    TitleScene.js            Logo + PLAY button
-    GameScene.js             Main arena loop (~1650 lines)
-    GameOverScene.js         Victory / defeat + replay
+    BootScene / PreloadScene / TitleScene / IntroScene
+    GameScene.js   The arena loop. 3.6k lines — by far the biggest file
+    GameOverScene / PauseScene / UpgradeScene / DebugScene
   systems/
-    Joystick.js              Left (move) + right (aim/fire) virtual thumbsticks
-    SuperButton.js           Super-fire hold/release area (top-left of right half)
-    HUD.js                   HP bar, ammo pips, super gauge, banners, hack/takedown buttons
-    HackMinigame.js          3-round timing puzzle (sweep cursor, tap in zone)
-    BushSystem.js            Tracks which actors overlap cover (hiddenInBush flag)
-    CoverRegistry.js         Cover spots claim/release for shooter AI
-    RoomManager.js           Counts enemies, fires room-cleared
-    WaveManager.js           (legacy, not used in current room-based flow)
-    FX.js                    Particles, SFX (Web Audio API synth), screen shake, muzzle flash
-    pixelArt.js              Procedural pixel-art painters for all sprites (~1315 lines)
+    HUD.js         Exports HUDScene — a PARALLEL scene, not a scene-file
+    FX.js          Particles, screen shake, and ALL audio synthesis
+    pixelArt.js    Every sprite texture, painted procedurally
+    Joystick / DashButton / MeleeButton / SuperButton   touch controls
+    NavGrid / CoverRegistry / BushSystem / RoomManager
+    HackMinigame.js
+    debug.js       Module-scope debug flags (god mode)
+tests/             Headless Playwright smoke suite — see tests/README.md
 ```
 
-## config.js Tunables (current values)
+### Scene model
 
-```js
-PLAYER: hp=1000, speed=240, radius=22, ammoMax=4, ammoReloadMs=750,
-        fireCooldownMs=150, pelletCount=3, pelletSpreadDeg=10, pelletDamage=300,
-        pelletSpeed=820, pelletRange=420, superHitsToCharge=10, superPellets=7,
-        superSpreadDeg=30, superDamage=520, superSpeed=700, superRange=560,
-        superKnockback=440, regenDelayMs=2500, regenPerSec=220, bushAlpha=0.5
+`GameScene` ("Game") owns the world and Arcade Physics. `HUDScene` ("HUD") is
+launched **in parallel** from it and owns the fixed UI camera and touch
+controls. They communicate over `GameScene.events`. `HUDScene` lives in
+`src/systems/HUD.js`, not in `src/scenes/` — easy to miss.
 
-WEAPONS.rifle:        totalAmmo=27 (9×3-burst), burstDelayMs=75, damage=220, speed=940, range=500
-WEAPONS.flamethrower: fuel=100, drainPerSec=22, damagePerSec=380, range=190, halfAngleDeg=28
-WEAPONS.detonator:    charges=3, throwSpeed=510, fuseMs=1100, blastRadius=130, damage=750
+### The one non-obvious architectural rule
 
-ENEMY.grunt:    hp=600, speed=180, radius=22, meleeDamage=150, meleeRange=38, meleeCooldownMs=700
-ENEMY.shooter:  hp=400, speed=140, radius=22, fireCooldownMs=1800, bulletSpeed=480, bulletDamage=110
+**Body sprites never rotate.** No `setRotation()` on a Player or Enemy body.
+Each entity carries a separate `weaponSprite` that orbits it, positioned and
+rotated to `_aim` every frame in `preUpdate`. `_aim` is a plain float in
+radians. This is how Brawl Stars and Hotline Miami do it; rotating the body
+produces the "upside-down sprite" bug. Every weapon overlay texture is painted
+**EAST-facing** (barrel along +X) so `setRotation(angle)` orients naturally.
 
-BOSS: hp=9000, radius=56, speed=110, contactDamage=220,
-      phase2=0.66, phase3=0.33,
-      chargeWindupMs=700, chargeSpeed=560, chargeDurationMs=900,
-      fanPellets=11, fanSpreadDeg=70, fanBulletSpeed=380, fanBulletDamage=130,
-      spawnCount=3, attackCooldownMs=2200
+---
 
-HEALTH_ORB: dropChance=0.22, healAmount=140, radius=14, lifeMs=8000
-```
+## 4. The game loop as it exists now
 
-## rooms.js — 4 Rooms
+Four rooms, each a sequence of **waves**. A wave spawns a budget of enemies; the
+player must clear them all to advance. Between waves: a breather, a reward, and
+an upgrade choice. Room 4 ends with Vader.
 
-| # | id | name | enemies | terminals | pickup | reinforce |
-|---|---|---|---|---|---|---|
-| 1 | hangar | HANGAR BAY | 2 grunts (patrol) + 1 shooter (flanker) | 1 | rifle | 2 grunts @ 22s |
-| 2 | corridor | SERVICE CORRIDOR | 2 grunts (alerted) + 1 shooter (alerted) | 2 | flamethrower | 1 shooter @ 18s |
-| 3 | detention | DETENTION BLOCK | 2 grunts (patrol) + 2 shooters (1 flanker) | 2 | detonator | 3 grunts @ 20s |
-| 4 | vader | VADER'S CHAMBER | boss only | 0 | — | — |
+- **Spawning** — `ARENA` in `config.js`, per room. Room-level fields are
+  per-wave *defaults*; each entry in `waves[]` overrides any of them. Enemies
+  emerge at `gates[]` (rooms.js) at least 400px from the player, after a 600ms
+  red-ring telegraph.
+- **Mix fields** (`shooterMix`, `bomberMix`, `shieldedMix`, `sniperMix`,
+  `swarmlingMix`) are **cumulative probabilities**; the remainder is grunts.
+- **Modifiers** — `MODIFIERS` in config: `frenzy` (corridor), `darkness`
+  (detention), `eliteGuard` (vader).
+- **Terminals** are optional risk/reward: hacking grants a support drop but
+  triggers an immediate surge.
+- **Records** persist in `localStorage` under `crix.stats`.
 
-**Room completion gate:** Exit door stays sealed until `_enemiesCleared && _terminalsHacked >= _terminalsTotal`. Boss room ends via boss-died event.
+### Rooms
 
-## Player.js — Key Details
+| # | id | name | modifier | waves |
+|---|---|---|---|---|
+| 1 | `hangar` | HANGAR BAY | — | 3 |
+| 2 | `corridor` | REACTOR JUNCTION | frenzy | 3 |
+| 3 | `detention` | DETENTION BLOCK | darkness | 4 (miniBoss on last) |
+| 4 | `vader` | VADER'S CHAMBER | eliteGuard | 2, then Vader |
 
-### Methods called by HUD
-- `setMoveInput({x, y, force})` — bails during `_hurtStaggerMs > 0`
-- `setAimInput({x, y, force})` — sets `this.aim`, enables `flameActive` for flamethrower
-- `releaseAim(vec)` — fires `tryFire()` on release
-- `setSuperAimInput / releaseSuperAim` — super drag-aim
-- `tryFire(angleOverride)` — routes to pistol / rifle burst / detonator
-- `tryFireSuper(angle)` — fires wrist-rocket barrage when `superCharge >= superHitsToCharge`
+### Enemies
 
-### Weapon overlay (preUpdate)
-```js
-const ang = superAiming ? superAim : aiming ? aim : facing;
-// Pick wpn-pistol vs wpn-rifle texture
-const kickBack = _wKickT > 0 ? (_wKickT / 80) * 7 : 0;
-const offset = PLAYER.radius - 4 - kickBack;
-weaponSprite.x = x + cos(ang) * offset;
-weaponSprite.y = y + sin(ang) * offset;
-weaponSprite.rotation = ang;
-```
+| Type | HP | Speed | Identity |
+|---|---|---|---|
+| `grunt` | 320 | 230 | Baseline. The damage yardstick — "one shot nearly kills a grunt" means ~290 |
+| `shooter` | 450 | 190 | Holds 380px, fires faster |
+| `bomber` | 200 | 300 | Suicide charger, 155px blast for 240 |
+| `shielded` | 560 | 140 | ~154° frontal shield, turns at 2.6 rad/s — slow enough that a dash beats it |
+| `sniper` | 260 | 150 | Glass cannon. 800ms windup, 260ms locked beam, 220 damage |
+| `swarmling` | 60 | 310 | Melee, spawns in packs of 4–6. One primary bolt kills |
+| Vader | 12000 | 165 | 3 phases at 100/66/33% |
 
-### Idle breathing
-`scaleY = 1.15 + sin(time * 0.003) * 0.015` when not moving, not firing, not staggered.
+### Player
 
-### HP regen
-Starts after `regenDelayMs=2500ms` with no damage, at `regenPerSec=220 hp/s`.
+HP 1000, speed 380, 2 dash charges (950px/s, 240ms, i-frames).
+Primary: 1 bolt, 120 damage, 3 rounds then a 520ms reload.
 
-## Enemy.js — Key Details
+Three independent meters:
+- **Super** (`superHitsToCharge: 4`) — 5-pellet rocket barrage, 600 each.
+- **Melee** (`meleeHitsToCharge: 3`) — "Broken Wings", a 3-cast lunging combo.
+  The meter is spent on the **first cast only**; casts 2 and 3 are free inside
+  `meleeComboWindowMs` (2000ms), so the chain is one ability. The finisher is a
+  radial ground slam: 210px radius, 900 knockback, 600ms stun.
+- **Dash** — 2 charges, 2800ms recharge.
 
-### State machines
+Secondary weapons (`WEAPONS`, picked up in rooms): `rifle` (3-round burst) and
+`cluster` (the pod, §5). There is no `flamethrower` or `detonator` any more —
+older docs claim otherwise.
 
-**EnemyGrunt:** PATROL → ALERT → CHASE  
-**EnemyShooter:** PATROL → ALERT → COVER_MOVE → SUPPRESS → (REPOSITION | FLANK | ADVANCE)
+---
 
-### `_aim` data field
-All enemies store aim angle in `this._aim` (not `this.rotation`). Weapon overlay positioned in `preUpdate` exactly like the player. Grunts have no weapon sprite.
+## 5. The cluster pod
 
-### Stealth system
-- `isBackstabbable(player)` — PATROL state + rear arc > `TAKEDOWN_REAR_ARC=1.95 rad` + distance < `TAKEDOWN_RANGE=56px`
-- `stealthKill()` — silent, never triggers alarm
-- `_tickPatrol` — rear approaches don't trigger `canSee()`
+Worth its own section: it is the most intricate system in the game and the most
+recently reworked.
 
-### Stagger system
-- `_staggerMs = 90` set on each knockback hit
-- AI `preUpdate` bails early while `_staggerMs > 0`, so the knockback slide reads on screen
-- Enemy wobbles X/Y inversely during stagger (`sin(phase) * 0.10`)
+Throw → the canister **climbs** for `riseMs` and airbursts at `burstHeight`
+(it never comes back down) → 8 munitions **pop** upward and fan out → each locks
+a **distinct** target → they fly a **powered attack run** onto it → detonate.
 
-### Pre-fire warning (NEW in last batch)
-In `_maybeFireAt()`: when `fireCd <= 300ms`, sets `_warningFired = true` and tints `weaponSprite` orange (`0xff6010`). Clears 360ms later. Resets `_warningFired = false` when new fire cycle begins.
+- **Distinct targets** are assigned at burst time in `clusterSplit`, round-robin
+  across living enemies within `fragSearchRadius`. This is the only place that
+  can coordinate it — `findNearestEnemy` has no notion of "already claimed",
+  which is why every munition used to pile onto the same enemy.
+- **The flight is integrated per frame**, not tweened, in `_clusterDive`. The two
+  axes are solved by different means and that split *is* the design:
+  - **Horizontal** — momentum-limited flight. It leaves the apex carrying the
+    pop's outward velocity and the motor cannot turn that instantly, so a
+    munition thrown away from its target must bank round. That is the arc.
+  - **Vertical** — solved from the horizontal **closing rate**, so altitude and
+    range run out together whatever path the horizontal takes. While banking
+    outward nothing is closing, so it holds height and spends that time turning.
+- **Convergence is guaranteed, not tuned.** The turn rate is floored at the rate
+  needed to circle the target at the current range, so the munition always curves
+  inside its own approach instead of sling-shotting past.
+- **Steering stops inside 40px.** It is committed and dropping. Because rotation
+  follows velocity, the close-range turn term would otherwise whip the nose
+  through ~3.6 turns per flight on impact.
+- The physics body is **never enabled**. Impact is an explicit radius test in
+  `_clusterImpact`, which is also what frees the sprite to be scaled freely
+  (see the hitbox trap in `CLAUDE.md`).
 
-### `die()` — corpse slide
-Body stays alive for ~380ms with `body.drag=900`, `checkCollision.none=true`, depth lowered. Tweens to `alpha=0` then destroys.
+Three flight models were tried and failed before this one; the reasons are
+recorded in comments in `_clusterDive` so they are not retried. If you are about
+to "simplify" that method by aiming one 3D vector at the target, read them first.
 
-### Shooter ADVANCE navigation
-When no cover with LOS is available: straight-line toward player. Progress-tracks every 350ms; if moved < 8px, commits to perpendicular wall-follow for 1400ms. Direction flips on each stuck episode. Blend: 65% perp + 35% forward.
+Damage: 8 × 290 = 2320 per charge, 3 charges. That is a large number —
+deliberately, but worth watching against a full arena.
 
-## Boss.js — Key Details
+---
 
-### Phases
-- Phase 2 at 66% HP, Phase 3 at 33% HP
-- `enterPhase(p)` reduces `attackCooldownMs` by 400ms per phase (min 900ms)
-- Phase ≥ 2: `_enraged = true` → sabre glow pulses faster/larger
+## 6. Draw order — the recurring bug
 
-### Per-volley damage cap
-```js
-damage(amount, knockbackVec) {
-  const CAP = 2200, WIN = 120;   // max 2200 dmg per 120ms window
-  if (_dmgWindowMs <= 0) _dmgWindow = 0;
-  const effective = Math.min(amount, Math.max(0, CAP - _dmgWindow));
-  if (effective <= 0) return;
-  _dmgWindow += effective; _dmgWindowMs = WIN;
-  super.damage(effective, knockbackVec);
-}
-```
-Prevents 7-pellet super (7×520=3640) from one-shotting boss.
+**The game has two depth conventions running at once.** Mixing them up has
+caused several bugs.
 
-### Boss has TWO `damage()` definitions — BUG NOTE
-`Boss.js` defines `damage()` twice (lines ~62 and ~228). The second one (line 228) does NOT apply the per-volley cap and does NOT call super. The first definition (with the cap) is what the JS engine uses (the second silently overrides it). **This is a latent bug: the cap is effectively not applied.** Should be fixed by removing the second definition.
+1. **Y-sorted ground layer.** Actors write `setDepth(this.y)` every frame; walls
+   and cover sort by their bottom edge at `y + 56`. In a 1600px arena that band
+   spans roughly **150–1656**.
+2. **Flat constants** used by nearly everything else: bullets 26, grenade 22,
+   particles 0. These sit permanently *underneath* the entire Y-sorted layer.
 
-### Sabre afterimage (CHARGING state)
-Every 50ms: spawn ghost image of `weaponSprite` at same position/rotation, tinted red `0xff4040`, fades out 320ms.
+`DEPTH.AIR` (2000, in config.js) is the band for things genuinely flying **over**
+the room. Anything in it must add its **ground y** — where its shadow is — never
+its rendered y, or draw order drifts as it changes altitude.
 
-### Boss ambient flicker (NEW)
-`_startBossFlicker()` called on `boss-start`. Fires 2–4 rapid camera flashes (`flash(45, 15, 8, 25, true)`) every 1.8–4.5s while `boss.alive`.
+> **Known outstanding issue.** Ordinary bullets and the shared particle emitters
+> are still on the flat constants, so primary bolts pass *behind* consoles and
+> sparks render *under* actors. Same root cause as the cluster bug that was
+> fixed. It is a game-wide visual change and has been left as the user's call.
 
-## GameScene.js — Key Methods
+---
 
-### Room lifecycle
-```
-loadRoom(spec) → _clearRoomEntities() → spawn walls/cover/enemies/terminals/pickups
-               → drawDoor(sealed) → player spawn → events
-```
-On `_enemiesCleared && _terminalsHacked >= total` → `_maybeCompleteRoom()` → animate door open → advance
+## 7. Audio
 
-### Core juice helpers
+All synthesis, no files. `FX.js` exposes helpers — `tone()`, `noise()`, `sub()`,
+`punch()`, `stack()`, `shaper()` — feeding two buses under the user's volume:
 
-| Method | What it does |
-|---|---|
-| `_slowMo(floor, durMs)` | Tweens `physics.world.timeScale` + `time.timeScale` from `floor` back to 1.0 |
-| `_cameraPunch(to, durMs)` | Zoom snap to `to` over `durMs*0.35`, yoyo back (tracks `_cameraPunchTween`) |
-| `_startBossFlicker()` | Repeating dim flash pattern while boss alive |
-| `spawnBloodSplatter(x,y)` | 6–8 dot splotches added to `roomLayer` (persist until room change) |
-| `spawnScorch(x,y)` | Small dark mark in `roomLayer` |
-| `spawnCrater(x,y)` | Larger charred ring + ejecta in `roomLayer` |
-| `_impactMicroFlash(x,y,r)` | Bright white circle tween, 90ms, scene-level (not roomLayer) |
-| `_spawnDeathGlow(x,y,r)` | Orange ring expands 3.4× over 280ms |
-| `_drawAimLaser(g,px,py,angle,range,startGap)` | Raycast to first wall, low-ammo flicker strobes alpha |
-| `_tickKillCombo()` | Chain kills within 2s, emits `show-combo` |
-| `performTakedown()` | `_slowMo(0.3, 380)` + `_cameraPunch(1.08, 420)` + `stealthKill()` |
-| `_playDoorOpenAnim(spec)` | Two green panels slide apart over 380ms |
+- **`sfxBus`** — default for everything, duckable via `duckSfx()`.
+- **`meleeBus`** — Riven melee **only**, ~+6dB and exempt from ducking.
+  Deliberately reserved; **do not route new sounds to it**. It also has no echo
+  send, because a ringing tail was designed out of the melee.
 
-### Camera aim-lookahead
-```js
-// In update():
-const aim = aiming ? player.aim : facing;
-_camOX = _camOX * 0.92 + cos(aim) * 70 * 0.08;
-_camOY = _camOY * 0.92 + sin(aim) * 70 * 0.08;
-cameras.main.setFollowOffset(-_camOX, -_camOY);
-```
+A master compressor (threshold −10dB, ratio 12:1) glues the mix and pumps hard
+when many sources overlap — which is why the cluster's gains were trimmed when
+the fragment count went 5 → 8.
 
-### Player-fire events (all add camera kick)
-- `player-fire` → `firePlayerPrimary` + `_cameraPunch(1.008, 90)`
-- `player-fire-rifle` → `firePlayerRifle` + `_cameraPunch(1.012, 100)`
-- `player-fire-super` → `firePlayerSuper` + `_cameraPunch(1.025, 180)`
+**Three things this codebase has learned the hard way:**
 
-### Bullet-enemy collision
-Universal knockback: normal `kbScale=0.18`, super `kbScale=0.32`. Directional `burstDir` sparks on every hit. Super pellets = piercing + `fx.explosion`. Boss ignores knockback but still gets `burstDir` sparks with `yellow` color.
+1. **"Retro/pixel" here means a falling square wave with per-call `vary`**, not
+   bit-crushing. There is no bit-crusher (`shaper()` is a soft tanh clip) and one
+   was deliberately not added. `vary` exists so simultaneous copies of a sound
+   do not phase-align into one loud blip — it matters when 8 land at once.
+2. **Everything must darken and fall.** No rising resonant filter (reads as a
+   whistle), no unbounded highpass tail (stays bright and drags the sound up).
+   `meleeSlam`'s comments encode these rules; they were expensive to learn.
+3. **On a phone, spectrum beats gain.** A handset speaker has almost no output
+   below ~400Hz. The saber hum was built from partials of a 110Hz fundamental
+   behind a 900Hz lowpass, so its energy could not physically leave the device
+   and no amount of gain would have helped. Re-voicing it upward moved the
+   phone-audible band (400–1600Hz) **+25.8dB** while the sub band moved only
+   6.2dB. If a sound is "too quiet on mobile", measure the bands before
+   reaching for the gain — see `tests/smoke-hum.mjs`.
 
-### Hack flow
-```
-Player near terminal → GameScene emits hack-prompt → HUD shows HACK button
-Player taps HACK → GameScene.requestHack() → emits hack-start(terminal) → HackMinigame.start()
-  During hack: fire stick disabled (shouldClaim guard), left stick still live (can walk away)
-  Success → hack-success(terminal) → terminal.complete() → terminal-hacked event
-  Fail → hack-fail → room-alarm → enemies alerted
-```
+---
 
-### Stealth takedown flow
-```
-Player behind patrolling enemy → _updateTakedownTarget() → emits takedown-available(true)
-HUD shows TAKEDOWN button → tap/Q → gameScene.performTakedown()
-  → _slowMo + _cameraPunch + enemy.stealthKill() + SFX.takedown()
-  → emits stealth-kill → "SILENT" damage number
-```
+## 8. Deploying
 
-### Reinforcement system
-First alarm arms `reinforceTimer`. Countdown shown in HUD. On expiry, 1–3 enemies spawn at `spec.reinforce.door` already alerted.
+**Pages builds only from `FRIX`.** `.github/workflows/deploy.yml` triggers on
+pushes to `FRIX` alone. Work lands on the dev branch, so Pages serves a **stale
+build** until `FRIX` is fast-forwarded.
 
-### Lives system
-`this.lives = 3`. On death: `lives -= 1`, respawn at room spawn if `lives > 0`, else `defeat()`.
-
-## HUD.js — Key Details
-
-### Buttons
-- **HACK button** (amber, E key) — fades in via `setHackVisible(true)` when player near terminal. Pulses gently.
-- **TAKEDOWN button** (green, Q key) — fades in via `setTakedownVisible(true)`. Both use `Back.easeOut` pop-in.
-- **Super button** — drag-to-aim area top-right, fires `setSuperAimInput`/`releaseSuperAim`
-
-### HackMinigame (owned by HUD)
-- `hackMinigame.state` is checked in fire-stick's `shouldClaim` — blocks firing during active hack
-- Only the right-half pointer events go to the hack tap handler
-- `update(delta)` ticked from `HUDScene.update()`
-
-### Ammo pips
-- `_ammoPipPrevLoaded[]` detects reload completion → `_pulseAmmoPip()` (scale 1.55 → Back.easeOut)
-
-### Overlays
-- `vignette` graphics — low-HP pulsing red edge glow (below 30% HP, pulses faster near 0)
-- `bossTint` graphics — soft red full-screen tint in phase ≥2 (5%), phase ≥3 (10%)
-- `comboText` — reused text object for combo splashes (x2!, x3!, etc.)
-
-## FX.js — Emitters & Methods
-
-### Particle emitters
-| Name | Color | Purpose |
-|---|---|---|
-| `sparks` | white | generic burst |
-| `sparksRed` | red | enemy hit / blood |
-| `sparksYellow` | yellow | boss hit / wall ricochet |
-| `bulletTrail` | white dim | player bullet tail (called per frame) |
-| `footDust` | grey | footstep puffs when running |
-| `missileSmoke` | dark | super bullet exhaust |
-| `pickupGlitter` | yellow | weapon pickup grab |
-
-### Key FX methods
-- `burst(x, y, color, count)` — omnidirectional spray (resets angle ops each call)
-- `burstDir(x, y, color, count, flightAngleRad, spreadDeg)` — directional cone spray
-- `muzzleFlash(x, y, angle)` — `wpn-muzzle` image, fades 110ms, origin (0.15, 0.5)
-- `hitFlash(sprite)` — white tintFill 80ms
-- `explosion(x, y, scale)` — plays `explode` animation
-- `damageNumber(x, y, amount, color, big)` — floats up 40px, fades 650ms
-- `dustPuff(x, y)` — called every 140ms while player moving fast
-- `pickupSparkle(x, y, count)` — called on weapon pickup grab
-
-### SFX (Web Audio synth — no files)
-All sounds generated programmatically: `shoot`, `shootSuper`, `enemyShoot`, `hit`, `hurt`, `enemyDie`, `bossHit`, `bossDie`, `bossRoar`, `superReady`, `heal`, `uiClick`, `victory`, `defeat`, `waveStart`, `takedown`, `hackTick`, `hackComplete`, `alarm`
-
-### BGM
-Imperial March-inspired synth loop. `startMusic()` (once on first gesture), `stopMusic()` (on scene shutdown), `duckMusic(amount, restoreInMs)` (called on super/explosion).
-
-## pixelArt.js — Sprite Painters
-
-All sprites are procedurally painted into Phaser textures at `PreloadScene` time. All weapon overlays are EAST-facing (barrel points +X so `setRotation(angle)` orients naturally).
-
-| Texture key | Painter | Notes |
-|---|---|---|
-| `player` | `paintPlayer` | 24×24, symmetric dome, 4-frame sheet (idle/walk/fire/hurt) |
-| `grunt` | `paintGrunt` | 20×20, white trooper dome, 4-frame sheet |
-| `shooter` | `paintShooter` | 20×20, black trooper dome, 4-frame sheet |
-| `boss` | `paintBoss` | 40×40, Vader dome, 4-frame sheet |
-| `wpn-pistol` | `paintPistolOverlay` | 14×8, EAST-facing |
-| `wpn-rifle` | `paintRifleOverlay` | 20×8, EAST-facing |
-| `wpn-enemy-rifle` | `paintEnemyRifleOverlay` | 18×8, EAST-facing |
-| `wpn-saber` | `paintSaberOverlay` | 22×6, EAST-facing |
-| `bullet` | `paintBolt` | 28×5, EAST-facing tracer (white core + colored glow + fading tail) |
-| `bullet-super` | `paintMissile` | 18×8, EAST-facing (exhaust left, fins, bright nose right) |
-| `muzzle` | `paintMuzzle` | 18×10, EAST-facing flame |
-| `terminal` | `paintTerminal` | amber screen, LEDs, antenna |
-| `backdrop` | `paintBackdrop` | tiled Death Star floor |
-| Pickups | `paintPickup*` | `pickup-rifle`, `pickup-flamer`, `pickup-det` |
-| `shadow`, `shadow-boss` | `paintShadow` | ellipse drop shadow |
-| `spark`, `spark-red`, `spark-yellow` | `paintSpark` | 4×4 particle |
-
-## Known Latent Bug
-
-**Boss.js double `damage()` definition.** The class has two `damage(amount, knockbackVec)` methods. JS uses the last one (line ~228), which is a simpler version that skips the per-volley cap and doesn't call `super.damage()`. The cap (lines ~62–71) is effectively never reached. Fix: delete the second definition (line 228–234), keeping only the capped version.
-
-## Recently Added Juice (last 4 commits)
-
-### e452263 — low-ammo flicker, super flash, pickup magnet, sabre trail
-- Aim laser alpha strobes via `sin(time * 0.022)` when ammo ≤ 1
-- Super fire: `cameras.main.flash(150, 255, 150, 60, true)` warm orange wash
-- WeaponPickup: 90px magnet range, 320px/s pull scaled by closeness
-- Boss CHARGING state: red ghost sabre sprites every 50ms, fade 320ms
-
-### 7546e39 — camera fire kick, enemy pre-fire ping, boss flicker, item bounce
-- `player-fire` → `_cameraPunch(1.008, 90)`, `rifle` → `1.012/100`, `super` → `1.025/180`
-- EnemyShooter: orange weapon tint 300ms before each shot, then cleared
-- Boss room: ambient dim flash sequence every 2–4s while boss alive
-- WeaponPickup: launches at scale 1.55 → Back.easeOut to 0.85
-- Health orbs: launch at scale 1.8 → Back.easeOut to 1.0, then start pulse
-
-## Pending / Suggested Next Steps
-
-### High impact
-- **Fix boss double `damage()` bug** — the per-volley cap is silently bypassed (second definition wins)
-- **Title screen polish** — currently minimal, could use animated background, character portrait
-- **In-game pause menu** — not implemented
-- **Persistent stats** — `localStorage` under `crix.stats`: best chamber, clear time, stealth kills
-
-### More juice (user's standing instruction: "keep stacking")
-Next suggested batch:
-1. **Door entry flash** — brief bright flash when transitioning between rooms (camera fadeOut/fadeIn already exists, but could add a white bloom)
-2. **Screen edge directional hit indicator** — brief colored arc on the screen edge showing which direction damage came from (like modern shooters)
-3. **Enemy "?" on hearing a shot** — when `_alertEnemiesNear` alarms an enemy via sound radius, show a "?" bubble briefly instead of the "!" (spotted) one
-4. **Vader ground crack effect** — persistent radial crack graphic that appears on the floor when Vader enters phase 2 or 3
-
-### Polish
-- Audio mix pass (levels not tuned)
-- Real device mobile QA (joystick feel, tap zones)
-- `npm run build` → deploy to GH Pages (`dist/` → `gh-pages` branch)
-
-## Running Locally
+The user playtests on a phone against Pages, so a dev-branch push they cannot
+play is not a finished task. **Deploy in the same turn as the commit — don't
+ask.**
 
 ```bash
-cd /home/user/crix
-npm install
-npm run dev        # Vite dev server → http://localhost:5173
-npm run build      # Production build → dist/
-npm run preview    # Preview production build
+git push -u origin claude/mobile-run-game-design-OZLYF
+git fetch origin FRIX
+git merge-base --is-ancestor origin/FRIX HEAD   # MUST pass
+git push origin HEAD:FRIX
 ```
 
-## Git State
+If the ancestor check fails, **stop and ask**. Never force-push `FRIX`.
 
-```
-Branch: claude/mobile-run-game-design-OZLYF
-Last push: 7546e39 (7 Jun 2025 equivalent)
-All changes committed + pushed
-```
+Then confirm the run went green (`mcp__github__actions_list` /
+`actions_get`). Note that `actions_list` reliably exceeds the tool result size
+limit on this repo; recover by reading the saved output file and slicing for
+`id` / `head_sha` / `status` / `conclusion`.
+
+---
+
+## 9. Dead and dormant code
+
+Do not assume anything in the tree is live.
+
+| Thing | Status |
+|---|---|
+| `src/entities/Ally.js` | **Dead.** Imported nowhere. Allies were cut — they were the "unkillable floating weapon" bug and reused other sprites |
+| Stealth FSM in `Enemy.js` | **Dormant, not deleted.** Bypassed by a swarm branch at the top of `EnemyShooter.preUpdate`. Patrol routes, vision cones and backstab logic still exist |
+| `phase0_qa.cjs`, `phase1_qa.cjs`, `src/reproduce_detection.cjs`, `phase0_baseline_qa.txt` | **Stale.** One-off puppeteer QA scripts from July, superseded by `tests/`. They are the only reason `puppeteer-core` is a dependency — and it is in `dependencies`, not `devDependencies`, so it is installed on every deploy build for nothing. Safe to delete; left in place because removal was not asked for |
+| `design_vertical_slice.md` | Historical design spec from the stealth era. Useful as intent, **wrong as description** |
+| `WaveManager.js` | Already deleted. Older docs still reference it |
+
+---
+
+## 10. Debugging on a phone
+
+`window.game` is gated behind `import.meta.env.DEV`, so on the deployed build
+there is **no console and no other way in**. Hence `DebugScene`, reached from
+**Pause → DEBUG**, shipped in production on purpose:
+
+- **Survival** — god mode toggle, full heal
+- **Loadout** — give rifle / pod, refill ammo / pod
+- **Meters** — fill super, fill melee, refill dash
+- **Encounter** — cycle enemy type + spawn ×4, clear wave, skip wave
+
+God mode lives at **module scope** in `src/systems/debug.js`, not on the scene or
+player, because `PauseScene._restart()` builds a fresh Player — a flag stored on
+either would silently switch itself off exactly when you least want it to.
+
+---
+
+## 11. State as of this handover
+
+Everything is committed, pushed and deployed. Working tree clean, `FRIX` level
+with the dev branch, deploy run green.
+
+**Recently completed** (most recent first):
+
+- Powered attack run for cluster munitions + exhaust flame (`084904d`)
+- Saber hum re-voiced for phone speakers, melee bus +2dB (`cd0f9b4`)
+- 8 munitions at 290 damage each (`faf7809`)
+- Sustained booster burn (`685874e`)
+- Dotted trajectory lines, booster on lock, thinner impact (`9ae16c6`)
+- Distinct-target locking and dive (`9981d17`)
+- In-game debug menu (`9c8e1cb`)
+
+**Open, not started** — both are the user's call, not oversights:
+
+1. **Touch control customisation** — a position/scale editor for the on-screen
+   controls. The last item from an earlier punch list, deferred by the user.
+2. **The game-wide depth bug** in §6.
+
+**Watch:** the cluster's total damage output (§5) against a full arena.

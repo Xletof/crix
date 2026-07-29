@@ -78,7 +78,7 @@ export function initAudio() {
     sfxBus.gain.value = 1;
     sfxBus.connect(sfxGain);
 
-    // Melee bus. Sits ~4dB hot and is exempt from ducking, so the Riven combo
+    // Melee bus. Sits ~6dB hot and is exempt from ducking, so the Riven combo
     // reads as the loudest thing on screen when it lands. The boost alone is not
     // enough — the master compressor (threshold -10, ratio 12) eats a chunk of
     // it — which is why duckSfx() clearing the other bus matters just as much.
