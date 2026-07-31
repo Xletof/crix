@@ -30,6 +30,7 @@ would corrupt each other's world state.
 | `smoke-flight.mjs` | The attack run banks, arrives under power, honours both speed caps, lights its exhaust |
 | `smoke-hum.mjs` | Saber hum carries in the band a phone speaker can reproduce |
 | `smoke-leak.mjs` | Primary fire is isolated from the cluster (no pool cross-talk) |
+| `smoke-march.mjs` | The music plays the full 8-bar march phrase and loops at 32 beats, not the opening fragment |
 
 **Diagnostics** — print numbers, no pass/fail. Run directly, not via `run-all`.
 
@@ -97,6 +98,33 @@ phone-audible band).
 **Index 0 of a live group is not a stable object.** `group.getChildren()[0]`
 changes identity as members die, so frame-to-frame diffing of `arr[0]` compares
 different objects. Key per-object state off the object itself.
+
+**A long measurement runs in a live arena, and the arena fights back.** Anything
+that records for more than a few seconds is recording while an idle player is
+being shot at. When they die, `GameOverScene` calls `stopMusic()` and the whole
+scene shuts down — the recording ends early against something that never
+finished, and every check downstream measures the truncated version and passes.
+`smoke-march.mjs` pauses the `Game` and `HUD` scenes for the length of its
+recording (the music loop is a `setTimeout` on the audio clock, so it keeps
+running while the scene is frozen) and asserts the bed is still started at the
+end. God mode alone is not enough: a live arena also fires SFX on the same
+AudioContext, and those oscillators land in an audio recording as if they were
+part of what you are measuring.
+
+**`iterations × interval` is not elapsed time.** A sampling loop of
+`await sleep(300)` plus the sampling work itself costs meaningfully more than
+300ms a pass, so a 108-pass loop labelled "32.4s" really ran for ~44s. Anything
+compared against the *nominal* window — "how many notes should have played by
+now" — is then wrong by that ratio, and an exactly-correct build looked like it
+was scheduling 35% too many notes. Measure with `performance.now()` around the
+loop and derive expectations from what actually elapsed.
+
+**One read of a fluctuating counter can be zero.** A single end-of-run sample of
+a value that rises and falls (voices held, particles alive) lands wherever it
+lands — the same build measured 0 and then 60 on consecutive runs, and the 0
+would have passed a "no leak" assertion for entirely the wrong reason. Sample
+throughout and assert on max, or on early-vs-late means if the claim is about
+growth.
 
 ## Rules that keep these honest
 

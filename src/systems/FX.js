@@ -25,6 +25,12 @@ let musicNodes = null;
 let musicStarted = false;
 let musicLoopTimer = null;  // pending setTimeout for the next bar (see startMusic)
 let musicBarNodes = [];     // one-shot voices of the bar currently scheduled
+// The bar before it. Bars are scheduled a LOOKAHEAD ahead of their start time,
+// so at the moment bar N is queued bar N-1 is still sounding — and a half note
+// at the end of a bar rings into the next one. Clearing a single list on every
+// bar therefore dropped the references stopMusic needs, and quitting mid-note
+// left that note ringing over the title screen.
+let musicPrevBarNodes = [];
 let meleeHumNodes = null;   // sustained blade hum while a combo chain is live
 let musicIntensity = 0;     // 0 = calm, 1 = full combat (see setMusicIntensity)
 let intensityTargets = [];  // pad filters that open as intensity rises
@@ -415,11 +421,12 @@ export function __fxDebug() {
     // musicGain lets a test measure the bed in isolation — tapping masterGain
     // in a live arena just measures gunfire.
     musicGain,
-    // Loop bookkeeping: exactly one bar of voices and at most one pending timer
-    // should exist at any moment. A stop/start cycle that leaks either is what
-    // stacks bars and brings the clipping back.
+    // Loop bookkeeping: at most two bars of voices (the queued one plus the one
+    // still ringing) and at most one pending timer should exist at any moment.
+    // A stop/start cycle that leaks either is what stacks bars and brings the
+    // clipping back.
     musicStarted,
-    musicBarVoices: musicBarNodes.length,
+    musicBarVoices: musicBarNodes.length + musicPrevBarNodes.length,
     hasMusicLoopTimer: musicLoopTimer !== null,
     meleeHumming: meleeHumNodes !== null,
   };
@@ -1017,36 +1024,107 @@ export function startMusic() {
     src.start(t); src.stop(t + dur + 0.02); keep(src);
   };
 
-  // Imperial-march bass pulse ("dun dun dun DUN da DUN") + a driving drum kit.
+  // The Imperial March, both halves of it.
   //
-  // The pitches were always right — A A A F C A F C is the motif in A minor.
-  // What made it read as flat elevator beats was that every note got the SAME
-  // 0.38s length, so the famous dotted rhythm was flattened into eight
-  // identical quarter notes. The motif lives in its rhythm: three long notes,
-  // then dotted-long/short, dotted-long/short.
+  // What was here before was the first PHRASE only — "dun dun dun DUN-da-DUN,
+  // DUN-da-DUN" — as a single 6-beat bar on repeat. That is a third of one
+  // sentence, so the tune restarted before it ever resolved and the loop was
+  // audibly premature: the ear expects the answering "A F C A" and the fall to
+  // the tonic, and never got either.
   //
-  // BEAT is the quarter-note unit; `len` is in beats. Notes are also
-  // articulated (`hold` < len) so they detach instead of running together.
+  // Written out below is the full 8-bar statement in 4/4, in A minor (the
+  // score is in G minor; everything here is that, up a whole tone, and dropped
+  // two octaves into the bass register the saw stack is voiced for):
+  //
+  //   Bars 1-4  A section — the theme. Statement, answer, the same shape lifted
+  //             to the fifth, then the cadence back onto A.
+  //   Bars 5-8  B section — the answering phrase that climbs an octave, walks
+  //             down chromatically, and lands on E to set up the repeat.
+  //
+  // The B section is what makes the loop close. It ends on the dominant, so
+  // bar 8 leads back into bar 1 instead of just stopping — 32 beats, ~14.7s,
+  // long enough that the repeat is not the thing you notice.
+  //
+  // BEAT is the quarter-note unit; `len` is in beats. Notes are articulated
+  // (`hold` < len) so they detach instead of running together, and the dotted
+  // 0.75/0.25 pairs are the march's signature rhythm — flatten those to equal
+  // quarters and the whole thing turns back into elevator music.
   const BEAT = 0.46;
-  const marchNotes = [
-    { f: 110,  len: 1,    accent: 1    },  // A  — statement
-    { f: 110,  len: 1,    accent: 0.9  },  // A
-    { f: 110,  len: 1,    accent: 0.9  },  // A
-    { f: 87.31, len: 0.75, accent: 1   },  // F  — dotted, the hook
-    { f: 130.81, len: 0.25, accent: 0.7 }, // C  — the short pickup
-    { f: 110,  len: 1,    accent: 1    },  // A
-    { f: 87.31, len: 0.75, accent: 0.95 }, // F  — dotted again
-    { f: 130.81, len: 0.25, accent: 0.7 }, // C
+  const R = (len) => ({ rest: true, len });   // silence still consumes its beats
+  const marchBars = [
+    // ── A section ──────────────────────────────────────────────────────────
+    [ // 1  A A A | F. C
+      { f: 110,    len: 1,    accent: 1    },
+      { f: 110,    len: 1,    accent: 0.9  },
+      { f: 110,    len: 1,    accent: 0.9  },
+      { f: 87.31,  len: 0.75, accent: 1    },
+      { f: 130.81, len: 0.25, accent: 0.7  },
+    ],
+    [ // 2  A | F. C | A (half)
+      { f: 110,    len: 1,    accent: 1    },
+      { f: 87.31,  len: 0.75, accent: 0.95 },
+      { f: 130.81, len: 0.25, accent: 0.7  },
+      { f: 110,    len: 2,    accent: 1    },
+    ],
+    [ // 3  E E E | F. C   — the same figure a fifth up
+      { f: 164.81, len: 1,    accent: 1    },
+      { f: 164.81, len: 1,    accent: 0.9  },
+      { f: 164.81, len: 1,    accent: 0.9  },
+      { f: 174.61, len: 0.75, accent: 1    },
+      { f: 130.81, len: 0.25, accent: 0.7  },
+    ],
+    [ // 4  G# | F. C | A (half)  — cadence home
+      { f: 103.83, len: 1,    accent: 0.95 },
+      { f: 174.61, len: 0.75, accent: 1    },
+      { f: 130.81, len: 0.25, accent: 0.7  },
+      { f: 110,    len: 2,    accent: 1    },
+    ],
+    // ── B section ──────────────────────────────────────────────────────────
+    [ // 5  A(8va) | A. A | A(8va) | G#. G
+      { f: 220,    len: 1,    accent: 1    },
+      { f: 110,    len: 0.75, accent: 0.8  },
+      { f: 110,    len: 0.25, accent: 0.7  },
+      { f: 220,    len: 1,    accent: 1    },
+      { f: 207.65, len: 0.75, accent: 0.9  },
+      { f: 196.00, len: 0.25, accent: 0.8  },
+    ],
+    [ // 6  F# F F# — | Bb | Eb | D. C#   — the chromatic walk down
+      { f: 185.00, len: 0.25, accent: 0.85 },
+      { f: 174.61, len: 0.25, accent: 0.8  },
+      { f: 185.00, len: 0.5,  accent: 0.9  },
+      R(0.5),
+      { f: 116.54, len: 0.5,  accent: 0.75 },
+      { f: 155.56, len: 1,    accent: 0.95 },
+      { f: 146.83, len: 0.75, accent: 0.9  },
+      { f: 138.59, len: 0.25, accent: 0.8  },
+    ],
+    [ // 7  C B C — | F | G# | F. G#   — same shape, dropped to the low register
+      { f: 130.81, len: 0.25, accent: 0.85 },
+      { f: 123.47, len: 0.25, accent: 0.8  },
+      { f: 130.81, len: 0.5,  accent: 0.9  },
+      R(0.5),
+      { f: 87.31,  len: 0.5,  accent: 0.75 },
+      { f: 103.83, len: 1,    accent: 0.95 },
+      { f: 87.31,  len: 0.75, accent: 0.9  },
+      { f: 103.83, len: 0.25, accent: 0.8  },
+    ],
+    [ // 8  C | A. C | E (half)  — lands on the dominant, turns back into bar 1
+      { f: 130.81, len: 1,    accent: 0.95 },
+      { f: 110,    len: 0.75, accent: 0.9  },
+      { f: 130.81, len: 0.25, accent: 0.8  },
+      { f: 164.81, len: 2,    accent: 1    },
+    ],
   ];
-  // Onset beat of each note, accumulated from the durations above.
-  const marchOnsets = [];
-  let acc = 0;
-  marchNotes.forEach((n) => { marchOnsets.push(acc); acc += n.len; });
-  const barBeats = acc;                      // 6 beats
-  // Drums are placed on BEATS now, not on note indices — the notes are no
-  // longer evenly spaced, so indexing them would scatter the pulse.
-  const kickBeats  = [0, 2, 3, 5];
-  const snareBeats = [2, 5];
+  // Every bar is 4/4. Asserting it here rather than accumulating a per-bar
+  // length is deliberate: the drum grid below is written against a fixed 4-beat
+  // bar, so a mistyped `len` must be a loud failure, not a bar that silently
+  // drifts out of phase with the kit.
+  const barBeats = 4;
+  // Drums sit on the beat grid, independent of where the notes fall — the
+  // melody is dotted and syncopated, so indexing the kit off note positions
+  // would scatter the pulse that holds it together.
+  const kickBeats  = [0, 2];
+  const snareBeats = [1, 3];
   // `at` is an ABSOLUTE AudioContext time, not an offset. It used to be an
   // offset that this function added ctx.currentTime to — and the loop below
   // then passed `offset - ctx.currentTime`, so the two cancelled and every bar
@@ -1098,43 +1176,62 @@ export function startMusic() {
     s.start(t); s.stop(t + hold + 0.03); keep(s);
   };
 
-  const startMarch = (at) => {
-    // Only ever one bar in flight, so the previous bar's (already finished)
-    // voices drop out of the list instead of accumulating for the whole run.
+  // Schedule ONE bar of the phrase. Scheduling a bar at a time rather than all
+  // 32 beats at once is what keeps setMusicIntensity responsive: intensity is
+  // read here, at schedule time, so a wave that starts mid-bar takes hold on
+  // the next one (~1.8s) instead of up to a full phrase later.
+  const startBar = (at, barIdx) => {
+    // Hand the outgoing bar to the prev slot rather than dropping it — see the
+    // musicPrevBarNodes comment at the top of the file.
+    musicPrevBarNodes = musicBarNodes;
     musicBarNodes = [];
-    marchNotes.forEach((n, i) => {
-      marchVoice(at + marchOnsets[i] * BEAT, n.f, n.len, n.accent);
-    });
-    // Drums on the beat grid, independent of where the notes fall.
+
+    let beat = 0;
+    for (const n of marchBars[barIdx]) {
+      if (!n.rest) marchVoice(at + beat * BEAT, n.f, n.len, n.accent);
+      beat += n.len;
+    }
+    if (Math.abs(beat - barBeats) > 1e-6) {
+      console.warn(`[music] bar ${barIdx + 1} is ${beat} beats, expected ${barBeats}`);
+    }
+
     kickBeats.forEach((b) => kick(at + b * BEAT));
     snareBeats.forEach((b) => snare(at + b * BEAT));
     for (let b = 0; b < barBeats; b += 0.5) {
       hat(at + b * BEAT, b % 1 !== 0);     // closed on beats, open off them
     }
+    // Fill on the last bar of each 4-bar half, so the two sections are marked
+    // off from each other and the phrase has an audible shape rather than
+    // being eight interchangeable bars.
+    const isPhraseEnd = barIdx === 3 || barIdx === marchBars.length - 1;
+    if (isPhraseEnd) {
+      snare(at + 3.5 * BEAT);
+      snare(at + 3.75 * BEAT);
+    }
     // Combat intensity adds percussion rather than a drone: sixteenth-note hats
-    // and extra snare pushes fill in as pressure rises. Read at SCHEDULE time,
-    // so a wave starting mid-bar takes effect on the next one.
+    // and extra snare pushes fill in as pressure rises.
     if (musicIntensity > 0.35) {
       for (let b = 0.25; b < barBeats; b += 0.5) hat(at + b * BEAT, false);
     }
     if (musicIntensity > 0.7) {
-      snare(at + 3.5 * BEAT);
-      snare(at + (barBeats - 0.5) * BEAT);
+      kick(at + 2.5 * BEAT);
+      if (!isPhraseEnd) snare(at + 3.5 * BEAT);
     }
   };
 
   // Bar cursor in absolute context time. Each pass schedules the NEXT bar and
   // re-arms off the real clock, so a slow frame or a throttled background tab
   // can't let the wall-clock timer drift away from the audio timeline.
-  // Bar length comes from the accumulated note durations now, NOT from a note
-  // count times a fixed step — the notes are no longer evenly spaced.
+  // `barIdx` walks the phrase and wraps, which is the whole loop.
   const barDur = barBeats * BEAT;
   let next = ctx.currentTime;
+  let barIdx = 0;
   const LOOKAHEAD = 0.2;  // schedule this far ahead of the bar's start time
   const loop = () => {
     musicLoopTimer = null;
     if (!musicStarted) return;
-    startMarch(next);
+    startBar(next, barIdx);
+    barIdx = (barIdx + 1) % marchBars.length;
     next += barDur;
     const waitMs = Math.max(0, (next - ctx.currentTime - LOOKAHEAD) * 1000);
     musicLoopTimer = setTimeout(loop, waitMs);
@@ -1157,8 +1254,13 @@ export function stopMusic() {
   // Voices already scheduled for the queued bar. Calling stop() with no
   // argument on a node whose start time is still in the future cancels it
   // outright, so this covers both "playing now" and "about to play".
-  musicBarNodes.forEach((n) => { try { n.stop(); } catch (_) { /* noop */ } });
+  // Both the queued bar and the one still ringing out under it — a half note at
+  // the end of a bar outlives the bar, so stopping only the newest list left
+  // the tail sounding.
+  musicBarNodes.concat(musicPrevBarNodes)
+    .forEach((n) => { try { n.stop(); } catch (_) { /* noop */ } });
   musicBarNodes = [];
+  musicPrevBarNodes = [];
   if (musicNodes) {
     musicNodes.forEach((n) => {
       try {
