@@ -213,10 +213,40 @@ caused several bugs.
 the room. Anything in it must add its **ground y** — where its shadow is — never
 its rendered y, or draw order drifts as it changes altitude.
 
-> **Known outstanding issue.** Ordinary bullets and the shared particle emitters
-> are still on the flat constants, so primary bolts pass *behind* consoles and
-> sparks render *under* actors. Same root cause as the cluster bug that was
-> fixed. It is a game-wide visual change and has been left as the user's call.
+> **Closed — do not reopen without new evidence.** This section used to carry an
+> open issue: ordinary bullets and the shared particle emitters are still on the
+> flat constants, so in principle primary bolts pass *behind* consoles and sparks
+> render *under* actors. It was measured against the code on 2026-07-31 and the
+> remaining exposure is not observable in play. The cases that WERE visible had
+> already been fixed — airborne munitions and the airburst moved to `DEPTH.AIR`,
+> `FX.airSparks` got its own emitter, `bladeArc` sorts at `y + 40`.
+>
+> A projectile can only be drawn on the wrong side of something inside the
+> margin where that thing's art overhangs its collider, because a collision ends
+> the bullet. Measured:
+>
+> | | sprite | body | wrong-draw window |
+> |---|---|---|---|
+> | Walls | 26×26 @4 = 104px | full 104px | **none** — overlap is impossible |
+> | Cover / consoles | 28×28 @4 = 112px | 70×70 | 21px |
+> | Player | 24×24 @4 = 96px | r22 → 44px | ~26px |
+> | Grunt | 20×20 @4 = 80px | r22 → 44px | ~18px |
+>
+> At bolt speed those windows are **under 20ms — roughly one frame** — and for
+> actors the impact FX (depths 32-36) covers the same instant. Walls, the largest
+> occluder in the arena, have no window at all. The one lasting case is the
+> shared ground emitters at Phaser's default depth 0, which sit under the decal
+> RenderTexture (2) and under actors; ground sparks reading as behind the actor
+> they came off is correct enough, and FX.js's own comment already judged it
+> survivable.
+>
+> The verdict is that a game-wide re-depth would be risk without a symptom. If a
+> future session suspects this again, reproduce it on screen first — it is not
+> reproducible by reasoning alone, which is how it stayed open this long.
+>
+> Loose end left in place: `Bullet.ySort` (`Bullet.js:36,57,68`) is an opt-in
+> nothing ever passes. The cluster munition it was added for ended up solved in
+> `GameScene` with `DEPTH.AIR + groundY` instead.
 
 ---
 
@@ -229,6 +259,30 @@ All synthesis, no files. `FX.js` exposes helpers — `tone()`, `noise()`, `sub()
 - **`meleeBus`** — Riven melee **only**, ~+6dB and exempt from ducking.
   Deliberately reserved; **do not route new sounds to it**. It also has no echo
   send, because a ringing tail was designed out of the melee.
+
+### The music bed
+
+`startMusic()` runs a sub-register pad (A-minor triad at 55/65.41/82.41Hz behind
+a lowpass) under **the full 8-bar Imperial March**, in A minor, `BEAT = 0.46s`,
+4/4 — a 32-beat phrase, ~14.7s, in `marchBars`. Bars 1-4 are the theme, bars 5-8
+the answering phrase that climbs an octave and lands on the dominant so the loop
+turns over instead of stopping.
+
+- **It is scheduled a bar at a time**, not a phrase at a time. `setMusicIntensity`
+  is read at schedule time, so a wave starting mid-bar takes hold on the next one
+  (~1.8s) rather than up to 15s later.
+- **Every bar must be exactly 4 beats.** The drum grid is written against a fixed
+  bar; a mistyped `len` would drift the kit out of phase with the melody, so
+  `startBar` warns on any bar that does not sum to 4.
+- **The dotted 0.75/0.25 pairs are the tune.** Flatten them to equal quarters and
+  it turns back into elevator music — that has happened here before.
+- Intensity adds percussion density and opens the pad filter (420→1320Hz). It
+  deliberately does **not** add a sustained drone; a previous version swelled a
+  dissonant 220/233Hz cluster and that was the "noise gets so much when enemies
+  come" complaint.
+- Voices of the last **two** bars are retained (`musicBarNodes` +
+  `musicPrevBarNodes`) so `stopMusic` can cancel a half note ringing across a
+  bar line. Verified by `tests/smoke-march.mjs`.
 
 A master compressor (threshold −10dB, ratio 12:1) glues the mix and pumps hard
 when many sources overlap — which is why the cluster's gains were trimmed when
@@ -340,7 +394,9 @@ either would silently switch itself off exactly when you least want it to.
 Everything is committed, pushed and deployed. Working tree clean, `FRIX` level
 with the dev branch, deploy run #114 green.
 
-> **Note on branches.** The touch-control work was developed on
+> **Note on branches.** The music/depth work above was developed on
+> `claude/project-handover-ack-9ai0av`, a per-task branch, and fast-forwarded
+> onto `FRIX` from there. The touch-control work was developed on
 > `claude/touch-control-customisation-0e4nvk` (a per-task branch), then
 > fast-forwarded onto the dev branch named in §1. Both dev branches and `FRIX`
 > now point at the same commit, so either name is a valid place to continue
@@ -348,6 +404,8 @@ with the dev branch, deploy run #114 green.
 
 **Recently completed** (most recent first):
 
+- Full 8-bar Imperial March phrase + `tests/smoke-march.mjs` (§7)
+- Depth bug of §6 investigated and closed as not observable
 - Touch-control layout editor at Pause → CONTROLS
 - Powered attack run for cluster munitions + exhaust flame (`084904d`)
 - Saber hum re-voiced for phone speakers, melee bus +2dB (`cd0f9b4`)
@@ -359,6 +417,6 @@ with the dev branch, deploy run #114 green.
 
 **Open, not started** — the user's call, not an oversight:
 
-1. **The game-wide depth bug** in §6.
+*(nothing currently open)*
 
 **Watch:** the cluster's total damage output (§5) against a full arena.
