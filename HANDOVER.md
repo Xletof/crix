@@ -73,6 +73,7 @@ src/
   systems/
     HUD.js         Exports HUDScene — a PARALLEL scene, not a scene-file
     FX.js          Particles, screen shake, and ALL audio synthesis
+    musicDirector.js  Game state -> music tier/heat; imports no scene
     pixelArt.js    Every sprite texture, painted procedurally
     Joystick / DashButton / MeleeButton / SuperButton   touch controls
     NavGrid / CoverRegistry / BushSystem / RoomManager
@@ -263,26 +264,74 @@ All synthesis, no files. `FX.js` exposes helpers — `tone()`, `noise()`, `sub()
 ### The music bed
 
 `startMusic()` runs a sub-register pad (A-minor triad at 55/65.41/82.41Hz behind
-a lowpass) under **the full 8-bar Imperial March**, in A minor, `BEAT = 0.46s`,
-4/4 — a 32-beat phrase, ~14.7s, in `marchBars`. Bars 1-4 are the theme, bars 5-8
-the answering phrase that climbs an octave and lands on the dominant so the loop
-turns over instead of stopping.
+a lowpass) under **the full 8-bar Imperial March**, in A minor, 4/4 — a 32-beat
+phrase, ~14.7s, in `marchBars`. Bars 1-4 are the theme, bars 5-8 the answering
+phrase that climbs an octave and lands on the dominant so the loop turns over
+instead of stopping.
 
-- **It is scheduled a bar at a time**, not a phrase at a time. `setMusicIntensity`
-  is read at schedule time, so a wave starting mid-bar takes hold on the next one
+- **It is scheduled a bar at a time**, not a phrase at a time. Tier and heat are
+  read at schedule time, so a wave starting mid-bar takes hold on the next one
   (~1.8s) rather than up to 15s later.
 - **Every bar must be exactly 4 beats.** The drum grid is written against a fixed
   bar; a mistyped `len` would drift the kit out of phase with the melody, so
   `startBar` warns on any bar that does not sum to 4.
 - **The dotted 0.75/0.25 pairs are the tune.** Flatten them to equal quarters and
   it turns back into elevator music — that has happened here before.
-- Intensity adds percussion density and opens the pad filter (420→1320Hz). It
-  deliberately does **not** add a sustained drone; a previous version swelled a
-  dissonant 220/233Hz cluster and that was the "noise gets so much when enemies
-  come" complaint.
 - Voices of the last **two** bars are retained (`musicBarNodes` +
   `musicPrevBarNodes`) so `stopMusic` can cancel a half note ringing across a
   bar line. Verified by `tests/smoke-march.mjs`.
+
+### Dynamic music: tiers, heat and the director
+
+The bed tracks how bad the fight is. Three pieces: `MUSIC` in `config.js` (all
+data), `src/systems/musicDirector.js` (game state → musical meaning, imports no
+scene), and the synthesis in `FX.js`.
+
+**Phase and heat are deliberately not one number.** GameScene publishes a
+discrete **phase** (`wave` / `breather` / `upgrade` / `miniboss` / `boss`) which
+is authoritative and picks the band of legal tiers; the director computes a
+continuous **heat** which only chooses *within* the combat band. Combining them
+fails both ways: a lifecycle floor of 1 at wave start saturates every other
+term, and a heat that can outvote the cue means the upgrade picker never goes
+quiet. Heat keeps decaying during calm rather than freezing, so the next wave
+starts from where the situation actually is.
+
+| Tier | Kit | Melody | Tempo | Reached by |
+|---|---|---|---|---|
+| `calm` | heartbeat kick, no snare/hat | **off** | 0.48s (~125 BPM) | breather, upgrade picker, idle |
+| `combat` | march | on | 0.46 (~130) | in a wave, heat below 0.62 |
+| `hot` | drive — shaker 16ths, ride, rimshot | on | 0.42 (~143) | in a wave, heat above 0.62 (exits at 0.50) |
+| `heavy` / `heavy2` / `heavy3` | half-time, +tamb, +roll | on | 0.46 / 0.46 / 0.42 | mini-boss, then Vader phases 1-3 |
+
+- **Patterns are 16-character strings**, one char per sixteenth (`.` rest, `x`
+  hit, `X` accent, `o` open hat). A kit is numbered variations plus an `order`
+  indexed **by bar**, so the phrase-end fill always lands on bars 4 and 8. No
+  RNG anywhere — the ear learns the shape and the tests stay deterministic.
+- **Half-time reads the same rows at eighth resolution**, so the kit halves
+  while the melody is untouched: heavier, not slower. Only the first 8
+  characters then fall inside the bar, and `startBar` warns about content past
+  index 7 rather than truncating it silently.
+- **Tempo is mutable but only changes between bars.** Each bar freezes it, and
+  the loop advances its cursor with *the same frozen value* — ramping before the
+  cursor advances leaves a gap at every bar line that accumulates. Max 2%/bar.
+- **Everything above the base kit lives in 400Hz-8kHz.** This is not taste. Twice
+  during this work the obvious louder-and-bigger choice measured *worse on a
+  phone*: a driving four-to-the-floor `drive` kit came out darker than the plain
+  march, and trimming the hi-hat as part of the "core" cancelled exactly the
+  brightness the new layers added, leaving the hot tier at 0.99x the march above
+  400Hz. Both were invisible until measured. The hot tier now moves the phone
+  band **1.30x** while total level holds.
+- **The gain budget** (`MUSIC.budget`) is what stops the busy tier being the
+  quiet one under the -10dB/12:1 master compressor: extra layers scale by
+  `L^-0.5`, and kick and snare — *not* the hat — trim 6% per layer.
+- Heat inputs and weights are in `MUSIC.heat`: kill streak 0.30, enemy pressure
+  0.30, player danger 0.25, late-wave 0.15. The streak's staleness is derived
+  from `lastKillAge` because `_comboCount` is not reset until the next kill and
+  there is no combo-ended event. Smoothing is **slew-limited, not exponential**
+  — an exponential never arrives, so the tier threshold would depend on how long
+  you had been in a state rather than on the state.
+- `resetDirector()` on scene shutdown, because heat and phase live at module
+  scope (same reason as the god-mode flag).
 
 A master compressor (threshold −10dB, ratio 12:1) glues the mix and pumps hard
 when many sources overlap — which is why the cluster's gains were trimmed when
@@ -404,6 +453,7 @@ with the dev branch, deploy run #114 green.
 
 **Recently completed** (most recent first):
 
+- Dynamic music: tiers, heat, half-time boss feel, tempo ramp (§7)
 - Full 8-bar Imperial March phrase + `tests/smoke-march.mjs` (§7)
 - Depth bug of §6 investigated and closed as not observable
 - Touch-control layout editor at Pause → CONTROLS
@@ -419,4 +469,6 @@ with the dev branch, deploy run #114 green.
 
 *(nothing currently open)*
 
-**Watch:** the cluster's total damage output (§5) against a full arena.
+**Watch:** the cluster's total damage output (§5) against a full arena, and the
+music tier thresholds in `MUSIC.heat` — they are measured-correct but have not
+yet been tuned by ear on a handset.
