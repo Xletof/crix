@@ -10,7 +10,7 @@ import { CoverRegistry } from '../systems/CoverRegistry.js';
 import { WeaponPickup } from '../entities/WeaponPickup.js';
 import { Terminal } from '../entities/Terminal.js';
 import { attachFX, SFX, startMusic, duckMusic, duckSfx, stopMusic, isLowQuality } from '../systems/FX.js';
-import { setMusicPhase, tickDirector, resetDirector } from '../systems/musicDirector.js';
+import { setMusicPhase, setBossPhase, tickDirector, resetDirector } from '../systems/musicDirector.js';
 import { ROOMS } from '../data/rooms.js';
 import { NARRATIVE } from '../data/narrative.js';
 import { NavGrid } from '../systems/NavGrid.js';
@@ -477,6 +477,7 @@ export class GameScene extends Phaser.Scene {
 
     if (wave.miniBoss) {
       this.events.emit('show-banner', 'MINI-BOSS', '#ff8020');
+      setMusicPhase('miniboss');
       SFX.bossRoar?.();
       this.cameras.main.flash(300, 255, 90, 20, false);
       this.fx.shake(0.02, 300);
@@ -1604,6 +1605,7 @@ export class GameScene extends Phaser.Scene {
       if (amount >= 400) this._slowMo(0.5, 240);
       SFX.bossHit();
     });
+    this.events.on('boss-phase', (p) => setBossPhase(p));
     this.events.on('boss-died', (boss) => {
       this.boss = null;
       this.roomManager.onEnemyDied(); // consistent tracking
@@ -3386,6 +3388,15 @@ export class GameScene extends Phaser.Scene {
     // Feed the music director. Throttled inside it, so this hands over every
     // frame's delta and lets it decide when to act; `living` is reused rather
     // than counted a second time.
+    // The mini-boss dying is what ends the half-time feel; the wave itself
+    // usually continues, so this cannot wait for the wave-clear cue.
+    if (this._musicMiniBoss && !this._miniBossAlive) {
+      this._musicMiniBoss = false;
+      if (this._wavePhase !== 'breather') setMusicPhase('wave');
+    } else if (this._miniBossAlive) {
+      this._musicMiniBoss = true;
+    }
+
     tickDirector(delta, {
       combo: this._comboCount || 0,
       lastKillAge: this.time.now - (this._lastKillTime ?? -99999),
@@ -3480,7 +3491,15 @@ export class GameScene extends Phaser.Scene {
 
   _livingEnemyCount() {
     // die() keeps corpses "active" for the fade-out; count only live ones.
-    return this.enemies.getChildren().reduce((n, e) => n + (e.alive ? 1 : 0), 0);
+    // The mini-boss check rides along in the SAME pass: the music director
+    // needs to know when the capstone elite dies so it can drop the half-time
+    // feel, and a second reduce every frame to answer that would be waste.
+    this._miniBossAlive = false;
+    return this.enemies.getChildren().reduce((n, e) => {
+      if (!e.alive) return n;
+      if (e._miniBoss) this._miniBossAlive = true;
+      return n + 1;
+    }, 0);
   }
 
   _rollEnemyType() {
@@ -3604,7 +3623,7 @@ export class GameScene extends Phaser.Scene {
       this.events.emit('show-banner', 'VADER APPROACHES!', '#ff2020');
       SFX.bossRoar();
       this.cameras.main.flash(400, 255, 0, 0, true);
-      setMusicPhase('wave'); // full tension into the boss fight
+      setMusicPhase('boss'); // half-time and a mallet — Vader gets his own feel
       
       // Spawn Vader
       this.time.delayedCall(800, () => {

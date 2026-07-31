@@ -131,6 +131,14 @@ does this and asserts its own repeatability (measuring one tier twice and
 failing if the two readings differ by more than 8%) *before* it compares
 anything. An unstable instrument makes every threshold above it meaningless.
 
+The same applies to `getFloatFrequencyData` for band content, and there it did
+real damage: a polled 2-8kHz/0-400Hz ratio reported the hot tier as
+comfortably brighter than the plain march, that number went into a commit
+message as evidence, and re-measuring it sample-exactly showed the tier was
+not brighter **at all**. A plausible-looking number from a noisy instrument is
+worse than no number, because it ends the investigation. Split the signal with
+biquad filters into separate ScriptProcessor taps and compare RMS per band.
+
 **One read of a fluctuating counter can be zero.** A single end-of-run sample of
 a value that rises and falls (voices held, particles alive) lands wherever it
 lands — the same build measured 0 and then 60 on consecutive runs, and the 0

@@ -21,12 +21,13 @@
 // can outvote the cue means the upgrade picker never actually goes quiet,
 // because heat is still high from the wave that just ended.
 import { MUSIC } from '../config.js';
-import { setMusicState } from './FX.js';
+import { setMusicState, musicSting } from './FX.js';
 
 const CFG = MUSIC.heat;
 
 let heat = 0;
-let phase = 'idle';     // 'idle' | 'wave' | 'breather' | 'upgrade'
+let phase = 'idle';     // 'idle' | 'wave' | 'breather' | 'upgrade' | 'miniboss' | 'boss'
+let bossPhase = 1;      // Vader's 1/2/3; ignored unless phase === 'boss'
 let tier = 'combat';
 let acc = 0;            // ms accumulator for the sample throttle
 
@@ -34,6 +35,10 @@ const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 // Which tier the current phase and heat call for. Phase first — it can veto.
 function tierFor() {
+  // A boss outranks heat entirely: the point of the half-time feel is that a
+  // boss sounds like a boss whether or not the room happens to be crowded.
+  if (phase === 'boss') return ['heavy', 'heavy', 'heavy2', 'heavy3'][bossPhase] || 'heavy';
+  if (phase === 'miniboss') return 'heavy';
   if (phase !== 'wave') return 'calm';
   // Hysteresis: the threshold to climb into `hot` is higher than the one to
   // fall out of it. A single boundary would have heat hovering on it flip the
@@ -49,7 +54,27 @@ function tierFor() {
  */
 export function setMusicPhase(p) {
   if (p === phase) return;
+  const was = phase;
   phase = p;
+  // Mark the seam. The kit's whole feel changes on the next bar line, and a
+  // one-shot hit at the moment of the change is what stops that landing as a
+  // glitch. Only on the way IN: leaving a boss already has the wave-clear
+  // fanfare playing over it.
+  if ((p === 'miniboss' || p === 'boss') && was !== 'miniboss' && was !== 'boss') {
+    musicSting('timpani');
+  }
+  push();
+}
+
+/**
+ * Vader's phase, 1-3. Each step up thickens the half-time kit rather than
+ * speeding it up — phase 3 adds the snare roll into the phrase ends.
+ */
+export function setBossPhase(n) {
+  const next = Math.max(1, Math.min(3, n | 0));
+  if (next === bossPhase) return;
+  bossPhase = next;
+  if (phase === 'boss') musicSting('crash');
   push();
 }
 
@@ -122,10 +147,11 @@ function push() {
 export function resetDirector() {
   heat = 0;
   phase = 'idle';
+  bossPhase = 1;
   tier = 'combat';
   acc = 0;
 }
 
 export function __directorDebug() {
-  return { heat, phase, tier };
+  return { heat, phase, bossPhase, tier };
 }

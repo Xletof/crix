@@ -1140,9 +1140,45 @@ export function startMusic() {
     src.start(t); src.stop(t + 0.15); keep(src);
   };
 
+  // Snare roll. ONE sustained source with a rippled gain curve, not a stream of
+  // individual hits: 32 buffer sources a bar into a 12:1 compressor is the
+  // difference between a roll and a pumping artefact. It swells in LEVEL while
+  // its filter falls, so it obeys darken-and-fall while still crescendoing —
+  // the rule is about spectrum, not amplitude.
+  const roll = (t, dur, gain = LG.roll) => {
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    src.loop = true;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1400;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(6000, t);
+    lp.frequency.linearRampToValueAtTime(4000, t + dur);
+    const g = ctx.createGain();
+    // Ripple at a 32nd-note rate under an overall swell, drawn as a curve so it
+    // is one automation instead of hundreds of scheduled events.
+    const N = 96;
+    const curve = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const p = i / (N - 1);
+      const swell = 0.25 + 0.75 * p * p;           // accelerating crescendo
+      const ripple = 0.55 + 0.45 * Math.abs(Math.cos(p * Math.PI * 16));
+      curve[i] = gain * swell * ripple;
+    }
+    curve[N - 1] = 0.0001;
+    g.gain.setValueCurveAtTime(curve, t, dur);
+    src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(percBus);
+    src.start(t); src.stop(t + dur + 0.02); keep(src);
+  };
+
   // Rows that count as ESCALATION for the gain budget. kick/snare/hat are the
   // base kit and deliberately excluded — see the budget note in startBar.
-  const EXTRA_VOICES = ['rimshot', 'ride', 'shaker', 'tamb'];
+  const EXTRA_VOICES = ['rimshot', 'ride', 'shaker', 'tamb', 'roll'];
+  // Voices the core trim applies to. The hi-hat is core but deliberately NOT
+  // trimmed: it carries the base kit's high-frequency content, and pulling it
+  // down as layers arrive cancels out the brightness those layers exist to
+  // add — measured as the hot tier landing at 0.99x the plain march above
+  // 400Hz, which is the only part of the spectrum a handset reproduces.
+  const TRIMMED_VOICES = ['kick', 'snare'];
   const ALL_VOICES = ['kick', 'snare', 'hat', ...EXTRA_VOICES];
 
   // Pattern reader. A row is 16 characters, one per sixteenth; this turns it
@@ -1345,7 +1381,13 @@ export function startMusic() {
     // up at random — the variation is a shape the ear can learn.
     const kit = MUSIC.kits[tier.kit] || MUSIC.kits.march;
     const vars = kit.vars[kit.order[barIdx % kit.order.length]];
-    const step = barBeats / 16;             // one sixteenth, in beats
+    // Half-time reads the SAME 16-char row at eighth-note resolution, so the
+    // kit plays at half speed with the backbeat on 3 while the melody below is
+    // untouched — heavier, not slower. Only the first 8 characters then fall
+    // inside the bar; anything past index 7 would be silently dropped, which
+    // is exactly the class of mistake the length check exists to prevent.
+    const step = (barBeats / 16) * (tier.halfTime ? 2 : 1);
+    const maxStepIdx = tier.halfTime ? 8 : 16;
 
     // Gain budget, resolved ONCE for the bar rather than per voice, and BEFORE
     // the melody, because the melody is part of the core it trims.
@@ -1371,13 +1413,39 @@ export function startMusic() {
       console.warn(`[music] bar ${barIdx + 1} is ${beat} beats, expected ${barBeats}`);
     }
 
-    for (const s of stepsOf(vars.kick))  kick(at + s.i * step * BEAT, LG.kick * coreScale);
-    for (const s of stepsOf(vars.snare)) snare(at + s.i * step * BEAT, LG.snare * coreScale);
-    for (const s of stepsOf(vars.hat))   hat(at + s.i * step * BEAT, s.ch === 'o', LG.hat * coreScale);
-    if (vars.rimshot) for (const s of stepsOf(vars.rimshot)) rimshot(at + s.i * step * BEAT, LG.rimshot * layerScale);
-    if (vars.ride)    for (const s of stepsOf(vars.ride))    ride(at + s.i * step * BEAT, s.ch === 'X', LG.ride * layerScale);
-    if (vars.shaker)  for (const s of stepsOf(vars.shaker))  shaker(at + s.i * step * BEAT, LG.shaker * layerScale);
-    if (vars.tamb)    for (const s of stepsOf(vars.tamb))    tamb(at + s.i * step * BEAT, LG.tamb * layerScale);
+    // Every row is optional — a kit only writes the voices it uses, and the
+    // half-time kits have no hi-hat at all. Iterating the voice table rather
+    // than naming rows one by one is what keeps that true; reading vars.hat
+    // directly threw the moment a kit left it out.
+    for (const name of ALL_VOICES) {
+      const row = vars[name];
+      if (!row) continue;
+      const steps = stepsOf(row);
+      if (tier.halfTime && steps.some((st) => st.i >= maxStepIdx)) {
+        console.warn(`[music] ${tier.kit}.${name} has hits past index ${maxStepIdx - 1}; `
+          + 'a half-time row is read at eighth resolution and only its first 8 steps sound');
+      }
+      const scale = EXTRA_VOICES.includes(name) ? layerScale
+        : TRIMMED_VOICES.includes(name) ? coreScale : 1;
+      const gain = LG[name] * scale;
+      for (const st of steps) {
+        if (st.i >= maxStepIdx) continue;
+        const t = at + st.i * step * BEAT;
+        switch (name) {
+          case 'kick':    kick(t, gain); break;
+          case 'snare':   snare(t, gain); break;
+          case 'hat':     hat(t, st.ch === 'o', gain); break;
+          case 'rimshot': rimshot(t, gain); break;
+          case 'ride':    ride(t, st.ch === 'X', gain); break;
+          case 'shaker':  shaker(t, gain); break;
+          case 'tamb':    tamb(t, gain); break;
+          // A roll runs from where it starts to the end of the bar, so it is
+          // placed by its start index rather than struck like the others.
+          case 'roll':    roll(t, Math.max(0.1, at + barBeats * BEAT - t), gain); break;
+          default: break;
+        }
+      }
+    }
 
     // Escalation used to be bolted on here as "if intensity > 0.35, add hats".
     // It is now a TIER change carrying its own pattern, which is both more
@@ -1454,6 +1522,83 @@ export function stopMusic() {
 // drives percussion density and how far open the pad's filter sits — the bed
 // gets busier and brighter under pressure instead of buzzing. Ramped rather
 // than stepped so wave transitions still swell.
+// One-shot transition hits. These are the ONLY music events not scheduled on
+// the bar grid: they mark the seam where the kit's feel changes, and covering
+// that seam is the whole point, so they fire the moment the game says so.
+//
+// Guarded against a teardown: Boss.enterPhase can fire while the scene is
+// being torn down, and musicBarNodes/percBus may already be gone.
+export function musicSting(name = 'crash') {
+  if (!musicStarted || !audioCtx || !percBus) return;
+  const ctx = audioCtx;
+  const t = ctx.currentTime + 0.01;
+  const LG = MUSIC.layerGain;
+  const keep = (n) => { musicBarNodes.push(n); return n; };
+
+  const crash = (at, gain) => {
+    const src = ctx.createBufferSource();
+    src.buffer = ctx.createBuffer(1, ctx.sampleRate * 1.6, ctx.sampleRate);
+    const d = src.buffer.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900;
+    // The downward sweep IS the character of a crash — the shimmer collapsing
+    // into a wash. A fixed cutoff here sounds like a burst of static.
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(9000, at);
+    lp.frequency.linearRampToValueAtTime(2500, at + 1.2);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.linearRampToValueAtTime(gain, at + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 1.4);
+    src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(percBus);
+    src.start(at); src.stop(at + 1.5); keep(src);
+  };
+
+  // "Timpani" is a useful name and a lie about the register. A real one lives
+  // at 60-120Hz, which a handset speaker cannot reproduce at all, so this is
+  // built an octave and a half up with a 660Hz partial carrying it into the
+  // band a phone can actually deliver. It reads as a war drum, not a timpani —
+  // that is the price of the target device, and the right trade.
+  const mallet = (at, gain) => {
+    [[220, 196, 1], [660, 588, 0.35]].forEach(([f0, f1, mix]) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(f0, at);
+      o.frequency.exponentialRampToValueAtTime(f1, at + 0.25);
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.linearRampToValueAtTime(gain * mix, at + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.9);
+      o.connect(g); g.connect(percBus);
+      o.start(at); o.stop(at + 0.95); keep(o);
+      // Tagged so a test spying on triangle oscillators to count melody notes
+      // can tell a sting apart from the tune.
+      o._fxRole = 'sting';
+    });
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(2200, at);
+    lp.frequency.linearRampToValueAtTime(800, at + 0.8);
+    const src = ctx.createBufferSource();
+    src.buffer = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
+    const nd = src.buffer.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2400; bp.Q.value = 1.5;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(gain * 0.4, at);
+    ng.gain.exponentialRampToValueAtTime(0.0001, at + 0.025);
+    src.connect(bp); bp.connect(ng); ng.connect(percBus);
+    src.start(at); src.stop(at + 0.05); keep(src);
+  };
+
+  if (name === 'timpani') {
+    mallet(t, LG.timpani);
+    mallet(t + 0.14, LG.timpani * 0.7);   // double strike: an announcement
+    crash(t, LG.crash * 0.6);
+  } else {
+    crash(t, LG.crash);
+  }
+}
+
 // The pad's cutoff is the product of heat and the TIER's padSpan, so a heavy
 // tier can sit dark while a hot one opens right up. Applied on any change to
 // either, which is why it is factored out of setMusicIntensity.

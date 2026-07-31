@@ -101,6 +101,7 @@ const result = await page.evaluate(async () => {
   const combat = await record('combat', 7500);
   const calm = await record('calm', 7500);
   const hot = await record('hot', 7500);
+  const heavy = await record('heavy', 7500);
 
   // ── Level and band content of the kit itself ─────────────────────────────
   // Tapped at percBus, not musicGain: measuring the kit under the melody and
@@ -120,47 +121,58 @@ const result = await page.evaluate(async () => {
     await sleep(250);
     FX.setMusicState({ tier, heat: 1 });
     const perc = FX.__fxDebug().percBus;
-    const sp = ctx.createScriptProcessor(4096, 1, 1);
-    let sumSq = 0; let n = 0; let collecting = false;
-    sp.onaudioprocess = (e) => {
-      if (!collecting) return;
-      const d = e.inputBuffer.getChannelData(0);
-      for (let i = 0; i < d.length; i++) { sumSq += d[i] * d[i]; n++; }
-    };
-    // Muted tap: a ScriptProcessor only runs while it is connected onward.
     const mute = ctx.createGain(); mute.gain.value = 0;
-    perc.connect(sp); sp.connect(mute); mute.connect(ctx.destination);
+    mute.connect(ctx.destination);
+    const chain = [];
 
-    const an = ctx.createAnalyser();
-    an.fftSize = 2048;
-    perc.connect(an);
-    const fd = new Float32Array(an.frequencyBinCount);
-    const binHz = ctx.sampleRate / an.fftSize;
-    const band = (lo, hi) => {
-      let acc = 0; let c = 0;
-      for (let i = Math.ceil(lo / binHz); i < Math.min(fd.length, hi / binHz); i++) {
-        acc += Math.pow(10, fd[i] / 20); c++;
-      }
-      return c ? acc / c : 0;
+    // One sample-exact energy tap. `filter` optionally band-limits it first.
+    // The band ratio used to come from polling getFloatFrequencyData on a
+    // timer, and swung between 0.09 and 0.23 on identical builds — the same
+    // sampling flaw the RMS measurement had, just less obvious because the
+    // number looked plausible either way. Filtering into its own ScriptProcessor
+    // measures the band the way the RMS measures the whole.
+    const tap = (filter) => {
+      const sp = ctx.createScriptProcessor(4096, 1, 1);
+      const acc = { sumSq: 0, n: 0, on: false };
+      sp.onaudioprocess = (e) => {
+        if (!acc.on) return;
+        const d = e.inputBuffer.getChannelData(0);
+        for (let i = 0; i < d.length; i++) { acc.sumSq += d[i] * d[i]; acc.n++; }
+      };
+      if (filter) { perc.connect(filter); filter.connect(sp); }
+      else perc.connect(sp);
+      sp.connect(mute);
+      chain.push({ sp, filter, acc });
+      return acc;
     };
-    let low = 0; let high = 0; let frames = 0;
+    // 400Hz is the line that matters on this project: below it a handset
+    // speaker delivers almost nothing (HANDOVER §7). So the question for an
+    // escalation tier is not "is it louder" but "did it gain energy WHERE THE
+    // PHONE CAN PLAY IT" — the same measurement smoke-hum.mjs makes.
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';  lp.frequency.value = 400;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 400;
+    const full = tap(null);
+    const low = tap(lp);
+    const phone = tap(hp);
 
     FX.startMusic();
     await sleep(1000);          // let the first bar land: measure steady state
-    collecting = true;
+    chain.forEach((c) => { c.acc.on = true; });
     const t0 = performance.now();
-    while (performance.now() - t0 < ms) {
-      await sleep(10);          // dense polling so the band average settles
-      an.getFloatFrequencyData(fd);
-      low += band(0, 400); high += band(2000, 8000); frames++;
-    }
-    collecting = false;
+    while (performance.now() - t0 < ms) await sleep(50);
+    chain.forEach((c) => { c.acc.on = false; });
     FX.stopMusic();
-    perc.disconnect(sp); perc.disconnect(an); sp.disconnect(); mute.disconnect();
+    chain.forEach((c) => {
+      if (c.filter) { perc.disconnect(c.filter); c.filter.disconnect(); } else perc.disconnect(c.sp);
+      c.sp.disconnect();
+    });
+    mute.disconnect();
+    const rms = (a) => (a.n ? Math.sqrt(a.sumSq / a.n) : 0);
     return {
-      rms: n ? Math.sqrt(sumSq / n) : 0,
-      bandRatio: (high / frames) / Math.max(1e-12, low / frames),
-      seconds: n / ctx.sampleRate,
+      rms: rms(full),
+      phoneRms: rms(phone),
+      subRms: rms(low),
+      seconds: full.n / ctx.sampleRate,
     };
   };
   // Each tier measured twice, so the test can see its own repeatability rather
@@ -207,12 +219,31 @@ const result = await page.evaluate(async () => {
   const tierOnBreather = FX.getMusicState().tier;
   const heatOnBreather = DIR.__directorDebug().heat;
 
+  // Boss ladder. Phase outranks heat entirely, and each Vader phase should
+  // thicken the half-time kit rather than fall back to a combat tier.
+  DIR.resetDirector();
+  DIR.setMusicPhase('wave');
+  for (let i = 0; i < 12; i++) DIR.tickDirector(250, chaos);   // heat pinned at 1
+  const bossTiers = [];
+  DIR.setMusicPhase('boss');
+  bossTiers.push(FX.getMusicState().tier);
+  for (const p of [2, 3]) { DIR.setBossPhase(p); bossTiers.push(FX.getMusicState().tier); }
+  // A mini-boss is heavy too, even mid-wave with the room full.
+  DIR.resetDirector();
+  DIR.setMusicPhase('wave');
+  for (let i = 0; i < 12; i++) DIR.tickDirector(250, chaos);
+  DIR.setMusicPhase('miniboss');
+  const miniTier = FX.getMusicState().tier;
+  DIR.tickDirector(250, chaos);
+  const miniTierAfterTick = FX.getMusicState().tier;
+
   DIR.resetDirector();
   FX.setMusicState({ tier: 'combat', heat: 0 });
   window.game.scene.resume('Game');
   window.game.scene.resume('HUD');
 
-  return { combat, calm, hot, lvlCombat, lvlCombat2, lvlHot, rise, fall, heatFresh, heatStale,
+  return { combat, calm, hot, heavy, lvlCombat, lvlCombat2, lvlHot, rise, bossTiers,
+           miniTier, miniTierAfterTick, fall, heatFresh, heatStale,
            tierInWave, tierOnBreather, heatOnBreather };
 });
 
@@ -266,19 +297,47 @@ if (drift > 0.08) {
   fail.push(`the same tier measured ${(drift * 100).toFixed(1)}% apart twice — the measurement is unstable, `
     + 'so the comparison below cannot be trusted');
 }
-console.log(`2-8kHz vs 0-400Hz: combat ${lvlCombat.bandRatio.toFixed(2)} -> hot ${lvlHot.bandRatio.toFixed(2)}`);
+const phoneGain = lvlHot.phoneRms / lvlCombat.phoneRms;
+console.log(`phone band (>400Hz): combat ${lvlCombat.phoneRms.toFixed(4)} -> hot ${lvlHot.phoneRms.toFixed(4)} `
+  + `(${phoneGain.toFixed(2)}x)`);
+console.log(`sub band (<400Hz):   combat ${lvlCombat.subRms.toFixed(4)} -> hot ${lvlHot.subRms.toFixed(4)}`);
 if (!(lvlHot.rms >= lvlCombat.rms * 0.9)) {
   fail.push(`hot kit measures ${lvlHot.rms.toFixed(4)} RMS vs combat's ${lvlCombat.rms.toFixed(4)} — `
     + 'stacking layers made it QUIETER, which is the compressor eating the extra density');
 }
-// Loudness is not timbre: holding the level is only half the claim, the
-// character has to actually move up the spectrum.
-if (!(lvlHot.bandRatio > lvlCombat.bandRatio)) {
-  fail.push(`band ratio did not rise (${lvlCombat.bandRatio.toFixed(2)} -> ${lvlHot.bandRatio.toFixed(2)}) — `
-    + 'the hot tier is not brighter, so nothing was really added');
+// Holding the overall level is only half the claim. The escalation has to be
+// audible on the device this game is played on, and below 400Hz a handset
+// delivers almost nothing — so the added density must show up ABOVE that line,
+// or the hot tier is escalation the player cannot hear.
+if (!(phoneGain > 1.15)) {
+  fail.push(`the phone-audible band only moved ${phoneGain.toFixed(2)}x from combat to hot — `
+    + 'the extra density is not landing where a handset can reproduce it');
 }
 
-// ── 3. Heat rises faster than it falls ─────────────────────────────────────
+// ── 3. Half-time is heavier, not busier ────────────────────────────────────
+// The claim that separates a boss from "the same music, louder": the kit drops
+// to half speed while the tune carries on completely unchanged.
+const { heavy } = result;
+console.log(`heavy:  ${heavy.melody} melody notes, ${heavy.kit} noise hits, ${heavy.kicks} kicks over ${heavy.elapsed.toFixed(1)}s`);
+const melodyRate = (r) => r.melody / r.elapsed;
+const kitRate = (r) => r.kit / r.elapsed;
+const melodyDelta = Math.abs(melodyRate(heavy) - melodyRate(combat)) / melodyRate(combat);
+console.log(`melody rate: combat ${melodyRate(combat).toFixed(2)}/s vs heavy ${melodyRate(heavy).toFixed(2)}/s `
+  + `(${(melodyDelta * 100).toFixed(0)}% apart)`);
+console.log(`kit rate:    combat ${kitRate(combat).toFixed(2)}/s vs heavy ${kitRate(heavy).toFixed(2)}/s`);
+if (melodyDelta > 0.15) {
+  fail.push(`the melody changed rate by ${(melodyDelta * 100).toFixed(0)}% in half-time — `
+    + 'the tune is supposed to be untouched, only the kit halves');
+}
+if (!(kitRate(heavy) < kitRate(combat) * 0.75)) {
+  fail.push(`half-time kit runs at ${kitRate(heavy).toFixed(2)}/s vs combat's ${kitRate(combat).toFixed(2)}/s — `
+    + 'the drums did not actually halve');
+}
+if (heavy.kicks >= combat.kicks) {
+  fail.push(`half-time scheduled ${heavy.kicks} kicks vs combat's ${combat.kicks} — expected roughly half`);
+}
+
+// ── 4. Heat rises faster than it falls ─────────────────────────────────────
 const { rise, fall } = result;
 console.log(`heat rise: ${rise.map((h) => h.toFixed(2)).join(' ')}`);
 console.log(`heat fall: ${fall.map((h) => h.toFixed(2)).join(' ')}`);
@@ -295,13 +354,13 @@ if (!(risePerStep > fallPerStep * 1.5)) {
   fail.push(`heat rises at ${risePerStep.toFixed(3)}/sample and falls at ${fallPerStep.toFixed(3)} — attack is not faster than release`);
 }
 
-// ── 4. A stale kill streak stops counting ──────────────────────────────────
+// ── 5. A stale kill streak stops counting ──────────────────────────────────
 console.log(`heat with a fresh streak ${result.heatFresh.toFixed(3)} vs stale ${result.heatStale.toFixed(3)}`);
 if (!(result.heatFresh > result.heatStale + 0.05)) {
   fail.push('a stale kill streak still contributes — lastKillAge is not being honoured');
 }
 
-// ── 5. Phase overrides heat ────────────────────────────────────────────────
+// ── 6. Phase overrides heat ────────────────────────────────────────────────
 console.log(`tier in wave '${result.tierInWave}' → on breather '${result.tierOnBreather}' (heat still ${result.heatOnBreather.toFixed(2)})`);
 // Maximum pressure must reach the top combat tier, not sit in the middle one.
 if (result.tierInWave !== 'hot') fail.push(`expected 'hot' under maximum pressure, got '${result.tierInWave}'`);
@@ -310,6 +369,18 @@ if (result.tierOnBreather !== 'calm') {
 }
 if (!(result.heatOnBreather > 0.3)) {
   fail.push('heat collapsed on the breather — it should keep decaying so the next wave can swell from where it is');
+}
+
+// ── 7. The boss ladder ─────────────────────────────────────────────────────
+console.log(`boss phases 1-3: ${result.bossTiers.join(' -> ')}`);
+console.log(`mini-boss mid-wave at full heat: ${result.miniTier} (still ${result.miniTierAfterTick} after a tick)`);
+if (result.bossTiers.join(',') !== 'heavy,heavy2,heavy3') {
+  fail.push(`boss phases gave ${result.bossTiers.join(' -> ')}, expected heavy -> heavy2 -> heavy3`);
+}
+// The whole point of the mini-boss feel is that it survives a full room: if
+// heat could pull it back to `hot`, the capstone would sound like any wave.
+if (result.miniTier !== 'heavy' || result.miniTierAfterTick !== 'heavy') {
+  fail.push(`mini-boss tier was ${result.miniTier}/${result.miniTierAfterTick} — heat is overriding it`);
 }
 
 const musicWarnings = warnings.filter((w) => w.includes('[music]'));

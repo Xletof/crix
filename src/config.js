@@ -365,10 +365,13 @@ export const MUSIC = {
     kick: 0.30,
     snare: 0.16,
     hat: 0.05,
-    rimshot: 0.10,
-    ride: 0.055,   // a ride at hat level is deafening: its tail overlaps itself
-    shaker: 0.055,
+    rimshot: 0.13,
+    ride: 0.075,   // careful: the tail overlaps itself at anything above eighths
+    shaker: 0.28,
     tamb: 0.045,
+    roll: 0.07,
+    crash: 0.14,
+    timpani: 0.18,
   },
 
   // Keeping perceived loudness flat as layers stack. The master compressor is
@@ -382,6 +385,13 @@ export const MUSIC = {
   //                  This is what actually buys the headroom — the busy tier
   //                  gets its energy from the midrange while the core makes
   //                  room, so the mix opens up instead of squashing.
+  //   coreTrim*      applies to the KICK AND SNARE only, not the whole core.
+  //                  Trimming the hi-hat too was measurably self-defeating:
+  //                  the hat is the core's high-band content, so pulling it
+  //                  down cancelled exactly the brightness the extra layers
+  //                  were adding, and the hot tier measured 0.99x the plain
+  //                  march in the band a phone can reproduce. The kick is
+  //                  where the headroom actually is.
   budget: { layerScaleExp: 0.5, coreTrimPerLayer: 0.06, coreTrimFloor: 0.72 },
 
   // TIERS. A tier is a complete description of how the bed sounds: which kit
@@ -399,6 +409,15 @@ export const MUSIC = {
     calm:   { kit: 'heartbeat', melody: false, padSpan: 0.15 },
     combat: { kit: 'march',     melody: true,  padSpan: 0.55 },
     hot:    { kit: 'drive',     melody: true,  padSpan: 1.00 },
+    // Boss tiers. `halfTime` makes the KIT read at eighth-note resolution
+    // instead of sixteenth, so the drums play at half speed with the backbeat
+    // on 3 while the melody stays exactly where it was. Same tune, same tempo,
+    // twice the space — the difference between heavier and merely busier.
+    // The pad sits darker than `hot` on purpose: a boss should not be the
+    // brightest thing in the game.
+    heavy:  { kit: 'halftime',     melody: true, padSpan: 0.80, halfTime: true },
+    heavy2: { kit: 'halftime2',    melody: true, padSpan: 0.90, halfTime: true },
+    heavy3: { kit: 'halftimeRoll', melody: true, padSpan: 1.00, halfTime: true },
   },
 
   // How the director turns the situation into a 0-1 heat, and heat into a tier.
@@ -461,17 +480,58 @@ export const MUSIC = {
     // version measured DARKER than the plain march while being busier. Only
     // variation 1 pushes the kick at all; everything else that makes this tier
     // feel hotter lives where a phone can actually deliver it.
+    // Boss. Read at EIGHTH resolution, so only the first 8 characters of each
+    // row fall inside the bar — content past index 7 would be silently
+    // truncated, which startBar warns about rather than swallowing.
+    halftime: {
+      order: [0, 0, 0, 1],
+      vars: [
+        { kick: 'x...............', snare: '....x...........', ride: 'x.x.x.x.........' },
+        { kick: 'x.....x.........', snare: '....x..x........', ride: 'x.x.x.xx........' },
+      ],
+    },
+    // Vader phase 2: the tambourine picks out the offbeats, so the same
+    // half-time frame gains motion without gaining weight.
+    halftime2: {
+      order: [0, 1, 0, 2],
+      vars: [
+        { kick: 'x...............', snare: '....x...........', ride: 'x.x.x.x.........',
+          tamb: '.x.x.x.x........' },
+        { kick: 'x.....x.........', snare: '....x...........', ride: 'x.x.x.x.........',
+          tamb: '.x.x.x.x........' },
+        { kick: 'x...............', snare: '....x..x........', ride: 'x.x.x.xx........',
+          tamb: '.x.x.x.x........', rimshot: '......x.........' },
+      ],
+    },
+    // Vader phase 3. `R` starts a snare roll that swells to the end of the bar
+    // — the classic march device, and the only rising thing in this bed. The
+    // rule it does not break is about SPECTRUM: the roll's filter still falls
+    // as it grows, so it darkens while it crescendos.
+    halftimeRoll: {
+      order: [0, 0, 1, 2],
+      vars: [
+        { kick: 'x...............', snare: '....x...........', ride: 'x.x.x.x.........',
+          tamb: '.x.x.x.x........' },
+        { kick: 'x.....x.........', snare: '....x..x........', ride: 'x.x.x.xx........',
+          tamb: '.x.x.x.x........', rimshot: '......x.........' },
+        { kick: 'x...............', snare: '....x...........', ride: 'x.x.x.x.........',
+          tamb: '.x.x.x.x........', roll: '......R.........' },
+      ],
+    },
+
     drive: {
       order: [0, 1, 0, 2, 0, 1, 0, 3],
       vars: [
         { kick: 'x.......x.......', snare: '....x.......x...',
           hat: 'x.o.x.o.x.o.x.o.', shaker: '.x.x.x.x.x.x.x.x' },
         { kick: 'x.....x.x.......', snare: '....x.......x...',
-          hat: 'x.o.x.o.x.o.x.o.', shaker: '.x.x.x.x.x.x.x.x', rimshot: '...............x' },
+          hat: 'x.o.x.o.x.o.x.o.', shaker: '.x.x.x.x.x.x.x.x', ride: 'x...x...x...x...',
+          rimshot: '...............x' },
         { kick: 'x.......x.......', snare: '....x.......x..x',
           hat: 'x.oxx.o.x.oxx.o.', shaker: '.x.x.x.x.x.x.x.x' },
         { kick: 'x.......x.......', snare: '....x.......x.xx',
-          hat: 'x.o.x.o.x.o.x.oo', shaker: '.x.x.x.x.x.x.x.x', rimshot: '........x...x.x.' },
+          hat: 'x.o.x.o.x.o.x.oo', shaker: '.x.x.x.x.x.x.x.x', ride: 'x...x...x...x..x',
+          rimshot: '........x...x.x.' },
       ],
     },
   },
