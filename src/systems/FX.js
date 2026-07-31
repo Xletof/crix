@@ -1048,6 +1048,103 @@ export function startMusic() {
     src.start(t); src.stop(t + dur + 0.02); keep(src);
   };
 
+  // ── Escalation voices ────────────────────────────────────────────────────
+  // All of these live between 400Hz and 8kHz. The instinctive way to make a
+  // bed feel bigger is to add low drums, but a handset speaker cannot
+  // reproduce them — the saber hum was inaudible on mobile for exactly this
+  // reason. Every filter here also ramps DOWN or holds; a rising sweep reads
+  // as a whistle, which the melee work learned the hard way.
+
+  // The mid-band accent that stands in for a tom. Woody and short, sitting
+  // above the phone rolloff and below the snare's 1400Hz wash.
+  const rimshot = (t, gain = LG.rimshot) => {
+    const o = ctx.createOscillator();
+    const bp = ctx.createBiquadFilter();
+    const g = ctx.createGain();
+    o.type = 'square';
+    o.frequency.value = 420;
+    bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 4;
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.055);
+    o.connect(bp); bp.connect(g); g.connect(percBus);
+    o.start(t); o.stop(t + 0.07); keep(o);
+    // Noise leg for the stick crack, bounded top and bottom so it cannot
+    // brighten as it decays.
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1200;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(5000, t);
+    lp.frequency.linearRampToValueAtTime(3000, t + 0.055);
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(gain * 0.5, t);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    src.connect(hp); hp.connect(lp); lp.connect(ng); ng.connect(percBus);
+    src.start(t); src.stop(t + 0.07); keep(src);
+  };
+
+  // Ride. Four INHARMONIC partials, so it shimmers instead of sounding a
+  // pitch — a harmonic stack here reads as a bell note and fights the march.
+  const ride = (t, accent = false, gain = LG.ride) => {
+    const bp = ctx.createBiquadFilter();
+    const lp = ctx.createBiquadFilter();
+    const g = ctx.createGain();
+    const dur = accent ? 0.45 : 0.28;
+    bp.type = 'bandpass'; bp.frequency.value = 2600; bp.Q.value = 1.2;
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(7000, t);
+    lp.frequency.linearRampToValueAtTime(4500, t + dur);
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    bp.connect(lp); lp.connect(g); g.connect(percBus);
+    [1050, 1560, 2310, 3300].forEach((f) => {
+      const o = ctx.createOscillator();
+      o.type = 'square';
+      o.frequency.value = f;
+      o.connect(bp);
+      o.start(t); o.stop(t + dur + 0.02); keep(o);
+    });
+  };
+
+  // Shaker. The 12ms attack is the whole point: it is what makes this a shaker
+  // rather than a hi-hat, and a soft attack costs the master compressor almost
+  // nothing, so sixteenths of it add motion without triggering gain reduction.
+  const shaker = (t, gain = LG.shaker) => {
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const bp = ctx.createBiquadFilter();
+    const g = ctx.createGain();
+    bp.type = 'bandpass'; bp.frequency.value = 5200; bp.Q.value = 1.0;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(gain, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+    src.connect(bp); bp.connect(g); g.connect(percBus);
+    src.start(t); src.stop(t + 0.07); keep(src);
+  };
+
+  // Tambourine. The second band at 3400Hz is not colour — it is what keeps the
+  // voice audible at all on a small speaker, where a pure 7000Hz jingle is
+  // most of the way to inaudible.
+  const tamb = (t, gain = LG.tamb) => {
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const g = ctx.createGain();
+    const hi = ctx.createBiquadFilter(); hi.type = 'bandpass'; hi.frequency.value = 7000; hi.Q.value = 0.8;
+    const lo = ctx.createBiquadFilter(); lo.type = 'bandpass'; lo.frequency.value = 3400; lo.Q.value = 0.9;
+    const loG = ctx.createGain(); loG.gain.value = 0.5;
+    // Two-stage decay fakes the rattle: a sharp drop, then a short tail.
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(gain, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(gain * 0.4, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    src.connect(hi); hi.connect(g);
+    src.connect(lo); lo.connect(loG); loG.connect(g);
+    g.connect(percBus);
+    src.start(t); src.stop(t + 0.15); keep(src);
+  };
+
+  // Rows that count as ESCALATION for the gain budget. kick/snare/hat are the
+  // base kit and deliberately excluded — see the budget note in startBar.
+  const EXTRA_VOICES = ['rimshot', 'ride', 'shaker', 'tamb'];
+  const ALL_VOICES = ['kick', 'snare', 'hat', ...EXTRA_VOICES];
+
   // Pattern reader. A row is 16 characters, one per sixteenth; this turns it
   // into the non-rest positions once, at startMusic, so the per-bar path is an
   // array walk instead of scanning strings 16 times a bar.
@@ -1068,6 +1165,9 @@ export function startMusic() {
       for (const [inst, row] of Object.entries(v)) {
         if (row.length !== 16) {
           console.warn(`[music] ${kitName}.vars[${vi}].${inst} is ${row.length} chars, expected 16`);
+        }
+        if (!ALL_VOICES.includes(inst)) {
+          console.warn(`[music] ${kitName}.vars[${vi}] has no voice named '${inst}' — row ignored`);
         }
         stepsOf(row);
       }
@@ -1189,7 +1289,7 @@ export function startMusic() {
   // envelope. A single static square (what this was) has no attack transient,
   // which is the other half of why the line sounded lifeless — brass gets its
   // character from the filter opening fast and closing again, not from pitch.
-  const marchVoice = (t, freq, beats, accent) => {
+  const marchVoice = (t, freq, beats, accent, scale = 1) => {
     const hold = beats * BEAT * 0.82;      // articulation gap between notes
     const g = ctx.createGain();
     const lp = ctx.createBiquadFilter();
@@ -1199,8 +1299,8 @@ export function startMusic() {
     lp.frequency.linearRampToValueAtTime(freq * 9, t + 0.035);   // bite
     lp.frequency.exponentialRampToValueAtTime(freq * 2.5, t + hold);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.075 * accent, t + 0.012);
-    g.gain.setValueAtTime(0.075 * accent, t + hold * 0.55);      // sustain, then
+    g.gain.linearRampToValueAtTime(0.075 * accent * scale, t + 0.012);
+    g.gain.setValueAtTime(0.075 * accent * scale, t + hold * 0.55);      // sustain, then
     g.gain.exponentialRampToValueAtTime(0.0001, t + hold);       // release
     lp.connect(g);
     g.connect(musicGain);
@@ -1222,7 +1322,7 @@ export function startMusic() {
     s.type = 'triangle';
     s.frequency.value = freq;
     sg.gain.setValueAtTime(0.0001, t);
-    sg.gain.linearRampToValueAtTime(0.05 * accent, t + 0.015);
+    sg.gain.linearRampToValueAtTime(0.05 * accent * scale, t + 0.015);
     sg.gain.exponentialRampToValueAtTime(0.0001, t + hold);
     s.connect(sg); sg.connect(musicGain);
     s.start(t); s.stop(t + hold + 0.03); keep(s);
@@ -1240,41 +1340,50 @@ export function startMusic() {
 
     const tier = MUSIC.tiers[musicTier] || MUSIC.tiers.combat;
 
-    // The melody is skipped entirely in a tier that does not carry it, but the
-    // bar cursor still advances in the caller — so when combat returns the
-    // phrase resumes where it got to instead of snapping back to bar 1.
-    let beat = 0;
-    for (const n of marchBars[barIdx]) {
-      if (!n.rest && tier.melody) marchVoice(at + beat * BEAT, n.f, n.len, n.accent);
-      beat += n.len;
-    }
-    if (Math.abs(beat - barBeats) > 1e-6) {
-      console.warn(`[music] bar ${barIdx + 1} is ${beat} beats, expected ${barBeats}`);
-    }
-
     // The kit, read off the pattern for this bar. `order` is indexed by bar, so
     // the phrase-end fill lands on bars 4 and 8 every time rather than turning
     // up at random — the variation is a shape the ear can learn.
     const kit = MUSIC.kits[tier.kit] || MUSIC.kits.march;
     const vars = kit.vars[kit.order[barIdx % kit.order.length]];
     const step = barBeats / 16;             // one sixteenth, in beats
-    for (const s of stepsOf(vars.kick))  kick(at + s.i * step * BEAT);
-    for (const s of stepsOf(vars.snare)) snare(at + s.i * step * BEAT);
-    for (const s of stepsOf(vars.hat))   hat(at + s.i * step * BEAT, s.ch === 'o');
 
-    const isPhraseEnd = barIdx === 3 || barIdx === marchBars.length - 1;
-    // Combat intensity adds percussion rather than a drone: sixteenth-note hats
-    // and extra snare pushes fill in as pressure rises. Gated on the tier
-    // carrying a melody, so a calm tier stays calm even when heat is still
-    // decaying from the wave that just ended — otherwise the breather would
-    // arrive with the busiest kit in the game and no tune over it.
-    if (tier.melody && musicIntensity > 0.35) {
-      for (let b = 0.25; b < barBeats; b += 0.5) hat(at + b * BEAT, false);
+    // Gain budget, resolved ONCE for the bar rather than per voice, and BEFORE
+    // the melody, because the melody is part of the core it trims.
+    //
+    // L counts only the ESCALATION rows this variation carries. The base kit
+    // (kick, snare, hat) is not a layer: counting it would trim the core in
+    // the plain march tier too, and that tier is supposed to sound exactly as
+    // it always has.
+    const L = EXTRA_VOICES.reduce((n, name) => n + (vars[name] ? 1 : 0), 0);
+    const B = MUSIC.budget;
+    const layerScale = L > 0 ? Math.pow(L, -B.layerScaleExp) : 1;
+    const coreScale = Math.max(B.coreTrimFloor, 1 - B.coreTrimPerLayer * L);
+
+    // The melody is skipped entirely in a tier that does not carry it, but the
+    // bar cursor still advances in the caller — so when combat returns the
+    // phrase resumes where it got to instead of snapping back to bar 1.
+    let beat = 0;
+    for (const n of marchBars[barIdx]) {
+      if (!n.rest && tier.melody) marchVoice(at + beat * BEAT, n.f, n.len, n.accent, coreScale);
+      beat += n.len;
     }
-    if (tier.melody && musicIntensity > 0.7) {
-      kick(at + 2.5 * BEAT);
-      if (!isPhraseEnd) snare(at + 3.5 * BEAT);
+    if (Math.abs(beat - barBeats) > 1e-6) {
+      console.warn(`[music] bar ${barIdx + 1} is ${beat} beats, expected ${barBeats}`);
     }
+
+    for (const s of stepsOf(vars.kick))  kick(at + s.i * step * BEAT, LG.kick * coreScale);
+    for (const s of stepsOf(vars.snare)) snare(at + s.i * step * BEAT, LG.snare * coreScale);
+    for (const s of stepsOf(vars.hat))   hat(at + s.i * step * BEAT, s.ch === 'o', LG.hat * coreScale);
+    if (vars.rimshot) for (const s of stepsOf(vars.rimshot)) rimshot(at + s.i * step * BEAT, LG.rimshot * layerScale);
+    if (vars.ride)    for (const s of stepsOf(vars.ride))    ride(at + s.i * step * BEAT, s.ch === 'X', LG.ride * layerScale);
+    if (vars.shaker)  for (const s of stepsOf(vars.shaker))  shaker(at + s.i * step * BEAT, LG.shaker * layerScale);
+    if (vars.tamb)    for (const s of stepsOf(vars.tamb))    tamb(at + s.i * step * BEAT, LG.tamb * layerScale);
+
+    // Escalation used to be bolted on here as "if intensity > 0.35, add hats".
+    // It is now a TIER change carrying its own pattern, which is both more
+    // controllable and the only way half of these voices can exist at all —
+    // leaving the old branches in would double up on the drive kit's own
+    // sixteenths.
   };
 
   // Bar cursor in absolute context time. Each pass schedules the NEXT bar and

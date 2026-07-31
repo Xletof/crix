@@ -35,7 +35,12 @@ const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 // Which tier the current phase and heat call for. Phase first — it can veto.
 function tierFor() {
   if (phase !== 'wave') return 'calm';
-  return 'combat';
+  // Hysteresis: the threshold to climb into `hot` is higher than the one to
+  // fall out of it. A single boundary would have heat hovering on it flip the
+  // kit every couple of bars, which is far more noticeable than either tier.
+  return tier === 'hot'
+    ? (heat > CFG.hotExit ? 'hot' : 'combat')
+    : (heat > CFG.hotEnter ? 'hot' : 'combat');
 }
 
 /**

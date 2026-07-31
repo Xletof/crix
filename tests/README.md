@@ -120,6 +120,17 @@ now" — is then wrong by that ratio, and an exactly-correct build looked like i
 was scheduling 35% too many notes. Measure with `performance.now()` around the
 loop and derive expectations from what actually elapsed.
 
+**Polling an analyser on a timer is not measuring the audio.**
+`getFloatTimeDomainData` hands you the most recent ~46ms whenever your timer
+happens to fire, so on impulsive material — a drum kit — you double-count some
+hits and miss others outright. The same unchanged kit measured 0.0255 RMS and
+then 0.0326 on consecutive runs, a 28% swing on a build where nothing had
+changed, which is more than the effect being tested. Use a `ScriptProcessor`
+tapping the bus, which sees every sample exactly once; `smoke-music-tiers.mjs`
+does this and asserts its own repeatability (measuring one tier twice and
+failing if the two readings differ by more than 8%) *before* it compares
+anything. An unstable instrument makes every threshold above it meaningless.
+
 **One read of a fluctuating counter can be zero.** A single end-of-run sample of
 a value that rises and falls (voices held, particles alive) lands wherever it
 lands — the same build measured 0 and then 60 on consecutive runs, and the 0

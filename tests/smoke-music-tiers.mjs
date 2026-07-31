@@ -100,6 +100,74 @@ const result = await page.evaluate(async () => {
   // ~4 bars each (a bar is 4 × 0.46s ≈ 1.84s).
   const combat = await record('combat', 7500);
   const calm = await record('calm', 7500);
+  const hot = await record('hot', 7500);
+
+  // ── Level and band content of the kit itself ─────────────────────────────
+  // Tapped at percBus, not musicGain: measuring the kit under the melody and
+  // the pad would mostly measure the melody and the pad.
+  //
+  // The claim is the gain budget's whole purpose. Stacking layers at fixed
+  // gain into a -10dB/12:1 compressor makes the busy tier QUIETER; it has to
+  // hold its level while its CHARACTER moves up the spectrum.
+  // RMS comes from a ScriptProcessor, not from polling an analyser. Polling
+  // getFloatTimeDomainData on a timer grabs the most recent ~46ms of audio
+  // whenever the timer happens to fire, so with impulsive material it
+  // double-counts some kicks and misses others entirely: the first version of
+  // this measured the SAME unchanged kit at 0.0255 and then 0.0326 on
+  // consecutive runs. A ScriptProcessor sees every sample exactly once.
+  const measure = async (tier, ms) => {
+    FX.stopMusic();
+    await sleep(250);
+    FX.setMusicState({ tier, heat: 1 });
+    const perc = FX.__fxDebug().percBus;
+    const sp = ctx.createScriptProcessor(4096, 1, 1);
+    let sumSq = 0; let n = 0; let collecting = false;
+    sp.onaudioprocess = (e) => {
+      if (!collecting) return;
+      const d = e.inputBuffer.getChannelData(0);
+      for (let i = 0; i < d.length; i++) { sumSq += d[i] * d[i]; n++; }
+    };
+    // Muted tap: a ScriptProcessor only runs while it is connected onward.
+    const mute = ctx.createGain(); mute.gain.value = 0;
+    perc.connect(sp); sp.connect(mute); mute.connect(ctx.destination);
+
+    const an = ctx.createAnalyser();
+    an.fftSize = 2048;
+    perc.connect(an);
+    const fd = new Float32Array(an.frequencyBinCount);
+    const binHz = ctx.sampleRate / an.fftSize;
+    const band = (lo, hi) => {
+      let acc = 0; let c = 0;
+      for (let i = Math.ceil(lo / binHz); i < Math.min(fd.length, hi / binHz); i++) {
+        acc += Math.pow(10, fd[i] / 20); c++;
+      }
+      return c ? acc / c : 0;
+    };
+    let low = 0; let high = 0; let frames = 0;
+
+    FX.startMusic();
+    await sleep(1000);          // let the first bar land: measure steady state
+    collecting = true;
+    const t0 = performance.now();
+    while (performance.now() - t0 < ms) {
+      await sleep(10);          // dense polling so the band average settles
+      an.getFloatFrequencyData(fd);
+      low += band(0, 400); high += band(2000, 8000); frames++;
+    }
+    collecting = false;
+    FX.stopMusic();
+    perc.disconnect(sp); perc.disconnect(an); sp.disconnect(); mute.disconnect();
+    return {
+      rms: n ? Math.sqrt(sumSq / n) : 0,
+      bandRatio: (high / frames) / Math.max(1e-12, low / frames),
+      seconds: n / ctx.sampleRate,
+    };
+  };
+  // Each tier measured twice, so the test can see its own repeatability rather
+  // than trusting a single reading of a fluctuating signal.
+  const lvlCombat = await measure('combat', 9200);   // 5 bars
+  const lvlCombat2 = await measure('combat', 9200);
+  const lvlHot = await measure('hot', 9200);
 
   // ── Director: synthetic situations, no arena needed ──────────────────────
   const quiet = { combo: 0, lastKillAge: 99999, alive: 0, maxAlive: 12,
@@ -144,7 +212,7 @@ const result = await page.evaluate(async () => {
   window.game.scene.resume('Game');
   window.game.scene.resume('HUD');
 
-  return { combat, calm, rise, fall, heatFresh, heatStale,
+  return { combat, calm, hot, lvlCombat, lvlCombat2, lvlHot, rise, fall, heatFresh, heatStale,
            tierInWave, tierOnBreather, heatOnBreather };
 });
 
@@ -175,7 +243,42 @@ if (calm.kicks < 4) {
   fail.push(`calm scheduled only ${calm.kicks} kicks — the heartbeat is gone, so calm is silence, not rest`);
 }
 
-// ── 2. Heat rises faster than it falls ─────────────────────────────────────
+// ── 2. The hot tier is busier, and does not get quieter for it ─────────────
+const { hot, lvlCombat, lvlHot } = result;
+console.log(`hot:    ${hot.melody} melody notes, ${hot.kit} noise hits, ${hot.kicks} kicks over ${hot.elapsed.toFixed(1)}s`);
+const hotRate = hot.kit / hot.elapsed;
+const combatRate = combat.kit / combat.elapsed;
+console.log(`kit density: combat ${combatRate.toFixed(1)}/s -> hot ${hotRate.toFixed(1)}/s`);
+if (!(hotRate > combatRate * 1.3)) {
+  fail.push(`hot schedules ${hotRate.toFixed(1)} kit hits/s vs combat's ${combatRate.toFixed(1)} — no escalation`);
+}
+// The melody must keep playing; escalation is the KIT thickening, not the tune
+// being replaced.
+if (hot.melody < combat.melody * 0.8) {
+  fail.push(`hot played ${hot.melody} notes vs combat's ${combat.melody} — the melody thinned out`);
+}
+// Repeatability first: if the same tier measures differently twice, nothing
+// below it means anything.
+const drift = Math.abs(result.lvlCombat2.rms - lvlCombat.rms) / lvlCombat.rms;
+console.log(`kit RMS: combat ${lvlCombat.rms.toFixed(4)} / ${result.lvlCombat2.rms.toFixed(4)} `
+  + `(${(drift * 100).toFixed(1)}% drift over ${lvlCombat.seconds.toFixed(1)}s) -> hot ${lvlHot.rms.toFixed(4)}`);
+if (drift > 0.08) {
+  fail.push(`the same tier measured ${(drift * 100).toFixed(1)}% apart twice — the measurement is unstable, `
+    + 'so the comparison below cannot be trusted');
+}
+console.log(`2-8kHz vs 0-400Hz: combat ${lvlCombat.bandRatio.toFixed(2)} -> hot ${lvlHot.bandRatio.toFixed(2)}`);
+if (!(lvlHot.rms >= lvlCombat.rms * 0.9)) {
+  fail.push(`hot kit measures ${lvlHot.rms.toFixed(4)} RMS vs combat's ${lvlCombat.rms.toFixed(4)} — `
+    + 'stacking layers made it QUIETER, which is the compressor eating the extra density');
+}
+// Loudness is not timbre: holding the level is only half the claim, the
+// character has to actually move up the spectrum.
+if (!(lvlHot.bandRatio > lvlCombat.bandRatio)) {
+  fail.push(`band ratio did not rise (${lvlCombat.bandRatio.toFixed(2)} -> ${lvlHot.bandRatio.toFixed(2)}) — `
+    + 'the hot tier is not brighter, so nothing was really added');
+}
+
+// ── 3. Heat rises faster than it falls ─────────────────────────────────────
 const { rise, fall } = result;
 console.log(`heat rise: ${rise.map((h) => h.toFixed(2)).join(' ')}`);
 console.log(`heat fall: ${fall.map((h) => h.toFixed(2)).join(' ')}`);
@@ -192,15 +295,16 @@ if (!(risePerStep > fallPerStep * 1.5)) {
   fail.push(`heat rises at ${risePerStep.toFixed(3)}/sample and falls at ${fallPerStep.toFixed(3)} — attack is not faster than release`);
 }
 
-// ── 3. A stale kill streak stops counting ──────────────────────────────────
+// ── 4. A stale kill streak stops counting ──────────────────────────────────
 console.log(`heat with a fresh streak ${result.heatFresh.toFixed(3)} vs stale ${result.heatStale.toFixed(3)}`);
 if (!(result.heatFresh > result.heatStale + 0.05)) {
   fail.push('a stale kill streak still contributes — lastKillAge is not being honoured');
 }
 
-// ── 4. Phase overrides heat ────────────────────────────────────────────────
+// ── 5. Phase overrides heat ────────────────────────────────────────────────
 console.log(`tier in wave '${result.tierInWave}' → on breather '${result.tierOnBreather}' (heat still ${result.heatOnBreather.toFixed(2)})`);
-if (result.tierInWave !== 'combat') fail.push(`expected 'combat' during a hot wave, got '${result.tierInWave}'`);
+// Maximum pressure must reach the top combat tier, not sit in the middle one.
+if (result.tierInWave !== 'hot') fail.push(`expected 'hot' under maximum pressure, got '${result.tierInWave}'`);
 if (result.tierOnBreather !== 'calm') {
   fail.push(`breather tier is '${result.tierOnBreather}' — heat is outvoting the lifecycle phase`);
 }

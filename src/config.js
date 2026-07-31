@@ -356,11 +356,33 @@ export const MUSIC = {
   // Per-voice gain. These are the levels each voice used to hardcode; keeping
   // them here means a mix change is a config edit, not a hunt through
   // synthesis code.
+  // Everything above the core three lives in 400Hz-8kHz on purpose. A handset
+  // speaker has almost no output below ~400Hz, so the obvious "make it more
+  // intense" instruments — floor toms, taiko — would be inaudible on the
+  // device this game is actually played on. The kick's 165->48Hz sweep stays
+  // the only sub-register element in the bed.
   layerGain: {
     kick: 0.30,
     snare: 0.16,
     hat: 0.05,
+    rimshot: 0.10,
+    ride: 0.055,   // a ride at hat level is deafening: its tail overlaps itself
+    shaker: 0.055,
+    tamb: 0.045,
   },
+
+  // Keeping perceived loudness flat as layers stack. The master compressor is
+  // -10dB at 12:1 and already pumps on dense material, so adding voices at
+  // fixed gain makes the BUSY tier quieter and more squashed, not bigger.
+  //
+  //   layerScaleExp  extra layers scale by L^-exp. At 0.5 that is equal-power
+  //                  summing: three layers at 1/sqrt(3) sum to about the level
+  //                  of one, so density changes texture rather than volume.
+  //   coreTrim*      melody, pad, kick and snare step back as layers arrive.
+  //                  This is what actually buys the headroom — the busy tier
+  //                  gets its energy from the midrange while the core makes
+  //                  room, so the mix opens up instead of squashing.
+  budget: { layerScaleExp: 0.5, coreTrimPerLayer: 0.06, coreTrimFloor: 0.72 },
 
   // TIERS. A tier is a complete description of how the bed sounds: which kit
   // it plays, whether the melody sounds at all, and how far open the pad sits.
@@ -376,6 +398,7 @@ export const MUSIC = {
   tiers: {
     calm:   { kit: 'heartbeat', melody: false, padSpan: 0.15 },
     combat: { kit: 'march',     melody: true,  padSpan: 0.55 },
+    hot:    { kit: 'drive',     melody: true,  padSpan: 1.00 },
   },
 
   // How the director turns the situation into a 0-1 heat, and heat into a tier.
@@ -398,6 +421,11 @@ export const MUSIC = {
     attackPerSec: 1.8,
     releasePerSec: 0.45,
     sampleMs: 250,
+    // Hysteresis, not one threshold: heat hovering on a single boundary would
+    // flip the kit back and forth every couple of bars, which is far more
+    // noticeable than either tier on its own.
+    hotEnter: 0.62,
+    hotExit: 0.50,
   },
 
   kits: {
@@ -419,6 +447,31 @@ export const MUSIC = {
       vars: [
         { kick: 'x.......x.......', snare: '....x.......x...', hat: 'x.o.x.o.x.o.x.o.' },
         { kick: 'x.......x.......', snare: '....x.......x.xx', hat: 'x.o.x.o.x.o.x.o.' },
+      ],
+    },
+
+    // Under pressure. The sixteenths come from a SHAKER rather than more
+    // hi-hat: a soft-attack voice adds motion without sixteen more transients
+    // for the compressor to chew on, which is what a wall of sixteenth hats is.
+    //
+    // The escalation is deliberately almost all MIDRANGE. The obvious way to
+    // write this kit is a driving four-to-the-floor kick, and the first
+    // version did — but the kick's energy is at 165->48Hz, which a handset
+    // speaker barely reproduces, so on the device this game is played on that
+    // version measured DARKER than the plain march while being busier. Only
+    // variation 1 pushes the kick at all; everything else that makes this tier
+    // feel hotter lives where a phone can actually deliver it.
+    drive: {
+      order: [0, 1, 0, 2, 0, 1, 0, 3],
+      vars: [
+        { kick: 'x.......x.......', snare: '....x.......x...',
+          hat: 'x.o.x.o.x.o.x.o.', shaker: '.x.x.x.x.x.x.x.x' },
+        { kick: 'x.....x.x.......', snare: '....x.......x...',
+          hat: 'x.o.x.o.x.o.x.o.', shaker: '.x.x.x.x.x.x.x.x', rimshot: '...............x' },
+        { kick: 'x.......x.......', snare: '....x.......x..x',
+          hat: 'x.oxx.o.x.oxx.o.', shaker: '.x.x.x.x.x.x.x.x' },
+        { kick: 'x.......x.......', snare: '....x.......x.xx',
+          hat: 'x.o.x.o.x.o.x.oo', shaker: '.x.x.x.x.x.x.x.x', rimshot: '........x...x.x.' },
       ],
     },
   },
