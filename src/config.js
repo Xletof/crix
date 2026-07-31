@@ -335,6 +335,47 @@ export const BOSS = {
   eyeColor: 0xff2020,
 };
 
+// ── Music ──────────────────────────────────────────────────────────────────
+//
+// The drum kit as data. Every percussion voice used to carry its own hardcoded
+// gain and its own scheduling loop inside startMusic(), which meant "what the
+// kit plays" was spread across four `forEach`es and three magic numbers.
+//
+// A PATTERN is one string per instrument, 16 characters long — one character
+// per sixteenth of a 4/4 bar:
+//
+//     '.' rest        'x' normal hit
+//     'X' accent      'o' open (hi-hat only)
+//
+// A KIT is a set of numbered variations plus an `order` saying which variation
+// each bar of the phrase uses. `order` is indexed by bar, NOT chosen at random:
+// the ear should learn the pattern, and a random kit would make the smoke tests
+// non-deterministic. An 8-entry order locks a variation to its bar of the
+// 8-bar phrase; a 4-entry order cycles twice per phrase.
+export const MUSIC = {
+  // Per-voice gain. These are the levels each voice used to hardcode; keeping
+  // them here means a mix change is a config edit, not a hunt through
+  // synthesis code.
+  layerGain: {
+    kick: 0.30,
+    snare: 0.16,
+    hat: 0.05,
+  },
+
+  kits: {
+    // The march kit. Kick on 1 and 3, backbeat on 2 and 4, eighth-note hats
+    // opening on the offbeats. Variation 1 is the phrase-end fill — it lands
+    // on bars 4 and 8, which is what separates the theme from its answer.
+    march: {
+      order: [0, 0, 0, 1, 0, 0, 0, 1],
+      vars: [
+        { kick: 'x.......x.......', snare: '....x.......x...', hat: 'x.o.x.o.x.o.x.o.' },
+        { kick: 'x.......x.......', snare: '....x.......x.xx', hat: 'x.o.x.o.x.o.x.o.' },
+      ],
+    },
+  },
+};
+
 // Bacta vial healing pickup
 export const HEALTH_ORB = {
   dropChance: 0.22, // raised for horde density — more kills, more sustain

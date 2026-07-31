@@ -2,7 +2,7 @@
 // via Web Audio API. No external sound assets needed for the vertical slice.
 
 import Phaser from 'phaser';
-import { DEPTH } from '../config.js';
+import { DEPTH, MUSIC } from '../config.js';
 
 let audioCtx = null;
 let masterGain = null;
@@ -992,37 +992,69 @@ export function startMusic() {
   // already queued. Without this, quitting to the title left up to a full bar
   // still scheduled and the march kept playing over the menu.
   const keep = (n) => { musicBarNodes.push(n); return n; };
-  const kick = (t) => {
+  // Levels come from MUSIC.layerGain rather than living here, so the kit's mix
+  // is one config block instead of a magic number per voice.
+  const LG = MUSIC.layerGain;
+  const kick = (t, gain = LG.kick) => {
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = 'sine';
     o.frequency.setValueAtTime(165, t);
     o.frequency.exponentialRampToValueAtTime(48, t + 0.12);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.30, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.006);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
     o.connect(g); g.connect(musicGain);
     o.start(t); o.stop(t + 0.26); keep(o);
   };
-  const snare = (t) => {
+  const snare = (t, gain = LG.snare) => {
     const src = ctx.createBufferSource(); src.buffer = noiseBuf;
     const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1400;
     const g = ctx.createGain();
-    g.gain.setValueAtTime(0.16, t);
+    g.gain.setValueAtTime(gain, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
     src.connect(hp); hp.connect(g); g.connect(musicGain);
     src.start(t); src.stop(t + 0.16); keep(src);
   };
-  const hat = (t, open = false) => {
+  const hat = (t, open = false, gain = LG.hat) => {
     const src = ctx.createBufferSource(); src.buffer = noiseBuf;
     const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 8000;
     const g = ctx.createGain();
     const dur = open ? 0.10 : 0.03;
-    g.gain.setValueAtTime(0.05, t);
+    g.gain.setValueAtTime(gain, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(hp); hp.connect(g); g.connect(musicGain);
     src.start(t); src.stop(t + dur + 0.02); keep(src);
   };
+
+  // Pattern reader. A row is 16 characters, one per sixteenth; this turns it
+  // into the non-rest positions once, at startMusic, so the per-bar path is an
+  // array walk instead of scanning strings 16 times a bar.
+  const STEPS = new Map();
+  const stepsOf = (row) => {
+    let out = STEPS.get(row);
+    if (out) return out;
+    out = [];
+    for (let i = 0; i < row.length; i++) if (row[i] !== '.') out.push({ i, ch: row[i] });
+    STEPS.set(row, out);
+    return out;
+  };
+  // Validate up front rather than letting a mistyped row fail silently — a row
+  // of the wrong length would just drop or shift hits, which is very hard to
+  // hear as a bug and impossible to spot in a diff.
+  for (const [kitName, kit] of Object.entries(MUSIC.kits)) {
+    kit.vars.forEach((v, vi) => {
+      for (const [inst, row] of Object.entries(v)) {
+        if (row.length !== 16) {
+          console.warn(`[music] ${kitName}.vars[${vi}].${inst} is ${row.length} chars, expected 16`);
+        }
+        stepsOf(row);
+      }
+    });
+    if (kit.order.some((i) => i < 0 || i >= kit.vars.length)) {
+      console.warn(`[music] ${kitName}.order references a variation that does not exist`);
+    }
+  }
 
   // The Imperial March, both halves of it.
   //
@@ -1120,11 +1152,10 @@ export function startMusic() {
   // bar, so a mistyped `len` must be a loud failure, not a bar that silently
   // drifts out of phase with the kit.
   const barBeats = 4;
-  // Drums sit on the beat grid, independent of where the notes fall — the
-  // melody is dotted and syncopated, so indexing the kit off note positions
-  // would scatter the pulse that holds it together.
-  const kickBeats  = [0, 2];
-  const snareBeats = [1, 3];
+  // The kit itself lives in MUSIC.kits (config.js) as sixteenth-grid patterns.
+  // It sits on the beat grid independent of where the notes fall — the melody
+  // is dotted and syncopated, so indexing the kit off note positions would
+  // scatter the pulse that holds it together.
   // `at` is an ABSOLUTE AudioContext time, not an offset. It used to be an
   // offset that this function added ctx.currentTime to — and the loop below
   // then passed `offset - ctx.currentTime`, so the two cancelled and every bar
@@ -1195,19 +1226,17 @@ export function startMusic() {
       console.warn(`[music] bar ${barIdx + 1} is ${beat} beats, expected ${barBeats}`);
     }
 
-    kickBeats.forEach((b) => kick(at + b * BEAT));
-    snareBeats.forEach((b) => snare(at + b * BEAT));
-    for (let b = 0; b < barBeats; b += 0.5) {
-      hat(at + b * BEAT, b % 1 !== 0);     // closed on beats, open off them
-    }
-    // Fill on the last bar of each 4-bar half, so the two sections are marked
-    // off from each other and the phrase has an audible shape rather than
-    // being eight interchangeable bars.
+    // The kit, read off the pattern for this bar. `order` is indexed by bar, so
+    // the phrase-end fill lands on bars 4 and 8 every time rather than turning
+    // up at random — the variation is a shape the ear can learn.
+    const kit = MUSIC.kits.march;
+    const vars = kit.vars[kit.order[barIdx % kit.order.length]];
+    const step = barBeats / 16;             // one sixteenth, in beats
+    for (const s of stepsOf(vars.kick))  kick(at + s.i * step * BEAT);
+    for (const s of stepsOf(vars.snare)) snare(at + s.i * step * BEAT);
+    for (const s of stepsOf(vars.hat))   hat(at + s.i * step * BEAT, s.ch === 'o');
+
     const isPhraseEnd = barIdx === 3 || barIdx === marchBars.length - 1;
-    if (isPhraseEnd) {
-      snare(at + 3.5 * BEAT);
-      snare(at + 3.75 * BEAT);
-    }
     // Combat intensity adds percussion rather than a drone: sixteenth-note hats
     // and extra snare pushes fill in as pressure rises.
     if (musicIntensity > 0.35) {
