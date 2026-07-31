@@ -214,7 +214,10 @@ const result = await page.evaluate(async () => {
   for (let i = 0; i < 8; i++) DIR.tickDirector(250, staleSnap);
   const heatStale = DIR.__directorDebug().heat;
 
-  // Phase must be able to veto heat: hot as hell, but on a breather.
+  // Phase vs heat. A breather is NOT a finished room: the bed keeps playing
+  // through it and only quiets when the room is done. Both halves matter — the
+  // second is what stops "stop going calm on wave clear" turning into "the calm
+  // tier is never reached at all".
   DIR.resetDirector();
   DIR.setMusicPhase('wave');
   for (let i = 0; i < 12; i++) DIR.tickDirector(250, chaos);
@@ -223,6 +226,10 @@ const result = await page.evaluate(async () => {
   DIR.tickDirector(250, chaos);
   const tierOnBreather = FX.getMusicState().tier;
   const heatOnBreather = DIR.__directorDebug().heat;
+  // And the room actually finishing still does quiet it, at whatever heat.
+  DIR.setMusicPhase('upgrade');
+  DIR.tickDirector(250, chaos);
+  const tierOnUpgrade = FX.getMusicState().tier;
 
   // ── Tempo ramps, bounded and monotone ────────────────────────────────────
   // Released from the pin: this is the one claim that is ABOUT the tempo.
@@ -269,7 +276,7 @@ const result = await page.evaluate(async () => {
 
   return { combat, calm, hot, heavy, lvlCombat, lvlCombat2, lvlHot, rise, bossTiers,
            beatFrom, beats,
-           miniTier, miniTierAfterTick, fall, heatFresh, heatStale,
+           miniTier, miniTierAfterTick, tierOnUpgrade, fall, heatFresh, heatStale,
            tierInWave, tierOnBreather, heatOnBreather };
 });
 
@@ -387,11 +394,18 @@ if (!(result.heatFresh > result.heatStale + 0.05)) {
 }
 
 // ── 6. Phase overrides heat ────────────────────────────────────────────────
-console.log(`tier in wave '${result.tierInWave}' → on breather '${result.tierOnBreather}' (heat still ${result.heatOnBreather.toFixed(2)})`);
+console.log(`tier in wave '${result.tierInWave}' → breather '${result.tierOnBreather}' `
+  + `→ room clear '${result.tierOnUpgrade}' (heat still ${result.heatOnBreather.toFixed(2)})`);
 // Maximum pressure must reach the top combat tier, not sit in the middle one.
 if (result.tierInWave !== 'hot') fail.push(`expected 'hot' under maximum pressure, got '${result.tierInWave}'`);
-if (result.tierOnBreather !== 'calm') {
-  fail.push(`breather tier is '${result.tierOnBreather}' — heat is outvoting the lifecycle phase`);
+// A wave clear must NOT quiet the bed. Three waves a room, so a calm here is
+// the march dropping out three times a room.
+if (result.tierOnBreather === 'calm') {
+  fail.push('the breather went calm — the bed drops out on every wave clear, not just on a finished room');
+}
+// ...but a finished room still must, or the calm tier is dead code.
+if (result.tierOnUpgrade !== 'calm') {
+  fail.push(`room clear gave '${result.tierOnUpgrade}' — the calm tier is no longer reachable`);
 }
 if (!(result.heatOnBreather > 0.3)) {
   fail.push('heat collapsed on the breather — it should keep decaying so the next wave can swell from where it is');

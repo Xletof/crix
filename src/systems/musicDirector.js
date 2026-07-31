@@ -39,7 +39,17 @@ function tierFor() {
   // boss sounds like a boss whether or not the room happens to be crowded.
   if (phase === 'boss') return ['heavy', 'heavy', 'heavy2', 'heavy3'][bossPhase] || 'heavy';
   if (phase === 'miniboss') return 'heavy';
-  if (phase !== 'wave') return 'calm';
+  // Calm is for a finished ROOM, not a finished wave. This used to send every
+  // non-wave phase here, which dropped the march out on every wave clear — the
+  // bed went quiet three times a room.
+  //
+  // The breather needs no handling of its own: the arena is empty, so the
+  // pressure term is 0 and the streak goes stale, and heat decays from 1.0 at
+  // releasePerSec (0.45/s) across the 2.5s breather. The bed settles hot ->
+  // combat by itself and climbs again as the next wave spawns, which is a
+  // better swell than anything scripted because it is the fight actually
+  // ending rather than a cue firing.
+  if (phase === 'upgrade' || phase === 'idle') return 'calm';
   // Hysteresis: the threshold to climb into `hot` is higher than the one to
   // fall out of it. A single boundary would have heat hovering on it flip the
   // kit every couple of bars, which is far more noticeable than either tier.

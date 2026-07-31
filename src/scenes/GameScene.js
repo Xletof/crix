@@ -3428,7 +3428,9 @@ export class GameScene extends Phaser.Scene {
         } else {
           this._wavePhase = 'breather';
           this._breatherMs = 2500;
-          setMusicPhase('breather'); // the wave clear just landed — thin the bed out
+          // The bed keeps playing here — only a finished ROOM quiets it. Heat
+          // decays on its own through the breather, so it settles by itself.
+          setMusicPhase('breather');
         }
       }
     } else if (this._wavePhase === 'breather') {
