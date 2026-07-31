@@ -10,7 +10,7 @@ import { CoverRegistry } from '../systems/CoverRegistry.js';
 import { WeaponPickup } from '../entities/WeaponPickup.js';
 import { Terminal } from '../entities/Terminal.js';
 import { attachFX, SFX, startMusic, duckMusic, duckSfx, stopMusic, isLowQuality } from '../systems/FX.js';
-import { setMusicPhase, setBossPhase, tickDirector, resetDirector } from '../systems/musicDirector.js';
+import { setMusicPhase, setBossPhase, tickDirector, musicSampleDue, resetDirector } from '../systems/musicDirector.js';
 import { ROOMS } from '../data/rooms.js';
 import { NARRATIVE } from '../data/narrative.js';
 import { NavGrid } from '../systems/NavGrid.js';
@@ -3397,7 +3397,12 @@ export class GameScene extends Phaser.Scene {
       this._musicMiniBoss = true;
     }
 
-    tickDirector(delta, {
+    // Feed the music director, but only on a sample — the throttle is checked
+    // BEFORE the snapshot is built, so an object is not allocated and thrown
+    // away on every frame just to be ignored. `living` is reused rather than
+    // counted a second time.
+    const musicDue = musicSampleDue(delta);
+    if (musicDue) tickDirector(musicDue, {
       combo: this._comboCount || 0,
       lastKillAge: this.time.now - (this._lastKillTime ?? -99999),
       alive: living,

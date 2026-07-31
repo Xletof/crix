@@ -162,7 +162,7 @@ const result = await page.evaluate(async () => {
   const combat = await record('combat', 7500);
   const calm = await record('calm', 7500);
   const hot = await record('hot', 7500);
-  const heavy = await record('heavy', 7500);
+  const heavy = await record('boss1', 7500);
   // A shade over two phrases, so every variation in an 8-entry order appears.
   const combatVariety = await variety('combat', 22000);
 
@@ -202,6 +202,37 @@ const result = await page.evaluate(async () => {
       && notes[i + 3] && notes[i + 3].f === notes[3].f);
     return at > 0 ? Math.round(notes[at].at / 0.46) : null;
   };
+  // Octave doubling, counted at the oscillator. A unison note builds 3
+  // sawtooths and 1 triangle sub; an octave note builds 6 and 1. The ratio is
+  // therefore a direct, cheap read of whether the second stack exists — much
+  // more falsifiable than trying to hear "bigger".
+  const sawsPerNote = async (tier, ms) => {
+    FX.stopMusic();
+    await sleep(250);
+    FX.__fxPinTempo(0.46);
+    FX.setMusicState({ tier, heat: 1 });
+    const realOsc = ctx.createOscillator.bind(ctx);
+    let saws = 0; let subs = 0;
+    ctx.createOscillator = () => {
+      const o = realOsc();
+      const rs = o.start.bind(o);
+      o.start = (w) => {
+        if (o.type === 'sawtooth' && o.frequency.value > 90) saws++;   // pad saws sit at 55-82Hz
+        if (o.type === 'triangle' && o._fxRole !== 'sting') subs++;
+        return rs(w);
+      };
+      return o;
+    };
+    FX.startMusic();
+    const tStart = performance.now();
+    while (performance.now() - tStart < ms) await sleep(200);
+    FX.stopMusic();
+    ctx.createOscillator = realOsc;
+    return subs ? saws / subs : 0;
+  };
+  const sawsUnison = await sawsPerNote('boss1', 8000);
+  const sawsOctave = await sawsPerNote('boss2', 8000);
+
   const combatPhrase = await phraseBeats('combat', 20000);
   const minibossPhrase = await phraseBeats('miniboss', 20000);
 
@@ -218,6 +249,12 @@ const result = await page.evaluate(async () => {
   // double-counts some kicks and misses others entirely: the first version of
   // this measured the SAME unchanged kit at 0.0255 and then 0.0326 on
   // consecutive runs. A ScriptProcessor sees every sample exactly once.
+  // A ScriptProcessor runs on the MAIN thread, so under load it drops buffers
+  // and the accumulated RMS moves with the machine rather than with the audio.
+  // A big buffer means far fewer callbacks and far less exposure to that: with
+  // four taps at 4096 the repeatability check saw 10.9% drift on an unchanged
+  // tier during a full-suite run, against under 4% standalone.
+  const BUF = 16384;
   const measure = async (tier, ms) => {
     FX.stopMusic();
     await sleep(250);
@@ -235,7 +272,7 @@ const result = await page.evaluate(async () => {
     // number looked plausible either way. Filtering into its own ScriptProcessor
     // measures the band the way the RMS measures the whole.
     const tap = (filter) => {
-      const sp = ctx.createScriptProcessor(4096, 1, 1);
+      const sp = ctx.createScriptProcessor(BUF, 1, 1);
       const acc = { sumSq: 0, n: 0, on: false };
       sp.onaudioprocess = (e) => {
         if (!acc.on) return;
@@ -252,11 +289,20 @@ const result = await page.evaluate(async () => {
     // speaker delivers almost nothing (HANDOVER §7). So the question for an
     // escalation tier is not "is it louder" but "did it gain energy WHERE THE
     // PHONE CAN PLAY IT" — the same measurement smoke-hum.mjs makes.
-    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';  lp.frequency.value = 400;
     const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 400;
     const full = tap(null);
-    const low = tap(lp);
     const phone = tap(hp);
+    // The whole bed, not just the kit — the melody rides musicGain directly, so
+    // a change to the tune's level is invisible at percBus.
+    const bedSp = ctx.createScriptProcessor(BUF, 1, 1);
+    const bedAcc = { sumSq: 0, n: 0, on: false };
+    bedSp.onaudioprocess = (e) => {
+      if (!bedAcc.on) return;
+      const d = e.inputBuffer.getChannelData(0);
+      for (let i = 0; i < d.length; i++) { bedAcc.sumSq += d[i] * d[i]; bedAcc.n++; }
+    };
+    FX.__fxDebug().musicGain.connect(bedSp); bedSp.connect(mute);
+    chain.push({ sp: bedSp, filter: null, acc: bedAcc, onMusicGain: true });
 
     FX.startMusic();
     await sleep(1000);          // let the first bar land: measure steady state
@@ -266,15 +312,17 @@ const result = await page.evaluate(async () => {
     chain.forEach((c) => { c.acc.on = false; });
     FX.stopMusic();
     chain.forEach((c) => {
-      if (c.filter) { perc.disconnect(c.filter); c.filter.disconnect(); } else perc.disconnect(c.sp);
+      if (c.onMusicGain) FX.__fxDebug().musicGain.disconnect(c.sp);
+      else if (c.filter) { perc.disconnect(c.filter); c.filter.disconnect(); }
+      else perc.disconnect(c.sp);
       c.sp.disconnect();
     });
     mute.disconnect();
     const rms = (a) => (a.n ? Math.sqrt(a.sumSq / a.n) : 0);
     return {
       rms: rms(full),
+      bedRms: rms(bedAcc),
       phoneRms: rms(phone),
-      subRms: rms(low),
       seconds: full.n / ctx.sampleRate,
     };
   };
@@ -283,6 +331,8 @@ const result = await page.evaluate(async () => {
   const lvlCombat = await measure('combat', 9200);   // 5 bars
   const lvlCombat2 = await measure('combat', 9200);
   const lvlHot = await measure('hot', 9200);
+  const lvlBoss1 = await measure('boss1', 9200);
+  const lvlBoss3 = await measure('boss3', 9200);
 
   // ── Director: synthetic situations, no arena needed ──────────────────────
   const quiet = { combo: 0, lastKillAge: 99999, alive: 0, maxAlive: 12,
@@ -372,7 +422,9 @@ const result = await page.evaluate(async () => {
   window.game.scene.resume('Game');
   window.game.scene.resume('HUD');
 
-  return { combat, calm, hot, heavy, combatVariety, combatPhrase, minibossPhrase, lvlCombat, lvlCombat2, lvlHot, rise, bossTiers,
+  return { combat, calm, hot, heavy, combatVariety, combatPhrase, minibossPhrase,
+           lvlBoss1, lvlBoss3,
+           sawsUnison, sawsOctave, lvlCombat, lvlCombat2, lvlHot, rise, bossTiers,
            beatFrom, beats,
            miniTier, miniTierAfterTick, tierOnUpgrade, fall, heatFresh, heatStale,
            tierInWave, tierOnBreather, heatOnBreather };
@@ -431,7 +483,6 @@ if (drift > 0.08) {
 const phoneGain = lvlHot.phoneRms / lvlCombat.phoneRms;
 console.log(`phone band (>400Hz): combat ${lvlCombat.phoneRms.toFixed(4)} -> hot ${lvlHot.phoneRms.toFixed(4)} `
   + `(${phoneGain.toFixed(2)}x)`);
-console.log(`sub band (<400Hz):   combat ${lvlCombat.subRms.toFixed(4)} -> hot ${lvlHot.subRms.toFixed(4)}`);
 if (!(lvlHot.rms >= lvlCombat.rms * 0.9)) {
   fail.push(`hot kit measures ${lvlHot.rms.toFixed(4)} RMS vs combat's ${lvlCombat.rms.toFixed(4)} — `
     + 'stacking layers made it QUIETER, which is the compressor eating the extra density');
@@ -544,11 +595,35 @@ const worst = Math.max(...steps);
 console.log(`largest single-bar tempo step: ${(worst * 100).toFixed(2)}% (cap 2%)`);
 if (worst > 0.025) fail.push(`tempo jumped ${(worst * 100).toFixed(1)}% in one bar — the ramp is not bounded`);
 
-// ── 10. The boss ladder ─────────────────────────────────────────────────────
+// ── 10. Vader's theme opens into octaves ───────────────────────────────────
+console.log(`saws per melody note: boss1 ${result.sawsUnison.toFixed(2)}, boss2 ${result.sawsOctave.toFixed(2)}`);
+if (!(result.sawsUnison > 2.5 && result.sawsUnison < 3.5)) {
+  fail.push(`boss1 built ${result.sawsUnison.toFixed(2)} saws per note, expected ~3 (unison)`);
+}
+if (!(result.sawsOctave > 5.5 && result.sawsOctave < 6.5)) {
+  fail.push(`boss2 built ${result.sawsOctave.toFixed(2)} saws per note, expected ~6 — `
+    + 'the octave stack is not being added');
+}
+
+// ── 11. Vader's ladder does not get quieter as it escalates ────────────────
+// Measured at musicGain, not percBus: the melody rides musicGain directly, so
+// the thing that broke this is invisible at the kit bus. The layer budget was
+// trimming the MELODY as tambourine and roll arrived, making the tune quietest
+// at exactly the moment the arrangement was fullest — boss1 0.0350 falling to
+// boss3 0.0322 across his three phases.
+const b1 = result.lvlBoss1.bedRms;
+const b3 = result.lvlBoss3.bedRms;
+console.log(`bed level: boss1 ${b1.toFixed(4)} -> boss3 ${b3.toFixed(4)}`);
+if (!(b3 >= b1 * 0.95)) {
+  fail.push(`the bed drops ${b1.toFixed(4)} -> ${b3.toFixed(4)} from boss1 to boss3 — `
+    + 'Vader gets quieter as he escalates');
+}
+
+// ── 12. The boss ladder ─────────────────────────────────────────────────────
 console.log(`boss phases 1-3: ${result.bossTiers.join(' -> ')}`);
 console.log(`mini-boss mid-wave at full heat: ${result.miniTier} (still ${result.miniTierAfterTick} after a tick)`);
-if (result.bossTiers.join(',') !== 'heavy,heavy2,heavy3') {
-  fail.push(`boss phases gave ${result.bossTiers.join(' -> ')}, expected heavy -> heavy2 -> heavy3`);
+if (result.bossTiers.join(',') !== 'boss1,boss2,boss3') {
+  fail.push(`boss phases gave ${result.bossTiers.join(' -> ')}, expected boss1 -> boss2 -> boss3`);
 }
 // The whole point of the mini-boss feel is that it survives a full room: if
 // heat could pull it back to `hot`, the capstone would sound like any wave.

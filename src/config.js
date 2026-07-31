@@ -430,9 +430,13 @@ export const MUSIC = {
     // twice the space — the difference between heavier and merely busier.
     // The pad sits darker than `hot` on purpose: a boss should not be the
     // brightest thing in the game.
-    heavy:  { kit: 'halftime',     phrase: 'main', tempo: 'base', melody: true, padSpan: 0.80, halfTime: true },
-    heavy2: { kit: 'halftime2',    phrase: 'main', tempo: 'base', melody: true, padSpan: 0.90, halfTime: true },
-    heavy3: { kit: 'halftimeRoll', phrase: 'main', tempo: 'hot',  melody: true, padSpan: 1.00, halfTime: true },
+    // Vader. The theme itself escalates with his phases, not just the kit:
+    // phase 1 states it in unison, phases 2 and 3 open it into octaves. Each
+    // transition then changes something you could hum, rather than only what
+    // is happening behind it.
+    boss1: { kit: 'halftime',     phrase: 'main', tempo: 'base', melody: true, padSpan: 0.80, halfTime: true },
+    boss2: { kit: 'halftime2',    phrase: 'main', tempo: 'base', melody: true, padSpan: 0.90, halfTime: true, octaves: true },
+    boss3: { kit: 'halftimeRoll', phrase: 'main', tempo: 'hot',  melody: true, padSpan: 1.00, halfTime: true, octaves: true },
   },
 
   // How the director turns the situation into a 0-1 heat, and heat into a tier.

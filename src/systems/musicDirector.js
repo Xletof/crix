@@ -37,7 +37,7 @@ const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 function tierFor() {
   // A boss outranks heat entirely: the point of the half-time feel is that a
   // boss sounds like a boss whether or not the room happens to be crowded.
-  if (phase === 'boss') return ['heavy', 'heavy', 'heavy2', 'heavy3'][bossPhase] || 'heavy';
+  if (phase === 'boss') return ['boss1', 'boss1', 'boss2', 'boss3'][bossPhase] || 'boss1';
   if (phase === 'miniboss') return 'miniboss';
   // Calm is for a finished ROOM, not a finished wave. This used to send every
   // non-wave phase here, which dropped the march out on every wave clear — the
@@ -62,6 +62,20 @@ function tierFor() {
  * The lifecycle cue. Called from the four points in GameScene that used to
  * call setMusicIntensity directly.
  */
+/**
+ * Accumulate frame time and report whether a sample is due, returning the
+ * elapsed ms to hand back to tickDirector (and zero if it is not due yet).
+ * Lives here rather than in the scene so the sample interval stays next to the
+ * rest of the heat model.
+ */
+export function musicSampleDue(delta) {
+  acc += delta;
+  if (acc < CFG.sampleMs) return 0;
+  const elapsed = acc;
+  acc = 0;
+  return elapsed;
+}
+
 export function setMusicPhase(p) {
   if (p === phase) return;
   const was = phase;
@@ -89,17 +103,14 @@ export function setBossPhase(n) {
 }
 
 /**
- * Feed the director the current situation. Throttled internally to
- * MUSIC.heat.sampleMs, so the caller can hand it every frame's delta without
- * thinking about it.
+ * Feed the director the current situation. The CALLER throttles — see
+ * `musicSampleDue` — so that the snapshot object is only built on a sample,
+ * not allocated and thrown away sixty times a second.
  *
  * snap: { combo, lastKillAge, alive, maxAlive, waveIdx, waveCount, hpFrac }
  */
-export function tickDirector(delta, snap) {
-  acc += delta;
-  if (acc < CFG.sampleMs) return;
-  const dt = acc / 1000;
-  acc = 0;
+export function tickDirector(elapsedMs, snap) {
+  const dt = elapsedMs / 1000;
 
   // Kill streak. _comboCount is never reset until the NEXT kill lands, so the
   // count alone says nothing about whether the streak is still live — the age

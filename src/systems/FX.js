@@ -1250,7 +1250,7 @@ export function startMusic() {
   // envelope. A single static square (what this was) has no attack transient,
   // which is the other half of why the line sounded lifeless — brass gets its
   // character from the filter opening fast and closing again, not from pitch.
-  const marchVoice = (t, freq, beats, accent, scale = 1, barBeat = tempoBeat) => {
+  const marchVoice = (t, freq, beats, accent, scale = 1, barBeat = tempoBeat, octaves = false) => {
     const hold = beats * barBeat * 0.82;      // articulation gap between notes
     const g = ctx.createGain();
     const lp = ctx.createBiquadFilter();
@@ -1276,6 +1276,37 @@ export function startMusic() {
       o.stop(t + hold + 0.03);
       keep(o);
     });
+    // In octaves: a second stack an octave up, at half level, through its own
+    // filter — the lowpass above tracks `freq` and would eat the upper stack's
+    // fundamental entirely if it shared it.
+    //
+    // This is the oldest trick there is for making a theme sound bigger, and
+    // here it does double duty: the doubling lands at 174-440Hz where a handset
+    // speaker actually starts working, so Vader gains presence on the device
+    // rather than only in headphones.
+    if (octaves) {
+      const olp = ctx.createBiquadFilter();
+      const og = ctx.createGain();
+      olp.type = 'lowpass';
+      olp.Q.value = 4;
+      olp.frequency.setValueAtTime(freq * 4, t);
+      olp.frequency.linearRampToValueAtTime(freq * 12, t + 0.035);
+      olp.frequency.exponentialRampToValueAtTime(freq * 5, t + hold);
+      og.gain.setValueAtTime(0.0001, t);
+      og.gain.linearRampToValueAtTime(0.038 * accent * scale, t + 0.012);
+      og.gain.setValueAtTime(0.038 * accent * scale, t + hold * 0.55);
+      og.gain.exponentialRampToValueAtTime(0.0001, t + hold);
+      olp.connect(og); og.connect(musicGain);
+      [-6, 0, 6].forEach((cents) => {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = freq * 2 * Math.pow(2, cents / 1200);
+        o.connect(olp);
+        o.start(t);
+        o.stop(t + hold + 0.03);
+        keep(o);
+      });
+    }
     // Sub an octave down so the line still has weight on a small speaker, where
     // the saw stack's fundamental at 87-131Hz is barely reproduced.
     const s = ctx.createOscillator();
@@ -1336,7 +1367,15 @@ export function startMusic() {
     const phrase = MUSIC.phrases[tier.phrase] || MUSIC.phrases.main;
     let beat = 0;
     for (const n of phrase[barIdx % phrase.length]) {
-      if (!n.rest && tier.melody) marchVoice(at + beat * barBeat, n.f, n.len, n.accent, coreScale, barBeat);
+      // The melody is NOT trimmed by the layer budget. That budget exists to
+      // keep stacked PERCUSSION out of the compressor, and the melody is not
+      // competing with a shaker for headroom — it is on musicGain, not percBus.
+      // Trimming it as layers arrive made the tune quietest exactly when the
+      // arrangement was fullest: Vader's ladder measured 0.0350 -> 0.0327 ->
+      // 0.0322 across his three phases, getting quieter as he escalated.
+      if (!n.rest && tier.melody) {
+        marchVoice(at + beat * barBeat, n.f, n.len, n.accent, 1, barBeat, !!tier.octaves);
+      }
       beat += n.len;
     }
     if (Math.abs(beat - barBeats) > 1e-6) {
