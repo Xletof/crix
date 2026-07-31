@@ -1222,102 +1222,13 @@ export function startMusic() {
     }
   }
 
-  // The Imperial March, both halves of it.
-  //
-  // What was here before was the first PHRASE only — "dun dun dun DUN-da-DUN,
-  // DUN-da-DUN" — as a single 6-beat bar on repeat. That is a third of one
-  // sentence, so the tune restarted before it ever resolved and the loop was
-  // audibly premature: the ear expects the answering "A F C A" and the fall to
-  // the tonic, and never got either.
-  //
-  // Written out below is the full 8-bar statement in 4/4, in A minor (the
-  // score is in G minor; everything here is that, up a whole tone, and dropped
-  // two octaves into the bass register the saw stack is voiced for):
-  //
-  //   Bars 1-4  A section — the theme. Statement, answer, the same shape lifted
-  //             to the fifth, then the cadence back onto A.
-  //   Bars 5-8  B section — the answering phrase that climbs an octave, walks
-  //             down chromatically, and lands on E to set up the repeat.
-  //
-  // The B section is what makes the loop close. It ends on the dominant, so
-  // bar 8 leads back into bar 1 instead of just stopping — 32 beats, ~14.7s,
-  // long enough that the repeat is not the thing you notice.
-  //
-  // BEAT is the quarter-note unit; `len` is in beats. Notes are articulated
-  // (`hold` < len) so they detach instead of running together, and the dotted
-  // 0.75/0.25 pairs are the march's signature rhythm — flatten those to equal
-  // quarters and the whole thing turns back into elevator music.
   // The quarter note, in seconds. MUTABLE, and read exactly twice per bar: the
   // loop freezes it into `barBeat` before scheduling, and advances its own
   // cursor with that same frozen value. Everything inside a bar derives from
   // the frozen copy, which is what stops the melody and the kit drifting apart
   // when the tempo moves.
   let tempoBeat = MUSIC.tempo.base;
-  const R = (len) => ({ rest: true, len });   // silence still consumes its beats
-  const marchBars = [
-    // ── A section ──────────────────────────────────────────────────────────
-    [ // 1  A A A | F. C
-      { f: 110,    len: 1,    accent: 1    },
-      { f: 110,    len: 1,    accent: 0.9  },
-      { f: 110,    len: 1,    accent: 0.9  },
-      { f: 87.31,  len: 0.75, accent: 1    },
-      { f: 130.81, len: 0.25, accent: 0.7  },
-    ],
-    [ // 2  A | F. C | A (half)
-      { f: 110,    len: 1,    accent: 1    },
-      { f: 87.31,  len: 0.75, accent: 0.95 },
-      { f: 130.81, len: 0.25, accent: 0.7  },
-      { f: 110,    len: 2,    accent: 1    },
-    ],
-    [ // 3  E E E | F. C   — the same figure a fifth up
-      { f: 164.81, len: 1,    accent: 1    },
-      { f: 164.81, len: 1,    accent: 0.9  },
-      { f: 164.81, len: 1,    accent: 0.9  },
-      { f: 174.61, len: 0.75, accent: 1    },
-      { f: 130.81, len: 0.25, accent: 0.7  },
-    ],
-    [ // 4  G# | F. C | A (half)  — cadence home
-      { f: 103.83, len: 1,    accent: 0.95 },
-      { f: 174.61, len: 0.75, accent: 1    },
-      { f: 130.81, len: 0.25, accent: 0.7  },
-      { f: 110,    len: 2,    accent: 1    },
-    ],
-    // ── B section ──────────────────────────────────────────────────────────
-    [ // 5  A(8va) | A. A | A(8va) | G#. G
-      { f: 220,    len: 1,    accent: 1    },
-      { f: 110,    len: 0.75, accent: 0.8  },
-      { f: 110,    len: 0.25, accent: 0.7  },
-      { f: 220,    len: 1,    accent: 1    },
-      { f: 207.65, len: 0.75, accent: 0.9  },
-      { f: 196.00, len: 0.25, accent: 0.8  },
-    ],
-    [ // 6  F# F F# — | Bb | Eb | D. C#   — the chromatic walk down
-      { f: 185.00, len: 0.25, accent: 0.85 },
-      { f: 174.61, len: 0.25, accent: 0.8  },
-      { f: 185.00, len: 0.5,  accent: 0.9  },
-      R(0.5),
-      { f: 116.54, len: 0.5,  accent: 0.75 },
-      { f: 155.56, len: 1,    accent: 0.95 },
-      { f: 146.83, len: 0.75, accent: 0.9  },
-      { f: 138.59, len: 0.25, accent: 0.8  },
-    ],
-    [ // 7  C B C — | F | G# | F. G#   — same shape, dropped to the low register
-      { f: 130.81, len: 0.25, accent: 0.85 },
-      { f: 123.47, len: 0.25, accent: 0.8  },
-      { f: 130.81, len: 0.5,  accent: 0.9  },
-      R(0.5),
-      { f: 87.31,  len: 0.5,  accent: 0.75 },
-      { f: 103.83, len: 1,    accent: 0.95 },
-      { f: 87.31,  len: 0.75, accent: 0.9  },
-      { f: 103.83, len: 0.25, accent: 0.8  },
-    ],
-    [ // 8  C | A. C | E (half)  — lands on the dominant, turns back into bar 1
-      { f: 130.81, len: 1,    accent: 0.95 },
-      { f: 110,    len: 0.75, accent: 0.9  },
-      { f: 130.81, len: 0.25, accent: 0.8  },
-      { f: 164.81, len: 2,    accent: 1    },
-    ],
-  ];
+
   // Every bar is 4/4. Asserting it here rather than accumulating a per-bar
   // length is deliberate: the drum grid below is written against a fixed 4-beat
   // bar, so a mistyped `len` must be a loud failure, not a bar that silently
@@ -1418,8 +1329,13 @@ export function startMusic() {
     // The melody is skipped entirely in a tier that does not carry it, but the
     // bar cursor still advances in the caller — so when combat returns the
     // phrase resumes where it got to instead of snapping back to bar 1.
+    //
+    // The phrase comes from the TIER, and phrases are not all the same length
+    // (the mini-boss loop is 4 bars against the march's 8), which is why the
+    // cursor is free-running and every consumer takes its own modulo.
+    const phrase = MUSIC.phrases[tier.phrase] || MUSIC.phrases.main;
     let beat = 0;
-    for (const n of marchBars[barIdx]) {
+    for (const n of phrase[barIdx % phrase.length]) {
       if (!n.rest && tier.melody) marchVoice(at + beat * barBeat, n.f, n.len, n.accent, coreScale, barBeat);
       beat += n.len;
     }
@@ -1486,7 +1402,11 @@ export function startMusic() {
     const barBeat = tempoBeat;
     musicBeatNow = barBeat;
     startBar(next, barIdx, barBeat);
-    barIdx = (barIdx + 1) % marchBars.length;
+    // Free-running: wrapped at a fixed 8 it would land on the wrong bar of a
+    // 4-bar phrase after a tier change. Modulo happens where it is read, and
+    // 840 keeps the number tidy while dividing by every phrase and kit length
+    // in use.
+    barIdx = (barIdx + 1) % 840;
     next += barBeats * barBeat;
 
     // Ramp toward the tier's target for the NEXT bar. Bounded per bar, so

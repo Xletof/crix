@@ -38,7 +38,7 @@ function tierFor() {
   // A boss outranks heat entirely: the point of the half-time feel is that a
   // boss sounds like a boss whether or not the room happens to be crowded.
   if (phase === 'boss') return ['heavy', 'heavy', 'heavy2', 'heavy3'][bossPhase] || 'heavy';
-  if (phase === 'miniboss') return 'heavy';
+  if (phase === 'miniboss') return 'miniboss';
   // Calm is for a finished ROOM, not a finished wave. This used to send every
   // non-wave phase here, which dropped the march out on every wave clear — the
   // bed went quiet three times a room.

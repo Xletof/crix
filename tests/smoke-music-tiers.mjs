@@ -166,6 +166,45 @@ const result = await page.evaluate(async () => {
   // A shade over two phrases, so every variation in an 8-entry order appears.
   const combatVariety = await variety('combat', 22000);
 
+  // Melodic phrase length per tier, from the note SEQUENCE rather than from a
+  // count: find where the opening run of pitches recurs. Same technique as
+  // smoke-march.mjs, which is what proved the full march loops at 32 beats.
+  const phraseBeats = async (tier, ms) => {
+    FX.stopMusic();
+    await sleep(250);
+    FX.__fxPinTempo(0.46);
+    FX.setMusicState({ tier, heat: 1 });
+    const realOsc = ctx.createOscillator.bind(ctx);
+    const notes = [];
+    let t0 = null;
+    ctx.createOscillator = () => {
+      const o = realOsc();
+      const rs = o.start.bind(o);
+      o.start = (w) => {
+        // Skip sting voices: they are triangles too, but not part of the tune.
+        if (o.type === 'triangle' && o._fxRole !== 'sting') {
+          if (t0 === null) t0 = w;
+          notes.push({ at: w - t0, f: Math.round(o.frequency.value * 100) / 100 });
+        }
+        return rs(w);
+      };
+      return o;
+    };
+    FX.startMusic();
+    const tStart = performance.now();
+    while (performance.now() - tStart < ms) await sleep(200);
+    FX.stopMusic();
+    ctx.createOscillator = realOsc;
+    const at = notes.findIndex((n, i) => i > 0
+      && n.f === notes[0].f
+      && notes[i + 1] && notes[i + 1].f === notes[1].f
+      && notes[i + 2] && notes[i + 2].f === notes[2].f
+      && notes[i + 3] && notes[i + 3].f === notes[3].f);
+    return at > 0 ? Math.round(notes[at].at / 0.46) : null;
+  };
+  const combatPhrase = await phraseBeats('combat', 20000);
+  const minibossPhrase = await phraseBeats('miniboss', 20000);
+
   // ── Level and band content of the kit itself ─────────────────────────────
   // Tapped at percBus, not musicGain: measuring the kit under the melody and
   // the pad would mostly measure the melody and the pad.
@@ -333,7 +372,7 @@ const result = await page.evaluate(async () => {
   window.game.scene.resume('Game');
   window.game.scene.resume('HUD');
 
-  return { combat, calm, hot, heavy, combatVariety, lvlCombat, lvlCombat2, lvlHot, rise, bossTiers,
+  return { combat, calm, hot, heavy, combatVariety, combatPhrase, minibossPhrase, lvlCombat, lvlCombat2, lvlHot, rise, bossTiers,
            beatFrom, beats,
            miniTier, miniTierAfterTick, tierOnUpgrade, fall, heatFresh, heatStale,
            tierInWave, tierOnBreather, heatOnBreather };
@@ -413,7 +452,18 @@ if (cv.distinct < 4) {
   fail.push(`combat plays only ${cv.distinct} distinct bar patterns — it is repeating itself`);
 }
 
-// ── 4. Half-time is heavier, not busier ────────────────────────────────────
+// ── 4. The mini-boss plays its own theme ───────────────────────────────────
+// Not the wave music with heavier drums: a different, shorter phrase.
+console.log(`phrase length: combat ${result.combatPhrase} beats, mini-boss ${result.minibossPhrase} beats`);
+if (result.combatPhrase !== 32) {
+  fail.push(`combat phrase measured ${result.combatPhrase} beats, expected 32`);
+}
+if (result.minibossPhrase !== 16) {
+  fail.push(`mini-boss phrase measured ${result.minibossPhrase} beats, expected 16 — `
+    + 'it is not playing the B-section loop');
+}
+
+// ── 5. Half-time is heavier, not busier ────────────────────────────────────
 // The claim that separates a boss from "the same music, louder": the kit drops
 // to half speed while the tune carries on completely unchanged.
 const { heavy } = result;
@@ -436,7 +486,7 @@ if (heavy.kicks >= combat.kicks) {
   fail.push(`half-time scheduled ${heavy.kicks} kicks vs combat's ${combat.kicks} — expected roughly half`);
 }
 
-// ── 5. Heat rises faster than it falls ─────────────────────────────────────
+// ── 6. Heat rises faster than it falls ─────────────────────────────────────
 const { rise, fall } = result;
 console.log(`heat rise: ${rise.map((h) => h.toFixed(2)).join(' ')}`);
 console.log(`heat fall: ${fall.map((h) => h.toFixed(2)).join(' ')}`);
@@ -453,13 +503,13 @@ if (!(risePerStep > fallPerStep * 1.5)) {
   fail.push(`heat rises at ${risePerStep.toFixed(3)}/sample and falls at ${fallPerStep.toFixed(3)} — attack is not faster than release`);
 }
 
-// ── 6. A stale kill streak stops counting ──────────────────────────────────
+// ── 7. A stale kill streak stops counting ──────────────────────────────────
 console.log(`heat with a fresh streak ${result.heatFresh.toFixed(3)} vs stale ${result.heatStale.toFixed(3)}`);
 if (!(result.heatFresh > result.heatStale + 0.05)) {
   fail.push('a stale kill streak still contributes — lastKillAge is not being honoured');
 }
 
-// ── 7. Phase overrides heat ────────────────────────────────────────────────
+// ── 8. Phase overrides heat ────────────────────────────────────────────────
 console.log(`tier in wave '${result.tierInWave}' → breather '${result.tierOnBreather}' `
   + `→ room clear '${result.tierOnUpgrade}' (heat still ${result.heatOnBreather.toFixed(2)})`);
 // Maximum pressure must reach the top combat tier, not sit in the middle one.
@@ -477,7 +527,7 @@ if (!(result.heatOnBreather > 0.3)) {
   fail.push('heat collapsed on the breather — it should keep decaying so the next wave can swell from where it is');
 }
 
-// ── 8. Tempo ramps toward the tier's target, gliding rather than jumping ───
+// ── 9. Tempo ramps toward the tier's target, gliding rather than jumping ───
 const { beatFrom, beats } = result;
 console.log(`tempo: ${beatFrom.toFixed(4)} -> ${beats.map((b) => b.toFixed(4)).join(' ')}`);
 const last = beats[beats.length - 1];
@@ -494,7 +544,7 @@ const worst = Math.max(...steps);
 console.log(`largest single-bar tempo step: ${(worst * 100).toFixed(2)}% (cap 2%)`);
 if (worst > 0.025) fail.push(`tempo jumped ${(worst * 100).toFixed(1)}% in one bar — the ramp is not bounded`);
 
-// ── 9. The boss ladder ─────────────────────────────────────────────────────
+// ── 10. The boss ladder ─────────────────────────────────────────────────────
 console.log(`boss phases 1-3: ${result.bossTiers.join(' -> ')}`);
 console.log(`mini-boss mid-wave at full heat: ${result.miniTier} (still ${result.miniTierAfterTick} after a tick)`);
 if (result.bossTiers.join(',') !== 'heavy,heavy2,heavy3') {
@@ -502,7 +552,7 @@ if (result.bossTiers.join(',') !== 'heavy,heavy2,heavy3') {
 }
 // The whole point of the mini-boss feel is that it survives a full room: if
 // heat could pull it back to `hot`, the capstone would sound like any wave.
-if (result.miniTier !== 'heavy' || result.miniTierAfterTick !== 'heavy') {
+if (result.miniTier !== 'miniboss' || result.miniTierAfterTick !== 'miniboss') {
   fail.push(`mini-boss tier was ${result.miniTier}/${result.miniTierAfterTick} — heat is overriding it`);
 }
 

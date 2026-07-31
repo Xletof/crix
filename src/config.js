@@ -352,6 +352,10 @@ export const BOSS = {
 // the ear should learn the pattern, and a random kit would make the smoke tests
 // non-deterministic. An 8-entry order locks a variation to its bar of the
 // 8-bar phrase; a 4-entry order cycles twice per phrase.
+// A rest inside a melodic phrase. It still consumes its beats — the bar has to
+// total 4 either way.
+const R = (len) => ({ rest: true, len });
+
 export const MUSIC = {
   // Tempo, as the quarter-note in SECONDS — lower is faster. Tiers name one of
   // these; FX ramps toward it by at most maxStepPerBar (a fraction) each bar,
@@ -412,18 +416,23 @@ export const MUSIC = {
   // a pad and a heartbeat between waves is what gives its return at the next
   // wave something to land against.
   tiers: {
-    calm:   { kit: 'heartbeat', tempo: 'calm', melody: false, padSpan: 0.15 },
-    combat: { kit: 'march', tempo: 'base',     melody: true,  padSpan: 0.55 },
-    hot:    { kit: 'drive', tempo: 'hot',     melody: true,  padSpan: 1.00 },
+    calm:   { kit: 'heartbeat', phrase: 'main', tempo: 'calm', melody: false, padSpan: 0.15 },
+    combat: { kit: 'march',     phrase: 'main', tempo: 'base', melody: true,  padSpan: 0.55 },
+    hot:    { kit: 'drive',     phrase: 'main', tempo: 'hot',  melody: true,  padSpan: 1.00 },
+    // The mini-boss gets the march's B section as a 4-bar loop rather than a
+    // different arrangement of the same eight bars — a capstone elite should
+    // be recognisably its own music, not the wave music with heavier drums.
+    miniboss: { kit: 'halftime', phrase: 'climb', tempo: 'base', melody: true,
+                padSpan: 0.80, halfTime: true },
     // Boss tiers. `halfTime` makes the KIT read at eighth-note resolution
     // instead of sixteenth, so the drums play at half speed with the backbeat
     // on 3 while the melody stays exactly where it was. Same tune, same tempo,
     // twice the space — the difference between heavier and merely busier.
     // The pad sits darker than `hot` on purpose: a boss should not be the
     // brightest thing in the game.
-    heavy:  { kit: 'halftime', tempo: 'base',     melody: true, padSpan: 0.80, halfTime: true },
-    heavy2: { kit: 'halftime2', tempo: 'base',    melody: true, padSpan: 0.90, halfTime: true },
-    heavy3: { kit: 'halftimeRoll', tempo: 'hot', melody: true, padSpan: 1.00, halfTime: true },
+    heavy:  { kit: 'halftime',     phrase: 'main', tempo: 'base', melody: true, padSpan: 0.80, halfTime: true },
+    heavy2: { kit: 'halftime2',    phrase: 'main', tempo: 'base', melody: true, padSpan: 0.90, halfTime: true },
+    heavy3: { kit: 'halftimeRoll', phrase: 'main', tempo: 'hot',  melody: true, padSpan: 1.00, halfTime: true },
   },
 
   // How the director turns the situation into a 0-1 heat, and heat into a tier.
@@ -451,6 +460,142 @@ export const MUSIC = {
     // noticeable than either tier on its own.
     hotEnter: 0.62,
     hotExit: 0.50,
+  },
+
+
+  // ── Melodic phrases ──────────────────────────────────────────────────────
+  //
+  // A phrase is an array of BARS; a bar is an array of notes, each `{ f, len,
+  // accent }` in beats, or `R(len)` for a rest that still consumes its time.
+  // A tier names the phrase it plays, the same way it names its kit.
+  //
+  // BEAT is the quarter-note unit and `len` is in beats. Notes are articulated
+  // (`hold` < len) so they detach instead of running together, and the dotted
+  // 0.75/0.25 pairs are the march's signature rhythm — flatten those to equal
+  // quarters and the whole thing turns back into elevator music.
+  //
+  // Every bar must total exactly 4 beats. The drum grid is written against a
+  // fixed bar, so a mistyped `len` would drift the kit out of phase with the
+  // melody; startBar warns rather than letting that pass.
+  phrases: {
+    // The full march, in A minor. Bars 1-4 are the theme — statement, answer,
+    // the same shape lifted to the fifth, then the cadence home. Bars 5-8 are
+    // the answering phrase that climbs an octave, walks down chromatically and
+    // lands on E, the dominant, so bar 8 leads back into bar 1 instead of just
+    // stopping. That is what makes 32 beats loop instead of merely repeating.
+    //
+    // What was here originally was bars 1-2 ONLY, on repeat: a third of one
+    // sentence, restarting before it ever resolved.
+    main: [
+
+      // ── A section ──────────────────────────────────────────────────────────
+      [ // 1  A A A | F. C
+        { f: 110,    len: 1,    accent: 1    },
+        { f: 110,    len: 1,    accent: 0.9  },
+        { f: 110,    len: 1,    accent: 0.9  },
+        { f: 87.31,  len: 0.75, accent: 1    },
+        { f: 130.81, len: 0.25, accent: 0.7  },
+      ],
+      [ // 2  A | F. C | A (half)
+        { f: 110,    len: 1,    accent: 1    },
+        { f: 87.31,  len: 0.75, accent: 0.95 },
+        { f: 130.81, len: 0.25, accent: 0.7  },
+        { f: 110,    len: 2,    accent: 1    },
+      ],
+      [ // 3  E E E | F. C   — the same figure a fifth up
+        { f: 164.81, len: 1,    accent: 1    },
+        { f: 164.81, len: 1,    accent: 0.9  },
+        { f: 164.81, len: 1,    accent: 0.9  },
+        { f: 174.61, len: 0.75, accent: 1    },
+        { f: 130.81, len: 0.25, accent: 0.7  },
+      ],
+      [ // 4  G# | F. C | A (half)  — cadence home
+        { f: 103.83, len: 1,    accent: 0.95 },
+        { f: 174.61, len: 0.75, accent: 1    },
+        { f: 130.81, len: 0.25, accent: 0.7  },
+        { f: 110,    len: 2,    accent: 1    },
+      ],
+    // ── B section ──────────────────────────────────────────────────────────
+      [ // 5  A(8va) | A. A | A(8va) | G#. G
+        { f: 220,    len: 1,    accent: 1    },
+        { f: 110,    len: 0.75, accent: 0.8  },
+        { f: 110,    len: 0.25, accent: 0.7  },
+        { f: 220,    len: 1,    accent: 1    },
+        { f: 207.65, len: 0.75, accent: 0.9  },
+        { f: 196.00, len: 0.25, accent: 0.8  },
+      ],
+      [ // 6  F# F F# — | Bb | Eb | D. C#   — the chromatic walk down
+        { f: 185.00, len: 0.25, accent: 0.85 },
+        { f: 174.61, len: 0.25, accent: 0.8  },
+        { f: 185.00, len: 0.5,  accent: 0.9  },
+        R(0.5),
+        { f: 116.54, len: 0.5,  accent: 0.75 },
+        { f: 155.56, len: 1,    accent: 0.95 },
+        { f: 146.83, len: 0.75, accent: 0.9  },
+        { f: 138.59, len: 0.25, accent: 0.8  },
+      ],
+      [ // 7  C B C — | F | G# | F. G#   — same shape, dropped to the low register
+        { f: 130.81, len: 0.25, accent: 0.85 },
+        { f: 123.47, len: 0.25, accent: 0.8  },
+        { f: 130.81, len: 0.5,  accent: 0.9  },
+        R(0.5),
+        { f: 87.31,  len: 0.5,  accent: 0.75 },
+        { f: 103.83, len: 1,    accent: 0.95 },
+        { f: 87.31,  len: 0.75, accent: 0.9  },
+        { f: 103.83, len: 0.25, accent: 0.8  },
+      ],
+      [ // 8  C | A. C | E (half)  — lands on the dominant, turns back into bar 1
+        { f: 130.81, len: 1,    accent: 0.95 },
+        { f: 110,    len: 0.75, accent: 0.9  },
+        { f: 130.81, len: 0.25, accent: 0.8  },
+        { f: 164.81, len: 2,    accent: 1    },
+      ],
+    ],
+
+    // The B section on its own — bars 5-8 above, as a four-bar loop. The
+    // mini-boss theme.
+    //
+    // It works standalone for the same reason it closes the full phrase: it
+    // ends on E, the dominant, so it turns back into its own first bar. And it
+    // is the tensest music in the piece — a chromatic descent over a rising
+    // octave leap — which is exactly what a capstone elite wants and what the
+    // theme itself, being a statement rather than a build, is not.
+    climb: [
+      [ // 5  A(8va) | A. A | A(8va) | G#. G
+        { f: 220,    len: 1,    accent: 1    },
+        { f: 110,    len: 0.75, accent: 0.8  },
+        { f: 110,    len: 0.25, accent: 0.7  },
+        { f: 220,    len: 1,    accent: 1    },
+        { f: 207.65, len: 0.75, accent: 0.9  },
+        { f: 196.00, len: 0.25, accent: 0.8  },
+      ],
+      [ // 6  F# F F# — | Bb | Eb | D. C#   — the chromatic walk down
+        { f: 185.00, len: 0.25, accent: 0.85 },
+        { f: 174.61, len: 0.25, accent: 0.8  },
+        { f: 185.00, len: 0.5,  accent: 0.9  },
+        R(0.5),
+        { f: 116.54, len: 0.5,  accent: 0.75 },
+        { f: 155.56, len: 1,    accent: 0.95 },
+        { f: 146.83, len: 0.75, accent: 0.9  },
+        { f: 138.59, len: 0.25, accent: 0.8  },
+      ],
+      [ // 7  C B C — | F | G# | F. G#   — same shape, dropped to the low register
+        { f: 130.81, len: 0.25, accent: 0.85 },
+        { f: 123.47, len: 0.25, accent: 0.8  },
+        { f: 130.81, len: 0.5,  accent: 0.9  },
+        R(0.5),
+        { f: 87.31,  len: 0.5,  accent: 0.75 },
+        { f: 103.83, len: 1,    accent: 0.95 },
+        { f: 87.31,  len: 0.75, accent: 0.9  },
+        { f: 103.83, len: 0.25, accent: 0.8  },
+      ],
+      [ // 8  C | A. C | E (half)  — lands on the dominant, turns back into bar 1
+        { f: 130.81, len: 1,    accent: 0.95 },
+        { f: 110,    len: 0.75, accent: 0.9  },
+        { f: 130.81, len: 0.25, accent: 0.8  },
+        { f: 164.81, len: 2,    accent: 1    },
+      ],
+    ],
   },
 
   kits: {
