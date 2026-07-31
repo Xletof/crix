@@ -17,6 +17,13 @@ let sfxGain = null;
 // the user's SFX slider still lives on sfxGain above both.
 let sfxBus = null;      // default route for every SFX; duckable
 let meleeBus = null;    // Riven melee only; boosted, never ducked
+// The drum kit, under musicGain. Same idea as the two SFX buses: one node the
+// whole kit passes through, so its level can be trimmed as layers stack without
+// touching the melody or the pad — those stay direct on musicGain, because a
+// melody that ducks every time the drums thicken is the opposite of what a
+// build-up should sound like. It is also the only way a test can measure the
+// kit on its own instead of inferring it from the summed bed.
+let percBus = null;
 let musicVol = 0.40;   // was 0.18 — music sat ~20dB under SFX and was inaudible
 let sfxVol = 0.60;
 let sfxDelay = null;   // shared feedback-delay send for SFX "tails" (combo chime)
@@ -73,7 +80,12 @@ export function initAudio() {
     musicGain = audioCtx.createGain();
     musicGain.gain.value = musicVol;
     musicGain.connect(masterGain);
-    
+
+    // Drum kit bus. Starts at unity so this changes nothing on its own.
+    percBus = audioCtx.createGain();
+    percBus.gain.value = 1;
+    percBus.connect(musicGain);
+
     sfxGain = audioCtx.createGain();
     sfxGain.gain.value = sfxVol;
     sfxGain.connect(masterGain);
@@ -419,8 +431,12 @@ export function __fxDebug() {
     sfxBusGain: sfxBus ? sfxBus.gain.value : null,
     meleeBusGain: meleeBus ? meleeBus.gain.value : null,
     // musicGain lets a test measure the bed in isolation — tapping masterGain
-    // in a live arena just measures gunfire.
+    // in a live arena just measures gunfire. percBus narrows that further to
+    // the drum kit alone, which is what a claim about layer density needs:
+    // measuring the kit at musicGain just sums it back under the melody.
     musicGain,
+    percBus,
+    percBusGain: percBus ? percBus.gain.value : null,
     // Loop bookkeeping: at most two bars of voices (the queued one plus the one
     // still ringing) and at most one pending timer should exist at any moment.
     // A stop/start cycle that leaks either is what stacks bars and brings the
@@ -1004,7 +1020,7 @@ export function startMusic() {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(gain, t + 0.006);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
-    o.connect(g); g.connect(musicGain);
+    o.connect(g); g.connect(percBus);
     o.start(t); o.stop(t + 0.26); keep(o);
   };
   const snare = (t, gain = LG.snare) => {
@@ -1013,7 +1029,7 @@ export function startMusic() {
     const g = ctx.createGain();
     g.gain.setValueAtTime(gain, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
-    src.connect(hp); hp.connect(g); g.connect(musicGain);
+    src.connect(hp); hp.connect(g); g.connect(percBus);
     src.start(t); src.stop(t + 0.16); keep(src);
   };
   const hat = (t, open = false, gain = LG.hat) => {
@@ -1023,7 +1039,7 @@ export function startMusic() {
     const dur = open ? 0.10 : 0.03;
     g.gain.setValueAtTime(gain, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(hp); hp.connect(g); g.connect(musicGain);
+    src.connect(hp); hp.connect(g); g.connect(percBus);
     src.start(t); src.stop(t + dur + 0.02); keep(src);
   };
 
