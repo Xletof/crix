@@ -353,6 +353,12 @@ export const BOSS = {
 // non-deterministic. An 8-entry order locks a variation to its bar of the
 // 8-bar phrase; a 4-entry order cycles twice per phrase.
 export const MUSIC = {
+  // Tempo, as the quarter-note in SECONDS — lower is faster. Tiers name one of
+  // these; FX ramps toward it by at most maxStepPerBar (a fraction) each bar,
+  // so 0.46 -> 0.42 takes about five bars. It creeps rather than jumping,
+  // which is the difference between rising tension and a tape-speed effect.
+  tempo: { calm: 0.48, base: 0.46, hot: 0.42, maxStepPerBar: 0.02 },
+
   // Per-voice gain. These are the levels each voice used to hardcode; keeping
   // them here means a mix change is a config edit, not a hunt through
   // synthesis code.
@@ -406,18 +412,18 @@ export const MUSIC = {
   // a pad and a heartbeat between waves is what gives its return at the next
   // wave something to land against.
   tiers: {
-    calm:   { kit: 'heartbeat', melody: false, padSpan: 0.15 },
-    combat: { kit: 'march',     melody: true,  padSpan: 0.55 },
-    hot:    { kit: 'drive',     melody: true,  padSpan: 1.00 },
+    calm:   { kit: 'heartbeat', tempo: 'calm', melody: false, padSpan: 0.15 },
+    combat: { kit: 'march', tempo: 'base',     melody: true,  padSpan: 0.55 },
+    hot:    { kit: 'drive', tempo: 'hot',     melody: true,  padSpan: 1.00 },
     // Boss tiers. `halfTime` makes the KIT read at eighth-note resolution
     // instead of sixteenth, so the drums play at half speed with the backbeat
     // on 3 while the melody stays exactly where it was. Same tune, same tempo,
     // twice the space — the difference between heavier and merely busier.
     // The pad sits darker than `hot` on purpose: a boss should not be the
     // brightest thing in the game.
-    heavy:  { kit: 'halftime',     melody: true, padSpan: 0.80, halfTime: true },
-    heavy2: { kit: 'halftime2',    melody: true, padSpan: 0.90, halfTime: true },
-    heavy3: { kit: 'halftimeRoll', melody: true, padSpan: 1.00, halfTime: true },
+    heavy:  { kit: 'halftime', tempo: 'base',     melody: true, padSpan: 0.80, halfTime: true },
+    heavy2: { kit: 'halftime2', tempo: 'base',    melody: true, padSpan: 0.90, halfTime: true },
+    heavy3: { kit: 'halftimeRoll', tempo: 'hot', melody: true, padSpan: 1.00, halfTime: true },
   },
 
   // How the director turns the situation into a 0-1 heat, and heat into a tier.

@@ -65,6 +65,10 @@ const result = await page.evaluate(async () => {
   const record = async (tier, ms) => {
     FX.stopMusic();
     await sleep(250);
+    // Pin the tempo for the density counts: a tier that also runs faster would
+    // schedule more events per second for two different reasons at once, and
+    // the count could not tell them apart. Tempo has its own claim below.
+    FX.__fxPinTempo(0.46);
     FX.setMusicState({ tier, heat: tier === 'calm' ? 0 : 1 });
     const realOsc = ctx.createOscillator.bind(ctx);
     const realBuf = ctx.createBufferSource.bind(ctx);
@@ -119,6 +123,7 @@ const result = await page.evaluate(async () => {
   const measure = async (tier, ms) => {
     FX.stopMusic();
     await sleep(250);
+    FX.__fxPinTempo(0.46);
     FX.setMusicState({ tier, heat: 1 });
     const perc = FX.__fxDebug().percBus;
     const mute = ctx.createGain(); mute.gain.value = 0;
@@ -219,6 +224,26 @@ const result = await page.evaluate(async () => {
   const tierOnBreather = FX.getMusicState().tier;
   const heatOnBreather = DIR.__directorDebug().heat;
 
+  // ── Tempo ramps, bounded and monotone ────────────────────────────────────
+  // Released from the pin: this is the one claim that is ABOUT the tempo.
+  FX.__fxPinTempo(null);
+  FX.stopMusic();
+  await sleep(250);
+  FX.setMusicState({ tier: 'combat', heat: 0 });
+  FX.startMusic();
+  await sleep(2500);                       // settle at the base tempo
+  const beatFrom = FX.__fxDebug().musicBeat;
+  FX.setMusicState({ tier: 'hot', heat: 1 });
+  const beats = [];
+  const tStart = performance.now();
+  while (performance.now() - tStart < 14000) {
+    await sleep(200);
+    const b = FX.__fxDebug().musicBeat;
+    if (b !== beats[beats.length - 1]) beats.push(b);
+  }
+  FX.stopMusic();
+  FX.__fxPinTempo(0.46);
+
   // Boss ladder. Phase outranks heat entirely, and each Vader phase should
   // thicken the half-time kit rather than fall back to a combat tier.
   DIR.resetDirector();
@@ -243,6 +268,7 @@ const result = await page.evaluate(async () => {
   window.game.scene.resume('HUD');
 
   return { combat, calm, hot, heavy, lvlCombat, lvlCombat2, lvlHot, rise, bossTiers,
+           beatFrom, beats,
            miniTier, miniTierAfterTick, fall, heatFresh, heatStale,
            tierInWave, tierOnBreather, heatOnBreather };
 });
@@ -371,7 +397,24 @@ if (!(result.heatOnBreather > 0.3)) {
   fail.push('heat collapsed on the breather — it should keep decaying so the next wave can swell from where it is');
 }
 
-// ── 7. The boss ladder ─────────────────────────────────────────────────────
+// ── 7. Tempo ramps toward the tier's target, gliding rather than jumping ───
+const { beatFrom, beats } = result;
+console.log(`tempo: ${beatFrom.toFixed(4)} -> ${beats.map((b) => b.toFixed(4)).join(' ')}`);
+const last = beats[beats.length - 1];
+if (!(beatFrom > 0.455 && beatFrom < 0.465)) {
+  fail.push(`combat settled at beat ${beatFrom.toFixed(4)}, expected ~0.46`);
+}
+if (!(last < beatFrom - 0.01)) {
+  fail.push(`tempo only moved ${beatFrom.toFixed(4)} -> ${last.toFixed(4)} — the hot tier did not speed up`);
+}
+if (last < 0.4195) fail.push(`tempo overshot its 0.42 target, reaching ${last.toFixed(4)}`);
+// Bounded per bar: the whole point is a creep, not a tape-speed effect.
+const steps = beats.map((b, i) => Math.abs(b - (i ? beats[i - 1] : beatFrom)) / (i ? beats[i - 1] : beatFrom));
+const worst = Math.max(...steps);
+console.log(`largest single-bar tempo step: ${(worst * 100).toFixed(2)}% (cap 2%)`);
+if (worst > 0.025) fail.push(`tempo jumped ${(worst * 100).toFixed(1)}% in one bar — the ramp is not bounded`);
+
+// ── 8. The boss ladder ─────────────────────────────────────────────────────
 console.log(`boss phases 1-3: ${result.bossTiers.join(' -> ')}`);
 console.log(`mini-boss mid-wave at full heat: ${result.miniTier} (still ${result.miniTierAfterTick} after a tick)`);
 if (result.bossTiers.join(',') !== 'heavy,heavy2,heavy3') {

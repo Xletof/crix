@@ -44,6 +44,14 @@ let musicIntensity = 0;     // 0 = calm, 1 = full combat (see setMusicIntensity)
 // SCHEDULE TIME, never applied mid-bar — that is what keeps the melody and the
 // kit locked to the same grid no matter when the game changes its mind.
 let musicTier = 'combat';
+// Test-only tempo lock. Null in normal play. smoke-march.mjs pins this so its
+// grid assertions stay written against a constant beat — its claim is about
+// the note SEQUENCE, and a moving tempo is a variable it never meant to test.
+let musicTempoPin = null;
+// Mirror of the live tempo. The working value lives inside startMusic's
+// closure; this copy exists so __fxDebug (and therefore a test) can watch the
+// ramp without reaching into it.
+let musicBeatNow = MUSIC.tempo.base;
 let intensityTargets = [];  // pad filters that open as intensity rises
 let muted = false;
 const MASTER_VOL = 0.5;
@@ -447,6 +455,7 @@ export function __fxDebug() {
     // clipping back.
     musicStarted,
     musicTier,
+    musicBeat: musicBeatNow,
     musicBarVoices: musicBarNodes.length + musicPrevBarNodes.length,
     hasMusicLoopTimer: musicLoopTimer !== null,
     meleeHumming: meleeHumNodes !== null,
@@ -1238,7 +1247,12 @@ export function startMusic() {
   // (`hold` < len) so they detach instead of running together, and the dotted
   // 0.75/0.25 pairs are the march's signature rhythm — flatten those to equal
   // quarters and the whole thing turns back into elevator music.
-  const BEAT = 0.46;
+  // The quarter note, in seconds. MUTABLE, and read exactly twice per bar: the
+  // loop freezes it into `barBeat` before scheduling, and advances its own
+  // cursor with that same frozen value. Everything inside a bar derives from
+  // the frozen copy, which is what stops the melody and the kit drifting apart
+  // when the tempo moves.
+  let tempoBeat = MUSIC.tempo.base;
   const R = (len) => ({ rest: true, len });   // silence still consumes its beats
   const marchBars = [
     // ── A section ──────────────────────────────────────────────────────────
@@ -1325,8 +1339,8 @@ export function startMusic() {
   // envelope. A single static square (what this was) has no attack transient,
   // which is the other half of why the line sounded lifeless — brass gets its
   // character from the filter opening fast and closing again, not from pitch.
-  const marchVoice = (t, freq, beats, accent, scale = 1) => {
-    const hold = beats * BEAT * 0.82;      // articulation gap between notes
+  const marchVoice = (t, freq, beats, accent, scale = 1, barBeat = tempoBeat) => {
+    const hold = beats * barBeat * 0.82;      // articulation gap between notes
     const g = ctx.createGain();
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
@@ -1368,7 +1382,7 @@ export function startMusic() {
   // 32 beats at once is what keeps the bed responsive: the tier and the
   // intensity are read here, at schedule time, so a wave that starts mid-bar
   // takes hold on the next one (~1.8s) instead of up to a full phrase later.
-  const startBar = (at, barIdx) => {
+  const startBar = (at, barIdx, barBeat) => {
     // Hand the outgoing bar to the prev slot rather than dropping it — see the
     // musicPrevBarNodes comment at the top of the file.
     musicPrevBarNodes = musicBarNodes;
@@ -1406,7 +1420,7 @@ export function startMusic() {
     // phrase resumes where it got to instead of snapping back to bar 1.
     let beat = 0;
     for (const n of marchBars[barIdx]) {
-      if (!n.rest && tier.melody) marchVoice(at + beat * BEAT, n.f, n.len, n.accent, coreScale);
+      if (!n.rest && tier.melody) marchVoice(at + beat * barBeat, n.f, n.len, n.accent, coreScale, barBeat);
       beat += n.len;
     }
     if (Math.abs(beat - barBeats) > 1e-6) {
@@ -1430,7 +1444,7 @@ export function startMusic() {
       const gain = LG[name] * scale;
       for (const st of steps) {
         if (st.i >= maxStepIdx) continue;
-        const t = at + st.i * step * BEAT;
+        const t = at + st.i * step * barBeat;
         switch (name) {
           case 'kick':    kick(t, gain); break;
           case 'snare':   snare(t, gain); break;
@@ -1441,7 +1455,7 @@ export function startMusic() {
           case 'tamb':    tamb(t, gain); break;
           // A roll runs from where it starts to the end of the bar, so it is
           // placed by its start index rather than struck like the others.
-          case 'roll':    roll(t, Math.max(0.1, at + barBeats * BEAT - t), gain); break;
+          case 'roll':    roll(t, Math.max(0.1, at + barBeats * barBeat - t), gain); break;
           default: break;
         }
       }
@@ -1458,16 +1472,34 @@ export function startMusic() {
   // re-arms off the real clock, so a slow frame or a throttled background tab
   // can't let the wall-clock timer drift away from the audio timeline.
   // `barIdx` walks the phrase and wraps, which is the whole loop.
-  const barDur = barBeats * BEAT;
   let next = ctx.currentTime;
   let barIdx = 0;
   const LOOKAHEAD = 0.2;  // schedule this far ahead of the bar's start time
   const loop = () => {
     musicLoopTimer = null;
     if (!musicStarted) return;
-    startBar(next, barIdx);
+
+    // Freeze the tempo for this bar, schedule against the frozen value, and
+    // advance the cursor by THE SAME value. Ramping before `next` advances
+    // would leave a gap or an overlap at every bar line, and it accumulates —
+    // the tempo would appear to work while the bars slowly slid out of phase.
+    const barBeat = tempoBeat;
+    musicBeatNow = barBeat;
+    startBar(next, barIdx, barBeat);
     barIdx = (barIdx + 1) % marchBars.length;
-    next += barDur;
+    next += barBeats * barBeat;
+
+    // Ramp toward the tier's target for the NEXT bar. Bounded per bar, so
+    // tempo glides instead of stepping.
+    if (musicTempoPin !== null) {
+      tempoBeat = musicTempoPin;
+    } else {
+      const tier = MUSIC.tiers[musicTier] || MUSIC.tiers.combat;
+      const target = MUSIC.tempo[tier.tempo] ?? MUSIC.tempo.base;
+      const maxStep = barBeat * MUSIC.tempo.maxStepPerBar;
+      tempoBeat = barBeat + Math.max(-maxStep, Math.min(maxStep, target - barBeat));
+    }
+
     const waitMs = Math.max(0, (next - ctx.currentTime - LOOKAHEAD) * 1000);
     musicLoopTimer = setTimeout(loop, waitMs);
   };
@@ -1634,6 +1666,16 @@ export function setMusicState({ tier, heat } = {}) {
 
 export function getMusicState() {
   return { tier: musicTier, heat: musicIntensity };
+}
+
+/**
+ * Test-only: lock the tempo, or pass null to release it. Exists so a test whose
+ * claim is about the note SEQUENCE can hold the one variable it never meant to
+ * measure still — recovering the beat from the recorded data instead would turn
+ * a falsifiable assertion into a curve fit.
+ */
+export function __fxPinTempo(b) {
+  musicTempoPin = (typeof b === 'number' && b > 0) ? b : null;
 }
 
 export function duckMusic(amount = 0.5, restoreInMs = 600) {

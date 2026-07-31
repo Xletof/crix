@@ -78,12 +78,24 @@ const result = await page.evaluate(async (RECORD_MS) => {
 
   // Restart the bed from a known point so the recording begins at bar 1.
   //
-  // The tier must be set EXPLICITLY, and it must be a melody-bearing one. Heat
-  // alone no longer decides whether the march sounds: the `calm` tier plays a
-  // pad and a heartbeat kick with no melody at all, so a bare
-  // setMusicIntensity(0) here would record zero notes and fail every check
-  // below for a reason that has nothing to do with the phrase.
+  // Two things must be set explicitly, and BOTH will silently wreck this test
+  // if they are not:
+  //
+  //   TIER, and a melody-bearing one. Heat alone no longer decides whether the
+  //   march sounds — the `calm` tier plays a pad and a heartbeat kick with no
+  //   melody at all, so a bare setMusicIntensity(0) records zero notes and
+  //   fails every check below for a reason unrelated to the phrase.
+  //
+  //   TEMPO. Every assertion here divides recorded onsets by a constant BEAT
+  //   of 0.46; with the live tempo ramping toward the tier's target, bar N's
+  //   onsets are multiples of a DIFFERENT beat, and both the phrase length and
+  //   the grid check fail on perfectly correct code. Pinning rather than
+  //   recovering the beat from the recording is deliberate: this test's claim
+  //   is about the note SEQUENCE, and inferring the tempo from the same data
+  //   it is checking would turn a falsifiable assertion into a curve fit.
+  //   Tempo has its own claim, in smoke-music-tiers.mjs.
   FX.stopMusic();
+  FX.__fxPinTempo(0.46);
   FX.setMusicState({ tier: 'combat', heat: 0 });
   await sleep(300);
 
@@ -122,6 +134,7 @@ const result = await page.evaluate(async (RECORD_MS) => {
   const elapsedS = (performance.now() - tStart) / 1000;
   const stoppedEarly = !FX.__fxDebug().musicStarted;
   FX.stopMusic();
+  FX.__fxPinTempo(null);
   ctx.createOscillator = realCreateOsc;
   window.game.scene.resume('Game');
   window.game.scene.resume('HUD');
