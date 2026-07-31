@@ -77,8 +77,14 @@ const result = await page.evaluate(async (RECORD_MS) => {
   window.game.scene.pause('HUD');
 
   // Restart the bed from a known point so the recording begins at bar 1.
+  //
+  // The tier must be set EXPLICITLY, and it must be a melody-bearing one. Heat
+  // alone no longer decides whether the march sounds: the `calm` tier plays a
+  // pad and a heartbeat kick with no melody at all, so a bare
+  // setMusicIntensity(0) here would record zero notes and fail every check
+  // below for a reason that has nothing to do with the phrase.
   FX.stopMusic();
-  FX.setMusicIntensity(0);
+  FX.setMusicState({ tier: 'combat', heat: 0 });
   await sleep(300);
 
   const notes = [];

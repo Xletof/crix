@@ -9,7 +9,8 @@ import { RoomManager } from '../systems/RoomManager.js';
 import { CoverRegistry } from '../systems/CoverRegistry.js';
 import { WeaponPickup } from '../entities/WeaponPickup.js';
 import { Terminal } from '../entities/Terminal.js';
-import { attachFX, SFX, startMusic, duckMusic, duckSfx, stopMusic, setMusicIntensity, isLowQuality } from '../systems/FX.js';
+import { attachFX, SFX, startMusic, duckMusic, duckSfx, stopMusic, isLowQuality } from '../systems/FX.js';
+import { setMusicPhase, tickDirector, resetDirector } from '../systems/musicDirector.js';
 import { ROOMS } from '../data/rooms.js';
 import { NARRATIVE } from '../data/narrative.js';
 import { NavGrid } from '../systems/NavGrid.js';
@@ -211,6 +212,10 @@ export class GameScene extends Phaser.Scene {
     // ── Cleanup on shutdown ────────────────────────────────────────────────
     this.events.once('shutdown', () => {
       stopMusic();
+      // Heat and phase live at module scope so they survive a scene restart
+      // the way the god-mode flag does — which means a restarted run would
+      // otherwise start carrying the tension of the one that just ended.
+      resetDirector();
       this.scene.stop('HUD');
       this.healthOrbs.forEach((o) => { this.tweens.killTweensOf(o.gfx); o.gfx.destroy(); });
       this.healthOrbs = [];
@@ -468,7 +473,7 @@ export class GameScene extends Phaser.Scene {
     this._waveSpawned = 0;
     this._waveDripMs  = 0;
     this.events.emit('wave-update', idx + 1, waves.length);
-    setMusicIntensity(1); // combat is live again (also covers the breather->next-wave swell)
+    setMusicPhase('wave'); // combat is live again (also covers the breather->next-wave swell)
 
     if (wave.miniBoss) {
       this.events.emit('show-banner', 'MINI-BOSS', '#ff8020');
@@ -3378,6 +3383,19 @@ export class GameScene extends Phaser.Scene {
       this.events.emit('wave-remaining', this._wavePhase === 'breather' ? 0 : living);
     }
 
+    // Feed the music director. Throttled inside it, so this hands over every
+    // frame's delta and lets it decide when to act; `living` is reused rather
+    // than counted a second time.
+    tickDirector(delta, {
+      combo: this._comboCount || 0,
+      lastKillAge: this.time.now - (this._lastKillTime ?? -99999),
+      alive: living,
+      maxAlive: cfg.maxAlive || 12,
+      waveIdx: this._waveIdx,
+      waveCount: this._roomArenaCfg?.waves?.length || 1,
+      hpFrac: this.player ? this.player.hp / this.player.hpMax : 1,
+    });
+
     if (this._wavePhase === 'spawning') {
       // Drip this wave's budget, capped at the concurrent maxAlive.
       this._waveDripMs += delta;
@@ -3399,7 +3417,7 @@ export class GameScene extends Phaser.Scene {
         } else {
           this._wavePhase = 'breather';
           this._breatherMs = 2500;
-          setMusicIntensity(0.3); // calm but not dead — the wave clear just landed
+          setMusicPhase('breather'); // the wave clear just landed — thin the bed out
         }
       }
     } else if (this._wavePhase === 'breather') {
@@ -3586,7 +3604,7 @@ export class GameScene extends Phaser.Scene {
       this.events.emit('show-banner', 'VADER APPROACHES!', '#ff2020');
       SFX.bossRoar();
       this.cameras.main.flash(400, 255, 0, 0, true);
-      setMusicIntensity(1); // full tension into the boss fight
+      setMusicPhase('wave'); // full tension into the boss fight
       
       // Spawn Vader
       this.time.delayedCall(800, () => {
@@ -3601,7 +3619,7 @@ export class GameScene extends Phaser.Scene {
       // _openDoor() itself on pick) — _roomDoorOpened still latches now so
       // _maybeCompleteRoom's terminal-completion path can't race it open.
       this._roomDoorOpened = true;
-      setMusicIntensity(0); // room's done — calm through the upgrade picker
+      setMusicPhase('upgrade'); // room's done — calm through the upgrade picker
 
       // Finishing a whole room is the biggest structural beat short of the
       // boss — give it a real, legible moment: a brief slow-mo, a bright green

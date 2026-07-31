@@ -31,6 +31,7 @@ would corrupt each other's world state.
 | `smoke-hum.mjs` | Saber hum carries in the band a phone speaker can reproduce |
 | `smoke-leak.mjs` | Primary fire is isolated from the cluster (no pool cross-talk) |
 | `smoke-march.mjs` | The music plays the full 8-bar march phrase and loops at 32 beats, not the opening fragment |
+| `smoke-music-tiers.mjs` | Tiers change what the bed plays (calm drops the melody but keeps its pulse), and the director's heat rises faster than it falls, ignores a stale kill streak, and never outvotes the lifecycle phase |
 
 **Diagnostics** — print numbers, no pass/fail. Run directly, not via `run-all`.
 

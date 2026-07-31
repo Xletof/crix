@@ -362,7 +362,55 @@ export const MUSIC = {
     hat: 0.05,
   },
 
+  // TIERS. A tier is a complete description of how the bed sounds: which kit
+  // it plays, whether the melody sounds at all, and how far open the pad sits.
+  //
+  // `padSpan` scales the filter sweep the pad's lowpass makes as heat rises
+  // (420Hz + 900 * padSpan * heat). It is what lets a heavy tier be dark but
+  // present instead of merely bright — escalation in this game must not read
+  // as "brighter and rising", which is the whistle the audio notes warn about.
+  //
+  // `melody: false` is the swell setup, not an accident: the march dropping to
+  // a pad and a heartbeat between waves is what gives its return at the next
+  // wave something to land against.
+  tiers: {
+    calm:   { kit: 'heartbeat', melody: false, padSpan: 0.15 },
+    combat: { kit: 'march',     melody: true,  padSpan: 0.55 },
+  },
+
+  // How the director turns the situation into a 0-1 heat, and heat into a tier.
+  heat: {
+    // Weights sum to 1. Every term is clamped 0-1 before weighting.
+    weights: { combo: 0.30, pressure: 0.30, lateWave: 0.15, danger: 0.25 },
+    comboCap: 6,          // kills in the window that saturate the streak term
+    comboStaleMs: 2000,   // matches _tickKillCombo's own window
+    comboFadeMs: 1200,    // ...then the term bleeds out over this
+    // Danger ramps in from 45% HP and saturates at 30% — the threshold the HUD
+    // already uses for its low-HP vignette. A hard step exactly at 0.30 would
+    // chatter every time a shield absorbs a hit.
+    dangerFrom: 0.45,
+    dangerTo: 0.30,
+    // Slew limits, in heat units per second. Rises fast, falls slowly, so a
+    // lull does not immediately drop the music out from under the player.
+    // Slew-limited rather than exponential: an exponential approach never
+    // actually arrives, which would make the tier threshold depend on how long
+    // you had been in a state rather than on the state itself.
+    attackPerSec: 1.8,
+    releasePerSec: 0.45,
+    sampleMs: 250,
+  },
+
   kits: {
+    // Calm. Pad plus a heartbeat kick, no melody, no backbeat. Variation 1
+    // adds a single pickup so four bars of it do not sit completely still.
+    heartbeat: {
+      order: [0, 0, 0, 1],
+      vars: [
+        { kick: 'x.......x.......', snare: '................', hat: '................' },
+        { kick: 'x.......x...x...', snare: '................', hat: '................' },
+      ],
+    },
+
     // The march kit. Kick on 1 and 3, backbeat on 2 and 4, eighth-note hats
     // opening on the offbeats. Variation 1 is the phrase-end fill — it lands
     // on bars 4 and 8, which is what separates the theme from its answer.

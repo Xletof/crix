@@ -40,6 +40,10 @@ let musicBarNodes = [];     // one-shot voices of the bar currently scheduled
 let musicPrevBarNodes = [];
 let meleeHumNodes = null;   // sustained blade hum while a combo chain is live
 let musicIntensity = 0;     // 0 = calm, 1 = full combat (see setMusicIntensity)
+// Which tier the bed is playing. Like musicIntensity, this is READ AT BAR
+// SCHEDULE TIME, never applied mid-bar — that is what keeps the melody and the
+// kit locked to the same grid no matter when the game changes its mind.
+let musicTier = 'combat';
 let intensityTargets = [];  // pad filters that open as intensity rises
 let muted = false;
 const MASTER_VOL = 0.5;
@@ -442,6 +446,7 @@ export function __fxDebug() {
     // A stop/start cycle that leaks either is what stacks bars and brings the
     // clipping back.
     musicStarted,
+    musicTier,
     musicBarVoices: musicBarNodes.length + musicPrevBarNodes.length,
     hasMusicLoopTimer: musicLoopTimer !== null,
     meleeHumming: meleeHumNodes !== null,
@@ -1224,18 +1229,23 @@ export function startMusic() {
   };
 
   // Schedule ONE bar of the phrase. Scheduling a bar at a time rather than all
-  // 32 beats at once is what keeps setMusicIntensity responsive: intensity is
-  // read here, at schedule time, so a wave that starts mid-bar takes hold on
-  // the next one (~1.8s) instead of up to a full phrase later.
+  // 32 beats at once is what keeps the bed responsive: the tier and the
+  // intensity are read here, at schedule time, so a wave that starts mid-bar
+  // takes hold on the next one (~1.8s) instead of up to a full phrase later.
   const startBar = (at, barIdx) => {
     // Hand the outgoing bar to the prev slot rather than dropping it — see the
     // musicPrevBarNodes comment at the top of the file.
     musicPrevBarNodes = musicBarNodes;
     musicBarNodes = [];
 
+    const tier = MUSIC.tiers[musicTier] || MUSIC.tiers.combat;
+
+    // The melody is skipped entirely in a tier that does not carry it, but the
+    // bar cursor still advances in the caller — so when combat returns the
+    // phrase resumes where it got to instead of snapping back to bar 1.
     let beat = 0;
     for (const n of marchBars[barIdx]) {
-      if (!n.rest) marchVoice(at + beat * BEAT, n.f, n.len, n.accent);
+      if (!n.rest && tier.melody) marchVoice(at + beat * BEAT, n.f, n.len, n.accent);
       beat += n.len;
     }
     if (Math.abs(beat - barBeats) > 1e-6) {
@@ -1245,7 +1255,7 @@ export function startMusic() {
     // The kit, read off the pattern for this bar. `order` is indexed by bar, so
     // the phrase-end fill lands on bars 4 and 8 every time rather than turning
     // up at random — the variation is a shape the ear can learn.
-    const kit = MUSIC.kits.march;
+    const kit = MUSIC.kits[tier.kit] || MUSIC.kits.march;
     const vars = kit.vars[kit.order[barIdx % kit.order.length]];
     const step = barBeats / 16;             // one sixteenth, in beats
     for (const s of stepsOf(vars.kick))  kick(at + s.i * step * BEAT);
@@ -1254,11 +1264,14 @@ export function startMusic() {
 
     const isPhraseEnd = barIdx === 3 || barIdx === marchBars.length - 1;
     // Combat intensity adds percussion rather than a drone: sixteenth-note hats
-    // and extra snare pushes fill in as pressure rises.
-    if (musicIntensity > 0.35) {
+    // and extra snare pushes fill in as pressure rises. Gated on the tier
+    // carrying a melody, so a calm tier stays calm even when heat is still
+    // decaying from the wave that just ended — otherwise the breather would
+    // arrive with the busiest kit in the game and no tune over it.
+    if (tier.melody && musicIntensity > 0.35) {
       for (let b = 0.25; b < barBeats; b += 0.5) hat(at + b * BEAT, false);
     }
-    if (musicIntensity > 0.7) {
+    if (tier.melody && musicIntensity > 0.7) {
       kick(at + 2.5 * BEAT);
       if (!isPhraseEnd) snare(at + 3.5 * BEAT);
     }
@@ -1332,18 +1345,42 @@ export function stopMusic() {
 // drives percussion density and how far open the pad's filter sits — the bed
 // gets busier and brighter under pressure instead of buzzing. Ramped rather
 // than stepped so wave transitions still swell.
-export function setMusicIntensity(x) {
-  musicIntensity = Math.max(0, Math.min(1, x));
+// The pad's cutoff is the product of heat and the TIER's padSpan, so a heavy
+// tier can sit dark while a hot one opens right up. Applied on any change to
+// either, which is why it is factored out of setMusicIntensity.
+function applyPadFilter() {
   if (!audioCtx) return;
+  const span = (MUSIC.tiers[musicTier] || MUSIC.tiers.combat).padSpan ?? 1;
   const t = audioCtx.currentTime;
-  intensityTargets.forEach(({ filter, base, span }) => {
+  intensityTargets.forEach(({ filter, base, span: full }) => {
     filter.frequency.cancelScheduledValues(t);
     filter.frequency.setValueAtTime(filter.frequency.value, t);
-    filter.frequency.linearRampToValueAtTime(base + span * musicIntensity, t + 0.4);
+    filter.frequency.linearRampToValueAtTime(base + full * span * musicIntensity, t + 0.4);
   });
 }
 
+export function setMusicIntensity(x) {
+  musicIntensity = Math.max(0, Math.min(1, x));
+  applyPadFilter();
+}
+
 export function getMusicIntensity() { return musicIntensity; }
+
+// The bed's full state in one call. Richer than a single scalar because no one
+// number can say "melody off" AND "this kit" AND "pad this dark" — and because
+// the alternative, a setter per property, invites half-applied states.
+//
+// Nothing here touches the running bar. Both fields are read by startBar when
+// it schedules the NEXT one, which is what keeps every change on a bar line.
+export function setMusicState({ tier, heat } = {}) {
+  if (tier && MUSIC.tiers[tier]) musicTier = tier;
+  if (typeof heat === 'number') musicIntensity = Math.max(0, Math.min(1, heat));
+  applyPadFilter();
+}
+
+export function getMusicState() {
+  return { tier: musicTier, heat: musicIntensity };
+}
 
 export function duckMusic(amount = 0.5, restoreInMs = 600) {
   if (!musicGain || !audioCtx) return;
