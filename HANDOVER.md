@@ -296,12 +296,27 @@ term, and a heat that can outvote the cue means the upgrade picker never goes
 quiet. Heat keeps decaying during calm rather than freezing, so the next wave
 starts from where the situation actually is.
 
-| Tier | Kit | Melody | Tempo | Reached by |
-|---|---|---|---|---|
-| `calm` | heartbeat kick, no snare/hat | **off** | 0.48s (~125 BPM) | breather, upgrade picker, idle |
-| `combat` | march | on | 0.46 (~130) | in a wave, heat below 0.62 |
-| `hot` | drive — shaker 16ths, ride, rimshot | on | 0.42 (~143) | in a wave, heat above 0.62 (exits at 0.50) |
-| `heavy` / `heavy2` / `heavy3` | half-time, +tamb, +roll | on | 0.46 / 0.46 / 0.42 | mini-boss, then Vader phases 1-3 |
+| Tier | Phrase | Kit | Melody | Tempo | Reached by |
+|---|---|---|---|---|---|
+| `calm` | — | heartbeat kick | **off** | 0.48s (~125 BPM) | **room clear / upgrade picker / idle only** |
+| `combat` | `main` | march, 5 variations | unison | 0.46 (~130) | in a wave *or a breather*, heat below 0.62 |
+| `hot` | `main` | drive — shaker 16ths, ride, rimshot | unison | 0.42 (~143) | heat above 0.62 (exits at 0.50) |
+| `miniboss` | `climb` | half-time | unison | 0.46 | a mini-boss is alive |
+| `boss1` | `main` | half-time | unison | 0.46 | Vader phase 1 |
+| `boss2` | `main` | half-time + tamb | **octaves** | 0.46 | Vader phase 2 |
+| `boss3` | `main` | half-time + tamb + roll | **octaves** | 0.42 | Vader phase 3 |
+
+**Calm is for a finished ROOM, not a finished wave.** It used to catch every
+non-wave phase, so the march dropped out three times a room. The breather needs
+no handling of its own: the arena is empty, so heat decays from 1.0 at 0.45/s
+and the bed settles `hot → combat` across the 2.5s by itself.
+
+**Phrases** live in `MUSIC.phrases` and a tier names one, the way it names its
+kit. `main` is the full 8-bar march; `climb` is its B section as a standalone
+4-bar loop — the mini-boss theme, which works alone because it ends on the
+dominant, and which is the tensest music in the piece. The bar cursor is
+free-running with every consumer taking its own modulo, because an 8-bar and a
+4-bar phrase have to be able to swap mid-run.
 
 - **Patterns are 16-character strings**, one char per sixteenth (`.` rest, `x`
   hit, `X` accent, `o` open hat). A kit is numbered variations plus an `order`
@@ -323,7 +338,11 @@ starts from where the situation actually is.
   band **1.30x** while total level holds.
 - **The gain budget** (`MUSIC.budget`) is what stops the busy tier being the
   quiet one under the -10dB/12:1 master compressor: extra layers scale by
-  `L^-0.5`, and kick and snare — *not* the hat — trim 6% per layer.
+  `L^-0.5`, and kick and snare — *not* the hat, and *not* the melody — trim 6%
+  per layer. Both exclusions were bugs first. Trimming the hat cancelled the
+  brightness the new layers added; trimming the melody made Vader QUIETER as he
+  escalated (0.0350 at phase 1 down to 0.0322 at phase 3). The rule that came
+  out of it: only trim what is actually competing for the same headroom.
 - Heat inputs and weights are in `MUSIC.heat`: kill streak 0.30, enemy pressure
   0.30, player danger 0.25, late-wave 0.15. The streak's staleness is derived
   from `lastKillAge` because `_comboCount` is not reset until the next kill and
@@ -331,7 +350,9 @@ starts from where the situation actually is.
   — an exponential never arrives, so the tier threshold would depend on how long
   you had been in a state rather than on the state.
 - `resetDirector()` on scene shutdown, because heat and phase live at module
-  scope (same reason as the god-mode flag).
+  scope (same reason as the god-mode flag). GameScene gates on
+  `musicSampleDue(delta)` before building a snapshot, so the object is only
+  allocated on an actual sample rather than every frame.
 
 A master compressor (threshold −10dB, ratio 12:1) glues the mix and pumps hard
 when many sources overlap — which is why the cluster's gains were trimmed when
@@ -453,6 +474,8 @@ with the dev branch, deploy run #114 green.
 
 **Recently completed** (most recent first):
 
+- Music round 2: breather keeps playing, 5 combat variations, mini-boss B
+  section, Vader in octaves (§7)
 - Dynamic music: tiers, heat, half-time boss feel, tempo ramp (§7)
 - Full 8-bar Imperial March phrase + `tests/smoke-march.mjs` (§7)
 - Depth bug of §6 investigated and closed as not observable
@@ -470,5 +493,9 @@ with the dev branch, deploy run #114 green.
 *(nothing currently open)*
 
 **Watch:** the cluster's total damage output (§5) against a full arena, and the
-music tier thresholds in `MUSIC.heat` — they are measured-correct but have not
-yet been tuned by ear on a handset.
+music tier thresholds in `MUSIC.heat` — measured-correct but not yet tuned by
+ear on a handset. Also `smoke-flight`: it failed twice today inside a full-suite
+run while passing every standalone attempt, on a hard `avgArrivalFrac < 0.6`
+threshold against a value that lands ~0.53-0.70. Music is not playing during
+that test, so it is not the audio work; it looks like a knife-edge threshold on
+a frame-rate-sensitive measurement under container load.
