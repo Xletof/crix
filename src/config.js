@@ -467,11 +467,28 @@ export const MUSIC = {
     // The march kit. Kick on 1 and 3, backbeat on 2 and 4, eighth-note hats
     // opening on the offbeats. Variation 1 is the phrase-end fill — it lands
     // on bars 4 and 8, which is what separates the theme from its answer.
+    // Ordinary combat. Five variations rather than two, because this is the
+    // tier that plays for most of the game and two patterns on repeat is what
+    // it sounds like. Deliberately DRUMS ONLY — the shaker and ride belong to
+    // `drive`, and if they leaked in here the step up to `hot` would stop
+    // reading as escalation.
+    //
+    // The order alternates the plain bar with a variation and keeps the fill
+    // on bars 4 and 8, so the kit still marks the melody's two four-bar halves.
     march: {
-      order: [0, 0, 0, 1, 0, 0, 0, 1],
+      order: [0, 1, 0, 4, 0, 2, 3, 4],
       vars: [
+        // 0 — the plain bar
         { kick: 'x.......x.......', snare: '....x.......x...', hat: 'x.o.x.o.x.o.x.o.' },
-        { kick: 'x.......x.......', snare: '....x.......x.xx', hat: 'x.o.x.o.x.o.x.o.' },
+        // 1 — a late kick push into the bar line
+        { kick: 'x.......x.....x.', snare: '....x.......x...', hat: 'x.o.x.o.x.o.x.o.' },
+        // 2 — ghost snare on the & of 2
+        { kick: 'x.......x.......', snare: '....x..x....x...', hat: 'x.o.x.o.x.o.x.o.' },
+        // 3 — driving kick, doubled open hat
+        { kick: 'x.....x.x.......', snare: '....x.......x...', hat: 'x.o.x.oox.o.x.o.' },
+        // 4 — phrase-end fill
+        { kick: 'x.......x.......', snare: '....x.......x.xx', hat: 'x.o.x.o.x.o.x.oo',
+          rimshot: '............x...' },
       ],
     },
 

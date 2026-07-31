@@ -101,11 +101,70 @@ const result = await page.evaluate(async () => {
     return { melody, kit, kicks, elapsed };
   };
 
+  // How many DISTINCT bars a tier's kit plays across one phrase. Two patterns
+  // on repeat and five rotating ones are indistinguishable from a hit COUNT,
+  // so this records where in the bar each hit lands and compares the shapes.
+  const variety = async (tier, ms) => {
+    FX.stopMusic();
+    await sleep(250);
+    FX.__fxPinTempo(0.46);
+    FX.setMusicState({ tier, heat: 1 });
+    const realBuf = ctx.createBufferSource.bind(ctx);
+    const realOsc = ctx.createOscillator.bind(ctx);
+    const raw = [];
+    // The KICK has to be in the signature. It is an oscillator, not a buffer
+    // source, and three of the five combat variations differ only in their
+    // kick — counting noise voices alone made them indistinguishable and
+    // reported five patterns as three.
+    // Tagged by voice KIND, not merged. A kick and a hi-hat on the same
+    // sixteenth are different patterns, but an untagged set collapses them —
+    // which hid three of the five variations, because their kick pushes land
+    // on steps a hat already occupies.
+    ctx.createBufferSource = () => {
+      const sp = realBuf();
+      const rs = sp.start.bind(sp);
+      sp.start = (w) => { raw.push(['n', w]); return rs(w); };
+      return sp;
+    };
+    ctx.createOscillator = () => {
+      const o = realOsc();
+      const rs = o.start.bind(o);
+      o.start = (w) => { if (o.type === 'sine') raw.push(['k', w]); return rs(w); };
+      return o;
+    };
+    FX.startMusic();
+    const tStart = performance.now();
+    while (performance.now() - tStart < ms) await sleep(200);
+    FX.stopMusic();
+    ctx.createBufferSource = realBuf;
+    ctx.createOscillator = realOsc;
+    const t0 = Math.min(...raw.map((r) => r[1]));
+    const onsets = raw.map(([kind, w]) => [kind, w - t0]);
+    // Bucket onsets into bars, then into sixteenths within the bar.
+    const barDur = 4 * 0.46;
+    const bars = new Map();
+    for (const [kind, at] of onsets) {
+      const bar = Math.floor(at / barDur + 1e-6);
+      const step = Math.round(((at / barDur) - bar) * 16);
+      if (!bars.has(bar)) bars.set(bar, new Set());
+      bars.get(bar).add(kind + step);
+    }
+    // Drop the first and last buckets. The recording starts and stops
+    // mid-bar, so those two are partial and each looks like a pattern of its
+    // own — which inflated a two-variation kit to a reported FOUR distinct
+    // bars, enough to sail past a threshold meant to catch exactly that.
+    const keys = [...bars.keys()].sort((a, b) => a - b).slice(1, -1);
+    const sigs = keys.map((k) => [...bars.get(k)].sort().join(','));
+    return { bars: sigs.length, distinct: new Set(sigs).size };
+  };
+
   // ~4 bars each (a bar is 4 × 0.46s ≈ 1.84s).
   const combat = await record('combat', 7500);
   const calm = await record('calm', 7500);
   const hot = await record('hot', 7500);
   const heavy = await record('heavy', 7500);
+  // A shade over two phrases, so every variation in an 8-entry order appears.
+  const combatVariety = await variety('combat', 22000);
 
   // ── Level and band content of the kit itself ─────────────────────────────
   // Tapped at percBus, not musicGain: measuring the kit under the melody and
@@ -274,7 +333,7 @@ const result = await page.evaluate(async () => {
   window.game.scene.resume('Game');
   window.game.scene.resume('HUD');
 
-  return { combat, calm, hot, heavy, lvlCombat, lvlCombat2, lvlHot, rise, bossTiers,
+  return { combat, calm, hot, heavy, combatVariety, lvlCombat, lvlCombat2, lvlHot, rise, bossTiers,
            beatFrom, beats,
            miniTier, miniTierAfterTick, tierOnUpgrade, fall, heatFresh, heatStale,
            tierInWave, tierOnBreather, heatOnBreather };
@@ -347,7 +406,14 @@ if (!(phoneGain > 1.15)) {
     + 'the extra density is not landing where a handset can reproduce it');
 }
 
-// ── 3. Half-time is heavier, not busier ────────────────────────────────────
+// ── 3. Ordinary combat is not two bars on repeat ───────────────────────────
+const cv = result.combatVariety;
+console.log(`combat kit: ${cv.distinct} distinct bar patterns across ${cv.bars} bars`);
+if (cv.distinct < 4) {
+  fail.push(`combat plays only ${cv.distinct} distinct bar patterns — it is repeating itself`);
+}
+
+// ── 4. Half-time is heavier, not busier ────────────────────────────────────
 // The claim that separates a boss from "the same music, louder": the kit drops
 // to half speed while the tune carries on completely unchanged.
 const { heavy } = result;
@@ -370,7 +436,7 @@ if (heavy.kicks >= combat.kicks) {
   fail.push(`half-time scheduled ${heavy.kicks} kicks vs combat's ${combat.kicks} — expected roughly half`);
 }
 
-// ── 4. Heat rises faster than it falls ─────────────────────────────────────
+// ── 5. Heat rises faster than it falls ─────────────────────────────────────
 const { rise, fall } = result;
 console.log(`heat rise: ${rise.map((h) => h.toFixed(2)).join(' ')}`);
 console.log(`heat fall: ${fall.map((h) => h.toFixed(2)).join(' ')}`);
@@ -387,13 +453,13 @@ if (!(risePerStep > fallPerStep * 1.5)) {
   fail.push(`heat rises at ${risePerStep.toFixed(3)}/sample and falls at ${fallPerStep.toFixed(3)} — attack is not faster than release`);
 }
 
-// ── 5. A stale kill streak stops counting ──────────────────────────────────
+// ── 6. A stale kill streak stops counting ──────────────────────────────────
 console.log(`heat with a fresh streak ${result.heatFresh.toFixed(3)} vs stale ${result.heatStale.toFixed(3)}`);
 if (!(result.heatFresh > result.heatStale + 0.05)) {
   fail.push('a stale kill streak still contributes — lastKillAge is not being honoured');
 }
 
-// ── 6. Phase overrides heat ────────────────────────────────────────────────
+// ── 7. Phase overrides heat ────────────────────────────────────────────────
 console.log(`tier in wave '${result.tierInWave}' → breather '${result.tierOnBreather}' `
   + `→ room clear '${result.tierOnUpgrade}' (heat still ${result.heatOnBreather.toFixed(2)})`);
 // Maximum pressure must reach the top combat tier, not sit in the middle one.
@@ -411,7 +477,7 @@ if (!(result.heatOnBreather > 0.3)) {
   fail.push('heat collapsed on the breather — it should keep decaying so the next wave can swell from where it is');
 }
 
-// ── 7. Tempo ramps toward the tier's target, gliding rather than jumping ───
+// ── 8. Tempo ramps toward the tier's target, gliding rather than jumping ───
 const { beatFrom, beats } = result;
 console.log(`tempo: ${beatFrom.toFixed(4)} -> ${beats.map((b) => b.toFixed(4)).join(' ')}`);
 const last = beats[beats.length - 1];
@@ -428,7 +494,7 @@ const worst = Math.max(...steps);
 console.log(`largest single-bar tempo step: ${(worst * 100).toFixed(2)}% (cap 2%)`);
 if (worst > 0.025) fail.push(`tempo jumped ${(worst * 100).toFixed(1)}% in one bar — the ramp is not bounded`);
 
-// ── 8. The boss ladder ─────────────────────────────────────────────────────
+// ── 9. The boss ladder ─────────────────────────────────────────────────────
 console.log(`boss phases 1-3: ${result.bossTiers.join(' -> ')}`);
 console.log(`mini-boss mid-wave at full heat: ${result.miniTier} (still ${result.miniTierAfterTick} after a tick)`);
 if (result.bossTiers.join(',') !== 'heavy,heavy2,heavy3') {
