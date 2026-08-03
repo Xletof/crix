@@ -72,6 +72,21 @@ export const ROOMS = [
       { x: 1100, y: 350 }, { x: 1100, y: 1050 },
       { x: 650, y: 500 }, { x: 950, y: 900 },
     ]),
+    // Props — the landmarks. Placed on the landing pads and against the
+    // perimeter, where the player has least reason to walk, and deliberately
+    // NOT in a row: repetition of one silhouette is the exact failure this
+    // whole art pass exists to correct.
+    props: [
+      // The shuttle IS the hangar. Parked on the north landing pad.
+      { x: 420, y: 470, tex: 'prop-shuttle', solid: true, bodyW: 150, bodyH: 190 },
+      // Loading gantry over the south pad, mirrored so it does not echo the
+      // shuttle's symmetry.
+      { x: 420, y: 1140, tex: 'prop-crane', solid: true, bodyW: 300, bodyH: 70, flip: true },
+      // Drums: two colourways, scattered in a two and a one, never aligned.
+      { x: 1310, y: 250, tex: 'prop-drum',   solid: true, bodyW: 60, bodyH: 50 },
+      { x: 1380, y: 300, tex: 'prop-drum-b', solid: true, bodyW: 60, bodyH: 50 },
+      { x: 1250, y: 1130, tex: 'prop-drum-b', solid: true, bodyW: 60, bodyH: 50, flip: true },
+    ],
     enemies: [
       // The north/south pair moved off (800,300)/(800,1100): snapping the
       // cover onto the lattice put a console on top of both of them.

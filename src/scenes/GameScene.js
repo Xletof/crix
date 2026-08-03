@@ -287,10 +287,58 @@ export class GameScene extends Phaser.Scene {
     for (const cp of spec.cover) {
       const con = this.walls.create(cp.x, cp.y, 'bush');
       con.setDepth(cp.y + 56);
+      // KNOWN BUG, deliberately left alone here: refreshBody() recomputes a
+      // static body from the sprite, so it discards the setSize above and
+      // cover actually collides at the full 112x112, not the 70x70 this line
+      // asks for. Verified live — body.width reads 112.
+      //
+      // Not fixed in this commit because fixing it is a real gameplay change
+      // (you would be able to stand closer to a console, and bullets would
+      // pass nearer to one) and it does not belong bundled inside a prop
+      // change. Nav is unaffected either way: at 112 the inflated half-extent
+      // is 79, at 70 it is 58, and lattice-spaced cover blocks the same single
+      // cell in both cases.
       con.body.setSize(70, 70).setOffset((con.width - 70) / 2, (con.height - 70) / 2);
       con.refreshBody();
       this.roomLayer.add(con);
       this.bushSystem.add(con, 55);
+    }
+
+    // Room props — large single objects (shuttle, gantry, drums).
+    //
+    // Origin is bottom-centre and depth is plain `y`, so y IS the ground
+    // contact point and props Y-sort with actors exactly as Player/Enemy do.
+    // Deliberately NOT the walls' `y + 56`, which assumes a 104px tile and
+    // would sort a 400px shuttle from its middle — the player would draw in
+    // front of it while standing behind it.
+    //
+    // A solid prop joins `this.walls`, so it feeds the nav grid, the LOS rects
+    // and bullet collision like any other obstacle — all three read the body
+    // rect now. Its body is sized from the spec and is smaller than the
+    // sprite: a shuttle's footprint is its hull, not its wingspan, so you can
+    // walk under the wing and the nav grid only loses the hull.
+    for (const pr of spec.props || []) {
+      const img = pr.solid
+        ? this.walls.create(pr.x, pr.y, pr.tex)
+        : this.add.image(pr.x, pr.y, pr.tex);
+      img.setOrigin(0.5, 1).setDepth(pr.y);
+      if (pr.scale) img.setScale(pr.scale);
+      if (pr.flip) img.setFlipX(true);
+      if (pr.solid) {
+        const bw = pr.bodyW ?? img.displayWidth;
+        const bh = pr.bodyH ?? img.displayHeight;
+        // ORDER MATTERS. refreshBody() recomputes a STATIC body from the
+        // sprite's display size, so it silently discards any setSize() called
+        // before it — resize AFTER, then place the body explicitly. The cover
+        // consoles below get this wrong and have been colliding at their full
+        // sprite size for their whole life; see the note there.
+        img.refreshBody();
+        img.body.setSize(bw, bh);
+        // Origin is bottom-centre, so the body sits at the prop's FEET.
+        img.body.position.set(pr.x - bw / 2, pr.y - bh);
+        img.body.updateCenter();
+      }
+      this.roomLayer.add(img);
     }
 
     // Rebuild pathfinding navigation grid

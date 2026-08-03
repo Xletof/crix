@@ -1176,6 +1176,142 @@ export function paintBackdrop(scene, key, worldW, worldH, opts = {}) {
   tex.refresh();
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ROOM PROPS
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Large single objects, not tiles. This distinction is the whole point: an
+// earlier attempt at room character stamped the one 104px blast-door texture
+// eight times in a row, and a run of an identical tile reads as a texture bug
+// rather than as architecture. A prop is one distinctive silhouette that
+// cannot repeat with itself.
+//
+// Props are drawn with origin (0.5, 1.0) — bottom-centre — so their y IS the
+// ground contact point and they Y-sort with actors via setDepth(y). Do not use
+// the walls' `y + 56` convention on them; that assumes a 104px tile and would
+// sort a 400px shuttle from its middle.
+//
+// Their collision bodies are deliberately SMALLER than their sprites: a
+// shuttle's footprint is its hull, not its wingspan, so you can walk under the
+// wing and the nav grid only loses the hull.
+
+// ── LAMBDA SHUTTLE (hangar landmark) ──────────────────────────────────────
+// 100x90 logical at scale 4 = 400x360. Nose down-screen, wings swept up.
+export function paintShuttle(scene, key = 'prop-shuttle') {
+  const c = new PixelCanvas(scene, key, 100, 90, 4);
+  const HULL = PAL.impGrey, HULL_LT = PAL.impLight, HULL_DK = PAL.impDark;
+  const EDGE = PAL.black, SHEEN = PAL.impSheen, GLASS = PAL.stripBluGlow;
+
+  // ── Wings: two swept trapezoids either side, drawn first so the hull
+  // overlaps them at the root.
+  for (let side = 0; side < 2; side++) {
+    const dir = side ? 1 : -1;
+    for (let t = 0; t < 34; t++) {
+      const y = 18 + t;                     // wing runs down the body
+      const inner = 50 + dir * (10 + t * 0.35);
+      const outer = 50 + dir * (10 + t * 1.15);
+      const x1 = Math.round(Math.min(inner, outer));
+      const x2 = Math.round(Math.max(inner, outer));
+      c.hline(y, x1, x2, t < 6 ? HULL_LT : HULL);
+      c.px(dir < 0 ? x1 : x2, y, EDGE);     // outboard edge
+    }
+    // Wing-tip cannon
+    const tipX = side ? 89 : 11;
+    c.vline(tipX, 46, 58, HULL_DK);
+    c.px(tipX, 59, PAL.ledRed);
+  }
+
+  // ── Hull: a tapered fuselage down the centre.
+  for (let y = 6; y < 78; y++) {
+    const t = (y - 6) / 72;
+    const halfW = Math.round(6 + t * 9);
+    c.hline(y, 50 - halfW, 50 + halfW, HULL);
+    c.px(50 - halfW - 1, y, EDGE);
+    c.px(50 + halfW + 1, y, EDGE);
+    if (y % 11 === 0) c.hline(y, 50 - halfW, 50 + halfW, HULL_DK); // panel seam
+  }
+  // Spine highlight — the light side of the fuselage
+  c.rect(46, 8, 3, 68, HULL_LT);
+  c.rect(49, 8, 2, 68, SHEEN);
+
+  // ── Cockpit glass, near the nose (bottom of the sprite).
+  c.rect(45, 64, 10, 8, PAL.impDark);
+  c.rect(46, 65, 8, 6, GLASS);
+  c.rect(47, 66, 6, 2, PAL.white);
+
+  // ── Dorsal fin at the tail (top of the sprite).
+  for (let t = 0; t < 10; t++) c.hline(6 + t, 50 - t, 50 + t, t < 3 ? HULL_LT : HULL);
+
+  // ── Landing gear + engine glow at the base.
+  c.rect(42, 78, 4, 6, HULL_DK);
+  c.rect(54, 78, 4, 6, HULL_DK);
+  c.rect(44, 84, 12, 2, EDGE);
+  c.rect(46, 76, 3, 3, PAL.stripBluGlow);
+  c.rect(51, 76, 3, 3, PAL.stripBluGlow);
+
+  c.finish();
+}
+
+// ── CRANE GANTRY (hangar) ─────────────────────────────────────────────────
+// 80x54 logical at scale 4 = 320x216. A loading gantry straddling the deck.
+export function paintCraneGantry(scene, key = 'prop-crane') {
+  const c = new PixelCanvas(scene, key, 80, 54, 4);
+  const FRAME = PAL.impSilver, FRAME_DK = PAL.impMid, EDGE = PAL.black;
+  const WARN = PAL.stripRed;
+
+  // Two legs
+  for (const lx of [8, 66]) {
+    c.rect(lx, 14, 6, 34, FRAME_DK);
+    c.rect(lx + 1, 14, 2, 34, FRAME);
+    c.rect(lx - 2, 47, 10, 4, PAL.impDark);   // foot
+    c.px(lx - 3, 50, EDGE); c.px(lx + 8, 50, EDGE);
+  }
+  // Top beam + lattice bracing
+  c.rect(6, 8, 68, 7, FRAME_DK);
+  c.rect(6, 8, 68, 2, FRAME);
+  for (let x = 12; x < 68; x += 8) {
+    c.px(x, 16, FRAME_DK); c.px(x + 1, 17, FRAME_DK);
+    c.px(x + 2, 18, FRAME_DK); c.px(x + 3, 17, FRAME_DK);
+  }
+  // Hazard banding on the beam
+  for (let x = 8; x < 72; x += 10) c.rect(x, 11, 4, 2, WARN);
+  // Winch hanging from the middle
+  c.vline(40, 15, 30, PAL.impDark);
+  c.rect(36, 30, 9, 8, FRAME_DK);
+  c.rect(37, 31, 7, 3, FRAME);
+  c.px(40, 39, PAL.ledGreen);
+
+  c.finish();
+}
+
+// ── FUEL DRUM (hangar clutter) ────────────────────────────────────────────
+// 18x24 logical at scale 4 = 72x96. Two colourways, because this is the one
+// prop small enough to appear more than once and repetition is the exact
+// failure this whole art pass exists to avoid. Never place these in a line.
+export function paintFuelDrum(scene, key = 'prop-drum', tint = null) {
+  const c = new PixelCanvas(scene, key, 18, 24, 4);
+  const BODY = tint || PAL.impGrey;
+  const LIGHT = tint ? PAL.impSheen : PAL.impLight;
+  const EDGE = PAL.black;
+
+  // Elliptical top
+  for (let t = 0; t < 4; t++) c.hline(3 + t, 4 - t, 13 + t, t < 2 ? LIGHT : BODY);
+  c.hline(2, 6, 11, LIGHT);
+  // Barrel
+  c.rect(3, 6, 12, 15, BODY);
+  c.rect(4, 6, 2, 15, LIGHT);          // vertical highlight
+  c.hline(10, 3, 14, PAL.impDark);     // hoop rings
+  c.hline(15, 3, 14, PAL.impDark);
+  // Hazard chevron label
+  c.rect(6, 12, 6, 3, PAL.stripRedGlow);
+  c.px(8, 13, PAL.black);
+  // Base + outline
+  c.hline(21, 4, 13, PAL.impDark);
+  for (let y = 6; y <= 21; y++) { c.px(2, y, EDGE); c.px(15, y, EDGE); }
+
+  c.finish();
+}
+
 // ── IMPERIAL CONSOLE (cover — hides player) ───────────────────────────────
 // 28×28 logical pixels, scale 4 → 112×112 texture
 // Isometric 3D terminal block: TOP face (dark industrial), FRONT face (screen+keyboard), BASE edge

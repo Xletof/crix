@@ -9,6 +9,9 @@ import {
   paintConsole,
   paintTerminal,
   paintBlastDoor,
+  paintShuttle,
+  paintCraneGantry,
+  paintFuelDrum,
   paintBolt,
   paintSuperSlug,
   paintMissile,
@@ -53,6 +56,14 @@ export class PreloadScene extends Phaser.Scene {
     paintConsole(this, 'bush');       // Imperial console replaces tumbleweed
     paintBlastDoor(this, 'wall');     // Blast door replaces wooden crate
     paintTerminal(this, 'terminal');  // hackable objective terminal
+
+    // ── Room props ───────────────────────────────────────────────────
+    // Large single objects that give a room its identity. Two drum
+    // colourways because it is the only prop that appears more than once.
+    paintShuttle(this, 'prop-shuttle');
+    paintCraneGantry(this, 'prop-crane');
+    paintFuelDrum(this, 'prop-drum');
+    paintFuelDrum(this, 'prop-drum-b', PAL.hangStrip);
 
     // ── Projectiles ──────────────────────────────────────────────────
     paintBolt(this, 'bullet',        PAL.boltRed,        PAL.boltRedGlow,   14);
