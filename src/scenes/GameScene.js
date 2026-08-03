@@ -287,19 +287,14 @@ export class GameScene extends Phaser.Scene {
     for (const cp of spec.cover) {
       const con = this.walls.create(cp.x, cp.y, 'bush');
       con.setDepth(cp.y + 56);
-      // KNOWN BUG, deliberately left alone here: refreshBody() recomputes a
-      // static body from the sprite, so it discards the setSize above and
-      // cover actually collides at the full 112x112, not the 70x70 this line
-      // asks for. Verified live — body.width reads 112.
-      //
-      // Not fixed in this commit because fixing it is a real gameplay change
-      // (you would be able to stand closer to a console, and bullets would
-      // pass nearer to one) and it does not belong bundled inside a prop
-      // change. Nav is unaffected either way: at 112 the inflated half-extent
-      // is 79, at 70 it is 58, and lattice-spaced cover blocks the same single
-      // cell in both cases.
-      con.body.setSize(70, 70).setOffset((con.width - 70) / 2, (con.height - 70) / 2);
+      // ORDER MATTERS — refreshBody() recomputes a STATIC body from the
+      // sprite's display size, so calling it AFTER setSize silently throws the
+      // shrink away. Written the other way round, this line asked for 70x70
+      // and got 112x112 for the entire life of the project.
       con.refreshBody();
+      con.body.setSize(70, 70);
+      con.body.position.set(cp.x - 35, cp.y - 35);
+      con.body.updateCenter();
       this.roomLayer.add(con);
       this.bushSystem.add(con, 55);
     }
