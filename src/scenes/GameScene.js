@@ -2783,7 +2783,17 @@ export class GameScene extends Phaser.Scene {
       if (b.body && b.body.enable === false) continue;   // still in the air
       for (const w of walls) {
         if (!w.active) continue;
-        if (b.x > w.x - 56 && b.x < w.x + 56 && b.y > w.y - 56 && b.y < w.y + 56) {
+        // Test the obstacle's BODY, not a hardcoded +/-56 box around its
+        // origin. The literal assumed every obstacle was a ~112px tile, which
+        // (a) let bullets fly through anything larger, such as a room prop,
+        // and (b) already stopped them 21px shy of a cover console on every
+        // side, since cover is a 70x70 body under a 112x112 sprite.
+        const wb = w.body;
+        const hw = (wb ? wb.width  : w.displayWidth)  / 2;
+        const hh = (wb ? wb.height : w.displayHeight) / 2;
+        const wx = wb ? wb.x + wb.width  / 2 : w.x;
+        const wy = wb ? wb.y + wb.height / 2 : w.y;
+        if (Math.abs(b.x - wx) < hw && Math.abs(b.y - wy) < hh) {
           // Directional ricochet sparks: bullet hit a wall, sparks deflect
           // along the reverse flight direction (i.e. bounce back at us).
           const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
