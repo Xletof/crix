@@ -12,6 +12,11 @@ import {
   paintShuttle,
   paintCraneGantry,
   paintFuelDrum,
+  paintReactorCore,
+  paintCatwalkStrut,
+  paintSecurityPost,
+  paintBunk,
+  paintMeditationPod,
   paintBolt,
   paintSuperSlug,
   paintMissile,
@@ -64,6 +69,12 @@ export class PreloadScene extends Phaser.Scene {
     paintCraneGantry(this, 'prop-crane');
     paintFuelDrum(this, 'prop-drum');
     paintFuelDrum(this, 'prop-drum-b', PAL.hangStrip);
+    paintReactorCore(this, 'prop-core');
+    paintCatwalkStrut(this, 'prop-strut');
+    paintSecurityPost(this, 'prop-post');
+    paintBunk(this, 'prop-bunk');
+    paintBunk(this, 'prop-bunk-b', PAL.detStrip);
+    paintMeditationPod(this, 'prop-pod');
 
     // ── Projectiles ──────────────────────────────────────────────────
     paintBolt(this, 'bullet',        PAL.boltRed,        PAL.boltRedGlow,   14);

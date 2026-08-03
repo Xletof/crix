@@ -1312,6 +1312,146 @@ export function paintFuelDrum(scene, key = 'prop-drum', tint = null) {
   c.finish();
 }
 
+// ── REACTOR CORE HOUSING (Reactor Junction landmark) ──────────────────────
+// 76x86 logical at scale 4 = 304x344. A containment cylinder with a lit core.
+export function paintReactorCore(scene, key = 'prop-core') {
+  const c = new PixelCanvas(scene, key, 76, 86, 4);
+  const SHELL = PAL.impGrey, SHELL_LT = PAL.impLight, SHELL_DK = PAL.impDark;
+  const GLOW = PAL.reacStripGlw, HOT = PAL.reacAccGlw, EDGE = PAL.black;
+
+  // Elliptical cap
+  for (let t = 0; t < 8; t++) {
+    const w = 22 + t * 2;
+    c.hline(6 + t, 38 - w / 2, 38 + w / 2, t < 3 ? SHELL_LT : SHELL);
+  }
+  // Cylinder body
+  for (let y = 14; y < 74; y++) {
+    c.hline(y, 12, 64, SHELL);
+    c.hline(y, 14, 19, SHELL_LT);        // left highlight
+    c.px(11, y, EDGE); c.px(65, y, EDGE);
+  }
+  // Containment bands
+  for (const by of [20, 40, 60]) {
+    c.rect(10, by, 57, 4, SHELL_DK);
+    c.rect(10, by, 57, 1, PAL.impSheen);
+  }
+  // The lit core: a vertical glowing slot behind a grille
+  c.rect(30, 26, 17, 30, PAL.black);
+  c.rect(32, 28, 13, 26, GLOW);
+  c.rect(35, 30, 7, 22, HOT);
+  for (let gy = 28; gy < 54; gy += 4) c.hline(gy, 32, 44, SHELL_DK);
+  // Base skirt
+  c.rect(8, 74, 61, 6, SHELL_DK);
+  c.rect(6, 80, 65, 4, PAL.impMid);
+  c.hline(84, 6, 70, EDGE);
+  c.finish();
+}
+
+// ── CATWALK STRUT (Reactor Junction) ──────────────────────────────────────
+// 56x40 logical at scale 4 = 224x160. Angled support truss.
+export function paintCatwalkStrut(scene, key = 'prop-strut') {
+  const c = new PixelCanvas(scene, key, 56, 40, 4);
+  const M = PAL.impSilver, D = PAL.impMid, E = PAL.black;
+  // Upper deck plate
+  c.rect(2, 4, 52, 8, D);
+  c.rect(2, 4, 52, 2, M);
+  c.hline(13, 2, 53, E);
+  // Diagonal bracing
+  for (let t = 0; t < 22; t++) {
+    c.px(8 + t, 14 + t, D); c.px(9 + t, 14 + t, M);
+    c.px(47 - t, 14 + t, D); c.px(46 - t, 14 + t, M);
+  }
+  // Feet
+  c.rect(4, 34, 12, 4, PAL.impDark);
+  c.rect(40, 34, 12, 4, PAL.impDark);
+  // Hazard flash
+  c.rect(24, 6, 8, 3, PAL.reacStrip);
+  c.finish();
+}
+
+// ── SECURITY POST (Detention Block landmark) ──────────────────────────────
+// 64x70 logical at scale 4 = 256x280. A glassed control booth.
+export function paintSecurityPost(scene, key = 'prop-post') {
+  const c = new PixelCanvas(scene, key, 64, 70, 4);
+  const SHELL = PAL.impMid, LT = PAL.impLight, DK = PAL.impDark;
+  const GLASS = PAL.detStripGlw, E = PAL.black;
+
+  // Canopy
+  c.rect(6, 4, 52, 6, DK);
+  c.rect(7, 4, 50, 2, LT);
+  // Glazed upper half
+  c.rect(8, 10, 48, 24, PAL.black);
+  c.rect(10, 12, 44, 20, GLASS);
+  for (let x = 18; x < 54; x += 12) c.vline(x, 12, 31, DK);   // mullions
+  c.rect(12, 14, 16, 5, PAL.white);                            // reflection
+  // Console lip and body
+  c.rect(6, 34, 52, 8, SHELL);
+  c.rect(6, 34, 52, 2, LT);
+  for (let x = 12; x < 52; x += 8) c.rect(x, 37, 3, 2, PAL.ledGreen);
+  c.rect(8, 42, 48, 22, SHELL);
+  c.rect(10, 44, 6, 18, LT);
+  c.rect(24, 46, 18, 14, DK);
+  // Base
+  c.rect(6, 64, 52, 3, PAL.impDark);
+  for (let y = 10; y <= 64; y++) { c.px(5, y, E); c.px(58, y, E); }
+  c.finish();
+}
+
+// ── CELL BUNK (Detention Block) ───────────────────────────────────────────
+// 34x26 logical at scale 4 = 136x104. Small; two colourways, scattered.
+export function paintBunk(scene, key = 'prop-bunk', sheet = null) {
+  const c = new PixelCanvas(scene, key, 34, 26, 4);
+  const FRAME = PAL.impSilver, DK = PAL.impDark, E = PAL.black;
+  const CLOTH = sheet || PAL.detPanel;
+  // Mattress slab
+  c.rect(4, 6, 26, 9, CLOTH);
+  c.rect(4, 6, 26, 2, PAL.impSheen);
+  c.rect(6, 8, 8, 5, PAL.detAcc);            // folded blanket
+  // Frame + legs
+  c.rect(2, 15, 30, 3, FRAME);
+  c.rect(3, 18, 3, 5, DK);
+  c.rect(28, 18, 3, 5, DK);
+  c.hline(23, 2, 31, E);
+  for (let y = 6; y <= 18; y++) { c.px(1, y, E); c.px(32, y, E); }
+  c.finish();
+}
+
+// ── MEDITATION POD (Vader's Chamber landmark) ─────────────────────────────
+// 88x82 logical at scale 4 = 352x328. The hyperbaric chamber, hinged open.
+export function paintMeditationPod(scene, key = 'prop-pod') {
+  const c = new PixelCanvas(scene, key, 88, 82, 4);
+  const SHELL = PAL.vaderHelm || PAL.black, PLATE = PAL.impDark;
+  const RIM = PAL.impMid, KEY = PAL.vadStripGlw, E = PAL.black;
+
+  // Lower hemisphere — the seat
+  for (let y = 30; y < 70; y++) {
+    const t = (y - 30) / 40;
+    const w = Math.round(38 * Math.sqrt(Math.max(0, 1 - (t - 0.1) * (t - 0.1) * 1.1)));
+    c.hline(y, 44 - w, 44 + w, PLATE);
+    c.px(44 - w - 1, y, E); c.px(44 + w + 1, y, E);
+  }
+  // Interior shadow + the single red key light
+  c.rect(30, 40, 28, 22, SHELL);
+  c.rect(40, 46, 8, 3, KEY);
+  c.rect(42, 52, 4, 8, PAL.vadStrip);
+
+  // Raised lid, hinged back and up
+  for (let y = 4; y < 30; y++) {
+    const t = (y - 4) / 26;
+    const w = Math.round(34 * Math.sqrt(Math.max(0, 1 - (1 - t) * (1 - t))));
+    c.hline(y, 44 - w, 44 + w, RIM);
+    if (w > 6) c.hline(y, 44 - w + 2, 44 - w + 6, PAL.impSilver);
+    c.px(44 - w - 1, y, E); c.px(44 + w + 1, y, E);
+  }
+  // Segment ribs on the lid
+  for (const rx of [-20, 0, 20]) c.vline(44 + rx, 8, 28, PLATE);
+  // Base ring
+  c.rect(18, 70, 52, 5, RIM);
+  c.rect(14, 75, 60, 4, PLATE);
+  c.hline(80, 14, 74, E);
+  c.finish();
+}
+
 // ── IMPERIAL CONSOLE (cover — hides player) ───────────────────────────────
 // 28×28 logical pixels, scale 4 → 112×112 texture
 // Isometric 3D terminal block: TOP face (dark industrial), FRONT face (screen+keyboard), BASE edge

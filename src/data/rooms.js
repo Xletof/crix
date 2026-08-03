@@ -137,6 +137,14 @@ export const ROOMS = [
       ],
     },
     walls: [],
+    // Props: the core is the landmark, the struts are supporting cast. All
+    // three sit off the diagonal between spawn (200,1200) and exit (1200,200)
+    // so the through-route stays clean.
+    props: [
+      { x: 260, y: 400, tex: 'prop-core',  solid: true, bodyW: 200, bodyH: 120 },
+      { x: 1150, y: 1180, tex: 'prop-strut', solid: true, bodyW: 190, bodyH: 60 },
+      { x: 1230, y: 480, tex: 'prop-strut', solid: true, bodyW: 190, bodyH: 60, flip: true },
+    ],
     cover: snapAll([
       // Diamond ring around the terminal at (700,700), ~280px spacing
       { x: 700, y: 420 }, { x: 700, y: 980 },
@@ -199,6 +207,17 @@ export const ROOMS = [
       ],
     },
     walls: [], // opened cells completely
+    // Props: one security post as the landmark, plus bunks spilled out of the
+    // cells. The bunks are the only repeated silhouette in the room, so they
+    // ship in two colourways, mirrored, and are placed as a two and two ones —
+    // never in a row, which is the failure this whole art pass corrects.
+    props: [
+      { x: 260, y: 1230, tex: 'prop-post', solid: true, bodyW: 200, bodyH: 110 },
+      { x: 700, y: 480,  tex: 'prop-bunk',   solid: true, bodyW: 120, bodyH: 60 },
+      { x: 780, y: 545,  tex: 'prop-bunk-b', solid: true, bodyW: 120, bodyH: 60, flip: true },
+      { x: 1290, y: 880, tex: 'prop-bunk-b', solid: true, bodyW: 120, bodyH: 60 },
+      { x: 420, y: 960,  tex: 'prop-bunk',   solid: true, bodyW: 120, bodyH: 60, flip: true },
+    ],
     cover: snapAll([
       { x: 400, y: 300 }, { x: 800, y: 300 }, { x: 1200, y: 300 },
       { x: 400, y: 1100 }, { x: 800, y: 1100 }, { x: 1200, y: 1100 },
@@ -249,6 +268,12 @@ export const ROOMS = [
       ],
     },
     walls: [],
+    // One prop only. The chamber should feel bare and severe — the meditation
+    // pod is the whole story, and a second object would dilute it. Placed
+    // off-axis so neither the north gate nor the approach to Vader is touched.
+    props: [
+      { x: 340, y: 740, tex: 'prop-pod', solid: true, bodyW: 220, bodyH: 120 },
+    ],
     cover: snapAll([
       // 4 corner cover pillars
       { x: 400, y: 400 }, { x: 1200, y: 400 },
