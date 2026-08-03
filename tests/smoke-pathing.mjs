@@ -38,31 +38,42 @@ import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 const URL = 'http://localhost:5173/';
 const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 
-// Thresholds are MEASURED, not guessed, and they are set where the two builds
-// actually separate. Repeated runs of the open-floor build against the walled
-// build from 7ac7ad7 (the one that failed on the phone):
+// Thresholds are MEASURED, not guessed, and set where the builds separate.
+// Against the walled build from 7ac7ad7 — the one that failed on the phone:
 //
-//                    open floor (n=4)   walled (n=3)
-//   mean efficiency    0.80 - 0.83       0.69 - 0.73
-//   worst efficiency   0.68 - 0.72       0.49 - 0.57
+//                     current (props)   walled
+//   mean efficiency   0.78 0.78 0.78    0.71 0.67 0.72
 //
-// The first cut of this test used invented thresholds (mean 0.55) and PASSED
-// the walled build — it would not have caught the very thing it was written
-// for. Only MEAN efficiency separates the two builds reliably. Worst-case
-// looked like the stronger signal at first (gap 0.11 vs 0.07) but is much
-// noisier across runs — one later walled run scored 0.65 against an open run's
-// 0.67 — so it is REPORTED but not gated on.
+// Gate at 0.76. The good side has essentially ZERO run-to-run variance, so a
+// 0.02 margin is real rather than lucky.
 //
-// Reversals and funnelling did not separate the builds either (max 3 vs 1,
-// 46-50% vs 29%); both are kept as loose guards against gross wedging only.
+// ── Three things this test got wrong before it worked ─────────────────────
 //
-// ── How much to trust one run ─────────────────────────────────────────────
-// The gate sits at the midpoint of the observed distributions, ~0.03 from
-// each. That is deliberately not a knife edge, but it is not much margin
-// either: only ~5 of the ~8 spawned enemies arrive inside the window, so the
-// mean moves with which ones happen to spawn. A SINGLE run is weak evidence.
-// When judging new geometry, run it three times and compare the spread
-// against the numbers above — do not read one number and conclude.
+// 1. It measured COMBAT as if it were pathing. Accumulating for the whole
+//    window, the open-floor build scored 0.51 against its own 0.55 threshold,
+//    because an arrived enemy orbits and strafes and a shooter never closes at
+//    all. Each track now ends the moment its enemy first gets within
+//    ARRIVED_PX.
+//
+// 2. Its thresholds were invented, so it PASSED the walled build — the exact
+//    thing it existed to catch. Thresholds now come from A/B runs.
+//
+// 3. Its population drifted. Tracking every enemy in the scene meant the
+//    sample grew as the wave spawner dripped more in, and those arrive at a
+//    gate mid-fight where they are dodging and taking knockback — messy for
+//    reasons that are not pathfinding. Widening the window to gather more of
+//    them made variance WORSE (0.82/0.80/0.72/0.71, worst-case down to 0.19).
+//    Restricting it to the cohort alive at t=0 — the room's scripted spawns —
+//    dropped variance to nil: 0.78 four times running.
+//
+//    That is also why the loop waits for ARRIVALS rather than a fixed
+//    wall-clock window. The old fixed 12s failed inside full-suite runs with
+//    "0 enemies moved enough to measure" while passing standalone, because a
+//    loaded machine buys fewer simulation steps per second.
+//
+// Reversals and funnelling never separated the builds and are kept only as
+// loose guards against gross wedging. Worst-case efficiency is reported but
+// not gated: it looked like the stronger signal early on and is not.
 const ARRIVED_PX       = 260;  // inside this, movement is combat not approach
 const MIN_EFFICIENCY   = 0.76; // open >= 0.79, walled <= 0.73
 const MAX_REVERSALS    = 6;
@@ -97,10 +108,20 @@ const result = await page.evaluate(async (ARRIVED_PX) => {
   const PX = 200, PY = 700;          // park the player; enemies must come to us
   const tracks = new Map();
 
+  // Only the enemies that exist at t=0 — the room's SCRIPTED spawns.
+  //
+  // Letting the sample grow as the wave spawner drips more in confounds the
+  // measurement badly: enemies that appear at a gate mid-fight are dodging,
+  // strafing and taking knockback, so their routes are messy for reasons that
+  // have nothing to do with pathfinding. Widening the window to catch more of
+  // them made variance WORSE, not better (0.82/0.80/0.72/0.71 with worst-case
+  // values as low as 0.19). A fixed cohort keeps the population deterministic.
+  const cohort = new Set(gs.enemies.getChildren().filter((e) => e.alive));
+
   // Sample from a postupdate hook rather than from Node — see the note above.
   const onUpdate = () => {
     gs.player.setPosition(PX, PY);
-    for (const e of gs.enemies.getChildren()) {
+    for (const e of cohort) {
       if (!e.alive) continue;
       let t = tracks.get(e);
       if (!t) {
@@ -128,8 +149,23 @@ const result = await page.evaluate(async (ARRIVED_PX) => {
       t.x = e.x; t.y = e.y;
     }
   };
+  // Sample until enough enemies have ARRIVED, not for a fixed wall-clock
+  // window. The fixed 12s version failed inside full-suite runs with "0
+  // enemies moved enough to measure" while passing standalone: the game's
+  // simulation rate drops when the machine is loaded, so a wall-clock window
+  // buys fewer sim steps and fewer enemies finish their approach. Waiting on
+  // the thing actually being measured makes the test independent of how fast
+  // the host happens to be.
+  const WANT = Math.max(3, Math.ceil(cohort.size * 0.6)), CAP_MS = 30000;
+  const t0 = Date.now();
   gs.events.on('postupdate', onUpdate);
-  await new Promise((r) => setTimeout(r, 12000));
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 250));
+    let arrived = 0;
+    for (const [, t] of tracks) if (t.done) arrived++;
+    if (arrived >= WANT || Date.now() - t0 > CAP_MS) break;
+  }
+  const elapsedMs = Date.now() - t0;
   gs.events.off('postupdate', onUpdate);
 
   const per = [];
@@ -158,13 +194,13 @@ const result = await page.evaluate(async (ARRIVED_PX) => {
     }
     funnel = Math.max(...buckets.values()) / crossings.length;
   }
-  return { per, funnel, crossings: crossings.length,
-           neverArrived, room: gs.roomSpec?.id };
+  return { per, funnel, crossings: crossings.length, cohort: cohort.size,
+           neverArrived, elapsedMs, room: gs.roomSpec?.id };
 }, ARRIVED_PX);
 
 await browser.close();
 
-const { per, funnel, crossings, room, neverArrived } = result;
+const { per, funnel, crossings, room, neverArrived, elapsedMs, cohort } = result;
 if (per.length < 3) fail(`only ${per.length} enemies moved enough to measure`);
 
 const avg = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -172,7 +208,7 @@ const meanEff = avg(per.map((p) => p.efficiency));
 const worstEff = Math.min(...per.map((p) => p.efficiency));
 const maxRev = Math.max(...per.map((p) => p.reversals));
 
-console.log(`room=${room}  measured=${per.length}  never-arrived=${neverArrived}`);
+console.log(`room=${room}  cohort=${cohort}  measured=${per.length}  never-arrived=${neverArrived}  window=${(elapsedMs / 1000).toFixed(1)}s`);
 console.log(`  efficiency  mean ${meanEff.toFixed(2)} (min ${MIN_EFFICIENCY})  worst ${worstEff.toFixed(2)} (reported, too noisy to gate)`);
 console.log(`  reversals   max  ${maxRev}                     (max ${MAX_REVERSALS})`);
 console.log(`  funnelling  ${(funnel * 100).toFixed(0)}% of ${crossings} crossings through one 160px band  (max ${MAX_FUNNEL_SHARE * 100}%)`);
