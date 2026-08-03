@@ -28,6 +28,7 @@ const TESTS = [
   'smoke-leak',
   'smoke-march',
   'smoke-music-tiers',
+  'smoke-pathing',
 ];
 
 const onlyArg = process.argv.indexOf('--only');
