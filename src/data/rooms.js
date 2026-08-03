@@ -7,9 +7,10 @@
 //             If omitted, enemy idles at spawn until alarm fires.
 //   role    : optional 'flanker' — this shooter will attempt to flank rather than suppress.
 //
-// Wall geometry is authored as an ASCII map — see src/data/mapUtils.js for the
-// nav-lattice rule it exists to enforce.
-import { wallsFromMap, snapAll } from './mapUtils.js';
+// Obstacle positions are snapped onto the nav lattice — see src/data/mapUtils.js
+// for why that matters. `wallsFromMap` there is unused for now and waits for a
+// wall-art vocabulary that does not visibly repeat.
+import { snapAll } from './mapUtils.js';
 
 export const ROOMS = [
   // ── 1. Hangar Bay ──────────────────────────────────────────────────────
@@ -20,45 +21,26 @@ export const ROOMS = [
     bounds: { w: 1600, h: 1400 },
     spawn: { x: 200, y: 700 },
     exit: { x: 1500, y: 700, side: 'right' },
-    // Two bulkheads and a stub, deliberately SPARSE.
+    // Deliberately EMPTY. Walls were emptied out of every room in commit
+    // 1b08e94, the pivot from stealth-infiltration to swarm survival, and
+    // that decision was correct — I re-added geometry here in 7ac7ad7 and it
+    // failed on the phone for exactly the reasons the pivot implies:
     //
-    // The walls were emptied out of every room in commit 1b08e94, the pivot
-    // from stealth-infiltration to swarm survival — the diff comments read
-    // "opened up completely" and "removed zig-zag blockades", and the walls
-    // were literally demoted into cover blocks. That was a design decision,
-    // not a bug fix, and the reason is legible in the older history: cover
-    // sitting on an enemy's path caused repeated "ADVANCE oscillation"
-    // pathing fixes.
+    //   - There is ONE wall texture in the game (paintBlastDoor). Any wall is
+    //     N stamps of the same 104px blast door, so a run of tiles reads as a
+    //     repeated texture, not as architecture.
+    //   - A long unbroken wall gives the whole horde one gap to path through,
+    //     so they funnel and conga-line around it. The older history says the
+    //     same thing: d634410 is the last of a run of "cover was still
+    //     blocking the shooter path -> ADVANCE oscillation" fixes.
     //
-    // So this brings geometry back as SIGHTLINE SCULPTURE, not as a maze.
-    // Every gap is at least 240px (a full dash is 228px), the perimeter ring
-    // is completely clear for gate spawns, and nothing funnels the horde.
-    //
-    // The two bulkheads' centre gaps are vertically offset from the stub, so
-    // there is no straight lane from the spawn to the exit any more — the
-    // room finally has a shape you have to read instead of a flat field.
-    walls: wallsFromMap([
-      // c: 0    5    10   15
-      //    |    |    |    |
-      '....................', // r0   y40    perimeter — kept clear for gates
-      '....................', // r1   120
-      '..............#.....', // r2   200
-      '.....#........#.....', // r3   280
-      '.....#........#.....', // r4   360
-      '.....#........#.....', // r5   440
-      '.....#..............', // r6   520
-      '............#.......', // r7   600  ── stub breaks the spawn->exit lane
-      '............#.......', // r8   680
-      '............#.......', // r9   760
-      '.....#..............', // r10  840
-      '.....#........#.....', // r11  920
-      '.....#........#.....', // r12  1000
-      '.....#........#.....', // r13  1080
-      '..............#.....', // r14  1160
-      '....................', // r15  1240
-      '....................', // r16  1320
-      '....................', // r17  1400
-    ], { w: 1600, h: 1400 }),
+    // Room identity comes from ART instead — floor palette, decorative props
+    // with no physics body, perimeter dressing. None of it enters `this.walls`,
+    // so NavGrid and losRects never see it. Geometry only comes back once
+    // there is a tile vocabulary that does not visibly repeat, and then as
+    // compact clusters rather than straight runs. `wallsFromMap` in
+    // mapUtils.js is kept ready for that.
+    walls: [],
     // Snapped onto the nav lattice. Every obstacle in the game used to be
     // off-lattice, so each blocked up to four 80px cells instead of one — see
     // the note in mapUtils.js.
@@ -70,16 +52,14 @@ export const ROOMS = [
     ]),
     enemies: [
       // The north/south pair moved off (800,300)/(800,1100): snapping the
-      // cover onto the nav lattice put a console on top of both of them.
+      // cover onto the lattice put a console on top of both of them.
       { type: 'grunt', x: 760, y: 200 },
       { type: 'grunt', x: 760, y: 1240 },
       { type: 'grunt', x: 1300, y: 400 },
       { type: 'grunt', x: 1300, y: 1000 },
-      // Moved off (1050,700): that spot is now inside the stub's body.
-      { type: 'shooter', x: 1240, y: 700 },
+      { type: 'shooter', x: 1050, y: 700 },
     ],
     pickups: [
-      // West of the bulkhead, so sweeping the approach is what earns it.
       { x: 600, y: 360, weapon: 'rifle' },
     ],
     // Central terminal objective
@@ -102,22 +82,24 @@ export const ROOMS = [
     spawn: { x: 200, y: 1200 }, // bottom-left spawn
     exit: { x: 1200, y: 200, side: 'top' }, // top-right exit
     walls: [],
-    cover: [
+    cover: snapAll([
       // Diamond ring around the terminal at (700,700), ~280px spacing
       { x: 700, y: 420 }, { x: 700, y: 980 },
       { x: 420, y: 700 }, { x: 980, y: 700 },
       { x: 500, y: 500 }, { x: 900, y: 500 },
       { x: 500, y: 900 }, { x: 900, y: 900 },
-    ],
+    ]),
     enemies: [
       { type: 'grunt', x: 450, y: 450 },
-      { type: 'grunt', x: 950, y: 950 },
+      // Nudged off (950,950): snapping the ring put a console 42px away.
+      { type: 'grunt', x: 1080, y: 1080 },
       { type: 'bomber', x: 1150, y: 350 }, // introduce the kamikaze here
       { type: 'sniper', x: 700, y: 350 },  // and the long-range zoner
       { type: 'shooter', x: 350, y: 1050 },
     ],
     pickups: [
-      { x: 700, y: 1050, weapon: 'rifle' },
+      // Nudged off (700,1050) for the same reason.
+      { x: 700, y: 1160, weapon: 'rifle' },
     ],
     terminals: [
       { x: 700, y: 700 },
@@ -136,11 +118,11 @@ export const ROOMS = [
     spawn: { x: 150, y: 700 },
     exit: { x: 1450, y: 700, side: 'right' },
     walls: [], // opened cells completely
-    cover: [
+    cover: snapAll([
       { x: 400, y: 300 }, { x: 800, y: 300 }, { x: 1200, y: 300 },
       { x: 400, y: 1100 }, { x: 800, y: 1100 }, { x: 1200, y: 1100 },
       { x: 600, y: 700 }, { x: 1000, y: 700 },
-    ],
+    ]),
     enemies: [
       { type: 'grunt', x: 600, y: 450 },
       { type: 'grunt', x: 1000, y: 950 },
@@ -169,11 +151,11 @@ export const ROOMS = [
     spawn: { x: 800, y: 1350 },
     exit: null,
     walls: [],
-    cover: [
+    cover: snapAll([
       // 4 corner cover pillars
       { x: 400, y: 400 }, { x: 1200, y: 400 },
       { x: 400, y: 1200 }, { x: 1200, y: 1200 },
-    ],
+    ]),
     enemies: [],
     boss: true,
     bossSpawn: { x: 800, y: 400 },
