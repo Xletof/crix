@@ -963,6 +963,97 @@ export function paintBoss(scene, key = 'boss') {
 // ENVIRONMENT — Death Star corridor
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ── FLOOR MARKINGS ─────────────────────────────────────────────────────────
+// A small vocabulary of deck-paint primitives, chosen declaratively per room
+// via the `marks` array on the room spec (src/data/rooms.js). Config-driven so
+// a new room is data, not another branch in here.
+function drawFloorMarks(ctx, marks, color, alpha) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.globalAlpha = alpha;
+
+  for (const m of marks) {
+    const a = m.alpha ?? 1;
+    ctx.globalAlpha = alpha * a;
+
+    switch (m.kind) {
+      // Landing pad: outer ring, inner ring, and four approach ticks.
+      case 'pad': {
+        ctx.lineWidth = m.lw ?? 6;
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.stroke();
+        ctx.lineWidth = (m.lw ?? 6) / 2;
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 0.62, 0, Math.PI * 2); ctx.stroke();
+        for (let k = 0; k < 4; k++) {
+          const ang = k * Math.PI / 2 + Math.PI / 4;
+          const x1 = m.x + Math.cos(ang) * m.r * 1.06;
+          const y1 = m.y + Math.sin(ang) * m.r * 1.06;
+          const x2 = m.x + Math.cos(ang) * m.r * 1.3;
+          const y2 = m.y + Math.sin(ang) * m.r * 1.3;
+          ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        }
+        break;
+      }
+
+      // Hazard chevrons: a band of >>> pointing dir (1 = right, -1 = left).
+      case 'chevrons': {
+        const dir = m.dir ?? 1, step = m.step ?? 44, h = m.h ?? 40;
+        ctx.lineWidth = m.lw ?? 9;
+        for (let x = 0; x < m.w; x += step) {
+          const px = m.x + x;
+          ctx.beginPath();
+          ctx.moveTo(px, m.y);
+          ctx.lineTo(px + dir * (h / 2), m.y + h / 2);
+          ctx.lineTo(px, m.y + h);
+          ctx.stroke();
+        }
+        break;
+      }
+
+      // Caution hatching: 45-degree stripes clipped to a rect.
+      case 'stripes': {
+        ctx.save();
+        ctx.beginPath(); ctx.rect(m.x, m.y, m.w, m.h); ctx.clip();
+        ctx.lineWidth = m.lw ?? 10;
+        const gap = m.gap ?? 34;
+        for (let i = -m.h; i < m.w + m.h; i += gap) {
+          ctx.beginPath();
+          ctx.moveTo(m.x + i, m.y);
+          ctx.lineTo(m.x + i + m.h, m.y + m.h);
+          ctx.stroke();
+        }
+        ctx.restore();
+        break;
+      }
+
+      // Bay / cell-door outline: a rect drawn as corner brackets, not a full
+      // box — reads as a marked-out zone rather than a wall you cannot cross.
+      case 'bay': {
+        ctx.lineWidth = m.lw ?? 5;
+        const c = m.corner ?? Math.min(m.w, m.h) * 0.3;
+        const pts = [[m.x, m.y, 1, 1], [m.x + m.w, m.y, -1, 1],
+                     [m.x, m.y + m.h, 1, -1], [m.x + m.w, m.y + m.h, -1, -1]];
+        for (const [px, py, sx, sy] of pts) {
+          ctx.beginPath();
+          ctx.moveTo(px + sx * c, py);
+          ctx.lineTo(px, py);
+          ctx.lineTo(px, py + sy * c);
+          ctx.stroke();
+        }
+        break;
+      }
+
+      // Plain ring — a dais or hazard circle.
+      case 'ring': {
+        ctx.lineWidth = m.lw ?? 8;
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+    }
+  }
+  ctx.restore();
+}
+
 // ── DEATH STAR FLOOR BACKDROP ──────────────────────────────────────────────
 //
 // One painter, one look per room. Every colour and metric is an option with
@@ -990,6 +1081,9 @@ export function paintBackdrop(scene, key, worldW, worldH, opts = {}) {
     accentEvery = 380,
     panels     = 60,
     scorch     = 40,
+    marks      = [],
+    markColor  = null,   // defaults to the accent colour below
+    markAlpha  = 0.5,
   } = opts;
 
   const tex = scene.textures.createCanvas(key, worldW, worldH);
@@ -1057,6 +1151,14 @@ export function paintBackdrop(scene, key, worldW, worldH, opts = {}) {
     ctx.globalAlpha = 0.7;
     ctx.fillStyle = accent;
   }
+
+  // Floor markings — deck paint, drawn BEFORE the scorch pass so the battle
+  // damage settles on top of them and they look worn in rather than decal'd on.
+  //
+  // These are the cheapest room identity available: they cost nothing at
+  // runtime because they are baked into this canvas, and unlike a standing
+  // prop there is no question of walking through them — they ARE the floor.
+  if (marks.length) drawFloorMarks(ctx, marks, markColor || accent, markAlpha);
 
   // Scorch marks (blaster fire damage)
   ctx.globalAlpha = 0.4;

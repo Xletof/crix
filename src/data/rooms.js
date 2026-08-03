@@ -30,6 +30,18 @@ export const ROOMS = [
       accent: PAL.hangAcc, accentGlow: PAL.hangAccGlw,
       hexW: 96, hexH: 84, stripEvery: 260, accentEvery: 520,
       panels: 70, scorch: 70,
+      markColor: PAL.hangStripGlw, markAlpha: 0.30,
+      marks: [
+        // Two landing pads flanking the terminal — the deck's reason to exist.
+        { kind: 'pad', x: 420, y: 360, r: 150 },
+        { kind: 'pad', x: 420, y: 1040, r: 150 },
+        // Hazard chevrons pointing at the exit, so the room reads directional.
+        { kind: 'chevrons', x: 1180, y: 640, w: 260, h: 120, step: 60, dir: 1 },
+        // Caution hatching under the gate mouths.
+        { kind: 'stripes', x: 1400, y: 120, w: 200, h: 160, alpha: 0.7 },
+        { kind: 'stripes', x: 1400, y: 1120, w: 200, h: 160, alpha: 0.7 },
+        { kind: 'bay', x: 640, y: 540, w: 320, h: 320, alpha: 0.8 },
+      ],
     },
     // Deliberately EMPTY. Walls were emptied out of every room in commit
     // 1b08e94, the pivot from stealth-infiltration to swarm survival, and
@@ -98,6 +110,16 @@ export const ROOMS = [
       accent: PAL.reacAcc, accentGlow: PAL.reacAccGlw,
       hexW: 64, hexH: 56, stripEvery: 150, accentEvery: 300,
       panels: 80, scorch: 45,
+      markColor: PAL.reacAccGlw, markAlpha: 0.26,
+      marks: [
+        // Core containment ring around the terminal.
+        { kind: 'ring', x: 700, y: 700, r: 250, lw: 12 },
+        { kind: 'ring', x: 700, y: 700, r: 300, lw: 4, alpha: 0.6 },
+        // Coolant channels running to the three gates.
+        { kind: 'stripes', x: 560, y: 60,  w: 280, h: 150, gap: 26 },
+        { kind: 'stripes', x: 60,  y: 560, w: 150, h: 280, gap: 26 },
+        { kind: 'stripes', x: 1190, y: 560, w: 150, h: 280, gap: 26 },
+      ],
     },
     walls: [],
     cover: snapAll([
@@ -143,6 +165,23 @@ export const ROOMS = [
       accent: PAL.detAcc, accentGlow: PAL.detAccGlw,
       hexW: 48, hexH: 42, stripEvery: 220, accentEvery: 440,
       panels: 40, scorch: 12,
+      markColor: PAL.detAcc, markAlpha: 0.34,
+      marks: [
+        // A row of cell doorways down each long wall — the one thing that
+        // makes this read as a detention block rather than a grey box.
+        { kind: 'bay', x: 200, y: 70, w: 150, h: 130 },
+        { kind: 'bay', x: 420, y: 70, w: 150, h: 130 },
+        { kind: 'bay', x: 640, y: 70, w: 150, h: 130 },
+        { kind: 'bay', x: 860, y: 70, w: 150, h: 130 },
+        { kind: 'bay', x: 1080, y: 70, w: 150, h: 130 },
+        { kind: 'bay', x: 1300, y: 70, w: 150, h: 130 },
+        { kind: 'bay', x: 200, y: 1200, w: 150, h: 130 },
+        { kind: 'bay', x: 420, y: 1200, w: 150, h: 130 },
+        { kind: 'bay', x: 640, y: 1200, w: 150, h: 130 },
+        { kind: 'bay', x: 860, y: 1200, w: 150, h: 130 },
+        { kind: 'bay', x: 1080, y: 1200, w: 150, h: 130 },
+        { kind: 'bay', x: 1300, y: 1200, w: 150, h: 130 },
+      ],
     },
     walls: [], // opened cells completely
     cover: snapAll([
@@ -185,6 +224,14 @@ export const ROOMS = [
       accent: PAL.vadAcc, accentGlow: PAL.vadAccGlw,
       hexW: 120, hexH: 105, stripEvery: 520, accentEvery: 800,
       panels: 24, scorch: 8,
+      markColor: PAL.vadStripGlw, markAlpha: 0.22,
+      marks: [
+        // A single dais under the boss spawn. Nothing else: the chamber should
+        // feel bare and severe, and one mark reads as ceremony where five
+        // would read as clutter.
+        { kind: 'ring', x: 800, y: 400, r: 260, lw: 14 },
+        { kind: 'ring', x: 800, y: 400, r: 300, lw: 5, alpha: 0.5 },
+      ],
     },
     walls: [],
     cover: snapAll([
