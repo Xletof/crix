@@ -59,6 +59,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.dashRechargeMult  = 1;
     this.superGainMult     = 1;
     this.regenMult         = 1;
+    this.killHeal          = 0;   // HP restored per kill (BLOOD PACT upgrade)
     this._upgrades         = [];
 
     // ── Aiming state ───────────────────────────────────────────────────────

@@ -40,7 +40,8 @@ export class UpgradeScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // Three cards, stacked
-    const cards = pickThree();
+    // Pass what the run has already taken so a card is never offered twice.
+    const cards = pickThree(this.gs?.player?._upgrades || []);
     const cardW = 600, cardH = 190, gap = 26;
     const totalH = cardH * cards.length + gap * (cards.length - 1);
     const startY = VIEW.height * 0.24 + (VIEW.height * 0.62 - totalH) / 2;

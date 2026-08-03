@@ -594,6 +594,7 @@ export class GameScene extends Phaser.Scene {
     // Weapon pickups
     this.weaponPickups?.forEach((p) => p.destroy());
     this.weaponPickups = [];
+    this._pendingChoice = null;   // the pair it referenced is gone with the room
 
     // Objective terminals
     this.terminals?.forEach((t) => t.destroy());
@@ -1776,6 +1777,17 @@ export class GameScene extends Phaser.Scene {
         this.events.emit('show-banner', 'MULTIKILL', '#ff8020');
       }
 
+      // BLOOD PACT (upgrades.js): kills restore HP, scaled up the more hurt
+      // you are, so it is a comeback tool rather than a top-up when healthy.
+      // The single consumption point for player.killHeal.
+      if (this.player?.alive && this.player.killHeal > 0) {
+        const missing = 1 - this.player.hp / this.player.hpMax;
+        const heal = this.player.killHeal * (0.5 + missing);
+        this.player.hp = Math.min(this.player.hpMax, this.player.hp + heal);
+        this.events.emit('player-heal', heal);
+        if (missing > 0.15) this.fx.damageNumber(this.player.x, this.player.y - 52, `+${Math.round(heal)}`, '#40ff90');
+      }
+
       // Run-wide kill counter (drives the HUD readout + records)
       this.runKills = (this.runKills || 0) + 1;
       this.events.emit('kills-update', this.runKills);
@@ -2579,7 +2591,13 @@ export class GameScene extends Phaser.Scene {
     this.updateHealthOrbs(delta);
 
     // Weapon pickup checks
-    for (const p of this.weaponPickups) p.checkPickup(this.player);
+    for (const p of this.weaponPickups) {
+      const taken = p.checkPickup(this.player);
+      // One of a paired offer was collected — retire its sibling.
+      if (taken && this._pendingChoice?.offered.includes(p)) {
+        this._pendingChoice.resolve(p);
+      }
+    }
 
     // Objective terminals — update visuals + show the contextual HACK
     // button when the player is on a slicable terminal. The puzzle itself
@@ -3535,17 +3553,56 @@ export class GameScene extends Phaser.Scene {
     this._spawnWaveReward(wave);
   }
 
+  // Drop BOTH secondaries and let the player take one.
+  //
+  // This used to be `weapons[Phaser.Math.Between(0, 1)]` — a coin flip with no
+  // player input, at the only two points in a run where the secondary weapon is
+  // decided. The rifle and the cluster pod play completely differently, so the
+  // single most build-defining choice in the game was being made for you.
+  //
+  // Deliberately NOT a modal card screen: these fire mid-wave, and freezing the
+  // arena to read two cards would break the pace at exactly the wrong moment.
+  // Dropping both and making you walk to one keeps the decision inside the
+  // fight, which is where it is interesting.
+  //
+  // The pair is spaced well beyond WeaponPickup's 90px magnet so it cannot
+  // grab both, and so committing to one really does mean giving up the other.
+  spawnWeaponChoice(x, y, label = 'REWARD') {
+    const SPREAD = 150;               // 300px apart, vs a 90px magnet radius
+    const w = this.physics.world.bounds.width;
+    const cx = Phaser.Math.Clamp(x, SPREAD + 60, w - SPREAD - 60);
+
+    const offered = ['rifle', 'cluster'].map((id, i) => {
+      const px = cx + (i === 0 ? -SPREAD : SPREAD);
+      const wp = new WeaponPickup(this, px, y, id);
+      this.weaponPickups.push(wp);
+      this.fx.pickupSparkle(px, y, 12);
+      return wp;
+    });
+
+    // Taking one retires the other. Polled from update() alongside the normal
+    // pickup check; WeaponPickup has no collect event to subscribe to.
+    this._pendingChoice = {
+      offered,
+      resolve: (taken) => {
+        for (const other of offered) {
+          if (other === taken || !other.active) continue;
+          this.fx?.pickupSparkle?.(other.x, other.y, 6);
+          other.destroy();
+        }
+        this._pendingChoice = null;
+      },
+    };
+
+    this.events.emit('show-banner', `${label}: TAKE ONE`, '#ffd040');
+  }
+
   // Reward template extracted from spawnTerminalSupportDrop: milestone/mini-boss
   // waves grant a weapon; ordinary waves grant sustain (bacta + shield).
   _spawnWaveReward(wave) {
     const rx = this.player.x, ry = this.player.y - 40;
     if (wave.reward === 'weapon') {
-      const weapons = ['rifle', 'cluster'];
-      const choice = weapons[Phaser.Math.Between(0, weapons.length - 1)];
-      const wp = new WeaponPickup(this, rx, ry, choice);
-      this.weaponPickups.push(wp);
-      this.fx.pickupSparkle(rx, ry, 14);
-      this.events.emit('show-banner', `REWARD: ${choice.toUpperCase()}`, '#ffd040');
+      this.spawnWeaponChoice(rx, ry, 'REWARD');
     } else {
       this.spawnHealthOrb(rx, ry);
       this.player.addShield(300);
@@ -3672,13 +3729,7 @@ export class GameScene extends Phaser.Scene {
   // between a heavy weapon and shield+bacta.
   spawnTerminalSupportDrop(t) {
     if (Math.random() < 0.5) {
-      // Drop heavy weapon pickup
-      const weapons = ['rifle', 'cluster'];
-      const choice = weapons[Phaser.Math.Between(0, weapons.length - 1)];
-      const wp = new WeaponPickup(this, t.x, t.y + 35, choice);
-      this.weaponPickups.push(wp);
-      this.fx.pickupSparkle(t.x, t.y + 35, 12);
-      this.events.emit('show-banner', `SUPPORT: ${choice.toUpperCase()} DROPPED`, '#ffd040');
+      this.spawnWeaponChoice(t.x, t.y + 35, 'SUPPORT');
     } else {
       // Spawn health pack + temporary shield
       this.spawnHealthOrb(t.x, t.y + 30);

@@ -55,11 +55,24 @@ const r = await page.evaluate(async () => {
   };
   out.inert = [];
   out.cards = UPGRADES.length;
+  // Apply each card to a FRESH baseline, not cumulatively to one player.
+  // Applying in sequence hides base-case duds: a card that does nothing on a
+  // starting build can still register a change against a player that earlier
+  // cards already modified. LAST RESORT was exactly that — inert at 1000 hpMax,
+  // but invisible here until the snapshot was taken per card.
+  const baseline = () => {
+    const o = {};
+    for (const k of Object.keys(p)) if (typeof p[k] === 'number') o[k] = p[k];
+    o.dmgMult = 1; o.reloadMult = 1; o.moveMult = 1; o.regenMult = 1;
+    o.superGainMult = 1; o.dashRechargeMult = 1; o.dashChargesBonus = 0;
+    o.killHeal = 0; o.hpMax = 1000; o.hp = 1000; o._upgrades = [];
+    return o;
+  };
   for (const up of UPGRADES) {
-    const before = snapshot();
-    up.apply(p);
-    const after = snapshot();
-    const changed = Object.keys(after).filter((k) => after[k] !== before[k]);
+    const q = baseline();
+    const before = { ...q };
+    up.apply(q);
+    const changed = Object.keys(before).filter((k) => q[k] !== before[k]);
     if (!changed.length) out.inert.push(up.id);
   }
 
@@ -82,6 +95,41 @@ const r = await page.evaluate(async () => {
   const seenIds = new Set();
   for (let i = 0; i < 400; i++) for (const u of pickThree()) seenIds.add(u.id);
   out.reachable = seenIds.size;
+
+  // A card already taken must never be offered again.
+  const taken = UPGRADES.slice(0, 4).map((u) => u.id);
+  out.repeats = 0;
+  for (let i = 0; i < 300; i++) {
+    for (const u of pickThree(taken)) if (taken.includes(u.id)) out.repeats++;
+  }
+  // ...unless filtering would leave too few to fill an offer, in which case a
+  // full offer beats a correct-but-empty one.
+  const nearlyAll = UPGRADES.slice(0, UPGRADES.length - 1).map((u) => u.id);
+  out.exhausted = pickThree(nearlyAll).length;
+
+  // Trade-off cards must cost something, not just give. Each is checked for
+  // the downside as well as the upside — a trade-off whose cost silently
+  // stopped applying would read as a plain buff and quietly unbalance the run.
+  const mk = () => ({ dmgMult: 1, moveMult: 1, reloadMult: 1, hpMax: 1000, hp: 1000,
+                      dashChargesBonus: 0, _upgrades: [] });
+  const byId = (id) => UPGRADES.find((u) => u.id === id);
+  out.tradeoffs = {};
+  for (const id of ['glassCannon', 'siegeStance', 'lightweightRig', 'hairTrigger']) {
+    const card = byId(id);
+    if (!card) { out.tradeoffs[id] = 'MISSING'; continue; }
+    const q = mk(); card.apply(q);
+    out.tradeoffs[id] = {
+      up: q.dmgMult > 1 || q.moveMult > 1 || q.reloadMult < 1 || q.dashChargesBonus > 0,
+      down: q.hpMax < 1000 || q.moveMult < 1 || q.dmgMult < 1,
+      hpValid: q.hp > 0 && q.hp <= q.hpMax,
+    };
+  }
+
+  // Synergy cards must actually read the build.
+  const momentum = byId('momentum');
+  const solo = mk(); momentum.apply(solo);
+  const stacked3 = mk(); stacked3._upgrades = ['a', 'b', 'c']; momentum.apply(stacked3);
+  out.synergy = { solo: solo.dmgMult, withThree: stacked3.dmgMult };
 
   // ── Room transitions ───────────────────────────────────────────────────
   // loadRoom must fully tear down the previous room. A leak here shows up as
@@ -114,6 +162,34 @@ const r = await page.evaluate(async () => {
 
   // Only one backdrop texture should survive a transition (~9MB each).
   out.backdrops = gs.textures.getTextureKeys().filter((k) => k.startsWith('backdrop')).length;
+
+  // ── Weapon choice ──────────────────────────────────────────────────────
+  // Both secondaries drop and taking one must retire the other. This replaced
+  // a Phaser.Math.Between coin flip, so the thing worth guarding is that a
+  // choice is actually offered and that it costs you the alternative.
+  gs.loadRoom(ROOMS[0]);
+  await new Promise((res) => setTimeout(res, 1200));
+  gs.player.setPosition(800, 700);
+  gs.spawnWeaponChoice(800, 700, 'REWARD');
+  await new Promise((res) => setTimeout(res, 500));
+  const pair = gs._pendingChoice ? gs._pendingChoice.offered : [];
+  out.choice = {
+    n: pair.length,
+    ids: pair.map((w) => w.weaponId),
+    // Must exceed WeaponPickup's 90px magnet or one walk grabs both.
+    gap: pair.length === 2 ? Math.round(Math.abs(pair[0].x - pair[1].x)) : 0,
+  };
+  if (pair.length === 2) {
+    const target = pair[0];
+    for (let i = 0; i < 60 && target.active; i++) {
+      gs.player.setPosition(target.x, target.y);
+      await new Promise((res) => setTimeout(res, 40));
+    }
+    await new Promise((res) => setTimeout(res, 300));
+    out.choice.took = target.weaponId;
+    out.choice.siblingRetired = !pair[1].active;
+    out.choice.pendingCleared = gs._pendingChoice === null;
+  }
 
   // ── Save / load ────────────────────────────────────────────────────────
   const original = localStorage.getItem('crix.stats');
@@ -167,6 +243,16 @@ check(!badOffer, 'every offer is 3 distinct cards',
   badOffer ? `got ${badOffer.n} cards, ${badOffer.unique} unique` : '');
 check(r.reachable === r.cards, 'every card can actually be offered',
   `${r.reachable} of ${r.cards} ids seen across 1200 draws`);
+check(r.repeats === 0, 'a card already taken is never offered again',
+  `${r.repeats} repeats across 900 draws`);
+check(r.exhausted === 3, 'a near-exhausted pool still fills the offer',
+  `got ${r.exhausted} cards`);
+for (const [id, t] of Object.entries(r.tradeoffs)) {
+  check(t !== 'MISSING' && t.up && t.down && t.hpValid, `${id} both gives and costs`,
+    t === 'MISSING' ? 'card not found' : `up=${t.up} down=${t.down} hpValid=${t.hpValid}`);
+}
+check(r.synergy.withThree > r.synergy.solo, 'synergy cards read the existing build',
+  `momentum gave ${r.synergy.solo} alone vs ${r.synergy.withThree} with 3 upgrades`);
 
 // ── Transitions ──────────────────────────────────────────────────────────
 const t = r.transition;
@@ -176,6 +262,16 @@ check(t.indexTracks, 'RoomManager index follows the loaded room',
   `index ${t.after.room} of ${t.total}`);
 check(r.backdrops === 1, 'only one backdrop texture survives a transition',
   `${r.backdrops} resident (~9MB each)`);
+
+// ── Weapon choice ────────────────────────────────────────────────────────
+const c = r.choice;
+check(c.n === 2 && c.ids.includes('rifle') && c.ids.includes('cluster'),
+  'a weapon reward offers both secondaries', `got [${c.ids.join(', ')}]`);
+check(c.gap > 200, 'the two drops are spaced beyond the 90px pickup magnet',
+  `${c.gap}px apart`);
+check(c.siblingRetired === true, 'taking one weapon retires the other',
+  `took ${c.took}, sibling still active`);
+check(c.pendingCleared === true, 'the pending choice is cleared after resolving', '');
 
 // ── Save / load ──────────────────────────────────────────────────────────
 check(r.emptyLoad === '{}', 'missing save loads as empty, does not throw', r.emptyLoad);
