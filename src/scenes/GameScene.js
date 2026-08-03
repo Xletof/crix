@@ -4,6 +4,7 @@ import { Player } from '../entities/Player.js';
 import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, EnemySniper, EnemySwarmling, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
 import { BulletGroup } from '../entities/Bullet.js';
+import { paintBackdrop } from '../systems/pixelArt.js';
 import { BushSystem } from '../systems/BushSystem.js';
 import { RoomManager } from '../systems/RoomManager.js';
 import { CoverRegistry } from '../systems/CoverRegistry.js';
@@ -237,12 +238,27 @@ export class GameScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, w, h);
     this.cameras.main.setBounds(0, 0, w, h);
 
-    // Backdrop — tile the pre-painted texture to fill room
-    const bgImg = this.add.image(0, 0, 'backdrop')
+    // Backdrop — painted per room, at the room's own size.
+    //
+    // This used to draw one shared 1600x1600 'backdrop' texture and stretch it
+    // with setDisplaySize, which distorted the two 1400-tall rooms: the hangar
+    // and detention block rendered the hex grid squashed 12.5% vertically.
+    // Painting at w x h fixes that for free, and lets each room carry its own
+    // palette so they stop looking like the same place with a different label.
+    //
+    // Painted on demand rather than in PreloadScene: a 1600x1400 canvas is
+    // ~9MB, so all four would be ~36MB of texture on a phone, added to a load
+    // that already shows no progress UI. _clearRoomEntities releases the
+    // previous room's key, so only one is ever resident.
+    const bgKey = `backdrop-${spec.id}`;
+    if (!this.textures.exists(bgKey)) {
+      paintBackdrop(this, bgKey, w, h, spec.floor || {});
+    }
+    const bgImg = this.add.image(0, 0, bgKey)
       .setOrigin(0, 0)
-      .setDisplaySize(w, h)
       .setDepth(-10);
     this.roomLayer.add(bgImg);
+    this._bgKey = bgKey;
 
     // Floor-decal RenderTexture — blood/scorch/craters are baked into this
     // single canvas instead of staying live Graphics nodes. A 60-75s survival
@@ -519,6 +535,15 @@ export class GameScene extends Phaser.Scene {
     // Room-layer objects (backdrop, walls, cover)
     this.roomLayer.getChildren().forEach((o) => o.destroy());
     this.roomLayer.clear(false, false);
+
+    // Release the room's backdrop TEXTURE, not just the image above. Destroying
+    // the image leaves the canvas in the texture manager, and at ~9MB each the
+    // four rooms would accumulate ~36MB on a phone over a run. Rooms are
+    // one-way, so nothing is ever repainted twice within a single run.
+    if (this._bgKey && this.textures.exists(this._bgKey)) {
+      this.textures.remove(this._bgKey);
+      this._bgKey = null;
+    }
 
     // Static wall group
     this.walls.clear(true, true);

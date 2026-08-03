@@ -99,6 +99,42 @@ export const PAL = {
   stripRedGlow: '#ff2020',
   stripBlue:    '#0038bb',
   stripBluGlow: '#2060ff',
+  // ── Per-room floor palettes ──────────────────────────────────────────────
+  // Consumed by the `floor` field on each room spec (src/data/rooms.js) and
+  // fed to paintBackdrop's opts. The four rooms were visually identical before
+  // these existed — same hex, same red/blue strips, only the HUD label differed.
+  // Hangar Bay — warm, dirty working deck. Amber guide lights, not red alert.
+  hangBase:     '#1e1b14',
+  hangLine:     '#0f0d08',
+  hangPanel:    '#2a2620',
+  hangStrip:    '#cc7a00',
+  hangStripGlw: '#ffb020',
+  hangAcc:      '#2a4a66',
+  hangAccGlw:   '#4a7ea8',
+  // Reactor Junction — hot. Rust and orange, tighter and busier.
+  reacBase:     '#241008',
+  reacLine:     '#120603',
+  reacPanel:    '#3a1a0c',
+  reacStrip:    '#ff3800',
+  reacStripGlw: '#ff9020',
+  reacAcc:      '#a03000',
+  reacAccGlw:   '#ffc040',
+  // Detention Block — cold and clinical. Pale cyan on blue-grey.
+  detBase:      '#0f141c',
+  detLine:      '#070a10',
+  detPanel:     '#182029',
+  detStrip:     '#2088a8',
+  detStripGlw:  '#70d8f0',
+  detAcc:       '#c8d8e0',
+  detAccGlw:    '#ffffff',
+  // Vader's Chamber — near-black, one deep red key. Severe and empty.
+  vadBase:      '#0a0a0d',
+  vadLine:      '#050508',
+  vadPanel:     '#12121a',
+  vadStrip:     '#8a0000',
+  vadStripGlw:  '#e01818',
+  vadAcc:       '#1a1a24',
+  vadAccGlw:    '#303040',
   ledRed:       '#ff0808',
   ledGreen:     '#08ee08',
   // FX
@@ -928,17 +964,45 @@ export function paintBoss(scene, key = 'boss') {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ── DEATH STAR FLOOR BACKDROP ──────────────────────────────────────────────
-export function paintBackdrop(scene, key, worldW, worldH) {
+//
+// One painter, one look per room. Every colour and metric is an option with
+// today's values as the default, so calling it with no `opts` produces exactly
+// the texture it always did — that is what lets the four rooms diverge without
+// any risk to the rooms that have not been styled yet.
+//
+// This is deliberately the ONLY kind of room identity that is safe to add
+// right now: a floor texture never enters `this.walls`, and both the nav grid
+// and the LOS rects are built from that group, so nothing here can affect
+// pathing or line of sight. An earlier attempt at giving rooms character with
+// actual wall geometry failed for exactly the opposite reason.
+export function paintBackdrop(scene, key, worldW, worldH, opts = {}) {
+  const {
+    base       = PAL.floorMid,
+    line       = PAL.floorLine,
+    panel      = PAL.floorDark,
+    strip      = PAL.stripRed,
+    stripGlow  = PAL.stripRedGlow,
+    accent     = PAL.stripBlue,
+    accentGlow = PAL.stripBluGlow,
+    hexW       = 64,
+    hexH       = 56,
+    stripEvery = 200,
+    accentEvery = 380,
+    panels     = 60,
+    scorch     = 40,
+  } = opts;
+
   const tex = scene.textures.createCanvas(key, worldW, worldH);
   const ctx = tex.getContext();
 
-  // Base floor — dark imperial metal
-  ctx.fillStyle = PAL.floorMid;
+  // Base floor
+  ctx.fillStyle = base;
   ctx.fillRect(0, 0, worldW, worldH);
 
-  // Hex-tile grid pattern
-  const hexW = 64, hexH = 56;
-  ctx.strokeStyle = PAL.floorLine;
+  // Hex-tile grid pattern. The radii track hexW/hexH so a room can read as a
+  // big open deck or as tight cell-block tiling.
+  const rx = hexW * 0.469, ry = hexH * 0.5;
+  ctx.strokeStyle = line;
   ctx.lineWidth = 1.5;
   for (let row = 0; row < worldH / hexH + 2; row++) {
     for (let col = 0; col < worldW / hexW + 2; col++) {
@@ -948,8 +1012,8 @@ export function paintBackdrop(scene, key, worldW, worldH) {
       ctx.beginPath();
       for (let k = 0; k < 6; k++) {
         const a = -Math.PI / 2 + k * Math.PI / 3;
-        const px = cx + Math.cos(a) * 30;
-        const py = cy + Math.sin(a) * 28;
+        const px = cx + Math.cos(a) * rx;
+        const py = cy + Math.sin(a) * ry;
         if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
       }
       ctx.closePath();
@@ -959,8 +1023,8 @@ export function paintBackdrop(scene, key, worldW, worldH) {
 
   // Panel sections — subtle darker rectangles
   ctx.globalAlpha = 0.25;
-  ctx.fillStyle = PAL.floorDark;
-  for (let i = 0; i < 60; i++) {
+  ctx.fillStyle = panel;
+  for (let i = 0; i < panels; i++) {
     const x = Math.random() * worldW;
     const y = Math.random() * worldH;
     const w = 80 + Math.random() * 160;
@@ -968,36 +1032,36 @@ export function paintBackdrop(scene, key, worldW, worldH) {
     ctx.fillRect(Math.floor(x / 4) * 4, Math.floor(y / 4) * 4, w, h);
   }
 
-  // Red alert strip lights (horizontal runs)
+  // Primary strip lights (horizontal runs)
   ctx.globalAlpha = 1;
-  ctx.fillStyle = PAL.stripRed;
-  for (let y = 0; y < worldH; y += 200) {
+  ctx.fillStyle = strip;
+  for (let y = 0; y < worldH; y += stripEvery) {
     const yy = y + Math.random() * 80;
     ctx.fillRect(0, yy, worldW, 3);
-    ctx.fillStyle = PAL.stripRedGlow;
+    ctx.fillStyle = stripGlow;
     ctx.globalAlpha = 0.35;
     ctx.fillRect(0, yy - 4, worldW, 10);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = PAL.stripRed;
+    ctx.fillStyle = strip;
   }
 
-  // Blue accent strips (alternating, less frequent)
+  // Accent strips (alternating, less frequent)
   ctx.globalAlpha = 0.7;
-  ctx.fillStyle = PAL.stripBlue;
-  for (let y = 100; y < worldH; y += 380) {
+  ctx.fillStyle = accent;
+  for (let y = 100; y < worldH; y += accentEvery) {
     const yy = y + Math.random() * 40;
     ctx.fillRect(0, yy, worldW, 2);
-    ctx.fillStyle = PAL.stripBluGlow;
+    ctx.fillStyle = accentGlow;
     ctx.globalAlpha = 0.25;
     ctx.fillRect(0, yy - 3, worldW, 8);
     ctx.globalAlpha = 0.7;
-    ctx.fillStyle = PAL.stripBlue;
+    ctx.fillStyle = accent;
   }
 
   // Scorch marks (blaster fire damage)
   ctx.globalAlpha = 0.4;
   ctx.fillStyle = '#000000';
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < scorch; i++) {
     const x = Math.random() * worldW;
     const y = Math.random() * worldH;
     const r = 8 + Math.random() * 20;

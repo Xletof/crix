@@ -6,7 +6,6 @@ import {
   paintGrunt,
   paintShooter,
   paintBoss,
-  paintBackdrop,
   paintConsole,
   paintTerminal,
   paintBlastDoor,
@@ -31,7 +30,6 @@ import {
   paintDashButton,
   paintMeleeButton,
 } from '../systems/pixelArt.js';
-import { WORLD } from '../config.js';
 
 // All textures are programmatically painted. No external assets needed.
 
@@ -48,7 +46,10 @@ export class PreloadScene extends Phaser.Scene {
     paintBoss(this);
 
     // ── Environment ──────────────────────────────────────────────────
-    paintBackdrop(this, 'backdrop', WORLD.width, WORLD.height);
+    // No shared backdrop here any more: GameScene paints one per room, at the
+    // room's own size and with the room's palette. Painting a 1600x1600 canvas
+    // (~10MB) on every cold start for a texture nothing reads was pure cost on
+    // a load screen that already shows no progress.
     paintConsole(this, 'bush');       // Imperial console replaces tumbleweed
     paintBlastDoor(this, 'wall');     // Blast door replaces wooden crate
     paintTerminal(this, 'terminal');  // hackable objective terminal

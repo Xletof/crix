@@ -11,6 +11,7 @@
 // for why that matters. `wallsFromMap` there is unused for now and waits for a
 // wall-art vocabulary that does not visibly repeat.
 import { snapAll } from './mapUtils.js';
+import { PAL } from '../systems/pixelArt.js';
 
 export const ROOMS = [
   // ── 1. Hangar Bay ──────────────────────────────────────────────────────
@@ -21,6 +22,15 @@ export const ROOMS = [
     bounds: { w: 1600, h: 1400 },
     spawn: { x: 200, y: 700 },
     exit: { x: 1500, y: 700, side: 'right' },
+    // Big open working deck: wide hex so the floor reads as large plates,
+    // amber guide lights instead of the red alert strips, and heavy scorch.
+    floor: {
+      base: PAL.hangBase, line: PAL.hangLine, panel: PAL.hangPanel,
+      strip: PAL.hangStrip, stripGlow: PAL.hangStripGlw,
+      accent: PAL.hangAcc, accentGlow: PAL.hangAccGlw,
+      hexW: 96, hexH: 84, stripEvery: 260, accentEvery: 520,
+      panels: 70, scorch: 70,
+    },
     // Deliberately EMPTY. Walls were emptied out of every room in commit
     // 1b08e94, the pivot from stealth-infiltration to swarm survival, and
     // that decision was correct — I re-added geometry here in 7ac7ad7 and it
@@ -81,6 +91,14 @@ export const ROOMS = [
     bounds: { w: 1400, h: 1400 },
     spawn: { x: 200, y: 1200 }, // bottom-left spawn
     exit: { x: 1200, y: 200, side: 'top' }, // top-right exit
+    // Hot and busy: rust base, close-packed orange strips.
+    floor: {
+      base: PAL.reacBase, line: PAL.reacLine, panel: PAL.reacPanel,
+      strip: PAL.reacStrip, stripGlow: PAL.reacStripGlw,
+      accent: PAL.reacAcc, accentGlow: PAL.reacAccGlw,
+      hexW: 64, hexH: 56, stripEvery: 150, accentEvery: 300,
+      panels: 80, scorch: 45,
+    },
     walls: [],
     cover: snapAll([
       // Diamond ring around the terminal at (700,700), ~280px spacing
@@ -117,6 +135,15 @@ export const ROOMS = [
     bounds: { w: 1600, h: 1400 },
     spawn: { x: 150, y: 700 },
     exit: { x: 1450, y: 700, side: 'right' },
+    // Cold and clinical: tight small tiling that reads as cell-block floor,
+    // pale cyan lighting, almost no battle damage.
+    floor: {
+      base: PAL.detBase, line: PAL.detLine, panel: PAL.detPanel,
+      strip: PAL.detStrip, stripGlow: PAL.detStripGlw,
+      accent: PAL.detAcc, accentGlow: PAL.detAccGlw,
+      hexW: 48, hexH: 42, stripEvery: 220, accentEvery: 440,
+      panels: 40, scorch: 12,
+    },
     walls: [], // opened cells completely
     cover: snapAll([
       { x: 400, y: 300 }, { x: 800, y: 300 }, { x: 1200, y: 300 },
@@ -150,6 +177,15 @@ export const ROOMS = [
     bounds: { w: 1600, h: 1600 },
     spawn: { x: 800, y: 1350 },
     exit: null,
+    // Severe and empty: near-black, one deep red key, very few strips and a
+    // large sparse hex. The climax should feel bare, not busy.
+    floor: {
+      base: PAL.vadBase, line: PAL.vadLine, panel: PAL.vadPanel,
+      strip: PAL.vadStrip, stripGlow: PAL.vadStripGlw,
+      accent: PAL.vadAcc, accentGlow: PAL.vadAccGlw,
+      hexW: 120, hexH: 105, stripEvery: 520, accentEvery: 800,
+      panels: 24, scorch: 8,
+    },
     walls: [],
     cover: snapAll([
       // 4 corner cover pillars
