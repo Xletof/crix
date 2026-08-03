@@ -11,8 +11,7 @@
     "smoke": "node tests/run-all.mjs"
   },
   "dependencies": {
-    "phaser": "^3.80.1",
-    "puppeteer-core": "^25.3.0"
+    "phaser": "^3.80.1"
   },
   "devDependencies": {
     "vite": "^5.4.10"

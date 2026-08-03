@@ -814,25 +814,3 @@ export const ARENA = {
   },
 };
 
-// Ally settings (turrets and soldiers)
-export const ALLY = {
-  turret: {
-    hp: 1000,
-    radius: 20,
-    range: 500,
-    fireCooldownMs: 500,
-    damage: 80,
-    bulletSpeed: 850,
-  },
-  soldier: {
-    hp: 500,
-    speed: 250,
-    radius: 22,
-    desiredRange: 300,
-    fireCooldownMs: 650,
-    bulletSpeed: 700,
-    bulletDamage: 75,
-    bulletRange: 450,
-  },
-};
-
