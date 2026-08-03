@@ -16,8 +16,14 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // Assertion tests: these exit non-zero on failure and are what "the suite
 // passing" means. The diagnostics (smoke-audio, smoke-fragsfx, diag-flight)
 // only print numbers and are deliberately excluded — they have no pass/fail.
+//
+// smoke-pathing sits between the two. It reports path-quality figures for A/B
+// comparison and does NOT fail on them — a ~3-enemy sample at ~20fps proved
+// too noisy to gate on — but it does fail when the run itself is broken, so it
+// belongs here rather than with the print-only diagnostics.
 const TESTS = [
   'smoke-arc',
+  'smoke-boss',
   'smoke-boost',
   'smoke-cluster',
   'smoke-controls',
@@ -29,6 +35,7 @@ const TESTS = [
   'smoke-march',
   'smoke-music-tiers',
   'smoke-pathing',
+  'smoke-progress',
 ];
 
 const onlyArg = process.argv.indexOf('--only');
