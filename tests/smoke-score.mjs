@@ -184,7 +184,53 @@ const r = await page.evaluate(async () => {
   return out;
 });
 
+// ── GameOver panel layout ────────────────────────────────────────────────
+// Adding the score line pushed the stat rows and the RETRY button through each
+// other, and a six-figure endless score ran "NEW RECORD" straight over the
+// digits. Every assertion in this file passed on that build — the failure was
+// purely geometric, so it needs a geometric check. Bounds are measured from the
+// live scene, at the widest score the game can realistically produce.
+const layout = await page.evaluate(async () => {
+  window.game.scene.getScene('Game').scene.start('GameOver', {
+    win: false,
+    mode: 'endless',
+    stats: { clearTime: 742000, kills: 486, damageTaken: 5210, maxCombo: 2, score: 9876543, sector: 12 },
+  });
+  await new Promise((res) => setTimeout(res, 1600));
+  const go = window.game.scene.getScene('GameOver');
+  const texts = go.children.list.filter((o) => o.type === 'Text' && o.text && o.visible);
+  const box = (o) => { const b = o.getBounds(); return { t: o.text, x: b.x, y: b.y, r: b.right, b: b.bottom }; };
+  const find = (frag) => { const o = texts.find((t) => t.text.includes(frag)); return o ? box(o) : null; };
+  return {
+    all: texts.map(box),
+    score: find('SCORE'),
+    record: find('NEW RECORD'),
+    retry: find('RETRY'),
+    menu: find('MAIN MENU'),
+    rows: ['SECTOR REACHED', 'KILLS:', 'CHARGE PEAK', 'DAMAGE TAKEN'].map(find),
+    viewH: window.game.scale.height,
+  };
+});
+
 await browser.close();
+
+const overlaps = (a, b) => !!a && !!b && a.x < b.r && b.x < a.r && a.y < b.b && b.y < a.b;
+
+check(!!layout.score && !!layout.record, 'the score line and its record tag both render',
+  `score ${!!layout.score}, record ${!!layout.record}`);
+check(!overlaps(layout.score, layout.record),
+  'a seven-figure score does not collide with the NEW RECORD tag',
+  layout.score && layout.record
+    ? `score ends x=${Math.round(layout.score.r)}, tag starts x=${Math.round(layout.record.x)}`
+    : 'one of them is missing');
+check(layout.rows.every((r) => r && !overlaps(r, layout.retry)),
+  'no stat row runs through the RETRY button',
+  layout.rows.map((r, i) => (r && overlaps(r, layout.retry) ? `row ${i} collides` : '')).filter(Boolean).join(', '));
+check(!overlaps(layout.score, layout.retry) && !overlaps(layout.retry, layout.menu),
+  'the buttons clear the stats card and each other',
+  `retry y ${layout.retry ? Math.round(layout.retry.y) : '?'}, menu y ${layout.menu ? Math.round(layout.menu.y) : '?'}`);
+check(layout.all.every((t) => t.b <= layout.viewH + 1), 'nothing is pushed off the bottom of the screen',
+  layout.all.filter((t) => t.b > layout.viewH + 1).map((t) => t.t).join(', '));
 
 // ── addScore ─────────────────────────────────────────────────────────────
 check(r.afterAdds === 500, 'addScore accumulates, and ignores zero/negative awards',

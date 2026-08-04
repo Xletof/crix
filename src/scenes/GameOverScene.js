@@ -138,7 +138,7 @@ export class GameOverScene extends Phaser.Scene {
       });
 
       // Subtitle — questline closing line.
-      this.add.text(cx, py + 370, NARRATIVE.victoryLine, {
+      this.add.text(cx, py + 312, NARRATIVE.victoryLine, {
         fontFamily: FONTS.body,
         fontSize: '20px',
         fontStyle: 'italic',
@@ -148,7 +148,10 @@ export class GameOverScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       // Stats block card
-      const boxY = py + 390, boxW = pw - 60, boxH = 150;
+      // Grown from 150 to fit the score line added above the four stat rows.
+      // The two buttons below moved down to match; leaving them where they were
+      // put RETRY straight through the middle of this card.
+      const boxY = py + 332, boxW = pw - 60, boxH = 176;
       g.fillStyle(0x0038bb, 0.15);
       g.fillRoundedRect(px + 30, boxY, boxW, boxH, 6);
       g.lineStyle(1.5, 0x0060ff, 0.45);
@@ -172,14 +175,14 @@ export class GameOverScene extends Phaser.Scene {
       // Score leads. It is the one line that summarises the whole run, so it
       // gets its own colour and the record flag rather than being the fourth
       // row of a list.
-      this._scoreLine(px + 50, boxY + 20, stats?.score || 0, globalStats.bestScore || 0);
-      this.add.text(px + 50, boxY + 56, `TIME:    ${formatTime(stats?.clearTime)}  (PB: ${formatTime(globalStats.bestTime)})`, statsStyle);
-      this.add.text(px + 50, boxY + 84, `KILLS:   ${stats?.kills || 0}  (PB: ${globalStats.bestKills || 0})`, statsStyle);
-      this.add.text(px + 50, boxY + 112, `CHARGE:  x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
-      this.add.text(px + 50, boxY + 140, `DAMAGE:  ${stats?.damageTaken || 0} HP`, statsStyle);
+      this._scoreLine(px + 50, boxY + 14, stats?.score || 0, globalStats.bestScore || 0, px + pw - 50);
+      this.add.text(px + 50, boxY + 62, `TIME:    ${formatTime(stats?.clearTime)}  (PB: ${formatTime(globalStats.bestTime)})`, statsStyle);
+      this.add.text(px + 50, boxY + 90, `KILLS:   ${stats?.kills || 0}  (PB: ${globalStats.bestKills || 0})`, statsStyle);
+      this.add.text(px + 50, boxY + 118, `CHARGE:  x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
+      this.add.text(px + 50, boxY + 146, `DAMAGE:  ${stats?.damageTaken || 0} HP`, statsStyle);
 
       // Buttons
-      this.impButton(cx, py + ph - 160, 'NEW MISSION', true, () => {
+      this.impButton(cx, py + ph - 150, 'NEW MISSION', true, () => {
         SFX.uiClick();
         this.cameras.main.fadeOut(220, 0, 0, 0);
         this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Game'));
@@ -236,7 +239,7 @@ export class GameOverScene extends Phaser.Scene {
       }
 
       // Main outcome
-      const outcomeY = py + 230;
+      const outcomeY = py + 215;
       const outcomeShadow = this.add.text(cx + 4, outcomeY + 4, 'TARGET\nNEUTRALIZED', {
         fontFamily: FONTS.display,
         fontSize: '78px',
@@ -275,7 +278,7 @@ export class GameOverScene extends Phaser.Scene {
         repeatDelay: 1200,
       });
 
-      this.add.text(cx, py + 405, 'The bounty hunter has been eliminated.', {
+      this.add.text(cx, py + 312, 'The bounty hunter has been eliminated.', {
         fontFamily: FONTS.body,
         fontSize: '20px',
         fontStyle: 'italic',
@@ -285,7 +288,9 @@ export class GameOverScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       // Stats block card (Lose)
-      const boxY = py + 410, boxW = pw - 60, boxH = 140;
+      // See the note on the victory card: grown for the score line, and the
+      // buttons below moved down out of it.
+      const boxY = py + 332, boxW = pw - 60, boxH = 176;
       g.fillStyle(0xff0000, 0.08);
       g.fillRoundedRect(px + 30, boxY, boxW, boxH, 6);
       g.lineStyle(1.5, 0xff0000, 0.4);
@@ -311,14 +316,15 @@ export class GameOverScene extends Phaser.Scene {
       const firstLine = mode === 'endless'
         ? `SECTOR REACHED: ${stats?.sector || 0}  (PB: ${globalStats.bestEndlessSector || 0})`
         : `TIME ELAPSED: ${formatTime(stats?.clearTime)}`;
-      this._scoreLine(px + 50, boxY + 18, stats?.score || 0,
-        (mode === 'endless' ? globalStats.bestScoreEndless : globalStats.bestScore) || 0);
-      this.add.text(px + 50, boxY + 54, firstLine, statsStyle);
-      this.add.text(px + 50, boxY + 82, `KILLS:        ${stats?.kills || 0}  (PB: ${globalStats.bestKills || 0})`, statsStyle);
-      this.add.text(px + 50, boxY + 110, `CHARGE PEAK:  x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
-      this.add.text(px + 50, boxY + 138, `DAMAGE TAKEN: ${stats?.damageTaken || 0} HP`, statsStyle);
+      this._scoreLine(px + 50, boxY + 14, stats?.score || 0,
+        (mode === 'endless' ? globalStats.bestScoreEndless : globalStats.bestScore) || 0,
+        px + pw - 50);
+      this.add.text(px + 50, boxY + 62, firstLine, statsStyle);
+      this.add.text(px + 50, boxY + 90, `KILLS:        ${stats?.kills || 0}  (PB: ${globalStats.bestKills || 0})`, statsStyle);
+      this.add.text(px + 50, boxY + 118, `CHARGE PEAK:  x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
+      this.add.text(px + 50, boxY + 146, `DAMAGE TAKEN: ${stats?.damageTaken || 0} HP`, statsStyle);
 
-      this.impButton(cx, py + ph - 160, mode === 'endless' ? 'RETRY ENDLESS' : 'RETRY MISSION', true, () => {
+      this.impButton(cx, py + ph - 150, mode === 'endless' ? 'RETRY ENDLESS' : 'RETRY MISSION', true, () => {
         SFX.uiClick();
         this.cameras.main.fadeOut(220, 0, 0, 0);
         this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Game', mode === 'endless' ? { mode: 'endless' } : undefined));
@@ -350,8 +356,8 @@ export class GameOverScene extends Phaser.Scene {
   // The run's score, plus its personal best — or a NEW RECORD flash when this
   // run WAS the best. Shared by the victory and defeat panels so the two
   // cannot drift apart.
-  _scoreLine(x, y, score, best) {
-    this.add.text(x, y, `SCORE  ${score.toLocaleString('en-US')}`, {
+  _scoreLine(x, y, score, best, rightEdge = VIEW.width - 40) {
+    const label = this.add.text(x, y, `SCORE  ${score.toLocaleString('en-US')}`, {
       fontFamily: FONTS.display,
       fontSize: '30px',
       fontStyle: 'bold',
@@ -360,8 +366,18 @@ export class GameOverScene extends Phaser.Scene {
       strokeThickness: 4,
     }).setResolution(2);
 
+    // Place the tag AFTER the score, measured — not at a fixed offset. A
+    // six-figure endless score is far wider than a campaign one, and a fixed
+    // +210 dropped "NEW RECORD" straight on top of the digits. If it will not
+    // fit on the line, it goes underneath rather than off the card.
+    const gap = 14;
+    let tx = x + label.width + gap;
+    let ty = y + 8;
+    const tagW = 120;
+    if (tx + tagW > rightEdge) { tx = x; ty = y + 34; }
+
     if (this._newScoreRecord) {
-      const tag = this.add.text(x + 210, y + 6, 'NEW RECORD', {
+      const tag = this.add.text(tx, ty, 'NEW RECORD', {
         fontFamily: FONTS.body,
         fontSize: '16px',
         fontStyle: 'bold',
@@ -371,7 +387,7 @@ export class GameOverScene extends Phaser.Scene {
       });
       this.tweens.add({ targets: tag, alpha: 0.25, duration: 520, yoyo: true, repeat: -1 });
     } else {
-      this.add.text(x + 210, y + 8, `PB ${best.toLocaleString('en-US')}`, {
+      this.add.text(tx, ty, `PB ${best.toLocaleString('en-US')}`, {
         fontFamily: FONTS.body,
         fontSize: '15px',
         color: '#8ab8ff',
