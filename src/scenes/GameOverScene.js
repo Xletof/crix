@@ -30,6 +30,15 @@ export class GameOverScene extends Phaser.Scene {
       globalStats.lastDamageTaken = stats.damageTaken;
       globalStats.bestKills  = Math.max(globalStats.bestKills || 0, stats.kills || 0);
       globalStats.totalKills = (globalStats.totalKills || 0) + (stats.kills || 0);
+      // Score records are kept per MODE. Campaign and endless score on
+      // completely different curves — endless keeps paying out for as long as
+      // you survive — so one shared best would make the campaign record
+      // permanently unbeatable and meaningless.
+      const scoreKey = mode === 'endless' ? 'bestScoreEndless' : 'bestScore';
+      const prevBest = globalStats[scoreKey] || 0;
+      globalStats[scoreKey] = Math.max(prevBest, stats.score || 0);
+      this._newScoreRecord = (stats.score || 0) > prevBest && (stats.score || 0) > 0;
+      globalStats.totalScore = (globalStats.totalScore || 0) + (stats.score || 0);
       if (mode === 'endless') {
         globalStats.bestEndlessSector = Math.max(globalStats.bestEndlessSector || 0, stats.sector || 0);
       }
@@ -160,10 +169,14 @@ export class GameOverScene extends Phaser.Scene {
         strokeThickness: 2,
       };
 
-      this.add.text(px + 50, boxY + 20, `TIME:    ${formatTime(stats?.clearTime)}  (PB: ${formatTime(globalStats.bestTime)})`, statsStyle);
-      this.add.text(px + 50, boxY + 50, `KILLS:   ${stats?.kills || 0}  (PB: ${globalStats.bestKills || 0})`, statsStyle);
-      this.add.text(px + 50, boxY + 80, `COMBO:   x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
-      this.add.text(px + 50, boxY + 110, `DAMAGE:  ${stats?.damageTaken || 0} HP`, statsStyle);
+      // Score leads. It is the one line that summarises the whole run, so it
+      // gets its own colour and the record flag rather than being the fourth
+      // row of a list.
+      this._scoreLine(px + 50, boxY + 20, stats?.score || 0, globalStats.bestScore || 0);
+      this.add.text(px + 50, boxY + 56, `TIME:    ${formatTime(stats?.clearTime)}  (PB: ${formatTime(globalStats.bestTime)})`, statsStyle);
+      this.add.text(px + 50, boxY + 84, `KILLS:   ${stats?.kills || 0}  (PB: ${globalStats.bestKills || 0})`, statsStyle);
+      this.add.text(px + 50, boxY + 112, `CHARGE:  x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
+      this.add.text(px + 50, boxY + 140, `DAMAGE:  ${stats?.damageTaken || 0} HP`, statsStyle);
 
       // Buttons
       this.impButton(cx, py + ph - 160, 'NEW MISSION', true, () => {
@@ -298,10 +311,12 @@ export class GameOverScene extends Phaser.Scene {
       const firstLine = mode === 'endless'
         ? `SECTOR REACHED: ${stats?.sector || 0}  (PB: ${globalStats.bestEndlessSector || 0})`
         : `TIME ELAPSED: ${formatTime(stats?.clearTime)}`;
-      this.add.text(px + 50, boxY + 18, firstLine, statsStyle);
-      this.add.text(px + 50, boxY + 46, `KILLS:        ${stats?.kills || 0}  (PB: ${globalStats.bestKills || 0})`, statsStyle);
-      this.add.text(px + 50, boxY + 74, `MAX COMBO:    x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
-      this.add.text(px + 50, boxY + 102, `DAMAGE TAKEN: ${stats?.damageTaken || 0} HP`, statsStyle);
+      this._scoreLine(px + 50, boxY + 18, stats?.score || 0,
+        (mode === 'endless' ? globalStats.bestScoreEndless : globalStats.bestScore) || 0);
+      this.add.text(px + 50, boxY + 54, firstLine, statsStyle);
+      this.add.text(px + 50, boxY + 82, `KILLS:        ${stats?.kills || 0}  (PB: ${globalStats.bestKills || 0})`, statsStyle);
+      this.add.text(px + 50, boxY + 110, `CHARGE PEAK:  x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
+      this.add.text(px + 50, boxY + 138, `DAMAGE TAKEN: ${stats?.damageTaken || 0} HP`, statsStyle);
 
       this.impButton(cx, py + ph - 160, mode === 'endless' ? 'RETRY ENDLESS' : 'RETRY MISSION', true, () => {
         SFX.uiClick();
@@ -332,6 +347,40 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   // Imperial-style button
+  // The run's score, plus its personal best — or a NEW RECORD flash when this
+  // run WAS the best. Shared by the victory and defeat panels so the two
+  // cannot drift apart.
+  _scoreLine(x, y, score, best) {
+    this.add.text(x, y, `SCORE  ${score.toLocaleString('en-US')}`, {
+      fontFamily: FONTS.display,
+      fontSize: '30px',
+      fontStyle: 'bold',
+      color: '#ffd040',
+      stroke: '#000000',
+      strokeThickness: 4,
+    }).setResolution(2);
+
+    if (this._newScoreRecord) {
+      const tag = this.add.text(x + 210, y + 6, 'NEW RECORD', {
+        fontFamily: FONTS.body,
+        fontSize: '16px',
+        fontStyle: 'bold',
+        color: '#40ff90',
+        stroke: '#000000',
+        strokeThickness: 3,
+      });
+      this.tweens.add({ targets: tag, alpha: 0.25, duration: 520, yoyo: true, repeat: -1 });
+    } else {
+      this.add.text(x + 210, y + 8, `PB ${best.toLocaleString('en-US')}`, {
+        fontFamily: FONTS.body,
+        fontSize: '15px',
+        color: '#8ab8ff',
+        stroke: '#000000',
+        strokeThickness: 2,
+      });
+    }
+  }
+
   impButton(cx, cy, label, isPrimary, onClick, win) {
     const btnW = 380, btnH = 78;
     const bg = this.add.graphics();

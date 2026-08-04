@@ -559,6 +559,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // vulnerable, so the chain can't be paced out into a long invulnerability.
     if (PLAYER.meleeIframes !== false && this._meleeAnimT > 0) return;
     
+    // Per-wave damage tally, taken BEFORE shield absorption on purpose: the
+    // FLAWLESS wave bonus means "nothing touched you", and an ordinary wave
+    // clear hands out a 300 shield, so counting only post-shield damage would
+    // make the bonus free on most waves. Sits after the god-mode/dash/melee
+    // i-frame returns above, so a dodged hit still keeps the wave clean.
+    this.scene._waveDamage = (this.scene._waveDamage || 0) + amount;
+
     // Shield absorption logic
     if (this.shieldHp > 0) {
       const absorbed = Math.min(amount, this.shieldHp);

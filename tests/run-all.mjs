@@ -36,6 +36,7 @@ const TESTS = [
   'smoke-music-tiers',
   'smoke-pathing',
   'smoke-progress',
+  'smoke-score',
 ];
 
 const onlyArg = process.argv.indexOf('--only');

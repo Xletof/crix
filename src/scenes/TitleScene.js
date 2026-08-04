@@ -309,8 +309,8 @@ export class TitleScene extends Phaser.Scene {
       winsText.setText(`BOUNTIES CLAIMED: ${currentStats.wins || 0}`);
       timeText.setText(`BEST CLEAR TIME:  ${formatTime(currentStats.bestTime)}`);
       stealthText.setText(`BEST KILLS (RUN): ${currentStats.bestKills || 0}`);
-      comboText.setText(`MAX COMBO MULT:   x${(currentStats.bestMaxCombo || 1.0).toFixed(1)}`);
-      dmgText.setText(`LAST DAMAGE RECD: ${currentStats.lastDamageTaken || 0} HP`);
+      comboText.setText(`BEST SCORE:       ${(currentStats.bestScore || 0).toLocaleString('en-US')}`);
+      dmgText.setText(`BEST SCORE (ENDL):${(currentStats.bestScoreEndless || 0).toLocaleString('en-US')}`);
       totalKillsText.setText(`TOTAL KILLS:      ${currentStats.totalKills || 0}`);
       bestSectorText.setText(`BEST ENDLESS SECTOR: ${currentStats.bestEndlessSector || 0}`);
 

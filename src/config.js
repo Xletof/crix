@@ -752,6 +752,43 @@ export const COLORS = {
 //   spawnRateMult — multiply the drip interval (<1 = faster spawns)
 //   eliteChance   — floor for the elite-upgrade roll (max with the wave's own)
 //   darkness      — dim the screen to a bright sight-radius around the player
+// ── SCORE ──────────────────────────────────────────────────────────────────
+// The run's score. Every other reward system planned on top of this one — rank,
+// medals, risk contracts, credits — pays out in these points, so this table is
+// the balance surface for all of them.
+//
+// Points are THREAT-weighted, not HP-weighted. A sniper has less health than a
+// shooter but is worth more, because closing on it and deleting it is the
+// skilled play; a swarmling dies to one bolt and is worth almost nothing so
+// that farming the easy spawns is never the high-scoring line.
+//
+// The multiplier keys off the CHAIN-KILL streak (GameScene._comboCount, kills
+// within comboWindowMs of each other), NOT off Player.accuracyMult. Those are
+// two different systems that were both called "combo": accuracyMult is a hit
+// streak that resets on a miss and speeds up meter charge, while the chain is
+// about killing fast and is what the on-screen "x3!" already celebrates.
+// Scoring the chain makes aggression the scoring line and gives that 2-second
+// window real stakes.
+export const SCORE = {
+  points: {
+    grunt: 100, shooter: 180, bomber: 150,
+    shielded: 260, sniper: 300, swarmling: 40,
+  },
+  eliteMult: 3,          // an elite is worth 3x its base
+  miniBoss: 2500,
+  boss: 25000,
+
+  chainStep: 0.25,       // +25% per chain kill beyond the first
+  chainMax: 5.0,         // caps at x5 — a long chain is worth chasing, not infinite
+
+  terminal: 750,         // slicing a terminal, which also buys you a surge
+  waveClear: 500,
+  waveFlawless: 1000,    // no damage taken for the whole wave
+  waveSpeed: 1500,       // full value at waveSpeedSecs, decaying to 0 at 2x that
+  waveSpeedSecs: 45,
+  roomClear: 2500,
+};
+
 export const MODIFIERS = {
   frenzy:     { id: 'frenzy',     name: 'FRENZY',      color: '#ff5030', speedMult: 1.28, spawnRateMult: 0.8 },
   eliteGuard: { id: 'eliteGuard', name: 'ELITE GUARD', color: '#ffd040', eliteChance: 0.35 },

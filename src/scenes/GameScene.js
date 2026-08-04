@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, FONTS, HUDCFG, VIEW, DEPTH } from '../config.js';
+import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, FONTS, HUDCFG, VIEW, DEPTH } from '../config.js';
 import { Player } from '../entities/Player.js';
 import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, EnemySniper, EnemySwarmling, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
@@ -90,6 +90,10 @@ export class GameScene extends Phaser.Scene {
     this.runStealthKills   = 0;
     this.runDamageTaken    = 0;
     this.runKills          = 0;
+    this.runScore          = 0;
+    // Per-wave accounting for the clear bonuses. Reset in _startWave.
+    this._waveDamage       = 0;
+    this._waveStartedAt    = this.time.now;
 
     // ── Weapon pickups (cleared per room) ──────────────────────────────────
     this.weaponPickups = [];
@@ -540,6 +544,10 @@ export class GameScene extends Phaser.Scene {
     this._wavePhase  = 'spawning';
     this._waveSpawned = 0;
     this._waveDripMs  = 0;
+    // Per-wave scoring accounting. FLAWLESS and the speed bonus are judged over
+    // one wave, so both counters restart here rather than at room load.
+    this._waveDamage    = 0;
+    this._waveStartedAt = this.time.now;
     this.events.emit('wave-update', idx + 1, waves.length);
     setMusicPhase('wave'); // combat is live again (also covers the breather->next-wave swell)
 
@@ -984,6 +992,40 @@ export class GameScene extends Phaser.Scene {
       duration: 280, ease: 'Cubic.easeOut',
       onComplete: () => g.destroy(),
     });
+  }
+
+  // ── Score ────────────────────────────────────────────────────────────────
+  //
+  // One entry point so every scoring event is countable and testable. Anything
+  // that awards points goes through here; nothing writes `runScore` directly.
+
+  // The live chain multiplier. Reads GameScene._comboCount (chain kills within
+  // the 2s window), NOT Player.accuracyMult — see the note on SCORE in
+  // config.js for why those are two different things.
+  chainMult() {
+    const n = Math.max(1, this._comboCount || 1);
+    return Math.min(SCORE.chainMax, 1 + SCORE.chainStep * (n - 1));
+  }
+
+  scoreForEnemy(enemy) {
+    if (enemy?._miniBoss) return SCORE.miniBoss;
+    const base = SCORE.points[enemy?.enemyType] ?? SCORE.points.grunt;
+    const raw = base * (enemy?._elite ? SCORE.eliteMult : 1);
+    return Math.round(raw * this.chainMult());
+  }
+
+  // `x`/`y` optional: when given, the points float off that spot. Bonuses
+  // awarded with no position (a wave clear) are silent on the field and land in
+  // the HUD readout, so the arena is not littered with numbers between waves.
+  addScore(amount, x = null, y = null, label = null) {
+    if (!(amount > 0)) return 0;
+    const n = Math.round(amount);
+    this.runScore = (this.runScore || 0) + n;
+    this.events.emit('score-changed', this.runScore, n);
+    if (x !== null && y !== null) {
+      this.events.emit('score-popup', x, y, n, label, this.chainMult());
+    }
+    return n;
   }
 
   // Chain-kill combo: any death within 2s of the previous one bumps the
@@ -1457,6 +1499,11 @@ export class GameScene extends Phaser.Scene {
     else if (type === 'sniper')    enemy = new EnemySniper(this, x, y, spec);
     else if (type === 'swarmling') enemy = new EnemySwarmling(this, x, y, spec);
     else                           enemy = new EnemyGrunt(this, x, y, spec);
+    // Tag the archetype. Nothing recorded which class an enemy was, so anything
+    // wanting to treat types differently after the fact — scoring, and the
+    // credits/achievements planned on top of it — had only `instanceof` to go
+    // on. One assignment at the single construction site keeps it honest.
+    enemy.enemyType = type;
     if (spec.elite) this._makeElite(enemy);
     // Room modifier speed (FRENZY): stacks on top of the elite's adjusted speed.
     const sm = this.arenaCfg?.speedMult;
@@ -1687,6 +1734,11 @@ export class GameScene extends Phaser.Scene {
     this.events.on('boss-died', (boss) => {
       this.boss = null;
       this.roomManager.onEnemyDied(); // consistent tracking
+      // Flat, and deliberately not chain-multiplied: Vader is one kill at the
+      // end of a fight with nothing else alive to chain off, so a multiplier
+      // here would only ever pay x1 and would read as a bug.
+      this.addScore(SCORE.boss, boss.x, boss.y - 60);
+      this.events.emit('score-medal', 'VADER DOWN', SCORE.boss, '#ff2828');
       this.fx.burst(boss.x, boss.y, 'yellow', 40);
       this.fx.burst(boss.x, boss.y, 'red', 40);
       this.fx.shake(0.025, 500);
@@ -1821,6 +1873,12 @@ export class GameScene extends Phaser.Scene {
       // Run-wide kill counter (drives the HUD readout + records)
       this.runKills = (this.runKills || 0) + 1;
       this.events.emit('kills-update', this.runKills);
+
+      // Score. Read AFTER _tickKillCombo above, so the kill that extends a
+      // chain is paid at the multiplier it just earned rather than the previous
+      // one — the on-screen "x3!" and the points must agree or the chain reads
+      // as arbitrary.
+      this.addScore(this.scoreForEnemy(enemy), enemy.x, enemy.y - 30);
       this.roomManager.onEnemyDied();
       // Elites always drop sustain; everyone else rolls the standard chance.
       if (enemy._elite || Math.random() < HEALTH_ORB.dropChance) this.spawnHealthOrb(enemy.x, enemy.y);
@@ -1859,6 +1917,10 @@ export class GameScene extends Phaser.Scene {
     // A terminal finished hacking → trigger support drop and escalate wave!
     this.events.on('terminal-hacked', (terminal) => {
       this._terminalsHacked += 1;
+      // Terminals are the one wholly optional risk in the room — slicing one
+      // buys you an immediate surge. Paying score for it is what makes taking
+      // that risk a scoring decision rather than pure charity.
+      this.addScore(SCORE.terminal, terminal.x, terminal.y - 40);
       this.events.emit('objective-update', this._terminalsHacked, this._terminalsTotal);
       this.fx.shake(0.004, 80);
       
@@ -3475,6 +3537,7 @@ export class GameScene extends Phaser.Scene {
         kills: this.runKills || 0,
         damageTaken: Math.ceil(this.runDamageTaken),
         maxCombo: this.player ? this.player.runMaxCombo || 1.0 : 1.0,
+        score: this.runScore || 0,
       }
     });
   }
@@ -3488,6 +3551,7 @@ export class GameScene extends Phaser.Scene {
         kills: this.runKills || 0,
         damageTaken: Math.ceil(this.runDamageTaken),
         maxCombo: this.player ? this.player.runMaxCombo || 1.0 : 1.0,
+        score: this.runScore || 0,
         sector: this.sector,
       }
     });
@@ -3580,7 +3644,32 @@ export class GameScene extends Phaser.Scene {
     // but a wave's worth of blood, scorch and craters otherwise stays on screen
     // through the whole clear/breather beat and reads as leftover mess.
     this.decalRT?.clear();
+    this._awardWaveBonuses();
     this._spawnWaveReward(wave);
+  }
+
+  // Wave-clear scoring. Three separate payouts rather than one lump, because
+  // each one asks for a different thing: finish it at all, finish it untouched,
+  // finish it fast. They are announced individually so the player can tell
+  // which one they earned and play for it next time.
+  _awardWaveBonuses() {
+    this.addScore(SCORE.waveClear);
+
+    if ((this._waveDamage || 0) <= 0) {
+      this.addScore(SCORE.waveFlawless);
+      this.events.emit('score-medal', 'FLAWLESS', SCORE.waveFlawless, '#90d8ff');
+    }
+
+    // Full value at waveSpeedSecs, decaying linearly to zero at twice that, so
+    // a fast clear is worth chasing without a cliff that makes one second the
+    // difference between the whole bonus and none of it.
+    const secs = (this.time.now - (this._waveStartedAt ?? this.time.now)) / 1000;
+    const frac = Phaser.Math.Clamp(2 - secs / SCORE.waveSpeedSecs, 0, 1);
+    const speed = Math.round(SCORE.waveSpeed * frac);
+    if (speed > 0) {
+      this.addScore(speed);
+      if (frac > 0.5) this.events.emit('score-medal', 'FAST CLEAR', speed, '#ffd040');
+    }
   }
 
   // Drop BOTH secondaries and let the player take one.
@@ -3815,6 +3904,8 @@ export class GameScene extends Phaser.Scene {
       this.fx.shake(0.012, 220);
       this._cameraPunch(1.07, 300);
       SFX.roomClear?.();
+      this.addScore(SCORE.roomClear);
+      this.events.emit('score-medal', 'ARENA CLEAR', SCORE.roomClear, '#20ff60');
       const stragglers = this._livingEnemyCount();
       this.events.emit('show-banner',
         stragglers > 0 ? 'ARENA SURVIVED — FINISH THEM!' : 'ARENA SURVIVED!',

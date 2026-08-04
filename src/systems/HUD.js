@@ -138,12 +138,16 @@ export class HUDScene extends Phaser.Scene {
       strokeThickness: 3,
     }).setOrigin(0.5);
 
-    // Kill counter (left of the timer) — run-wide tally
-    this.killText = this.add.text(VIEW.width / 2 - 170, 60, '', {
+    // Run score (left of the timer). This slot used to be the kill counter;
+    // score subsumes it — points are kills weighted by what they were and how
+    // fast you chained them — and the top bar has no room for both. Kills are
+    // still tracked and still shown on the end-of-run summary and the records
+    // screen, they just are not the live readout any more.
+    this.scoreText = this.add.text(VIEW.width / 2 - 170, 60, '', {
       fontFamily: FONTS.body,
       fontSize: '17px',
       fontStyle: 'bold',
-      color: '#ff5050',
+      color: '#ffd040',
       stroke: '#000000',
       strokeThickness: 3,
     }).setOrigin(0.5);
@@ -411,7 +415,14 @@ export class HUDScene extends Phaser.Scene {
     ge.on('player-melee-cast',    this.refreshMelee, this);
     this._onMultChanged = (mult, streak) => {
       if (streak > 0) {
-        this.multText.setText(`COMBO x${mult.toFixed(1)}`);
+        // "CHARGE", not "COMBO". This badge shows Player.accuracyMult — a
+        // streak of consecutive HITS that resets on a miss, whose actual effect
+        // is that the super and melee meters fill that many times faster. It is
+        // a different system from the chain-kill streak that drives the "x3!"
+        // splash and now the score multiplier, and calling both of them "combo"
+        // meant the player had no way to tell which one they were looking at or
+        // what either did.
+        this.multText.setText(`CHARGE x${mult.toFixed(1)}`);
         this.multText.setAlpha(1);
         if (mult > 1.0) {
           this.multText.setColor('#ff4040');
@@ -453,7 +464,9 @@ export class HUDScene extends Phaser.Scene {
     ge.on('takedown-available',     (avail)        => this.setTakedownVisible(avail));
     ge.on('objective-update',       (done, total)  => this.refreshObjective(done, total));
     ge.on('wave-update',            (n, total)     => this.refreshWave(n, total));
-    ge.on('kills-update',           (n)            => this.refreshKills(n));
+    ge.on('score-changed',          (t, d)         => this.refreshScore(t, d));
+    ge.on('score-popup',            (x, y, n, l, m) => this.showScorePopup(x, y, n, l, m));
+    ge.on('score-medal',            (name, pts, col) => this.showMedal(name, pts, col));
     ge.on('wave-remaining',         (k)            => this.refreshWaveRemaining(k));
     ge.on('modifier-active',        (name, color)  => this.refreshModifier(name, color));
     ge.on('set-darkness',           (on)           => this.setDarkness(on));
@@ -486,7 +499,9 @@ export class HUDScene extends Phaser.Scene {
       ge.off('takedown-available');
       ge.off('objective-update');
       ge.off('wave-update');
-      ge.off('kills-update');
+      ge.off('score-changed');
+      ge.off('score-popup');
+      ge.off('score-medal');
       ge.off('wave-remaining');
       ge.off('modifier-active');
       ge.off('set-darkness');
@@ -509,7 +524,7 @@ export class HUDScene extends Phaser.Scene {
     this.refreshHp();
     this.refreshAmmo();
     this.refreshSuper();
-    this.refreshKills(this.gameScene?.runKills ?? 0);
+    this.refreshScore(this.gameScene?.runScore ?? 0);
     this.refreshChamber(1, ROOMS.length, ROOMS[0]);
   }
 
@@ -1224,12 +1239,15 @@ export class HUDScene extends Phaser.Scene {
     this.objText.setText(complete ? '✓ TERMINALS SLICED' : `⛁ SLICE TERMINALS ${done}/${total}`);
   }
 
-  refreshKills(n) {
-    this.killText.setText(`KILLS ${n}`);
-    // Quick pop on each tick-up
-    this.tweens.killTweensOf(this.killText);
-    this.killText.setScale(1.25);
-    this.tweens.add({ targets: this.killText, scale: 1, duration: 130, ease: 'Back.easeOut' });
+  // Run score. Grouped with commas because six-figure totals are unreadable
+  // at 17px otherwise, and the pop scales with the size of the award so a
+  // 25,000-point Vader kill does not land with the same nudge as a swarmling.
+  refreshScore(total, delta = 0) {
+    this.scoreText.setText(`SCORE ${total.toLocaleString('en-US')}`);
+    const pop = 1.12 + Math.min(0.5, (delta || 0) / 4000);
+    this.tweens.killTweensOf(this.scoreText);
+    this.scoreText.setScale(pop);
+    this.tweens.add({ targets: this.scoreText, scale: 1, duration: 150, ease: 'Back.easeOut' });
   }
 
   // Secondary readout under the timer: enemies remaining in the current wave.
@@ -1345,6 +1363,81 @@ export class HUDScene extends Phaser.Scene {
       targets: pip, scale: 1,
       duration: 240, ease: 'Back.easeOut',
     });
+  }
+
+  // Floating points off a kill. Deliberately smaller and cooler than the damage
+  // numbers so a busy fight does not turn into two competing streams of digits;
+  // the chain multiplier is what gets the colour, because that is the number
+  // the player can actually influence.
+  showScorePopup(worldX, worldY, points, label = null, mult = 1) {
+    const cam = this.gameScene?.cameras?.main;
+    if (!cam) return;
+    // World -> screen, then into HUD space. The game camera is inset below the
+    // top bar (setViewport), so its own y offset has to come back in here or
+    // every popup lands 84px high.
+    const sx = (worldX - cam.worldView.x) * cam.zoom + cam.x;
+    const sy = (worldY - cam.worldView.y) * cam.zoom + cam.y;
+    if (sx < -40 || sx > VIEW.width + 40 || sy < 0 || sy > VIEW.height) return;
+
+    const hot = mult >= 2;
+    const t = this.add.text(sx, sy, label ? `${label} +${points.toLocaleString('en-US')}` : `+${points.toLocaleString('en-US')}`, {
+      fontFamily: FONTS.body,
+      fontSize: hot ? '19px' : '15px',
+      fontStyle: 'bold',
+      color: hot ? '#ffd040' : '#cfe4ff',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(34);
+
+    this.tweens.add({
+      targets: t,
+      y: sy - (hot ? 54 : 38),
+      alpha: 0,
+      duration: hot ? 900 : 700,
+      ease: 'Cubic.easeOut',
+      onComplete: () => t.destroy(),
+    });
+  }
+
+  // A named bonus — FLAWLESS, FAST CLEAR, ARENA CLEAR. Its own lane, so it can
+  // coexist with the banner and the chain splash that fire on the same frame as
+  // a wave clear.
+  //
+  // QUEUED, not overwritten. _awardWaveBonuses can emit FLAWLESS and FAST CLEAR
+  // in the same call and a room clear adds a third; sharing one text object
+  // meant the last one silently ate the others, so a perfect wave showed only
+  // its speed bonus and the flawless clear was invisible.
+  showMedal(name, points, color = '#ffd040') {
+    this._medalQueue = this._medalQueue || [];
+    this._medalQueue.push({ name, points, color });
+    if (!this._medalShowing) this._drainMedals();
+  }
+
+  _drainMedals() {
+    const next = this._medalQueue?.shift();
+    if (!next) { this._medalShowing = false; return; }
+    this._medalShowing = true;
+    this._renderMedal(next.name, next.points, next.color);
+    // Slightly longer than the fade below, so two medals never overlap.
+    this.time.delayedCall(1000, () => this._drainMedals());
+  }
+
+  _renderMedal(name, points, color = '#ffd040') {
+    if (!this._medalText) {
+      this._medalText = this.add.text(VIEW.width / 2, HUDCFG.topBarHeight + 232, ' ', {
+        fontFamily: FONTS.display,
+        fontSize: '26px',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 5,
+      }).setOrigin(0.5).setDepth(35).setAlpha(0).setResolution(2);
+    }
+    const m = this._medalText;
+    this.tweens.killTweensOf(m);
+    m.setText(`${name}  +${points.toLocaleString('en-US')}`).setColor(color)
+      .setAlpha(1).setScale(0.7);
+    this.tweens.add({ targets: m, scale: 1, duration: 200, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: m, alpha: 0, delay: 500, duration: 300 });
   }
 
   // Splash an "x2!", "x3!" etc combo text when chain kills happen.
