@@ -1777,15 +1777,36 @@ export class GameScene extends Phaser.Scene {
         this.events.emit('show-banner', 'MULTIKILL', '#ff8020');
       }
 
-      // BLOOD PACT (upgrades.js): kills restore HP, scaled up the more hurt
-      // you are, so it is a comeback tool rather than a top-up when healthy.
-      // The single consumption point for player.killHeal.
+      // BLOOD PACT (upgrades.js): kills restore HP, scaled up the more hurt you
+      // are, so it is a comeback tool rather than a top-up. Single consumption
+      // point for player.killHeal.
+      //
+      // The first version of this read as completely broken in play, and
+      // fairly. Regen is 100 HP/sec after a 4s lull (config.js), so between
+      // engagements you are at full health — where the heal clamped to hpMax
+      // and did precisely nothing. The floating number was also gated behind
+      // being hurt, so there was no feedback either. You killed, and nothing
+      // happened, over and over.
+      //
+      // So: overflow into shield when health is full, and ALWAYS show the
+      // number. A card you cannot see working is a card that is not working.
       if (this.player?.alive && this.player.killHeal > 0) {
         const missing = 1 - this.player.hp / this.player.hpMax;
-        const heal = this.player.killHeal * (0.5 + missing);
-        this.player.hp = Math.min(this.player.hpMax, this.player.hp + heal);
-        this.events.emit('player-heal', heal);
-        if (missing > 0.15) this.fx.damageNumber(this.player.x, this.player.y - 52, `+${Math.round(heal)}`, '#40ff90');
+        const amount = this.player.killHeal * (0.5 + missing);
+        const room = this.player.hpMax - this.player.hp;
+        const healed = Math.min(room, amount);
+        const overflow = amount - healed;
+
+        if (healed > 0) this.player.hp += healed;
+        // Overflow banks as shield so a kill at full health still pays out.
+        if (overflow > 0) this.player.addShield(overflow);
+
+        this.events.emit('player-hp-changed');   // what the HUD actually listens for
+        this.fx.damageNumber(
+          this.player.x, this.player.y - 52,
+          `+${Math.round(amount)}`,
+          overflow > healed ? '#90d8ff' : '#40ff90',   // blue when banking shield
+        );
       }
 
       // Run-wide kill counter (drives the HUD readout + records)

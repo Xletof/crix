@@ -148,7 +148,7 @@ export const UPGRADES = [
   {
     id: 'killHeal',
     name: 'BLOOD PACT',
-    desc: 'Kills restore HP — more if you are hurt',
+    desc: 'Kills restore HP, or shield when already full',
     color: '#ff4060',
     // The one card here that needs new consumption code: GameScene's
     // enemy-death handler reads killHeal. Kept to a single site on purpose.

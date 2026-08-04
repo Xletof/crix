@@ -191,6 +191,43 @@ const r = await page.evaluate(async () => {
     out.choice.pendingCleared = gs._pendingChoice === null;
   }
 
+  // ── BLOOD PACT actually pays out on a kill ─────────────────────────────
+  // The gap this closes: every other upgrade check here verifies apply()
+  // mutates a field. That is necessary and not sufficient. BLOOD PACT set its
+  // field correctly and still read as broken in play, because at full health
+  // the heal clamped to hpMax and produced nothing — and regen puts you at
+  // full health most of the time. A card has to be checked for its EFFECT,
+  // not just its assignment.
+  gs.loadRoom(ROOMS[0]);
+  await new Promise((res) => setTimeout(res, 1200));
+  const pl = gs.player;
+  pl.killHeal = 0;
+  byId('killHeal').apply(pl);
+  let hpChanged = 0;
+  const countHp = () => hpChanged++;
+  gs.events.on('player-hp-changed', countHp);
+  const killOne = async () => {
+    const v = gs.enemies.getChildren().find((e) => e.alive);
+    if (!v) return false;
+    v.damage(99999);
+    await new Promise((res) => setTimeout(res, 350));
+    return true;
+  };
+
+  pl.hp = Math.round(pl.hpMax * 0.4); pl.shieldHp = 0;
+  const hurtBefore = pl.hp;
+  const hurtKilled = await killOne();
+  out.pactHurt = { killed: hurtKilled, gained: Math.round(pl.hp - hurtBefore) };
+
+  // At full health it must still pay out, as shield.
+  pl.hp = pl.hpMax; pl.shieldHp = 0;
+  const fullKilled = await killOne();
+  out.pactFull = { killed: fullKilled, hpOverflowed: pl.hp > pl.hpMax,
+                   shield: Math.round(pl.shieldHp) };
+  gs.events.off('player-hp-changed', countHp);
+  out.pactHpEvents = hpChanged;
+  pl.killHeal = 0;
+
   // ── Save / load ────────────────────────────────────────────────────────
   const original = localStorage.getItem('crix.stats');
   // Catch here rather than letting a throw escape page.evaluate. Without this
@@ -272,6 +309,15 @@ check(c.gap > 200, 'the two drops are spaced beyond the 90px pickup magnet',
 check(c.siblingRetired === true, 'taking one weapon retires the other',
   `took ${c.took}, sibling still active`);
 check(c.pendingCleared === true, 'the pending choice is cleared after resolving', '');
+
+// ── BLOOD PACT ───────────────────────────────────────────────────────────
+check(r.pactHurt.killed && r.pactHurt.gained > 0, 'BLOOD PACT heals on a kill when hurt',
+  `gained ${r.pactHurt.gained} HP`);
+check(r.pactFull.killed && r.pactFull.shield > 0, 'BLOOD PACT banks shield at full health',
+  `shield ${r.pactFull.shield} (this case used to do nothing at all)`);
+check(!r.pactFull.hpOverflowed, 'the heal never pushes HP past max', '');
+check(r.pactHpEvents > 0, 'the heal emits player-hp-changed so the HUD refreshes',
+  `${r.pactHpEvents} events (it emitted player-heal, which nothing listens to)`);
 
 // ── Save / load ──────────────────────────────────────────────────────────
 check(r.emptyLoad === '{}', 'missing save loads as empty, does not throw', r.emptyLoad);
