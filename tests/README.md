@@ -139,6 +139,24 @@ not brighter **at all**. A plausible-looking number from a noisy instrument is
 worse than no number, because it ends the investigation. Split the signal with
 biquad filters into separate ScriptProcessor taps and compare RMS per band.
 
+**A module you `import()` from the test is not always the module the game is
+running.** Under the Vite dev server, a file edited since the page loaded is
+re-served with a cache-busting query, so a test doing
+`await import('/src/data/rooms.js')` can get a *second instance* of a module the
+app already holds. Every object identity across that boundary then fails:
+`ROOMS.indexOf(spec)` returns -1 for a spec that is plainly in the array, and
+`gs.roomSpec === ROOMS[2]` is false for the room you just loaded. The tell is a
+check that passes on the first run after `npm run dev` starts and fails on every
+run after you touch the module — which reads exactly like a real regression you
+just introduced.
+
+Compare by a stable field (`spec.id`), never by `===` or by an index derived
+from `indexOf`, and prefer reading the value through the *app's* own accessor so
+the comparison never crosses the boundary at all. This one had a real fix on the
+other side too: `RoomManager.setRoom` used `indexOf` and so depended on getting
+back the identical object, which would also have broken in production the first
+time anything handed it a modified copy of a spec.
+
 **One read of a fluctuating counter can be zero.** A single end-of-run sample of
 a value that rises and falls (voices held, particles alive) lands wherever it
 lands — the same build measured 0 and then 60 on consecutive runs, and the 0
