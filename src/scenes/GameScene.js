@@ -34,6 +34,29 @@ export class GameScene extends Phaser.Scene {
     this.enemyHpMult    = 1;
     this.enemySpeedMult = 1;
 
+    // ── Clear the previous run's arena state ─────────────────────────────
+    // Phaser reuses the scene instance across scene.start(), so every field
+    // set below survives a restart unless it is reset here. loadRoom does not
+    // run until a 200ms delayedCall at the end of create(), and update() ticks
+    // during that gap — so a restart used to spend those frames running
+    // _tickArena against the PREVIOUS run's wave, against a decal
+    // RenderTexture that had already been destroyed with the old room. That is
+    // the "Cannot read properties of null (reading 'gl')" crash out of
+    // _onWaveCleared: an exception inside the Phaser step, which stops the
+    // game loop and leaves the canvas frozen black while the DOM buttons and
+    // Web Audio keep responding.
+    this.arenaActive   = false;
+    this.arenaCfg      = null;
+    this._roomArenaCfg = null;
+    this._wave         = null;
+    this._waveIdx      = 0;
+    this._wavePhase    = null;
+    this._lastLiving   = -1;
+    this._comboCount   = 0;
+    this._lastKillTime = -99999;
+    this._pendingChoice = null;
+    this.decalRT       = null;
+
     // ── Persistent bullet groups (survive room transitions) ────────────────
     this.playerBullets      = new BulletGroup(this, 'bullet');
     this.playerRifleBullets = new BulletGroup(this, 'bullet');   // rifle uses same bolt tex
@@ -218,6 +241,7 @@ export class GameScene extends Phaser.Scene {
     // ── Cleanup on shutdown ────────────────────────────────────────────────
     this.events.once('shutdown', () => {
       stopMusic();
+      this._offOwnEvents();
       // Heat and phase live at module scope so they survive a scene restart
       // the way the god-mode flag does — which means a restarted run would
       // otherwise start carrying the tension of the one that just ended.
@@ -1624,13 +1648,46 @@ export class GameScene extends Phaser.Scene {
 
   // ── Event wiring ──────────────────────────────────────────────────────────
 
+  // ── Scene-owned event listeners ──────────────────────────────────────────
+  //
+  // Phaser REUSES the scene instance across `scene.start()`, and a scene's
+  // `events` emitter is not cleared on shutdown. So every restart ran
+  // bindEvents() again on an emitter that still held the previous run's
+  // handlers, and they stacked: after three restarts one bolt ran the
+  // enemy-hit handler three times for 3x120 damage, the melee finisher played
+  // three impact cracks, and every kill scored three times.
+  //
+  // It also crashed. A stale handler kept a reference to the previous run's
+  // destroyed decal RenderTexture, and clearing it threw
+  // "Cannot read properties of null (reading 'gl')" from inside the Phaser
+  // step — which kills the game loop, leaving the canvas frozen black while
+  // DOM input and Web Audio carry on working.
+  //
+  // Removing by NAME would be wrong: HUDScene listens on this same emitter for
+  // boss-start, boss-phase, boss-died and others, so `events.off('boss-phase')`
+  // would silently take the HUD's handler with it. Each handler is tracked by
+  // reference and removed individually.
+  _on(event, fn) {
+    (this._ownEvents = this._ownEvents || []).push([event, fn]);
+    this.events.on(event, fn);
+    return this;
+  }
+
+  _offOwnEvents() {
+    for (const [event, fn] of this._ownEvents || []) this.events.off(event, fn);
+    this._ownEvents = [];
+  }
+
   bindEvents() {
-    this.events.on('player-fire', (angle) => {
+    // Drop the previous run's handlers before adding this run's.
+    this._offOwnEvents();
+
+    this._on('player-fire', (angle) => {
       this.firePlayerPrimary(angle);
       this.propagateSound(this.player.x, this.player.y, 420);
       this._cameraPunch(1.008, 90);
     });
-    this.events.on('player-dash-sound', (x, y) => {
+    this._on('player-dash-sound', (x, y) => {
       this.propagateSound(x, y, 160);
     });
     // Dash afterimage — a bright screen flash, a hand-drawn speed-streak
@@ -1640,7 +1697,7 @@ export class GameScene extends Phaser.Scene {
     // multiplies onto the sprite's existing dark colors and barely shows;
     // setTintFill replaces the pixel colour outright for a real "was here"
     // afterimage. Doubles as the dash's i-frame tell.
-    this.events.on('player-dash', () => {
+    this._on('player-dash', () => {
       const p = this.player;
       const ang = p?.dashAngle ?? p?.facing ?? 0;
       const low = isLowQuality();
@@ -1691,16 +1748,16 @@ export class GameScene extends Phaser.Scene {
       // (fewer, lighter) instead of disabled entirely.
       this.time.addEvent({ delay: low ? 35 : 20, repeat: low ? 6 : 16, callback: stampGhost });
     });
-    this.events.on('player-shot-missed', () => {
+    this._on('player-shot-missed', () => {
       this.player?.onShotMissed();
     });
-    this.events.on('player-melee-cast', (dir, stage, finisher) => {
+    this._on('player-melee-cast', (dir, stage, finisher) => {
       this.performMeleeCast(dir, stage, finisher);
     });
-    this.events.on('player-melee-land', (dir, stage, finisher) => {
+    this._on('player-melee-land', (dir, stage, finisher) => {
       this.performMeleeLand(dir, stage, finisher);
     });
-    this.events.on('player-fire-super', (angle) => {
+    this._on('player-fire-super', (angle) => {
       this.firePlayerSuper(angle);
       this.events.emit('room-alarm-klaxon');
       // Punchier than before: harder zoom kick + a brief slow-mo so the
@@ -1708,18 +1765,18 @@ export class GameScene extends Phaser.Scene {
       this._cameraPunch(1.05, 220);
       this._slowMo(0.6, 200);
     });
-    this.events.on('player-fire-rifle', (angle) => {
+    this._on('player-fire-rifle', (angle) => {
       this.firePlayerRifle(angle);
       this.propagateSound(this.player.x, this.player.y, 560);
       this._cameraPunch(1.012, 100);
     });
-    this.events.on('grenade-detonate',  (x, y, dmg, r) => this.detonateGrenade(x, y, dmg, r));
-    this.events.on('grenade-cluster',   (x, y, z) => this.clusterSplit(x, y, z));
-    this.events.on('shooter-fire',      (s, a)  => this.fireShooter(s, a));
-    this.events.on('boss-fan',          (b, a)  => this.fireBossFan(b, a));
-    this.events.on('boss-spawn',        ()      => this.bossSpawnMinions());
-    this.events.on('boss-charge',       ()      => this.fx.shake(0.015, 200));
-    this.events.on('boss-hit', (boss, amount) => {
+    this._on('grenade-detonate',  (x, y, dmg, r) => this.detonateGrenade(x, y, dmg, r));
+    this._on('grenade-cluster',   (x, y, z) => this.clusterSplit(x, y, z));
+    this._on('shooter-fire',      (s, a)  => this.fireShooter(s, a));
+    this._on('boss-fan',          (b, a)  => this.fireBossFan(b, a));
+    this._on('boss-spawn',        ()      => this.bossSpawnMinions());
+    this._on('boss-charge',       ()      => this.fx.shake(0.015, 200));
+    this._on('boss-hit', (boss, amount) => {
       this.fx.hitFlash(boss);
       this.fx.damageNumber(boss.x + (Math.random() * 30 - 15), boss.y - boss.cfg.radius,
         Math.round(amount), '#ffd166', true);
@@ -1730,8 +1787,8 @@ export class GameScene extends Phaser.Scene {
       if (amount >= 400) this._slowMo(0.5, 240);
       SFX.bossHit();
     });
-    this.events.on('boss-phase', (p) => setBossPhase(p));
-    this.events.on('boss-died', (boss) => {
+    this._on('boss-phase', (p) => setBossPhase(p));
+    this._on('boss-died', (boss) => {
       this.boss = null;
       this.roomManager.onEnemyDied(); // consistent tracking
       // Flat, and deliberately not chain-multiplied: Vader is one kill at the
@@ -1745,12 +1802,12 @@ export class GameScene extends Phaser.Scene {
       SFX.bossDie();
       this.time.delayedCall(800, () => this.victory());
     });
-    this.events.on('boss-phase-crack', (bx, by, phase) => {
+    this._on('boss-phase-crack', (bx, by, phase) => {
       this._spawnVaderGroundCrack(bx, by, phase);
       this.fx.shake(phase >= 3 ? 0.022 : 0.015, 300);
       this.cameras.main.flash(180, 255, 60, 60, true); // flash red
     });
-    this.events.on('enemy-hit', (enemy, amount) => {
+    this._on('enemy-hit', (enemy, amount) => {
       this.fx.hitFlash(enemy);
       // Hurt-frame swap: jump to the "hurt" texture frame (frame 3 in the
       // 4-frame sheet) for ~140ms, then let the AI's anim system reclaim it.
@@ -1785,7 +1842,7 @@ export class GameScene extends Phaser.Scene {
       // raises this flag for the duration of its damage() call.
       if (!this._suppressHitSfx) SFX.hit();
     });
-    this.events.on('enemy-died', (enemy) => {
+    this._on('enemy-died', (enemy) => {
       // ── HOTLINE-MIAMI KILL JUICE ──────────────────────────────────────
       // Combo counter first — chain kills within 2s show on screen — so the
       // rest of this beat can read the LIVE streak and scale with it.
@@ -1883,14 +1940,14 @@ export class GameScene extends Phaser.Scene {
       // Elites always drop sustain; everyone else rolls the standard chance.
       if (enemy._elite || Math.random() < HEALTH_ORB.dropChance) this.spawnHealthOrb(enemy.x, enemy.y);
     });
-    this.events.on('player-hurt', (amount) => {
+    this._on('player-hurt', (amount) => {
       this.fx.shake(0.008, 110);
       this.cameras.main.flash(120, 255, 80, 80, true);
       this.fx.hitFlash(this.player);
       this.fx.damageNumber(this.player.x, this.player.y - 40, Math.round(amount || 0), '#ff4040');
       this.fx.burst(this.player.x, this.player.y, 'red', 6);
     });
-    this.events.on('player-dead', () => {
+    this._on('player-dead', () => {
       // The heaviest beat in the game short of the boss dying: a deep slow-mo
       // crawl, a sustained blood-red flash, a hard zoom kick, and a low death
       // thud — unmistakably different from an ordinary kill.
@@ -1903,11 +1960,11 @@ export class GameScene extends Phaser.Scene {
       this.time.delayedCall(110, () => SFX.bossSlam?.()); // heavy death thud
       this.time.delayedCall(900, () => this._handlePlayerDeath());
     });
-    this.events.on('grunt-melee', (g) => this.fx.burst(g.x, g.y, 'red', 6));
+    this._on('grunt-melee', (g) => this.fx.burst(g.x, g.y, 'red', 6));
 
     // Room cleared logic: in wave mode, exits open only once all waves are done
     // (arenaActive flips false in _onArenaCompleted).
-    this.events.on('room-cleared', (spec) => {
+    this._on('room-cleared', (spec) => {
       if (this.arenaActive) return;
       if (spec.boss) return;
       this._enemiesCleared = true;
@@ -1915,7 +1972,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     // A terminal finished hacking → trigger support drop and escalate wave!
-    this.events.on('terminal-hacked', (terminal) => {
+    this._on('terminal-hacked', (terminal) => {
       this._terminalsHacked += 1;
       // Terminals are the one wholly optional risk in the room — slicing one
       // buys you an immediate surge. Paying score for it is what makes taking
@@ -1934,12 +1991,12 @@ export class GameScene extends Phaser.Scene {
     });
 
     // Mini-game completion bridges to the terminal.
-    this.events.on('hack-success', (terminal) => {
+    this._on('hack-success', (terminal) => {
       terminal?.complete();
       this._activeHackTarget = null;
     });
     // Mini-game failure → trip the room alarm just like blowing your cover.
-    this.events.on('hack-fail', () => {
+    this._on('hack-fail', () => {
       // Alert every enemy in the room
       for (const e of this.enemies.getChildren()) {
         if (e.active && e.alive && (e.state === ST.PATROL || e.state === ST.SUSPICIOUS)) {
@@ -1949,7 +2006,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     // Boss start event forwarded from loadRoom
-    this.events.on('boss-start', () => {
+    this._on('boss-start', () => {
       this.events.emit('show-banner', 'VADER APPROACHES', '#ff2828');
       this._startBossFlicker();
     });

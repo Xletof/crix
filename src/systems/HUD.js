@@ -403,16 +403,29 @@ export class HUDScene extends Phaser.Scene {
 
     // Events
     const ge = this.gameScene.events;
-    ge.on('player-hp-changed',    this.refreshHp,    this);
+    // Bind to the GAME scene's emitter, tracking each handler so it can be
+    // removed by REFERENCE on shutdown.
+    //
+    // This used to be a long list of `ge.off('name')` calls, which remove EVERY
+    // listener for that name — including GameScene's own. GameScene listens for
+    // boss-start, boss-phase and boss-died too, and `scene.stop('HUD')` is
+    // deferred to the end of the frame, so on a restart the HUD's shutdown ran
+    // AFTER the new GameScene had already re-registered: the HUD silently tore
+    // the fresh scene's boss handlers straight back off again. Caught by
+    // tests/smoke-restart.mjs, which counts listeners across four restarts.
+    const bound = [];
+    const gbind = (event, fn, ctx) => { bound.push([event, fn, ctx]); ge.on(event, fn, ctx); };
+
+    gbind('player-hp-changed',    this.refreshHp,    this);
     this._onPlayerHurt = (amt, dir) => { this.refreshHp(); if (typeof dir === 'number') this._addHitArc(dir); };
-    ge.on('player-hurt',          this._onPlayerHurt);
-    ge.on('player-ammo-changed',  this.refreshAmmo,  this);
-    ge.on('player-fire',          this.refreshAmmo,  this);
-    ge.on('player-super-changed', this.refreshSuper, this);
-    ge.on('player-super-ready',   this.refreshSuper, this);
-    ge.on('player-melee-changed', this.refreshMelee, this);
-    ge.on('player-melee-ready',   this.refreshMelee, this);
-    ge.on('player-melee-cast',    this.refreshMelee, this);
+    gbind('player-hurt',          this._onPlayerHurt);
+    gbind('player-ammo-changed',  this.refreshAmmo,  this);
+    gbind('player-fire',          this.refreshAmmo,  this);
+    gbind('player-super-changed', this.refreshSuper, this);
+    gbind('player-super-ready',   this.refreshSuper, this);
+    gbind('player-melee-changed', this.refreshMelee, this);
+    gbind('player-melee-ready',   this.refreshMelee, this);
+    gbind('player-melee-cast',    this.refreshMelee, this);
     this._onMultChanged = (mult, streak) => {
       if (streak > 0) {
         // "CHARGE", not "COMBO". This badge shows Player.accuracyMult — a
@@ -446,69 +459,43 @@ export class HUDScene extends Phaser.Scene {
         });
       }
     };
-    ge.on('player-mult-changed',  this._onMultChanged);
-    ge.on('room-start',           (n, total, spec) => {
+    gbind('player-mult-changed',  this._onMultChanged);
+    gbind('room-start',           (n, total, spec) => {
       // Belt-and-braces hide: the per-frame driver also clears the sign when
       // doorZone is destroyed on room load, but a stale permanent sign burned
       // onto a fresh room is the worst failure mode for this element.
       this.hideSectorSign();
       this.refreshChamber(n, total, spec);
     });
-    ge.on('boss-start',           ()               => this.showBanner('VADER APPROACHES', '#ff2828'));
-    ge.on('boss-phase',           (phase)          => { this._bossPhase = phase; this.showBanner('ENRAGED!', '#ff8888'); });
-    ge.on('boss-died',            ()               => { this._bossPhase = 1; });
-    ge.on('show-banner',          (text, color)    => this.showBanner(text, color));
-    ge.on('lives-changed',        (n)              => this.drawLives(n));
-    ge.on('secondary-equipped',     (id)           => this.refreshSecondary(id));
-    ge.on('secondary-ammo-changed', ()             => this.refreshSecondary());
-    ge.on('takedown-available',     (avail)        => this.setTakedownVisible(avail));
-    ge.on('objective-update',       (done, total)  => this.refreshObjective(done, total));
-    ge.on('wave-update',            (n, total)     => this.refreshWave(n, total));
-    ge.on('score-changed',          (t, d)         => this.refreshScore(t, d));
-    ge.on('score-popup',            (x, y, n, l, m) => this.showScorePopup(x, y, n, l, m));
-    ge.on('score-medal',            (name, pts, col) => this.showMedal(name, pts, col));
-    ge.on('wave-remaining',         (k)            => this.refreshWaveRemaining(k));
-    ge.on('modifier-active',        (name, color)  => this.refreshModifier(name, color));
-    ge.on('set-darkness',           (on)           => this.setDarkness(on));
-    ge.on('hack-prompt',            (avail)        => this.setHackVisible(avail));
-    ge.on('show-combo',             (n)            => this.showCombo(n));
-    ge.on('hack-start',             (terminal)     => {
+    gbind('boss-start',           ()               => this.showBanner('VADER APPROACHES', '#ff2828'));
+    gbind('boss-phase',           (phase)          => { this._bossPhase = phase; this.showBanner('ENRAGED!', '#ff8888'); });
+    gbind('boss-died',            ()               => { this._bossPhase = 1; });
+    gbind('show-banner',          (text, color)    => this.showBanner(text, color));
+    gbind('lives-changed',        (n)              => this.drawLives(n));
+    gbind('secondary-equipped',     (id)           => this.refreshSecondary(id));
+    gbind('secondary-ammo-changed', ()             => this.refreshSecondary());
+    gbind('takedown-available',     (avail)        => this.setTakedownVisible(avail));
+    gbind('objective-update',       (done, total)  => this.refreshObjective(done, total));
+    gbind('wave-update',            (n, total)     => this.refreshWave(n, total));
+    gbind('score-changed',          (t, d)         => this.refreshScore(t, d));
+    gbind('score-popup',            (x, y, n, l, m) => this.showScorePopup(x, y, n, l, m));
+    gbind('score-medal',            (name, pts, col) => this.showMedal(name, pts, col));
+    gbind('wave-remaining',         (k)            => this.refreshWaveRemaining(k));
+    gbind('modifier-active',        (name, color)  => this.refreshModifier(name, color));
+    gbind('set-darkness',           (on)           => this.setDarkness(on));
+    gbind('hack-prompt',            (avail)        => this.setHackVisible(avail));
+    gbind('show-combo',             (n)            => this.showCombo(n));
+    gbind('hack-start',             (terminal)     => {
       this.setHackVisible(false);
       this.hackMinigame?.start(terminal);
     });
-    ge.on('hack-cancel',            ()             => this.hackMinigame?.cancel());
+    gbind('hack-cancel',            ()             => this.hackMinigame?.cancel());
 
     // Spin up the slicing mini-game (hidden until hack-start fires)
     this.hackMinigame = new HackMinigame(this);
 
     this.events.on('shutdown', () => {
-      ge.off('player-hp-changed',    this.refreshHp,    this);
-      ge.off('player-hurt',          this._onPlayerHurt);
-      ge.off('player-ammo-changed',  this.refreshAmmo,  this);
-      ge.off('player-fire',          this.refreshAmmo,  this);
-      ge.off('player-super-changed', this.refreshSuper, this);
-      ge.off('player-super-ready',   this.refreshSuper, this);
-      ge.off('player-mult-changed',  this._onMultChanged);
-      ge.off('room-start');
-      ge.off('boss-start');
-      ge.off('boss-phase');
-      ge.off('show-banner');
-      ge.off('lives-changed');
-      ge.off('secondary-equipped');
-      ge.off('secondary-ammo-changed');
-      ge.off('takedown-available');
-      ge.off('objective-update');
-      ge.off('wave-update');
-      ge.off('score-changed');
-      ge.off('score-popup');
-      ge.off('score-medal');
-      ge.off('wave-remaining');
-      ge.off('modifier-active');
-      ge.off('set-darkness');
-      ge.off('hack-prompt');
-      ge.off('hack-start');
-      ge.off('hack-cancel');
-      ge.off('show-combo');
+      for (const [event, fn, ctx] of bound) ge.off(event, fn, ctx);
       this.comboText = null;
       this.darknessOverlay?.destroy();
       this.darknessOverlay = null;
