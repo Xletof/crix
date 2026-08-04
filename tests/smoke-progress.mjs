@@ -156,7 +156,16 @@ const r = await page.evaluate(async () => {
     before, after,
     expectWalls: spec.walls.length + spec.cover.length
       + (spec.props || []).filter((x) => x.solid).length,
-    indexTracks: gs.roomManager.index === ROOMS.indexOf(spec),
+    // Compare by ID, not by index or object identity. RoomManager has its own
+    // `import { ROOMS }`, and under the Vite dev server a module edited since
+    // the page loaded is served again with a cache-busting query — so this
+    // test's `/src/data/rooms.js` and the app's can be two DIFFERENT module
+    // instances. Then `ROOMS.indexOf(spec)` is -1 and `roomManager.index` is
+    // -1 for a room that loaded perfectly. That is a dev-server artifact with
+    // no production equivalent (one bundle, one instance), and it made this
+    // check fail on every run after any edit to rooms.js. Reading the
+    // manager's OWN view of the room never crosses the boundary.
+    indexTracks: gs.roomManager.current?.id === spec.id,
     total: gs.roomManager.total,
   };
 
@@ -228,6 +237,73 @@ const r = await page.evaluate(async () => {
   out.pactHpEvents = hpChanged;
   pl.killHeal = 0;
 
+  // ── Perimeter dressing ─────────────────────────────────────────────────
+  // The wall band is painted into the backdrop canvas, so it carries no
+  // collision and cannot regress pathing. What it CAN do is get painted across
+  // a spawn gate, and then enemies surge in through a solid-looking wall. The
+  // openings are derived from the spec for that reason, and this is the check
+  // that the derivation still lines up with where the gates actually are.
+  {
+    const { perimeterOpenings } = await import('/src/data/mapUtils.js');
+    const { paintBackdrop } = await import('/src/systems/pixelArt.js');
+    out.perim = [];
+
+    for (const spec of ROOMS) {
+      const { w, h } = spec.bounds;
+      const openings = perimeterOpenings(spec);
+      const rec = { id: spec.id, styled: !!spec.perimeter, unserved: [], count: openings.length,
+                    expect: (spec.gates?.length || 0) + (spec.exit ? 1 : 0) };
+
+      for (const g of spec.gates || []) {
+        const distTo = { top: g.y, bottom: h - g.y, left: g.x, right: w - g.x };
+        const side = Object.keys(distTo).sort((a, b) => distTo[a] - distTo[b])[0];
+        const along = (side === 'left' || side === 'right') ? g.y : g.x;
+        // Exactly one: zero means the wall is painted over the gate, two means
+        // a corner gate punched a hole in both of its edges.
+        const cover = openings.filter((o) => o.side === side && Math.abs(o.at - along) <= o.width / 2);
+        if (cover.length !== 1) rec.unserved.push(`(${g.x},${g.y}) ${side}:${cover.length}`);
+      }
+
+      // And prove it in pixels, not just in the data: paint the room's backdrop
+      // to a scratch key and confirm the doorway is actually darker than the
+      // wall beside it. Averaged over several samples because the scorch pass
+      // drops 40-70 dark blobs on top and a single probe can land in one.
+      if (spec.perimeter) {
+        const key = `__perimtest-${spec.id}`;
+        if (gs.textures.exists(key)) gs.textures.remove(key);
+        paintBackdrop(gs, key, w, h, { ...(spec.floor || {}), perimeter: spec.perimeter, openings });
+        const ctx = gs.textures.get(key).getContext();
+        const th = spec.perimeter.thickness ?? 64;
+        const mid = Math.round(th / 2);
+        // Sample the edge the first opening is on, whichever that is — pinning
+        // this to the top edge would silently skip the pixel check for any
+        // future room without a top gate, and a check that can vanish is worse
+        // than no check.
+        const door = openings[0];
+        const len = (door.side === 'left' || door.side === 'right') ? h : w;
+        const px = {                       // (along the edge) -> canvas x,y
+          top:    (a) => [a, mid],
+          bottom: (a) => [a, h - mid],
+          left:   (a) => [mid, a],
+          right:  (a) => [w - mid, a],
+        }[door.side];
+        const lum = (a) => { const [x, y] = px(a); const d = ctx.getImageData(x, y, 1, 1).data; return (d[0] + d[1] + d[2]) / 3; };
+        const mean = (as) => as.reduce((s, a) => s + lum(a), 0) / as.length;
+
+        const sameEdge = openings.filter((o) => o.side === door.side);
+        const clear = [];
+        for (let a = th + 40; a < len - th - 40 && clear.length < 9; a += 37) {
+          if (sameEdge.every((o) => Math.abs(a - o.at) > o.width / 2 + 30)) clear.push(a);
+        }
+        rec.edge = door.side;
+        rec.wallLum = +mean(clear).toFixed(1);
+        rec.doorLum = +mean([-50, -25, 0, 25, 50].map((d) => door.at + d)).toFixed(1);
+        gs.textures.remove(key);
+      }
+      out.perim.push(rec);
+    }
+  }
+
   // ── Save / load ────────────────────────────────────────────────────────
   const original = localStorage.getItem('crix.stats');
   // Catch here rather than letting a throw escape page.evaluate. Without this
@@ -296,7 +372,7 @@ const t = r.transition;
 check(t.after.walls === t.expectWalls, 'loadRoom rebuilds obstacles exactly',
   `${t.after.walls} in the walls group, spec says ${t.expectWalls}`);
 check(t.indexTracks, 'RoomManager index follows the loaded room',
-  `index ${t.after.room} of ${t.total}`);
+  `manager says index ${t.after.room} of ${t.total}`);
 check(r.backdrops === 1, 'only one backdrop texture survives a transition',
   `${r.backdrops} resident (~9MB each)`);
 
@@ -318,6 +394,18 @@ check(r.pactFull.killed && r.pactFull.shield > 0, 'BLOOD PACT banks shield at fu
 check(!r.pactFull.hpOverflowed, 'the heal never pushes HP past max', '');
 check(r.pactHpEvents > 0, 'the heal emits player-hp-changed so the HUD refreshes',
   `${r.pactHpEvents} events (it emitted player-heal, which nothing listens to)`);
+
+// ── Perimeter dressing ───────────────────────────────────────────────────
+for (const p of r.perim) {
+  check(p.styled, `${p.id} has a perimeter style`, 'no `perimeter` block on the spec');
+  check(p.unserved.length === 0, `${p.id}: every spawn gate has a doorway in the wall`,
+    p.unserved.length ? p.unserved.join(', ') : '');
+  check(p.count === p.expect, `${p.id}: one opening per gate plus the exit`,
+    `${p.count} openings, expected ${p.expect}`);
+  check(p.doorLum !== undefined && p.doorLum < p.wallLum * 0.6,
+    `${p.id}: the doorway is cut, not painted over`,
+    `${p.edge} edge: doorway luminance ${p.doorLum} vs wall ${p.wallLum}`);
+}
 
 // ── Save / load ──────────────────────────────────────────────────────────
 check(r.emptyLoad === '{}', 'missing save loads as empty, does not throw', r.emptyLoad);

@@ -43,6 +43,13 @@ export const ROOMS = [
         { kind: 'bay', x: 640, y: 540, w: 320, h: 320, alpha: 0.8 },
       ],
     },
+    // Heavy structural ribs — a working hangar's bulkheads. Thickest band of
+    // the four, because this is the room that should feel biggest.
+    perimeter: {
+      style: 'ribbed', thickness: 72,
+      wall: PAL.hangWall, wallLit: PAL.hangWallLit, wallDark: PAL.hangWallDark,
+      trim: PAL.hangStrip, glow: PAL.hangStripGlw,
+    },
     // Deliberately EMPTY. Walls were emptied out of every room in commit
     // 1b08e94, the pivot from stealth-infiltration to swarm survival, and
     // that decision was correct — I re-added geometry here in 7ac7ad7 and it
@@ -136,6 +143,13 @@ export const ROOMS = [
         { kind: 'stripes', x: 1190, y: 560, w: 150, h: 280, gap: 26 },
       ],
     },
+    // Coolant runs with collars — the walls carry the same plumbing the floor
+    // channels feed into.
+    perimeter: {
+      style: 'pipes', thickness: 64,
+      wall: PAL.reacWall, wallLit: PAL.reacWallLit, wallDark: PAL.reacWallDark,
+      trim: PAL.reacStrip, glow: PAL.reacStripGlw,
+    },
     walls: [],
     // Props: the core is the landmark, the struts are supporting cast. All
     // three sit off the diagonal between spawn (200,1200) and exit (1200,200)
@@ -206,6 +220,13 @@ export const ROOMS = [
         { kind: 'bay', x: 1300, y: 1200, w: 150, h: 130 },
       ],
     },
+    // Recessed cell doors in the wall itself, standing behind the bay marks
+    // painted on the floor in front of them.
+    perimeter: {
+      style: 'cells', thickness: 64,
+      wall: PAL.detWall, wallLit: PAL.detWallLit, wallDark: PAL.detWallDark,
+      trim: PAL.detStrip, glow: PAL.detStripGlw,
+    },
     walls: [], // opened cells completely
     // Props: one security post as the landmark, plus bunks spilled out of the
     // cells. The bunks are the only repeated silhouette in the room, so they
@@ -266,6 +287,13 @@ export const ROOMS = [
         { kind: 'ring', x: 800, y: 400, r: 260, lw: 14 },
         { kind: 'ring', x: 800, y: 400, r: 300, lw: 5, alpha: 0.5 },
       ],
+    },
+    // Sheer black with widely spaced pilasters and one deep-red line. The other
+    // three rooms earn character by adding; this one earns it by withholding.
+    perimeter: {
+      style: 'bare', thickness: 80,
+      wall: PAL.vadWall, wallLit: PAL.vadWallLit, wallDark: PAL.vadWallDark,
+      trim: PAL.vadStrip, glow: PAL.vadStripGlw,
     },
     walls: [],
     // One prop only. The chamber should feel bare and severe — the meditation

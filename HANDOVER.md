@@ -54,8 +54,12 @@ src/
   main.js          Phaser config + scene registry
   config.js        EVERY gameplay tunable (single source of truth)
   data/
-    rooms.js       4 arena layouts (walls, cover, gates, terminals)
-    upgrades.js    8 between-wave upgrade cards
+    rooms.js       4 arena layouts (cover, props, floor + perimeter art,
+                   gates, terminals). `walls: []` in every room on purpose —
+                   see the comment at the top of the hangar spec.
+    mapUtils.js    Nav-lattice snapping, ASCII map expansion (unused),
+                   perimeterOpenings() — where the wall band needs doorways
+    upgrades.js    15 between-wave upgrade cards
     narrative.js   Intro / interstitial text
   entities/
     Player.js      Movement, aim, fire, dash, super, melee combo, HP/shield

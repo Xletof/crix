@@ -13,6 +13,7 @@ import { Terminal } from '../entities/Terminal.js';
 import { attachFX, SFX, startMusic, duckMusic, duckSfx, stopMusic, isLowQuality } from '../systems/FX.js';
 import { setMusicPhase, setBossPhase, tickDirector, musicSampleDue, resetDirector } from '../systems/musicDirector.js';
 import { ROOMS } from '../data/rooms.js';
+import { perimeterOpenings } from '../data/mapUtils.js';
 import { NARRATIVE } from '../data/narrative.js';
 import { NavGrid } from '../systems/NavGrid.js';
 
@@ -252,7 +253,15 @@ export class GameScene extends Phaser.Scene {
     // previous room's key, so only one is ever resident.
     const bgKey = `backdrop-${spec.id}`;
     if (!this.textures.exists(bgKey)) {
-      paintBackdrop(this, bgKey, w, h, spec.floor || {});
+      // The perimeter band is baked in here too — it is wall ART, not a wall.
+      // The physics world bounds already stop everything at these edges, so
+      // painting it adds no collision and, like the floor markings, cannot
+      // reach `this.walls` and so cannot affect nav or LOS.
+      paintBackdrop(this, bgKey, w, h, {
+        ...(spec.floor || {}),
+        perimeter: spec.perimeter || null,
+        openings: perimeterOpenings(spec),
+      });
     }
     const bgImg = this.add.image(0, 0, bgKey)
       .setOrigin(0, 0)

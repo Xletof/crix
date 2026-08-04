@@ -78,3 +78,41 @@ export const snap = (p) => ({
 });
 
 export const snapAll = (pts) => pts.map(snap);
+
+/**
+ * Work out where the perimeter wall band needs doorways.
+ *
+ * Derived rather than hand-authored, and that is the point: gates and the exit
+ * already exist on the spec, and a hand-written openings list would silently
+ * stop lining up the first time a gate moved 40px. Enemies surge in at the
+ * gates, so an opening in the wrong place means they walk out of solid wall.
+ *
+ * @param {object} spec  a room spec
+ * @param {number} near  how close to an edge a gate must be to be a door in it
+ * @returns {{side:string, at:number, width:number}[]}
+ */
+export function perimeterOpenings(spec, near = 220) {
+  const { w, h } = spec.bounds;
+  const out = [];
+
+  for (const g of spec.gates || []) {
+    // Nearest edge wins. A gate in a corner would otherwise punch two doors.
+    const d = [
+      { side: 'top',    dist: g.y,     at: g.x },
+      { side: 'bottom', dist: h - g.y, at: g.x },
+      { side: 'left',   dist: g.x,     at: g.y },
+      { side: 'right',  dist: w - g.x, at: g.y },
+    ].sort((a, b) => a.dist - b.dist)[0];
+    if (d.dist <= near) out.push({ side: d.side, at: d.at, width: 180 });
+  }
+
+  // The exit already draws its own lit doorframe (GameScene.drawDoor), which
+  // sits flush on the edge — without a cut it would be a door painted on a wall.
+  // It carries its side explicitly, so no guessing here.
+  if (spec.exit) {
+    const { x, y, side } = spec.exit;
+    out.push({ side, at: side === 'left' || side === 'right' ? y : x, width: 220 });
+  }
+
+  return out;
+}

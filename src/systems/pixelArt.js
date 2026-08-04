@@ -135,6 +135,23 @@ export const PAL = {
   vadStripGlw:  '#e01818',
   vadAcc:       '#1a1a24',
   vadAccGlw:    '#303040',
+  // ── Per-room perimeter walls ─────────────────────────────────────────────
+  // The band painted around each arena's edge (see drawPerimeter). Three tones
+  // per room: the wall top, its lit outer sliver, and the recessed greebles.
+  // Deliberately desaturated against the floor palettes — the wall should frame
+  // the room, not compete with the deck paint for attention.
+  hangWall:     '#3a352a',
+  hangWallLit:  '#4e4736',
+  hangWallDark: '#221f18',
+  reacWall:     '#3a2014',
+  reacWallLit:  '#54301c',
+  reacWallDark: '#1e0f08',
+  detWall:      '#20272f',
+  detWallLit:   '#2e3742',
+  detWallDark:  '#11161c',
+  vadWall:      '#131318',
+  vadWallLit:   '#1d1d26',
+  vadWallDark:  '#08080b',
   ledRed:       '#ff0808',
   ledGreen:     '#08ee08',
   // FX
@@ -1054,6 +1071,176 @@ function drawFloorMarks(ctx, marks, color, alpha) {
   ctx.restore();
 }
 
+// ── PERIMETER DRESSING ─────────────────────────────────────────────────────
+// A wall band painted around the arena edge, so a room reads as a room rather
+// than as a floor texture that stops.
+//
+// Painted INTO the backdrop canvas, exactly like the floor markings and for the
+// same reason: it never enters `this.walls`, so NavGrid and losRects cannot see
+// it and pathing cannot regress. It is also not lying about collision — the
+// physics world bounds already stop everything at these edges, so the band is
+// drawing the wall that was always there but invisible.
+//
+// One painter for all four sides. Each edge is drawn in a LOCAL space where x
+// runs along the edge (0..len) and y runs inward from the outside (0..thickness),
+// with a transform placing it; that is why there is one body of drawing code
+// here instead of four transposed copies.
+//
+// Gates and the exit are cut OUT of the band as doorways. That is the part that
+// earns its keep: enemies surge in at the gates, and without openings they walk
+// out of a painted wall.
+function drawPerimeter(ctx, worldW, worldH, opts) {
+  const {
+    style     = 'ribbed',
+    thickness = 64,
+    wall      = PAL.floorDark,
+    wallLit   = PAL.floorLight,
+    wallDark  = PAL.floorLine,
+    trim      = PAL.stripBlue,
+    glow      = PAL.stripBluGlow,
+    openings  = [],
+    shadow    = 30,
+  } = opts;
+
+  // rot/translate chosen so local (x, y) lands on the right world pixels:
+  //   top    (x, y) -> (x, y)                right  (x, y) -> (W - y, x)
+  //   bottom (x, y) -> (W - x, H - y)        left   (x, y) -> (y, H - x)
+  const edges = [
+    { side: 'top',    len: worldW, tx: 0,      ty: 0,      rot: 0,             flip: false },
+    { side: 'right',  len: worldH, tx: worldW, ty: 0,      rot: Math.PI / 2,   flip: false },
+    { side: 'bottom', len: worldW, tx: worldW, ty: worldH, rot: Math.PI,       flip: true },
+    { side: 'left',   len: worldH, tx: 0,      ty: worldH, rot: -Math.PI / 2,  flip: true },
+  ];
+
+  // An opening's `at` is a world coordinate along its edge. Two of the four
+  // edges run backwards in local space, so their offsets mirror.
+  const localAt = (e, at) => (e.flip ? e.len - at : at);
+  const cutsFor = (e) => openings
+    .filter((o) => o.side === e.side)
+    .map((o) => ({ x0: localAt(e, o.at) - o.width / 2, w: o.width }));
+
+  // Pass 1: the band itself.
+  for (const e of edges) {
+    ctx.save();
+    ctx.translate(e.tx, e.ty);
+    ctx.rotate(e.rot);
+
+    // Clip the band minus its doorways. even-odd turns the opening rects into
+    // holes, so nothing below has to know they exist.
+    ctx.beginPath();
+    ctx.rect(0, 0, e.len, thickness);
+    for (const c of cutsFor(e)) ctx.rect(c.x0, -2, c.w, thickness + 4);
+    ctx.clip('evenodd');
+
+    // Wall top, then the lit outer sliver — the edge catching the corridor light.
+    ctx.fillStyle = wall;
+    ctx.fillRect(0, 0, e.len, thickness);
+    ctx.fillStyle = wallLit;
+    ctx.fillRect(0, 0, e.len, Math.round(thickness * 0.22));
+
+    // Style greebles. Each room gets a different wall vocabulary; this is the
+    // whole point of the pass, since a uniform band would just be a border.
+    ctx.fillStyle = wallDark;
+    if (style === 'ribbed') {
+      // Hangar: heavy structural ribs, industrial and repetitive on purpose —
+      // repetition reads as construction at this scale, not as a tiling bug.
+      for (let x = 0; x < e.len; x += 26) {
+        ctx.globalAlpha = 0.55;
+        ctx.fillRect(x, 5, 11, thickness - 10);
+        if ((x / 26) % 5 === 0) {
+          ctx.globalAlpha = 0.5;
+          ctx.fillStyle = wallLit;
+          ctx.fillRect(x + 11, 5, 3, thickness - 10);
+          ctx.fillStyle = wallDark;
+        }
+      }
+    } else if (style === 'pipes') {
+      // Reactor: coolant runs along the wall with collars at intervals.
+      ctx.globalAlpha = 0.6;
+      for (const f of [0.34, 0.52, 0.7]) {
+        ctx.fillRect(0, Math.round(thickness * f), e.len, 6);
+      }
+      ctx.globalAlpha = 0.75;
+      for (let x = 18; x < e.len; x += 96) {
+        ctx.fillRect(x, Math.round(thickness * 0.28), 10, Math.round(thickness * 0.5));
+      }
+    } else if (style === 'cells') {
+      // Detention: recessed door alcoves, echoing the bay marks on the floor.
+      for (let x = 40; x < e.len - 40; x += 170) {
+        ctx.globalAlpha = 0.7;
+        ctx.fillRect(x, 6, 96, thickness - 16);
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = trim;
+        ctx.fillRect(x, thickness - 12, 96, 3);
+        ctx.fillStyle = wallDark;
+      }
+    } else if (style === 'bare') {
+      // Vader: almost nothing. Tall narrow pilasters, far apart. The chamber
+      // should feel severe, and greebles would make it look lived-in.
+      ctx.globalAlpha = 0.6;
+      for (let x = 60; x < e.len; x += 260) ctx.fillRect(x, 4, 16, thickness - 8);
+    }
+    ctx.globalAlpha = 1;
+
+    // Inner lip: a lit trim line where the wall meets the deck.
+    ctx.fillStyle = glow;
+    ctx.globalAlpha = 0.22;
+    ctx.fillRect(0, thickness - 9, e.len, 9);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = trim;
+    ctx.fillRect(0, thickness - 3, e.len, 3);
+
+    ctx.restore();
+  }
+
+  // Pass 2: the shadow the wall casts onto the deck. Separate pass so one
+  // edge's shadow is never painted over by the next edge's opaque band, and
+  // held off the corners where it would fall on the adjacent wall instead of
+  // on the floor.
+  for (const e of edges) {
+    ctx.save();
+    ctx.translate(e.tx, e.ty);
+    ctx.rotate(e.rot);
+
+    ctx.beginPath();
+    ctx.rect(thickness, thickness, e.len - thickness * 2, shadow);
+    for (const c of cutsFor(e)) ctx.rect(c.x0, thickness - 1, c.w, shadow + 2);
+    ctx.clip('evenodd');
+
+    const g = ctx.createLinearGradient(0, thickness, 0, thickness + shadow);
+    g.addColorStop(0, 'rgba(0,0,0,0.55)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, thickness, e.len, shadow);
+    ctx.restore();
+  }
+
+  // Pass 3: the doorways themselves — a dark recess with lit jambs, so a gate
+  // reads as somewhere enemies come FROM.
+  for (const e of edges) {
+    const cuts = cutsFor(e);
+    if (!cuts.length) continue;
+    ctx.save();
+    ctx.translate(e.tx, e.ty);
+    ctx.rotate(e.rot);
+    for (const c of cuts) {
+      ctx.fillStyle = '#000000';
+      ctx.globalAlpha = 0.75;
+      ctx.fillRect(c.x0, 0, c.w, thickness);
+      ctx.globalAlpha = 1;
+      // Jambs, and a threshold line across the mouth.
+      ctx.fillStyle = trim;
+      ctx.fillRect(c.x0 - 4, 0, 4, thickness);
+      ctx.fillRect(c.x0 + c.w, 0, 4, thickness);
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = glow;
+      ctx.fillRect(c.x0, thickness - 3, c.w, 3);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+}
+
 // ── DEATH STAR FLOOR BACKDROP ──────────────────────────────────────────────
 //
 // One painter, one look per room. Every colour and metric is an option with
@@ -1084,6 +1271,8 @@ export function paintBackdrop(scene, key, worldW, worldH, opts = {}) {
     marks      = [],
     markColor  = null,   // defaults to the accent colour below
     markAlpha  = 0.5,
+    perimeter  = null,   // { style, thickness, wall, wallLit, wallDark, trim, glow }
+    openings   = [],     // doorway cuts, derived from the room's gates + exit
   } = opts;
 
   const tex = scene.textures.createCanvas(key, worldW, worldH);
@@ -1159,6 +1348,11 @@ export function paintBackdrop(scene, key, worldW, worldH, opts = {}) {
   // runtime because they are baked into this canvas, and unlike a standing
   // prop there is no question of walking through them — they ARE the floor.
   if (marks.length) drawFloorMarks(ctx, marks, markColor || accent, markAlpha);
+
+  // Perimeter wall band. After the strips so the full-width strip lights do not
+  // run out across the wall, and before the scorch so the wall gets weathered
+  // along with everything else.
+  if (perimeter) drawPerimeter(ctx, worldW, worldH, { ...perimeter, openings });
 
   // Scorch marks (blaster fire damage)
   ctx.globalAlpha = 0.4;
