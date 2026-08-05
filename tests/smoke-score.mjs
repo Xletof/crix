@@ -170,6 +170,28 @@ const r = await page.evaluate(async () => {
   out.medalsRendered = rendered.slice();
   hud._renderMedal = realRender;
 
+  // ── Rank thresholds ────────────────────────────────────────────────────
+  // The two modes must NOT share a table. Endless score climbs with how long
+  // you survive and runs far past anything the campaign can reach, so a shared
+  // table would hand out S in endless for a mediocre run while making S in the
+  // campaign unreachable.
+  {
+    const { rankFor, RANK_THRESHOLDS } = await import('/src/data/ranks.js');
+    out.ranks = {
+      zero: rankFor(0, 'campaign').id,
+      negative: rankFor(-500, 'campaign').id,
+      missing: rankFor(undefined, 'campaign').id,
+      campaignS: rankFor(RANK_THRESHOLDS.campaign.S, 'campaign').id,
+      campaignJustUnderS: rankFor(RANK_THRESHOLDS.campaign.S - 1, 'campaign').id,
+      // The same score in each mode: a campaign S must not be an endless S.
+      sameScoreCampaign: rankFor(RANK_THRESHOLDS.campaign.S, 'campaign').id,
+      sameScoreEndless: rankFor(RANK_THRESHOLDS.campaign.S, 'endless').id,
+      unknownMode: rankFor(RANK_THRESHOLDS.campaign.S, 'nosuchmode').id,
+      nextAtS: rankFor(RANK_THRESHOLDS.campaign.S, 'campaign').next,
+      nextAtD: rankFor(0, 'campaign').next,
+    };
+  }
+
   // ── The score reaches the end-of-run summary ───────────────────────────
   // GameScene builds the stats object victory()/defeat() hand to GameOverScene.
   // Score being tracked but not forwarded would be invisible until you died.
@@ -206,6 +228,11 @@ const layout = await page.evaluate(async () => {
     score: find('SCORE'),
     record: find('NEW RECORD'),
     retry: find('RETRY'),
+    rank: (() => {
+      const o = texts.find((t) => /^[SABCD]$/.test(t.text));
+      return o ? box(o) : null;
+    })(),
+    rankBlurb: find('EXPERT') || find('SOLID') || find('FLAWLESS EXECUTION') || find('SERVICEABLE') || find('ROUGH'),
     menu: find('MAIN MENU'),
     rows: ['SECTOR REACHED', 'KILLS:', 'CHARGE PEAK', 'DAMAGE TAKEN'].map(find),
     viewH: window.game.scale.height,
@@ -231,6 +258,15 @@ check(!overlaps(layout.score, layout.retry) && !overlaps(layout.retry, layout.me
   `retry y ${layout.retry ? Math.round(layout.retry.y) : '?'}, menu y ${layout.menu ? Math.round(layout.menu.y) : '?'}`);
 check(layout.all.every((t) => t.b <= layout.viewH + 1), 'nothing is pushed off the bottom of the screen',
   layout.all.filter((t) => t.b > layout.viewH + 1).map((t) => t.t).join(', '));
+
+// ── Rank badge ───────────────────────────────────────────────────────────
+check(!!layout.rank && !!layout.rankBlurb, 'the run is graded with a rank badge',
+  `rank ${!!layout.rank}, blurb ${!!layout.rankBlurb}`);
+check(!overlaps(layout.rank, layout.score) && !overlaps(layout.rank, layout.record),
+  'the rank badge clears the score line and its tag',
+  layout.rank ? `rank starts x=${Math.round(layout.rank.x)}` : 'missing');
+check(layout.rows.every((r) => !overlaps(r, layout.rank)), 'and clears every stat row',
+  layout.rows.map((r, i) => (overlaps(r, layout.rank) ? `row ${i}` : '')).filter(Boolean).join(', '));
 
 // ── addScore ─────────────────────────────────────────────────────────────
 check(r.afterAdds === 500, 'addScore accumulates, and ignores zero/negative awards',
@@ -297,6 +333,22 @@ check(r.slowWave.score === r.expect.waveClear,
   `${r.slowWave.score}, expected ${r.expect.waveClear}`);
 check(!r.slowWave.medals.some((m) => m.name === 'FAST CLEAR'), 'and FAST CLEAR is not announced',
   `medals: ${names(r.slowWave.medals)}`);
+
+// ── Rank ─────────────────────────────────────────────────────────────────
+check(r.ranks.zero === 'D' && r.ranks.negative === 'D' && r.ranks.missing === 'D',
+  'every run gets a rank, including a zero or missing score',
+  `zero=${r.ranks.zero} negative=${r.ranks.negative} missing=${r.ranks.missing}`);
+check(r.ranks.campaignS === 'S' && r.ranks.campaignJustUnderS === 'A',
+  'the top threshold is inclusive and one point below it is not',
+  `at=${r.ranks.campaignS}, one under=${r.ranks.campaignJustUnderS}`);
+check(r.ranks.sameScoreEndless !== r.ranks.sameScoreCampaign,
+  'the same score does not grade the same in both modes',
+  `campaign=${r.ranks.sameScoreCampaign}, endless=${r.ranks.sameScoreEndless}`);
+check(r.ranks.unknownMode === 'S', 'an unknown mode falls back to the campaign table',
+  `got ${r.ranks.unknownMode}`);
+check(r.ranks.nextAtS === null && r.ranks.nextAtD && r.ranks.nextAtD.id === 'C',
+  'the next rank up is offered below S and absent at S',
+  `atS=${JSON.stringify(r.ranks.nextAtS)}, atD=${JSON.stringify(r.ranks.nextAtD)}`);
 
 // ── Medals ───────────────────────────────────────────────────────────────
 check(r.medalsImmediate.length === 1, 'medals emitted together do not stack on screen at once',

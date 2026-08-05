@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { VIEW, FONTS } from '../config.js';
 import { SFX, stopMusic } from '../systems/FX.js';
 import { loadStats, saveStats } from './TitleScene.js';
+import { rankFor } from '../data/ranks.js';
 import { NARRATIVE } from '../data/narrative.js';
 
 export class GameOverScene extends Phaser.Scene {
@@ -175,7 +176,10 @@ export class GameOverScene extends Phaser.Scene {
       // Score leads. It is the one line that summarises the whole run, so it
       // gets its own colour and the record flag rather than being the fourth
       // row of a list.
-      this._scoreLine(px + 50, boxY + 14, stats?.score || 0, globalStats.bestScore || 0, px + pw - 50);
+      // Rank sits on the right of the card; the score line's right edge stops
+      // short of it so a long score and its record tag cannot run underneath.
+      this._rankBadge(px + pw - 105, boxY + 58, stats?.score || 0, 'campaign');
+      this._scoreLine(px + 50, boxY + 14, stats?.score || 0, globalStats.bestScore || 0, px + pw - 190);
       this.add.text(px + 50, boxY + 62, `TIME:    ${formatTime(stats?.clearTime)}  (PB: ${formatTime(globalStats.bestTime)})`, statsStyle);
       this.add.text(px + 50, boxY + 90, `KILLS:   ${stats?.kills || 0}  (PB: ${globalStats.bestKills || 0})`, statsStyle);
       this.add.text(px + 50, boxY + 118, `CHARGE:  x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
@@ -316,9 +320,10 @@ export class GameOverScene extends Phaser.Scene {
       const firstLine = mode === 'endless'
         ? `SECTOR REACHED: ${stats?.sector || 0}  (PB: ${globalStats.bestEndlessSector || 0})`
         : `TIME ELAPSED: ${formatTime(stats?.clearTime)}`;
+      this._rankBadge(px + pw - 105, boxY + 58, stats?.score || 0, mode);
       this._scoreLine(px + 50, boxY + 14, stats?.score || 0,
         (mode === 'endless' ? globalStats.bestScoreEndless : globalStats.bestScore) || 0,
-        px + pw - 50);
+        px + pw - 190);
       this.add.text(px + 50, boxY + 62, firstLine, statsStyle);
       this.add.text(px + 50, boxY + 90, `KILLS:        ${stats?.kills || 0}  (PB: ${globalStats.bestKills || 0})`, statsStyle);
       this.add.text(px + 50, boxY + 118, `CHARGE PEAK:  x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
@@ -356,6 +361,48 @@ export class GameOverScene extends Phaser.Scene {
   // The run's score, plus its personal best — or a NEW RECORD flash when this
   // run WAS the best. Shared by the victory and defeat panels so the two
   // cannot drift apart.
+  // The rank badge — a big letter beside the score, plus what the next one up
+  // would have cost. The "next" line is the point of the whole feature: a bare
+  // grade tells you how you did, a grade plus its target tells you what to aim
+  // at on the retry.
+  _rankBadge(cx, y, score, mode) {
+    const rank = rankFor(score, mode === 'endless' ? 'endless' : 'campaign');
+
+    const letter = this.add.text(cx, y, rank.name, {
+      fontFamily: FONTS.display,
+      fontSize: '76px',
+      fontStyle: 'bold',
+      color: rank.color,
+      stroke: '#000000',
+      strokeThickness: 6,
+    }).setOrigin(0.5).setResolution(2);
+
+    this.add.text(cx, y + 48, rank.blurb, {
+      fontFamily: FONTS.body,
+      fontSize: '15px',
+      fontStyle: 'bold',
+      color: rank.color,
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5);
+
+    if (rank.next) {
+      this.add.text(cx, y + 70, `${rank.next.id} AT ${rank.next.at.toLocaleString('en-US')}`, {
+        fontFamily: FONTS.body,
+        fontSize: '13px',
+        color: '#8ab8ff',
+        stroke: '#000000',
+        strokeThickness: 2,
+      }).setOrigin(0.5);
+    }
+
+    // Land it like a stamp rather than fading it in — this is the verdict on
+    // the run and it should arrive with some weight.
+    letter.setScale(2.4).setAlpha(0);
+    this.tweens.add({ targets: letter, scale: 1, alpha: 1, duration: 420, delay: 260, ease: 'Back.easeOut' });
+    return rank;
+  }
+
   _scoreLine(x, y, score, best, rightEdge = VIEW.width - 40) {
     const label = this.add.text(x, y, `SCORE  ${score.toLocaleString('en-US')}`, {
       fontFamily: FONTS.display,
@@ -366,34 +413,33 @@ export class GameOverScene extends Phaser.Scene {
       strokeThickness: 4,
     }).setResolution(2);
 
-    // Place the tag AFTER the score, measured — not at a fixed offset. A
-    // six-figure endless score is far wider than a campaign one, and a fixed
-    // +210 dropped "NEW RECORD" straight on top of the digits. If it will not
-    // fit on the line, it goes underneath rather than off the card.
-    const gap = 14;
-    let tx = x + label.width + gap;
-    let ty = y + 8;
-    const tagW = 120;
-    if (tx + tagW > rightEdge) { tx = x; ty = y + 34; }
+    // Build the tag FIRST and measure it, then place it — do not guess either
+    // width. A fixed offset put "NEW RECORD" on top of a six-figure score, and
+    // guessing the tag's width instead bumped it onto a second line where it
+    // landed on the first stat row. Both were caught in screenshots, not by an
+    // assertion, which is why the layout test now measures real bounds.
+    const record = !!this._newScoreRecord;
+    const tag = this.add.text(0, 0, record ? 'NEW RECORD' : `PB ${best.toLocaleString('en-US')}`, {
+      fontFamily: FONTS.body,
+      fontSize: record ? '16px' : '15px',
+      fontStyle: record ? 'bold' : 'normal',
+      color: record ? '#40ff90' : '#8ab8ff',
+      stroke: '#000000',
+      strokeThickness: record ? 3 : 2,
+    });
 
-    if (this._newScoreRecord) {
-      const tag = this.add.text(tx, ty, 'NEW RECORD', {
-        fontFamily: FONTS.body,
-        fontSize: '16px',
-        fontStyle: 'bold',
-        color: '#40ff90',
-        stroke: '#000000',
-        strokeThickness: 3,
-      });
+    // Right-align the tag to the space available, then shrink the score if the
+    // two would still collide. Staying on one line matters: the row below is
+    // the first stat and there is nowhere else for this to go.
+    tag.setPosition(Math.max(x, rightEdge - tag.width), y + 10);
+    const gap = 12;
+    if (label.x + label.width + gap > tag.x) {
+      label.setFontSize(22);
+      tag.setPosition(Math.max(x, rightEdge - tag.width), y + 6);
+    }
+
+    if (record) {
       this.tweens.add({ targets: tag, alpha: 0.25, duration: 520, yoyo: true, repeat: -1 });
-    } else {
-      this.add.text(tx, ty, `PB ${best.toLocaleString('en-US')}`, {
-        fontFamily: FONTS.body,
-        fontSize: '15px',
-        color: '#8ab8ff',
-        stroke: '#000000',
-        strokeThickness: 2,
-      });
     }
   }
 

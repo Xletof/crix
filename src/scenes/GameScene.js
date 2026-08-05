@@ -56,6 +56,14 @@ export class GameScene extends Phaser.Scene {
     this._lastKillTime = -99999;
     this._pendingChoice = null;
     this.decalRT       = null;
+    // Snapshot the record to beat at run start, per mode. Read once so the
+    // in-run "NEW RECORD" fires exactly as the run crosses it.
+    this._recordBeaten = false;
+    this._bestAtStart  = 0;
+    try {
+      const saved = JSON.parse(localStorage.getItem('crix.stats') || '{}');
+      this._bestAtStart = (this.mode === 'endless' ? saved.bestScoreEndless : saved.bestScore) || 0;
+    } catch (_) { this._bestAtStart = 0; }
 
     // ── Persistent bullet groups (survive room transitions) ────────────────
     this.playerBullets      = new BulletGroup(this, 'bullet');
@@ -1046,6 +1054,16 @@ export class GameScene extends Phaser.Scene {
     const n = Math.round(amount);
     this.runScore = (this.runScore || 0) + n;
     this.events.emit('score-changed', this.runScore, n);
+
+    // Beating your best is the most exciting thing that can happen in a run,
+    // and burying it on the summary screen wastes it — by then the run is over
+    // and you cannot enjoy it. Fire it the moment it happens, once. `_bestAtStart`
+    // is captured at run start so it does not move under us as we pass it.
+    if (this._bestAtStart > 0 && !this._recordBeaten && this.runScore > this._bestAtStart) {
+      this._recordBeaten = true;
+      this.events.emit('score-medal', 'NEW RECORD', this.runScore, '#40ff90');
+      SFX.superReady?.();
+    }
     if (x !== null && y !== null) {
       this.events.emit('score-popup', x, y, n, label, this.chainMult());
     }
