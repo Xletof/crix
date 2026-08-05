@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BOSS } from '../config.js';
+import { BOSS, ENDLESS } from '../config.js';
 import { SFX } from '../systems/FX.js';
 import { Enemy } from './Enemy.js';
 
@@ -60,7 +60,12 @@ export class Boss extends Enemy {
   // (7 simultaneous pellets) can't one-shot the boss. Any individual hit that
   // would push total intake above 2200 in a 120 ms window is partially absorbed.
   damage(amount, knockbackVec = null) {
-    const CAP = 2200, WIN = 120;
+    // Tightened from a flat 2200. The player's burst is much higher than this
+    // fight was originally tuned against — a 5x600 super plus a 320/320/700
+    // melee chain deleted the old 12,000 pool fast enough that phases 2 and 3
+    // barely happened. A per-boss override lets a wounded, returning Vader
+    // harden further without touching the base.
+    const CAP = this._dmgCap ?? ENDLESS.bossDamageCap, WIN = 120;
     if (this._dmgWindowMs <= 0) { this._dmgWindow = 0; }
     const headroom = Math.max(0, CAP - this._dmgWindow);
     const effective = Math.min(amount, headroom);
@@ -68,7 +73,39 @@ export class Boss extends Enemy {
     this._dmgWindow   += effective;
     this._dmgWindowMs  = WIN;
     this.scene.events.emit('boss-hit', this, effective);
+
+    // Vader is not killed in endless — he is WOUNDED and withdraws, and comes
+    // back at the next boss sector harder and with one more trick. Intercepted
+    // BEFORE super.damage, because Enemy.damage calls die() the moment hp hits
+    // zero and there is no undoing that afterwards.
+    if (this._retreats && this.hp - effective <= 0) {
+      this.hp = 0;
+      this.retreat();
+      return;
+    }
     super.damage(effective, knockbackVec);
+  }
+
+  // Driven off rather than destroyed. Mirrors die()'s teardown exactly — the
+  // same attachments have to go or they survive as unkillable ghosts — but
+  // announces itself as a withdrawal and emits its own event, so GameScene can
+  // continue the run instead of ending it.
+  retreat() {
+    if (!this.alive) return;
+    this.alive = false;
+    this.scene.events.emit('boss-wounded', this);
+    this.hpBar.destroy();
+    this.shadow.destroy();
+    this.weaponSprite?.destroy();
+    this.threatRing?.destroy();
+    this.scene.tweens.add({
+      targets: this,
+      alpha: 0,
+      y: this.y - 60,
+      duration: 900,
+      ease: 'Sine.easeIn',
+      onComplete: () => this.destroy(),
+    });
   }
 
   enterPhase(p) {

@@ -81,8 +81,11 @@ const r = await page.evaluate(async () => {
   gs.spawnBoss(gs.roomSpec.bossSpawn.x, gs.roomSpec.bossSpawn.y);
   await new Promise((res) => setTimeout(res, 900));
   const n = Math.max(1, Math.floor(gs.sector / ENDLESS.bossEvery));
+  out.bossMechanics = (gs.boss?._mechanics || []).slice();
   out.boss = {
     n,
+    retreats: !!gs.boss?._retreats,
+    dmgCap: gs.boss?._dmgCap ?? null,
     hpMax: gs.boss?.hpMax ?? null,
     expected: Math.round(BOSS.hp * (1 + ENDLESS.bossHpStep * (n - 1))),
     // Phases are ratios of hpMax, so scaling both must leave them untouched.
@@ -93,6 +96,8 @@ const r = await page.evaluate(async () => {
   gs.runScore = 0;
   const medals = [];
   gs.events.on('score-medal', (name, pts) => medals.push({ name, pts }));
+  let wounded = false;
+  gs.events.on('boss-wounded', () => { wounded = true; });
   let wentToGameOver = false;
   const realStart = gs.scene.start.bind(gs.scene);
   gs.scene.start = (key) => { if (key === 'GameOver') wentToGameOver = true; };
@@ -110,7 +115,9 @@ const r = await page.evaluate(async () => {
   out.afterBoss = {
     wentToGameOver,
     scored: gs.runScore,
-    medal: medals.find((m) => m.name === 'VADER DOWN') || null,
+    wounded,
+    medal: medals.find((m) => m.name === 'VADER DRIVEN OFF') || null,
+    mechanics: out.bossMechanics,
     doorOpen: !!gs.doorZone,
     stillPlaying: gs.scene.isActive(),
     sector: gs.sector,
@@ -159,10 +166,19 @@ check(r.boss.phase === 1, 'scaling hp and hpMax together leaves him in phase 1',
   `phase ${r.boss.phase} — the thresholds are ratios, so raising only hp would skip phases`);
 
 // ── The climb continues ──────────────────────────────────────────────────
-check(!r.afterBoss.wentToGameOver, 'killing Vader does NOT end an endless run',
+check(!r.afterBoss.wentToGameOver, 'driving Vader off does NOT end an endless run',
   'boss-died called victory(), which is the campaign behaviour');
+check(r.boss.retreats, 'Vader is flagged to withdraw rather than die in endless', '');
+check(r.afterBoss.wounded, 'and taking him to zero wounds him instead of killing him',
+  'boss-wounded never fired — he died, so he can never come back');
+check(r.afterBoss.mechanics.length === r.boss.n,
+  `Vader #${r.boss.n} carries ${r.boss.n} mechanic(s)`,
+  `got [${r.afterBoss.mechanics.join(', ')}]`);
+check(r.boss.dmgCap > 0 && r.boss.dmgCap <= 1600,
+  'his damage intake cap tightens with each wound',
+  `cap ${r.boss.dmgCap}`);
 check(r.afterBoss.doorOpen, 'the exit opens once he is down', '');
-check(!!r.afterBoss.medal && r.afterBoss.medal.pts > 0, 'and he pays out',
+check(!!r.afterBoss.medal && r.afterBoss.medal.pts > 0, 'and he pays out when driven off',
   r.afterBoss.medal ? `${r.afterBoss.medal.pts}` : 'no VADER DOWN medal');
 check(r.pastBoss.sector > r.afterBoss.sector && !r.pastBoss.boss,
   'and walking out leads to the next arena sector',

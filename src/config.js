@@ -803,8 +803,32 @@ export const ENDLESS = {
   bossEvery: 5,
   // Each Vader is tougher than the last. Compounding would make boss 4
   // impossible while boss 2 was trivial, so this is linear in the boss number.
-  bossHpStep: 0.6,     // boss n has hp x (1 + 0.6*(n-1))
+  bossHpStep: 0.9,     // boss n has hp x (1 + 0.9*(n-1))
   bossScoreStep: 0.5,  // and is worth proportionally more
+
+  // Vader is a RECURRING NEMESIS, not a kill. Driving him to zero wounds him
+  // and he withdraws; he returns at the next boss sector with more health and
+  // one more mechanic. That is the difference between "I beat the boss" and "he
+  // is still out there", and it is what stops the tenth boss sector being the
+  // fifth one again.
+  //
+  // It also fixes a real balance hole: the player's burst is far higher than the
+  // fight was tuned for. Super is 5 x 600 and melee chains 320/320/700, so a
+  // committed spam of both deletes 12,000 hp fast enough that phases 2 and 3
+  // barely happen. His base pool and his per-encounter step are both raised, and
+  // the intake cap below is what stops a single piercing super skipping a phase.
+  bossDamageCap: 1600,   // per 120ms window (was a flat 2200 in Boss.damage)
+
+  // Mechanics he accumulates, one per encounter, in this order. Each is drawn
+  // from behaviour the Boss already has or a small addition, so "weirder every
+  // time" does not mean a new boss written from scratch every five sectors.
+  bossMechanics: [
+    { id: 'guard',    name: 'ELITE GUARD',    desc: 'he no longer comes alone' },
+    { id: 'sunder',   name: 'SUNDERING SLAM', desc: 'the floor answers him' },
+    { id: 'hunt',     name: 'RELENTLESS',     desc: 'he does not lose you' },
+    { id: 'legion',   name: 'LEGION',         desc: 'the room fills as he falls' },
+    { id: 'unbound',  name: 'UNBOUND',        desc: 'nothing slows him now' },
+  ],
 };
 
 export const MODIFIERS = {

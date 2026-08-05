@@ -14,6 +14,7 @@ import { attachFX, SFX, startMusic, duckMusic, duckSfx, stopMusic, isLowQuality 
 import { setMusicPhase, setBossPhase, tickDirector, musicSampleDue, resetDirector } from '../systems/musicDirector.js';
 import { ROOMS } from '../data/rooms.js';
 import { perimeterOpenings } from '../data/mapUtils.js';
+import { rollNemesis, traitLine } from '../data/nemesis.js';
 import { NARRATIVE } from '../data/narrative.js';
 import { NavGrid } from '../systems/NavGrid.js';
 
@@ -1653,6 +1654,43 @@ export class GameScene extends Phaser.Scene {
       const mult = 1 + ENDLESS.bossHpStep * (n - 1);
       this.boss.hpMax = Math.round(this.boss.hpMax * mult);
       this.boss.hp = this.boss.hpMax;
+
+      // He withdraws instead of dying, and hardens each time.
+      this.boss._retreats = true;
+      this.boss._encounter = n;
+      this.boss._dmgCap = Math.round(ENDLESS.bossDamageCap * Math.max(0.55, 1 - 0.08 * (n - 1)));
+
+      // One more mechanic per encounter, in a fixed order so a player learns
+      // the ladder rather than being surprised at random. Every one of them is
+      // built from behaviour the Boss or the scene already has — that is what
+      // keeps "weirder every time" from meaning a new boss written from scratch.
+      const gained = ENDLESS.bossMechanics.slice(0, n);
+      this.boss._mechanics = gained.map((m) => m.id);
+
+      for (const m of gained) {
+        if (m.id === 'guard')   this._bossGuard = 3;
+        if (m.id === 'sunder')  this.boss._sunderMs = 5200;
+        if (m.id === 'hunt')    this.boss.cfg = { ...this.boss.cfg, speed: this.boss.cfg.speed * 1.18 };
+        if (m.id === 'legion')  this.boss._legion = true;
+        if (m.id === 'unbound') {
+          this.boss.cfg = { ...this.boss.cfg, speed: this.boss.cfg.speed * 1.2 };
+          this.boss._noStagger = true;
+        }
+      }
+      this.boss._sunderT = this.boss._sunderMs || 0;
+
+      // Announce which Vader this is and what he brought. The newest mechanic
+      // gets named on its own — being told exactly what changed is what makes
+      // the escalation legible rather than just "he feels harder now".
+      const newest = gained[gained.length - 1];
+      this.events.emit('show-banner', n === 1 ? 'DARTH VADER' : `VADER — WOUND ${n - 1}`, '#ff2828');
+      if (newest && n > 1) {
+        this.time.delayedCall(1600, () =>
+          this.events.emit('score-medal', `${newest.name} — ${newest.desc}`, 0, '#ff5050'));
+      }
+      if (this._bossGuard) {
+        this.time.delayedCall(900, () => { this.bossSpawnMinions(); this._bossGuard = 0; });
+      }
     }
 
     this.physics.add.collider(this.boss, this.walls);
@@ -1838,7 +1876,11 @@ export class GameScene extends Phaser.Scene {
       if (amount >= 400) this._slowMo(0.5, 240);
       SFX.bossHit();
     });
-    this._on('boss-phase', (p) => setBossPhase(p));
+    this._on('boss-phase', (p) => {
+      setBossPhase(p);
+      // LEGION: the room fills as he falls.
+      if (this.boss?._legion) this.bossSpawnMinions();
+    });
     this._on('boss-died', (boss) => {
       this.boss = null;
       this.roomManager.onEnemyDied(); // consistent tracking
@@ -1866,6 +1908,25 @@ export class GameScene extends Phaser.Scene {
         this.time.delayedCall(800, () => this.victory());
       }
     });
+    // Vader withdrawing. The endless counterpart to boss-died: he pays out, the
+    // exit opens, and the run carries on with him still out there.
+    this._on('boss-wounded', (boss) => {
+      this.boss = null;
+      this.roomManager.onEnemyDied();
+      this._bossesKilled = (this._bossesKilled || 0) + 1;
+      const pay = Math.round(SCORE.boss * (1 + ENDLESS.bossScoreStep * (this._bossesKilled - 1)));
+      this.addScore(pay, boss.x, boss.y - 60);
+      this.events.emit('score-medal', 'VADER DRIVEN OFF', pay, '#ff2828');
+      this.fx.burst(boss.x, boss.y, 'red', 30);
+      this.fx.shake(0.018, 400);
+      SFX.bossDie?.();
+      this._enemiesCleared = true;
+      this.time.delayedCall(1500, () => {
+        this.events.emit('show-banner', 'HE WILL RETURN', '#ff8080');
+        this._maybeCompleteRoom();
+      });
+    });
+
     this._on('boss-phase-crack', (bx, by, phase) => {
       this._spawnVaderGroundCrack(bx, by, phase);
       this.fx.shake(phase >= 3 ? 0.022 : 0.015, 300);
@@ -1989,6 +2050,16 @@ export class GameScene extends Phaser.Scene {
           `+${Math.round(amount)}`,
           overflow > healed ? '#90d8ff' : '#40ff90',   // blue when banking shield
         );
+      }
+
+      // VOLATILE nemesis: it detonates where it fell. This is the trait that
+      // answers melee-spam — the finisher that killed it was delivered from
+      // inside the blast radius, so the kill has to be followed by a dash out
+      // rather than by standing still. Reuses the grenade blast, so it damages
+      // the player and other enemies exactly as any explosion does.
+      if (enemy._volatile) {
+        const v = enemy._volatile;
+        this._volatileBlast(enemy.x, enemy.y, v.damage, v.radius);
       }
 
       // Run-wide kill counter (drives the HUD readout + records)
@@ -2658,6 +2729,40 @@ export class GameScene extends Phaser.Scene {
   // of each munition to its locked target replaces it. Two line-ish elements
   // competing was the whole problem, so this is not coming back alongside it.
 
+  // A VOLATILE nemesis detonating where it fell.
+  //
+  // Deliberately NOT detonateGrenade. That one is the PLAYER's blast: it damages
+  // only enemies, and it feeds `addSuperHit` for every target caught. Reusing it
+  // meant a volatile corpse hurt nobody and handed the player super charge for
+  // the privilege — an explosion that changed nothing except the light show,
+  // which is the exact failure the trait exists to avoid.
+  //
+  // This hurts the player, chains into other enemies, and grants nothing.
+  _volatileBlast(x, y, damage, radius) {
+    this.fx.explosion(x, y, 2.2);
+    this.fx.burst(x, y, 'red', 22);
+    this.fx.shake(0.016, 240);
+    SFX.bossDie?.();
+
+    const r2 = radius * radius;
+    for (const t of this.enemies.getChildren()) {
+      if (!t.active || !t.alive) continue;
+      if ((t.x - x) ** 2 + (t.y - y) ** 2 < r2) t.damage(Math.round(damage * 0.6));
+    }
+
+    const p = this.player;
+    if (p?.alive) {
+      const d2 = (p.x - x) ** 2 + (p.y - y) ** 2;
+      if (d2 < r2) {
+        // Falls off with distance, so backing out of the blast partly works and
+        // dashing clear of it works entirely — the trait asks you to move, it
+        // does not simply tax the kill.
+        const falloff = 1 - Math.sqrt(d2) / radius;
+        p.damage(Math.round(damage * (0.45 + 0.55 * falloff)), Math.atan2(p.y - y, p.x - x));
+      }
+    }
+  }
+
   detonateGrenade(x, y, damage, radius) {
     this.fx.explosion(x, y, 2.5);
     this.fx.burst(x, y, 'yellow', 20);
@@ -2799,6 +2904,7 @@ export class GameScene extends Phaser.Scene {
 
     // Timed wave survival tick
     this._tickArena(delta);
+    this._tickNemesis(delta);
 
     // Health orbs
     this.updateHealthOrbs(delta);
@@ -3863,12 +3969,74 @@ export class GameScene extends Phaser.Scene {
         Math.hypot(b.x - this.player.x, b.y - this.player.y) ? a : b);
       gx = g.x; gy = g.y;
     }
-    const type = Math.random() < 0.5 ? 'shielded' : 'shooter';
-    const e = this.spawnEnemyAt(type, gx, gy, {});
-    this._makeElite(e, { hpMult: 6, scale: 1.8, tint: 0xff4020, speedMult: 0.8 });
+    // A NEMESIS, not a coin flip. This used to be
+    // `Math.random() < 0.5 ? 'shielded' : 'shooter'` at a fixed x6 hp — two
+    // encounters, identical at sector 3 and sector 30. It now rolls a base
+    // archetype plus 1-3 composable traits and a generated name, so the mini-boss
+    // is a different fight each time without a hundred hand-authored ones.
+    const nem = rollNemesis(this.sector || 1);
+    const e = this.spawnEnemyAt(nem.base, gx, gy, {});
+    this._makeElite(e, {
+      hpMult: 6 * nem.hpMult,
+      scale: 1.8 * nem.scale,
+      tint: Phaser.Display.Color.HexStringToColor(nem.tint).color,
+      speedMult: 0.8 * nem.speedMult,
+    });
     e._miniBoss = true;
+    e._nemesis = nem;
+    // Runtime trait state. Held on the enemy so _tickNemesis can drive it
+    // without a second registry to keep in sync.
+    e._regenPerSec = nem.regenPerSec;
+    e._summonMs = nem.summonMs;
+    e._summonT = nem.summonMs;
+    e._volatile = nem.volatile;
+
     this.fx.burst(gx, gy, 'red', 24);
+    this.events.emit('show-banner', nem.name, nem.tint);
+    if (nem.traits.length) {
+      this.time.delayedCall(1500, () => {
+        if (e.active) this.events.emit('score-medal', traitLine(nem.traits), 0, nem.tint);
+      });
+    }
     return e;
+  }
+
+  // Drive the trait behaviours that need a clock. One pass over the (small) set
+  // of nemeses alive rather than a per-enemy timer each, so an arena with none
+  // costs a single array check.
+  _tickNemesis(delta) {
+    // SUNDER: Vader periodically cracks the floor around himself. Reuses the
+    // phase-crack visual and the grenade blast, so it reads as his and needs no
+    // new attack code.
+    const b = this.boss;
+    if (b?.alive && b._sunderMs > 0) {
+      b._sunderT -= delta;
+      if (b._sunderT <= 0) {
+        b._sunderT = b._sunderMs;
+        this._spawnVaderGroundCrack(b.x, b.y, b.phase || 1);
+        this.detonateGrenade(b.x, b.y, 240, 260);
+        this.fx.shake(0.02, 300);
+      }
+    }
+
+    for (const e of this.enemies.getChildren()) {
+      if (!e.alive || !e._nemesis) continue;
+
+      if (e._regenPerSec > 0 && e.hp < e.hpMax) {
+        e.hp = Math.min(e.hpMax, e.hp + e.hpMax * e._regenPerSec * (delta / 1000));
+      }
+
+      if (e._summonMs > 0) {
+        e._summonT -= delta;
+        if (e._summonT <= 0) {
+          e._summonT = e._summonMs;
+          // Swarmlings: cheap, readable, and already speed-capped below the
+          // player so a summoner can never wall you in with something unescapable.
+          this._spawnSwarmlingPack(e.x, e.y);
+          this.fx.burst(e.x, e.y, 'purple', 12);
+        }
+      }
+    }
   }
 
   _livingEnemyCount() {

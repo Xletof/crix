@@ -35,6 +35,7 @@ const TESTS = [
   'smoke-leak',
   'smoke-march',
   'smoke-music-tiers',
+  'smoke-nemesis',
   'smoke-pathing',
   'smoke-progress',
   'smoke-restart',
