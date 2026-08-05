@@ -3969,7 +3969,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Mini-boss: a super-elite spawned at wave start. Counts toward the clear.
-  _spawnMiniBoss() {
+  /**
+   * Spawn the sector's nemesis.
+   *
+   * @param {object} [preRolled]  a nemesis from `rollNemesis`. Omitted in play,
+   *   where the sector rolls its own. Supplied when the encounter is already
+   *   decided — the balance harness forcing a specific trait loadout, and (from
+   *   phase 2) the ledger returning a remembered nemesis, which must come back
+   *   as ITSELF rather than as a fresh roll that happens to share a name.
+   */
+  _spawnMiniBoss(preRolled = null) {
     const spec = this.roomSpec;
     const gates = spec?.gates;
     let gx = spec?.bounds ? spec.bounds.w / 2 : this.player.x;
@@ -3986,7 +3995,7 @@ export class GameScene extends Phaser.Scene {
     // encounters, identical at sector 3 and sector 30. It now rolls a base
     // archetype plus 1-3 composable traits and a generated name, so the mini-boss
     // is a different fight each time without a hundred hand-authored ones.
-    const nem = rollNemesis(this.sector || 1, { rng: this.rng.nemesis });
+    const nem = preRolled || rollNemesis(this.sector || 1, { rng: this.rng.nemesis });
     const e = this.spawnEnemyAt(nem.base, gx, gy, {});
     this._makeElite(e, {
       hpMult: 6 * nem.hpMult,
