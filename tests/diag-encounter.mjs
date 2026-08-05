@@ -152,10 +152,18 @@ await page.evaluate(() => {
       if (this.hold) {
         p.setMoveInput({ x: 0, y: 0, force: 0 });
       } else {
-        const WANT = 260;
+        // Close to melee range while the chain is charged, then back off.
+        //
+        // Holding a flat 260px made the bot fight SLOW enemies far worse than
+        // fast ones: ARMORED and COLOSSAL never reach the player, so melee
+        // never fires and output collapses to pistol-plus-super. Measured 83-198
+        // dmg/sec on those against 753 on a baseline that chases — which
+        // double-counts every slowing trait as both more hp AND a worse player.
+        // A human walks in to spend a charged melee, so the bot does too.
+        const WANT = (p.meleeReady || p._comboStage > 0) ? 110 : 260;
         let mx, my;
         if (dist < WANT - 50)      { mx = -ux; my = -uy; }        // back off
-        else if (dist > WANT + 70) { mx = ux;  my = uy;  }        // close in
+        else if (dist > WANT + 40) { mx = ux;  my = uy;  }        // close in
         else                       { mx = -uy; my = ux;  }        // strafe
         p.setMoveInput({ x: mx, y: my, force: 1 });
       }
