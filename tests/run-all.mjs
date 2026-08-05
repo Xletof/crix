@@ -38,6 +38,7 @@ const TESTS = [
   'smoke-nemesis',
   'smoke-pathing',
   'smoke-progress',
+  'smoke-rng',
   'smoke-restart',
   'smoke-score',
   'smoke-title',

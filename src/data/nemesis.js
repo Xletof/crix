@@ -23,6 +23,10 @@
 // scene ticks (`regenPerSec`, `summonMs`) or reads on death (`volatile`). None
 // of them need new AI: they ride the archetypes that already exist.
 
+// Fallback only, for callers with no rng (tooling, one-off inspection).
+// Production always injects a seeded stream — see rollNemesis.
+import { makeRng, newSeed } from '../systems/rng.js';
+
 // ── Names ─────────────────────────────────────────────────────────────────
 // Two pools crossed, so 24 x 18 = 432 names before the trait loadout. Enough
 // that a player will rarely see the same one twice in a run, which is the whole
@@ -101,8 +105,6 @@ export const traitById = (id) => TRAIT_BY_ID[id] || null;
 // AI; the nemesis layer never writes new behaviour, it only stacks modifiers.
 const BASES = ['grunt', 'shooter', 'bomber', 'shielded', 'sniper'];
 
-const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-
 /**
  * How many traits a nemesis carries at a given sector.
  *
@@ -121,14 +123,29 @@ export function traitCountFor(sector) {
  * Returns a plain description — no scene, no side effects — so it can be
  * generated, inspected and tested without spawning anything.
  *
+ * DRAW ORDER IS PART OF THE CONTRACT. Every call consumes exactly three draws
+ * from the stream in this order — first name, epithet, base — then one shuffle
+ * for the traits. Reordering them, or adding a draw in the middle, changes every
+ * seeded encounter and invalidates every recorded baseline. Add new draws at the
+ * END.
+ *
  * @param {number} sector
- * @param {object} opts  `base` and `traits` (ids) force the roll, for tests
+ * @param {object} opts  `rng` (a seeded stream), plus `base` / `traits` (ids)
+ *                       to force the roll, for tests
  * @returns {{name, base, traits, hpMult, speedMult, scale, tint, regenPerSec, summonMs, summonCount, volatile}}
  */
 export function rollNemesis(sector = 1, opts = {}) {
+  // The rng is INJECTED, never reached for. That is what keeps this a pure
+  // function of (sector, opts, rng) and therefore reproducible: the same seeded
+  // stream at the same draw count always produces the same nemesis, which is
+  // what lets a test assert one exact encounter instead of aggregate shape over
+  // hundreds of rolls. An un-seeded caller gets a throwaway generator rather
+  // than a crash, so inspection tooling still works.
+  const rng = opts.rng || makeRng(newSeed());
+
   const n = {
-    name: `${pick(FIRST)} ${pick(EPITHET)}`,
-    base: opts.base || pick(BASES),
+    name: `${rng.pick(FIRST)} ${rng.pick(EPITHET)}`,
+    base: opts.base || rng.pick(BASES),
     traits: [],
     hpMult: 1,
     speedMult: 1,
@@ -143,14 +160,7 @@ export function rollNemesis(sector = 1, opts = {}) {
   // showing one tag, which reads as the generator being broken.
   const wanted = opts.traits
     ? opts.traits.map(traitById).filter(Boolean)
-    : (() => {
-        const pool = TRAITS.slice();
-        const out = [];
-        for (let i = 0; i < traitCountFor(sector) && pool.length; i++) {
-          out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-        }
-        return out;
-      })();
+    : rng.sample(TRAITS, traitCountFor(sector));
 
   for (const t of wanted) {
     n.traits.push(t.id);

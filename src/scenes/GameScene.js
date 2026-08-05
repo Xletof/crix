@@ -15,6 +15,7 @@ import { setMusicPhase, setBossPhase, tickDirector, musicSampleDue, resetDirecto
 import { ROOMS } from '../data/rooms.js';
 import { perimeterOpenings } from '../data/mapUtils.js';
 import { rollNemesis, traitLine } from '../data/nemesis.js';
+import { makeStreams, newSeed } from '../systems/rng.js';
 import { NARRATIVE } from '../data/narrative.js';
 import { NavGrid } from '../systems/NavGrid.js';
 
@@ -61,6 +62,15 @@ export class GameScene extends Phaser.Scene {
     // already the hangar (index 0), so the first transition should be index 1.
     this._arenaCycle   = 1;
     this._bossesKilled = 0;
+
+    // ── Run seed ─────────────────────────────────────────────────────────
+    // One seed per run, split into independent streams so a change to one
+    // system cannot shift another's sequence. Reset HERE with the rest of the
+    // run state, because Phaser reuses the scene instance across scene.start()
+    // — a seed left over from the previous run would make "restart" mean
+    // "replay", which is the opposite of what a roguelite wants.
+    this.runSeed = (data?.seed != null) ? (data.seed >>> 0) : newSeed();
+    this.rng = makeStreams(this.runSeed, ['nemesis', 'waves', 'drops', 'boss']);
     // Snapshot the record to beat at run start, per mode. Read once so the
     // in-run "NEW RECORD" fires exactly as the run crosses it.
     this._recordBeaten = false;
@@ -498,7 +508,7 @@ export class GameScene extends Phaser.Scene {
     // endless rolls one at random every room for variety across the climb.
     if (this.mode === 'endless') {
       const pool = Object.values(MODIFIERS);
-      this._roomModifier = pool[Math.floor(Math.random() * pool.length)];
+      this._roomModifier = this.rng.waves.pick(pool);
     } else {
       this._roomModifier = MODIFIERS[cfg.modifier] || null;
     }
@@ -2073,7 +2083,7 @@ export class GameScene extends Phaser.Scene {
       this.addScore(this.scoreForEnemy(enemy), enemy.x, enemy.y - 30);
       this.roomManager.onEnemyDied();
       // Elites always drop sustain; everyone else rolls the standard chance.
-      if (enemy._elite || Math.random() < HEALTH_ORB.dropChance) this.spawnHealthOrb(enemy.x, enemy.y);
+      if (enemy._elite || this.rng.drops.chance(HEALTH_ORB.dropChance)) this.spawnHealthOrb(enemy.x, enemy.y);
     });
     this._on('player-hurt', (amount) => {
       this.fx.shake(0.008, 110);
@@ -3765,6 +3775,7 @@ export class GameScene extends Phaser.Scene {
         damageTaken: Math.ceil(this.runDamageTaken),
         maxCombo: this.player ? this.player.runMaxCombo || 1.0 : 1.0,
         score: this.runScore || 0,
+        seed: this.runSeed,
       }
     });
   }
@@ -3779,6 +3790,7 @@ export class GameScene extends Phaser.Scene {
         damageTaken: Math.ceil(this.runDamageTaken),
         maxCombo: this.player ? this.player.runMaxCombo || 1.0 : 1.0,
         score: this.runScore || 0,
+        seed: this.runSeed,
         sector: this.sector,
       }
     });
@@ -3974,7 +3986,7 @@ export class GameScene extends Phaser.Scene {
     // encounters, identical at sector 3 and sector 30. It now rolls a base
     // archetype plus 1-3 composable traits and a generated name, so the mini-boss
     // is a different fight each time without a hundred hand-authored ones.
-    const nem = rollNemesis(this.sector || 1);
+    const nem = rollNemesis(this.sector || 1, { rng: this.rng.nemesis });
     const e = this.spawnEnemyAt(nem.base, gx, gy, {});
     this._makeElite(e, {
       hpMult: 6 * nem.hpMult,
@@ -4054,7 +4066,7 @@ export class GameScene extends Phaser.Scene {
 
   _rollEnemyType() {
     const c = this.arenaCfg || {};
-    const r = Math.random();
+    const r = this.rng.waves.rand();
     let acc = 0;
     if (r < (acc += c.bomberMix    ?? 0)) return 'bomber';
     if (r < (acc += c.shieldedMix  ?? 0)) return 'shielded';
@@ -4124,7 +4136,7 @@ export class GameScene extends Phaser.Scene {
           this._spawnSwarmlingPack(gx, gy);
         } else {
           // Elite upgrade roll (not for fodder). eliteChance is per-room.
-          const elite = Math.random() < (this.arenaCfg?.eliteChance ?? 0);
+          const elite = this.rng.waves.chance(this.arenaCfg?.eliteChance ?? 0);
           this.spawnEnemyAt(type, gx, gy, elite ? { elite: true } : {});
         }
         this.fx.burst(gx, gy, 'red', 10);
@@ -4136,7 +4148,7 @@ export class GameScene extends Phaser.Scene {
   // borrowed enemy/cover art read as unkillable enemies in playtests. 50/50
   // between a heavy weapon and shield+bacta.
   spawnTerminalSupportDrop(t) {
-    if (Math.random() < 0.5) {
+    if (this.rng.drops.chance(0.5)) {
       this.spawnWeaponChoice(t.x, t.y + 35, 'SUPPORT');
     } else {
       // Spawn health pack + temporary shield

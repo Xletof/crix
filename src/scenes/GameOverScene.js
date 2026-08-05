@@ -3,6 +3,7 @@ import { VIEW, FONTS } from '../config.js';
 import { SFX, stopMusic } from '../systems/FX.js';
 import { loadStats, saveStats } from './TitleScene.js';
 import { rankFor } from '../data/ranks.js';
+import { seedToCode } from '../systems/rng.js';
 import { NARRATIVE } from '../data/narrative.js';
 
 export class GameOverScene extends Phaser.Scene {
@@ -184,6 +185,7 @@ export class GameOverScene extends Phaser.Scene {
       this.add.text(px + 50, boxY + 90, `KILLS:   ${stats?.kills || 0}  (PB: ${globalStats.bestKills || 0})`, statsStyle);
       this.add.text(px + 50, boxY + 118, `CHARGE:  x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
       this.add.text(px + 50, boxY + 146, `DAMAGE:  ${stats?.damageTaken || 0} HP`, statsStyle);
+      this._seedLine(cx, boxY + 190, stats?.seed);
 
       // Buttons
       this.impButton(cx, py + ph - 150, 'NEW MISSION', true, () => {
@@ -328,6 +330,7 @@ export class GameOverScene extends Phaser.Scene {
       this.add.text(px + 50, boxY + 90, `KILLS:        ${stats?.kills || 0}  (PB: ${globalStats.bestKills || 0})`, statsStyle);
       this.add.text(px + 50, boxY + 118, `CHARGE PEAK:  x${(stats?.maxCombo || 1.0).toFixed(1)}  (PB: x${(globalStats.bestMaxCombo || 1.0).toFixed(1)})`, statsStyle);
       this.add.text(px + 50, boxY + 146, `DAMAGE TAKEN: ${stats?.damageTaken || 0} HP`, statsStyle);
+      this._seedLine(cx, boxY + 190, stats?.seed);
 
       this.impButton(cx, py + ph - 150, mode === 'endless' ? 'RETRY ENDLESS' : 'RETRY MISSION', true, () => {
         SFX.uiClick();
@@ -401,6 +404,21 @@ export class GameOverScene extends Phaser.Scene {
     letter.setScale(2.4).setAlpha(0);
     this.tweens.add({ targets: letter, scale: 1, alpha: 1, duration: 420, delay: 260, ease: 'Back.easeOut' });
     return rank;
+  }
+
+  // The run's seed, as the short code the player can read back to us. Quiet by
+  // design — it is diagnostic, not a score — but it has to be ON the screen,
+  // because a bad encounter nobody can reproduce is a bug report nobody can act
+  // on. Paired with the DebugScene entry field, it also lets a run be replayed.
+  _seedLine(cx, y, seed) {
+    if (seed == null) return;
+    this.add.text(cx, y, `SEED ${seedToCode(seed)}`, {
+      fontFamily: FONTS.body,
+      fontSize: '13px',
+      color: '#4a5a80',
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(0.5);
   }
 
   _scoreLine(x, y, score, best, rightEdge = VIEW.width - 40) {
