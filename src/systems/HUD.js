@@ -1425,8 +1425,12 @@ export class HUDScene extends Phaser.Scene {
     this.tweens.killTweensOf(m);
     // Sign it properly. A penalty arrives as a negative, and "+-1,200" is what
     // a naive template produces.
+    // Not every medal is worth points. The trait line and the nemesis grudge
+    // line use this lane purely to say something, and "IT REMEMBERS YOUR BLOOD
+    // +0" reads as a scoring bug rather than as a threat.
     const sign = points < 0 ? '-' : '+';
-    m.setText(`${name}  ${sign}${Math.abs(points).toLocaleString('en-US')}`).setColor(color)
+    const scored = points ? `  ${sign}${Math.abs(points).toLocaleString('en-US')}` : '';
+    m.setText(`${name}${scored}`).setColor(color)
       .setAlpha(1).setScale(0.7);
     this.tweens.add({ targets: m, scale: 1, duration: 200, ease: 'Back.easeOut' });
     this.tweens.add({ targets: m, alpha: 0, delay: 500, duration: 300 });
