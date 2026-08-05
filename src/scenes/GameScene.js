@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, FONTS, HUDCFG, VIEW, DEPTH } from '../config.js';
+import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, ENDLESS, FONTS, HUDCFG, VIEW, DEPTH } from '../config.js';
 import { Player } from '../entities/Player.js';
 import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, EnemySniper, EnemySwarmling, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
@@ -56,6 +56,10 @@ export class GameScene extends Phaser.Scene {
     this._lastKillTime = -99999;
     this._pendingChoice = null;
     this.decalRT       = null;
+    // Which arena the endless climb shows next. Starts at 1 because sector 1 is
+    // already the hangar (index 0), so the first transition should be index 1.
+    this._arenaCycle   = 1;
+    this._bossesKilled = 0;
     // Snapshot the record to beat at run start, per mode. Read once so the
     // in-run "NEW RECORD" fires exactly as the run crosses it.
     this._recordBeaten = false;
@@ -594,7 +598,13 @@ export class GameScene extends Phaser.Scene {
       // First wave of an endless room headlines the SECTOR — the run's main
       // progress unit — instead of a generic "WAVE 1", so endless reads as its
       // own escalating mode.
-      this.events.emit('show-banner', `SECTOR ${this.sector}`, '#ffbb40');
+      // A boss sector announces itself as one. Arriving at Vader's chamber with
+      // the same amber "SECTOR 10" as any other room throws away the one beat
+      // in the climb that should feel different before the fight starts.
+      const bossSector = this.roomSpec?.boss;
+      this.events.emit('show-banner',
+        bossSector ? `SECTOR ${this.sector} — DARK LORD` : `SECTOR ${this.sector}`,
+        bossSector ? '#ff2828' : '#ffbb40');
     } else {
       this.events.emit('show-banner', `WAVE ${idx + 1}`, '#40c0ff');
     }
@@ -865,8 +875,16 @@ export class GameScene extends Phaser.Scene {
     // forever instead of ending at the last room; each loop raises `sector`,
     // the difficulty knob _applySectorScaling reads.
     if (this.mode === 'endless') {
-      const nextIdx = (this.roomManager.index + 1) % 3;
       this.sector++;
+      // Every Nth sector is a boss sector. The arena cycle is tracked on its
+      // own counter rather than derived from the current room index: after a
+      // boss room the index is 3, and `(index + 1) % 3` would send the climb
+      // back to the hangar every single time, so the three arenas would never
+      // rotate again once the first Vader was cleared.
+      const isBoss = this.sector % ENDLESS.bossEvery === 0;
+      const nextIdx = isBoss
+        ? ROOMS.findIndex((r) => r.boss)
+        : (this._arenaCycle++ % 3);
       this.cameras.main.flash(200, 255, 255, 255);
       this.cameras.main.fadeOut(350, 255, 255, 255);
       this.cameras.main.once('camerafadeoutcomplete', () => {
@@ -1622,6 +1640,21 @@ export class GameScene extends Phaser.Scene {
 
   spawnBoss(bx, by) {
     this.boss = new Boss(this, bx, by);
+
+    // Endless meets Vader repeatedly, so each one has to be harder than the
+    // last or the fourth boss sector is a victory lap. Scaled AFTER
+    // construction and on both hp and hpMax together: the phase thresholds are
+    // ratios (BOSS.phase2/phase3), so raising both leaves the three-phase
+    // structure and its music cues exactly as authored. Linear in the boss
+    // number rather than compounding — compounding makes boss 2 trivial and
+    // boss 5 impossible.
+    if (this.mode === 'endless') {
+      const n = Math.max(1, Math.floor(this.sector / ENDLESS.bossEvery));
+      const mult = 1 + ENDLESS.bossHpStep * (n - 1);
+      this.boss.hpMax = Math.round(this.boss.hpMax * mult);
+      this.boss.hp = this.boss.hpMax;
+    }
+
     this.physics.add.collider(this.boss, this.walls);
     // NOTE: boss is deliberately NOT registered with roomManager — it isn't
     // in this.enemies, and registering it skewed the alive count that
@@ -1811,14 +1844,27 @@ export class GameScene extends Phaser.Scene {
       this.roomManager.onEnemyDied(); // consistent tracking
       // Flat, and deliberately not chain-multiplied: Vader is one kill at the
       // end of a fight with nothing else alive to chain off, so a multiplier
-      // here would only ever pay x1 and would read as a bug.
-      this.addScore(SCORE.boss, boss.x, boss.y - 60);
-      this.events.emit('score-medal', 'VADER DOWN', SCORE.boss, '#ff2828');
+      // here would only ever pay x1 and would read as a bug. It DOES scale with
+      // which Vader this was, matching the HP he was given.
+      this._bossesKilled = (this._bossesKilled || 0) + 1;
+      const bossPay = Math.round(SCORE.boss * (1 + ENDLESS.bossScoreStep * (this._bossesKilled - 1)));
+      this.addScore(bossPay, boss.x, boss.y - 60);
+      this.events.emit('score-medal', 'VADER DOWN', bossPay, '#ff2828');
       this.fx.burst(boss.x, boss.y, 'yellow', 40);
       this.fx.burst(boss.x, boss.y, 'red', 40);
       this.fx.shake(0.025, 500);
       SFX.bossDie();
-      this.time.delayedCall(800, () => this.victory());
+      if (this.mode === 'endless') {
+        // The climb goes ON past Vader — he is a milestone, not the end. Open
+        // the exit the boss room now carries and hand control back.
+        this._enemiesCleared = true;
+        this.time.delayedCall(1400, () => {
+          this.events.emit('show-banner', 'THE WAY IS OPEN', '#40ff90');
+          this._maybeCompleteRoom();
+        });
+      } else {
+        this.time.delayedCall(800, () => this.victory());
+      }
     });
     this._on('boss-phase-crack', (bx, by, phase) => {
       this._spawnVaderGroundCrack(bx, by, phase);

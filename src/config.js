@@ -790,6 +790,23 @@ export const SCORE = {
 
 };
 
+// ── ENDLESS ────────────────────────────────────────────────────────────────
+// Endless is the run structure now, so it needs an ARC and not just a ramp.
+// Vader existed only at the end of the campaign, which meant the best encounter
+// in the game was unreachable in the mode people actually play, and the
+// boss1/boss2/boss3 music tiers were heard once and never again.
+//
+// A boss every 5 sectors gives the climb a shape: four arena sectors building
+// pressure, then a fight that resolves it. That cadence is also what makes a
+// run tellable — "I died on the third Vader" says more than "I died on 14".
+export const ENDLESS = {
+  bossEvery: 5,
+  // Each Vader is tougher than the last. Compounding would make boss 4
+  // impossible while boss 2 was trivial, so this is linear in the boss number.
+  bossHpStep: 0.6,     // boss n has hp x (1 + 0.6*(n-1))
+  bossScoreStep: 0.5,  // and is worth proportionally more
+};
+
 export const MODIFIERS = {
   frenzy:     { id: 'frenzy',     name: 'FRENZY',      color: '#ff5030', speedMult: 1.28, spawnRateMult: 0.8 },
   eliteGuard: { id: 'eliteGuard', name: 'ELITE GUARD', color: '#ffd040', eliteChance: 0.35 },

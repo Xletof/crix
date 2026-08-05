@@ -270,7 +270,12 @@ export const ROOMS = [
     name: "VADER'S CHAMBER",
     bounds: { w: 1600, h: 1600 },
     spawn: { x: 800, y: 1350 },
-    exit: null,
+    // Endless needs a way ONWARD from the boss room — the climb continues past
+    // Vader rather than ending at him. Placed clear of the right-hand gate at
+    // y=800 so perimeterOpenings cuts two distinct doorways rather than one
+    // overlapping pair. In the campaign this door is simply never opened:
+    // `room-cleared` returns early for boss rooms, and boss-died ends the run.
+    exit: { x: 1500, y: 1200, side: 'right' },
     // Severe and empty: near-black, one deep red key, very few strips and a
     // large sparse hex. The climax should feel bare, not busy.
     floor: {

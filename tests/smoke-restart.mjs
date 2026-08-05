@@ -96,8 +96,19 @@ const r = await page.evaluate(async () => {
 const alive = await page.evaluate(async () => {
   const gs = window.game.scene.getScene('Game');
   const start = gs.game.loop.frame;
-  await new Promise((res) => setTimeout(res, 600));
-  return { advanced: gs.game.loop.frame - start, contextLost: gs.game.renderer.contextLost };
+  // Poll until the loop advances, rather than counting frames in a fixed window
+  // of wall clock. The claim being tested is LIVENESS — that an exception has
+  // not killed the Phaser step — and a dead loop never advances however long you
+  // wait, while a merely slow one does. Counting frames per millisecond instead
+  // measured the container's spare capacity: this passed 3/3 standalone and
+  // failed inside the full suite, where Chromium throttles requestAnimationFrame
+  // under load while setTimeout keeps firing on schedule.
+  let advanced = 0;
+  for (let i = 0; i < 60 && advanced < 3; i++) {
+    await new Promise((res) => setTimeout(res, 100));
+    advanced = gs.game.loop.frame - start;
+  }
+  return { advanced, running: gs.game.loop.running, contextLost: gs.game.renderer.contextLost };
 });
 
 await browser.close();
@@ -115,8 +126,8 @@ check(r.deaths === 1, 'a kill fires exactly one enemy-died', `${r.deaths} events
 check(r.scored === r.expected, 'a kill scores exactly once',
   `${r.type} scored ${r.scored}, expected ${r.expected} (a stacked handler multiplies this)`);
 
-check(alive.advanced > 5, 'the game loop is still running after the restarts',
-  `${alive.advanced} frames in 600ms — 0 means an exception killed the step (the black screen)`);
+check(alive.advanced >= 3 && alive.running, 'the game loop is still running after the restarts',
+  `${alive.advanced} frames advanced, loop.running=${alive.running} — a stalled loop means an exception killed the step (the black screen)`);
 check(alive.contextLost === false, 'the WebGL context is intact', `contextLost=${alive.contextLost}`);
 check(pageErrors.length === 0, 'no exception is thrown across the restarts',
   pageErrors.slice(0, 3).join(' | '));
