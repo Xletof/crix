@@ -1070,6 +1070,22 @@ export class GameScene extends Phaser.Scene {
     return n;
   }
 
+  // Take score away. The counterpart to addScore, and the only path that ever
+  // reduces the total — `frac` is a fraction of the CURRENT score, so it scales
+  // with the run and can never drive it negative.
+  //
+  // Announced through the same medal lane as a bonus, in red. A cost the player
+  // does not see is a cost that does not change how they play, which would make
+  // this an invisible nerf rather than a decision.
+  spendScore(frac, label = 'PENALTY') {
+    const cost = Math.round((this.runScore || 0) * frac);
+    if (cost <= 0) return 0;
+    this.runScore = Math.max(0, this.runScore - cost);
+    this.events.emit('score-changed', this.runScore, -cost);
+    this.events.emit('score-medal', label, -cost, '#ff4040');
+    return cost;
+  }
+
   // Chain-kill combo: any death within 2s of the previous one bumps the
   // counter. Past x2 we emit 'show-combo' which the HUD renders as a
   // splashy "x2!", "x3!" etc. Resets when the streak times out.
@@ -2040,6 +2056,16 @@ export class GameScene extends Phaser.Scene {
       this.defeat();
       return;
     }
+
+    // A life is a second chance you PAY for. Charged here rather than on the
+    // final death, because the last one already costs you the whole run and
+    // taxing it twice would be double jeopardy.
+    this.spendScore(SCORE.deathCost, 'LIFE LOST');
+    // The chain dies with you. Carrying a x5 through a respawn would make dying
+    // mid-chain a way to keep the multiplier while dodging the fight it came
+    // from — the exact trade this cost exists to close.
+    this._comboCount = 0;
+    this._lastKillTime = -99999;
 
     // Respawn at room entrance after short pause
     this.time.delayedCall(400, () => {

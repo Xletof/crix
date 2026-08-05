@@ -787,6 +787,18 @@ export const SCORE = {
   waveSpeed: 1500,       // full value at waveSpeedSecs, decaying to 0 at 2x that
   waveSpeedSecs: 45,
   roomClear: 2500,
+
+  // What dying costs. The run already grants three lives and a free respawn at
+  // full HP and ammo, so before this a death cost one pip and nothing else —
+  // which meant the cheapest way to survive a bad wave was to walk into it and
+  // come back clean, and a patient player could farm score across three lives.
+  // A score that can be farmed by dying is not a score, and the rank sitting on
+  // top of it is not a grade.
+  //
+  // A fraction, not a flat number, so it scales with the run: it hurts a deep
+  // endless climb in proportion to what that climb was worth, and cannot push
+  // an early run below zero.
+  deathCost: 0.4,
 };
 
 export const MODIFIERS = {

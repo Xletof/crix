@@ -1231,7 +1231,9 @@ export class HUDScene extends Phaser.Scene {
   // 25,000-point Vader kill does not land with the same nudge as a swarmling.
   refreshScore(total, delta = 0) {
     this.scoreText.setText(`SCORE ${total.toLocaleString('en-US')}`);
-    const pop = 1.12 + Math.min(0.5, (delta || 0) / 4000);
+    // Magnitude, not signed value — a big PENALTY should punch as hard as a
+    // big bonus, and a raw negative delta shrank the readout instead.
+    const pop = 1.12 + Math.min(0.5, Math.abs(delta || 0) / 4000);
     this.tweens.killTweensOf(this.scoreText);
     this.scoreText.setScale(pop);
     this.tweens.add({ targets: this.scoreText, scale: 1, duration: 150, ease: 'Back.easeOut' });
@@ -1421,7 +1423,10 @@ export class HUDScene extends Phaser.Scene {
     }
     const m = this._medalText;
     this.tweens.killTweensOf(m);
-    m.setText(`${name}  +${points.toLocaleString('en-US')}`).setColor(color)
+    // Sign it properly. A penalty arrives as a negative, and "+-1,200" is what
+    // a naive template produces.
+    const sign = points < 0 ? '-' : '+';
+    m.setText(`${name}  ${sign}${Math.abs(points).toLocaleString('en-US')}`).setColor(color)
       .setAlpha(1).setScale(0.7);
     this.tweens.add({ targets: m, scale: 1, duration: 200, ease: 'Back.easeOut' });
     this.tweens.add({ targets: m, alpha: 0, delay: 500, duration: 300 });

@@ -170,6 +170,49 @@ const r = await page.evaluate(async () => {
   out.medalsRendered = rendered.slice();
   hud._renderMedal = realRender;
 
+  // ── Dying costs score ──────────────────────────────────────────────────
+  // Before this, a life cost one pip and nothing else: full heal, full ammo,
+  // free respawn. So the cheapest way through a bad wave was to walk into it,
+  // and a patient player could farm score across three lives — which makes the
+  // score, and the rank on top of it, meaningless.
+  {
+    gs.runScore = 10000;
+    gs._comboCount = 4;
+    gs.lives = 3;
+    const spent = [];
+    const onMedal = (name, pts) => spent.push({ name, pts });
+    gs.events.on('score-medal', onMedal);
+    gs._handlePlayerDeath();
+    out.death = {
+      lives: gs.lives,
+      score: gs.runScore,
+      combo: gs._comboCount,
+      medal: spent.find((m) => m.name === 'LIFE LOST') || null,
+    };
+
+    // It must never drive the score negative, and must not fire at all on a
+    // zero score — a "-0" penalty is noise.
+    gs.runScore = 0;
+    spent.length = 0;
+    gs.lives = 3;
+    gs._handlePlayerDeath();
+    out.deathAtZero = { score: gs.runScore, medals: spent.length };
+
+    // The LAST death ends the run, and must not also be taxed — it already
+    // costs the whole run.
+    gs.runScore = 10000;
+    spent.length = 0;
+    gs.lives = 1;
+    const realStart2 = gs.scene.start.bind(gs.scene);
+    gs.scene.start = () => {};
+    gs._handlePlayerDeath();
+    gs.scene.start = realStart2;
+    out.finalDeath = { score: gs.runScore, medals: spent.length };
+    gs.events.off('score-medal', onMedal);
+    gs.lives = 3;
+    out.deathCost = SCORE.deathCost;
+  }
+
   // ── Rank thresholds ────────────────────────────────────────────────────
   // The two modes must NOT share a table. Endless score climbs with how long
   // you survive and runs far past anything the campaign can reach, so a shared
@@ -333,6 +376,22 @@ check(r.slowWave.score === r.expect.waveClear,
   `${r.slowWave.score}, expected ${r.expect.waveClear}`);
 check(!r.slowWave.medals.some((m) => m.name === 'FAST CLEAR'), 'and FAST CLEAR is not announced',
   `medals: ${names(r.slowWave.medals)}`);
+
+// ── Dying costs score ────────────────────────────────────────────────────
+check(r.death.score === Math.round(10000 * (1 - r.deathCost)),
+  'losing a life costs a share of the run score',
+  `10000 -> ${r.death.score}, expected ${Math.round(10000 * (1 - r.deathCost))} at ${r.deathCost}`);
+check(!!r.death.medal && r.death.medal.pts < 0, 'and says so on screen, as a negative',
+  r.death.medal ? `${r.death.medal.name} ${r.death.medal.pts}` : 'no LIFE LOST medal');
+check(r.death.combo === 0, 'the chain multiplier dies with you',
+  `combo left at ${r.death.combo} (carrying it through a respawn dodges the fight it came from)`);
+check(r.death.lives === 2, 'a life is still spent', `lives ${r.death.lives}`);
+check(r.deathAtZero.score === 0 && r.deathAtZero.medals === 0,
+  'a death at zero score costs nothing and announces nothing',
+  `score ${r.deathAtZero.score}, ${r.deathAtZero.medals} medals`);
+check(r.finalDeath.score === 10000 && r.finalDeath.medals === 0,
+  'the final death is not taxed — it already costs the whole run',
+  `score ${r.finalDeath.score}, ${r.finalDeath.medals} medals`);
 
 // ── Rank ─────────────────────────────────────────────────────────────────
 check(r.ranks.zero === 'D' && r.ranks.negative === 'D' && r.ranks.missing === 'D',
