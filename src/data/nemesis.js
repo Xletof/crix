@@ -143,8 +143,18 @@ export function rollNemesis(sector = 1, opts = {}) {
   // than a crash, so inspection tooling still works.
   const rng = opts.rng || makeRng(newSeed());
 
+  // The two halves are drawn separately and KEPT separately. The ledger renames
+  // a returning nemesis (`VOSS THE UNBROKEN` -> `VOSS, WHO SURVIVED YOU`), and
+  // doing that by splitting the joined string would break on any epithet
+  // containing a space — which is most of them. Draw order is unchanged: still
+  // first, epithet, base.
+  const first = rng.pick(FIRST);
+  const epithet = rng.pick(EPITHET);
+
   const n = {
-    name: `${rng.pick(FIRST)} ${rng.pick(EPITHET)}`,
+    first,
+    epithet,
+    name: `${first} ${epithet}`,
     base: opts.base || rng.pick(BASES),
     traits: [],
     hpMult: 1,

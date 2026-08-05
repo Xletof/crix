@@ -15,6 +15,10 @@ import { setMusicPhase, setBossPhase, tickDirector, musicSampleDue, resetDirecto
 import { ROOMS } from '../data/rooms.js';
 import { perimeterOpenings } from '../data/mapUtils.js';
 import { rollNemesis, traitLine } from '../data/nemesis.js';
+import {
+  createLedger, recordEscape, recordKill, dueAt, applyScar,
+  nemesisFromEntry, promoteSuccessor,
+} from '../data/nemesisLedger.js';
 import { makeStreams, newSeed } from '../systems/rng.js';
 import { NARRATIVE } from '../data/narrative.js';
 import { NavGrid } from '../systems/NavGrid.js';
@@ -71,6 +75,11 @@ export class GameScene extends Phaser.Scene {
     // "replay", which is the opposite of what a roguelite wants.
     this.runSeed = (data?.seed != null) ? (data.seed >>> 0) : newSeed();
     this.rng = makeStreams(this.runSeed, ['nemesis', 'waves', 'drops', 'boss']);
+    // Who got away, and who is owed a grudge. Reset HERE for the same reason as
+    // the seed: the scene instance is reused across scene.start(), and a ledger
+    // that survived would have a fresh run open with a nemesis returning to
+    // avenge something that happened in a run the player already lost.
+    this.ledger = createLedger();
     // Snapshot the record to beat at run start, per mode. Read once so the
     // in-run "NEW RECORD" fires exactly as the run crosses it.
     this._recordBeaten = false;
@@ -886,6 +895,10 @@ export class GameScene extends Phaser.Scene {
     // forever instead of ending at the last room; each loop raises `sector`,
     // the difficulty knob _applySectorScaling reads.
     if (this.mode === 'endless') {
+      // Anything still standing when you leave GOT AWAY. Recorded before the
+      // sector increments, so `returnAtSector` is measured from the sector it
+      // escaped rather than the one you are walking into.
+      this._recordEscapes();
       this.sector++;
       // Every Nth sector is a boss sector. The arena cycle is tracked on its
       // own counter rather than derived from the current room index: after a
@@ -1069,7 +1082,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   scoreForEnemy(enemy) {
-    if (enemy?._miniBoss) return SCORE.miniBoss;
+    // A nemesis is worth more the longer it has been hunting you. Scars are the
+    // record of that, so the grudge pays out in the currency the run is scored
+    // in — letting one get away is a deliberate bet rather than a pure loss.
+    if (enemy?._miniBoss) {
+      const scars = enemy._nemesis?.scars || 0;
+      return Math.round(SCORE.miniBoss * (1 + 0.5 * scars));
+    }
     const base = SCORE.points[enemy?.enemyType] ?? SCORE.points.grunt;
     const raw = base * (enemy?._elite ? SCORE.eliteMult : 1);
     return Math.round(raw * this.chainMult());
@@ -2082,10 +2101,41 @@ export class GameScene extends Phaser.Scene {
       // as arbitrary.
       this.addScore(this.scoreForEnemy(enemy), enemy.x, enemy.y - 30);
       this.roomManager.onEnemyDied();
+
+      // Killing a nemesis settles the grudge: it leaves the ledger for good, and
+      // the payout is GUARANTEED rather than rolled. A drop you might not get is
+      // not a reward for finally cornering the thing that has been hunting you —
+      // it is one more coin flip, and the run already has plenty.
+      // Any nemesis, not only a remembered one — a stranger killed on sight
+      // still leaves a hole in the roster for someone to fill. That is what
+      // keeps succession the norm and a fresh stranger the exception.
+      if (enemy._nemesis) {
+        recordKill(this.ledger, enemy._nemesis, this.sector || 1);
+        const scars = enemy._nemesis.scars || 0;
+        if (scars >= 2) {
+          this.spawnWeaponChoice(enemy.x, enemy.y, 'TROPHY');
+        } else if (scars >= 1) {
+          this.spawnHealthOrb(enemy.x, enemy.y);
+          this.player.addShield(300);
+          this.fx.pickupSparkle(enemy.x, enemy.y, 10);
+        }
+      }
+
       // Elites always drop sustain; everyone else rolls the standard chance.
       if (enemy._elite || this.rng.drops.chance(HEALTH_ORB.dropChance)) this.spawnHealthOrb(enemy.x, enemy.y);
     });
     this._on('player-hurt', (amount) => {
+      // Credit the living nemesis, if there is one. Threading a source argument
+      // through every player.damage() call site — contact, melee, bullets, the
+      // bomber blast, Vader — would be four files of plumbing and one missed
+      // call site away from being wrong anyway. At most one nemesis is alive at
+      // a time, so attributing to it is near-exact; the one imprecision is that
+      // a SUMMONER gets credit for damage its swarmlings dealt, which is the
+      // right answer regardless.
+      for (const e of this.enemies.getChildren()) {
+        if (e.alive && e._nemesis) { e._drewBlood = true; break; }
+      }
+
       this.fx.shake(0.008, 110);
       this.cameras.main.flash(120, 255, 80, 80, true);
       this.fx.hitFlash(this.player);
@@ -3968,6 +4018,55 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  // Every nemesis still alive as the sector ends is written to the ledger.
+  // Living through the sector IS the escape — there is no separate flee state,
+  // and adding one would mean an enemy that runs away mid-fight, which reads as
+  // the AI breaking rather than as a nemesis surviving.
+  _recordEscapes() {
+    for (const e of this.enemies.getChildren()) {
+      if (!e.alive || !e._nemesis) continue;
+      recordEscape(
+        this.ledger, e._nemesis, this.sector || 1,
+        e._drewBlood ? 'wounded-you' : 'survived',
+        this.rng.nemesis,
+      );
+    }
+  }
+
+  /**
+   * Who arrives this sector, in priority order:
+   *
+   *   1. Someone who got away and is due back — scarred, renamed, angrier.
+   *   2. An heir to someone you killed, carrying one of their traits.
+   *   3. A stranger.
+   *
+   * The order is the point. A fresh roll is the FALLBACK, not the default, so
+   * the roster stays connected across a run: the enemies you meet are mostly
+   * consequences of enemies you already met.
+   *
+   * Every branch draws from `this.rng.nemesis`, so the whole climb stays
+   * reproducible from the run seed.
+   */
+  _nextNemesis() {
+    const sector = this.sector || 1;
+    const rng = this.rng.nemesis;
+
+    const returning = dueAt(this.ledger, sector);
+    if (returning) {
+      applyScar(returning, sector, rng);
+      returning.returnAtSector = null;   // consumed; re-armed if it escapes again
+      return nemesisFromEntry(returning, sector, rng);
+    }
+
+    const vacancy = this.ledger.vacancies.shift();
+    if (vacancy) {
+      const heir = promoteSuccessor(this.ledger, vacancy, sector, rng);
+      if (heir) return nemesisFromEntry(heir, sector, rng);
+    }
+
+    return rollNemesis(sector, { rng });
+  }
+
   // Mini-boss: a super-elite spawned at wave start. Counts toward the clear.
   /**
    * Spawn the sector's nemesis.
@@ -3995,7 +4094,7 @@ export class GameScene extends Phaser.Scene {
     // encounters, identical at sector 3 and sector 30. It now rolls a base
     // archetype plus 1-3 composable traits and a generated name, so the mini-boss
     // is a different fight each time without a hundred hand-authored ones.
-    const nem = preRolled || rollNemesis(this.sector || 1, { rng: this.rng.nemesis });
+    const nem = preRolled || this._nextNemesis();
     const e = this.spawnEnemyAt(nem.base, gx, gy, {});
     this._makeElite(e, {
       hpMult: 6 * nem.hpMult,
@@ -4005,6 +4104,9 @@ export class GameScene extends Phaser.Scene {
     });
     e._miniBoss = true;
     e._nemesis = nem;
+    // Cleared explicitly: enemies come from a pool, and a stale flag would have
+    // a nemesis remembered as having bled you in a fight it never touched you in.
+    e._drewBlood = false;
     // Runtime trait state. Held on the enemy so _tickNemesis can drive it
     // without a second registry to keep in sync.
     e._regenPerSec = nem.regenPerSec;
@@ -4014,8 +4116,16 @@ export class GameScene extends Phaser.Scene {
 
     this.fx.burst(gx, gy, 'red', 24);
     this.events.emit('show-banner', nem.name, nem.tint);
+    // The grudge line goes FIRST and the trait line second. A returning enemy
+    // has to be recognised as the one that got you before its stats matter —
+    // read the other way round it is just another elite with a longer name.
+    if (nem.grudge) {
+      this.time.delayedCall(900, () => {
+        if (e.active) this.events.emit('score-medal', nem.grudge, 0, '#ffd040');
+      });
+    }
     if (nem.traits.length) {
-      this.time.delayedCall(1500, () => {
+      this.time.delayedCall(nem.grudge ? 2400 : 1500, () => {
         if (e.active) this.events.emit('score-medal', traitLine(nem.traits), 0, nem.tint);
       });
     }
