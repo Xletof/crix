@@ -36,6 +36,7 @@ const TESTS = [
   'smoke-march',
   'smoke-music-tiers',
   'smoke-nemesis',
+  'smoke-nemesis-memory',
   'smoke-pathing',
   'smoke-progress',
   'smoke-rng',
