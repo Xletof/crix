@@ -38,6 +38,7 @@ const TESTS = [
   'smoke-progress',
   'smoke-restart',
   'smoke-score',
+  'smoke-title',
 ];
 
 const onlyArg = process.argv.indexOf('--only');

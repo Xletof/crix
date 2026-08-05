@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { rankFor } from '../data/ranks.js';
 import { VIEW, FONTS } from '../config.js';
 import { SFX } from '../systems/FX.js';
 
@@ -97,7 +98,7 @@ export class TitleScene extends Phaser.Scene {
 
     // Subtitle
     this.add
-      .text(cx, VIEW.height * 0.60, 'A BOUNTY HUNTER\'S TALE', {
+      .text(cx, VIEW.height * 0.575, 'A BOUNTY HUNTER\'S TALE', {
         fontFamily: FONTS.display,
         fontSize: '24px',
         fontStyle: 'bold',
@@ -110,7 +111,7 @@ export class TitleScene extends Phaser.Scene {
 
     // ── Mandalorian portrait ──────────────────────────────────────────────
     // Use player sprite frame 0 at large scale
-    const portrait = this.add.sprite(cx, VIEW.height * 0.70, 'player', 0).setScale(3.2);
+    const portrait = this.add.sprite(cx, VIEW.height * 0.655, 'player', 0).setScale(1.9);
     portrait.play('mando-idle-front');
     // Subtle float tween
     this.tweens.add({
@@ -126,8 +127,12 @@ export class TitleScene extends Phaser.Scene {
     const recordsContainer = this.add.container(0, 0).setDepth(100).setVisible(false);
 
     // ── ENGAGE button — Imperial console style ────────────────────────────
-    const btnY = VIEW.height * 0.79;
-    const btnW = 380, btnH = 65;
+    // CAMPAIGN sits BELOW endless now. Endless is the mode that fits a phone —
+    // short, repeatable, and the one with a score and a rank to chase — so it
+    // takes the primary plate and the campaign becomes the authored run you go
+    // and do, rather than the default every session starts with.
+    const btnY = VIEW.height * 0.868;
+    const btnW = 360, btnH = 56;
     const btnBg = this.add.graphics();
 
     const drawBtn = (hover) => {
@@ -160,9 +165,9 @@ export class TitleScene extends Phaser.Scene {
     drawBtn(false);
 
     const btnText = this.add
-      .text(cx, btnY, 'ENGAGE', {
+      .text(cx, btnY, 'CAMPAIGN', {
         fontFamily: FONTS.display,
-        fontSize: '38px',
+        fontSize: '29px',
         fontStyle: 'bold',
         color: '#ff2828',
         stroke: '#000000',
@@ -195,11 +200,53 @@ export class TitleScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
+    // ── The score to beat ─────────────────────────────────────────────────
+    // Sits directly above ENDLESS, because a high-score mode with the high
+    // score hidden two menus deep is not a high-score mode. Shows the record,
+    // the rank it earned and how deep it got, so the target is the first thing
+    // you read and the reason to press the button underneath it.
+    {
+      const st = loadStats();
+      const best = st.bestScoreEndless || 0;
+      const bandY = VIEW.height * 0.722;
+      if (best > 0) {
+        const rank = rankFor(best, 'endless');
+        this.add.text(cx, bandY, `BEST  ${best.toLocaleString('en-US')}`, {
+          fontFamily: FONTS.display,
+          fontSize: '26px',
+          fontStyle: 'bold',
+          color: '#ffd040',
+          stroke: '#000000',
+          strokeThickness: 4,
+        }).setOrigin(0.5).setResolution(2);
+        const nextBit = rank.next ? `   ·   ${rank.next.id} AT ${rank.next.at.toLocaleString('en-US')}` : '   ·   TOP RANK';
+        this.add.text(cx, bandY + 26, `RANK ${rank.name}   ·   SECTOR ${st.bestEndlessSector || 0}${nextBit}`, {
+          fontFamily: FONTS.body,
+          fontSize: '14px',
+          fontStyle: 'bold',
+          color: rank.color,
+          stroke: '#000000',
+          strokeThickness: 3,
+        }).setOrigin(0.5);
+      } else {
+        // No record yet — say what the mode IS rather than showing a zero,
+        // which reads as a broken readout on a first run.
+        this.add.text(cx, bandY + 12, 'SURVIVE THE SECTORS  ·  SET A SCORE', {
+          fontFamily: FONTS.body,
+          fontSize: '15px',
+          fontStyle: 'bold',
+          color: '#8ab8ff',
+          stroke: '#000000',
+          strokeThickness: 3,
+        }).setOrigin(0.5);
+      }
+    }
+
     // ── ENDLESS button — starts an endless sector-climb run directly,
     // skipping the campaign Intro. A full-weight amber console plate (matching
     // ENGAGE) so it reads as a real, co-equal mode instead of a footnote. ───
-    const endY = VIEW.height * 0.865;
-    const endW = 380, endH = 62;
+    const endY = VIEW.height * 0.782;
+    const endW = 380, endH = 68;
     const endBg = this.add.graphics();
 
     const drawEnd = (hover) => {
@@ -232,7 +279,7 @@ export class TitleScene extends Phaser.Scene {
     const endText = this.add
       .text(cx, endY, 'ENDLESS', {
         fontFamily: FONTS.display,
-        fontSize: '34px',
+        fontSize: '38px',
         fontStyle: 'bold',
         color: '#ffbb40',
         stroke: '#000000',
@@ -304,15 +351,26 @@ export class TitleScene extends Phaser.Scene {
       SFX.uiClick();
       
       // Update text with fresh values before opening overlay
+      // Score leads, per mode, each with the rank it earned — the records
+      // screen is where you come to see what there is to beat, so the two
+      // numbers you play for go at the top. Everything below is history.
       const currentStats = loadStats();
-      runsText.setText(`TOTAL MISSIONS:   ${currentStats.runs || 0}`);
-      winsText.setText(`BOUNTIES CLAIMED: ${currentStats.wins || 0}`);
-      timeText.setText(`BEST CLEAR TIME:  ${formatTime(currentStats.bestTime)}`);
-      stealthText.setText(`BEST KILLS (RUN): ${currentStats.bestKills || 0}`);
-      comboText.setText(`BEST SCORE:       ${(currentStats.bestScore || 0).toLocaleString('en-US')}`);
-      dmgText.setText(`BEST SCORE (ENDL):${(currentStats.bestScoreEndless || 0).toLocaleString('en-US')}`);
-      totalKillsText.setText(`TOTAL KILLS:      ${currentStats.totalKills || 0}`);
-      bestSectorText.setText(`BEST ENDLESS SECTOR: ${currentStats.bestEndlessSector || 0}`);
+      const num = (n) => (n || 0).toLocaleString('en-US');
+      const endBest = currentStats.bestScoreEndless || 0;
+      const campBest = currentStats.bestScore || 0;
+      const endRank = rankFor(endBest, 'endless');
+      const campRank = rankFor(campBest, 'campaign');
+
+      runsText.setText(`ENDLESS BEST:  ${num(endBest)}   [${endBest ? endRank.name : '-'}]`);
+      runsText.setColor(endBest ? endRank.color : '#8ab8ff');
+      winsText.setText(`CAMPAIGN BEST: ${num(campBest)}   [${campBest ? campRank.name : '-'}]`);
+      winsText.setColor(campBest ? campRank.color : '#8ab8ff');
+      timeText.setText(`DEEPEST SECTOR:   ${currentStats.bestEndlessSector || 0}`);
+      stealthText.setText(`BEST CLEAR TIME:  ${formatTime(currentStats.bestTime)}`);
+      comboText.setText(`BEST KILLS (RUN): ${currentStats.bestKills || 0}`);
+      dmgText.setText(`TOTAL KILLS:      ${num(currentStats.totalKills)}`);
+      totalKillsText.setText(`RUNS PLAYED:      ${currentStats.runs || 0}`);
+      bestSectorText.setText(`CAMPAIGNS WON:    ${currentStats.wins || 0}`);
 
       recordsContainer.setVisible(true);
     });
