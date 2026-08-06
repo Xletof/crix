@@ -105,8 +105,15 @@ const r = await page.evaluate(async () => {
   // super cannot delete him. One big hit therefore does NOT kill him — it takes
   // 2200 off. Grind him down through the real damage path instead of reaching
   // past it, which also exercises the cap.
+  // Vader's pool went from 12,000 to a measured 62,000, so this grind now runs
+  // for ~30s of real time instead of a couple of seconds — long enough that he
+  // kills the stationary test player, `defeat()` fires, and the run ends. That
+  // looked exactly like the bug this block is testing for (an endless run ending
+  // at a boss), so keep the player standing.
+  gs.lives = 9999;
   for (let i = 0; i < 200 && gs.boss?.alive; i++) {
     gs.boss.damage(5000);
+    if (gs.player) { gs.player.alive = true; gs.player.hp = gs.player.hpMax; }
     await new Promise((res) => setTimeout(res, 130));
   }
   await new Promise((res) => setTimeout(res, 2500));
