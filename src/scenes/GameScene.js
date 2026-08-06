@@ -1696,16 +1696,23 @@ export class GameScene extends Phaser.Scene {
       const gained = ENDLESS.bossMechanics.slice(0, n);
       this.boss._mechanics = gained.map((m) => m.id);
 
+      const MECH = ENDLESS.bossMech;
       for (const m of gained) {
-        if (m.id === 'guard')   this._bossGuard = 3;
-        if (m.id === 'sunder')  this.boss._sunderMs = 5200;
-        if (m.id === 'hunt')    this.boss.cfg = { ...this.boss.cfg, speed: this.boss.cfg.speed * 1.18 };
-        if (m.id === 'legion')  this.boss._legion = true;
-        if (m.id === 'unbound') {
-          this.boss.cfg = { ...this.boss.cfg, speed: this.boss.cfg.speed * 1.2 };
-          this.boss._noStagger = true;
-        }
+        if (m.id === 'guard')       this._bossGuard = 3;
+        if (m.id === 'sunder')      this.boss._sunderMs = 5200;
+        if (m.id === 'legion')      this.boss._legion = true;
+        if (m.id === 'reflect')     this.boss._reflectEvery = MECH.reflectEveryMs;
+        if (m.id === 'blackout')    this.boss._blackoutEvery = MECH.blackoutEveryMs;
+        if (m.id === 'afterimages') this.boss._afterimageEvery = MECH.afterimageEveryMs;
+        if (m.id === 'disarm')      this.boss._disarmEvery = MECH.disarmEveryMs;
       }
+      // Each clock starts at a FULL interval rather than at zero, so nothing
+      // fires on the first frame of the encounter. Being disarmed before the
+      // fight has started is not a surprise, it is a bad spawn.
+      this.boss._reflectT    = this.boss._reflectEvery;
+      this.boss._blackoutT   = this.boss._blackoutEvery;
+      this.boss._afterimageT = this.boss._afterimageEvery;
+      this.boss._disarmT     = this.boss._disarmEvery;
       this.boss._sunderT = this.boss._sunderMs || 0;
 
       // Announce which Vader this is and what he brought. The newest mechanic
@@ -1728,6 +1735,79 @@ export class GameScene extends Phaser.Scene {
     // room-cleared relies on. The boss room ends via boss-died → victory().
     this.fx.shake(0.012, 400);
     duckMusic(0.4, 800);
+  }
+
+  /**
+   * AFTERIMAGES: 1-hp copies of Vader that swing at you.
+   *
+   * Built from the enemy pool rather than from new AI — they are ordinary melee
+   * grunts wearing his silhouette, which is enough, because the mechanic is
+   * about TARGETING, not about a new fight. They cost nothing to kill; the cost
+   * is the second spent working out which one to hit.
+   *
+   * They must wear HIS sprite. The first version tinted the grunt art and the
+   * screenshot answered "which one is he?" instantly — a mechanic that reads
+   * wrong is not a mechanic. The texture is re-asserted every frame in
+   * `_tickNemesis` because the grunt AI animates over the top of it.
+   */
+  _spawnAfterimages(boss, n = 3) {
+    this.events.emit('show-banner', 'AFTERIMAGES', '#c0c0ff');
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + this.rng.boss.float(0, Math.PI);
+      const d = 150 + this.rng.boss.between(0, 90);
+      const x = Phaser.Math.Clamp(boss.x + Math.cos(a) * d, 90, this.physics.world.bounds.width - 90);
+      const y = Phaser.Math.Clamp(boss.y + Math.sin(a) * d, 90, this.physics.world.bounds.height - 90);
+      const clone = this.spawnEnemyAt('grunt', x, y, {});
+      if (!clone) continue;
+      clone.hp = 1;
+      clone.hpMax = 1;
+      clone._afterimage = true;
+      clone.setTint(0x30304a);
+      clone.setAlpha(0.72);
+      clone.hpBar?.setVisible(false);
+      clone.anims?.stop();
+      clone.setTexture('boss');
+      clone.setScale(1);
+      clone.weaponSprite?.setVisible(false);
+      this.fx.burst(x, y, 'purple', 8);
+    }
+  }
+
+  /**
+   * DISARM: the secondary is struck out of your hands and lands on the floor.
+   *
+   * Ammo is carried onto the pickup and restored on collection, so this costs
+   * POSITION rather than resources. Refilling it would make being disarmed a
+   * reward and leaving it empty would make it a punishment; neither is a
+   * surprise.
+   *
+   * The drop is pushed clear of the player's own 90px pickup magnet. Dropped at
+   * his feet it could land close enough to be re-collected on the spot, which
+   * makes the whole mechanic a no-op for anyone fighting him at close range —
+   * which is most people.
+   */
+  _disarmPlayer(boss) {
+    const id = this.player.secondary;
+    if (!id) return;                       // nothing to take
+    const ammo = this.player.secondaryAmmo;
+    this.player._equipNothing();
+
+    const MIN_AWAY = 190;                  // > the 90px magnet, with room to spare
+    let ang = Math.atan2(boss.y - this.player.y, boss.x - this.player.x);
+    if (!Number.isFinite(ang)) ang = 0;
+    const dist = Math.hypot(boss.x - this.player.x, boss.y - this.player.y);
+    const reach = Math.max(MIN_AWAY, dist + 70);
+    const b = this.physics.world.bounds;
+    const x = Phaser.Math.Clamp(this.player.x + Math.cos(ang) * reach, 90, b.width - 90);
+    const y = Phaser.Math.Clamp(this.player.y + Math.sin(ang) * reach, 90, b.height - 90);
+
+    const wp = new WeaponPickup(this, x, y, id);
+    wp._restoreAmmo = ammo;                // read by the pickup loop in update()
+    this.weaponPickups.push(wp);
+
+    this.events.emit('show-banner', 'DISARMED', '#ffd040');
+    this.fx.burst(this.player.x, this.player.y, 'yellow', 14);
+    this.fx.shake(0.014, 220);
   }
 
   spawnHealthOrb(x, y) {
@@ -1893,6 +1973,43 @@ export class GameScene extends Phaser.Scene {
     this._on('shooter-fire',      (s, a)  => this.fireShooter(s, a));
     this._on('boss-fan',          (b, a)  => this.fireBossFan(b, a));
     this._on('boss-spawn',        ()      => this.bossSpawnMinions());
+
+    // ── Vader's later mechanics ────────────────────────────────────────────
+    // Each is a brief, readable event rather than a stat change, and each is
+    // built from something already in the game. See ENDLESS.bossMechanics.
+
+    // DEFLECTION. The flare is the tell; the window opens after it.
+    this._on('boss-reflect-windup', (b) => {
+      this.events.emit('show-banner', 'DEFLECTION', '#ff4040');
+      this.fx.burst(b.x, b.y, 'red', 10);
+      SFX.bossRoar?.();
+      b.threatRing?.setAlpha(0.4);
+    });
+    this._on('boss-reflect-open', (b) => {
+      this.fx.impactRing(b.x, b.y, 0xff3030);
+      b.threatRing?.setAlpha(1);
+    });
+
+    // LIGHTS OUT. Reuses the DARKNESS modifier's overlay wholesale.
+    this._on('boss-blackout', (b, ms) => {
+      this.events.emit('show-banner', 'LIGHTS OUT', '#8090ff');
+      this.events.emit('set-darkness', true);
+      this.fx.shake(0.012, 260);
+      // Guarded on the scene still being live: a blackout that outlived the
+      // fight would leave the next sector dark.
+      this.time.delayedCall(ms, () => {
+        if (this.scene.isActive()) this.events.emit('set-darkness', false);
+      });
+    });
+
+    // AFTERIMAGES. Copies that swing and die in one hit; the real one is the
+    // one with the health bar.
+    this._on('boss-afterimages', (b, n) => this._spawnAfterimages(b, n));
+
+    // DISARM. The secondary lands on the floor with its ammo intact. Taking
+    // something away permanently would be a punishment; making you go and get
+    // it back is a decision.
+    this._on('boss-disarm', (b) => this._disarmPlayer(b));
     this._on('boss-charge',       ()      => this.fx.shake(0.015, 200));
     this._on('boss-hit', (boss, amount) => {
       this.fx.hitFlash(boss);
@@ -2972,6 +3089,12 @@ export class GameScene extends Phaser.Scene {
     // Weapon pickup checks
     for (const p of this.weaponPickups) {
       const taken = p.checkPickup(this.player);
+      // A disarmed weapon comes back with the ammo it had. equipSecondary
+      // refills to full, which would make being disarmed a free reload.
+      if (taken && p._restoreAmmo != null) {
+        this.player.secondaryAmmo = p._restoreAmmo;
+        this.events.emit('secondary-ammo-changed');
+      }
       // One of a paired offer was collected — retire its sibling.
       if (taken && this._pendingChoice?.offered.includes(p)) {
         this._pendingChoice.resolve(p);
@@ -3131,6 +3254,27 @@ export class GameScene extends Phaser.Scene {
         if (this.circleOverlap(b, this.boss)) {
           b.hitSet.add(this.boss);
           b.hasHit = true;
+
+          // DEFLECTION: while the saber is up, a player shot is turned around
+          // rather than landing. Intercepted HERE rather than inside
+          // Boss.damage because the shot must not count as damage at all — no
+          // hit flash, no meter charge, no intake window opened.
+          if (b.owner === 'player' && this.boss.isReflecting?.()) {
+            const back = Math.atan2(this.player.y - this.boss.y, this.player.x - this.boss.x);
+            this.enemyBullets.fire(
+              this.boss.x + Math.cos(back) * 50, this.boss.y + Math.sin(back) * 50,
+              back, BOSS.fanBulletSpeed * 1.15, Math.round(b.damage * 0.5),
+              BOSS.fanBulletRange, { owner: 'boss' },
+            );
+            this.fx.impactRing(b.x, b.y, 0xff3030);
+            // Announced so a deflection is countable. The arena is full of other
+            // enemy bullets — his fan, his guards — so "a hostile bolt exists"
+            // is not evidence that one was turned around.
+            this.events.emit('boss-reflected', this.boss, b.damage);
+            b.kill();
+            continue;
+          }
+
           if (!isSuper && b.owner === 'player') this.player.onHitLanded();
           // Boss ignores knockback in its damage override — pass it anyway.
           const kbVec = { x: b.body.velocity.x * 0.15, y: b.body.velocity.y * 0.15 };
@@ -4148,6 +4292,15 @@ export class GameScene extends Phaser.Scene {
         this.detonateGrenade(b.x, b.y, 240, 260);
         this.fx.shake(0.02, 300);
       }
+    }
+
+    // Afterimages hold Vader's silhouette. The grunt AI they ride on swaps
+    // texture and animation as it changes state, so this is re-asserted rather
+    // than set once at spawn.
+    for (const e of this.enemies.getChildren()) {
+      if (!e.alive || !e._afterimage) continue;
+      if (e.texture?.key !== 'boss') { e.anims?.stop(); e.setTexture('boss'); }
+      e.weaponSprite?.setVisible(false);
     }
 
     for (const e of this.enemies.getChildren()) {

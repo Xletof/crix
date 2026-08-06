@@ -315,7 +315,13 @@ export const ENEMY = {
 };
 
 export const BOSS = {
-  hp: 12000,
+  // MEASURED, not guessed. `tests/diag-encounter.mjs --mode vader` put the bot
+  // at a real moving fight against him and the old 12,000 pool died in 10.6
+  // SECONDS against a 60-90s target — phase 3 arrived at 7s, so two thirds of
+  // the fight never happened. 62,000 measured 84.5s with phases at 30s and 63s.
+  //
+  // Re-derive with that harness after any change to player output.
+  hp: 62000,
   radius: 56,
   speed: 165,
   contactDamage: 300,
@@ -803,7 +809,13 @@ export const ENDLESS = {
   bossEvery: 5,
   // Each Vader is tougher than the last. Compounding would make boss 4
   // impossible while boss 2 was trivial, so this is linear in the boss number.
-  bossHpStep: 0.9,     // boss n has hp x (1 + 0.9*(n-1))
+  // Cut from 0.9 when the base pool went from 12,000 to 62,000 — the step
+  // multiplies a five-times-larger number now, and 0.9 would put encounter 3 at
+  // 173,000, a three-minute fight nobody asked for. 0.3 measured 74.6s at
+  // encounter 2. The player also gains upgrades across the fifteen sectors
+  // between encounter 1 and 4, which the harness bot never does, so this stays
+  // deliberately modest.
+  bossHpStep: 0.3,     // boss n has hp x (1 + 0.3*(n-1))
   bossScoreStep: 0.5,  // and is worth proportionally more
 
   // Vader is a RECURRING NEMESIS, not a kill. Driving him to zero wounds him
@@ -817,18 +829,55 @@ export const ENDLESS = {
   // committed spam of both deletes 12,000 hp fast enough that phases 2 and 3
   // barely happen. His base pool and his per-encounter step are both raised, and
   // the intake cap below is what stops a single piercing super skipping a phase.
-  bossDamageCap: 1600,   // per 120ms window (was a flat 2200 in Boss.damage)
+  // Per 120ms window.
+  //
+  // Do NOT reason about this by comparing it to sustained dps. That comparison
+  // says 1600/120ms is 13,300 dmg/sec against ~730 sustained and therefore dead
+  // weight — and it is wrong, because damage does not arrive evenly. A
+  // point-blank super lands five pellets in ONE window, so the cap bites on
+  // exactly the burst it was written for and is invisible the rest of the time.
+  //
+  // Measured: dropping it to 500 to "make it engage" stretched encounter 1 from
+  // 84.5s to 135.7s by clipping ~83% off every super. It stays where it is.
+  bossDamageCap: 1600,
 
   // Mechanics he accumulates, one per encounter, in this order. Each is drawn
   // from behaviour the Boss already has or a small addition, so "weirder every
   // time" does not mean a new boss written from scratch every five sectors.
+  // `hunt` (x1.18 speed) and `unbound` (x1.2 speed) used to sit in this list.
+  // Both were deleted rather than retuned: a speed multiplier is not a mechanic,
+  // it is the same fight with the numbers moved, and two of five entries being
+  // one is what made the ladder escalate as "harder" instead of "weirder".
+  //
+  // Every replacement changes what the PLAYER has to do, and each is built from
+  // something that already exists — darkness from the DARKNESS modifier, the
+  // pickup from the weapon-choice drop, the clones from the enemy pool.
+  //
+  // Rule-breaking is held to BRIEF, SURPRISING and RECOVERABLE. Deflection lasts
+  // 1.4s and is telegraphed first; a disarm puts the weapon on the floor with
+  // its ammo intact. Neither takes anything away for longer than it takes to
+  // react — a lockout is not a surprise, it is a punishment.
   bossMechanics: [
-    { id: 'guard',    name: 'ELITE GUARD',    desc: 'he no longer comes alone' },
-    { id: 'sunder',   name: 'SUNDERING SLAM', desc: 'the floor answers him' },
-    { id: 'hunt',     name: 'RELENTLESS',     desc: 'he does not lose you' },
-    { id: 'legion',   name: 'LEGION',         desc: 'the room fills as he falls' },
-    { id: 'unbound',  name: 'UNBOUND',        desc: 'nothing slows him now' },
+    { id: 'guard',       name: 'ELITE GUARD',    desc: 'he no longer comes alone' },
+    { id: 'sunder',      name: 'SUNDERING SLAM', desc: 'the floor answers him' },
+    { id: 'reflect',     name: 'DEFLECTION',     desc: 'the saber sends it back' },
+    { id: 'blackout',    name: 'LIGHTS OUT',     desc: 'he fights better blind' },
+    { id: 'afterimages', name: 'AFTERIMAGES',    desc: 'which one is he?' },
+    { id: 'disarm',      name: 'DISARM',         desc: 'he takes it from your hands' },
+    { id: 'legion',      name: 'LEGION',         desc: 'the room fills as he falls' },
   ],
+
+  // Mechanic timings. Every window is short on purpose — see above.
+  bossMech: {
+    reflectEveryMs: 9000,
+    reflectMs: 1400,        // the window itself
+    reflectWindupMs: 500,   // telegraph, so holding fire beats it outright
+    blackoutEveryMs: 16000,
+    blackoutMs: 2600,
+    afterimageEveryMs: 13000,
+    afterimageCount: 3,
+    disarmEveryMs: 15000,
+  },
 };
 
 export const MODIFIERS = {

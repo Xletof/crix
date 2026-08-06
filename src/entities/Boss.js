@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { BOSS, ENDLESS } from '../config.js';
+
+const BOSS_MECH = ENDLESS.bossMech;
 import { SFX } from '../systems/FX.js';
 import { Enemy } from './Enemy.js';
 
@@ -49,6 +51,21 @@ export class Boss extends Enemy {
     // Vader-specific: saber glow pulse
     this._glowT = 0;
     this._enraged = false;
+
+    // Mechanic clocks. Held on him rather than as scene timers so they die when
+    // he does: a `delayedCall` scheduled by a Vader who then withdraws would
+    // fire into the NEXT sector and black out an arena he is not in. Set by
+    // GameScene.spawnBoss from the mechanics he has earned; zero means he does
+    // not have that trick yet.
+    this._reflectEvery    = 0;
+    this._reflectT        = 0;
+    this._reflectUntil    = 0;   // scene time — the window the bullet code reads
+    this._blackoutEvery   = 0;
+    this._blackoutT       = 0;
+    this._afterimageEvery = 0;
+    this._afterimageT     = 0;
+    this._disarmEvery     = 0;
+    this._disarmT         = 0;
 
     SFX.bossRoar();
 
@@ -205,6 +222,7 @@ export class Boss extends Enemy {
     }
 
     if (this.contactDmgCd > 0) this.contactDmgCd -= delta;
+    this._tickMechanics(delta);
 
     switch (this.state) {
       case STATE.IDLE: {
@@ -305,6 +323,64 @@ export class Boss extends Enemy {
       player.damage(BOSS.contactDamage, dirFromBoss);
       this.contactDmgCd = 600;
     }
+  }
+
+  /**
+   * The earned mechanics, on their own clocks.
+   *
+   * Each one only ANNOUNCES itself — the scene owns the effect, exactly as
+   * `boss-fan` and `boss-spawn` already work. Vader has no business knowing how
+   * darkness is drawn or how a weapon pickup is spawned, and routing it through
+   * events is also what lets the smoke test assert each effect from outside.
+   */
+  _tickMechanics(delta) {
+    if (this._reflectEvery > 0) {
+      this._reflectT -= delta;
+      if (this._reflectT <= 0) {
+        this._reflectT = this._reflectEvery;
+        // Telegraphed: the flare goes up first and the window opens after it, so
+        // holding fire for a beat beats it outright. That is the difference
+        // between a surprise and a tax.
+        this.scene.events.emit('boss-reflect-windup', this);
+        this.scene.time.delayedCall(BOSS_MECH.reflectWindupMs, () => {
+          if (!this.alive) return;
+          this._reflectUntil = this.scene.time.now + BOSS_MECH.reflectMs;
+          this.scene.events.emit('boss-reflect-open', this);
+        });
+      }
+    }
+
+    if (this._blackoutEvery > 0) {
+      this._blackoutT -= delta;
+      if (this._blackoutT <= 0) {
+        this._blackoutT = this._blackoutEvery;
+        this.scene.events.emit('boss-blackout', this, BOSS_MECH.blackoutMs);
+      }
+    }
+
+    if (this._afterimageEvery > 0) {
+      this._afterimageT -= delta;
+      if (this._afterimageT <= 0) {
+        this._afterimageT = this._afterimageEvery;
+        this.scene.events.emit('boss-afterimages', this, BOSS_MECH.afterimageCount);
+      }
+    }
+
+    if (this._disarmEvery > 0) {
+      this._disarmT -= delta;
+      if (this._disarmT <= 0) {
+        this._disarmT = this._disarmEvery;
+        this.scene.events.emit('boss-disarm', this);
+      }
+    }
+
+    // Cleared here rather than on a timer that could outlive him.
+    if (this._reflectUntil && this.scene.time.now > this._reflectUntil) this._reflectUntil = 0;
+  }
+
+  /** True while the saber is up. Read by the player-bullet collision. */
+  isReflecting() {
+    return this.alive && this._reflectUntil > this.scene.time.now;
   }
 
   die() {
