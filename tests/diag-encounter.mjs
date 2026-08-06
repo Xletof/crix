@@ -313,8 +313,115 @@ async function fightLoadout(traits, sector, capMs) {
   }, { traits, sector, capMs });
 }
 
+// ── Mode C: the Vader ladder ──────────────────────────────────────────────
+//
+// The target is a 60-90s fight playing well, so all three phases land. Nothing
+// had ever measured whether that happened, and the two knobs that decide it —
+// `bossHpStep` and `bossDamageCap` — were both invented. The first run of this
+// found the answer was 10.6 SECONDS.
+//
+// The cap is the subtle one, and the trap is real enough to be worth stating:
+// it looks irrelevant next to sustained dps, because 1600 per 120ms is ~13,300
+// dmg/sec. But damage does not arrive evenly — a super lands five pellets in
+// ONE window — so it bites on burst and nothing else. Cutting it to 500 on that
+// bad reasoning stretched encounter 1 to 135.7s. `capFloorMs` below is the
+// theoretical floor the cap alone imposes, reported so it is visible which of
+// the two knobs is actually binding.
+async function fightVader(encounter, capMs) {
+  return page.evaluate(async ({ encounter, capMs }) => {
+    const gs = window.game.scene.getScene('Game');
+    const { ROOMS } = await import('/src/data/rooms.js');
+    const { ENDLESS } = await import('/src/config.js');
+
+    gs.sector = encounter * ENDLESS.bossEvery;
+    gs.loadRoom(ROOMS.find((r) => r.boss));
+    await new Promise((r) => setTimeout(r, 2000));
+
+    // Same isolation as the loadout sweep: one encounter, not a wave.
+    gs.arenaActive = false;
+    gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
+    gs.player.hp = gs.player.hpMax;
+    gs.player.shieldHp = 0;
+    gs.player.superCharge = 0;
+    gs.player.meleeCharge = 0;
+    gs.lives = 9999;              // defeat() must never fire mid-measurement
+
+    if (!gs.boss?.alive) {
+      gs.spawnBoss(gs.player.x + 400, gs.player.y);
+      await new Promise((r) => setTimeout(r, 600));
+    }
+    const boss = gs.boss;
+    const hpMax = boss.hpMax;
+    const dmgCap = boss._dmgCap ?? ENDLESS.bossDamageCap;
+    const dmgBefore = gs.runDamageTaken || 0;
+
+    let deaths = 0;
+    const onDead = () => deaths++;
+    gs.events.on('player-dead', onDead);
+
+    // WHEN the phases land, not just the total. The whole point of the 60-90s
+    // target is that all three happen — a fight that spends 55s in phase 1 and
+    // 3s in phase 3 hits the band and still fails the intent.
+    const phaseAt = {};
+    const onPhase = (p) => { phaseAt[p] = Math.round(performance.now() - t0); };
+    gs.events.on('boss-phase', onPhase);
+
+    window.__bot.target = boss;
+    window.__bot.stats = { frames: 0, shots: 0, supers: 0, melees: 0, dashes: 0, revives: 0 };
+    window.__bot.on = true;
+
+    const t0 = performance.now();
+    let elapsed = 0;
+    while (boss.active && boss.alive && elapsed < capMs) {
+      await new Promise((r) => setTimeout(r, 100));
+      elapsed = performance.now() - t0;
+    }
+    window.__bot.on = false;
+    gs.events.off('player-dead', onDead);
+    gs.events.off('boss-phase', onPhase);
+
+    return {
+      encounter,
+      downed: !boss.alive,
+      ms: Math.round(elapsed),
+      hpMax: Math.round(hpMax),
+      hpEnd: Math.round(Math.max(0, boss.hp)),
+      dmgCap,
+      capFloorMs: Math.round((hpMax / dmgCap) * 120),
+      phaseAt,
+      damageTaken: Math.round((gs.runDamageTaken || 0) - dmgBefore),
+      deaths,
+      revives: window.__bot.stats.revives,
+      supers: window.__bot.stats.supers,
+      melees: window.__bot.stats.melees,
+      mechanics: (boss._mechanics || []).slice(),
+    };
+  }, { encounter, capMs });
+}
+
 // ── Run ───────────────────────────────────────────────────────────────────
 const out = [];
+
+if (MODE === 'vader') {
+  const last = Number(arg('encounters', 3));
+  console.log(`\n── Vader ladder (encounters 1-${last}, ${CAP_MS / 1000}s cap) ──`);
+  console.log('   target: 60-90s with all three phases reached\n');
+  for (let n = 1; n <= last; n++) {
+    const r = await fightVader(n, CAP_MS);
+    const secs = (r.ms / 1000).toFixed(1);
+    const band = !r.downed ? 'OVER CAP' : r.ms < 60000 ? 'TOO SHORT' : r.ms > 90000 ? 'TOO LONG' : 'in band';
+    const ph = [2, 3].map((p) => r.phaseAt[p] != null ? `p${p} ${(r.phaseAt[p] / 1000).toFixed(0)}s` : `p${p} NEVER`).join(', ');
+    console.log(`  encounter ${n}  hp ${String(r.hpMax).padStart(6)}  cap ${r.dmgCap}  `
+      + `${r.downed ? `${secs}s` : `${secs}s (${r.hpEnd} left)`}  [${band}]`);
+    console.log(`      phases: ${ph}   cap floor ${(r.capFloorMs / 1000).toFixed(0)}s   `
+      + `taken ${r.damageTaken}  deaths ${r.deaths}  supers ${r.supers} melee ${r.melees}`);
+    console.log(`      mechanics: ${r.mechanics.join(', ') || 'none'}`);
+    out.push(r);
+  }
+  console.log('\n  NOTE: the bot never picks up an upgrade, and a real run gains'
+    + '\n  fifteen sectors of them between encounter 1 and 4. Later encounters'
+    + '\n  reading long here is a limit of the instrument, not a verdict.');
+}
 
 if (MODE === 'all' || MODE === 'dps') {
   console.log('\n── Reference fight (bare nemesis, bot moving and taking damage) ──');
