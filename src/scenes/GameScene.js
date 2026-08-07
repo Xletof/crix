@@ -22,6 +22,7 @@ import {
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { moveById } from '../data/nemesisMoves.js';
 import { runMove } from '../systems/MoveScript.js';
+import { bossMoveById, bossMovesFor } from '../data/bossMoves.js';
 import { makeStreams, newSeed } from '../systems/rng.js';
 import { NARRATIVE } from '../data/narrative.js';
 import { NavGrid } from '../systems/NavGrid.js';
@@ -1732,6 +1733,7 @@ export class GameScene extends Phaser.Scene {
       this.boss._afterimageT = this.boss._afterimageEvery;
       this.boss._disarmT     = this.boss._disarmEvery;
       this.boss._sunderT = this.boss._sunderMs || 0;
+      this._equipBossKit(this.boss, n);
 
       // Announce which Vader this is and what he brought. The newest mechanic
       // gets named on its own — being told exactly what changed is what makes
@@ -1768,6 +1770,19 @@ export class GameScene extends Phaser.Scene {
    * wrong is not a mechanic. The texture is re-asserted every frame in
    * `_tickNemesis` because the grunt AI animates over the top of it.
    */
+  /**
+   * Put an afterimage's collision circle back on its sprite.
+   *
+   * `setTexture` swaps a 20x20 grunt frame for a 40x40 boss frame, and the
+   * arcade body keeps the offset computed for the old one. Needed at spawn AND
+   * on every re-assert, because the grunt AI keeps animating its own texture
+   * back and the swap happens again.
+   */
+  _fitAfterimageBody(e) {
+    const r = e.cfg?.radius ?? 18;
+    e.body?.setCircle(r, e.width / 2 - r, e.height / 2 - r);
+  }
+
   _spawnAfterimages(boss, n = 3) {
     this.events.emit('show-banner', 'AFTERIMAGES', '#c0c0ff');
     for (let i = 0; i < n; i++) {
@@ -1783,10 +1798,27 @@ export class GameScene extends Phaser.Scene {
       clone.setTint(0x30304a);
       clone.setAlpha(0.72);
       clone.hpBar?.setVisible(false);
+      clone.threatRing?.setVisible(false);   // the REAL one keeps its ring
       clone.anims?.stop();
       clone.setTexture('boss');
       clone.setScale(1);
       clone.weaponSprite?.setVisible(false);
+
+      // RE-FIT THE BODY. `setTexture` swaps a 20x20 grunt frame for a 40x40
+      // boss frame, and the arcade circle keeps the offset computed for the old
+      // one — so the hitbox ended up ~40px off the sprite. That is half of why
+      // these "didn't do shit": they were colliding with the world somewhere
+      // they were not drawn.
+      this._fitAfterimageBody(clone);
+
+      // And make them actually dangerous. They chase and swing on the grunt AI,
+      // but a copy that cannot hurt you is scenery — the point of the mechanic
+      // is that you must decide which one to deal with.
+      clone.cfg = {
+        ...clone.cfg,
+        speed: (clone.cfg.speed || 150) * 1.15,
+        meleeDamage: Math.round((clone.cfg.meleeDamage || 90) * 1.1),
+      };
       this.fx.burst(x, y, 'purple', 8);
     }
   }
@@ -1989,6 +2021,15 @@ export class GameScene extends Phaser.Scene {
     this._on('grenade-detonate',  (x, y, dmg, r) => this.detonateGrenade(x, y, dmg, r));
     this._on('grenade-cluster',   (x, y, z) => this.clusterSplit(x, y, z));
     this._on('shooter-fire',      (s, a)  => this.fireShooter(s, a));
+    // His charge finally gets a floor telegraph. It had a windup and a scale
+    // pulse and nothing you could read at a glance, which is what the player
+    // meant by "he only charges but no lane light or anything".
+    this._on('boss-charge-windup', (b, angle, ms) => {
+      this.spawnTelegraph({
+        kind: 'lane', x: b.x, y: b.y, angle,
+        len: BOSS.chargeSpeed * (BOSS.chargeDurationMs / 1000) * 0.8, width: 170,
+      }, { windupMs: ms, owner: b });
+    });
     this._on('boss-fan',          (b, a)  => this.fireBossFan(b, a));
     this._on('boss-spawn',        ()      => this.bossSpawnMinions());
 
@@ -4354,6 +4395,18 @@ export class GameScene extends Phaser.Scene {
   _tickNemesisMoves(delta) {
     const p = this.player;
     if (!p?.alive) return;
+
+    // VADER'S CLOCK. He is not in `this.enemies` — that is the whole reason he
+    // had none of the move system for a full release. Ticked explicitly.
+    const b = this.boss;
+    if (b?.alive && b._moveIds?.length) {
+      b._moveT -= delta;
+      if (b._moveT <= 0) {
+        b._moveT = b._moveEvery;
+        this._castBossMove(b);
+      }
+    }
+
     for (const e of this.enemies.getChildren()) {
       if (!e.alive || !e._charging) continue;
       const move = e._activeMove?.move;
@@ -4368,6 +4421,52 @@ export class GameScene extends Phaser.Scene {
         }
       }
     }
+  }
+
+  /**
+   * Give Vader his moves.
+   *
+   * This is the connection that did not exist: `_equipNemesisKit` was called
+   * only from `_spawnMiniBoss`, so every move built in the last release applied
+   * to the named mini-bosses and never to the boss the player was testing.
+   */
+  _equipBossKit(boss, encounter = 1) {
+    boss._moveIds = bossMovesFor(boss.phase || 1, encounter);
+    boss._moveEvery = 8000;
+    boss._moveT = boss._moveEvery;     // never on the first frame
+    boss._moveIdx = -1;
+    boss._encounterN = encounter;
+  }
+
+  /** Cast one of Vader's, through the same four-beat runner. */
+  _castBossMove(b, forcedId = null) {
+    // His pool widens as he loses phases, so re-derive rather than freezing the
+    // list at spawn — that is how the fight escalates in verbs.
+    const pool = forcedId ? [forcedId] : bossMovesFor(b.phase || 1, b._encounterN || 1);
+    if (!pool.length || !this.player?.alive) return null;
+    if (b._activeMove && b._activeMove.phase !== 'done') return null;
+    const id = forcedId || pool[(b._moveIdx = ((b._moveIdx ?? -1) + 1) % pool.length)];
+    const move = bossMoveById(id);
+    if (!move) return null;
+
+    const handle = runMove(this, b, {
+      id: move.id,
+      anticipateMs: move.anticipateMs,
+      actMs: move.actMs,
+      recoverMs: move.recoverMs,
+      anticipate: (sc, a, h) => move.anticipate?.(sc, a, h),
+      act: (sc, a, h) => move.act(sc, a, h),
+      impact: (sc, a, h) => move.impact?.(sc, a, h),
+      recover: (sc, a, h) => move.recover?.(sc, a, h),
+      onCancel: (sc, a, h) => move.onCancel?.(sc, a, h),
+    });
+    handle.move = move;
+    // Suspend his own state machine while a scripted move owns him, or the
+    // charge AI fights the tween for control of his position.
+    b.state = 'idle';
+    b.cooldown = move.anticipateMs + move.actMs + move.recoverMs;
+    this.events.emit('boss-move', b, move);
+    return handle;
   }
 
   /**
@@ -4452,6 +4551,11 @@ export class GameScene extends Phaser.Scene {
     for (const e of this.enemies.getChildren()) {
       if (!e.alive || !e._afterimage) continue;
       if (e.texture?.key !== 'boss') { e.anims?.stop(); e.setTexture('boss'); }
+      // Re-fit EVERY frame, not only on the swap. Conditioning it on the
+      // texture change left a race with the grunt AI's own animation — one
+      // clone in three still measured a 57px offset, and which one varied run
+      // to run. Three objects, once a frame, is not worth a race.
+      this._fitAfterimageBody(e);
       e.weaponSprite?.setVisible(false);
     }
 

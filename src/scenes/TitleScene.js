@@ -461,6 +461,18 @@ export class TitleScene extends Phaser.Scene {
     });
     recordsContainer.add(closeZone);
 
+    // Build stamp. Small, out of the way, and the only reliable answer to "is
+    // this the new build" without a console — `window.game` is dev-only, so on
+    // a phone there was previously no way to tell at all.
+    this.add
+      .text(VIEW.width - 12, VIEW.height - 14,
+        typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : 'dev', {
+          fontFamily: FONTS.body,
+          fontSize: '13px',
+          color: '#3a4a68',
+        })
+      .setOrigin(1, 1);
+
     // Tip line
     this.add
       .text(cx, VIEW.height - 50, 'Left stick: move    Right stick: aim & fire    Star: MISSILES', {
