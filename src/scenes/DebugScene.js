@@ -149,6 +149,8 @@ export class DebugScene extends Phaser.Scene {
       this._syncLabels();
     }, 280);
     this._button(cx + half, y, 'CLEAR FIELD', () => this._clearField(), 280);
+    y += row;
+    this._button(cx, y, 'FORCE MOVE', () => this._forceMove(), 420);
     y += row + 12;
 
     this._button(cx, y, 'CLOSE', () => this._close(), 420);
@@ -303,6 +305,23 @@ export class DebugScene extends Phaser.Scene {
     // wrong boss is worse than none.
     this.gs.spawnBoss(p.x + 340, p.y, { encounter: this._vaderN });
     this._close();
+  }
+
+  /**
+   * Make every nemesis on the field cast its next move right now.
+   *
+   * Move clocks run at 7-10 seconds. Waiting one out to look at a single
+   * telegraph is exactly the loop this whole group exists to shorten, and a
+   * telegraph is ~800ms of animation you often want to see twice in a row.
+   */
+  _forceMove() {
+    if (!this.gs?._castNemesisMove) return;
+    let cast = 0;
+    for (const e of this.gs.enemies.getChildren()) {
+      if (e.alive && e._moveIds?.length) { this.gs._castNemesisMove(e); cast++; }
+    }
+    SFX.uiClick();
+    if (cast) this._close();      // the telegraph is the thing to look at
   }
 
   // Jump the difficulty ramp. Steps rather than +1 so the interesting points

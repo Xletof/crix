@@ -93,7 +93,8 @@ pos.clear = [cx - half, y]; pos.skip = [cx + half, y]; y += row;
 // moves CLOSE out from under the tap and reads as "the panel will not close".
 heading(); pos.loadout = [cx - half, y]; pos.spawnNemesis = [cx + half, y]; y += row;
 pos.vaderN = [cx - half, y]; pos.spawnVader = [cx + half, y]; y += row;
-pos.sector = [cx - half, y]; pos.clearField = [cx + half, y]; y += row + 12;
+pos.sector = [cx - half, y]; pos.clearField = [cx + half, y]; y += row;
+pos.forceMove = [cx, y]; y += row + 12;
 pos.close = [cx, y];
 
 const tap = async (k) => {

@@ -27,6 +27,7 @@
 // Production always injects a seeded stream — see rollNemesis.
 import { makeRng, newSeed } from '../systems/rng.js';
 import { pickWeapon, weaponById } from './nemesisWeapons.js';
+import { pickMoves } from './nemesisMoves.js';
 
 // ── Names ─────────────────────────────────────────────────────────────────
 // Two pools crossed, so 24 x 18 = 432 names before the trait loadout. Enough
@@ -197,6 +198,9 @@ export function rollNemesis(sector = 1, opts = {}) {
     ? (opts.weapon && weaponById(opts.weapon))
     : pickWeapon(n.base, rng);
   n.regalia = n.traits.slice(0, REGALIA_ANCHORS).map((id) => REGALIA[id]).filter(Boolean);
+  // Moves last of all, so adding them did not shift any encounter recorded
+  // before they existed.
+  n.moves = opts.moves !== undefined ? (opts.moves || []) : pickMoves(n.traits, rng);
 
   return n;
 }

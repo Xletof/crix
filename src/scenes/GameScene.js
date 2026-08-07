@@ -19,6 +19,8 @@ import {
   createLedger, recordEscape, recordKill, dueAt, applyScar,
   nemesisFromEntry, promoteSuccessor,
 } from '../data/nemesisLedger.js';
+import { attachTelegraphs } from '../systems/Telegraph.js';
+import { moveById } from '../data/nemesisMoves.js';
 import { makeStreams, newSeed } from '../systems/rng.js';
 import { NARRATIVE } from '../data/narrative.js';
 import { NavGrid } from '../systems/NavGrid.js';
@@ -107,6 +109,10 @@ export class GameScene extends Phaser.Scene {
 
     // ── FX ─────────────────────────────────────────────────────────────────
     this.fx = attachFX(this);
+    // Telegraphed danger zones. Ticked by the scene in one pass rather than
+    // each one owning a timer, so a paused or torn-down scene stops them all —
+    // the same reason Vader's mechanic clocks live on him.
+    attachTelegraphs(this);
 
     // ── Player ─────────────────────────────────────────────────────────────
     this.player = new Player(this, 200, 200);
@@ -644,6 +650,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   _clearRoomEntities() {
+    // Telegraphs first. They are owned by their caster, so destroying enemies
+    // sweeps most of them — but a zone whose caster already died is held only
+    // by the scene list, and one surviving a room change is a red circle
+    // painted on the floor of the next arena.
+    this.clearTelegraphs?.();
     // Destroy all enemies still alive (dead ones already cleaned themselves up)
     this.enemies.getChildren().slice().forEach((e) => this._destroyEnemyFully(e));
     this.enemies.clear(false, false);
@@ -3099,6 +3110,7 @@ export class GameScene extends Phaser.Scene {
     // Timed wave survival tick
     this._tickArena(delta);
     this._tickNemesis(delta);
+    this.tickTelegraphs(delta);
 
     // Health orbs
     this.updateHealthOrbs(delta);
@@ -4295,6 +4307,46 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Cast one of a nemesis's moves: telegraph now, resolve at commit.
+   *
+   * The move description owns the geometry and the effect; this only wires the
+   * two together and hands ownership to the caster so the zone dies with it.
+   * Nothing here decides what a move DOES, which is what keeps adding a fifth
+   * move a data change rather than a scene change.
+   */
+  _castNemesisMove(e, forcedId = null) {
+    const id = forcedId || (e._moveIds.length
+      ? e._moveIds[(e._moveIdx = ((e._moveIdx ?? -1) + 1) % e._moveIds.length)]
+      : null);
+    const move = moveById(id);
+    if (!move || !this.player?.alive) return null;
+
+    const spec = move.telegraph(this, e);
+    const cast = (shape) => this.spawnTelegraph(shape, {
+      windupMs: spec.windupMs,
+      owner: e,
+      // A safe zone is drawn GREEN. Red everywhere else in the game means
+      // "leave", so a safe wedge in the danger colour would send the player out
+      // of the only survivable spot — the logic was right and the picture was
+      // backwards, which only the screenshot caught.
+      safe: !!spec.safeZone,
+      // Resolve is the move's business. Guarded on the caster still existing:
+      // killing a nemesis mid-windup should cancel its slam, not have a corpse
+      // land one. The telegraph itself guards the scene being alive.
+      onCommit: (tel) => { if (e.active && e.alive) move.resolve(this, e, tel); },
+    });
+
+    const primary = cast({ ...spec.shape });
+    if (spec.safeZone) primary.safeZone = true;
+    // Multi-zone moves (MINE DROP) share the primary's clock so they land
+    // together rather than drifting apart on separate timers.
+    for (const extra of move.extraZones?.(this, e) || []) cast(extra);
+
+    this.events.emit('nemesis-move', e, move);
+    return primary;
+  }
+
+  /**
    * Dress a nemesis: its weapon and its trait marks.
    *
    * Both are attached through `_attachments`, which `die()` and
@@ -4309,6 +4361,19 @@ export class GameScene extends Phaser.Scene {
     if (nem.weapon && e.weaponSprite) {
       e._nemesisWeapon = nem.weapon;
       e.weaponSprite.setTexture(nem.weapon.tex);
+    }
+
+    // Moves. Cycled rather than rolled per cast, so a player can learn what
+    // this particular nemesis does instead of being surprised at random — the
+    // difference between a fight you get better at and a slot machine.
+    e._moveIds = (nem.moves || []).slice();
+    if (e._moveIds.length) {
+      const first = moveById(e._moveIds[0]);
+      e._moveEvery = first?.everyMs ?? 8000;
+      // A full interval before the first cast: a telegraph landing during the
+      // spawn banner is a bad spawn, not a surprise.
+      e._moveT = e._moveEvery;
+      e._moveIdx = -1;
     }
 
     // Trait marks. Derived from the loadout, so they cannot disagree with it.
@@ -4342,6 +4407,18 @@ export class GameScene extends Phaser.Scene {
         this._spawnVaderGroundCrack(b.x, b.y, b.phase || 1);
         this.detonateGrenade(b.x, b.y, 240, 260);
         this.fx.shake(0.02, 300);
+      }
+    }
+
+    // Nemesis moves. One clock per enemy, ticked here with the rest of the
+    // trait behaviour rather than as scene timers, so a nemesis that dies
+    // mid-windup takes its pending move with it.
+    for (const e of this.enemies.getChildren()) {
+      if (!e.alive || !e._moveIds?.length) continue;
+      e._moveT -= delta;
+      if (e._moveT <= 0) {
+        e._moveT = e._moveEvery;
+        this._castNemesisMove(e);
       }
     }
 

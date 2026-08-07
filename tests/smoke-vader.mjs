@@ -175,6 +175,13 @@ r.blackout = await page.evaluate(async () => {
   const gs = window.game.scene.getScene('Game');
   const hud = window.game.scene.getScene('HUD');
   const alpha = () => hud.darknessOverlay?.alpha ?? 0;
+  // Force the lights ON first. The room can roll the DARKNESS modifier, which
+  // leaves the overlay already at alpha 1 — then "lights out raises it" has
+  // nothing to raise and fails on a build where the mechanic works perfectly.
+  // The check is about Vader's blackout, so the starting state has to be known
+  // rather than inherited from whatever modifier the arena picked.
+  gs.events.emit('set-darkness', false);
+  await new Promise((res) => setTimeout(res, 400));
   const before = alpha();
   gs.events.emit('boss-blackout', gs.boss, 700);
   await new Promise((res) => setTimeout(res, 250));
