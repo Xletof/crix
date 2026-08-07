@@ -1,7 +1,22 @@
 import Phaser from 'phaser';
-import { VIEW, FONTS, PLAYER, WEAPONS } from '../config.js';
+import { VIEW, FONTS, PLAYER, WEAPONS, ENDLESS } from '../config.js';
 import { SFX } from '../systems/FX.js';
 import { isGodMode, setGodMode } from '../systems/debug.js';
+import { rollNemesis } from '../data/nemesis.js';
+import { makeRng } from '../systems/rng.js';
+
+// Nemesis loadouts worth reaching for by hand. RANDOM rolls the live stream;
+// the rest force a trait pair so a specific fight can be looked at repeatedly —
+// including the two the balance sweep flagged as outliers.
+const LOADOUTS = [
+  { label: 'NEM: RANDOM', traits: null },
+  { label: 'NEM: ARMORED', traits: ['armored'] },
+  { label: 'NEM: SWIFT', traits: ['swift'] },
+  { label: 'NEM: VOLATILE', traits: ['volatile'] },
+  { label: 'NEM: SUMMONER', traits: ['summoner'] },
+  { label: 'NEM: ARM+COL', traits: ['armored', 'colossal'] },   // the 5.5x outlier
+  { label: 'NEM: SWI+VOL', traits: ['swift', 'volatile'] },     // the evasion one
+];
 
 // Debug panel, opened from the pause menu.
 //
@@ -37,9 +52,11 @@ export class DebugScene extends Phaser.Scene {
     g.fillStyle(0x000000, 0.72);
     g.fillRect(0, 0, VIEW.width, VIEW.height);
 
-    // Sized to the content: four groups + CLOSE bottom out around y=745 against
-    // a card top of ~38.
-    const cardW = 620, cardH = 740;
+    // Sized to the content: five groups + CLOSE. Grew from 740 when the BOSSES
+    // group landed — the alternative was a second page, and a page you have to
+    // navigate to is one more step between changing a boss and seeing it, which
+    // is the exact friction this group exists to remove.
+    const cardW = 620, cardH = 980;
     const cardX = cx - cardW / 2, cardY = VIEW.height * 0.03;
     g.fillStyle(0x0c101d, 0.9);
     g.fillRoundedRect(cardX, cardY, cardW, cardH, 16);
@@ -102,6 +119,36 @@ export class DebugScene extends Phaser.Scene {
     y += row;
     this._button(cx - half, y, 'CLEAR WAVE', () => this._clearWave(), 280);
     this._button(cx + half, y, 'SKIP WAVE', () => this._skipWave(), 280);
+    y += row;
+
+    // ── Bosses ─────────────────────────────────────────────────────────────
+    // Reaching Vader's third encounter means playing fifteen sectors. That
+    // round trip — change a number, then play for minutes to see it — is why he
+    // shipped mistuned twice. Everything here goes through the REAL entry
+    // points (`_spawnMiniBoss`, `spawnBoss`), per this file's house rule, so
+    // what you are testing is what ships.
+    heading('BOSSES');
+    this._loadout = 0;
+    this.loadBtn = this._button(cx - half, y, this._loadoutLabel(), () => {
+      this._loadout = (this._loadout + 1) % LOADOUTS.length;
+      this.loadBtn.label.setText(this._loadoutLabel());
+    }, 280);
+    this._button(cx + half, y, 'SPAWN NEMESIS', () => this._spawnNemesis(), 280);
+    y += row;
+
+    this._vaderN = 1;
+    this.vaderBtn = this._button(cx - half, y, this._vaderLabel(), () => {
+      this._vaderN = (this._vaderN % 6) + 1;
+      this.vaderBtn.label.setText(this._vaderLabel());
+    }, 280);
+    this._button(cx + half, y, 'SPAWN VADER', () => this._spawnVader(), 280);
+    y += row;
+
+    this.sectorBtn = this._button(cx - half, y, this._sectorLabel(), () => {
+      this._cycleSector();
+      this._syncLabels();
+    }, 280);
+    this._button(cx + half, y, 'CLEAR FIELD', () => this._clearField(), 280);
     y += row + 12;
 
     this._button(cx, y, 'CLOSE', () => this._close(), 420);
@@ -111,6 +158,9 @@ export class DebugScene extends Phaser.Scene {
 
   _godLabel() { return isGodMode() ? 'GOD: ON' : 'GOD: OFF'; }
   _typeLabel(types) { return types[this._spawnType].toUpperCase(); }
+  _loadoutLabel() { return LOADOUTS[this._loadout].label; }
+  _vaderLabel() { return `VADER #${this._vaderN}`; }
+  _sectorLabel() { return `SECTOR ${this.gs?.sector ?? 1}`; }
 
   _player() { return this.gs?.player || null; }
 
@@ -192,6 +242,97 @@ export class DebugScene extends Phaser.Scene {
     for (let i = 0; i < count; i++) {
       const a = (i / count) * Math.PI * 2;
       this.gs.spawnEnemyAt(type, p.x + Math.cos(a) * 320, p.y + Math.sin(a) * 320);
+    }
+    SFX.uiClick();
+  }
+
+  // ── Bosses ───────────────────────────────────────────────────────────────
+
+  /**
+   * Refresh the labels that read live scene state.
+   *
+   * Guarded on the scene still running: the spawn buttons close the panel, and
+   * `_close()` stops the scene and destroys its Text objects. Touching one
+   * afterwards throws inside Phaser's texture code ("cannot read drawImage"),
+   * which reads as a rendering fault rather than as a dead label.
+   */
+  _syncLabels() {
+    if (!this.scene.isActive()) return;
+    this.sectorBtn?.label?.setText(this._sectorLabel());
+    this.vaderBtn?.label?.setText(this._vaderLabel());
+    this.loadBtn?.label?.setText(this._loadoutLabel());
+  }
+
+  /**
+   * Spawn the sector's nemesis on demand.
+   *
+   * RANDOM goes through the live `nemesis` stream, so it is the encounter the
+   * run would actually have produced. A named loadout forces the traits with a
+   * throwaway generator instead — forcing them through the run's stream would
+   * consume draws and desync every later encounter from its seed, which would
+   * make the debug menu itself a source of irreproducibility.
+   */
+  _spawnNemesis() {
+    if (!this.gs?._spawnMiniBoss) return;
+    const lo = LOADOUTS[this._loadout];
+    const sector = this.gs.sector || 1;
+    const nem = lo.traits
+      ? rollNemesis(sector, { traits: lo.traits, rng: makeRng(Date.now() & 0xffff) })
+      : rollNemesis(sector, { rng: this.gs.rng.nemesis });
+    this.gs._spawnMiniBoss(nem);
+    this._close();          // you asked to see it, not to read about it
+  }
+
+  /**
+   * Vader at any rung of his ladder, without playing to it.
+   *
+   * `spawnBoss` derives which encounter he is from `sector`, so setting the
+   * sector IS choosing the encounter — his hp, his intake cap and which
+   * mechanics he has all follow from that one number.
+   */
+  _spawnVader() {
+    if (!this.gs?.spawnBoss) return;
+    const p = this._player();
+    if (!p) return;
+    if (this.gs.boss?.alive) this.gs.boss.retreat?.();
+    this.gs.sector = this._vaderN * ENDLESS.bossEvery;
+    this._syncLabels();
+    // Encounter passed explicitly, not left to be derived from `sector`:
+    // outside an endless run that derivation is skipped entirely and you get a
+    // base-hp Vader with no mechanics — a boss-testing tool that hands back the
+    // wrong boss is worse than none.
+    this.gs.spawnBoss(p.x + 340, p.y, { encounter: this._vaderN });
+    this._close();
+  }
+
+  // Jump the difficulty ramp. Steps rather than +1 so the interesting points
+  // (early, mid, deep) are two taps apart instead of thirty.
+  _cycleSector() {
+    if (!this.gs) return;
+    const STEPS = [1, 6, 12, 20, 30, 45];
+    const cur = this.gs.sector || 1;
+    const next = STEPS.find((s) => s > cur) ?? STEPS[0];
+    this.gs.sector = next;
+    // Re-derive the per-enemy multipliers, or the new sector is a label with no
+    // effect on anything that spawns afterwards.
+    this.gs._applySectorScaling?.(this.gs.roomSpec);
+    this.gs.events.emit('sector-changed', next);
+    SFX.uiClick();
+  }
+
+  // Everything gone, including a boss mid-retreat. Unlike CLEAR WAVE this does
+  // NOT route through damage(): scoring a debug-spawned Vader would poison the
+  // run's score, and the point here is to reset the field, not to win.
+  _clearField() {
+    if (!this.gs) return;
+    this.gs.enemies.getChildren().slice().forEach((e) => this.gs._destroyEnemyFully(e));
+    const b = this.gs.boss;
+    if (b) {
+      b.hpBar?.destroy(); b.shadow?.destroy();
+      b.weaponSprite?.destroy(); b.threatRing?.destroy();
+      b._attachments?.forEach((a) => a?.destroy?.());
+      b.destroy();
+      this.gs.boss = null;
     }
     SFX.uiClick();
   }

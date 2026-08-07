@@ -87,7 +87,13 @@ pos.ammo = [cx - half, y]; pos.podAmmo = [cx + half, y]; y += row;
 heading(); pos.superFill = [cx - half, y]; pos.meleeFill = [cx + half, y]; y += row;
 pos.dash = [cx, y]; y += row;
 heading(); pos.type = [cx - half, y]; pos.spawn = [cx + half, y]; y += row;
-pos.clear = [cx - half, y]; pos.skip = [cx + half, y]; y += row + 12;
+pos.clear = [cx - half, y]; pos.skip = [cx + half, y]; y += row;
+// BOSSES — the proving ground. Mirrored here because this file walks the panel
+// by coordinate; a group added to the scene without adding it here silently
+// moves CLOSE out from under the tap and reads as "the panel will not close".
+heading(); pos.loadout = [cx - half, y]; pos.spawnNemesis = [cx + half, y]; y += row;
+pos.vaderN = [cx - half, y]; pos.spawnVader = [cx + half, y]; y += row;
+pos.sector = [cx - half, y]; pos.clearField = [cx + half, y]; y += row + 12;
 pos.close = [cx, y];
 
 const tap = async (k) => {
@@ -149,7 +155,49 @@ const closed = await page.evaluate(() => {
 });
 await page.screenshot({ path: `${OUT}/debug-4-resumed.png` });
 
-console.log(JSON.stringify({ pauseOpen, before, after, hud, god, spawnBefore, spawnAfter, closed }, null, 2));
+// ── The proving ground ───────────────────────────────────────────────────
+// Its whole purpose is to reach a boss without playing to it, so the check is
+// that a tap produces one. Done last because these buttons close the panel on
+// purpose — you asked to see the boss, not to keep reading a menu.
+const reopen = async () => {
+  await page.evaluate(() => {
+    const gs = window.game.scene.getScene('Game');
+    gs.scene.launch('Debug', { game: gs });
+    gs.scene.pause(); gs.scene.pause('HUD');
+  });
+  await page.waitForTimeout(600);
+};
+
+await reopen();
+await tap('spawnNemesis');
+await page.waitForTimeout(700);
+const nemesisSpawned = await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  const n = gs.enemies.getChildren().find((e) => e.alive && e._nemesis);
+  return n ? { name: n._nemesis.name, traits: n._nemesis.traits.length, closed: !window.game.scene.getScene('Debug')?.sys?.isActive() } : null;
+});
+
+await reopen();
+await page.evaluate(() => { window.game.scene.getScene('Debug')._vaderN = 3; });
+await tap('spawnVader');
+await page.waitForTimeout(900);
+const vaderSpawned = await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  return gs.boss ? { hpMax: gs.boss.hpMax, mechanics: (gs.boss._mechanics || []).length, sector: gs.sector } : null;
+});
+
+await reopen();
+await tap('clearField');
+await page.waitForTimeout(500);
+const fieldCleared = await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  return { boss: !!gs.boss, nemesis: gs.enemies.getChildren().filter((e) => e.alive && e._nemesis).length };
+});
+await page.evaluate(() => window.game.scene.getScene('Debug')?._close?.());
+await page.waitForTimeout(400);
+
+console.log(JSON.stringify({ pauseOpen, before, after, hud, god, spawnBefore, spawnAfter, closed,
+  nemesisSpawned, vaderSpawned, fieldCleared }, null, 2));
 console.log('page errors:', errors.length ? errors : 'none');
 
 const fails = [];
@@ -178,6 +226,15 @@ if (spawnAfter <= spawnBefore) fails.push(`spawn did nothing: ${spawnBefore} -> 
 if (closed.debugOpen) fails.push('debug panel did not close');
 if (!closed.gameRunning) fails.push('game did not resume after closing');
 if (!closed.hudRunning) fails.push('HUD did not resume after closing');
+if (!nemesisSpawned) fails.push('SPAWN NEMESIS produced no nemesis — the proving ground cannot reach a side boss');
+else if (!nemesisSpawned.closed) fails.push('SPAWN NEMESIS left the panel open over the thing it just spawned');
+if (!vaderSpawned) fails.push('SPAWN VADER produced no boss');
+else if (vaderSpawned.mechanics !== 3 || vaderSpawned.sector !== 15) {
+  fails.push(`VADER #3 should be sector 15 with 3 mechanics, got sector ${vaderSpawned.sector} / ${vaderSpawned.mechanics} — the encounter number is derived from the sector, so this is the whole feature`);
+}
+if (fieldCleared?.boss || fieldCleared?.nemesis) {
+  fails.push(`CLEAR FIELD left ${fieldCleared.nemesis} nemesis / boss=${fieldCleared.boss}`);
+}
 if (errors.length) fails.push(`page errors: ${errors.join(' | ')}`);
 
 console.log(fails.length ? `\nFAIL:\n - ${fails.join('\n - ')}` : '\nPASS: debug menu works and the HUD stays in sync');

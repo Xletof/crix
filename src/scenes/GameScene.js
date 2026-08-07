@@ -1668,7 +1668,14 @@ export class GameScene extends Phaser.Scene {
     return this.spawnEnemyAt(type, best.x, best.y, {});
   }
 
-  spawnBoss(bx, by) {
+  /**
+   * @param {object} [opts]  `encounter` forces which rung of the ladder this
+   *   Vader is, instead of deriving it from `sector`. The debug proving ground
+   *   passes it so a boss can be examined outside an endless run — without it,
+   *   spawning him anywhere else produced an UNSCALED Vader with no mechanics
+   *   at all, which is the opposite of what a boss-testing tool is for.
+   */
+  spawnBoss(bx, by, opts = {}) {
     this.boss = new Boss(this, bx, by);
 
     // Endless meets Vader repeatedly, so each one has to be harder than the
@@ -1678,8 +1685,8 @@ export class GameScene extends Phaser.Scene {
     // structure and its music cues exactly as authored. Linear in the boss
     // number rather than compounding — compounding makes boss 2 trivial and
     // boss 5 impossible.
-    if (this.mode === 'endless') {
-      const n = Math.max(1, Math.floor(this.sector / ENDLESS.bossEvery));
+    if (this.mode === 'endless' || opts.encounter) {
+      const n = opts.encounter ?? Math.max(1, Math.floor(this.sector / ENDLESS.bossEvery));
       const mult = 1 + ENDLESS.bossHpStep * (n - 1);
       this.boss.hpMax = Math.round(this.boss.hpMax * mult);
       this.boss.hp = this.boss.hpMax;
