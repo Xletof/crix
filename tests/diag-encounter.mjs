@@ -104,6 +104,20 @@ await page.evaluate(() => {
     // meaningless. Standing still removes the geometry noise from a number that
     // is supposed to be "maximum output", not "a fight".
     hold: false,
+
+    // SPAM MODE — model how the game is actually played.
+    //
+    // The default policy is a patient shooter: hold range, poke, super when
+    // charged. The user plays Vader by mashing both supers with god mode on,
+    // and that is the profile the per-encounter damage cap punished hardest —
+    // a 5-pellet super arrives in ONE 120ms window, so a 3000-damage volley
+    // landed as 960 at encounter 6. The harness never saw it because the
+    // harness never played that way.
+    //
+    // A balance instrument that cannot express the actual playstyle cannot
+    // catch a bug that only exists for that playstyle. This makes the meters
+    // free and the bot mash, which is the god-mode case.
+    spam: false,
     // Pin both parties to fixed positions each tick, for the ceiling bench.
     // "Stationary dummy" was not stationary: the super carries 500 knockback,
     // melee 260 and the slam 900, so a pair starting 130px apart measured
@@ -171,9 +185,19 @@ await page.evaluate(() => {
       // Count what actually landed. The breakdown matters: a super that
       // silently never fires would make the derived numbers quietly wrong in
       // the direction of "too easy".
+      if (this.spam) {
+        // Meters refilled every frame, so the only limits left are the ability
+        // cooldowns themselves — the ceiling a mashing player approaches.
+        // The thresholds are config constants (PLAYER.superHitsToCharge = 4,
+        // meleeHitsToCharge = 3), not fields on the player, so overfilling is
+        // the way to say "always ready" without importing config in here.
+        p.superCharge = 99;
+        p.meleeCharge = 99;
+        p.ammo = Math.max(p.ammo, 1);
+      }
       if (p.tryFire(ang) !== false && s) s.shots++;
       if (p.tryFireSuper(ang) !== false && s) s.supers++;
-      if (dist < 150 && p.tryMeleeCombo(ang) !== false && s) s.melees++;
+      if ((this.spam || dist < 150) && p.tryMeleeCombo(ang) !== false && s) s.melees++;
 
       // Dash-flank. Strafing at 260px gives ~1.46 rad/s of angular travel while
       // a shielded enemy turns at 2.6 — so a strafing bot can NEVER get behind
@@ -327,8 +351,8 @@ async function fightLoadout(traits, sector, capMs) {
 // bad reasoning stretched encounter 1 to 135.7s. `capFloorMs` below is the
 // theoretical floor the cap alone imposes, reported so it is visible which of
 // the two knobs is actually binding.
-async function fightVader(encounter, capMs) {
-  return page.evaluate(async ({ encounter, capMs }) => {
+async function fightVader(encounter, capMs, spam = false) {
+  return page.evaluate(async ({ encounter, capMs, spam }) => {
     const gs = window.game.scene.getScene('Game');
     const { ROOMS } = await import('/src/data/rooms.js');
     const { ENDLESS } = await import('/src/config.js');
@@ -368,6 +392,7 @@ async function fightVader(encounter, capMs) {
 
     window.__bot.target = boss;
     window.__bot.stats = { frames: 0, shots: 0, supers: 0, melees: 0, dashes: 0, revives: 0 };
+    window.__bot.spam = !!spam;
     window.__bot.on = true;
 
     const t0 = performance.now();
@@ -377,6 +402,7 @@ async function fightVader(encounter, capMs) {
       elapsed = performance.now() - t0;
     }
     window.__bot.on = false;
+    window.__bot.spam = false;
     gs.events.off('player-dead', onDead);
     gs.events.off('boss-phase', onPhase);
 
@@ -396,18 +422,19 @@ async function fightVader(encounter, capMs) {
       melees: window.__bot.stats.melees,
       mechanics: (boss._mechanics || []).slice(),
     };
-  }, { encounter, capMs });
+  }, { encounter, capMs, spam });
 }
 
 // ── Run ───────────────────────────────────────────────────────────────────
 const out = [];
 
 if (MODE === 'vader') {
-  const last = Number(arg('encounters', 3));
+  const last = Number(arg('encounters', 6));
+  const SPAM = arg('spam', '1') !== '0';
   console.log(`\n── Vader ladder (encounters 1-${last}, ${CAP_MS / 1000}s cap) ──`);
   console.log('   target: 60-90s with all three phases reached\n');
   for (let n = 1; n <= last; n++) {
-    const r = await fightVader(n, CAP_MS);
+    const r = await fightVader(n, CAP_MS, SPAM);
     const secs = (r.ms / 1000).toFixed(1);
     const band = !r.downed ? 'OVER CAP' : r.ms < 60000 ? 'TOO SHORT' : r.ms > 90000 ? 'TOO LONG' : 'in band';
     const ph = [2, 3].map((p) => r.phaseAt[p] != null ? `p${p} ${(r.phaseAt[p] / 1000).toFixed(0)}s` : `p${p} NEVER`).join(', ');

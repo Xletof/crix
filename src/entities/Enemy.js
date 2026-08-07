@@ -68,6 +68,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // so the body actually slides instead of being immediately re-glued by
     // setVelocity in the next AI tick.
     this._staggerMs = 0;
+    // Recovery after a committing move — see systems/MoveScript.js.
+    this._punishMs = 0;
+    this._punishMult = 1;
 
     // Animation
     this._animPrefix   = texture;
@@ -151,6 +154,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       if (amount <= 0) return; // fully absorbed this window
       this._dmgWindow = (this._dmgWindow || 0) + amount;
     }
+    // PUNISH WINDOW. An enemy recovering from a committing move takes bonus
+    // damage. This is what pays the player for reading a telegraph — without
+    // it the optimal play is to ignore the move and keep shooting, which is
+    // precisely why the first pass "didn't make me move differently".
+    if (this._punishMs > 0) amount *= (this._punishMult || 1);
+
     const wasPatrolling = this.state === ST.PATROL || this.state === ST.SUSPICIOUS;
     this.hp = Math.max(0, this.hp - amount);
     if (knockbackVec) {
@@ -579,6 +588,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.patrolAlpha = Math.max(0.0, this.patrolAlpha - delta * 0.005);
     }
     // Stagger decay — bleed velocity off so the knockback slide ends smoothly.
+    if (this._punishMs > 0) this._punishMs -= delta;
     if (this._staggerMs > 0) {
       this._staggerMs -= delta;
       this.body.velocity.x *= 0.85;

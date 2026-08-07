@@ -315,17 +315,34 @@ export const ENEMY = {
 };
 
 export const BOSS = {
-  // MEASURED, not guessed. `tests/diag-encounter.mjs --mode vader`.
+  // MEASURED across the WHOLE LADDER, which is the lesson here.
   //
-  //   12,000  -> 10.6s, phase 3 at 7s. Two thirds of the fight never happened.
-  //   62,000  -> 56-85s across runs. Correct against the 60-90s target, and
-  //              too strong on the phone, which is the judgement that counts.
-  //   46,000  -> where it sits now. The band was a number set before anyone
-  //              had played it; the player's hands beat the harness.
+  // History, because the mistakes are instructive:
+  //   12,000 -> 10.6s. Phase 3 at 7s; two thirds of the fight never happened.
+  //   62,000 -> 56-85s. In the 60-90s band, and too strong in the hand.
+  //   46,000 -> measured at encounters 1 and 2 only, and SHIPPED on that. With
+  //             the old per-encounter cap taper, #6 was 115,000 hp absorbing
+  //             960/window: FOUR MINUTES on the phone. Measuring two rungs of a
+  //             six-rung ladder and extrapolating is how that happened.
   //
-  // Re-derive with that harness after any change to player output. Note the
-  // spread: this is a noisy measurement (bot deaths vary 4-9 between identical
-  // runs), so treat a single figure as a range and do not chase small moves.
+  // Now: flat 1600 cap, bossHpStep 0.15, all six measured with the harness's
+  // super-spam policy (`--mode vader`, which now defaults to six encounters):
+  //
+  //   enc   hp      spam profile      patient profile
+  //   1     46,000  11.2s             49.3s
+  //   2     52,900  23.3s
+  //   3     59,800  12.9s
+  //   4     66,700  17.8s
+  //   5     73,600  30.0s
+  //   6     80,500  41.2s
+  //
+  // The gap between the two columns is the real finding: PLAYSTYLE swings fight
+  // length ~4.4x on identical hp. Mashing both supers is roughly four times the
+  // output of patient poking, so any single "how long is this fight" number is
+  // meaningless without saying who is holding the phone. Both are reported.
+  //
+  // Re-derive with the harness after ANY change to player output or to Vader's
+  // move set — more telegraphs means more time not shooting, which moves this.
   hp: 46000,
   radius: 56,
   speed: 165,
@@ -814,13 +831,16 @@ export const ENDLESS = {
   bossEvery: 5,
   // Each Vader is tougher than the last. Compounding would make boss 4
   // impossible while boss 2 was trivial, so this is linear in the boss number.
-  // Cut from 0.9 when the base pool went from 12,000 to 62,000 — the step
-  // multiplies a five-times-larger number now, and 0.9 would put encounter 3 at
-  // 173,000, a three-minute fight nobody asked for. 0.3 measured 74.6s at
-  // encounter 2. The player also gains upgrades across the fifteen sectors
-  // between encounter 1 and 4, which the harness bot never does, so this stays
-  // deliberately modest.
-  bossHpStep: 0.3,     // boss n has hp x (1 + 0.3*(n-1))
+  // Cut 0.3 -> 0.15 after encounter 6 measured FOUR MINUTES on the phone.
+  //
+  // The mistake behind 0.3 was measuring encounters 1 and 2, finding them in
+  // band, and extrapolating. #6 was 115,000 hp; at 0.15 it is 80,500. The
+  // per-encounter damage-cap taper was removed at the same time — the two were
+  // compounding, and the cap was the larger half of the problem.
+  //
+  // The measured table for all six lives beside BOSS.hp. Do not tune this from
+  // #1 and #2 again.
+  bossHpStep: 0.15,    // boss n has hp x (1 + 0.15*(n-1))
   bossScoreStep: 0.5,  // and is worth proportionally more
 
   // Vader is a RECURRING NEMESIS, not a kill. Driving him to zero wounds him

@@ -1705,7 +1705,17 @@ export class GameScene extends Phaser.Scene {
       // He withdraws instead of dying, and hardens each time.
       this.boss._retreats = true;
       this.boss._encounter = n;
-      this.boss._dmgCap = Math.round(ENDLESS.bossDamageCap * Math.max(0.55, 1 - 0.08 * (n - 1)));
+      // The cap does NOT tighten per encounter any more.
+      //
+      // It used to: `1600 * max(0.55, 1 - 0.08*(n-1))`, so #6 absorbed only 960
+      // per 120ms window. Combined with 2.5x hp that made encounter 6 a 4.2x
+      // longer fight than encounter 1 — measured at four minutes on the phone.
+      //
+      // Worse, it punished ONE PLAYSTYLE. A 5-pellet super arrives in a single
+      // window, so a 3000-damage volley landed as 960: spamming supers, which is
+      // how this game is actually played, was the slowest way to fight him. The
+      // cap exists to stop one volley skipping a phase, not to tax the endgame.
+      this.boss._dmgCap = ENDLESS.bossDamageCap;
 
       // One more mechanic per encounter, in a fixed order so a player learns
       // the ladder rather than being surprised at random. Every one of them is
