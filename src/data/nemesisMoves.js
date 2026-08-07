@@ -1,210 +1,354 @@
-// Nemesis moves — the part that makes an encounter play differently.
+// Nemesis moves — attacks with a body behind them.
 //
-// The weapons in `nemesisWeapons.js` gave nemeses different SILHOUETTES and
-// different shot patterns, and the honest verdict was that it still amounted to
-// "multiple shots": a cone, a spread and a burst are all answered by strafing,
-// so no weapon ever changed what the player had to DO.
+// ── What was wrong with the first version of this file ────────────────────
 //
-// A move does. Each one below is a telegraph the player reads, a commit they
-// have to be somewhere else for, and a recovery they can punish. The four here
-// are deliberately chosen so that no two share an answer:
+// It defined `telegraph()` and `resolve()`. That is: draw a circle, wait 800ms,
+// deal damage. The enemy stood perfectly still through all of it. Four moves
+// built that way are four different circles, and the verdict was exact — "some
+// new circle attacks which don't have animation or connection".
 //
-//   LEAP SLAM       lands where you ARE      -> move, any direction
-//   SWEEP BEAM      sweeps where you're GOING -> dash behind it, not away
-//   SHOCKWAVE RING  fills everywhere but a gap -> find the gap
-//   MINE DROP       denies ground for a while -> leave before you need to
+// Nothing about a ground decal tells you an ENEMY is about to do something. You
+// end up reading the floor instead of the fight, and since there was no recovery
+// afterwards, dodging earned nothing: the optimal play was to ignore the circle
+// and keep shooting. Hence "they didn't make me move differently" — mechanically
+// true, because nothing about them rewarded moving.
 //
-// "Move away" beats one of them and fails against the others. That is the whole
-// design goal — if a single habit answered all four we would be back to
-// multiple shots with extra steps.
+// ── What these are instead ────────────────────────────────────────────────
 //
-// ── Fairness is arithmetic, not taste ─────────────────────────────────────
+// Every move here is a `runMove` script with all four beats — ANTICIPATE, ACT,
+// IMPACT, RECOVER — and `MoveScript.runMove` throws if ACT is missing, so the
+// old shape cannot come back by accident. ACT is where the enemy physically
+// travels, spins or vanishes; RECOVER is a real stagger where it takes bonus
+// damage, so beating a move pays.
 //
-// Every zone is sized against the player's dash: 950px/s x 240ms = 228px. A
-// zone whose worst-case escape exceeds that is a trap, not a challenge, and
-// `smoke-moves.mjs` asserts the property directly for every move. The radii
-// below are chosen with that margin in mind, not by feel.
+// The five are chosen so no single habit answers them all:
 //
-// ── Why they are gated by trait ───────────────────────────────────────────
+//   CHARGE      answered by stepping OFF the lane        (Hades, Asterius)
+//   BLINK-DASH  answered by tracking where it WENT       (Hollow Knight)
+//   BAIT SLAM   answered by NOT dodging early            (Dark Souls)
+//   SPIRAL      answered by weaving, not fleeing         (Enter the Gungeon)
+//   RITE        answered by SHOOTING, not dodging        (interruptible channel)
 //
-// A move has to suit the body performing it. LEAP SLAM on a SWIFT nemesis that
-// is already on top of you is unreadable; SWEEP BEAM on a COLOSSAL one that
-// cannot follow through is theatre. Gating by trait also means the marks the
-// player already learned to read (pauldrons, canisters, banner) now predict
-// BEHAVIOUR, which is what makes the silhouette worth reading at all.
+// The last one matters most for variety: it is the only move whose correct
+// answer is offence. If every move is "get out of the way", the fight has one
+// verb no matter how many moves it has.
 
 import { DASH_REACH } from '../systems/Telegraph.js';
+import {
+  squash, rearBack, leapArc, charge, spin, vanish, appear,
+  raiseWeapon, dropWeapon, stagger,
+} from '../systems/actorMotion.js';
 
-// Windup floor. ~250ms is human reaction; the rest is thumb travel and the fact
-// that the player is usually mid-decision about something else.
+// Windup floor. ~250ms is raw human reaction; the rest is thumb travel plus the
+// fact that the player is usually mid-decision about something else.
 const WINDUP = 800;
 
 export const NEMESIS_MOVES = [
   {
-    id: 'slam',
-    name: 'LEAP SLAM',
-    // Heavy bodies only.
-    traits: ['armored', 'colossal', 'volatile'],
-    everyMs: 7000,
-    windupMs: WINDUP,
-    radius: 150,          // worst-case escape 150 < 228, so one dash always clears
-    damage: 180,
-    /**
-     * Lands where the player IS when it starts, not where they end up — the
-     * whole move is "stop standing there", and a slam that tracked would be
-     * undodgeable rather than hard.
-     */
-    telegraph(scene, e) {
-      const p = scene.player;
-      const tx = p.x, ty = p.y;
-      return {
-        shape: { kind: 'circle', x: tx, y: ty, r: this.radius },
-        windupMs: this.windupMs,
-      };
-    },
-    resolve(scene, e, tel) {
-      const s = tel.shape;
-      scene.fx?.groundFractures?.(s.x, s.y, s.r);
-      scene.fx?.explosion?.(s.x, s.y, 1.6);
-      scene.fx?.shake?.(0.02, 260);
-      if (tel.contains(scene.player.x, scene.player.y)) {
-        scene.player.damage(this.damage, Math.atan2(scene.player.y - s.y, scene.player.x - s.x));
-      }
-    },
-  },
-
-  {
-    id: 'sweep',
-    name: 'SWEEP BEAM',
-    traits: ['swift', 'regenerator', 'summoner'],
+    id: 'charge',
+    name: 'CHARGE',
+    traits: ['armored', 'colossal', 'swift'],
     everyMs: 8000,
-    windupMs: WINDUP,
-    // 70deg x 420px FAILED the dodge contract on the first try: the worst case
-    // is `sin(spread/2) * len` out the side, which came to 241px against a
-    // 228px dash — undodgeable at the tip, and invisible without the check.
-    // 60 x 400 gives 200px, with margin.
-    spreadDeg: 60,
-    len: 400,
-    damage: 140,
-    /**
-     * Aimed where the player is HEADING, so backing straight off walks into it
-     * and cutting behind the arc beats it. The lead is capped so it never
-     * becomes a guess the player cannot read off the drawn cone.
-     */
-    telegraph(scene, e) {
+    anticipateMs: WINDUP,
+    actMs: 900,
+    recoverMs: 1100,
+    speed: 820,
+    damage: 170,
+    laneWidth: 150,      // worst-case escape is half of this: 75px, well inside a dash
+    laneLen: 620,
+
+    anticipate(scene, e, h) {
+      // Rear back AWAY from the target — the oldest tell in the book, and it
+      // reads at a glance even on a 20px sprite.
       const p = scene.player;
-      const vx = p.body?.velocity.x || 0, vy = p.body?.velocity.y || 0;
-      const lead = 0.35;
-      const aimX = p.x + vx * lead, aimY = p.y + vy * lead;
-      return {
-        shape: {
-          kind: 'cone', x: e.x, y: e.y,
-          angle: Math.atan2(aimY - e.y, aimX - e.x),
-          spreadDeg: this.spreadDeg, len: this.len,
-        },
-        windupMs: this.windupMs,
-      };
+      h.angle = Math.atan2(p.y - e.y, p.x - e.x);
+      e.body?.setVelocity(0, 0);
+      e._holdAim = h.angle;
+      rearBack(scene, e, h.angle, 30, this.anticipateMs * 0.5);
+      squash(scene, e, this.anticipateMs * 0.7, 0.26);
+      h.tel = scene.spawnTelegraph({
+        kind: 'lane', x: e.x, y: e.y, angle: h.angle,
+        len: this.laneLen, width: this.laneWidth,
+      }, { windupMs: this.anticipateMs, owner: e });
+      scene.events.emit('show-banner', 'CHARGE', '#ff6030');
     },
-    resolve(scene, e, tel) {
-      const s = tel.shape;
-      scene.fx?.burstDir?.(s.x, s.y, 'red', 18, s.angle, this.spreadDeg);
-      scene.fx?.shake?.(0.014, 200);
-      if (tel.contains(scene.player.x, scene.player.y)) {
-        scene.player.damage(this.damage, s.angle);
+
+    act(scene, e, h) {
+      // Real velocity, not a position tween: a charge has to COLLIDE, and a
+      // tweened position walks through walls.
+      e._charging = true;
+      charge(scene, e, h.angle, {
+        speed: this.speed, ms: this.actMs,
+        onEnd: () => { e._charging = false; },
+      });
+    },
+
+    impact(scene, e, h) {
+      e._charging = false;
+      // Hitting a wall is the interesting outcome — a big slam and the longest
+      // punish window of any move, because a whiffed charge should be the
+      // biggest reward for having dodged it.
+      const blocked = e.body && (e.body.blocked.left || e.body.blocked.right
+        || e.body.blocked.up || e.body.blocked.down);
+      if (blocked) {
+        scene.fx?.groundFractures?.(e.x, e.y, 160);
+        scene.fx?.shake?.(0.03, 320);
+        scene.fx?.burst?.(e.x, e.y, 'yellow', 18);
+        h.hitWall = true;
       }
+    },
+
+    recover(scene, e, h) {
+      // A charge that slammed a wall is wide open; one that just ran out of
+      // steam is only briefly off-balance.
+      stagger(scene, e, h.hitWall ? this.recoverMs : this.recoverMs * 0.5,
+        h.hitWall ? 2.0 : 1.35);
+    },
+
+    // Contact damage during the charge is applied by the scene's move tick,
+    // which is the only part that needs per-frame work.
+    onChargeTouch(scene, e) {
+      scene.player.damage(this.damage, Math.atan2(scene.player.y - e.y, scene.player.x - e.x));
     },
   },
 
   {
-    id: 'ring',
-    name: 'SHOCKWAVE RING',
-    traits: ['armored', 'colossal', 'regenerator'],
+    id: 'blink',
+    name: 'BLINK STRIKE',
+    traits: ['swift', 'summoner', 'regenerator'],
     everyMs: 9000,
-    windupMs: WINDUP + 100,
-    radius: 300,
-    gapDeg: 90,           // generous: the gap has to be findable at a glance
+    anticipateMs: 520,
+    actMs: 760,
+    recoverMs: 700,
+    speed: 1000,
     damage: 150,
-    /**
-     * Everything around it except one wedge. The answer is neither "move" nor
-     * "dash away" — it is FIND THE GAP, which is a different verb from the
-     * other three.
-     *
-     * Drawn as the cone you are safe in rather than the ring you are not: the
-     * player is looking for somewhere to stand, so the telegraph shows the
-     * somewhere. The hit test inverts it at commit.
-     */
-    telegraph(scene, e) {
+    laneWidth: 130,
+
+    anticipate(scene, e, h) {
+      // Vanish, then reappear at the arena edge FARTHEST from the player, so the
+      // dash always crosses the room. Reappearing near them would make it an
+      // ambush with no readable travel, which is the thing being fixed.
+      vanish(scene, e, this.anticipateMs * 0.4);
+      const b = scene.physics.world.bounds;
       const p = scene.player;
-      // Gap placed away from the player, so it is always a move, never free.
-      const away = Math.atan2(p.y - e.y, p.x - e.x) + Math.PI;
-      return {
-        shape: {
-          kind: 'cone', x: e.x, y: e.y,
-          angle: away, spreadDeg: this.gapDeg, len: this.radius,
-        },
-        windupMs: this.windupMs,
-        safeZone: true,             // read by resolve, and by the fairness test
-      };
+      const corners = [
+        { x: 110, y: 110 }, { x: b.width - 110, y: 110 },
+        { x: 110, y: b.height - 110 }, { x: b.width - 110, y: b.height - 110 },
+      ];
+      h.spot = corners.reduce((a, c) =>
+        Math.hypot(c.x - p.x, c.y - p.y) > Math.hypot(a.x - p.x, a.y - p.y) ? c : a);
+
+      scene.time.delayedCall(this.anticipateMs * 0.45, () => {
+        if (!e.active || !e.alive) return;
+        e.setPosition(h.spot.x, h.spot.y);
+        e.body?.setVelocity(0, 0);
+        appear(scene, e, 200);
+        h.angle = Math.atan2(p.y - e.y, p.x - e.x);
+        e._holdAim = h.angle;
+        h.tel = scene.spawnTelegraph({
+          kind: 'lane', x: e.x, y: e.y, angle: h.angle,
+          len: Math.hypot(b.width, b.height), width: this.laneWidth,
+        }, { windupMs: this.anticipateMs * 0.5, owner: e });
+      });
+      scene.events.emit('show-banner', 'BLINK STRIKE', '#40ffd0');
     },
-    resolve(scene, e, tel) {
-      const s = tel.shape;
-      scene.fx?.impactRing?.(e.x, e.y, 0xff4020);
-      scene.fx?.shake?.(0.018, 240);
-      const p = scene.player;
-      const d = Math.hypot(p.x - e.x, p.y - e.y);
-      // Inside the ring AND outside the safe wedge.
-      if (d <= this.radius && !tel.contains(p.x, p.y)) {
-        p.damage(this.damage, Math.atan2(p.y - e.y, p.x - e.x));
-      }
+
+    act(scene, e, h) {
+      if (h.angle == null) return;
+      e._charging = true;
+      charge(scene, e, h.angle, {
+        speed: this.speed, ms: this.actMs,
+        onEnd: () => { e._charging = false; },
+      });
+      // The saber trails through the dash.
+      spin(scene, e, { ms: this.actMs, turns: 1 });
+    },
+
+    impact(scene, e) {
+      e._charging = false;
+      scene.fx?.slashSwipe?.(e.x, e.y, e._holdAim || 0, 70, 0x40ffd0);
+    },
+
+    recover(scene, e) { stagger(scene, e, this.recoverMs, 1.5); },
+
+    onChargeTouch(scene, e) {
+      scene.player.damage(this.damage, Math.atan2(scene.player.y - e.y, scene.player.x - e.x));
     },
   },
 
   {
-    id: 'mines',
-    name: 'MINE DROP',
-    traits: ['volatile', 'summoner', 'swift'],
-    everyMs: 10000,
-    windupMs: WINDUP + 400,   // longest: it is area denial, not a strike
-    count: 3,
-    radius: 110,
-    spread: 210,
-    damage: 120,
-    /**
-     * Three small zones around the player rather than one on them. Nothing here
-     * is dodged in the moment — the answer is to not be cornered ten seconds
-     * from now, which is the only move of the four that is about planning.
-     *
-     * The primary telegraph is the first mine; the rest are spawned by
-     * `extraZones` so they share one clock and die together.
-     */
-    telegraph(scene, e) {
+    id: 'baitslam',
+    name: 'OVERHEAD',
+    traits: ['armored', 'colossal', 'volatile'],
+    everyMs: 7500,
+    anticipateMs: 1150,      // deliberately long — the hold IS the move
+    actMs: 380,
+    recoverMs: 950,
+    radius: 155,             // worst-case escape 155px < 228px dash
+    damage: 200,
+
+    anticipate(scene, e, h) {
+      // The saber goes up and STAYS up, past the point it feels like it should
+      // fall. Dodging on instinct dodges too early and you are back inside the
+      // circle when it lands. Patience beats it; panic does not.
       const p = scene.player;
-      return {
-        shape: { kind: 'circle', x: p.x, y: p.y, r: this.radius },
-        windupMs: this.windupMs,
-      };
+      raiseWeapon(scene, e, 260);
+      squash(scene, e, 320, 0.18);
+      e.body?.setVelocity(0, 0);
+      h.spot = { x: p.x, y: p.y };
+      h.tel = scene.spawnTelegraph(
+        { kind: 'circle', x: p.x, y: p.y, r: this.radius },
+        { windupMs: this.anticipateMs, owner: e },
+      );
+      scene.events.emit('show-banner', 'OVERHEAD', '#ffb020');
     },
-    extraZones(scene, e) {
+
+    act(scene, e, h) {
+      // A real leap onto the marked spot — the body arrives where the damage is.
+      dropWeapon(scene, e, 100);
+      leapArc(scene, e, h.spot, { ms: this.actMs, height: 130 });
+    },
+
+    impact(scene, e, h) {
+      const s = h.spot;
+      scene.fx?.groundFractures?.(s.x, s.y, this.radius);
+      scene.fx?.explosion?.(s.x, s.y, 1.5);
+      scene.fx?.shake?.(0.026, 300);
       const p = scene.player;
-      const out = [];
-      for (let i = 1; i < this.count; i++) {
-        const a = (i / this.count) * Math.PI * 2;
-        out.push({
-          kind: 'circle',
-          x: p.x + Math.cos(a) * this.spread,
-          y: p.y + Math.sin(a) * this.spread,
-          r: this.radius,
-        });
-      }
-      return out;
-    },
-    resolve(scene, e, tel) {
-      const s = tel.shape;
-      scene.fx?.explosion?.(s.x, s.y, 1.1);
-      if (tel.contains(scene.player.x, scene.player.y)) {
-        scene.player.damage(this.damage, Math.atan2(scene.player.y - s.y, scene.player.x - s.x));
+      if (Math.hypot(p.x - s.x, p.y - s.y) <= this.radius) {
+        p.damage(this.damage, Math.atan2(p.y - s.y, p.x - s.x));
       }
     },
+
+    // The heaviest commitment, so the heaviest punish.
+    recover(scene, e) { stagger(scene, e, this.recoverMs, 2.0); },
+  },
+
+  {
+    id: 'spiral',
+    name: 'SPIRAL',
+    traits: ['volatile', 'summoner', 'regenerator'],
+    everyMs: 9500,
+    anticipateMs: 700,
+    actMs: 2200,
+    recoverMs: 800,
+    arms: 3,
+    rateMs: 110,
+    speed: 230,
+    damage: 60,
+
+    anticipate(scene, e, h) {
+      // Wind up the spin itself — the body starts turning before anything fires.
+      e.body?.setVelocity(0, 0);
+      squash(scene, e, this.anticipateMs, 0.14);
+      spin(scene, e, { ms: this.anticipateMs, turns: 1 });
+      scene.events.emit('show-banner', 'SPIRAL', '#c080ff');
+    },
+
+    act(scene, e, h) {
+      // No Telegraph zone at all: the BULLETS are the telegraph. They are slow
+      // enough to read and the gaps between the arms are real geometry, so the
+      // answer is to weave rather than to flee — a different verb from every
+      // other move here.
+      spin(scene, e, { ms: this.actMs, turns: 4 });
+      h.rot = Math.random() * Math.PI * 2;
+      h.timer = scene.time.addEvent({
+        delay: this.rateMs,
+        repeat: Math.floor(this.actMs / this.rateMs) - 1,
+        callback: () => {
+          if (!e.active || !e.alive) return;
+          h.rot += 0.42;
+          for (let i = 0; i < this.arms; i++) {
+            const a = h.rot + (i / this.arms) * Math.PI * 2;
+            scene.enemyBullets.fire(
+              e.x + Math.cos(a) * (e.cfg.radius + 8),
+              e.y + Math.sin(a) * (e.cfg.radius + 8),
+              a, this.speed, this.damage, 700, { owner: 'enemy' },
+            );
+          }
+        },
+      });
+    },
+
+    impact(scene, e, h) { h.timer?.remove(false); },
+    recover(scene, e) { stagger(scene, e, this.recoverMs, 1.4); },
+    onCancel(scene, e) { /* timer cleared by the handle's own cancel path */ },
+  },
+
+  {
+    id: 'rite',
+    name: 'SUMMONING RITE',
+    traits: ['summoner', 'regenerator', 'armored'],
+    everyMs: 11000,
+    anticipateMs: 600,
+    actMs: 1800,
+    recoverMs: 900,
+    packs: 2,
+
+    anticipate(scene, e, h) {
+      e.body?.setVelocity(0, 0);
+      raiseWeapon(scene, e, 300);
+      squash(scene, e, 400, 0.2);
+      scene.events.emit('show-banner', 'SUMMONING', '#c080ff');
+      h.hpAtStart = e.hp;
+    },
+
+    act(scene, e, h) {
+      // A growing rune circle under the caster. This is the ONE move where the
+      // right answer is to shoot rather than dodge: damage taken during the
+      // channel past a threshold breaks it. A fight where every move says "get
+      // out of the way" has one verb however many moves it has.
+      h.rune = scene.add.graphics().setDepth(12);
+      h.t = 0;
+      h.channel = scene.time.addEvent({
+        delay: 40,
+        repeat: Math.floor(this.actMs / 40) - 1,
+        callback: () => {
+          if (!e.active || !e.alive || !h.rune?.active) return;
+          h.t = Math.min(1, h.t + 40 / this.actMs);
+          const r = 40 + 120 * h.t;
+          h.rune.clear();
+          h.rune.lineStyle(3, 0xc080ff, 0.9);
+          h.rune.strokeCircle(e.x, e.y, r);
+          h.rune.lineStyle(2, 0x9060e0, 0.6);
+          h.rune.strokeCircle(e.x, e.y, r * 0.6);
+          for (let i = 0; i < 6; i++) {
+            const a = h.t * 4 + (i / 6) * Math.PI * 2;
+            h.rune.fillStyle(0xe0b0ff, 0.9);
+            h.rune.fillCircle(e.x + Math.cos(a) * r, e.y + Math.sin(a) * r, 4);
+          }
+          // Interrupt check, on the caster's own hp.
+          if (h.hpAtStart - e.hp > (e.hpMax * 0.06)) {
+            h.broken = true;
+            h.channel?.remove(false);
+            h.rune?.destroy();
+            h.rune = null;
+            scene.events.emit('show-banner', 'RITE BROKEN', '#40ff90');
+            scene.fx?.burst?.(e.x, e.y, 'white', 20);
+            stagger(scene, e, 1400, 2.2);   // the reward for answering it correctly
+          }
+        },
+      });
+    },
+
+    impact(scene, e, h) {
+      h.channel?.remove(false);
+      h.rune?.destroy();
+      h.rune = null;
+      if (h.broken) return;                  // interrupted: nothing arrives
+      for (let i = 0; i < this.packs; i++) {
+        const a = (i / this.packs) * Math.PI * 2;
+        scene._spawnSwarmlingPack?.(e.x + Math.cos(a) * 90, e.y + Math.sin(a) * 90);
+      }
+      scene.fx?.burst?.(e.x, e.y, 'purple', 26);
+      scene.fx?.shake?.(0.02, 260);
+    },
+
+    recover(scene, e, h) {
+      if (!h.broken) stagger(scene, e, this.recoverMs, 1.5);
+    },
+
+    onCancel(scene, e) { /* handle cleanup runs in impact */ },
   },
 ];
 
@@ -215,16 +359,13 @@ export const moveById = (id) => BY_ID[id] || null;
  * Two moves for a nemesis, gated by its traits.
  *
  * `rng` is injected like every other encounter decision, so a seed reproduces
- * the moveset along with the traits and the weapon.
- *
- * A nemesis with no matching trait still gets moves — an untraited one would
- * otherwise be the ONLY enemy in the game with nothing to dodge, which reads as
- * a bug rather than as a breather.
+ * the moveset along with the traits and the weapon. An untraited nemesis still
+ * gets moves — otherwise it would be the only enemy in the game with nothing to
+ * dodge, which reads as a bug rather than as a breather.
  */
 export function pickMoves(traits = [], rng, count = 2) {
   let usable = NEMESIS_MOVES.filter((m) => m.traits.some((t) => traits.includes(t)));
   if (usable.length < count) {
-    // Top up from the full pool rather than shipping a nemesis with one move.
     const rest = NEMESIS_MOVES.filter((m) => !usable.includes(m));
     usable = usable.concat(rng ? rng.shuffle(rest) : rest);
   }

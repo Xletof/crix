@@ -364,10 +364,11 @@ check(r.wound.seen[2].mech > r.wound.seen[0].mech && r.wound.seen[2].hpMax > r.w
 check(r.wound.restored, 'the test put the room transition back', '');
 
 // ── Intake cap ───────────────────────────────────────────────────────────
-check(r.cap.capped, 'the intake cap engages — one huge hit cannot skip a phase',
-  `took ${r.cap.taken} against a cap of ${r.cap.cap}`);
-check(r.cap.cap < r.cap.hpMax * 0.1, 'and is small enough against the pool to matter',
-  `cap ${r.cap.cap} vs ${r.cap.hpMax} hp`);
+check(r.cap.taken >= 3999, 'a big hit lands in FULL — there is no intake cap',
+  `4000 damage registered as ${r.cap.taken}. The cap used to clip a 3000-damage super to 960, `
+  + `which is what made encounter 6 take four minutes and punished super-spam hardest`);
+check(!r.cap.hasCapField, 'and no per-boss cap field survives to be re-enabled by accident',
+  `_dmgCap = ${r.cap.hasCapField}`);
 
 for (const c of checks) {
   console.log(`  ${c.ok ? 'ok  ' : 'FAIL'}  ${c.label}${c.ok || !c.detail ? '' : ' — ' + c.detail}`);

@@ -21,6 +21,7 @@ import {
 } from '../data/nemesisLedger.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { moveById } from '../data/nemesisMoves.js';
+import { runMove } from '../systems/MoveScript.js';
 import { makeStreams, newSeed } from '../systems/rng.js';
 import { NARRATIVE } from '../data/narrative.js';
 import { NavGrid } from '../systems/NavGrid.js';
@@ -1705,17 +1706,6 @@ export class GameScene extends Phaser.Scene {
       // He withdraws instead of dying, and hardens each time.
       this.boss._retreats = true;
       this.boss._encounter = n;
-      // The cap does NOT tighten per encounter any more.
-      //
-      // It used to: `1600 * max(0.55, 1 - 0.08*(n-1))`, so #6 absorbed only 960
-      // per 120ms window. Combined with 2.5x hp that made encounter 6 a 4.2x
-      // longer fight than encounter 1 — measured at four minutes on the phone.
-      //
-      // Worse, it punished ONE PLAYSTYLE. A 5-pellet super arrives in a single
-      // window, so a 3000-damage volley landed as 960: spamming supers, which is
-      // how this game is actually played, was the slowest way to fight him. The
-      // cap exists to stop one volley skipping a phase, not to tax the endgame.
-      this.boss._dmgCap = ENDLESS.bossDamageCap;
 
       // One more mechanic per encounter, in a fixed order so a player learns
       // the ladder rather than being surprised at random. Every one of them is
@@ -3121,6 +3111,7 @@ export class GameScene extends Phaser.Scene {
     this._tickArena(delta);
     this._tickNemesis(delta);
     this.tickTelegraphs(delta);
+    this._tickNemesisMoves(delta);
 
     // Health orbs
     this.updateHealthOrbs(delta);
@@ -4330,30 +4321,53 @@ export class GameScene extends Phaser.Scene {
       : null);
     const move = moveById(id);
     if (!move || !this.player?.alive) return null;
+    if (e._activeMove && e._activeMove.phase !== 'done') return null;  // one at a time
 
-    const spec = move.telegraph(this, e);
-    const cast = (shape) => this.spawnTelegraph(shape, {
-      windupMs: spec.windupMs,
-      owner: e,
-      // A safe zone is drawn GREEN. Red everywhere else in the game means
-      // "leave", so a safe wedge in the danger colour would send the player out
-      // of the only survivable spot — the logic was right and the picture was
-      // backwards, which only the screenshot caught.
-      safe: !!spec.safeZone,
-      // Resolve is the move's business. Guarded on the caster still existing:
-      // killing a nemesis mid-windup should cancel its slam, not have a corpse
-      // land one. The telegraph itself guards the scene being alive.
-      onCommit: (tel) => { if (e.active && e.alive) move.resolve(this, e, tel); },
+    // Every move runs through the four-beat script. `runMove` THROWS if a move
+    // has no act phase, which is the guard against the previous version of this
+    // system — telegraph plus a damage callback, with the enemy standing still.
+    const handle = runMove(this, e, {
+      id: move.id,
+      anticipateMs: move.anticipateMs,
+      actMs: move.actMs,
+      recoverMs: move.recoverMs,
+      anticipate: (sc, actor, h) => move.anticipate?.(sc, actor, h),
+      act: (sc, actor, h) => move.act(sc, actor, h),
+      impact: (sc, actor, h) => move.impact?.(sc, actor, h),
+      recover: (sc, actor, h) => move.recover?.(sc, actor, h),
+      onCancel: (sc, actor) => move.onCancel?.(sc, actor),
     });
-
-    const primary = cast({ ...spec.shape });
-    if (spec.safeZone) primary.safeZone = true;
-    // Multi-zone moves (MINE DROP) share the primary's clock so they land
-    // together rather than drifting apart on separate timers.
-    for (const extra of move.extraZones?.(this, e) || []) cast(extra);
+    handle.move = move;
+    e._chargeHit = false;      // latch for once-per-charge contact damage
 
     this.events.emit('nemesis-move', e, move);
-    return primary;
+    return handle;
+  }
+
+  /**
+   * Per-frame work the scripted moves need.
+   *
+   * Only the charging moves need this: contact damage while travelling has to
+   * be checked every frame, and a charge that runs into the player mid-flight
+   * should hit them rather than waiting for the impact beat.
+   */
+  _tickNemesisMoves(delta) {
+    const p = this.player;
+    if (!p?.alive) return;
+    for (const e of this.enemies.getChildren()) {
+      if (!e.alive || !e._charging) continue;
+      const move = e._activeMove?.move;
+      if (!move?.onChargeTouch) continue;
+      const r = (e.cfg?.radius || 20) + 26;
+      if (Math.hypot(p.x - e.x, p.y - e.y) < r) {
+        // Once per charge — a 900ms charge at 60fps would otherwise deal its
+        // damage fifty times.
+        if (!e._chargeHit) {
+          e._chargeHit = true;
+          move.onChargeTouch(this, e);
+        }
+      }
+    }
   }
 
   /**

@@ -854,17 +854,16 @@ export const ENDLESS = {
   // committed spam of both deletes 12,000 hp fast enough that phases 2 and 3
   // barely happen. His base pool and his per-encounter step are both raised, and
   // the intake cap below is what stops a single piercing super skipping a phase.
-  // Per 120ms window.
+  // NO DAMAGE CAP. `bossDamageCap` is gone, not set to a big number.
   //
-  // Do NOT reason about this by comparing it to sustained dps. That comparison
-  // says 1600/120ms is 13,300 dmg/sec against ~730 sustained and therefore dead
-  // weight — and it is wrong, because damage does not arrive evenly. A
-  // point-blank super lands five pellets in ONE window, so the cap bites on
-  // exactly the burst it was written for and is invisible the rest of the time.
+  // It was 1600 per 120ms, tapering to 960 by encounter 6, and it was the single
+  // worst number in this file. A 5-pellet super lands inside ONE window, so a
+  // 3000-damage volley registered as 960 — the player's biggest commitment,
+  // silently three-quarters discarded — and encounter 6 took four minutes.
   //
-  // Measured: dropping it to 500 to "make it engage" stretched encounter 1 from
-  // 84.5s to 135.7s by clipping ~83% off every super. It stays where it is.
-  bossDamageCap: 1600,
+  // A cap does not make a fight interesting. It makes your strongest move feel
+  // like it missed while the damage number lies to you about it. Fight length is
+  // hp's job. If something dies too fast, give it more hp.
 
   // Mechanics he accumulates, one per encounter, in this order. Each is drawn
   // from behaviour the Boss already has or a small addition, so "weirder every

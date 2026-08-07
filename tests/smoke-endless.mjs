@@ -192,8 +192,8 @@ check(r.afterBoss.wounded, 'and taking him to zero wounds him instead of killing
 check(r.afterBoss.mechanics.length === r.boss.n,
   `Vader #${r.boss.n} carries ${r.boss.n} mechanic(s)`,
   `got [${r.afterBoss.mechanics.join(', ')}]`);
-check(r.boss.dmgCap === 1600,
-  'his damage intake cap is FLAT across encounters, not tapered',
+check(r.boss.dmgCap == null,
+  'he has NO damage intake cap at all',
   `cap ${r.boss.dmgCap} — the taper made a 3000-damage super land as 960 at #6, `
   + `turning that fight into four minutes and punishing super-spam specifically`);
 check(r.afterBoss.doorOpen, 'the exit opens once he is down', '');

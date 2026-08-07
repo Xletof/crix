@@ -43,11 +43,6 @@ export class Boss extends Enemy {
     this.phase = 1;
     this.contactDmgCd = 0;
 
-    // Per-volley damage cap: no more than 2200 dmg in any 120 ms window so a
-    // point-blank super (7 pellets × 520 = 3640) can't one-shot the boss.
-    this._dmgWindow    = 0;   // damage absorbed in current window
-    this._dmgWindowMs  = 0;   // ms since window opened
-
     // Vader-specific: saber glow pulse
     this._glowT = 0;
     this._enraged = false;
@@ -73,22 +68,20 @@ export class Boss extends Enemy {
     this.play('vader-idle-front');
   }
 
-  // Override damage() to apply a per-volley cap so a point-blank super volley
-  // (7 simultaneous pellets) can't one-shot the boss. Any individual hit that
-  // would push total intake above 2200 in a 120 ms window is partially absorbed.
+  // Override damage() for the wound-instead-of-die behaviour. There is NO
+  // intake cap any more.
+  //
+  // There was one: 1600 per 120ms, tapering to 960 by encounter 6. It existed so
+  // a point-blank super could not skip a phase, and the cost of that was
+  // enormous — a 5-pellet super arrives inside ONE window, so a 3000-damage
+  // volley landed as 960 and encounter 6 took four minutes. It punished the
+  // player's biggest commitment hardest, and punished super-spam specifically.
+  //
+  // Removed by request, and it is the right call: a cap does not lengthen a
+  // fight in an interesting way, it makes your strongest move feel like it
+  // missed. Fight length belongs to hp, which is honest about what it is.
   damage(amount, knockbackVec = null) {
-    // Tightened from a flat 2200. The player's burst is much higher than this
-    // fight was originally tuned against — a 5x600 super plus a 320/320/700
-    // melee chain deleted the old 12,000 pool fast enough that phases 2 and 3
-    // barely happened. A per-boss override lets a wounded, returning Vader
-    // harden further without touching the base.
-    const CAP = this._dmgCap ?? ENDLESS.bossDamageCap, WIN = 120;
-    if (this._dmgWindowMs <= 0) { this._dmgWindow = 0; }
-    const headroom = Math.max(0, CAP - this._dmgWindow);
-    const effective = Math.min(amount, headroom);
-    if (effective <= 0) return; // fully absorbed
-    this._dmgWindow   += effective;
-    this._dmgWindowMs  = WIN;
+    const effective = amount;
     this.scene.events.emit('boss-hit', this, effective);
 
     // Vader is not killed in endless — he is WOUNDED and withdraws, and comes
@@ -186,9 +179,6 @@ export class Boss extends Enemy {
       this.threatRing.setDepth(this.y - 2);
     }
     if (!this.alive) return;
-
-    // Per-volley damage window
-    if (this._dmgWindowMs > 0) this._dmgWindowMs -= delta;
 
     // Saber glow pulse (subtle scale)
     this._glowT += delta;

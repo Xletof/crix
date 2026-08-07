@@ -142,18 +142,15 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   damage(amount, knockbackVec = null) {
     if (!this.alive) return;
-    // Mini-boss per-volley cap: a piercing super lands all ~5 pellets in one
-    // frame (~3000 dmg), which one-shot the capstone. Cap intake per 120ms
-    // window (like the Vader boss) so mini-bosses take several supers to fell.
-    if (this._miniBoss) {
-      const CAP = 1400, WIN = 120;
-      const now = this.scene.time.now;
-      if (now - (this._dmgWindowStart || 0) > WIN) { this._dmgWindowStart = now; this._dmgWindow = 0; }
-      const headroom = Math.max(0, CAP - (this._dmgWindow || 0));
-      amount = Math.min(amount, headroom);
-      if (amount <= 0) return; // fully absorbed this window
-      this._dmgWindow = (this._dmgWindow || 0) + amount;
-    }
+    // NO INTAKE CAP. There used to be one here — 1400 per 120ms window for
+    // mini-bosses — so a piercing super could not delete an elite in one volley.
+    //
+    // It is gone by request, and the reasoning is sound: a cap does not make a
+    // fight longer in an interesting way, it makes your biggest commitment feel
+    // like it did nothing. The same taper on Vader turned encounter 6 into a
+    // four-minute fight and punished super-spam specifically. If an elite dies
+    // too fast now the answer is MORE HP, which is honest, not a cap, which
+    // lies about the damage number it just showed you.
     // PUNISH WINDOW. An enemy recovering from a committing move takes bonus
     // damage. This is what pays the player for reading a telegraph — without
     // it the optimal play is to ignore the move and keep shooting, which is
