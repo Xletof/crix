@@ -26,6 +26,7 @@
 // Fallback only, for callers with no rng (tooling, one-off inspection).
 // Production always injects a seeded stream — see rollNemesis.
 import { makeRng, newSeed } from '../systems/rng.js';
+import { pickWeapon, weaponById } from './nemesisWeapons.js';
 
 // ── Names ─────────────────────────────────────────────────────────────────
 // Two pools crossed, so 24 x 18 = 432 names before the trait loadout. Enough
@@ -185,8 +186,35 @@ export function rollNemesis(sector = 1, opts = {}) {
   // above the wave it arrives in, and the wave itself is already scaling.
   n.hpMult *= 1 + Math.max(0, sector - 1) * 0.12;
 
+  // ── Kit ────────────────────────────────────────────────────────────────
+  // Added at the END, which the draw-order note above requires: `pickWeapon`
+  // consumes a draw, and putting it anywhere earlier would shift every seeded
+  // encounter recorded before it existed.
+  //
+  // Regalia is derived, not drawn — it reads straight off the traits, so it
+  // costs no randomness and cannot desync from the loadout it advertises.
+  n.weapon = opts.weapon !== undefined
+    ? (opts.weapon && weaponById(opts.weapon))
+    : pickWeapon(n.base, rng);
+  n.regalia = n.traits.slice(0, REGALIA_ANCHORS).map((id) => REGALIA[id]).filter(Boolean);
+
   return n;
 }
+
+// Two anchors — back and shoulder. A third mark would overlap the other two on
+// a 20px body and turn a readable silhouette into noise, so a 3-trait nemesis
+// shows its two leading traits and the tag line carries the rest.
+export const REGALIA_ANCHORS = 2;
+
+// Trait id -> overlay texture. Painted in pixelArt.js, preloaded in PreloadScene.
+export const REGALIA = {
+  armored:     'reg-armored',
+  swift:       'reg-swift',
+  colossal:    'reg-colossal',
+  regenerator: 'reg-regenerator',
+  summoner:    'reg-summoner',
+  volatile:    'reg-volatile',
+};
 
 /** A short, readable line for the banner: "SWIFT · VOLATILE". */
 export function traitLine(traits) {

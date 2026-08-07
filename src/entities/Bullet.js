@@ -123,6 +123,12 @@ export class BulletGroup extends Phaser.Physics.Arcade.Group {
     // not cosmetic: Bullet.fire() sizes the hitbox with setCircle(this.width/2),
     // so a stale texture silently resizes the body too.
     if (b.texture?.key !== this.texture) b.setTexture(this.texture);
+    // Same reasoning one line up, for colour: nemesis weapons tint their bolts
+    // to tell themselves apart, and a recycled bullet keeps whatever tint it
+    // last had. Without this, one SCATTERGUN burst would leave every ordinary
+    // trooper in the room shooting orange for the rest of the run. Callers that
+    // want a tint apply it AFTER fire() returns.
+    b.clearTint();
     b.fire(x, y, angle, speed, damage, range, opts);
     return b;
   }

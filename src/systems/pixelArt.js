@@ -367,6 +367,192 @@ export function paintEnergyBlade(scene, key = 'wpn-blade') {
   c.finish();
 }
 
+// ── NEMESIS WEAPONS ───────────────────────────────────────────────────────
+//
+// Every nemesis held the same `wpn-enemy-rifle`, which is the other half of why
+// they read as recolours. All four use the weapon-overlay convention — held end
+// LEFT, muzzle RIGHT — so `weaponSprite`'s existing rotation maths is unchanged.
+// Each one's silhouette telegraphs its behaviour: the scattergun is stubby and
+// wide-mouthed, the lance is long and thin, the flak tube is fat and short.
+
+// SCATTERGUN — short, wide bore. Fires a 5-pellet cone; brutal up close.
+export function paintScattergun(scene, key = 'wpn-nem-scatter') {
+  const c = new PixelCanvas(scene, key, 16, 10, 4);
+  const P = PAL;
+  c.rect(0, 4, 4, 4, P.impDark);          // stock
+  c.rect(3, 3, 6, 5, P.impMid);           // receiver
+  c.hline(3, 3, 8, P.impLight);
+  c.hline(7, 3, 8, P.black);
+  c.rect(9, 2, 5, 7, P.impGrey);          // flared barrel
+  c.rect(14, 1, 2, 9, P.impSilver);       // wide muzzle
+  c.px(15, 4, P.boltRedGlow);
+  c.px(15, 6, P.boltRedGlow);
+  c.finish();
+}
+
+// FLAK LAUNCHER — fat tube, stubby. Lobs an arcing shell.
+export function paintFlakLauncher(scene, key = 'wpn-nem-flak') {
+  const c = new PixelCanvas(scene, key, 16, 10, 4);
+  const P = PAL;
+  c.rect(0, 5, 3, 4, P.impDark);
+  c.rect(2, 2, 5, 7, P.impGrey);          // drum
+  c.circle(4, 5, 2, P.impLight);
+  c.px(4, 5, P.expMid);
+  c.rect(7, 3, 8, 5, P.impMid);           // tube
+  c.hline(3, 7, 14, P.impSilver);
+  c.hline(7, 7, 14, P.black);
+  c.rect(14, 2, 2, 7, P.impSilver);       // mouth
+  c.px(15, 5, P.expBright);
+  c.finish();
+}
+
+// BEAM LANCE — long and thin, with a charge coil. Telegraphs, then fires fast.
+export function paintBeamLance(scene, key = 'wpn-nem-lance') {
+  const c = new PixelCanvas(scene, key, 24, 8, 4);
+  const P = PAL;
+  c.rect(0, 3, 4, 3, P.impDark);
+  c.rect(3, 2, 5, 5, P.impMid);           // coil housing
+  c.rect(4, 3, 3, 3, P.energyCyan);
+  c.px(5, 4, P.energyCore);
+  c.rect(8, 3, 14, 2, P.impGrey);         // long barrel
+  c.hline(3, 8, 21, P.impSilver);
+  c.hline(4, 8, 21, P.black);
+  c.rect(21, 2, 3, 4, P.impSilver);       // emitter
+  c.px(23, 3, P.energyGlow);
+  c.px(23, 4, P.energyGlow);
+  c.finish();
+}
+
+// TWIN REPEATERS — double barrels, compact. A fast low-damage burst.
+export function paintTwinRepeaters(scene, key = 'wpn-nem-repeater') {
+  const c = new PixelCanvas(scene, key, 18, 10, 4);
+  const P = PAL;
+  c.rect(0, 4, 4, 4, P.impDark);
+  c.rect(3, 3, 6, 6, P.impMid);           // twin receiver
+  c.hline(3, 3, 8, P.impLight);
+  c.hline(8, 3, 8, P.black);
+  c.rect(9, 2, 8, 2, P.impGrey);          // upper barrel
+  c.rect(9, 6, 8, 2, P.impGrey);          // lower barrel
+  c.hline(2, 9, 16, P.impSilver);
+  c.hline(6, 9, 16, P.impSilver);
+  c.px(17, 2, P.boltGreenCore);
+  c.px(17, 6, P.boltGreenCore);
+  c.finish();
+}
+
+// ── NEMESIS REGALIA: one mark per trait ───────────────────────────────────
+//
+// A nemesis used to be a TINT AND A SCALE on a stock archetype. Six traits'
+// worth of mechanical variety was real and completely invisible, so every one
+// of them read as a recolour of the last.
+//
+// These are the marks that fix that. Each is a small overlay attached to the
+// enemy the same way `weaponSprite` is, and each says something TRUE about the
+// fight you are about to have: plate means it will not go down fast, canisters
+// mean do not finish it standing next to it. Trait-driven rather than random on
+// purpose — a silhouette that varies for decoration teaches the player nothing,
+// and a dangerous loadout that looks harmless is worse than no variety at all.
+//
+// Drawn top-down to sit over a 20-24px body. Held-end/anchor convention matches
+// the weapon overlays so the existing follow maths applies unchanged.
+
+// ARMORED — heavy pauldrons and a chest plate. Wide and solid: the silhouette
+// reads "this takes a while" before the tag line does.
+export function paintRegaliaArmored(scene, key = 'reg-armored') {
+  const c = new PixelCanvas(scene, key, 18, 14, 4);
+  const P = PAL;
+  c.rect(0, 3, 5, 7, P.beskarDark);       // left pauldron
+  c.rect(0, 3, 5, 2, P.beskarMid);
+  c.rect(1, 4, 2, 1, P.beskarLight);
+  c.rect(13, 3, 5, 7, P.beskarDark);      // right pauldron
+  c.rect(13, 3, 5, 2, P.beskarMid);
+  c.rect(15, 4, 2, 1, P.beskarLight);
+  c.rect(5, 5, 8, 6, P.beskarDeep);       // chest plate
+  c.hline(5, 6, 11, P.beskarMid);
+  c.hline(10, 5, 12, P.black);
+  c.px(9, 7, P.beskarShine);
+  c.finish();
+}
+
+// SWIFT — swept vents trailing back. Light, thin, angled: it should look like
+// it is already moving while standing still.
+export function paintRegaliaSwift(scene, key = 'reg-swift') {
+  const c = new PixelCanvas(scene, key, 18, 14, 4);
+  const P = PAL;
+  for (let i = 0; i < 4; i++) {
+    c.rect(2 + i * 2, 3 + i, 2, 2, P.impSilver);
+    c.rect(2 + i * 2, 9 - i, 2, 2, P.impSilver);
+  }
+  c.rect(10, 5, 6, 1, P.energyCyan);
+  c.rect(10, 8, 6, 1, P.energyCyan);
+  c.px(16, 5, P.energyGlow);
+  c.px(16, 8, P.energyGlow);
+  c.finish();
+}
+
+// COLOSSAL — a hunched back plate. Sits high and heavy so the mass reads even
+// before the 1.45x scale is applied.
+export function paintRegaliaColossal(scene, key = 'reg-colossal') {
+  const c = new PixelCanvas(scene, key, 18, 14, 4);
+  const P = PAL;
+  c.rect(3, 2, 12, 9, P.impGrey);
+  c.rect(3, 2, 12, 2, P.impLight);
+  c.hline(10, 3, 14, P.black);
+  for (let i = 0; i < 4; i++) c.rect(4 + i * 3, 0, 2, 3, P.impSilver);  // spinal ridge
+  c.px(8, 6, P.impSheen);
+  c.px(11, 7, P.impSheen);
+  c.finish();
+}
+
+// REGENERATOR — coolant tanks, lit. The glow is the tell: chip damage loses to
+// this, so the player needs to see WHY before they waste a magazine finding out.
+export function paintRegaliaRegenerator(scene, key = 'reg-regenerator') {
+  const c = new PixelCanvas(scene, key, 18, 14, 4);
+  const P = PAL;
+  c.rect(2, 3, 4, 9, P.impDark);
+  c.rect(12, 3, 4, 9, P.impDark);
+  c.rect(3, 4, 2, 7, P.bactaBlue);
+  c.rect(13, 4, 2, 7, P.bactaBlue);
+  c.rect(3, 4, 2, 2, P.bactaLight);
+  c.rect(13, 4, 2, 2, P.bactaLight);
+  c.rect(6, 6, 6, 2, P.impGrey);          // cross-feed pipe
+  c.hline(6, 6, 11, P.impSilver);
+  c.px(8, 7, P.bactaMid);
+  c.finish();
+}
+
+// SUMMONER — a back standard. Tall and unmistakable across a crowded arena,
+// which is the point: this is the one you deal with FIRST.
+export function paintRegaliaSummoner(scene, key = 'reg-summoner') {
+  const c = new PixelCanvas(scene, key, 18, 16, 4);
+  const P = PAL;
+  c.rect(8, 0, 1, 15, P.impSilver);       // pole
+  c.rect(9, 1, 7, 8, '#6a30c0');          // banner
+  c.rect(9, 1, 7, 1, '#9060e0');
+  c.hline(8, 9, 15, P.black);
+  c.rect(11, 3, 3, 4, '#c080ff');         // sigil
+  c.px(12, 4, P.white);
+  c.rect(7, 0, 3, 1, P.gold);             // finial
+  c.px(8, 1, P.goldBright);
+  c.finish();
+}
+
+// VOLATILE — strapped canisters. The direct warning for the trait that punishes
+// finishing a kill from inside the blast.
+export function paintRegaliaVolatile(scene, key = 'reg-volatile') {
+  const c = new PixelCanvas(scene, key, 18, 14, 4);
+  const P = PAL;
+  for (const x of [2, 7, 12]) {
+    c.rect(x, 3, 4, 8, P.rocketBody);
+    c.rect(x, 3, 4, 2, P.expDark);
+    c.rect(x + 1, 5, 2, 4, P.expMid);
+    c.px(x + 1, 6, P.expBright);
+    c.hline(10, x, x + 3, P.black);
+  }
+  c.rect(0, 6, 18, 1, P.impDark);         // strap
+  c.finish();
+}
+
 // ── PLAYER: Mandalorian (24×24, 4 frames) — TOP-DOWN 3/4 HIP-FIRE ──────────
 // Body silhouette does the work: dome on top, wider pauldrons below, chest
 // plate, cape flaring behind, weapon stub at the right hip. The weapon never

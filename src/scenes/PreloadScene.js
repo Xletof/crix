@@ -34,6 +34,16 @@ import {
   paintEnemyRifleOverlay,
   paintSaberOverlay,
   paintEnergyBlade,
+  paintScattergun,
+  paintFlakLauncher,
+  paintBeamLance,
+  paintTwinRepeaters,
+  paintRegaliaArmored,
+  paintRegaliaSwift,
+  paintRegaliaColossal,
+  paintRegaliaRegenerator,
+  paintRegaliaSummoner,
+  paintRegaliaVolatile,
   paintCasing,
   paintDashButton,
   paintMeleeButton,
@@ -108,6 +118,19 @@ export class PreloadScene extends Phaser.Scene {
     paintEnemyRifleOverlay(this, 'wpn-enemy-rifle');
     paintSaberOverlay(this, 'wpn-saber');
     paintEnergyBlade(this, 'wpn-blade');
+
+    // Nemesis kit: a weapon per nemesis and a mark per trait, so a named elite
+    // reads as a different enemy rather than as a tinted one.
+    paintScattergun(this, 'wpn-nem-scatter');
+    paintFlakLauncher(this, 'wpn-nem-flak');
+    paintBeamLance(this, 'wpn-nem-lance');
+    paintTwinRepeaters(this, 'wpn-nem-repeater');
+    paintRegaliaArmored(this, 'reg-armored');
+    paintRegaliaSwift(this, 'reg-swift');
+    paintRegaliaColossal(this, 'reg-colossal');
+    paintRegaliaRegenerator(this, 'reg-regenerator');
+    paintRegaliaSummoner(this, 'reg-summoner');
+    paintRegaliaVolatile(this, 'reg-volatile');
 
     // ── Animations ───────────────────────────────────────────────────
     const chars = [

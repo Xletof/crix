@@ -2963,6 +2963,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   fireShooter(shooter, angle) {
+    // Every enemy shot in the game funnels through here, which is why the
+    // nemesis weapons hook in at this one point rather than by subclassing the
+    // archetypes. An enemy without a weapon fires the stock bolt exactly as
+    // before; the branch is the entire integration.
+    const w = shooter._nemesisWeapon;
+    if (w) {
+      w.fire(this, shooter, angle);
+      SFX.enemyShoot();
+      return;
+    }
     const bx = shooter.x + Math.cos(angle) * (shooter.cfg.radius + 4);
     const by = shooter.y + Math.sin(angle) * (shooter.cfg.radius + 4);
     this.enemyBullets.fire(bx, by, angle,
@@ -4257,6 +4267,7 @@ export class GameScene extends Phaser.Scene {
     e._summonMs = nem.summonMs;
     e._summonT = nem.summonMs;
     e._volatile = nem.volatile;
+    this._equipNemesisKit(e, nem);
 
     this.fx.burst(gx, gy, 'red', 24);
     this.events.emit('show-banner', nem.name, nem.tint);
@@ -4274,6 +4285,39 @@ export class GameScene extends Phaser.Scene {
       });
     }
     return e;
+  }
+
+  /**
+   * Dress a nemesis: its weapon and its trait marks.
+   *
+   * Both are attached through `_attachments`, which `die()` and
+   * `_destroyEnemyFully` already sweep — the alternative is a third teardown
+   * path to keep in sync, and orphaned sprites outliving their owner is a bug
+   * this project has shipped before.
+   */
+  _equipNemesisKit(e, nem) {
+    // Weapon. `pickWeapon` returns null for melee bases, which hide
+    // `weaponSprite` entirely — swapping a texture onto a hidden sprite would
+    // give a grunt an invisible rifle firing real bullets.
+    if (nem.weapon && e.weaponSprite) {
+      e._nemesisWeapon = nem.weapon;
+      e.weaponSprite.setTexture(nem.weapon.tex);
+    }
+
+    // Trait marks. Derived from the loadout, so they cannot disagree with it.
+    e.regaliaSprites = [];
+    for (const key of nem.regalia || []) {
+      if (!this.textures.exists(key)) continue;
+      // 0.55 of the body scale. At full scale the mark is as big as the enemy
+      // wearing it — the first screenshot had a nemesis reading as a dark blob
+      // with a body attached, rather than as a trooper carrying gear.
+      const s = this.add.image(e.x, e.y, key)
+        .setDepth(e.y)
+        .setScale((e._baseScale || 1) * 0.55)
+        .setTint(Phaser.Display.Color.HexStringToColor(nem.tint).color);
+      e.regaliaSprites.push(s);
+      e._attachments.push(s);
+    }
   }
 
   // Drive the trait behaviours that need a clock. One pass over the (small) set

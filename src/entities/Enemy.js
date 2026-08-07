@@ -619,6 +619,27 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.weaponSprite.setDepth(isFacingNorth ? this.y - 1 : this.y + 1);
     }
 
+    // Nemesis regalia. Rides the same block as the weapon overlay so depth,
+    // bush-fade and the dead-hide all behave identically — the alternative was
+    // a second follow loop with its own subtly different rules.
+    //
+    // Fixed to the BODY, not to the aim angle: these are worn, and spinning a
+    // banner around the enemy as it tracks you reads as a bug. The back mark
+    // sits behind, the shoulder mark to the side.
+    if (this.regaliaSprites?.length) {
+      const alpha = this.alive ? (this.hiddenInBush ? 0.55 : 1) : 0;
+      for (let i = 0; i < this.regaliaSprites.length; i++) {
+        const s = this.regaliaSprites[i];
+        if (!s.active) continue;
+        s.x = this.x + (i === 0 ? 0 : this.cfg.radius * 0.55);
+        s.y = this.y - (i === 0 ? this.cfg.radius * 0.75 : this.cfg.radius * 0.15);
+        s.setAlpha(alpha);
+        // Back mark UNDER the body, shoulder mark over it — that ordering is
+        // what makes it read as worn rather than as a decal floating on top.
+        s.setDepth(i === 0 ? this.y - 2 : this.y + 2);
+      }
+    }
+
     // Threat ring tracks position + soft pulse; dims when enemy is hidden.
     if (this.threatRing) {
       this._ringPulse += delta * 0.006;
