@@ -131,9 +131,20 @@ const r = await page.evaluate(async () => {
   };
 
   // And the exit actually leads onward.
+  // Wait for the ROOM to change, not a fixed delay — the same trap `step()`
+  // above documents. The door opens on a 1500ms delayedCall after the wound,
+  // then the transition runs behind a 350ms camera fade and loads in the fade's
+  // completion callback. A flat 2200ms happened to cover that while Vader had
+  // 62,000 hp and stopped covering it at 46,000, which read as "the door is
+  // broken" when the door was simply still opening.
   if (gs.doorZone) {
-    gs.player.setPosition(gs.doorZone.x, gs.doorZone.y);
-    await new Promise((res) => setTimeout(res, 2200));
+    const fromRoom = gs.roomSpec;
+    for (let i = 0; i < 80 && gs.roomSpec === fromRoom; i++) {
+      // Re-assert the position: the wound sequence can nudge the player off the
+      // trigger before the door is live.
+      if (gs.doorZone) gs.player.setPosition(gs.doorZone.x, gs.doorZone.y);
+      await new Promise((res) => setTimeout(res, 100));
+    }
   }
   out.pastBoss = { sector: gs.sector, room: gs.roomSpec?.id, boss: !!gs.roomSpec?.boss };
   return out;

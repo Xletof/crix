@@ -315,13 +315,18 @@ export const ENEMY = {
 };
 
 export const BOSS = {
-  // MEASURED, not guessed. `tests/diag-encounter.mjs --mode vader` put the bot
-  // at a real moving fight against him and the old 12,000 pool died in 10.6
-  // SECONDS against a 60-90s target — phase 3 arrived at 7s, so two thirds of
-  // the fight never happened. 62,000 measured 84.5s with phases at 30s and 63s.
+  // MEASURED, not guessed. `tests/diag-encounter.mjs --mode vader`.
   //
-  // Re-derive with that harness after any change to player output.
-  hp: 62000,
+  //   12,000  -> 10.6s, phase 3 at 7s. Two thirds of the fight never happened.
+  //   62,000  -> 56-85s across runs. Correct against the 60-90s target, and
+  //              too strong on the phone, which is the judgement that counts.
+  //   46,000  -> where it sits now. The band was a number set before anyone
+  //              had played it; the player's hands beat the harness.
+  //
+  // Re-derive with that harness after any change to player output. Note the
+  // spread: this is a noisy measurement (bot deaths vary 4-9 between identical
+  // runs), so treat a single figure as a range and do not chase small moves.
+  hp: 46000,
   radius: 56,
   speed: 165,
   contactDamage: 300,
