@@ -269,9 +269,20 @@ check(r.cancelSweep.after === 0,
   `${r.cancelSweep.after} left behind — cancel used to clear only the TIMERS, so the zone kept filling and flashing for an attack that was never coming`);
 
 // ── Escalation ───────────────────────────────────────────────────────────
-check(r.gating.p3.length > r.gating.p1.length,
-  'his pool widens as he loses phases',
-  `p1 [${r.gating.p1}] vs p3 [${r.gating.p3}]`);
+// THE POOL IS THE VARIETY, and it is no longer held back.
+//
+// This check used to assert the pool WIDENS with phase, which was the design
+// that produced "there's only two moves I see more frequently than others":
+// VANISH and FORCE PUSH were both gated to phase 2, so a phase-1 Vader had
+// literally two attacks. Gating most of a character's vocabulary behind being
+// half dead is what the complaint was about, so the check now asserts what it
+// should have asserted all along — that there is enough of it from the start.
+check(r.gating.p1.length >= 3,
+  'his rotation has real variety from phase 1',
+  `p1 [${r.gating.p1}] — two entries is what "only two moves" felt like`);
+check(!r.gating.p1.includes('vanishslash'),
+  'and VANISH is NOT on it — it is a reaction to being hurt, not a timer',
+  `p1 [${r.gating.p1}]`);
 
 // ── The charge telegraph ─────────────────────────────────────────────────
 check(r.chargeTel.after > r.chargeTel.before && r.chargeTel.kind === 'lane',
