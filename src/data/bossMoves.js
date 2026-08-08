@@ -143,6 +143,25 @@ export const BOSS_MOVES = [
       raiseWeapon(scene, b, 320);
       squash(scene, b, 400, 0.2);
       scene.events.emit('show-banner', 'FORCE PULL', '#8060ff');
+      // THE ZONE THIS MOVE NEVER HAD. Measured on the rejected build: FORCE
+      // PULL put zero pixels on the floor, so with the wind-up also being
+      // overwritten every frame there was nothing at all to react to. "Vader
+      // does pull suddenly" was a precise description of a move that was, by
+      // construction, unannounced.
+      //
+      // A cone, because the pull IS directional — it drags you along his facing
+      // — and the cone's own fill sweep tells you when the grab lands.
+      h.tel = scene.spawnTelegraph({
+        kind: 'cone', x: b.x, y: b.y,
+        angle: Math.atan2(scene.player.y - b.y, scene.player.x - b.x),
+        len: this.coneLen, spreadDeg: this.coneDeg,
+      }, { windupMs: this.anticipateMs, owner: b, color: 0xa070ff });
+      // Motes dragged in toward him — the pull made visible before it is felt.
+      h.inhale = scene.time.addEvent({
+        delay: 60,
+        repeat: Math.floor(this.anticipateMs / 60),
+        callback: () => scene.fx?.inhale?.(b.x, b.y, 'blue', 3, 190),
+      });
       h.ring = scene.add.graphics().setDepth(12);
       h.t = 0;
     },
@@ -174,6 +193,7 @@ export const BOSS_MOVES = [
 
     impact(scene, b, h) {
       h.pull?.remove(false);
+      h.inhale?.remove(false);
       h.ring?.destroy();
       h.ring = null;
       // Then the swing that the pull set up.
@@ -255,6 +275,19 @@ export const BOSS_MOVES = [
       rearBack(scene, b, Math.atan2(scene.player.y - b.y, scene.player.x - b.x), 26, 300);
       squash(scene, b, 420, 0.24);
       scene.events.emit('show-banner', 'FORCE PUSH', '#a0c0ff');
+      // The other move that drew NOTHING. A 420px shove that costs a dash
+      // charge is a big deal and it arrived with no warning whatsoever.
+      // The expanding fill doubles as the range read: if the sweep reaches you
+      // before it commits, you are getting thrown.
+      h.tel = scene.spawnTelegraph(
+        { kind: 'circle', x: b.x, y: b.y, r: this.radius },
+        { windupMs: this.anticipateMs, owner: b, color: 0x90b8ff },
+      );
+      h.inhale = scene.time.addEvent({
+        delay: 55,
+        repeat: Math.floor(this.anticipateMs / 55),
+        callback: () => scene.fx?.inhale?.(b.x, b.y, 'blue', 4, 240),
+      });
     },
 
     act(scene, b, h) {
@@ -271,8 +304,15 @@ export const BOSS_MOVES = [
           scene.events.emit('player-dash-changed', p.dashCharges);
         }
       }
-      scene.fx?.impactRing?.(b.x, b.y, 0xa0c0ff);
-      scene.fx?.shake?.(0.024, 300);
+      h.inhale?.remove(false);
+      // `slamShockwave` instead of one thin ring and a puff of sparks. It is
+      // already in FX.js and it is already the right effect: three-layer ADD
+      // ring, a second ring launched late so it reads as a shock TRAVELLING,
+      // a dust column out of the epicentre, debris thrown along the ring, and
+      // ground fractures. The quality bar this move needed was in the repo the
+      // whole time; the move just never called it.
+      scene.fx?.slamShockwave?.(b.x, b.y, this.radius * 0.75);
+      scene.fx?.shake?.(0.03, 340);
     },
 
     impact(scene, b, h) {
@@ -280,6 +320,7 @@ export const BOSS_MOVES = [
     },
 
     recover(scene, b) { stagger(scene, b, this.recoverMs, 1.5); },
+    onCancel(scene, b, h) { h?.inhale?.remove(false); },
   },
 ];
 

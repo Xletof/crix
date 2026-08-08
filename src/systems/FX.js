@@ -1840,6 +1840,42 @@ export function attachFX(scene) {
       this.airSparks.emitParticleAt(x, y, count);
     },
 
+    // ── INHALE: the opposite of a burst ──────────────────────────────────
+    //
+    // Motes spawned on a ring and drawn INWARD to a point. Every other emitter
+    // here throws things outward, which is the vocabulary of something that has
+    // already happened; a wind-up needs the opposite — energy gathering, an
+    // event being assembled. This is what a force power looks like before it
+    // fires, and it is the missing half of the anticipation beat.
+    //
+    // Built from short-lived sprites rather than an emitter because Phaser's
+    // `moveToX/moveToY` is per-emitter state, and these are fired from several
+    // callers at different radii in the same frame.
+    inhale(x, y, color = 'blue', count = 4, radius = 200) {
+      if (lowQuality) return;
+      const key = color === 'red' ? 'spark-red'
+        : color === 'yellow' ? 'spark-yellow'
+          : color === 'blue' ? 'spark-blue' : 'spark';
+      if (!scene.textures.exists(key)) return;
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = radius * (0.75 + Math.random() * 0.35);
+        const s = scene.add.image(x + Math.cos(a) * r, y + Math.sin(a) * r, key)
+          .setDepth(y + 4)
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setScale(0.7 + Math.random() * 0.6);
+        scene.tweens.add({
+          targets: s,
+          x, y,
+          scale: 0.15,
+          alpha: { from: 0.95, to: 0.25 },
+          duration: 260 + Math.random() * 180,
+          ease: 'Quad.easeIn',            // accelerates as it arrives — it is being PULLED
+          onComplete: () => s.destroy(),
+        });
+      }
+    },
+
     // A fading shockwave ring visual at the impact point of a bullet.
     // `depth` is for rings drawn at altitude, which must clear the Y-sorted
     // ground layer — see the DEPTH comment in config.js.

@@ -96,7 +96,13 @@ export class Telegraph {
     // `safe` inverts the read: stand HERE rather than leave.
     this.safe = !!opts.safe;
     this.color = opts.color ?? (this.safe ? SAFE_COLOR : DANGER);
-    this.fillColor = this.safe ? SAFE_FILL : DANGER_FILL;
+    // The fill follows the outline's hue. A move that passes its own colour —
+    // FORCE PUSH is pale blue, FORCE PULL violet — used to get that colour on
+    // the outline and the stock RED inside it, which reads as two different
+    // warnings stacked on each other. Derived, so a new move only ever has to
+    // name one colour.
+    this.fillColor = opts.fillColor
+      ?? (this.safe ? SAFE_FILL : (opts.color ? this._shade(opts.color, 0.3) : DANGER_FILL));
 
     // THREE layers, split by blend mode, because one mode cannot do both jobs.
     //
@@ -349,6 +355,21 @@ export class Telegraph {
         g.strokePath();
       }
     }
+  }
+
+  /**
+   * Darken a packed RGB colour, keeping its hue.
+   *
+   * Uniform across channels on purpose: darkening the channels unevenly drags
+   * every fill toward red, which defeats the point of a move naming its own
+   * colour. Kept mild — the fill sits at ~0.42 alpha over a dark floor, and
+   * anything heavily darkened lands as mud rather than as a coloured zone.
+   */
+  _shade(c, k) {
+    const f = 1 - k;
+    return (Math.round(((c >> 16) & 255) * f) << 16)
+      | (Math.round(((c >> 8) & 255) * f) << 8)
+      | Math.round((c & 255) * f);
   }
 
   /** Blend two packed RGB colours. Used to heat the outline toward white. */

@@ -92,6 +92,15 @@ const stage = async (gapPx = 230) => {
     gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
     gs.enemyBullets?.getChildren().forEach((x) => x.kill?.());
     gs.bullets?.getChildren().forEach((x) => x.kill?.());
+    // Put his own state machine back to idle BEFORE clearing zones. Silencing
+    // `cooldown` does not cancel a charge already in progress, so a windup
+    // entered during the camera settle left its lane on the floor and the next
+    // move's photo came back with two zones in it — the exact failure being
+    // photographed, manufactured by the camera rig.
+    b._activeMove?.cancel?.();
+    b._activeMove = null;
+    b._performing = false;
+    b.state = 'idle';
     gs.clearTelegraphs();
     b._afterimageEvery = 0; b._reflectEvery = 0; b._disarmEvery = 0;
     b.cooldown = 1e9;              // his own attack clock, silenced for the PHOTO only
@@ -104,6 +113,14 @@ const stage = async (gapPx = 230) => {
     gs.player.body?.setVelocity(0, 0);
   }, gapPx);
   await page.waitForTimeout(900);          // camera lerp settles
+  // ...and again after it, because 900ms is long enough for his clock to start
+  // something even with the cooldown pushed out.
+  await page.evaluate(() => {
+    const gs = window.game.scene.getScene('Game');
+    gs.boss.state = 'idle';
+    gs.boss._performing = false;
+    gs.clearTelegraphs();
+  });
 };
 
 const castAndFreezeAt = async (moveId, beat) => {
