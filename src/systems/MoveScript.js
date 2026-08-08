@@ -68,12 +68,26 @@ export function runMove(scene, actor, script) {
     for (const v of Object.values(handle)) {
       if (v && v !== handle && typeof v.destroy === 'function') v.destroy();
     }
+    if (actor._activeMove === handle) actor._performing = false;
     script.onCancel?.(scene, actor, handle);
   };
   // A move must not outlive its performer: killing a nemesis mid-charge should
   // stop the charge, not have a corpse finish it.
   actor._activeMove?.cancel?.();
   actor._activeMove = handle;
+
+  // THE MOVE OWNS THE ACTOR until it is done.
+  //
+  // Both `Boss.preUpdate` and `Enemy.preUpdate` write velocity and pick
+  // animations every single frame from their own AI. Without this flag a move
+  // and the actor's own state machine fight over the same body: the move's
+  // "plant and rear back" is overwritten before it can draw, and the AI can
+  // start a charge in the middle of a scripted teleport. Both were measured on
+  // the build that got rejected — see docs/POST-MORTEM-vader-moves.md.
+  //
+  // The AI reads this and yields. It is cleared on `done` and on `cancel`, and
+  // `die()` must never leave it set — hence the guard in the cancel path above.
+  actor._performing = true;
 
   const anticipateMs = script.anticipateMs ?? 700;
   const actMs = script.actMs ?? 500;
@@ -95,6 +109,7 @@ export function runMove(scene, actor, script) {
       later(recoverMs, () => {
         handle.phase = 'done';
         if (actor._activeMove === handle) actor._activeMove = null;
+        actor._performing = false;
         actor._punishMult = 1;
       });
     });

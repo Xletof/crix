@@ -192,6 +192,13 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   die() {
     this.alive = false;
+    // Stop any scripted move it was performing. `runMove`'s beat timers are
+    // guarded by an alive() check, so a move interrupted by death never reaches
+    // its `done` beat and would leave `_performing` set forever — which on a
+    // recycled sprite means an enemy that stands still for the rest of the run.
+    this._activeMove?.cancel?.();
+    this._activeMove = null;
+    this._performing = false;
     this.coverRegistry?.release(this);
     SFX.enemyDie();
     this.scene.events.emit('enemy-died', this);
@@ -695,7 +702,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setFlipX(flipX);
 
     let animKey = `${prefix}-idle-${dirSuffix}`;
-    if (this._fireAnimTimer > 0) {
+    // A scripted move owns the pose while it runs. Without this the AI reselects
+    // walk/idle every frame and an attack animation cannot survive one tick.
+    if (this._performing && this._moveAnim) {
+      animKey = `${prefix}-${this._moveAnim}-${dirSuffix}`;
+      if (!this.scene.anims.exists(animKey)) animKey = `${prefix}-idle-${dirSuffix}`;
+    } else if (this._fireAnimTimer > 0) {
       this._fireAnimTimer -= delta;
       animKey = `${prefix}-fire-${dirSuffix}`;
     } else if (isMoving) {
@@ -724,6 +736,22 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.angle = 0;
       this.setScale(bs);
     }
+
+    // ── ONE SYSTEM DRIVES THIS BODY AT A TIME ───────────────────────────────
+    //
+    // Everything above is presentation — depth, shadow, hp bar, regalia, the
+    // stagger wobble — and must keep running whatever else is happening.
+    // Everything below is an AI that writes velocity every frame and would
+    // otherwise overwrite a scripted move's "plant and wind up" before it could
+    // draw a single frame. Same bug as Boss.preUpdate; see
+    // docs/POST-MORTEM-vader-moves.md for what it looked like in play.
+    //
+    // Yield, do not stop. The gate deliberately writes NOTHING: `charge` and
+    // `leapArc` set a velocity and expect it to persist, so a `setVelocity(0,0)`
+    // here would zero a charge every frame and turn it into a standing pose. A
+    // move that wants the actor planted calls `setVelocity(0, 0)` in its own
+    // anticipate beat — and now that call actually survives the frame.
+    if (this._performing) return;
 
     // ── Stuck-state recovery ────────────────────────────────────────────────
     // If we're in a movement state but physics keeps stopping us (wall/cover),

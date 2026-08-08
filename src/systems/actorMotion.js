@@ -164,6 +164,29 @@ export function appear(scene, sprite, ms = 220) {
   });
 }
 
+// The weapon's resting scale, remembered once.
+//
+// ── Why this exists, and why it is not `* 1.35` ──────────────────────────
+//
+// `raiseWeapon` used to multiply the CURRENT scale by 1.35 and `dropWeapon`
+// divided it back. Relative like that, the pair only balances if every raise is
+// matched by exactly one drop — and SABER THROW never called drop at all, while
+// any cancelled or interrupted move skipped it too. So the scale COMPOUNDED:
+// 1.89 -> 2.55 -> 3.44 -> 4.65 across successive casts, and by the fifth throw
+// Vader's saber rendered as a ~1100px slab lying diagonally across the room.
+// I found it in a screenshot while hunting something else entirely.
+//
+// This is the same family of bug CLAUDE.md already warns about for touch
+// widgets: a relative scale mutation with no anchor drifts, permanently. The
+// fix is to anchor it — remember the resting scale on first use and always set
+// an ABSOLUTE multiple of it, so a missed drop costs one frame, not the run.
+const restScale = (w) => {
+  if (w._restScaleX == null) { w._restScaleX = w.scaleX || 1; w._restScaleY = w.scaleY || 1; }
+  return { x: w._restScaleX, y: w._restScaleY };
+};
+
+const RAISE = 1.35;
+
 /**
  * Raise the weapon overhead and HOLD it there.
  *
@@ -174,25 +197,27 @@ export function appear(scene, sprite, ms = 220) {
 export function raiseWeapon(scene, sprite, ms = 300) {
   const w = sprite?.weaponSprite;
   if (!w?.active) return null;
+  const rest = restScale(w);
   w._raised = true;
   return scene.tweens.add({
     targets: w,
-    scaleX: (w.scaleX || 1) * 1.35,
-    scaleY: (w.scaleY || 1) * 1.35,
+    scaleX: rest.x * RAISE,
+    scaleY: rest.y * RAISE,
     duration: ms,
     ease: 'Quad.easeOut',
   });
 }
 
-/** Drop it again, on the strike. */
+/** Drop it again, on the strike. Always back to REST, never a relative divide. */
 export function dropWeapon(scene, sprite, ms = 120) {
   const w = sprite?.weaponSprite;
   if (!w?.active) return null;
+  const rest = restScale(w);
   w._raised = false;
   return scene.tweens.add({
     targets: w,
-    scaleX: (w.scaleX || 1) / 1.35,
-    scaleY: (w.scaleY || 1) / 1.35,
+    scaleX: rest.x,
+    scaleY: rest.y,
     duration: ms,
     ease: 'Quad.easeIn',
   });

@@ -110,11 +110,19 @@ export const BOSS_MOVES = [
       b._noMelee = false;
       const w = b.weaponSprite;
       if (w?.active) { w.x = b.x; w.y = b.y; w.rotation = b._aim || 0; }
+      // Back to rest. This move raised the weapon and never lowered it, which
+      // is how the saber's scale compounded 35% per throw.
+      dropWeapon(scene, b, 140);
+      scene.fx?.bladeArc?.(b.x, b.y, b._aim || 0, 80, 1);   // the catch
     },
 
     // The longest window he has: he spent the whole flight without a weapon.
     recover(scene, b) { stagger(scene, b, this.recoverMs, 2.0); },
-    onCancel(scene, b) { b._saberAway = false; b._noMelee = false; },
+    onCancel(scene, b) {
+      b._saberAway = false;
+      b._noMelee = false;
+      dropWeapon(scene, b, 80);      // an interrupted throw must not keep the raise
+    },
   },
 
   {

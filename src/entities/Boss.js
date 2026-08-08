@@ -129,6 +129,11 @@ export class Boss extends Enemy {
   }
 
   pickAttack() {
+    // Never start a state-machine attack while a scripted move owns him. The
+    // gate in preUpdate already stops this being reached, but pickAttack is
+    // called from elsewhere too and a second zone on the floor is exactly the
+    // failure this release exists to fix.
+    if (this._performing) return STATE.IDLE;
     const r = Math.random();
     if (this.phase >= 2 && r < 0.33) return STATE.SPAWNING;
     if (r < 0.5) return STATE.CHARGE_WINDUP;
@@ -213,6 +218,36 @@ export class Boss extends Enemy {
 
     if (this.contactDmgCd > 0) this.contactDmgCd -= delta;
     this._tickMechanics(delta);
+
+    // ── ONE SYSTEM DRIVES HIM AT A TIME ──────────────────────────────────
+    //
+    // This is the bug that got the first version of his moves rejected on
+    // sight. Everything above is housekeeping and must keep running; from here
+    // down is an AI that writes his velocity and his animation EVERY FRAME,
+    // and it had never heard of `_activeMove`.
+    //
+    // The exact mechanism is worth writing down, because I guessed it wrong
+    // once already. This is `preUpdate`, which Phaser runs on PRE_UPDATE via
+    // the scene's UpdateList — BEFORE the tween manager steps on UPDATE
+    // (node_modules/phaser/src/scene/Systems.js:360). So:
+    //
+    //   - anything a move TWEENS (scale, the weapon sprite's position) is
+    //     written after this and survives. The saber really does leave his
+    //     hand; I assumed it could not and a one-frame probe proved me wrong.
+    //   - anything a move SETS DIRECTLY — velocity above all — is overwritten
+    //     on the very next frame by the line below.
+    //
+    // Measured on the rejected build: he walked at the player at 165px/s
+    // through the ANTICIPATE beat of all four moves. His wind-up never
+    // rendered, so from the player's chair there was no anticipation at all,
+    // just Vader advancing and then an effect landing. That is precisely what
+    // "Vader does pull suddenly" meant.
+    // Yield, do not stop. This gate deliberately writes NOTHING: a travelling
+    // move sets a velocity and expects it to persist, so zeroing here every
+    // frame would turn any charge into a standing pose. A move that wants him
+    // planted calls `setVelocity(0, 0)` in its own anticipate beat — and that
+    // call now survives the frame, which is the entire point.
+    if (this._performing) return;
 
     switch (this.state) {
       case STATE.IDLE: {

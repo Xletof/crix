@@ -4445,6 +4445,11 @@ export class GameScene extends Phaser.Scene {
     const pool = forcedId ? [forcedId] : bossMovesFor(b.phase || 1, b._encounterN || 1);
     if (!pool.length || !this.player?.alive) return null;
     if (b._activeMove && b._activeMove.phase !== 'done') return null;
+    // ONE ATTACK AT A TIME, FROM EITHER SYSTEM. His own state machine can be
+    // mid-charge or mid-volley, and starting a scripted move on top of it is
+    // how a charge lane and a saber lane ended up on the floor together — the
+    // "two red trails" in the report. `idle` is the only state he is free in.
+    if (b.state && b.state !== 'idle') return null;
     const id = forcedId || pool[(b._moveIdx = ((b._moveIdx ?? -1) + 1) % pool.length)];
     const move = bossMoveById(id);
     if (!move) return null;

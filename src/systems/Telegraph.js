@@ -54,7 +54,13 @@ export const TELEGRAPH_DEPTH = 12;
 export const DASH_REACH = 228;
 
 const DANGER = 0xff3020;
-const DANGER_FILL = 0x882010;
+// Tuned FOR the ADD blend, not independently of it. ADD adds this colour to the
+// floor, so a dark fill on a dark floor is very nearly a no-op: the first
+// version of this used 0x882010 and the zone was so faint that a screenshot of
+// a live SABER THROW showed only the saber sprite, with the 620x150 lane
+// underneath it effectively invisible. The fill has to be a BRIGHT colour at a
+// modest alpha, not a dark one at a high alpha.
+const DANGER_FILL = 0xc42a14;
 
 // A zone the player should stand IN, for moves that fill everywhere else
 // (SHOCKWAVE RING). Drawn green because red means "leave" everywhere else in
@@ -92,12 +98,41 @@ export class Telegraph {
     this.color = opts.color ?? (this.safe ? SAFE_COLOR : DANGER);
     this.fillColor = this.safe ? SAFE_FILL : DANGER_FILL;
 
-    this.gfx = scene.add.graphics().setDepth(TELEGRAPH_DEPTH);
+    // THREE layers, split by blend mode, because one mode cannot do both jobs.
+    //
+    //   shadowGfx  NORMAL, underneath — a near-black outline. The floor is dark
+    //              (#161620) and a mid-dark stroke on it is invisible; this is
+    //              the same lesson `groundFractures` in FX.js had to learn.
+    //   fillGfx    NORMAL — the body of the zone. This one must NOT be ADD.
+    //              Additive blending adds to every channel, so a red fill over
+    //              the room's blue-grey floor came out a washed-out beige that
+    //              read as "some UI panel", not "this will hurt". Measured off a
+    //              screenshot: floor (25,52,64) + salmon*0.46 = (120,86,87).
+    //   gfx        ADD, on top — outline and the leading edge only, where bloom
+    //              is exactly what you want and there is no muddying to do.
+    this.shadowGfx = scene.add.graphics().setDepth(TELEGRAPH_DEPTH - 1);
+    this.fillGfx = scene.add.graphics().setDepth(TELEGRAPH_DEPTH);
+    this.gfx = scene.add.graphics().setDepth(TELEGRAPH_DEPTH + 1)
+      .setBlendMode(Phaser.BlendModes.ADD);
 
     // Owned by the caster: `die()` and `_destroyEnemyFully` both sweep
     // `_attachments`, so registering here is the whole of the cleanup story.
     this.owner = opts.owner || null;
     if (this.owner?._attachments) this.owner._attachments.push(this);
+
+    // THE ZONE FOLLOWS ITS CASTER while it winds up, unless it is deliberately
+    // pinned to a spot in the world (`anchor: 'world'` — a landing marker has
+    // to stay where it will land, not trail the thing that is teleporting).
+    //
+    // Without this a zone freezes its origin at spawn while the caster walks
+    // on: measured on the rejected build, Vader left his own lane by 163px
+    // before it fired. A telegraph that does not come out of the thing that
+    // will hit you is not a telegraph, it is a red rectangle.
+    this.anchored = opts.anchor === 'world';
+    if (!this.anchored && this.owner) {
+      this._ownerOffX = shape.x - this.owner.x;
+      this._ownerOffY = shape.y - this.owner.y;
+    }
 
     this._draw(0);
   }
@@ -107,6 +142,7 @@ export class Telegraph {
     if (this.dead) return false;
     this.elapsed += delta;
     const t = Math.min(1, this.elapsed / this.windupMs);
+    if (!this.committed) this._followOwner();
     this._draw(t);
 
     if (!this.committed && this.elapsed >= this.windupMs) {
@@ -198,49 +234,131 @@ export class Telegraph {
 
   _wrap(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }
 
-  // Outline at full size from the first frame (so the danger is legible
-  // immediately) with a fill that grows to meet it (so the REMAINING TIME is
-  // legible too). A telegraph that only appears at the end is a jump scare.
+  /** Keep the zone's origin on the caster while it is still winding up. */
+  _followOwner() {
+    const o = this.owner;
+    if (this.anchored || !o?.active || !o.alive) return;
+    this.shape.x = o.x + this._ownerOffX;
+    this.shape.y = o.y + this._ownerOffY;
+  }
+
+  // ── The drawing, and the one job it has ─────────────────────────────────
+  //
+  // A zone has to answer two questions at a glance, on a phone, while the
+  // player is doing something else: WHERE, and WHEN. The version this replaces
+  // answered only the first — one 3px stroke and a 28%-alpha fill that crept
+  // outward — and the verdict was "too simple blue circle or red rectangle".
+  //
+  // WHERE is the outline: full size from frame one, never a jump scare.
+  // WHEN is a fill that sweeps out from the caster with a BRIGHT BAR RIDING ITS
+  // FRONT. The bar is the whole trick: an edge travelling at a constant speed
+  // is something the eye tracks and can extrapolate, so you know how long you
+  // have without counting. A creeping fill with no front edge does not read as
+  // time at all. This is the League-of-Legends charge-indicator grammar
+  // (Sion's Q), and it is what was asked for.
+  //
+  // Everything ramps toward the moment of impact: the fill brightens, the
+  // outline thickens, and the last 25% adds a pulse that gets faster. By the
+  // time it fires you should have felt it coming for half a second.
   _draw(t) {
     const g = this.gfx;
+    const sh = this.shadowGfx;
+    const fg = this.fillGfx;
     if (!g?.active) return;
     g.clear();
+    sh?.clear();
+    fg?.clear();
     const s = this.shape;
 
-    g.lineStyle(3, this.color, 0.9);
-    g.fillStyle(this.fillColor, 0.28);
+    // Hot as it lands. The fill goes from a dim ember to near-white so the
+    // final frames are unmistakably "now".
+    const heat = t * t;                          // late-biased, so the ramp bites
+    const fillA = 0.42 + 0.34 * heat;
+    const fillC = this._mix(this.fillColor, 0xff9060, heat * 0.6);
+    const edgeC = this.safe ? this.color : this._mix(this.color, 0xffffff, heat * 0.7);
+
+    // The pulse in the last quarter. Frequency climbs, so it reads as a
+    // countdown accelerating rather than a steady blink.
+    const late = Math.max(0, (t - 0.75) / 0.25);
+    const pulse = late > 0 ? 1 + 0.55 * Math.abs(Math.sin(late * late * 22)) : 1;
+    const lineW = (3.5 + 2.5 * heat) * pulse;
 
     if (s.kind === 'circle') {
-      g.strokeCircle(s.x, s.y, s.r);
-      if (t > 0) g.fillCircle(s.x, s.y, s.r * t);
+      sh?.lineStyle(lineW + 4, 0x05050a, 0.85);
+      sh?.strokeCircle(s.x, s.y, s.r);
+      fg?.fillStyle(fillC, fillA);
+      if (t > 0) fg?.fillCircle(s.x, s.y, s.r * t);
+      fg?.lineStyle(lineW, edgeC, 1);
+      fg?.strokeCircle(s.x, s.y, s.r);
+      // Leading edge: a bright ring expanding to meet the outline.
+      if (t > 0.02 && t < 1) {
+        g.lineStyle(3 + 3 * heat, 0xffc0a0, 0.55 + 0.45 * heat);
+        g.strokeCircle(s.x, s.y, s.r * t);
+      }
     } else if (s.kind === 'cone') {
       const half = (s.spreadDeg * Math.PI) / 180 / 2;
-      this._arcPath(g, s.x, s.y, s.len, s.angle - half, s.angle + half, false);
-      if (t > 0) this._arcPath(g, s.x, s.y, s.len * t, s.angle - half, s.angle + half, true);
+      sh?.lineStyle(lineW + 4, 0x05050a, 0.85);
+      this._arcPath(sh, s.x, s.y, s.len, s.angle - half, s.angle + half, false);
+      fg?.fillStyle(fillC, fillA);
+      if (t > 0 && fg) this._arcPath(fg, s.x, s.y, s.len * t, s.angle - half, s.angle + half, true);
+      fg?.lineStyle(lineW, edgeC, 1);
+      if (fg) this._arcPath(fg, s.x, s.y, s.len, s.angle - half, s.angle + half, false);
+      if (t > 0.02 && t < 1) {
+        g.lineStyle(3 + 3 * heat, 0xffc0a0, 0.55 + 0.45 * heat);
+        g.beginPath();
+        const N = 14;
+        for (let i = 0; i <= N; i++) {
+          const a = s.angle - half + (2 * half * i) / N;
+          const px = s.x + Math.cos(a) * s.len * t;
+          const py = s.y + Math.sin(a) * s.len * t;
+          if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+        }
+        g.strokePath();
+      }
     } else if (s.kind === 'lane') {
       const ca = Math.cos(s.angle), sa = Math.sin(s.angle);
       const hw = s.width / 2;
-      const pts = (len) => [
-        { x: s.x - sa * hw, y: s.y + ca * hw },
-        { x: s.x + ca * len - sa * hw, y: s.y + sa * len + ca * hw },
-        { x: s.x + ca * len + sa * hw, y: s.y + sa * len - ca * hw },
-        { x: s.x + sa * hw, y: s.y - ca * hw },
+      const quad = (from, to) => [
+        { x: s.x + ca * from - sa * hw, y: s.y + sa * from + ca * hw },
+        { x: s.x + ca * to - sa * hw, y: s.y + sa * to + ca * hw },
+        { x: s.x + ca * to + sa * hw, y: s.y + sa * to - ca * hw },
+        { x: s.x + ca * from + sa * hw, y: s.y + sa * from - ca * hw },
       ];
-      const outline = pts(s.len);
-      g.beginPath();
-      g.moveTo(outline[0].x, outline[0].y);
-      outline.slice(1).forEach((p) => g.lineTo(p.x, p.y));
-      g.closePath();
-      g.strokePath();
-      if (t > 0) {
-        const fill = pts(s.len * t);
+      const path = (gfx, pts, fill) => {
+        gfx.beginPath();
+        gfx.moveTo(pts[0].x, pts[0].y);
+        pts.slice(1).forEach((p) => gfx.lineTo(p.x, p.y));
+        gfx.closePath();
+        if (fill) gfx.fillPath(); else gfx.strokePath();
+      };
+
+      sh?.lineStyle(lineW + 4, 0x05050a, 0.85);
+      if (sh) path(sh, quad(0, s.len), false);
+      fg?.fillStyle(fillC, fillA);
+      if (t > 0 && fg) path(fg, quad(0, s.len * t), true);
+      fg?.lineStyle(lineW, edgeC, 1);
+      if (fg) path(fg, quad(0, s.len), false);
+
+      // THE LEADING BAR. Perpendicular to the lane, riding the fill front.
+      if (t > 0.02 && t < 1) {
+        const fx = s.x + ca * s.len * t, fy = s.y + sa * s.len * t;
+        g.lineStyle(5 + 5 * heat, 0xffd8b0, 0.6 + 0.4 * heat);
         g.beginPath();
-        g.moveTo(fill[0].x, fill[0].y);
-        fill.slice(1).forEach((p) => g.lineTo(p.x, p.y));
-        g.closePath();
-        g.fillPath();
+        g.moveTo(fx - sa * hw, fy + ca * hw);
+        g.lineTo(fx + sa * hw, fy - ca * hw);
+        g.strokePath();
       }
     }
+  }
+
+  /** Blend two packed RGB colours. Used to heat the outline toward white. */
+  _mix(a, b, k) {
+    const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+    const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+    const r = Math.round(ar + (br - ar) * k);
+    const gg = Math.round(ag + (bg - ag) * k);
+    const bl = Math.round(ab + (bb - ab) * k);
+    return (r << 16) | (gg << 8) | bl;
   }
 
   _arcPath(g, cx, cy, r, a0, a1, fill) {
@@ -255,15 +373,47 @@ export class Telegraph {
     if (fill) g.fillPath(); else g.strokePath();
   }
 
+  // The snap. The sweep has been promising this for the whole wind-up, so it
+  // has to arrive as an event: the zone goes white all at once, a ring punches
+  // out of the origin, and dust lifts along the axis.
   _flash() {
     const g = this.gfx;
     if (!g?.active) return;
     const s = this.shape;
+    this.shadowGfx?.clear();
+    this.fillGfx?.clear();
     g.clear();
-    g.fillStyle(this.safe ? SAFE_COLOR : 0xffffff, this.safe ? 0.3 : 0.55);
-    if (s.kind === 'circle') g.fillCircle(s.x, s.y, s.r);
-    else this._draw(1);
-    this.scene.fx?.shake?.(0.008, 90);
+    g.fillStyle(this.safe ? SAFE_COLOR : 0xffffff, this.safe ? 0.32 : 0.7);
+    if (s.kind === 'circle') {
+      g.fillCircle(s.x, s.y, s.r);
+    } else if (s.kind === 'cone') {
+      const half = (s.spreadDeg * Math.PI) / 180 / 2;
+      this._arcPath(g, s.x, s.y, s.len, s.angle - half, s.angle + half, true);
+    } else if (s.kind === 'lane') {
+      const ca = Math.cos(s.angle), sa = Math.sin(s.angle), hw = s.width / 2;
+      g.beginPath();
+      g.moveTo(s.x - sa * hw, s.y + ca * hw);
+      g.lineTo(s.x + ca * s.len - sa * hw, s.y + sa * s.len + ca * hw);
+      g.lineTo(s.x + ca * s.len + sa * hw, s.y + sa * s.len - ca * hw);
+      g.lineTo(s.x + sa * hw, s.y - ca * hw);
+      g.closePath();
+      g.fillPath();
+    }
+
+    if (!this.safe) {
+      const fx = this.scene.fx;
+      fx?.impactRing?.(s.x, s.y, 0xffffff, TELEGRAPH_DEPTH + 1);
+      // Dust lifted along the zone's own axis, so the commit reads as something
+      // happening to the FLOOR rather than a light turning on.
+      const along = s.kind === 'circle' ? 0 : (s.len || 0);
+      const ca = Math.cos(s.angle || 0), sa = Math.sin(s.angle || 0);
+      for (let i = 0; i < 5; i++) {
+        const u = along ? (i / 4) * along : 0;
+        fx?.dustPuff?.(s.x + ca * u + (Math.random() - 0.5) * 20,
+                       s.y + sa * u + (Math.random() - 0.5) * 14);
+      }
+    }
+    this.scene.fx?.shake?.(0.012, 110);
   }
 
   destroy() {
@@ -271,6 +421,10 @@ export class Telegraph {
     this.dead = true;
     this.gfx?.destroy();
     this.gfx = null;
+    this.shadowGfx?.destroy();
+    this.shadowGfx = null;
+    this.fillGfx?.destroy();
+    this.fillGfx = null;
     const list = this.owner?._attachments;
     if (list) {
       const i = list.indexOf(this);
