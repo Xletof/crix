@@ -218,10 +218,18 @@ r.clones = await page.evaluate(async () => {
   const diesInOneHit = one ? !one.alive : false;
 
   const playerBefore = gs.player.hp;
-  for (let t = 0; t < 5000; t += 100) {
+  for (let t = 0; t < 6000; t += 100) {
     await new Promise((res) => setTimeout(res, 100));
     gs.player.body?.setVelocity(0, 0);
     gs.player.hp = Math.min(gs.player.hp, playerBefore);   // no orb can mask this
+    // Hold them ON the player for the WHOLE window, not just at the start.
+    // Repositioning once was not enough: they drift on their own AI, and under
+    // parallel suite load the frame rate is low enough that they never get back
+    // into contact. The question is whether a clone's touch hurts, so keep them
+    // touching and let the answer be about damage.
+    gs.enemies.getChildren().filter((e) => e.alive && e._afterimage).forEach((e, i) => {
+      e.setPosition(gs.player.x + (i - 1) * 16, gs.player.y + 10);
+    });
   }
   const damaged = Math.round(playerBefore - gs.player.hp);
   return { spawned, diesInOneHit, damaged, bossAlive: b.alive, bossHpFrac: b.hp / b.hpMax };
