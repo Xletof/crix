@@ -79,6 +79,22 @@ the finding is already established earlier in the conversation.
 
 ## Testing
 
+**Read `docs/POST-MORTEM-vader-moves.md` before adding a boss or enemy attack.** A release
+shipped with 17 passing checks and was rejected on sight. Three rules came out of it:
+
+- **Never verify a new behaviour with the system it shares an actor with switched off.**
+  Every boss test opened with `b.cooldown = 1e9`, which is exactly what stops Vader's old
+  state machine — so the harness could not see the two systems fighting over his velocity
+  every frame. Silence a clock to stabilise a measurement if you must, then run one pass
+  with nothing silenced and assert the fight is still coherent.
+- **Effects are not readability.** "The player was dragged 60px" cannot fail when the move is
+  unannounced. Assert the reading: a zone exists before damage, one zone per attack, the body
+  visibly winds up, and a telegraph's origin tracks the actor that will hit you (they freeze
+  at spawn — Vader walked 163px out of his own lane).
+- **A placeholder is not a deliverable.** `Telegraph.js` draws a circle and a rectangle; that
+  is the whole visual vocabulary. Shipping it while calling the moves finished is what
+  "very bad quality effects, too simple blue circle or red rectangle" means.
+
 The suite lives in `tests/` — `npm run dev` in one shell, `npm run smoke` in
 another. **`tests/README.md` is the real reference**: it lists what each test
 protects and documents six specific ways this harness produces false passes.
