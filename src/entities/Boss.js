@@ -9,7 +9,7 @@ const STATE = {
   IDLE: 'idle',
   CHARGE_WINDUP: 'charge_windup',
   CHARGING: 'charging',
-  FAN: 'fan',
+  SLAM: 'slam',
   SPAWNING: 'spawning',
 };
 
@@ -62,6 +62,14 @@ export class Boss extends Enemy {
     this._disarmEvery     = 0;
     this._disarmT         = 0;
 
+    // ── Damage-burst window, for the reactive VANISH ─────────────────────
+    // VANISH is no longer on his attack rotation. It fires when the player
+    // hurts him HARD in a short window — an escape from pressure, which is
+    // what it always looked like it should be — and then locks out so it
+    // cannot chain. See `_recordBurst` and `shouldVanish`.
+    this._burst = [];
+    this._vanishLockMs = 0;
+
     SFX.bossRoar();
 
     // Start Vader idle anim
@@ -83,6 +91,22 @@ export class Boss extends Enemy {
   damage(amount, knockbackVec = null) {
     const effective = amount;
     this.scene.events.emit('boss-hit', this, effective);
+
+    // ── VADER IS NOT PUSHED. EVER. ───────────────────────────────────────
+    //
+    // `Enemy.damage` adds the knockback vector straight onto the body's
+    // velocity, and nothing exempted the boss — so a super landing on him
+    // during a wind-up threw him across the room and off his own telegraph,
+    // leaving a zone marking a place he was no longer standing. Reported as
+    // "he gets thrown far" and "it can get buggy if I hit him with super when
+    // he's doing a move", and both are the same line of code.
+    //
+    // Dropped entirely rather than reduced: any displacement at all can move
+    // him out of a lane he is the origin of. The hit flash and the damage
+    // number still fire, so the hit reads as landing — it just does not move a
+    // man in powered armour.
+    knockbackVec = null;
+    this._recordBurst?.(effective);
 
     // Vader is not killed in endless — he is WOUNDED and withdraws, and comes
     // back at the next boss sector harder and with one more trick. Intercepted
@@ -128,16 +152,46 @@ export class Boss extends Enemy {
     this.scene.events.emit('boss-phase-crack', this.x, this.y, p);
   }
 
+  /** Log a hit into the rolling burst window. Called from `damage()`. */
+  _recordBurst(amount) {
+    const now = this.scene?.time?.now ?? 0;
+    this._burst.push({ t: now, amount });
+    // Keep only the window we care about; this list must not grow with the run.
+    while (this._burst.length && now - this._burst[0].t > BOSS_MECH.vanishWindowMs) {
+      this._burst.shift();
+    }
+  }
+
+  /**
+   * Has the player just hurt him badly enough to make him disappear?
+   *
+   * A share of his max hp inside a short window — so it scales with the ladder
+   * rather than firing constantly on a late-encounter Vader with 5x the health.
+   * The lockout is what stops it becoming the spam it was on rotation.
+   */
+  shouldVanish() {
+    if (!this.alive || this._performing || this._vanishLockMs > 0) return false;
+    const now = this.scene?.time?.now ?? 0;
+    const recent = this._burst
+      .filter((h) => now - h.t <= BOSS_MECH.vanishWindowMs)
+      .reduce((sum, h) => sum + h.amount, 0);
+    return recent >= this.hpMax * BOSS_MECH.vanishHpFrac;
+  }
+
   pickAttack() {
     // Never start a state-machine attack while a scripted move owns him. The
     // gate in preUpdate already stops this being reached, but pickAttack is
     // called from elsewhere too and a second zone on the floor is exactly the
     // failure this release exists to fix.
     if (this._performing) return STATE.IDLE;
+    // THE FAN IS GONE. It was the oldest thing he had — a spread of green
+    // bolts fired from a planted stance — and it was cut by request: it read
+    // as a generic shooter attack on a character whose whole identity is a
+    // saber and the Force. Nothing replaces it in this state machine; his
+    // variety now comes from the scripted move pool.
     const r = Math.random();
-    if (this.phase >= 2 && r < 0.33) return STATE.SPAWNING;
-    if (r < 0.5) return STATE.CHARGE_WINDUP;
-    return STATE.FAN;
+    if (this.phase >= 2 && r < 0.28) return STATE.SPAWNING;
+    return STATE.CHARGE_WINDUP;
   }
 
   playVaderAnim(type, angle) {
@@ -223,7 +277,11 @@ export class Boss extends Enemy {
     const dy = player.y - this.y;
     const angToPlayer = Math.atan2(dy, dx);
     this._aim = angToPlayer;
-    if (this.weaponSprite) {
+    // While the saber is in the air it belongs to the throw, not to his hand.
+    // The flight happens on the scene clock, which runs after this, so it wins
+    // either way — but reclaiming a sprite that is 500px away every frame is
+    // the kind of thing that only stays harmless by accident.
+    if (this.weaponSprite && !this._saberAway) {
       const offset = BOSS.radius - 6;
       this.weaponSprite.x = this.x + Math.cos(angToPlayer) * offset;
       this.weaponSprite.y = this.y + Math.sin(angToPlayer) * offset;
@@ -237,6 +295,7 @@ export class Boss extends Enemy {
     }
 
     if (this.contactDmgCd > 0) this.contactDmgCd -= delta;
+    if (this._vanishLockMs > 0) this._vanishLockMs -= delta;
     this._tickMechanics(delta);
 
     // ── ONE SYSTEM DRIVES HIM AT A TIME ──────────────────────────────────
@@ -277,16 +336,57 @@ export class Boss extends Enemy {
     switch (this.state) {
       case STATE.IDLE: {
         const speed = this.cfg.speed * (this.phase === 3 ? 1.35 : 1);
-        this.setVelocity(Math.cos(angToPlayer) * speed, Math.sin(angToPlayer) * speed);
 
-        // Vader animation during advance
-        const spd2 = speed * speed;
-        if (this.body.velocity.x ** 2 + this.body.velocity.y ** 2 > 200) {
+        // ── HE STOPS AT SABER RANGE ──────────────────────────────────────
+        //
+        // This used to drive at the player unconditionally, every frame, with
+        // no stop distance — so once he arrived he was trying to occupy the
+        // same pixel they were, and arcade physics shoved him back and forth
+        // across their body. That is the "he comes and pathfinder gets fucked,
+        // he spins left right on my position" in the report: not pathfinding at
+        // all, just a chase with no arrival condition and nothing to do on
+        // arrival.
+        //
+        // Now he closes to `standoff` and holds, which is also the range his
+        // SABER COMBO reaches from — so arriving means attacking instead of
+        // jittering.
+        const dist = Math.hypot(dx, dy);
+        const standoff = BOSS.standoffPx;
+        if (dist > standoff) {
+          this.setVelocity(Math.cos(angToPlayer) * speed, Math.sin(angToPlayer) * speed);
+          this.playVaderAnim('walk', angToPlayer);
+        } else if (dist < standoff * 0.62) {
+          // TOO close — back off to his working range rather than overlapping
+          // them. Something else put him here (a combo step, a charge that ran
+          // through, the player walking into him), and standing inside the
+          // player is what the jitter looked like.
+          this.setVelocity(-Math.cos(angToPlayer) * speed * 0.7,
+                           -Math.sin(angToPlayer) * speed * 0.7);
           this.playVaderAnim('walk', angToPlayer);
         } else {
+          // Inside his own reach: plant. A dead stop rather than a drift, so
+          // there is no residual velocity to argue with the player's body.
+          this.setVelocity(0, 0);
           this.playVaderAnim('idle', angToPlayer);
+          // ...and SWING. This is what he does at this range now, instead of
+          // grinding against the player's collision box waiting for a ranged
+          // move's clock to come round.
+          this._comboT = (this._comboT ?? 0) - delta;
+          if (this._comboT <= 0) {
+            this._comboT = BOSS.comboEveryMs;
+            this.scene.events.emit('boss-wants-combo', this);
+          }
         }
         this.setScale(glowScale);
+
+        // The reactive VANISH pre-empts everything else: it is an escape from
+        // pressure, so it has to be able to interrupt his ordinary cadence.
+        if (this.shouldVanish()) {
+          this._vanishLockMs = BOSS_MECH.vanishLockMs;
+          this._burst.length = 0;
+          this.scene.events.emit('boss-wants-vanish', this);
+          break;
+        }
 
         this.cooldown -= delta;
         if (this.cooldown <= 0) {
@@ -302,11 +402,6 @@ export class Boss extends Enemy {
             // nemesis charge has read correctly since it shipped; this is the
             // same telegraph, on the boss that needed it more.
             this.scene.events.emit('boss-charge-windup', this, angToPlayer, BOSS.chargeWindupMs);
-          } else if (this.state === STATE.FAN) {
-            this.setVelocity(0, 0);
-            this.scene.events.emit('boss-fan', this, angToPlayer);
-            this.state = STATE.IDLE;
-            this.cooldown = this.cfg.attackCooldownMs;
           } else if (this.state === STATE.SPAWNING) {
             this.setVelocity(0, 0);
             this.scene.events.emit('boss-spawn', this);
@@ -357,17 +452,43 @@ export class Boss extends Enemy {
             onComplete: () => ghost.destroy(),
           });
         }
-        if (this.stateTimer >= BOSS.chargeDurationMs) {
-          this.state = STATE.IDLE;
-          this.cooldown = this.cfg.attackCooldownMs;
+        // ── THE CHARGE ENDS IN AN OVERHEAD SLAM ──────────────────────────
+        //
+        // It ends early if he runs into something, rather than grinding along
+        // a wall for the rest of its duration — a rush that hits a wall is
+        // finished, and the slam should land there.
+        const blocked = this.body && (this.body.blocked.left || this.body.blocked.right
+          || this.body.blocked.up || this.body.blocked.down);
+        if (this.stateTimer >= BOSS.chargeDurationMs || blocked) {
+          this.setVelocity(0, 0);
+          this.state = STATE.SLAM;
+          this.stateTimer = 0;
           this.setScale(1);
-          
-          // Vader ground slam impact effects
-          this.scene.events.emit('boss-phase-crack', this.x, this.y, 1);
+          this.setMovePose?.('raise');
+          // The zone goes down BEFORE the strike, at the spot he actually
+          // stopped — so the rush has a second beat you can still answer.
+          this._slamAt = { x: this.x, y: this.y };
+          this.scene.events.emit('boss-slam-windup', this, BOSS.slamWindupMs, BOSS.slamRadius);
+        }
+        break;
+      }
+      // The second beat of the rush: he plants, the zone fills, and the saber
+      // comes down. Kept in the state machine rather than made a separate move
+      // so the charge stays ONE attack that escalates — a rush and a slam as
+      // two pool entries would just read as two similar rushes.
+      case STATE.SLAM: {
+        this.setVelocity(0, 0);
+        this.stateTimer += delta;
+        this.playVaderAnim('idle', angToPlayer);
+        if (this.stateTimer >= BOSS.slamWindupMs) {
+          this.scene.events.emit('boss-slam', this, this._slamAt, BOSS.slamRadius);
           SFX.bossSlam?.();
-          this.scene.fx?.burst?.(this.x, this.y, 'yellow', 15);
-          this.scene.fx?.burst?.(this.x, this.y, 'white', 15);
-          this.scene.fx?.shake?.(0.015, 200);
+          this.state = STATE.IDLE;
+          this.stateTimer = 0;
+          this.cooldown = this.cfg.attackCooldownMs;
+          // A real recovery — the whole two-beat rush is worth punishing.
+          this._staggerMs = BOSS.slamRecoverMs;
+          this._moveAnim = null;
         }
         break;
       }

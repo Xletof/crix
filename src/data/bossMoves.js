@@ -24,8 +24,106 @@ import {
   squash, rearBack, leapArc, charge, spin, vanish, appear,
   raiseWeapon, dropWeapon, stagger,
 } from '../systems/actorMotion.js';
+import { SFX } from '../systems/FX.js';
 
 export const BOSS_MOVES = [
+  {
+    id: 'sabercombo',
+    name: 'SABER COMBO',
+    minPhase: 1,
+    // His DEFAULT attack, and the reason he now has a reason to be at saber
+    // range instead of standing on top of you. Cast by the close-range branch
+    // of his state machine rather than the rotation clock — see Boss.preUpdate.
+    close: true,
+    everyMs: 3200,
+    anticipateMs: 420,
+    actMs: 900,
+    recoverMs: 850,
+    reach: 150,
+    arcDeg: 120,
+    hitDamage: 130,
+    slamRadius: 190,
+    slamDamage: 240,
+    slamKnockback: 620,
+    stepPx: 26,
+    minGapPx: 74,      // he closes to here and no further
+
+    anticipate(scene, b, h) {
+      const p = scene.player;
+      h.angle = Math.atan2(p.y - b.y, p.x - b.x);
+      b.body?.setVelocity(0, 0);
+      b.setMovePose?.('raise');
+      raiseWeapon(scene, b, 200);
+      rearBack(scene, b, h.angle, 14, 180);
+      // A tell on the BODY. Caught by smoke-readability on this move's first
+      // run — the same gap SABER THROW had, which is exactly why that check
+      // iterates the registry instead of naming moves.
+      squash(scene, b, 260, 0.16);
+      scene.events.emit('show-banner', 'SABER COMBO', '#ff6030');
+      // Short wind-up on purpose: this is his bread-and-butter, not an event.
+      // The reading that matters is the FINISHER, which telegraphs separately.
+      h.tel = scene.spawnTelegraph({
+        kind: 'cone', x: b.x, y: b.y, angle: h.angle,
+        len: this.reach, spreadDeg: this.arcDeg,
+      }, { windupMs: this.anticipateMs, owner: b, color: 0xff5030 });
+    },
+
+    act(scene, b, h) {
+      b.setMovePose?.('thrust');
+      h.swing = 0;
+      // Three quick swings, each stepping him in so a backpedal does not
+      // trivially outrun the combo, each mirrored against the last so the pair
+      // reads as a chain rather than one animation played three times.
+      h.swings = scene.time.addEvent({
+        delay: this.actMs / 3,
+        repeat: 2,
+        startAt: this.actMs / 3 - 1,
+        callback: () => {
+          if (!b.active || !b.alive) return;
+          const p = scene.player;
+          const a = Math.atan2(p.y - b.y, p.x - b.x);
+          h.swing += 1;
+          b._aim = a;
+          scene.fx?.bladeArc?.(b.x, b.y, a, 88, h.swing === 2 ? 2 : 1);
+          scene.fx?.shake?.(0.008, 90);
+          SFX.meleeSwing?.(h.swing);
+          // Step in along the swing — but never INTO them. Unclamped, three
+          // 26px steps walked him from standoff to zero and he finished the
+          // combo standing inside the player, which is the same overlap the
+          // stand-off range exists to prevent.
+          const gap = Math.hypot(p.x - b.x, p.y - b.y);
+          const step = Math.min(this.stepPx, Math.max(0, gap - this.minGapPx));
+          b.setPosition(b.x + Math.cos(a) * step, b.y + Math.sin(a) * step);
+          const half = (this.arcDeg * Math.PI) / 180 / 2;
+          const d = Math.hypot(p.x - b.x, p.y - b.y);
+          const off = Math.abs(Math.atan2(Math.sin(a - h.angle), Math.cos(a - h.angle)));
+          if (p.alive && d <= this.reach && off <= half + 0.35) {
+            p.damage(this.hitDamage, a);
+          }
+          h.angle = a;
+        },
+      });
+    },
+
+    // The finisher: a radial slam, which is the beat worth dodging and the one
+    // with a real punish window behind it.
+    impact(scene, b, h) {
+      h.swings?.remove(false);
+      dropWeapon(scene, b, 120);
+      const p = scene.player;
+      scene.fx?.slamShockwave?.(b.x, b.y, this.slamRadius);
+      scene.fx?.shake?.(0.03, 320);
+      SFX.meleeSlam?.();
+      if (p?.alive && Math.hypot(p.x - b.x, p.y - b.y) <= this.slamRadius) {
+        const a = Math.atan2(p.y - b.y, p.x - b.x);
+        p.damage(this.slamDamage, a);
+        p.body?.setVelocity(Math.cos(a) * this.slamKnockback, Math.sin(a) * this.slamKnockback);
+      }
+    },
+
+    recover(scene, b) { b.setMovePose?.('recoil'); stagger(scene, b, this.recoverMs, 1.8); },
+    onCancel(scene, b, h) { b.setMovePose?.(null); h?.swings?.remove(false); },
+  },
   {
     id: 'saberthrow',
     name: 'SABER THROW',
@@ -73,43 +171,87 @@ export const BOSS_MOVES = [
       };
       h.saberTo = to;
 
-      // Out, spinning, then back on a second path — two passes, one dodge each.
-      scene.tweens.add({
-        targets: w, x: to.x, y: to.y,
-        duration: this.actMs * 0.45, ease: 'Quad.easeOut',
-      });
+      // Spin for the whole flight — the one thing that WAS right about this.
       scene.tweens.add({
         targets: w, rotation: (w.rotation || 0) + Math.PI * 8,
         duration: this.actMs, ease: 'Linear',
       });
-      // THE RETURN USES THE LANE THAT IS ALREADY THERE.
+
+      // ── IT IS A BOOMERANG, SO IT FLIES BOTH WAYS ─────────────────────────
       //
-      // This used to spawn a SECOND telegraph at the saber's far end, angled
-      // 0.4rad off the outbound line — a red rectangle starting 657px from
-      // Vader, pointing at nothing he was near, while the first lane could
-      // still be on the floor. That is precisely the "two red trails" in the
-      // report, and under load the two overlapped often enough for the
-      // coherence check to catch it.
+      // The return used to be a tween to `b.x, b.y` CAPTURED AT SCHEDULE TIME,
+      // running the back half of the act beat — and `impact` then snapped the
+      // sprite into his hand the moment the beat ended. At ~20fps the coarse
+      // delayedCall lands late, impact wins the race, and the flight home never
+      // renders: "when it still spins it teleports back to Vader's hand, so not
+      // like a boomerang".
       //
-      // The saber now comes back down the same line it went out on. One zone,
-      // one dodge to learn, and the second pass is telegraphed by the object
-      // you can see travelling — which is a better read than a rectangle that
-      // appears in empty floor anyway.
-      scene.time.delayedCall(this.actMs * 0.5, () => {
-        if (!b.active || !b.alive || !w.active) return;
-        scene.fx?.impactRing?.(to.x, to.y, 0xff6040, 26);
-        scene.tweens.add({
-          targets: w, x: b.x, y: b.y,
-          duration: this.actMs * 0.5, ease: 'Quad.easeIn',
-        });
+      // Now it is integrated per frame, the way the cluster munitions in FX.js
+      // fly: the blade carries a velocity, and on the way back it steers toward
+      // where Vader ACTUALLY IS. He can walk while it is out and it still finds
+      // him, which is the whole appeal of the throw. Nothing snaps it — it
+      // arrives, and arriving is what ends the flight.
+      const OUT_SPEED = this.reach / (this.actMs * 0.00045);   // reach in 45% of act
+      h.blade = {
+        vx: Math.cos(h.angle) * OUT_SPEED,
+        vy: Math.sin(h.angle) * OUT_SPEED,
+        returning: false,
+        home: false,
+      };
+      h.fly = scene.time.addEvent({
+        delay: 16,
+        repeat: Math.floor(this.actMs / 16) + 40,   // room to finish the trip
+        callback: () => {
+          const s = h.blade;
+          if (!w.active || !b.active || s.home) return;
+          const dt = 0.016;
+
+          if (!s.returning) {
+            // Outbound: decelerate toward the far point, and turn around when
+            // it has run out of push. Deceleration is what sells the hang at
+            // the top of the arc.
+            w.x += s.vx * dt;
+            w.y += s.vy * dt;
+            s.vx *= 0.955;
+            s.vy *= 0.955;
+            if (Math.hypot(w.x - from.x, w.y - from.y) >= this.reach * 0.94
+                || Math.hypot(s.vx, s.vy) < OUT_SPEED * 0.25) {
+              s.returning = true;
+              scene.fx?.impactRing?.(w.x, w.y, 0xff6040, 26);
+              scene.fx?.burst?.(w.x, w.y, 'red', 8);
+            }
+          } else {
+            // Homing: accelerate along the bearing to his CURRENT position.
+            const a = Math.atan2(b.y - w.y, b.x - w.x);
+            const pull = 3400;
+            s.vx += Math.cos(a) * pull * dt;
+            s.vy += Math.sin(a) * pull * dt;
+            const sp = Math.hypot(s.vx, s.vy);
+            const cap = OUT_SPEED * 1.35;
+            if (sp > cap) { s.vx *= cap / sp; s.vy *= cap / sp; }
+            w.x += s.vx * dt;
+            w.y += s.vy * dt;
+            scene.fx?.trail?.(w.x, w.y);
+            if (Math.hypot(w.x - b.x, w.y - b.y) < 26) {
+              // Caught. THIS is what ends the flight, not the clock.
+              s.home = true;
+              b._saberAway = false;
+              b._noMelee = false;
+              scene.fx?.bladeArc?.(b.x, b.y, b._aim || 0, 80, 1);
+              scene.fx?.burst?.(b.x, b.y, 'yellow', 10);
+              dropWeapon(scene, b, 140);
+              h.fly?.remove(false);
+            }
+          }
+        },
       });
 
       // Damage on both passes, checked against the saber's live position.
       h.hitTimer = scene.time.addEvent({
         delay: 40,
-        repeat: Math.floor(this.actMs / 40) - 1,
+        repeat: Math.floor(this.actMs / 40) + 20,
         callback: () => {
-          if (!w.active || h.hitPlayer) return;
+          if (!w.active || h.hitPlayer || h.blade?.home) return;
           const p = scene.player;
           if (p?.alive && Math.hypot(p.x - w.x, p.y - w.y) < 52) {
             h.hitPlayer = true;
@@ -119,24 +261,27 @@ export const BOSS_MOVES = [
       });
     },
 
+    // IMPACT DOES NOT CATCH THE SABER. The blade's own flight decides when it
+    // is home, and it announces that itself — see `act`. All this beat does is
+    // stop the damage ticker; snapping the sprite here is exactly what made the
+    // return read as a teleport.
     impact(scene, b, h) {
       h.hitTimer?.remove(false);
-      b._saberAway = false;
-      b._noMelee = false;
-      const w = b.weaponSprite;
-      if (w?.active) { w.x = b.x; w.y = b.y; w.rotation = b._aim || 0; }
-      // Back to rest. This move raised the weapon and never lowered it, which
-      // is how the saber's scale compounded 35% per throw.
-      dropWeapon(scene, b, 140);
-      scene.fx?.bladeArc?.(b.x, b.y, b._aim || 0, 80, 1);   // the catch
     },
 
     // The longest window he has: he spent the whole flight without a weapon.
     recover(scene, b) { b.setMovePose?.('recoil'); stagger(scene, b, this.recoverMs, 2.0); },
-    onCancel(scene, b) {
+    onCancel(scene, b, h) {
+      // An interrupted throw must not strand the blade in mid-air: stop the
+      // flight and hand it straight back, because nothing else will now.
+      h?.fly?.remove(false);
+      h?.hitTimer?.remove(false);
+      if (h?.blade) h.blade.home = true;
       b._saberAway = false;
       b._noMelee = false;
       b.setMovePose?.(null);
+      const w = b.weaponSprite;
+      if (w?.active) { w.x = b.x; w.y = b.y; w.rotation = b._aim || 0; }
       dropWeapon(scene, b, 80);      // an interrupted throw must not keep the raise
     },
   },
@@ -150,6 +295,12 @@ export const BOSS_MOVES = [
     actMs: 900,
     recoverMs: 800,
     pullSpeed: 420,
+    // The telegraph is a CIRCLE at this radius: the drag reaches anywhere
+    // inside it, from any bearing.
+    pullRadius: 300,
+    // The cone is still the SWING that lands after the drag — a saber arc in
+    // front of him — which is genuinely directional. Two different things that
+    // were previously conflated into one wrong shape.
     coneDeg: 90,
     coneLen: 210,
     damage: 190,
@@ -160,25 +311,21 @@ export const BOSS_MOVES = [
       squash(scene, b, 400, 0.2);
       b.setMovePose?.('raise');
       scene.events.emit('show-banner', 'FORCE PULL', '#8060ff');
-      // THE ZONE THIS MOVE NEVER HAD. Measured on the rejected build: FORCE
-      // PULL put zero pixels on the floor, so with the wind-up also being
-      // overwritten every frame there was nothing at all to react to. "Vader
-      // does pull suddenly" was a precise description of a move that was, by
-      // construction, unannounced.
+      // A CIRCLE, because the pull comes from every direction.
       //
-      // A cone, because the pull IS directional — it drags you along his facing
-      // — and the cone's own fill sweep tells you when the grab lands.
+      // This drew a 90-degree cone while `act` dragged the player in from
+      // wherever they stood — the telegraph was describing a different move
+      // from the one that ran. "Force pull shouldn't just have quarter circle
+      // animation if it's pulling from anywhere, directionality doesn't make
+      // sense." The shape now matches the hit, which is the one property of
+      // this whole system that must never be false.
       h.tel = scene.spawnTelegraph({
-        kind: 'cone', x: b.x, y: b.y,
-        angle: Math.atan2(scene.player.y - b.y, scene.player.x - b.x),
-        len: this.coneLen, spreadDeg: this.coneDeg,
+        kind: 'circle', x: b.x, y: b.y, r: this.pullRadius,
       }, { windupMs: this.anticipateMs, owner: b, color: 0xa070ff });
-      // Motes dragged in toward him — the pull made visible before it is felt.
-      h.inhale = scene.time.addEvent({
-        delay: 60,
-        repeat: Math.floor(this.anticipateMs / 60),
-        callback: () => scene.fx?.inhale?.(b.x, b.y, 'blue', 3, 190),
-      });
+      // The vortex proper — spirals, a counter-rotating ring and a rising core.
+      // Not `inhale`: that is four motes on straight lines and this move is the
+      // one being judged on its effect.
+      h.vortex = scene.fx?.forceVortex?.(b, this.pullRadius, this.anticipateMs + this.actMs);
       h.ring = scene.add.graphics().setDepth(12);
       h.t = 0;
     },
@@ -211,7 +358,7 @@ export const BOSS_MOVES = [
 
     impact(scene, b, h) {
       h.pull?.remove(false);
-      h.inhale?.remove(false);
+      h.vortex?.stop?.();
       h.ring?.destroy();
       h.ring = null;
       // Then the swing that the pull set up.
@@ -227,13 +374,24 @@ export const BOSS_MOVES = [
     },
 
     recover(scene, b) { b.setMovePose?.('recoil'); stagger(scene, b, this.recoverMs, 1.6); },
-    onCancel(scene, b, h) { b.setMovePose?.(null); h?.pull?.remove(false); h?.inhale?.remove(false); h?.ring?.destroy(); },
+    onCancel(scene, b, h) {
+      b.setMovePose?.(null);
+      h?.pull?.remove(false);
+      h?.vortex?.stop?.();
+      h?.ring?.destroy();
+    },
   },
 
   {
     id: 'vanishslash',
     name: 'VANISH',
-    minPhase: 2,
+    // OFF THE ROTATION. `bossMovesFor` excludes anything flagged `reactive`;
+    // Boss.preUpdate casts this directly when the player bursts him down. It
+    // was on the rotation and appeared on a timer whether or not it made any
+    // sense — "he should use it when I give too much damage but not spam every
+    // time".
+    reactive: true,
+    minPhase: 1,
     everyMs: 10000,
     anticipateMs: 620,
     actMs: 700,
@@ -253,9 +411,18 @@ export const BOSS_MOVES = [
         x: Phaser.Math.Clamp(p.x + Math.cos(away) * 130, 90, scene.physics.world.bounds.width - 90),
         y: Phaser.Math.Clamp(p.y + Math.sin(away) * 130, 90, scene.physics.world.bounds.height - 90),
       };
+      // ANCHORED TO THE WORLD, not to him. This is a LANDING marker: it says
+      // "he will arrive here", so it has to stay put while he is elsewhere.
+      //
+      // Without the anchor it inherited the follow-the-caster behaviour added
+      // for every other zone, and the result was exactly the report: the marker
+      // trailed him through the wind-up, he teleported to the spot captured at
+      // cast time, and the still-live zone then snapped onto his new position —
+      // "another circle appears for a brief time and goes away". My regression;
+      // the anchor was in the plan and never applied.
       h.tel = scene.spawnTelegraph(
         { kind: 'circle', x: h.spot.x, y: h.spot.y, r: this.radius },
-        { windupMs: this.anticipateMs, owner: b },
+        { windupMs: this.anticipateMs, owner: b, anchor: 'world' },
       );
     },
 
@@ -280,7 +447,11 @@ export const BOSS_MOVES = [
   {
     id: 'forcepush',
     name: 'FORCE PUSH',
-    minPhase: 2,
+    // Phase 1. It used to be gated to phase 2, and with VANISH also gated the
+    // phase-1 pool was literally two moves — "there's only two moves I see more
+    // frequently than others". The pool is the variety; there is no reason to
+    // hold most of it back until he is already half dead.
+    minPhase: 1,
     everyMs: 12000,
     anticipateMs: 700,
     actMs: 400,
@@ -356,6 +527,7 @@ export const bossMoveById = (id) => BY_ID[id] || null;
  */
 export function bossMovesFor(phase = 1, encounter = 1) {
   return BOSS_MOVES
+    .filter((m) => !m.reactive && !m.close)
     .filter((m) => m.minPhase <= phase || encounter >= 3)
     .map((m) => m.id);
 }

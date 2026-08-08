@@ -1876,6 +1876,125 @@ export function attachFX(scene) {
       }
     },
 
+    // ── FORCE VORTEX ─────────────────────────────────────────────────────
+    //
+    // The wind-up for FORCE PULL, and the one effect in this file written to a
+    // brief rather than assembled from spare parts. The move was carrying a
+    // 90-degree cone outline and four motes on straight lines, against a
+    // verdict of "it should have a circle effect still purple but with some
+    // particles and good effect, do not be lazy and reuse everything".
+    //
+    // Four layers, following the same construction as `slamShockwave` above —
+    // which is the quality bar in this file and the reason that slam reads:
+    //
+    //   1. SPIRALS. Motes spawned on the rim and integrated inward with an
+    //      angular term, so they arc rather than fall straight in. This is the
+    //      part that says "vortex" instead of "things moving toward a point".
+    //   2. A counter-rotating inner ring, drawn dashed, spinning against the
+    //      spirals. Opposed motion is what makes a rotation legible at a
+    //      glance; two things turning the same way read as one thing.
+    //   3. A pulsing core that brightens as the pull tightens.
+    //   4. Floor scatter — dust lifted off the ground and dragged in, so the
+    //      effect belongs to the room rather than floating over it.
+    //
+    // Follows the caster: he can be shoved mid-cast and it stays on him.
+    // Returns a handle with `stop()` — the move owns it and must end it.
+    forceVortex(owner, radius = 300, durationMs = 1600, color = 0xa070ff) {
+      const g = scene.add.graphics().setDepth(13)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      const motes = [];
+      let t = 0;
+      let stopped = false;
+
+      const spawnMote = () => {
+        if (lowQuality) return;
+        const a = Math.random() * Math.PI * 2;
+        const r = radius * (0.72 + Math.random() * 0.3);
+        motes.push({ a, r, spin: 2.6 + Math.random() * 1.8, pull: 150 + Math.random() * 170 });
+      };
+
+      const ev = scene.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () => {
+          if (stopped || !g.active) return;
+          const dt = 0.016;
+          t += dt;
+          const cx = owner?.x ?? 0;
+          const cy = owner?.y ?? 0;
+          // Tightening: the closer to the strike, the faster everything turns.
+          const tighten = Math.min(1, t / (durationMs / 1000));
+
+          if (motes.length < 34) { spawnMote(); spawnMote(); }
+          g.clear();
+
+          // 1. the spiral arms
+          for (let i = motes.length - 1; i >= 0; i--) {
+            const m = motes[i];
+            m.a += m.spin * dt * (1 + tighten * 1.6);
+            m.r -= m.pull * dt * (1 + tighten);
+            if (m.r <= 12) { motes.splice(i, 1); continue; }
+            const px = cx + Math.cos(m.a) * m.r;
+            const py = cy + Math.sin(m.a) * m.r;
+            // A short streak along its own path, so each mote reads as moving.
+            const tx = cx + Math.cos(m.a - 0.16) * (m.r + 16);
+            const ty = cy + Math.sin(m.a - 0.16) * (m.r + 16);
+            const fade = 1 - m.r / radius;
+            g.lineStyle(2 + 2 * fade, color, 0.25 + 0.7 * fade);
+            g.beginPath();
+            g.moveTo(tx, ty);
+            g.lineTo(px, py);
+            g.strokePath();
+          }
+
+          // 2. counter-rotating dashed ring
+          const rr = radius * (0.5 - 0.16 * tighten);
+          const spin = -t * (2.2 + tighten * 3);
+          g.lineStyle(3, 0xd8b0ff, 0.5 + 0.3 * tighten);
+          for (let k = 0; k < 10; k++) {
+            const a0 = spin + (k / 10) * Math.PI * 2;
+            const a1 = a0 + 0.28;
+            g.beginPath();
+            g.moveTo(cx + Math.cos(a0) * rr, cy + Math.sin(a0) * rr);
+            for (let q = 1; q <= 4; q++) {
+              const aa = a0 + ((a1 - a0) * q) / 4;
+              g.lineTo(cx + Math.cos(aa) * rr, cy + Math.sin(aa) * rr);
+            }
+            g.strokePath();
+          }
+
+          // 3. the core, breathing
+          const core = 12 + 7 * Math.abs(Math.sin(t * 9));
+          g.fillStyle(0xe0c8ff, 0.30 + 0.4 * tighten);
+          g.fillCircle(cx, cy, core * (0.7 + tighten * 0.6));
+          g.lineStyle(2, 0xffffff, 0.5 + 0.4 * tighten);
+          g.strokeCircle(cx, cy, core * 1.7);
+
+          // 4. floor scatter dragged off the ground
+          if (Math.random() < 0.35) {
+            const a = Math.random() * Math.PI * 2;
+            this.dustPuff(cx + Math.cos(a) * radius * 0.8, cy + Math.sin(a) * radius * 0.8);
+          }
+        },
+      });
+
+      return {
+        stop() {
+          if (stopped) return;
+          stopped = true;
+          ev.remove(false);
+          // Collapse: everything left snaps to the middle and flashes out.
+          const cx = owner?.x ?? 0;
+          const cy = owner?.y ?? 0;
+          scene.tweens.add({
+            targets: g, alpha: 0, duration: 180, ease: 'Quad.easeIn',
+            onComplete: () => g.destroy(),
+          });
+          scene.fx?.impactRing?.(cx, cy, 0xc0a0ff, 14);
+        },
+      };
+    },
+
     // A fading shockwave ring visual at the impact point of a bullet.
     // `depth` is for rings drawn at altitude, which must clear the Y-sorted
     // ground layer — see the DEPTH comment in config.js.

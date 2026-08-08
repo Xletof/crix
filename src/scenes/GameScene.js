@@ -2030,8 +2030,38 @@ export class GameScene extends Phaser.Scene {
         len: BOSS.chargeSpeed * (BOSS.chargeDurationMs / 1000) * 0.8, width: 170,
       }, { windupMs: ms, owner: b });
     });
-    this._on('boss-fan',          (b, a)  => this.fireBossFan(b, a));
     this._on('boss-spawn',        ()      => this.bossSpawnMinions());
+    // VANISH is a REACTION now, not a rotation entry: Boss.preUpdate raises
+    // this the moment the player has taken a big bite out of him inside a short
+    // window. Cast directly rather than going through the rotation so it can
+    // pre-empt whatever he was about to do — it is an escape.
+    this._on('boss-wants-vanish', (b) => this._castBossMove(b, 'vanishslash'));
+    // The close-range default. Same cast path, so it inherits the ownership
+    // gate and cannot run on top of anything else.
+    this._on('boss-wants-combo',  (b) => this._castBossMove(b, 'sabercombo'));
+
+    // ── The charge's slam ────────────────────────────────────────────────
+    // Windup paints the zone at the spot the rush actually stopped; the strike
+    // resolves against that same zone a beat later. Two events rather than one
+    // so the player gets a chance to leave.
+    this._on('boss-slam-windup', (b, ms, radius) => {
+      this.spawnTelegraph(
+        { kind: 'circle', x: b.x, y: b.y, r: radius },
+        { windupMs: ms, owner: b, anchor: 'world', color: 0xff6030 },
+      );
+      this.events.emit('show-banner', 'SLAM', '#ff6030');
+    });
+    this._on('boss-slam', (b, at, radius) => {
+      const p = this.player;
+      const spot = at || { x: b.x, y: b.y };
+      this.fx?.slamShockwave?.(spot.x, spot.y, radius);
+      this.fx?.shake?.(0.034, 380);
+      if (p?.alive && Math.hypot(p.x - spot.x, p.y - spot.y) <= radius) {
+        const a = Math.atan2(p.y - spot.y, p.x - spot.x);
+        p.damage(BOSS.slamDamage, a);
+        p.body?.setVelocity(Math.cos(a) * BOSS.slamKnockback, Math.sin(a) * BOSS.slamKnockback);
+      }
+    });
 
     // ── Vader's later mechanics ────────────────────────────────────────────
     // Each is a brief, readable event rather than a stat change, and each is
@@ -3038,20 +3068,6 @@ export class GameScene extends Phaser.Scene {
       shooter.cfg.bulletSpeed, shooter.cfg.bulletDamage, shooter.cfg.bulletRange,
       { owner: 'enemy' });
     SFX.enemyShoot();
-  }
-
-  fireBossFan(boss, angle) {
-    const spread = Phaser.Math.DegToRad(BOSS.fanSpreadDeg);
-    const half   = (BOSS.fanPellets - 1) / 2;
-    for (let i = 0; i < BOSS.fanPellets; i++) {
-      const a  = angle + (i - half) * (spread / Math.max(1, BOSS.fanPellets - 1));
-      const bx = boss.x + Math.cos(a) * (boss.cfg.radius + 6);
-      const by = boss.y + Math.sin(a) * (boss.cfg.radius + 6);
-      this.enemyBullets.fire(bx, by, a,
-        BOSS.fanBulletSpeed, BOSS.fanBulletDamage, BOSS.fanBulletRange, { owner: 'boss' });
-    }
-    SFX.enemyShoot();
-    SFX.bossRoar();
   }
 
   bossSpawnMinions() {

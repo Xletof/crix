@@ -286,6 +286,175 @@ r.coherence = await page.evaluate(async () => {
   return log;
 });
 
+
+// ── 5. THE FIGHT ITSELF: what round two was rejected for ─────────────────
+//
+// Each of these is a line from the player's report turned into a number.
+r.fight = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const b = gs.boss;
+  const out = {};
+
+  // (a) HE STOPS AT SABER RANGE. He used to drive at the player every frame
+  // with no arrival condition, so on reaching them he ground against their
+  // collision box — "he comes and pathfinder gets fucked, he spins left right
+  // on my position". Measured as how close he gets to a stationary player.
+  b._activeMove?.cancel?.(); b._activeMove = null; b._performing = false;
+  b.state = 'idle'; b.cooldown = 1e9;
+  gs.clearTelegraphs();
+  gs.player.alive = true;
+  gs.player.hp = gs.player.hpMax;
+  gs.player.setPosition(b.x - 520, b.y);
+  // WHERE HE SETTLES, not the smallest number seen.
+  //
+  // Two things pollute an instantaneous minimum and both are moves behaving
+  // correctly: FORCE PULL drags the player onto him on purpose, and the frame
+  // right after any move ends inherits wherever that move left him. The report
+  // is about where he SITS — "he comes and spins left right on my position" —
+  // so the median of his resting distance is the honest statistic, and it also
+  // cannot be fooled by one frame.
+  const rest = [];
+  let settleMs = 0;
+  const onApproach = () => {
+    gs.player.body?.setVelocity(0, 0);
+    if (b._performing) { settleMs = 0; return; }
+    // Count FRAMES, not assumed milliseconds. The first version added 16ms a
+    // frame and waited for 400 — but this harness runs at ~50ms/frame, so that
+    // was really asking for 25 consecutive idle frames, which between his combo
+    // clock and his rotation clock never happens. Zero samples collected, and a
+    // check that cannot gather data is not a check.
+    settleMs += 1;
+    if (settleMs < 5) return;            // a few frames to re-establish range
+    rest.push(Math.hypot(gs.player.x - b.x, gs.player.y - b.y));
+  };
+  gs.events.on('postupdate', onApproach);
+  for (let i = 0; i < 60; i++) {
+    gs.player.hp = gs.player.hpMax;
+    await new Promise((res) => setTimeout(res, 100));
+  }
+  gs.events.off('postupdate', onApproach);
+  rest.sort((a, z) => a - z);
+  out.closest = rest.length ? Math.round(rest[Math.floor(rest.length / 2)]) : -1;
+  out.restSamples = rest.length;
+
+  // (b) A SUPER DOES NOT MOVE HIM. "He gets thrown far... it can get buggy if
+  // I hit him with super when he's doing a move."
+  // Hit him MID-MOVE, which is the case that was reported and the only case
+  // where it shows. Idle, his own AI rewrites his velocity every frame and
+  // swallows the knockback; while a move owns him the AI has yielded, so the
+  // shove survives and drags him off his own telegraph.
+  b._activeMove?.cancel?.(); b._activeMove = null; b._performing = false;
+  b.state = 'idle'; b.cooldown = 1e9;
+  b.body?.setVelocity(0, 0);
+  let mh = null;
+  for (let a = 0; a < 8 && !mh; a++) {
+    b.state = 'idle'; b._performing = false; b._activeMove = null;
+    mh = gs._castBossMove(b, 'saberthrow');
+    if (!mh) await new Promise((res) => setTimeout(res, 80));
+  }
+  await new Promise((res) => setTimeout(res, 160));
+  // Measure the VELOCITY the hits impart, not the distance he ends up from
+  // where he started. Knockback works by adding to `body.velocity`, while a
+  // wind-up legitimately TWEENS his position — SABER THROW's rear-back alone
+  // is 24px — so a position delta cannot tell the two apart and read 13px on a
+  // build where the knockback was already gone.
+  let peakSpeed = 0;
+  const onShove = () => {
+    peakSpeed = Math.max(peakSpeed, Math.hypot(b.body?.velocity.x || 0, b.body?.velocity.y || 0));
+  };
+  gs.events.on('postupdate', onShove);
+  for (let i = 0; i < 5; i++) b.damage(400, { x: 900, y: 400 });
+  await new Promise((res) => setTimeout(res, 400));
+  gs.events.off('postupdate', onShove);
+  out.shoved = Math.round(peakSpeed);
+  out.shovedDuringMove = !!(b._performing || mh);
+  b._activeMove?.cancel?.(); b._activeMove = null; b._performing = false;
+
+  return out;
+});
+
+// ── 6. THE SABER COMES BACK, IT DOES NOT TELEPORT ────────────────────────
+r.boomerang = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const b = gs.boss;
+  const out2 = {};
+  b._activeMove?.cancel?.(); b._activeMove = null; b._performing = false;
+  b.state = 'idle'; b.cooldown = 1e9;
+  gs.player.alive = true;
+  gs.player.setPosition(b.x - 300, b.y);
+  await new Promise((res) => setTimeout(res, 150));
+
+  const w = b.weaponSprite;
+  let last = null;
+  let maxJump = 0;
+  let peak = 0;
+  let returned = false;
+  const samples = [];
+  const afterMove = [];
+  const onFrame = () => {
+    if (out2.movedTo && w?.active) afterMove.push(Math.hypot(w.x - b.x, w.y - b.y));
+    if (!w?.active) return;
+    const d = Math.hypot(w.x - b.x, w.y - b.y);
+    samples.push(Math.round(d));
+    peak = Math.max(peak, d);
+    if (last !== null && peak > 200) {
+      // Only care about jumps on the way HOME — a teleport back shows up as one
+      // enormous single-frame decrease.
+      const jump = last - d;
+      if (jump > 0) maxJump = Math.max(maxJump, jump);
+    }
+    if (peak > 200 && d < 40) returned = true;
+    last = d;
+  };
+  gs.events.on('postupdate', onFrame);
+  let h = null;
+  for (let a = 0; a < 8 && !h; a++) {
+    b.state = 'idle'; b._performing = false; b._activeMove = null;
+    h = gs._castBossMove(b, 'saberthrow');
+    if (!h) await new Promise((res) => setTimeout(res, 80));
+  }
+  // MOVE HIM WHILE IT IS OUT. This is what separates a boomerang from a
+  // scripted round trip: the old return was a tween to the coordinates he
+  // occupied when it was scheduled, so walking away left the blade flying to
+  // an empty patch of floor and then snapping into his hand from there.
+  // Displace him AFTER the return would have been scheduled. The old code
+  // captured his coordinates at that moment (actMs*0.5 into the act beat,
+  // ~1450ms after the cast); moving him before that let the stale capture
+  // happen to be correct, and the check passed on the build it was written to
+  // catch. Late enough, and the old blade flies to an empty patch of floor.
+  await new Promise((res) => setTimeout(res, 1750));
+  b.setPosition(b.x, b.y - 220);
+  out2.movedTo = { x: Math.round(b.x), y: Math.round(b.y) };
+  for (let i = 0; i < 90 && !returned; i++) await new Promise((res) => setTimeout(res, 50));
+  gs.events.off('postupdate', onFrame);
+  b._activeMove?.cancel?.(); b._activeMove = null; b._performing = false;
+  // COUNT THE FRAMES ON THE RETURN LEG, do not threshold the pixels.
+  //
+  // The first version asserted "no single-frame jump bigger than 90px", which
+  // measures the HARNESS: the blade legitimately travels up to ~1240px/s, and
+  // at this frame rate one honest frame of flight is 60-120px. It failed two
+  // runs in three for being a slow machine.
+  //
+  // A teleport has one unmistakable signature regardless of frame rate: the
+  // return happens in a single frame. So count the samples between the far
+  // point and the catch. A flight has many; a snap has none.
+  const peakIdx = samples.indexOf(Math.max(...samples));
+  const legFrames = samples.slice(peakIdx).filter((d) => d > 45).length;
+  // Does it CLOSE on him after he moves? The old return was a tween to the
+  // coordinates he occupied when it was scheduled, so once he stepped away the
+  // blade kept flying to an empty patch of floor and hung there at roughly the
+  // displacement distance until `impact` snapped it into his hand. Counting
+  // frames spent far from him after the displacement separates the two: a
+  // homing blade closes, a stale tween loiters.
+  const loiter = afterMove.filter((d) => d > 150).length;
+  return {
+    ...out2,
+    loiter, afterMoveFrames: afterMove.length,
+    peak: Math.round(peak), legFrames, returned, frames: samples.length,
+    finalGap: Math.round(Math.hypot((w?.x ?? 0) - b.x, (w?.y ?? 0) - b.y)),
+  };
+});
+
 await browser.close();
 
 // ── Reporting ────────────────────────────────────────────────────────────
@@ -325,6 +494,24 @@ check(r.coherence.moveWhileAttacking === 0,
   'and his own state machine never attacks underneath a scripted move',
   `${r.coherence.moveWhileAttacking} frames of both at once`);
 check(pageErrors.length === 0, 'no exception across the run', pageErrors.slice(0, 2).join(' | '));
+
+
+// ── The fight, per this round's report ───────────────────────────────────
+check(r.fight.closest > 60,
+  'he SETTLES at saber range instead of standing on you',
+  `resting distance ${r.fight.closest}px across ${r.fight.restSamples} samples — he used to drive at the player every frame with no arrival condition, grinding on their collision box`);
+check(r.fight.shoved <= 30,
+  'a super does NOT shove him, even mid-move',
+  `peak ${r.fight.shoved}px/s under five knockback hits while a move owned him — any displacement drags him off a telegraph he is the origin of`);
+check(r.boomerang.peak > 300,
+  'the thrown saber really leaves his hand',
+  `${r.boomerang.peak}px`);
+check(r.boomerang.returned && r.boomerang.loiter <= 3,
+  'and comes back to his hand EVEN AFTER HE MOVES',
+  `spent ${r.boomerang.loiter} of ${r.boomerang.afterMoveFrames} frames still >150px away after he was displaced 220px mid-flight — a stale tween loiters at the old spot and is then snapped home`);
+check(r.boomerang.legFrames >= 4,
+  'and FLIES home rather than teleporting',
+  `${r.boomerang.legFrames} frames of travel between the far point and the catch — a teleport does it in one, whatever the frame rate`);
 
 for (const c of checks) {
   console.log(`  ${c.ok ? 'ok  ' : 'FAIL'}  ${c.label}${c.ok || !c.detail ? '' : ' — ' + c.detail}`);

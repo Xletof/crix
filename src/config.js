@@ -352,12 +352,33 @@ export const BOSS = {
   chargeWindupMs: 700,
   chargeSpeed: 950,
   chargeDurationMs: 900,
-  fanPellets: 11,
-  fanSpreadDeg: 70,
   fanBulletSpeed: 380,
   fanBulletDamage: 180,
   fanBulletRange: 720,
   spawnCount: 3,
+
+  // How close he gets before he stops walking and starts swinging.
+  //
+  // He had no arrival condition at all: IDLE drove him at the player every
+  // frame, so on reaching them he tried to occupy their pixel and arcade
+  // physics jittered him left and right across their body — reported as the
+  // pathfinding breaking when you stand still. It was never pathfinding.
+  // This is also the reach his SABER COMBO opens from, so arriving means
+  // attacking rather than shoving.
+  standoffPx: 108,
+  // How often the close-range SABER COMBO comes round while he is at standoff.
+  comboEveryMs: 3200,
+
+  // ── The charge's second beat ──────────────────────────────────────────
+  // The rush no longer just runs past: wherever it stops — timeout, wall or
+  // contact — he plants and brings the saber down. One attack that escalates,
+  // rather than a charge and a separate dash-slam that would read as two very
+  // similar rushes in the same pool.
+  slamWindupMs: 520,
+  slamRadius: 210,
+  slamDamage: 300,
+  slamKnockback: 700,
+  slamRecoverMs: 900,
   // 1100, down from 1600. See the note on `_moveEvery` in GameScene: a scripted
   // move now locks out his state machine for its full duration, so his stock
   // attacks have to come round faster to fill the gaps between them.
@@ -925,6 +946,17 @@ export const ENDLESS = {
     afterimageEveryMs: 13000,
     afterimageCount: 3,
     disarmEveryMs: 15000,
+
+    // VANISH is a REACTION, not a rotation entry. It fires when the player
+    // takes this share of his max hp off him inside the window below, then
+    // locks out so it cannot chain — "he should use it when I give too much
+    // damage but not spam every time".
+    //
+    // A fraction of hpMax rather than a flat number, so it behaves the same on
+    // encounter 1 and on a late Vader with several times the health.
+    vanishHpFrac: 0.10,
+    vanishWindowMs: 2000,
+    vanishLockMs: 14000,
   },
 };
 
