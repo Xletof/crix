@@ -71,10 +71,19 @@ const r = {};
 // Registry-level on purpose: a per-move check can be forgotten when a fifth
 // move is added, and forgetting is exactly what happened to FORCE PULL and
 // FORCE PUSH. This iterates the registry, so a new move cannot dodge it.
+// PER-MOVE MEASUREMENTS SILENCE HIS ATTACK CLOCK. This is the allowed half of
+// the rule: stabilise a measurement by silencing a clock if you must, then run
+// one pass with NOTHING silenced and assert the fight is still coherent. Check 4
+// is that pass, and it sets his cooldown back to zero.
+//
+// Without it he re-enters a charge on the frame after being handed back to idle,
+// `_castBossMove` correctly refuses, and every probe reads zero — which fails
+// one check and passes another vacuously.
 r.zones = await page.evaluate(async () => {
   const { BOSS_MOVES } = await import('/src/data/bossMoves.js');
   const gs = window.game.scene.getScene('Game');
   const b = gs.boss;
+  b.cooldown = 1e9;
   const out = [];
   for (const m of BOSS_MOVES) {
     b._activeMove?.cancel?.();
@@ -87,7 +96,26 @@ r.zones = await page.evaluate(async () => {
     gs.player.setPosition(b.x - 210, b.y);
     await new Promise((res) => setTimeout(res, 150));
 
-    const h = gs._castBossMove(b, m.id);
+    let h = null;
+    let why = '';
+    for (let a = 0; a < 12 && !h; a++) {
+      // Re-establish EVERY precondition each attempt, and record which one was
+      // false when it still refused — a silent refusal is what makes this whole
+      // measurement lie, so it reports itself rather than vanishing into a zero.
+      b._activeMove?.cancel?.();
+      b._activeMove = null;
+      b._performing = false;
+      b.state = 'idle';
+      b.cooldown = 1e9;
+      gs.player.alive = true;
+      gs.player.hp = gs.player.hpMax;
+      h = gs._castBossMove(b, m.id);
+      if (!h) {
+        why = `state=${b.state} performing=${b._performing} active=${!!b._activeMove} `
+          + `playerAlive=${gs.player.alive} bossAlive=${b.alive}`;
+        await new Promise((res) => setTimeout(res, 80));
+      }
+    }
     // Sample every frame through the ANTICIPATE beat: a zone that only appears
     // at the moment of damage is not a telegraph.
     let zonesDuringWindup = 0;
@@ -102,7 +130,7 @@ r.zones = await page.evaluate(async () => {
       await new Promise((res) => setTimeout(res, 40));
     }
     gs.events.off('postupdate', onFrame);
-    out.push({ id: m.id, cast: !!h, zonesDuringWindup, maxConcurrent });
+    out.push({ id: m.id, cast: !!h, why, zonesDuringWindup, maxConcurrent });
     b._activeMove?.cancel?.();
     b._activeMove = null;
     b._performing = false;
@@ -120,20 +148,55 @@ r.windup = await page.evaluate(async () => {
   const { BOSS_MOVES } = await import('/src/data/bossMoves.js');
   const gs = window.game.scene.getScene('Game');
   const b = gs.boss;
+  b.cooldown = 1e9;
   const out = [];
   for (const m of BOSS_MOVES) {
     b._activeMove?.cancel?.();
     b._activeMove = null;
     b._performing = false;
     b.state = 'idle';
+    // Clear the PREVIOUS move's leftovers before measuring this one. VANISH
+    // tweens him to zero scale and back; cancelling stops its timers but not
+    // its tweens, so the next move's baseline was sometimes captured mid-fade
+    // and its squash measured as no change at all. Isolating from the last
+    // move is fair; isolating from the system under test is not.
+    gs.tweens.killTweensOf(b);
+    b.setScale(1);
+    b.setAlpha(1);
     gs.player.alive = true;
     gs.player.hp = gs.player.hpMax;
     gs.player.setPosition(b.x - 260, b.y);
-    await new Promise((res) => setTimeout(res, 200));
+    await new Promise((res) => setTimeout(res, 250));
 
     const start = { x: b.x, y: b.y, sx: b.scaleX, sy: b.scaleY };
     const peak = { speed: 0, drift: 0, bodyChange: 0 };
-    const h = gs._castBossMove(b, m.id);
+    // RETRY THE CAST. His cooldown is deliberately NOT silenced here, so during
+    // the settle above he can enter a charge — and `_castBossMove` correctly
+    // refuses while his own state machine is busy. A refused cast returns null,
+    // every probe then reads zero, and the result is indistinguishable from "the
+    // move did nothing": bodyChange 0 AND speed 0, so one check fails and the
+    // other passes vacuously. That is the exact false-pass shape this file
+    // exists to prevent, so it is asserted rather than smoothed over.
+    let h = null;
+    let why = '';
+    for (let a = 0; a < 12 && !h; a++) {
+      // Re-establish EVERY precondition each attempt, and record which one was
+      // false when it still refused — a silent refusal is what makes this whole
+      // measurement lie, so it reports itself rather than vanishing into a zero.
+      b._activeMove?.cancel?.();
+      b._activeMove = null;
+      b._performing = false;
+      b.state = 'idle';
+      b.cooldown = 1e9;
+      gs.player.alive = true;
+      gs.player.hp = gs.player.hpMax;
+      h = gs._castBossMove(b, m.id);
+      if (!h) {
+        why = `state=${b.state} performing=${b._performing} active=${!!b._activeMove} `
+          + `playerAlive=${gs.player.alive} bossAlive=${b.alive}`;
+        await new Promise((res) => setTimeout(res, 80));
+      }
+    }
     const onFrame = () => {
       if (!h || h.phase !== 'anticipate') return;
       peak.speed = Math.max(peak.speed, Math.hypot(b.body?.velocity.x || 0, b.body?.velocity.y || 0));
@@ -148,6 +211,8 @@ r.windup = await page.evaluate(async () => {
     gs.events.off('postupdate', onFrame);
     out.push({
       id: m.id,
+      cast: !!h,
+      why,
       speed: Math.round(peak.speed),
       drift: Math.round(peak.drift),
       bodyChange: +peak.bodyChange.toFixed(3),
@@ -167,6 +232,7 @@ r.tracking = await page.evaluate(async () => {
   b._activeMove = null;
   b._performing = false;
   b.state = 'idle';
+  b.cooldown = 1e9;
   gs.clearTelegraphs();
   gs.player.setPosition(b.x - 240, b.y);
   gs.player.alive = true;
@@ -232,6 +298,10 @@ check(doubled.length === 0,
   'and never more than ONE zone per attack',
   `${doubled.map((z) => `${z.id} x${z.maxConcurrent}`).join(', ')} — "there can be two red trails"`);
 
+const refused = r.windup.filter((w) => !w.cast).concat(r.zones.filter((z) => !z.cast));
+check(refused.length === 0,
+  'every move under test actually RAN',
+  `${refused.map((w) => `${w.id} (${w.why})`).join(', ')} were refused — a refused cast reads as zero on every probe, which is a false pass wearing a real one's clothes`);
 const walking = r.windup.filter((w) => w.speed > 40 || w.drift > 40);
 check(walking.length === 0,
   'he is PLANTED through his wind-up, not walking through it',

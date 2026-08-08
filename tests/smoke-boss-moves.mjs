@@ -88,6 +88,12 @@ const runMove = async (id) => page.evaluate(async (moveId) => {
     await new Promise((res) => setTimeout(res, 50));
   }
   b._activeMove = null;
+  b._performing = false;
+  // `_castBossMove` now refuses while his OWN state machine is mid-attack —
+  // one attack at a time from either system, which is the fix for the two
+  // zones on the floor. A test that wants a specific move has to hand him back
+  // to idle first, or it is asking him to interrupt himself.
+  b.state = 'idle';
 
   gs.player.alive = true;
   gs.player.hp = gs.player.hpMax;
@@ -142,8 +148,11 @@ r.cancelSweep = await page.evaluate(async () => {
   const b = gs.boss;
   gs.clearTelegraphs();
   b._activeMove = null;
+  b._performing = false;
+  b.state = 'idle';
   gs.player.alive = true;
   const h = gs._castBossMove(b, 'saberthrow');
+  if (!h) return { during: -1, after: -1 };
   await new Promise((res) => setTimeout(res, 200));
   const live = () => gs._telegraphs.filter((t) => !t.dead && t.gfx?.active).length;
   const during = live();
@@ -178,6 +187,8 @@ r.clones = await page.evaluate(async () => {
   const b = gs.boss;
   b._moveIds = [];                       // he stays put for this
   b._activeMove = null;
+  b._performing = false;
+  b.state = 'idle';
   b.cooldown = 1e9;
   gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
   await new Promise((res) => setTimeout(res, 250));
