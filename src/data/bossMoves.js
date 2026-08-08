@@ -44,6 +44,12 @@ export const BOSS_MOVES = [
       b.body?.setVelocity(0, 0);
       raiseWeapon(scene, b, 300);
       rearBack(scene, b, h.angle, 24, 300);
+      // A tell on the BODY, not just on the weapon. Caught by
+      // smoke-readability: this move's only anticipation was a weapon raise and
+      // a 24px lean, so at a glance — on a phone, mid-fight — Vader simply
+      // stood there and then a saber was in the air.
+      squash(scene, b, 380, 0.22);
+      scene.fx?.inhale?.(b.x, b.y, 'red', 4, 170);
       h.tel = scene.spawnTelegraph({
         kind: 'lane', x: b.x, y: b.y, angle: h.angle,
         len: this.reach, width: this.laneWidth,
