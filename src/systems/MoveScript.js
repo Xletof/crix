@@ -58,17 +58,7 @@ export function runMove(scene, actor, script) {
     handle.cancelled = true;
     handle.timers.forEach((t) => t?.remove?.(false));
     handle.timers.length = 0;
-    // Sweep anything the move parked on its own handle — telegraphs, rings,
-    // graphics. Cancelling used to stop only the TIMERS, so an interrupted move
-    // left its zone painted on the floor, still filling and still flashing on
-    // its original schedule. A telegraph that outlives the attack it belongs to
-    // is worse than no telegraph: it marks danger where there is none, and the
-    // whole point of the shape is that what is drawn and what hurts you cannot
-    // drift apart. Caught by a screenshot, not by a check.
-    for (const v of Object.values(handle)) {
-      if (v && v !== handle && typeof v.destroy === 'function') v.destroy();
-    }
-    script.onCancel?.(scene, actor, handle);
+    script.onCancel?.(scene, actor);
   };
   // A move must not outlive its performer: killing a nemesis mid-charge should
   // stop the charge, not have a corpse finish it.

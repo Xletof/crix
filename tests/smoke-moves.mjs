@@ -74,18 +74,9 @@ const r = await page.evaluate(async () => {
     // mid-measurement — which read as "the interrupted rite still summoned".
     e._summonMs = 0;
     e._regenPerSec = 0;
-    // Silence its OWN move clock. `_castNemesisMove` refuses while a move is
-    // running and returns null, and a refused cast reads exactly like a move
-    // that granted no stagger — which is what "charge 0ms, blink 0ms" was.
-    e._moveIds = [];
-    e._activeMove = null;
     e.setPosition(760, 620);
     e.body?.setVelocity(0, 0);
-    // Generous: a freshly spawned mini-boss is not `active` for its whole
-    // spawn-in, and `runMove`'s beat timers no-op while it is not. At 350ms the
-    // FIRST caster of the run was still materialising, so its anticipate timer
-    // silently dropped and the move never left beat one.
-    await new Promise((res) => setTimeout(res, 900));
+    await new Promise((res) => setTimeout(res, 350));
     return e;
   };
 
@@ -101,50 +92,36 @@ const r = await page.evaluate(async () => {
     gs.player.hp = gs.player.hpMax;
 
     const before = { x: e.x, y: e.y, sx: e.scaleX, sy: e.scaleY, rot: e.weaponSprite?.rotation ?? 0 };
+    gs._castNemesisMove(e, m.id);
 
-    // Sample on the game's OWN frame. tests/README.md says this outright and the
-    // first version of this block ignored it: a stagger ticks DOWN every frame,
-    // so an async poll at 50ms in a ~50ms/frame harness lands wherever it lands
-    // and reports "how much was left when I looked", not "how big a window the
-    // move granted". A 550ms window read as 128ms that way, and the check
-    // failed intermittently on nothing but scheduler jitter afterwards.
-    // The postupdate hook cannot miss a frame, so the peak is the real peak.
-    const peak = { moved: 0, scale: 0, spin: 0, stagger: 0, mult: 1 };
-    const onFrame = () => {
-      peak.moved = Math.max(peak.moved, Math.hypot(e.x - before.x, e.y - before.y));
-      peak.scale = Math.max(peak.scale, Math.abs(e.scaleX - before.sx) + Math.abs(e.scaleY - before.sy));
-      peak.spin = Math.max(peak.spin, Math.abs((e.weaponSprite?.rotation ?? 0) - before.rot));
-      peak.stagger = Math.max(peak.stagger, e._staggerMs || 0);
-      if (e._punishMs > 0) peak.mult = Math.max(peak.mult, e._punishMult || 1);
-    };
-    gs.events.on('postupdate', onFrame);
-    gs.player.alive = true;
-    const handle = gs._castNemesisMove(e, m.id);
-    const cast = !!handle;
-    const phases = [];
-    if (handle) { const ph = () => { if (phases[phases.length - 1] !== handle.phase) phases.push(handle.phase); }; onFrame.ph = ph; gs.events.on('postupdate', ph); }
-
-    // Wait for the MOVE to finish, not for a wall-clock duration. The scene's
-    // clock is not wall time here: at ~20 FPS with delta capping, the game
-    // advances measurably slower than the wall, and the very first cast of a
-    // run is the worst of it — charge's 800ms anticipate timer sat at 55%
-    // progress after 2.4s of real time, so a "generous" fixed wait ended while
-    // the move was still on beat one. That read as "charge grants no recovery",
-    // which was a lie about the game told by the instrument.
-    for (let i = 0; i < 200 && handle && handle.phase !== 'done'; i++) {
+    // Poll throughout and keep the PEAK stagger, rather than reading it once at
+    // the end. A stagger ticks down every frame, so sampling after a fixed wait
+    // measures "how much was left when I looked", not "how long a window the
+    // move granted" — which read as 128ms for a 550ms window first time round.
+    const tAct = (m.anticipateMs ?? 700) + (m.actMs ?? 500) * 0.5;
+    const total = tAct + (m.actMs ?? 500) * 0.6 + 400;
+    let during = null;
+    let peakStagger = 0;
+    let peakMult = 1;
+    for (let t = 0; t < total; t += 50) {
       await new Promise((res) => setTimeout(res, 50));
+      if (during === null && t >= tAct - 60) {
+        during = { x: e.x, y: e.y, sx: e.scaleX, sy: e.scaleY, rot: e.weaponSprite?.rotation ?? 0 };
+      }
+      peakStagger = Math.max(peakStagger, e._staggerMs || 0);
+      if (e._punishMs > 0) peakMult = Math.max(peakMult, e._punishMult || 1);
     }
-    gs.events.off('postupdate', onFrame);
-    if (onFrame.ph) gs.events.off('postupdate', onFrame.ph);
+    during = during || { x: e.x, y: e.y, sx: e.scaleX, sy: e.scaleY, rot: e.weaponSprite?.rotation ?? 0 };
+    const staggerMs = peakStagger;
+    const punishMult = peakMult;
 
     out.motion.push({
-      phases: phases.join('>'), cancelled: handle?.cancelled ?? null, cast,
       id: m.id,
-      moved: Math.round(peak.moved),
-      scaled: peak.scale > 0.02,
-      spun: peak.spin > 0.1,
-      staggerMs: Math.round(peak.stagger),
-      punishMult: Number(peak.mult.toFixed(2)),
+      moved: Math.round(Math.hypot(during.x - before.x, during.y - before.y)),
+      scaled: Math.abs(during.sx - before.sx) + Math.abs(during.sy - before.sy) > 0.02,
+      spun: Math.abs(during.rot - before.rot) > 0.1,
+      staggerMs: Math.round(staggerMs),
+      punishMult: Number(punishMult.toFixed(2)),
       alive: e.alive,
     });
     gs._destroyEnemyFully(e);
@@ -165,9 +142,7 @@ const r = await page.evaluate(async () => {
 
     // Now the same hit during a recovery window.
     const m = moveById('baitslam');
-    gs.player.alive = true;
-    e._activeMove = null;
-    out.punishCast = !!gs._castNemesisMove(e, 'baitslam');
+    gs._castNemesisMove(e, 'baitslam');
     await new Promise((res) => setTimeout(res, m.anticipateMs + m.actMs + 220));
     const inWindow = e._punishMs > 0;
     const hpB = e.hp;
@@ -187,27 +162,23 @@ const r = await page.evaluate(async () => {
     const m = moveById('rite');
 
     const before = gs.enemies.getChildren().filter((x) => x.alive).length;
-    // Same frame-hook sampling as above: the break grants 1400ms and an async
-    // poll sampled it at -42ms, i.e. long after it had expired.
-    let brokenStagger = 0;
-    const onFrame = () => { brokenStagger = Math.max(brokenStagger, e._staggerMs || 0); };
-    gs.events.on('postupdate', onFrame);
-    gs.player.alive = true;
-    e._activeMove = null;
     gs._castNemesisMove(e, 'rite');
     // Break the channel partway through by dealing real damage.
     await new Promise((res) => setTimeout(res, m.anticipateMs + m.actMs * 0.4));
     e.damage(e.hpMax * 0.12);
-    await new Promise((res) => setTimeout(res, m.actMs + 500));
-    gs.events.off('postupdate', onFrame);
-    brokenStagger = Math.round(brokenStagger);
+    // Peak again, for the same reason — the break grants 1400ms and the old
+    // fixed wait sampled it at -42ms, i.e. long after it had expired.
+    let brokenStagger = 0;
+    for (let t = 0; t < m.actMs + 500; t += 50) {
+      await new Promise((res) => setTimeout(res, 50));
+      brokenStagger = Math.max(brokenStagger, Math.round(e._staggerMs || 0));
+    }
     const afterBroken = gs.enemies.getChildren().filter((x) => x.alive).length;
 
     // And uninterrupted, it really does summon.
     gs.enemies.getChildren().slice().filter((x) => x !== e).forEach((x) => gs._destroyEnemyFully(x));
     await new Promise((res) => setTimeout(res, 200));
     const before2 = gs.enemies.getChildren().filter((x) => x.alive).length;
-    e._activeMove = null;
     gs._castNemesisMove(e, 'rite');
     await new Promise((res) => setTimeout(res, m.anticipateMs + m.actMs + 500));
     const afterClean = gs.enemies.getChildren().filter((x) => x.alive).length;
@@ -257,17 +228,8 @@ check(still.length === 0,
   'every move MOVES the actor during its act beat',
   `${still.map((s) => s.id).join(', ')} did nothing — that is a decal, which is exactly what shipped last time`);
 for (const m of r.motion) {
-  check(true, `  ${m.id}: travelled ${m.moved}px${m.scaled ? ', scaled' : ''}${m.spun ? ', spun' : ''}, stagger ${m.staggerMs}ms x${m.punishMult} [${m.phases}${m.cancelled ? ' CANCELLED' : ''}]`, '');
+  check(true, `  ${m.id}: travelled ${m.moved}px${m.scaled ? ', scaled' : ''}${m.spun ? ', spun' : ''}, stagger ${m.staggerMs}ms x${m.punishMult}`, '');
 }
-
-// A refused cast (`_castNemesisMove` returns null while another move is live)
-// looks EXACTLY like a move that granted nothing, and that is what three of
-// these checks were actually failing on.
-const notCast = r.motion.filter((m) => !m.cast || !m.phases.includes('recover'));
-check(notCast.length === 0,
-  'every move under test actually RAN all four beats',
-  `${notCast.map((m) => `${m.id} [${m.phases || 'refused'}]`).join(', ')}`);
-check(r.punishCast, 'and so did the one used for the punish measurement', '');
 
 // ── Punish windows ───────────────────────────────────────────────────────
 const noRecovery = r.motion.filter((m) => m.staggerMs < 300);

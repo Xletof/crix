@@ -236,12 +236,6 @@ export class Boss extends Enemy {
             this.setVelocity(0, 0);
             SFX.bossRoar();
             this.chargeAngle = angToPlayer;
-            // The lane on the floor. His charge has always had a windup and a
-            // scale pulse, and NOTHING on the ground — "he only charges but no
-            // lane light or anything" was a precise description of that. The
-            // nemesis charge has read correctly since it shipped; this is the
-            // same telegraph, on the boss that needed it more.
-            this.scene.events.emit('boss-charge-windup', this, angToPlayer, BOSS.chargeWindupMs);
           } else if (this.state === STATE.FAN) {
             this.setVelocity(0, 0);
             this.scene.events.emit('boss-fan', this, angToPlayer);

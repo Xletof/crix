@@ -150,12 +150,7 @@ export class DebugScene extends Phaser.Scene {
     }, 280);
     this._button(cx + half, y, 'CLEAR FIELD', () => this._clearField(), 280);
     y += row;
-    this._button(cx - half, y, 'FORCE MOVE', () => this._forceMove(), 280);
-    this.arenaBtn = this._button(cx + half, y, this._arenaLabel(), () => {
-      if (!this.gs) return;
-      this.gs.arenaActive = !this.gs.arenaActive;
-      this._syncLabels();
-    }, 280);
+    this._button(cx, y, 'FORCE MOVE', () => this._forceMove(), 420);
     y += row + 12;
 
     this._button(cx, y, 'CLOSE', () => this._close(), 420);
@@ -168,9 +163,6 @@ export class DebugScene extends Phaser.Scene {
   _loadoutLabel() { return LOADOUTS[this._loadout].label; }
   _vaderLabel() { return `VADER #${this._vaderN}`; }
   _sectorLabel() { return `SECTOR ${this.gs?.sector ?? 1}`; }
-  // Visible rather than implied: the spawn buttons turn the arena off, and a
-  // silent state change is how you end up wondering why nothing is spawning.
-  _arenaLabel() { return this.gs?.arenaActive ? 'ARENA: ON' : 'ARENA: OFF'; }
 
   _player() { return this.gs?.player || null; }
 
@@ -269,34 +261,8 @@ export class DebugScene extends Phaser.Scene {
   _syncLabels() {
     if (!this.scene.isActive()) return;
     this.sectorBtn?.label?.setText(this._sectorLabel());
-    this.arenaBtn?.label?.setText(this._arenaLabel());
     this.vaderBtn?.label?.setText(this._vaderLabel());
     this.loadBtn?.label?.setText(this._loadoutLabel());
-  }
-
-  /**
-   * Empty the arena and STOP it, so a boss test is a boss test.
-   *
-   * `_clearField` on its own was not enough: the wave spawner keeps running, so
-   * the room refills within seconds and Vader arrives into a crowd. The player
-   * reported exactly this — "I tried clearing level wave but it should stop the
-   * level so I can spawn darth Vader". Killing the enemies without killing the
-   * SPAWNER is treating the symptom.
-   *
-   * Also clears live bullets: a volley already in the air outlives the enemy
-   * that fired it and lands on you a second into the duel, which looks like the
-   * boss doing something it did not.
-   */
-  _isolate() {
-    if (!this.gs) return;
-    this.gs.arenaActive = false;              // stop the wave spawner
-    this.gs._wavePhase = 'breather';
-    this._clearField();
-    this.gs.enemyBullets?.getChildren().forEach((b) => b.kill?.());
-    this.gs.playerBullets?.getChildren().forEach((b) => b.kill?.());
-    this.gs.clearTelegraphs?.();
-    const p = this._player();
-    if (p) { p.alive = true; p.hp = p.hpMax; this.gs.events.emit('player-hp-changed'); }
   }
 
   /**
@@ -310,7 +276,6 @@ export class DebugScene extends Phaser.Scene {
    */
   _spawnNemesis() {
     if (!this.gs?._spawnMiniBoss) return;
-    this._isolate();
     const lo = LOADOUTS[this._loadout];
     const sector = this.gs.sector || 1;
     const nem = lo.traits
@@ -332,7 +297,6 @@ export class DebugScene extends Phaser.Scene {
     const p = this._player();
     if (!p) return;
     if (this.gs.boss?.alive) this.gs.boss.retreat?.();
-    this._isolate();
     this.gs.sector = this._vaderN * ENDLESS.bossEvery;
     this._syncLabels();
     // Encounter passed explicitly, not left to be derived from `sector`:
@@ -394,9 +358,6 @@ export class DebugScene extends Phaser.Scene {
 
   _clearWave() {
     if (!this.gs) return;
-    // Stop the spawner as well. Clearing a field that instantly refills is not
-    // clearing it, which is what "I tried clearing level wave" ran into.
-    this.gs.arenaActive = false;
     // Kill through the normal damage path rather than destroying the sprites.
     // RoomManager.aliveEnemies is only decremented by onEnemyDied(), which a
     // direct teardown skips — that would drift it out of step with the arena's

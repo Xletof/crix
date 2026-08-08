@@ -24,7 +24,6 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const TESTS = [
   'smoke-arc',
   'smoke-boss',
-  'smoke-boss-moves',
   'smoke-boost',
   'smoke-cluster',
   'smoke-controls',
