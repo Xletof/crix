@@ -199,6 +199,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this._activeMove?.cancel?.();
     this._activeMove = null;
     this._performing = false;
+    this._moveAnim = null;
     this.coverRegistry?.release(this);
     SFX.enemyDie();
     this.scene.events.emit('enemy-died', this);

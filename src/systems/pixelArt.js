@@ -976,12 +976,35 @@ export function paintShooter(scene, key = 'shooter') {
 // Massive cape spreading south, dome at top, weapon (saber) is a separate
 // rotating overlay sprite — body itself is static aside from walk/idle.
 export function paintBoss(scene, key = 'boss') {
-  const ss = new SpriteSheet(scene, key, 40, 40, 24, 4);
+  // 36 frames, not 24: the last twelve are ATTACK POSES.
+  //
+  // Vader's whole sheet was idle + 6 walk + 1 enraged per facing, so while he
+  // attacked he played his WALK cycle — his body never performed any of it, and
+  // the moves were sold entirely by tweens and floor decals. That is a large
+  // part of why the first version of them read as "very buggy": the sprite was
+  // doing one thing and the effects another.
+  //
+  // Three poses per facing, driven by the move beats:
+  //
+  //   raise   ANTICIPATE — drawn up and back, pauldrons high, cape flared.
+  //   thrust  ACT        — driven forward, shoulders low and narrow.
+  //   recoil  RECOVER    — hunched and open, which is also the punish window.
+  //
+  // At 40px the readable channels are silhouette HEIGHT, LEAN and cape SPREAD,
+  // so that is what the poses move. Fine detail is wasted here.
+  const ss = new SpriteSheet(scene, key, 40, 40, 36, 4);
   const C = PAL;
 
-  function drawVader(f, legPhase = 0, dir = 'front', enraged = false) {
+  function drawVader(f, legPhase = 0, dir = 'front', enraged = false, pose = 'idle') {
     ss.frame(f);
-    const bob = (legPhase === 0) ? 0 : (Math.abs(legPhase) === 2 ? 2 : 0);
+    // Pose overrides the walk bob: it is the same vertical channel, and letting
+    // the leg cycle fight the pose would flatten both.
+    const poseBob = pose === 'raise' ? -2 : pose === 'thrust' ? 1 : pose === 'recoil' ? 3 : null;
+    const bob = poseBob !== null
+      ? poseBob
+      : ((legPhase === 0) ? 0 : (Math.abs(legPhase) === 2 ? 2 : 0));
+    // Lean, in pixels, along the facing axis. Positive is forward.
+    const lean = pose === 'raise' ? -2 : pose === 'thrust' ? 3 : pose === 'recoil' ? -1 : 0;
     const main = enraged ? C.vaderSheen : C.vaderArmor;
 
     // ── HELMET DOME (cy centered) ─────────────────────────────────────────
@@ -1033,9 +1056,25 @@ export function paintBoss(scene, key = 'boss') {
 
     // ── BODY LAYOUTS ──────────────────────────────────────────────────────
     if (dir === 'front') {
-      // Pauldrons
-      ss.rect(3,  cy + 5, 8, 6, main);
-      ss.rect(29, cy + 5, 8, 6, main);
+      // Pauldrons. `sh` lifts them for the wind-up and drops them for the
+      // recovery — shoulder height is the clearest tell available on a body
+      // this small, and it costs nothing to animate.
+      const sh = pose === 'raise' ? -3 : pose === 'recoil' ? 2 : 0;
+      ss.rect(3,  cy + 5 + sh, 8, 6, main);
+      ss.rect(29, cy + 5 + sh, 8, 6, main);
+      if (pose === 'raise') {
+        // Both fists up beside the helmet — the silhouette that says a force
+        // power is coming, readable even as a 40px shape at arm's length.
+        ss.rect(5,  cy - 4, 5, 7, main);
+        ss.rect(30, cy - 4, 5, 7, main);
+        ss.hline(cy - 4, 5, 9,  C.vaderSheen);
+        ss.hline(cy - 4, 30, 34, C.vaderSheen);
+      } else if (pose === 'thrust') {
+        // Driven forward: one long arm out of the chest, toward the viewer.
+        ss.rect(15, cy + 16, 10, 6, main);
+        ss.hline(cy + 16, 15, 24, C.vaderSheen);
+        ss.hline(cy + 21, 15, 24, C.black);
+      }
       ss.hline(cy + 5,  3,  10, C.vaderSheen);
       ss.hline(cy + 5,  29, 36, C.vaderSheen);
       ss.hline(cy + 10, 3,  10, C.black);
@@ -1059,10 +1098,12 @@ export function paintBoss(scene, key = 'boss') {
       ss.px(16, cy2 + 4, C.impGrey);
       ss.px(23, cy2 + 4, C.impGrey);
 
-      // Cape (flares behind shoulders)
-      ss.rect(8,  29 + bob, 24, 10, C.cape);
-      ss.rect(6,  31 + bob, 28, 8,  C.cape);
-      ss.rect(4,  33 + bob, 32, 6,  C.cape);
+      // Cape (flares behind shoulders). `sp` widens it on the wind-up and pulls
+      // it in on the recovery, so the silhouette breathes with the attack.
+      const sp = pose === 'raise' ? 2 : pose === 'recoil' ? -2 : 0;
+      ss.rect(8 - sp,  29 + bob, 24 + sp * 2, 10, C.cape);
+      ss.rect(6 - sp,  31 + bob, 28 + sp * 2, 8,  C.cape);
+      ss.rect(4 - sp,  33 + bob, 32 + sp * 2, 6,  C.cape);
       ss.vline(4,  33 + bob, 38 + bob, C.capeBlack);
       ss.vline(35, 33 + bob, 38 + bob, C.capeBlack);
       ss.vline(6,  31 + bob, 38 + bob, C.capeBlack);
@@ -1073,8 +1114,14 @@ export function paintBoss(scene, key = 'boss') {
       ss.vline(27, 31 + bob, 38 + bob, C.capeShade);
 
     } else if (dir === 'back') {
-      // Cape covers everything
-      ss.rect(4, cy + 5, 32, 25, C.cape);
+      // Cape covers everything. From behind, the only channel is how wide it
+      // spreads — so that is the whole pose.
+      const bs = pose === 'raise' ? 3 : pose === 'recoil' ? -2 : 0;
+      ss.rect(4 - bs, cy + 5, 32 + bs * 2, 25, C.cape);
+      if (pose === 'raise') {
+        ss.rect(2, cy - 2, 5, 8, main);
+        ss.rect(33, cy - 2, 5, 8, main);
+      }
       ss.hline(cy + 5, 4, 35, C.capeShade);
       ss.vline(4, cy + 5, cy + 29, C.capeBlack);
       ss.vline(35, cy + 5, cy + 29, C.capeBlack);
@@ -1082,15 +1129,25 @@ export function paintBoss(scene, key = 'boss') {
       ss.hline(cy + 29, 4, 35, C.capeBlack);
 
     } else if (dir === 'side') {
-      // Cape hangs left (West)
-      ss.rect(6, cy + 5, 12, 24, C.cape);
-      ss.vline(6, cy + 5, cy + 28, C.capeBlack);
-      ss.vline(17, cy + 5, cy + 28, C.capeShade);
+      // Cape hangs left (West). In profile the lean is the whole read, so the
+      // cape trails BACK on a thrust and billows forward on the wind-up.
+      ss.rect(6 - lean, cy + 5, 12, 24, C.cape);
+      ss.vline(6 - lean, cy + 5, cy + 28, C.capeBlack);
+      ss.vline(17 - lean, cy + 5, cy + 28, C.capeShade);
 
-      // Side shoulder + chest profile
-      ss.rect(18, cy + 5, 12, 14, main);
-      ss.hline(cy + 5, 18, 29, C.vaderSheen);
-      ss.rect(19, cy + 7, 7, 7, C.vaderHelm); // shoulder armor plate
+      // Side shoulder + chest profile, carried forward by the lean.
+      ss.rect(18 + lean, cy + 5, 12, 14, main);
+      ss.hline(cy + 5, 18 + lean, 29 + lean, C.vaderSheen);
+      ss.rect(19 + lean, cy + 7, 7, 7, C.vaderHelm); // shoulder armor plate
+      if (pose === 'thrust') {
+        // Arm punched out ahead of the profile.
+        ss.rect(29, cy + 11, 9, 5, main);
+        ss.hline(cy + 11, 29, 37, C.vaderSheen);
+        ss.hline(cy + 15, 29, 37, C.black);
+      } else if (pose === 'raise') {
+        ss.rect(20, cy - 4, 6, 8, main);
+        ss.hline(cy - 4, 20, 25, C.vaderSheen);
+      }
       // Side control box
       ss.rect(26, cy + 11, 4, 6, C.black);
       ss.px(28, cy + 13, C.ledRed);
@@ -1158,6 +1215,22 @@ export function paintBoss(scene, key = 'boss') {
   drawVader(21, -2, 'side', false);
   drawVader(22, -1, 'side', false);
   drawVader(23, 0, 'side', true);
+
+  // ── Attack poses, 24-35 ─────────────────────────────────────────────────
+  // Three per facing, in the order the beats fire them.
+  drawVader(24, 0, 'front', false, 'raise');
+  drawVader(25, 0, 'front', false, 'thrust');
+  drawVader(26, 0, 'front', false, 'recoil');
+  drawVader(27, 0, 'back',  false, 'raise');
+  drawVader(28, 0, 'back',  false, 'thrust');
+  drawVader(29, 0, 'back',  false, 'recoil');
+  drawVader(30, 0, 'side',  false, 'raise');
+  drawVader(31, 0, 'side',  false, 'thrust');
+  drawVader(32, 0, 'side',  false, 'recoil');
+  // Enraged variants of the strike, for phase 2+.
+  drawVader(33, 0, 'front', true,  'thrust');
+  drawVader(34, 0, 'back',  true,  'thrust');
+  drawVader(35, 0, 'side',  true,  'thrust');
 
   ss.finish();
 }

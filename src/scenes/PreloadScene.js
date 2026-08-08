@@ -181,6 +181,33 @@ export class PreloadScene extends Phaser.Scene {
       }
     }
 
+    // ── Vader's attack poses ─────────────────────────────────────────
+    //
+    // Frames 24-35 of the boss sheet, laid out three-per-facing in beat order.
+    // These exist because he used to play his WALK cycle while attacking: the
+    // body performed none of the move, which is a large part of why the first
+    // version read as broken. `Boss.playVaderAnim` selects them from the beat.
+    const POSE_BASE = 24;
+    const poseDirs = ['front', 'back', 'side'];
+    const poses = ['raise', 'thrust', 'recoil'];
+    poseDirs.forEach((dirName, di) => {
+      poses.forEach((poseName, pi) => {
+        this.anims.create({
+          key: `vader-${poseName}-${dirName}`,
+          frames: [{ key: 'boss', frame: POSE_BASE + di * 3 + pi }],
+          frameRate: 10,
+          repeat: 0,
+        });
+      });
+      // Enraged strike, frames 33-35, used from phase 2.
+      this.anims.create({
+        key: `vader-thrusthot-${dirName}`,
+        frames: [{ key: 'boss', frame: 33 + di }],
+        frameRate: 10,
+        repeat: 0,
+      });
+    });
+
     // Explosion — 3-frame one-shot
     this.anims.create({
       key: 'explode',

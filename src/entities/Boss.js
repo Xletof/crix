@@ -158,8 +158,28 @@ export class Boss extends Enemy {
       flipX = false;
     }
     this.setFlipX(flipX);
-    const key = `vader-${type}-${dirSuffix}`;
+    // A scripted move owns the pose while it runs. The AI reselects walk/idle
+    // every frame, so without this an attack frame cannot survive a single tick
+    // — which is exactly why he used to walk through his own moves.
+    let want = type;
+    if (this._performing && this._moveAnim) {
+      want = this._moveAnim === 'thrust' && this.phase >= 2 ? 'thrusthot' : this._moveAnim;
+    }
+    const key = `vader-${want}-${dirSuffix}`;
+    if (!this.scene.anims.exists(key)) return;
     if (this.anims.currentAnim?.key !== key) this.play(key);
+  }
+
+  /**
+   * Drive the body pose from a move beat.
+   *
+   * Called by the move scripts. Kept here rather than in the move data so the
+   * pose survives the AI's per-frame animation selection above, and so a move
+   * only has to name a beat rather than know about frame numbers.
+   */
+  setMovePose(pose) {
+    this._moveAnim = pose;
+    if (pose) this.playVaderAnim('idle', this._aim ?? 0);
   }
 
   preUpdate(time, delta) {
@@ -242,6 +262,11 @@ export class Boss extends Enemy {
     // rendered, so from the player's chair there was no anticipation at all,
     // just Vader advancing and then an effect landing. That is precisely what
     // "Vader does pull suddenly" meant.
+    // The pose has to be reasserted every frame, because the animation
+    // selection below is what the gate skips — and a pose set once at the start
+    // of a beat would be the only frame it survived.
+    if (this._performing && this._moveAnim) this.playVaderAnim('idle', angToPlayer);
+
     // Yield, do not stop. This gate deliberately writes NOTHING: a travelling
     // move sets a velocity and expects it to persist, so zeroing here every
     // frame would turn any charge into a standing pose. A move that wants him

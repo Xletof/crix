@@ -68,7 +68,10 @@ export function runMove(scene, actor, script) {
     for (const v of Object.values(handle)) {
       if (v && v !== handle && typeof v.destroy === 'function') v.destroy();
     }
-    if (actor._activeMove === handle) actor._performing = false;
+    if (actor._activeMove === handle) {
+      actor._performing = false;
+      actor._moveAnim = null;        // never strand an attack pose on the body
+    }
     script.onCancel?.(scene, actor, handle);
   };
   // A move must not outlive its performer: killing a nemesis mid-charge should
@@ -110,6 +113,7 @@ export function runMove(scene, actor, script) {
         handle.phase = 'done';
         if (actor._activeMove === handle) actor._activeMove = null;
         actor._performing = false;
+        actor._moveAnim = null;
         actor._punishMult = 1;
       });
     });

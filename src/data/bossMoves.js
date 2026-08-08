@@ -49,6 +49,7 @@ export const BOSS_MOVES = [
       // a 24px lean, so at a glance — on a phone, mid-fight — Vader simply
       // stood there and then a saber was in the air.
       squash(scene, b, 380, 0.22);
+      b.setMovePose?.('raise');
       scene.fx?.inhale?.(b.x, b.y, 'red', 4, 170);
       h.tel = scene.spawnTelegraph({
         kind: 'lane', x: b.x, y: b.y, angle: h.angle,
@@ -62,6 +63,7 @@ export const BOSS_MOVES = [
       // and back, so "he is unarmed" is a thing you can see rather than a flag.
       const w = b.weaponSprite;
       if (!w?.active) return;
+      b.setMovePose?.('thrust');
       b._saberAway = true;
       b._noMelee = true;
       const from = { x: b.x, y: b.y };
@@ -123,10 +125,11 @@ export const BOSS_MOVES = [
     },
 
     // The longest window he has: he spent the whole flight without a weapon.
-    recover(scene, b) { stagger(scene, b, this.recoverMs, 2.0); },
+    recover(scene, b) { b.setMovePose?.('recoil'); stagger(scene, b, this.recoverMs, 2.0); },
     onCancel(scene, b) {
       b._saberAway = false;
       b._noMelee = false;
+      b.setMovePose?.(null);
       dropWeapon(scene, b, 80);      // an interrupted throw must not keep the raise
     },
   },
@@ -148,6 +151,7 @@ export const BOSS_MOVES = [
       b.body?.setVelocity(0, 0);
       raiseWeapon(scene, b, 320);
       squash(scene, b, 400, 0.2);
+      b.setMovePose?.('raise');
       scene.events.emit('show-banner', 'FORCE PULL', '#8060ff');
       // THE ZONE THIS MOVE NEVER HAD. Measured on the rejected build: FORCE
       // PULL put zero pixels on the floor, so with the wind-up also being
@@ -177,6 +181,7 @@ export const BOSS_MOVES = [
       // damage, it is WHERE IT PUTS YOU — and dashing has i-frames and more
       // speed than the pull, so committing a dash beats it. That is what keeps
       // it a decision instead of a cutscene.
+      b.setMovePose?.('thrust');
       h.pull = scene.time.addEvent({
         delay: 16,
         repeat: Math.floor(this.actMs / 16) - 1,
@@ -214,8 +219,8 @@ export const BOSS_MOVES = [
       if (d <= this.coneLen && off <= half + 0.3) p.damage(this.damage, a);
     },
 
-    recover(scene, b) { stagger(scene, b, this.recoverMs, 1.6); },
-    onCancel(scene, b, h) { h?.pull?.remove(false); h?.ring?.destroy(); },
+    recover(scene, b) { b.setMovePose?.('recoil'); stagger(scene, b, this.recoverMs, 1.6); },
+    onCancel(scene, b, h) { b.setMovePose?.(null); h?.pull?.remove(false); h?.inhale?.remove(false); h?.ring?.destroy(); },
   },
 
   {
@@ -262,7 +267,7 @@ export const BOSS_MOVES = [
       }
     },
 
-    recover(scene, b) { stagger(scene, b, this.recoverMs, 1.7); },
+    recover(scene, b) { b.setMovePose?.('recoil'); stagger(scene, b, this.recoverMs, 1.7); },
   },
 
   {
@@ -280,6 +285,7 @@ export const BOSS_MOVES = [
       b.body?.setVelocity(0, 0);
       rearBack(scene, b, Math.atan2(scene.player.y - b.y, scene.player.x - b.x), 26, 300);
       squash(scene, b, 420, 0.24);
+      b.setMovePose?.('raise');
       scene.events.emit('show-banner', 'FORCE PUSH', '#a0c0ff');
       // The other move that drew NOTHING. A 420px shove that costs a dash
       // charge is a big deal and it arrived with no warning whatsoever.
@@ -300,6 +306,7 @@ export const BOSS_MOVES = [
       // No damage at all. It takes your POSITION and one dash charge, which is
       // worse than damage in the moment: whatever he does next lands on a
       // player who is out of place and out of options.
+      b.setMovePose?.('thrust');
       const p = scene.player;
       const a = Math.atan2(p.y - b.y, p.x - b.x);
       h.pushed = Math.hypot(p.x - b.x, p.y - b.y) <= this.radius;
@@ -325,8 +332,8 @@ export const BOSS_MOVES = [
       scene.fx?.burst?.(b.x, b.y, 'white', 22);
     },
 
-    recover(scene, b) { stagger(scene, b, this.recoverMs, 1.5); },
-    onCancel(scene, b, h) { h?.inhale?.remove(false); },
+    recover(scene, b) { b.setMovePose?.('recoil'); stagger(scene, b, this.recoverMs, 1.5); },
+    onCancel(scene, b, h) { b.setMovePose?.(null); h?.inhale?.remove(false); },
   },
 ];
 
