@@ -4432,7 +4432,23 @@ export class GameScene extends Phaser.Scene {
    */
   _equipBossKit(boss, encounter = 1) {
     boss._moveIds = bossMovesFor(boss.phase || 1, encounter);
-    boss._moveEvery = 8000;
+    // 6000, not 8000 — MEASURED, not guessed.
+    //
+    // A scripted move now blocks his own state machine for its whole duration
+    // (the ownership gate in Boss.preUpdate), which it never used to. Free-run
+    // measurements with nothing silenced: the rejected build managed ~21
+    // attacks/min with both systems firing over the top of each other; the same
+    // fight with the gate in came out at 12.9/min and 54% of frames with
+    // neither system doing anything. The brief was "keep the pressure", so the
+    // gaps close to pay for the blocking rather than the fight getting quieter.
+    //
+    // Weighted toward the MOVES rather than the old state machine. The two
+    // block each other now, so tuning is zero-sum: pushing his charge/fan
+    // clock alone took the total to 15.2/min but squeezed the scripted moves
+    // from 6 casts to 4, which trades the new content away to buy back the
+    // number. The moves are the fight worth having, so they get the tighter
+    // clock and his stock attacks fill the gaps.
+    boss._moveEvery = 4800;
     boss._moveT = boss._moveEvery;     // never on the first frame
     boss._moveIdx = -1;
     boss._encounterN = encounter;

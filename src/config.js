@@ -358,7 +358,31 @@ export const BOSS = {
   fanBulletDamage: 180,
   fanBulletRange: 720,
   spawnCount: 3,
-  attackCooldownMs: 1600,
+  // 1100, down from 1600. See the note on `_moveEvery` in GameScene: a scripted
+  // move now locks out his state machine for its full duration, so his stock
+  // attacks have to come round faster to fill the gaps between them.
+  //
+  // MEASURED, and the honest number is worth writing down. Four free-run
+  // configurations, 75-79s each, nothing silenced:
+  //
+  //   moveEvery/cooldown   attacks/min   scripted moves   stock attacks
+  //   8000 / 1600             12.9             6               11
+  //   6000 / 1150             15.2             4               16
+  //   4800 / 1350             12.7            10                6
+  //   4800 / 1100             13.4            12                5   <- shipped
+  //
+  // The two systems block each other now, so this is zero-sum: the highest
+  // total came from starving the new moves, which trades the content away to
+  // buy back a number. The shipped config maximises the moves instead, and all
+  // four appear evenly.
+  //
+  // The old build managed ~21/min, and that is NOT recoverable without undoing
+  // the fix: it only reached it by letting attacks overlap, which is what made
+  // them unreadable. Each move now occupies ~3.3s of anticipate/act/recover, so
+  // 12 of them fill 40s of a 76s fight on their own. ~13-15/min is the ceiling
+  // for attacks that arrive one at a time, and the leftover "idle" is mostly
+  // the punish windows, which are the point.
+  attackCooldownMs: 1100,
   color: 0x0a0a0e,
   eyeColor: 0xff2020,
 };

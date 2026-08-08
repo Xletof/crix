@@ -390,6 +390,9 @@ export class Boss extends Enemy {
    * events is also what lets the smoke test assert each effect from outside.
    */
   _tickMechanics(delta) {
+    // Same reason as the reflect timer below: anything reaching for
+    // `this.scene` has to survive being called on a boss whose scene has gone.
+    if (!this.scene) return;
     if (this._reflectEvery > 0) {
       this._reflectT -= delta;
       if (this._reflectT <= 0) {
@@ -399,7 +402,12 @@ export class Boss extends Enemy {
         // between a surprise and a tax.
         this.scene.events.emit('boss-reflect-windup', this);
         this.scene.time.delayedCall(BOSS_MECH.reflectWindupMs, () => {
-          if (!this.alive) return;
+          // `alive` is not enough. Phaser clears `this.scene` on destroy(), and
+          // a Vader who withdrew or was torn down with the room leaves this
+          // timer already scheduled — it then fires into a corpse and throws on
+          // `this.scene.time`. Crashes the whole scene, so it takes the run with
+          // it. Pre-existing; surfaced by a suite run, not by this release.
+          if (!this.alive || !this.scene) return;
           this._reflectUntil = this.scene.time.now + BOSS_MECH.reflectMs;
           this.scene.events.emit('boss-reflect-open', this);
         });

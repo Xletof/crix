@@ -82,15 +82,22 @@ export const BOSS_MOVES = [
         targets: w, rotation: (w.rotation || 0) + Math.PI * 8,
         duration: this.actMs, ease: 'Linear',
       });
+      // THE RETURN USES THE LANE THAT IS ALREADY THERE.
+      //
+      // This used to spawn a SECOND telegraph at the saber's far end, angled
+      // 0.4rad off the outbound line — a red rectangle starting 657px from
+      // Vader, pointing at nothing he was near, while the first lane could
+      // still be on the floor. That is precisely the "two red trails" in the
+      // report, and under load the two overlapped often enough for the
+      // coherence check to catch it.
+      //
+      // The saber now comes back down the same line it went out on. One zone,
+      // one dodge to learn, and the second pass is telegraphed by the object
+      // you can see travelling — which is a better read than a rectangle that
+      // appears in empty floor anyway.
       scene.time.delayedCall(this.actMs * 0.5, () => {
         if (!b.active || !b.alive || !w.active) return;
-        // The return lane is offset, so standing still after the first pass is
-        // not automatically safe.
-        const back = h.angle + 0.4;
-        h.returnTel = scene.spawnTelegraph({
-          kind: 'lane', x: to.x, y: to.y, angle: back + Math.PI,
-          len: this.reach, width: this.laneWidth,
-        }, { windupMs: 260, owner: b });
+        scene.fx?.impactRing?.(to.x, to.y, 0xff6040, 26);
         scene.tweens.add({
           targets: w, x: b.x, y: b.y,
           duration: this.actMs * 0.5, ease: 'Quad.easeIn',

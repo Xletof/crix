@@ -198,6 +198,14 @@ r.clones = await page.evaluate(async () => {
   gs.player.setPosition(b.x + 100, b.y);
   gs.events.emit('boss-afterimages', b, 3);
   await new Promise((res) => setTimeout(res, 500));
+  // Put them ON the player rather than waiting for them to walk over. The
+  // question is whether a clone's contact damage LANDS, not how fast it
+  // pathfinds: under parallel suite load the frame rate drops far enough that
+  // three clones could not cross 100px in the 5s window, and the check failed
+  // for a reason that has nothing to do with what it is testing.
+  gs.enemies.getChildren().filter((e) => e.alive && e._afterimage).forEach((e, i) => {
+    e.setPosition(gs.player.x + (i - 1) * 18, gs.player.y + 12);
+  });
   const spawned = gs.enemies.getChildren().filter((e) => e.alive && e._afterimage).length;
 
   // EFFECT, not geometry: can they be hit, and do they hurt?
