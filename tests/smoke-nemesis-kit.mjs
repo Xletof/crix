@@ -148,18 +148,36 @@ const r = await page.evaluate(async () => {
   };
   const liveBolts = () => gs.enemyBullets.getChildren().filter((b) => b.active);
 
+  // Count the SHOTS, not the bolts still in the air when the clock runs out.
+  // The repeater staggers its three rounds on `delayedCall(i * 90)`, and
+  // tests/README.md is explicit that a headless run resolves TimerEvents
+  // coarsely — a nominal 70ms delay measures 150-220ms here. So the third round
+  // could still be pending at the old flat 500ms, and the check failed on
+  // harness timing rather than on the weapon. Wrapping `fire` records every
+  // round the instant it is fired, and the wait only has to be generous.
   const fireTest = async (weaponId) => {
     await clearBolts();
     const w = NEMESIS_WEAPONS.find((x) => x.id === weaponId);
-    const before = liveBolts().length;
+    const fired = [];
+    const realFire = gs.enemyBullets.fire.bind(gs.enemyBullets);
+    gs.enemyBullets.fire = (...args) => {
+      const b = realFire(...args);
+      // Snapshot on the microtask right after the caller's synchronous
+      // `tinted(...)` runs, and never later: waiting 1.4s would read a bolt
+      // that had already expired and been cleared back into the pool.
+      if (b) Promise.resolve().then(() => fired.push({
+        radius: Math.round(b.body?.radius ?? -1), tint: b.tintTopLeft,
+      }));
+      return b;
+    };
     w.fire(gs, fakeShooter, 0);
-    await new Promise((res) => setTimeout(res, 500));   // covers the repeater's stagger
-    const bolts = liveBolts();
+    await new Promise((res) => setTimeout(res, 1400));  // generous: see above
+    gs.enemyBullets.fire = realFire;
     return {
       weaponId,
-      spawned: bolts.length - before,
-      radii: [...new Set(bolts.map((b) => Math.round(b.body?.radius ?? -1)))],
-      tints: [...new Set(bolts.map((b) => b.tintTopLeft))],
+      spawned: fired.length,
+      radii: [...new Set(fired.map((b) => b.radius))],
+      tints: [...new Set(fired.map((b) => b.tint))],
     };
   };
 
