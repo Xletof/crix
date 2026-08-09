@@ -31,6 +31,9 @@ would corrupt each other's world state.
 | `smoke-hum.mjs` | Saber hum carries in the band a phone speaker can reproduce |
 | `smoke-leak.mjs` | Primary fire is isolated from the cluster (no pool cross-talk) |
 | `smoke-march.mjs` | The music plays the full 8-bar march phrase and loops at 32 beats, not the opening fragment |
+| `smoke-readability.mjs` | **Can the player SEE the attack coming?** Every move draws a zone before it damages, one zone per attack, he is planted and his body winds up, the zone tracks its caster, he settles at saber range, a super cannot shove him, and a final pass with NOTHING silenced asserts the two systems never attack together |
+| `smoke-boss-moves.mjs` | Vader performs his own moves, a cancelled move takes its zone with it, and his afterimages are a real threat |
+| `smoke-moves.mjs` | Nemesis moves MOVE the actor, and beating one pays (stagger + bonus damage) |
 | `smoke-music-tiers.mjs` | Tiers change what the bed plays (calm drops the melody but keeps its pulse), and the director's heat rises faster than it falls, ignores a stale kill streak, and never outvotes the lifecycle phase |
 
 **Diagnostics** — print numbers, no pass/fail. Run directly, not via `run-all`.
@@ -174,4 +177,26 @@ growth.
    freeze first: `scene.tweens.timeScale = 0` and `physics.world.pause()`, then
    capture.
 3. **If a test fails intermittently, fix the measurement, not the threshold.**
-   Both intermittent failures found here were real measurement bugs.
+   This has been true of every intermittent failure this harness has produced —
+   see the table in `docs/POST-MORTEM-vader-moves.md` for six of them in a row.
+4. **Never silence the system you are testing against.** Every boss test used to
+   open with `b.cooldown = 1e9`, which is exactly what stops the AI the new moves
+   were colliding with — so the harness could not observe the bug that got the
+   release rejected. Silence a clock to stabilise a MEASUREMENT if you must, then
+   run one pass with nothing silenced and assert the result is still coherent.
+   `smoke-readability` is built that way.
+5. **A refused call reads exactly like a failed one.** `_castBossMove` returns
+   null while another attack owns the actor; every probe then reads zero, so
+   "the move did nothing" and "the move never ran" are indistinguishable and half
+   the checks pass vacuously. Assert the thing under test actually ran.
+6. **Assert at the registry, not per feature.** Checks written per-move get
+   forgotten when a fifth move is added — which is how two of four boss moves
+   shipped drawing nothing at all. Iterating `BOSS_MOVES` has since caught two
+   new moves with no body tell on their first run.
+7. **Freezing tweens and physics is NOT freezing the game.** `scene.update` keeps
+   running, so telegraphs tick on and destroy themselves before a screenshot
+   lands. Use `scene.pause()` — it stops update and keeps rendering. Four rounds
+   were spent blaming drawing code for a zone that was no longer in the frame.
+8. **The camera lerps.** Teleport an actor and freeze immediately and you catch
+   the camera still travelling, which is how a screenshot pass came back with the
+   fight jammed against the bottom edge. Settle it before casting anything.

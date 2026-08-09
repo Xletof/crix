@@ -463,6 +463,45 @@ either would silently switch itself off exactly when you least want it to.
 
 ---
 
+## 10b. The Vader fight (as of the four-round rebuild)
+
+Read `docs/POST-MORTEM-vader-moves.md` before touching any of this.
+
+**Two systems drive him, and only one at a time.** His own state machine
+(`Boss.preUpdate`: IDLE / CHARGE_WINDUP / CHARGING / SLAM_WINDUP / SLAM /
+SPAWNING) and the scripted move runner (`MoveScript` + `src/data/bossMoves.js`).
+`actor._performing` is the gate; both AIs yield on it, and `_castBossMove`
+refuses while his state machine is mid-attack.
+
+**His attacks, and where each lives:**
+
+| attack | lives in | notes |
+|---|---|---|
+| SABER COMBO | `bossMoves.js`, `close: true` | default at standoff range; 3 swings + radial slam finisher. Cast from the IDLE branch, not the rotation |
+| SABER THROW | `bossMoves.js` | the blade is integrated per frame and HOMES on his live position; the catch ends the flight, not the clock |
+| FORCE PULL | `bossMoves.js` | circle zone, `fx.forceVortex` |
+| FORCE PUSH | `bossMoves.js` | circle zone, `fx.forceWave` |
+| VANISH | `bossMoves.js`, `reactive: true` | OFF the rotation — `Boss.shouldVanish()` fires it on a damage burst, with a lockout |
+| CHARGE | state machine | the saber sweeps through the run; ends early on a wall and slams |
+| OVERHEAD SLAM | state machine | standing, no dash |
+| minion spawn | state machine | |
+
+The green bullet FAN was removed entirely.
+
+**His effects are his own.** `fx.saberSlam` / `fx.saberSweep` (crimson, molten,
+scorching) for anything with the blade, `fx.forceWave` (dark, desaturated) for
+the Force powers. Do NOT reuse `slamShockwave` or `bladeArc` on him — those are
+the PLAYER's Riven melee, and borrowing them made his attacks look like the
+thing you had just done to him.
+
+**He takes no knockback at all** (`Boss.damage` nulls the vector). Any
+displacement drags him off a telegraph he is the origin of.
+
+**Cadence numbers are measured, not guessed** — see the table in the
+`attackCooldownMs` comment in `config.js`. The two systems block each other, so
+tuning is zero-sum: the highest attacks-per-minute came from starving the
+scripted moves.
+
 ## 11. State as of this handover
 
 Everything is committed, pushed and deployed. Working tree clean, `FRIX` level

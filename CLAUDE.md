@@ -73,27 +73,85 @@ the finding is already established earlier in the conversation.
   below ~400Hz, so a sound whose energy sits there cannot be fixed by turning it
   up — the saber hum was inaudible on mobile for exactly this reason. Measure the
   bands (`tests/smoke-hum.mjs`) before reaching for the volume.
+- **ONE SYSTEM DRIVES AN ACTOR AT A TIME.** `Boss.preUpdate` and
+  `Enemy.preUpdate` write velocity and reselect the animation every frame.
+  `MoveScript` sets `actor._performing` for the length of a move and both AIs
+  yield on it; `_castBossMove` also refuses while the actor's own state machine
+  is mid-attack. Without that gate the two fight over the same body and the
+  move's wind-up is overwritten before it can draw. The gate deliberately writes
+  NOTHING — a travelling move sets its own velocity and expects it to persist.
+- **Relative scale mutations drift.** `raiseWeapon`/`dropWeapon` used to multiply
+  and divide by 1.35, so any unmatched pair compounded — the boss's saber reached
+  a ~1100px slab. Always set an ABSOLUTE multiple of a remembered rest scale.
+  Same family as the touch-widget `setScale(1)` trap above.
+- **A telegraph's shape IS its hit test** (`Telegraph.contains`). Never draw one
+  shape and resolve another: FORCE PULL drew a 90-degree cone while dragging the
+  player in from every bearing. Zones follow their caster while winding up
+  unless passed `anchor: 'world'` — a LANDING marker must be anchored, or it
+  trails the actor off the spot he is about to teleport to.
 - **Recoil/kick timers carry their own duration.** `recoilT`/`recoilDur`/`recoilMag`
   and `_wKickT`/`_wKickDur`/`_wKickMag`. Never reintroduce a hardcoded divisor; that
   bug made the super shrink the player instead of popping it.
 
 ## Testing
 
-**Read `docs/POST-MORTEM-vader-moves.md` before adding a boss or enemy attack.** A release
-shipped with 17 passing checks and was rejected on sight. Three rules came out of it:
+**Read `docs/POST-MORTEM-vader-moves.md` before adding a boss or enemy attack, or
+before writing a test for anything visual.** A boss redesign took four releases
+instead of one; the first shipped with 17 passing checks and was rejected on
+sight. Almost all of the lost time went into instruments that were wrong about a
+game that was right. Seven rules came out of it:
 
-- **Never verify a new behaviour with the system it shares an actor with switched off.**
-  Every boss test opened with `b.cooldown = 1e9`, which is exactly what stops Vader's old
-  state machine — so the harness could not see the two systems fighting over his velocity
-  every frame. Silence a clock to stabilise a measurement if you must, then run one pass
-  with nothing silenced and assert the fight is still coherent.
-- **Effects are not readability.** "The player was dragged 60px" cannot fail when the move is
-  unannounced. Assert the reading: a zone exists before damage, one zone per attack, the body
-  visibly winds up, and a telegraph's origin tracks the actor that will hit you (they freeze
-  at spawn — Vader walked 163px out of his own lane).
-- **A placeholder is not a deliverable.** `Telegraph.js` draws a circle and a rectangle; that
-  is the whole visual vocabulary. Shipping it while calling the moves finished is what
-  "very bad quality effects, too simple blue circle or red rectangle" means.
+- **Never verify a new behaviour with the system it shares an actor with switched
+  off.** Every boss test opened with `b.cooldown = 1e9`, which is exactly what
+  stops Vader's old state machine — so the harness could not see the two systems
+  fighting over his velocity every frame. Silence a clock to stabilise a
+  measurement if you must, then run one pass with nothing silenced and assert the
+  fight is still coherent.
+- **Effects are not readability.** "The player was dragged 60px" cannot fail when
+  the move is unannounced. Assert the reading: a zone exists before damage, one
+  zone per attack, the body visibly winds up, and a telegraph's origin tracks the
+  actor that will hit you. Do it by iterating the move REGISTRY — a per-move
+  check gets forgotten when a fifth move is added, which is exactly what happened
+  to two of the four.
+- **Intermittent failure means the instrument is wrong, not the threshold.** It
+  was true every single time here: async polling in a ~50ms/frame harness, a
+  refused cast reading as zero on every probe, a previous move's tween still
+  running, a move legitimately displacing the thing being measured, and a pixel
+  threshold that was really measuring the machine's frame rate.
+- **A refused call reads exactly like a failed one.** `_castBossMove` returns
+  null while another attack owns the actor; every probe then reads zero and half
+  the checks pass vacuously. Assert the thing under test actually ran.
+- **A/B every new check against the build it replaces.** Three of one round's
+  four checks passed on the broken code and had to be rewritten until they
+  discriminated. A check that passes on the bug is decoration.
+- **Look at it.** Screenshots caught three bugs no assertion did — a saber whose
+  scale compounded 35% per throw until it lay across the room, a stray telegraph,
+  and a safe zone drawn in the danger colour. Note that freezing `tweens.timeScale`
+  and pausing physics does NOT stop `scene.update`: telegraphs keep ticking and
+  destroy themselves before the shutter. Use `scene.pause()` for a photograph.
+- **Probe a theory before designing around it.** I was confident the boss's AI
+  was snapping his thrown saber back to his hand; a one-frame probe measured it
+  503px away and the premise was false.
+
+**Two engine facts that cost a round each.** Sprite `preUpdate` runs on
+PRE_UPDATE, *before* the tween manager steps on UPDATE — so anything a move
+TWEENS survives the AI and anything it SETS DIRECTLY (velocity above all) is
+overwritten next frame. And a `time.addEvent` tick budget must not assume one
+tick per frame: Phaser's clock catches up by firing several in one frame, so a
+`repeat` count sized in ticks burns several times faster than the thing it is
+driving.
+
+**A placeholder is not a deliverable.** `Telegraph.js` used to draw a circle and
+a rectangle; that was the whole visual vocabulary. Shipping it while calling the
+moves finished is what "very bad quality effects, too simple blue circle or red
+rectangle" means. Two related traps: reusing the PLAYER's effects on an enemy
+makes its attacks look like the thing you just did to it (the boss was using the
+Riven melee's slam and blade arc), and plain geometry reads as debug art — zones
+are scorched into the floor now, with the shape unchanged so the drawing and the
+hit test still cannot drift apart.
+
+**Commit and push at every checkpoint.** The container was rolled back to an
+older commit at least four times during that work. Only pushed work survived.
 
 The suite lives in `tests/` — `npm run dev` in one shell, `npm run smoke` in
 another. **`tests/README.md` is the real reference**: it lists what each test

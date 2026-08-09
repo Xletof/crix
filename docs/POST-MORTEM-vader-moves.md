@@ -1,162 +1,195 @@
-# Post-mortem: Vader's moves shipped broken with 17 passing checks
+# Post-mortem: the Vader fight, four rounds
 
-**Commit:** `149ad6c`, deployed to `FRIX` 2026-08-07, **rejected on sight**, reverted in `9fde4ef`.
-**Verdict from the person playing it:** *"Moves are buggy, there can be two red trails and Vader
-does pull suddenly, very buggy overall, also all moves are very bad quality effects, too simple
-blue circle or red rectangle."*
+**What happened:** a boss redesign that should have been one release took four,
+across roughly a week. The first was rejected on sight with 17 passing checks
+behind it. The fourth landed. This file is what the four rounds cost and what
+they taught, written so the next feature does not pay the same tuition.
 
-Every one of those observations is correct, and every one of them was measurable before the
-deploy. This file exists so the next session does not repeat the process that hid them.
+It is long because the specific mistakes are the useful part. The three rules at
+the bottom are the short version, and they are also in `CLAUDE.md`.
 
 ---
 
-## What was actually wrong
+## The four rounds
 
-Measured against the rejected build (`149ad6c`) served in isolation, with **nothing silenced** —
-which is the part that matters, see "How the tests hid it" below.
+### Round 1 — rejected on sight
 
-### 1. Two systems drive Vader at the same time, and neither knows about the other
+Shipped as `149ad6c`, reverted in `9fde4ef`. The verdict: *"Moves are buggy,
+there can be two red trails and Vader does pull suddenly, very buggy overall,
+also all moves are very bad quality effects, too simple blue circle or red
+rectangle."*
 
-`Boss.update()` runs its original state machine — IDLE → CHARGE_WINDUP → CHARGING / FAN /
-SPAWNING — every frame, and it has no idea `_activeMove` exists. In the IDLE branch it
-unconditionally does:
+Measured afterwards, with nothing silenced:
 
-```js
-this.setVelocity(Math.cos(angToPlayer) * speed, Math.sin(angToPlayer) * speed);
-this.setScale(glowScale);
-```
+- **Two systems drove the same actor.** `Boss.preUpdate` wrote velocity and
+  reselected the animation every frame and had never heard of `_activeMove`. He
+  walked at the player at **165px/s through the ANTICIPATE beat of all four
+  moves** — so there was no anticipation on screen at all, just Vader advancing
+  and then damage. That is the whole of "does pull suddenly".
+- **Two of the four moves drew nothing on the floor.** Zero zones, measured.
+- **One SABER THROW put three red rectangles down in three seconds**, from two
+  systems, one of them beginning 657px from him in empty floor.
+- **The "effects" were the telegraph primitive** — one 3px stroke and a
+  28%-alpha fill — while `FX.js` already contained `slamShockwave` and
+  `bladeArc`, which are what the quality bar in this repo actually looks like.
 
-So a move's `b.body.setVelocity(0, 0)` is overwritten on the very next frame, and its
-`squash()` / `rearBack()` tweens fight a `setScale` that reasserts itself every tick.
+### Round 2 — readability fixed, the fight still wrong
 
-**Measured: he walks at the player at 165px/s throughout the ANTICIPATE beat of all four moves.**
-He never rears back, never plants, never stops. The wind-up — the entire basis for the move
-being readable — does not render. That is precisely *"Vader does pull suddenly"*: from the
-player's chair there is no anticipation, just Vader walking at you and then an effect landing.
+The ownership gate, the sweep-with-leading-edge telegraph and real attack frames
+landed and were accepted: *"the saber throw is good, the telegraph and visual is
+good"*. Everything else was still wrong, and two items were **regressions I had
+introduced in round 1's fix**:
 
-He also keeps attacking on his own clock underneath. In a 45-second sample with nothing
-suppressed, his charge fired 6 times independently of the move system, once entering
-`charge_windup` while a scripted VANISH was mid-flight.
+- Making every zone follow its caster broke VANISH's landing marker, which must
+  be anchored to the world. The plan said so; I never applied it. Result: the
+  marker trailed him, he teleported to the spot captured at cast time, and the
+  live zone then snapped onto his new position — the "second circle".
+- `raiseWeapon` multiplied scale by 1.35 and `dropWeapon` divided it back.
+  Relative, so an unmatched pair **compounded**: by the fifth SABER THROW his
+  saber rendered as a ~1100px slab lying diagonally across the room.
 
-### 2. Two of the four moves draw nothing on the floor at all
+### Round 3 — the fight, not the presentation
 
-| move | zones drawn |
+- **No arrival condition.** The chase drove at the player every frame with no
+  stop distance, so on arrival he tried to occupy their pixel and arcade physics
+  jittered him across their body. Reported as the pathfinding breaking. It was
+  never pathfinding.
+- **Knockback displaced him off his own telegraph.** Five super hits mid-move
+  imparted **4500px/s**. Only visible mid-move: idle, his own AI overwrote the
+  shove before it rendered.
+- **A tween to a stale point.** The saber's return targeted the coordinates he
+  occupied when it was *scheduled*, and `impact` snapped it home when the beat
+  ended.
+- **A telegraph that lied.** FORCE PULL drew a 90° cone while dragging the
+  player in from any bearing.
+- **Variety gated behind phases.** VANISH and FORCE PUSH were both `minPhase: 2`,
+  so a phase-1 Vader had literally two attacks.
+
+### Round 4 — reach, identity, theme
+
+- **The saber turned round at 248px of a 620px reach** — 40% — because the
+  outbound leg had both a distance trigger and a speed floor, and the speed
+  floor always won. Arithmetic, checkable on paper, shipped twice.
+- Two frame-rate bugs in the same flight: a hardcoded 16ms timestep (a third
+  speed on a slow machine) and a tick budget assuming one tick per frame while
+  Phaser's clock fires several on catch-up — so the budget ran out mid-flight
+  and the blade hung 553px away.
+- **The boss was using the player's effects.** `slamShockwave` is the Riven
+  melee finisher and `bladeArc` her combo sweep, so his heaviest attacks looked
+  like the thing you had just done to him.
+
+---
+
+## Why the tests did not catch any of it
+
+This is the expensive part, and it is almost entirely about **instruments, not
+code**.
+
+### The harness silenced the system under test
+
+Every boss test opened with `b.cooldown = 1e9`, which is exactly what stops
+Vader's state machine. The harness was therefore structurally incapable of
+seeing two systems fight over his body. Seventeen checks passed on a build where
+two moves drew nothing.
+
+> A measurement may be stabilised by silencing a clock. A **verdict** may not.
+> `smoke-readability` now silences his clock for per-move measurements and runs
+> one final pass with nothing silenced at all.
+
+### The checks asserted effects, and effects are not readability
+
+"The saber travelled 200px." "The player was dragged 60px." "A dash charge was
+spent." All true, none able to fail when the move is unreadable.
+
+The gate that works iterates the **registry** — every move must draw a zone
+before it damages, must plant during its wind-up, must move its body. Registry
+level, because a per-move check gets forgotten when a fifth move is added, and
+forgetting is exactly what happened to FORCE PULL and FORCE PUSH. It has since
+caught two *new* moves with no body tell on their first run.
+
+### Nearly every intermittent failure was my instrument
+
+Not one was a flaky game. In order:
+
+| what failed | what was actually wrong |
 |---|---|
-| SABER THROW | 1 lane (then a second — see below) |
-| **FORCE PULL** | **none** |
-| VANISH | 1 circle |
-| **FORCE PUSH** | **none** |
+| stagger read as 128ms for a 550ms window | polling async in a ~50ms/frame harness; the peak was between samples |
+| "move grants no recovery" | the cast was **refused** and returned null — every probe reads zero, which is indistinguishable from "did nothing" |
+| body wind-up = 0 | previous move's tween still running; baseline captured mid-fade |
+| "he stands on you" at 0px, then 34px | FORCE PULL legitimately drags the player onto him; then the frame after a move inherits where it left him |
+| saber "teleports", 2 runs in 3 | thresholded pixels-per-frame, which measures the machine |
+| clones deal no damage | under parallel load they could not cross 100px in 5s |
 
-FORCE PUSH is a 420px shove that costs a dash charge, and FORCE PULL drags the player across
-the room. Neither puts a single pixel on the ground before it fires. Combined with (1) — no
-visible wind-up either — they are unannounced.
+The pattern: **I measured a thing adjacent to the claim and let the number
+stand in for it.** The fix each time was to measure the claim — sample on the
+game's own `postupdate` frame, wait on the move's phase rather than the wall
+clock, count frames rather than pixels, and assert the cast actually ran.
 
-### 3. "Two red trails" is real, and it is worse than two
+### A check that passes on the broken build is not a check
 
-One SABER THROW, logged at the moment each zone is created:
+Three of round 3's four new checks passed against the build being replaced and
+had to be rewritten until they discriminated:
 
-```
-  +0ms     lane 620x150 at (976,1350) angle 180deg   [Vader at (976,1350)]
-  +1450ms  lane 620x150 at (319,1350) angle  23deg   [Vader at (813,1350)]
-  +2920ms  lane 684x170 at (618,1350) angle 180deg   [Vader at (618,1350)]
-```
+- knockback had to be applied **mid-move** — idle, the AI swallowed it;
+- the boomerang had to displace him **after** the old code captured its target;
+- the "stands on you" check had to measure where he **settles**, not the minimum.
 
-Three red rectangles in under three seconds, from two different systems:
+A/B is not a formality. Run the new check against the old code and watch it
+fail, or it is decoration.
 
-- The second lane is the saber's **return path**. Its origin is 657px from Vader — it starts in
-  empty floor, pointing 23° off-axis at nothing the player can associate with him.
-- The third is the **state machine's charge lane** (note the different dimensions, 684x170),
-  fired on its own cadence with no coordination.
-- And because a telegraph freezes its origin at spawn time while Vader keeps walking (1),
-  **the first lane no longer comes out of him by the time it commits** — he has moved 163px.
+### Screenshots caught three bugs no assertion did
 
-A telegraph that does not originate from the thing that will hit you is not a telegraph. It is
-a red rectangle.
+The compounding saber scale, the stray return lane, and the safe-zone-drawn-in-
+danger-colour from an earlier release. All invisible to counts.
 
-### 4. The "effects" are the telegraph primitive, unchanged
+And the harness lied there too: freezing `tweens.timeScale` and pausing physics
+does **not** stop `scene.update`, so telegraphs kept ticking and destroyed
+themselves before the shutter. I spent four rounds blaming the drawing code for
+a zone that was no longer in the frame. `scene.pause()` is what a photograph
+needs.
 
-`Telegraph.js` draws exactly one thing: `strokeCircle` plus a 28%-alpha fill, or a four-point
-polygon for a lane. That is the whole visual vocabulary of every move. *"Too simple blue circle
-or red rectangle"* is a literal description of the drawing code.
+### Verify the theory before designing around it
 
-The plan had this right and I ignored my own sequencing: **Phase E — pixel-art attack frames**
-was listed, deferred, and never done, while the moves were reported as complete.
-
----
-
-## How the tests hid it — the part worth remembering
-
-`smoke-boss-moves.mjs` passed 17 checks against this build. It should have been impossible for
-it to pass. Here is why it wasn't.
-
-### The tests began by switching off the thing that broke the moves
-
-Every boss test in that file opened with:
-
-```js
-b._reflectEvery = 0; b._blackoutEvery = 0; b._afterimageEvery = 0;
-b._disarmEvery = 0; b._sunderMs = 0; b.cooldown = 1e9;
-```
-
-`cooldown = 1e9` is what stops his state machine picking a new attack. So the tests measured
-the moves in a laboratory built by **removing the exact system they collide with in play**. The
-conflict in (1) cannot appear in a harness that disables one of the two parties.
-
-> **Rule: never verify a new behaviour with the system it shares an actor with switched off.**
-> Silence a clock to make a measurement stable, then run at least one pass with nothing
-> silenced and assert the fight is still coherent.
-
-### The tests asserted effects, and readability is not an effect
-
-Every check was of the form "the saber travelled 200px", "the player moved 60px against their
-input", "a dash charge was spent". All true. None of them can fail when the move is
-unreadable, unannounced, or accompanied by two stray rectangles.
-
-I had already written the right gate — `smoke-moves.mjs` has **MOTION IS MANDATORY**, which
-fails a move whose actor does not visibly move during ACT — and I applied it only to the
-nemesis path, never to the boss. Had it been pointed at Vader it would have caught (1)
-immediately.
-
-> **Rule: for anything the player has to READ, assert the reading.** At minimum: a zone exists
-> before damage lands; exactly one zone is on the floor per attack; the actor's body changes
-> during the wind-up; the zone's origin tracks the actor that will hit you.
-
-### Screenshots were treated as optional, then explicitly waived
-
-The screenshot pass produced badly framed images. Instead of fixing the framing I wrote into
-the script header that *"whether a move READS at arm's length on a handset is still a phone
-question"* and shipped. That is outsourcing my own verification to the person who asked for the
-work. The stray return lane and the missing wind-up are both visible in a correctly framed
-still — I had the instrument in my hand and put it down.
-
-`tests/README.md` already says this project is heavily visual and that assertion counts have
-produced false passes here before. It was right again.
-
-### I deployed on a green suite instead of on having watched it play
-
-"Always deploy — don't ask" is about not making the player wait behind a question. It is not
-licence to ship something I never watched run. 25/25 green was reported as if it were evidence
-the fight was good; it was evidence that 25 files ran without throwing.
+I wrote in this file's first version that `Boss.update` was snapping the thrown
+saber back to his hand. A one-frame probe measured it **503px away at both ends
+of the frame** — the theory was wrong. His AI is in `preUpdate`, which Phaser
+runs *before* the tween manager, so tweened properties always survived and only
+direct writes were clobbered. Twenty minutes of probe saved a redesign built on
+a false premise.
 
 ---
 
-## What I told the player that wasn't true
+## What cost the most time
 
-- *"Vader now performs his own moves"* — he performs them while his old state machine performs
-  its own attacks over the top.
-- *"his charge finally draws a lane on the floor"* — true, and that lane is one of the stray
-  red rectangles, because nothing sequences it against the move system.
-- The four moves were listed as done with no mention that their entire visual treatment was a
-  placeholder primitive.
+1. **Instrument debugging, by a wide margin.** Perhaps half the elapsed time
+   went into tests that were wrong about a game that was right.
+2. **Shipping without looking.** Round 1 went out on a green suite and bad
+   screenshots I had explicitly waived as "a phone question". That waiver cost
+   two rounds.
+3. **Container rollbacks.** The working tree was reset to an older commit at
+   least four times mid-session; only pushed work survived. Commit and push at
+   every natural checkpoint, not at the end.
+4. **Fixing symptoms before finding the cause.** Round 1's tests were patched
+   three times before I admitted the structure was wrong.
 
 ---
 
-## The three rules, short enough to remember
+## The rules
 
-1. **Never test a new behaviour with the old system switched off.** If a harness needs a clock
-   silenced to be stable, one unsilenced pass still has to run.
-2. **Effects are not readability.** Assert the telegraph, the wind-up on the body, one zone per
-   attack, and the zone's origin tracking its owner — or the move can pass every check and be
-   unplayable.
-3. **A placeholder is not a deliverable.** If the art is still the primitive, say so out loud
-   before deploying, and do not describe the feature as finished.
+1. **Never verify a new behaviour with the system it shares an actor with
+   switched off.** Silence a clock to stabilise a measurement if you must, then
+   run one pass with nothing silenced and assert the fight is still coherent.
+2. **Effects are not readability.** Assert the reading: a zone exists before
+   damage, one zone per attack, the body visibly winds up, the zone's origin
+   tracks the actor that will hit you. Do it at the registry so a new move
+   cannot skip it.
+3. **A placeholder is not a deliverable.** If the art is still the primitive,
+   say so out loud before deploying, and do not describe the feature as
+   finished.
+4. **Intermittent means the instrument is wrong.** Every single time, here.
+   Find what it is really measuring; do not move the threshold.
+5. **A/B every check against the build it replaces.** If it passes there, it is
+   not testing the change.
+6. **Look at it.** Screenshots caught what assertions could not, three times.
+7. **Probe a theory before building on it.** One frame of measurement beats an
+   afternoon of confident reasoning.
