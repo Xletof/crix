@@ -393,12 +393,45 @@ r.boomerang = await page.evaluate(async () => {
   let returned = false;
   const samples = [];
   const afterMove = [];
+  const staleGap = [];
   const onFrame = () => {
-    if (out2.movedTo && w?.active) afterMove.push(Math.hypot(w.x - b.x, w.y - b.y));
+    // Only while the blade is STILL OUT. `_saberAway` goes false the moment it
+    // is caught and `Boss.preUpdate` resumes parking the sprite in his hand.
+    //
+    // This is the whole discriminator. A blade homing on stale coordinates
+    // ALSO ends up in his hand — it flies to the point he has left, is
+    // "caught" there, and the sprite snaps back to him. So any measurement
+    // that includes post-catch frames says "it came back" for both builds, and
+    // that is precisely what this check did: with the homing frozen to the
+    // stale point — the exact bug it exists to catch — it still passed.
+    // Bounded to the flight, a stale blade never gets nearer than the
+    // displacement and a homing one reaches him.
+    if (out2.movedTo && w?.active && b._saberAway) {
+      afterMove.push(Math.hypot(w.x - b.x, w.y - b.y));
+      staleGap.push(Math.hypot(w.x - out2.preMove.x, w.y - out2.preMove.y));
+    }
     if (!w?.active) return;
     const d = Math.hypot(w.x - b.x, w.y - b.y);
     samples.push(Math.round(d));
     peak = Math.max(peak, d);
+    // DISPLACE HIM OFF THE FLIGHT'S OWN STATE, not off a wall-clock delay.
+    //
+    // The delay was 1750ms, and that is a race the harness loses in both
+    // directions. Under load the blade was still outbound and the old sample
+    // read it mid-flight; run standalone the blade had ALREADY BEEN CAUGHT by
+    // then, so the displacement moved a reattached saber and the check passed
+    // no matter what the homing did — verified by freezing the homing to the
+    // stale coordinates, the exact bug this exists to catch, and watching it
+    // pass anyway. It was decoration in the runs where it was green.
+    //
+    // Turned around and closing is the moment that matters, and only the
+    // flight knows when that is.
+    if (!out2.movedTo && peak > 300 && d < peak - 40) {
+      out2.preMove = { x: b.x, y: b.y };      // where the stale tween would aim
+      b.setPosition(b.x, b.y - 220);
+      out2.movedTo = { x: Math.round(b.x), y: Math.round(b.y) };
+      out2.movedAtGap = Math.round(d);
+    }
     if (last !== null && peak > 200) {
       // Only care about jumps on the way HOME — a teleport back shows up as one
       // enormous single-frame decrease.
@@ -424,10 +457,7 @@ r.boomerang = await page.evaluate(async () => {
   // ~1450ms after the cast); moving him before that let the stale capture
   // happen to be correct, and the check passed on the build it was written to
   // catch. Late enough, and the old blade flies to an empty patch of floor.
-  await new Promise((res) => setTimeout(res, 1750));
-  b.setPosition(b.x, b.y - 220);
-  out2.movedTo = { x: Math.round(b.x), y: Math.round(b.y) };
-  for (let i = 0; i < 90 && !returned; i++) await new Promise((res) => setTimeout(res, 50));
+  for (let i = 0; i < 140 && !returned; i++) await new Promise((res) => setTimeout(res, 50));
   // Let it settle before reading the resting gap. A single sample taken on the
   // catch frame lands mid-reattach while he is still walking, which is why this
   // read 50px on one run in three and 11px on the others — the instrument, not
@@ -467,7 +497,22 @@ r.boomerang = await page.evaluate(async () => {
     ...out2,
     loiter, afterMoveFrames: afterMove.length,
     peak: Math.round(peak), legFrames, returned, frames: samples.length,
-    finalGap: Math.round(Math.hypot((w?.x ?? 0) - b.x, (w?.y ?? 0) - b.y)),
+    // CLOSEST it ever got after he was displaced, not the gap at one instant.
+    //
+    // `finalGap` sampled a single frame after a fixed settle, and that is a
+    // measurement of the machine: it passed standalone four times and failed
+    // twice inside the full suite, where the loop runs slower and the sample
+    // lands before the blade has finished closing. Third load-sensitive
+    // reading in this file's history and the same lesson each time —
+    // intermittent means the instrument.
+    //
+    // The CLAIM is "it comes back to his hand even after he moves". The
+    // minimum gap after the displacement answers exactly that and cannot be
+    // defeated by which frame the sample happens to land on: a homing blade
+    // reaches him, a stale tween loiters out at the displacement distance
+    // forever.
+    finalGap: afterMove.length ? Math.round(Math.min(...afterMove)) : -1,
+    staleGap: staleGap.length ? Math.round(Math.min(...staleGap)) : -1,
   };
 });
 
@@ -530,9 +575,16 @@ check(r.boomerang.peak > 300,
 // gap between them changes for two reasons at once, and a slow frame moves both.
 // The pair below is what holds across runs; the smoothness of the final approach
 // is a screenshot question, not an assertion.
-check(r.boomerang.returned && r.boomerang.finalGap < 60,
+// Compared as a RATIO, not against a pixel threshold.
+//
+// Where the blade ENDS UP is the claim, and the two candidate destinations are
+// him and the spot he left. A pixel bound on either one measures the frame rate
+// instead: the catch fires inside 26px, so the last sample while the blade is
+// still out sits one frame of travel back — 76px on a quiet machine and more on
+// a busy one. Which of the two it is nearer does not move with the clock.
+check(r.boomerang.returned && r.boomerang.finalGap < r.boomerang.staleGap,
   'and comes back to his hand EVEN AFTER HE MOVES',
-  `ended ${r.boomerang.finalGap}px from him after he was displaced 220px mid-flight — the old return flew to the coordinates he had left. 60px is one body width: reattached, the saber rides ~26px off his centre and he is still walking when the sample lands.`);
+  `ended ${r.boomerang.finalGap}px from HIM and ${r.boomerang.staleGap}px from where he was — the old return flew to the coordinates he had left, was caught there, and snapped into his hand from that spot, which looks identical to a homing blade unless the measurement stops at the catch`);
 check(r.boomerang.legFrames >= 4,
   'and FLIES home rather than teleporting',
   `${r.boomerang.legFrames} frames of travel between the far point and the catch — a teleport does it in one, whatever the frame rate`);

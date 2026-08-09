@@ -233,3 +233,31 @@ card pauses Game and HUD and waits for a tap. Without the flag the bot sits behi
 it for the entire cap — the first run after the narrative landed reported
 encounter 1 as 180.2s with 45,826 of 46,000 hp left. Eleven files carry the flag;
 `smoke-dialogue` deliberately does not.
+
+**A measurement window that runs past the moment of truth proves nothing.**
+`smoke-readability`'s "the saber comes back to his hand even after he moves"
+kept flickering under suite load, so it was rebuilt to measure the closest
+approach rather than one instant. It then passed on the fixed build — and
+passed just as happily with the homing frozen to the coordinates he had left,
+which is the exact bug it exists to catch. A stale blade ALSO ends up in his
+hand: it flies to the old point, is caught there, and the sprite snaps back to
+him. Every frame after that catch says "it came back" for both builds. Bounding
+the samples to `_saberAway` — the flag that is true only while the blade is out
+— is what made it discriminate.
+
+**Some claims have no honest pixel threshold; compare two distances instead.**
+The same check then read 76px on the fixed build, because the catch fires inside
+26px and the last in-flight sample sits one frame of travel back — 76px on a
+quiet machine, more on a busy one. Any bound on that number is a bound on the
+frame rate. What does not move with the clock is WHICH of two candidate
+destinations the blade ended up nearer: him, or the spot he left. Homing reads
+26 vs 220; stale reads 92 vs 31. Ratios survive a slow machine, thresholds do
+not — and this is the third instrument in this file to have learned it.
+
+**Displacing, spawning or interrupting on a wall-clock delay is a race you lose
+in both directions.** That check displaced Vader 1750ms after the cast. Under
+load the blade was still outbound and the sample landed mid-flight; run
+standalone, the blade had already been caught by then and the displacement moved
+a saber that was back in his hand, so the check was vacuous in exactly the runs
+where it was green. The trigger now fires from the flight's own state — turned
+around and closing — sampled on the game's `postupdate`.
