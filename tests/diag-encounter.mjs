@@ -416,15 +416,23 @@ async function fightVader(encounter, capMs, spam = false, upgrades = true, run =
     // are behind it.
     const picks = upgrades ? encounter * ENDLESS.bossEvery - 1 : 0;
     if (picks > 0) {
-      // Seeded by ENCOUNTER ONLY — deliberately not by run.
+      // ONE seed for the whole ladder — not per repeat, and not per encounter.
       //
-      // Varying the build per repeat looked like more coverage and was the
-      // opposite: repeats then measured build variance and wall-clock noise
-      // together, and the number that came out could not tell you which. First
-      // run of this reported 4.6s, 21.1s, 4.6s on one rung — a 348% "spread"
-      // that was mostly three different players. A repeat must vary ONE thing.
-      // Build variance is worth its own sweep, not a seat in this one.
-      const rng = makeRng(0x11f0 + encounter * 131);
+      // A run ACCUMULATES. Encounter 2's build is encounter 1's four cards plus
+      // five more; it is not an independent draw of nine. Because `pickThree`
+      // is driven off `taken`, replaying the same stream from the same seed
+      // reproduces the earlier picks exactly and then continues, so rung n's
+      // build is a true prefix of rung n+1's.
+      //
+      // Both alternatives were tried and both broke the same rule — a
+      // measurement must vary ONE thing:
+      //   - seeded per REPEAT: three runs of one rung came back 4.6s, 21.1s,
+      //     4.6s, reported as 348% spread that was mostly three different
+      //     players rather than any property of the fight;
+      //   - seeded per ENCOUNTER: rung 3 drew 14 cards worth x3.4 damage while
+      //     rung 2 drew 9 worth x4.07, so a rung-to-rung comparison mixed hp
+      //     scaling with build luck and the ladder could not be read at all.
+      const rng = makeRng(0x11f0);
       const realRandom = Math.random;
       Math.random = rng.rand;
       try {
