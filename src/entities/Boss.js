@@ -146,7 +146,22 @@ export class Boss extends Enemy {
   enterPhase(p) {
     if (p === this.phase) return;
     this.phase = p;
-    this.cfg = { ...this.cfg, attackCooldownMs: Math.max(900, BOSS.attackCooldownMs - 400 * (p - 1)) };
+    // Explicit per-phase cooldowns, not a formula.
+    //
+    // This used to be `Math.max(900, attackCooldownMs - 400 * (p - 1))`. With
+    // attackCooldownMs at 1100 that is max(900, 700) = 900 at phase 2 and
+    // max(900, 300) = 900 at phase 3 — THE CLAMP ATE THE ENTIRE PHASE-3 TERM,
+    // so his attack rate was identical in both and the only thing phase 3
+    // actually gained was 1.35x move speed. It read as an escalation in the
+    // source and was none in the game.
+    //
+    // 900 is a real floor, not a guess: a move occupies ~3.3s of
+    // anticipate/act/recover and the two systems block each other, so shorter
+    // gaps do not buy more attacks — they only starve the scripted moves (see
+    // the cadence table above `attackCooldownMs`). Phase 3 takes its share out
+    // of the state machine's own cooldown instead.
+    const perPhase = { 1: BOSS.attackCooldownMs, 2: 950, 3: 820 };
+    this.cfg = { ...this.cfg, attackCooldownMs: perPhase[p] ?? BOSS.attackCooldownMs };
     if (p >= 2) this._enraged = true;
     SFX.bossRoar();
     this.scene.events.emit('boss-phase', p);
