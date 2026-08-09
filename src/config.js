@@ -315,7 +315,7 @@ export const ENEMY = {
 };
 
 export const BOSS = {
-  // MEASURED across the WHOLE LADDER, which is the lesson here.
+  // MEASURED across the WHOLE LADDER, against the build a real run brings.
   //
   // History, because the mistakes are instructive:
   //   12,000 -> 10.6s. Phase 3 at 7s; two thirds of the fight never happened.
@@ -325,25 +325,51 @@ export const BOSS = {
   //             960/window: FOUR MINUTES on the phone. Measuring two rungs of a
   //             six-rung ladder and extrapolating is how that happened.
   //
-  // Now: flat 1600 cap, bossHpStep 0.15, all six measured with the harness's
-  // super-spam policy (`--mode vader`, which now defaults to six encounters):
+  // And the mistake this pass found, which is the same one wearing a different
+  // hat: every figure above was measured against a bot that never picked up a
+  // single upgrade, while a real run reaching encounter 6 has cleared 29 rooms
+  // and taken 29 cards. The ladder was a measurement of a player who does not
+  // exist. `--mode vader` now applies them through the game's own
+  // pickThree/apply path (see the diminishing-returns note in upgrades.js,
+  // which is the OTHER thing that had to be fixed before any of this could be
+  // read: damage was compounding to 1240x by encounter 6).
   //
-  //   enc   hp      spam profile      patient profile
-  //   1     46,000  11.2s             49.3s
-  //   2     52,900  23.3s
-  //   3     59,800  12.9s
-  //   4     66,700  17.8s
-  //   5     73,600  30.0s
-  //   6     80,500  41.2s
+  // Measured with dmgMult 1.7 / 2.6 / 4.7 / 9.3 / 13.4 / 14.5, medians of 3:
   //
-  // The gap between the two columns is the real finding: PLAYSTYLE swings fight
-  // length ~4.4x on identical hp. Mashing both supers is roughly four times the
-  // output of patient poking, so any single "how long is this fight" number is
-  // meaningless without saying who is holding the phone. Both are reported.
+  //   enc   hp @46k   patient   spam    -> effective dps
+  //   1     46,000    11.8s     6.4s       3,900 / 7,200
+  //   2     52,900    11.8s     3.9s       4,500 / 13,600
+  //   3     59,800     9.2s     3.8s       6,500 / 15,700
+  //   4     66,700     5.8s     4.2s      11,500 / 15,900
+  //   5     73,600    12.5s     4.5s       5,900 / 16,400
+  //   6     80,500    10.7s     5.1s       7,500 / 15,800
   //
-  // Re-derive with the harness after ANY change to player output or to Vader's
-  // move set — more telegraphs means more time not shooting, which moves this.
-  hp: 46000,
+  // Two things fall out of that and they set the two constants:
+  //
+  //   - Output does NOT track dmgMult. Spam saturates at ~15,000-16,000 dmg/sec
+  //     from encounter 2 on while dmgMult goes 2.6 -> 14.5, because cadence,
+  //     ammo and reload bind long before damage does. So hp does not have to
+  //     chase the upgrade curve.
+  //   - Player dps grows ~1.9x (patient) to 2.2x (spam) across the six rungs,
+  //     and the hp curve already grew 1.75x. THE SHAPE WAS RIGHT AND THE BASE
+  //     WAS SEVEN TIMES TOO SMALL. `bossHpStep` moves 0.15 -> 0.22 to close the
+  //     remaining gap; `hp` does the real work.
+  //
+  // At 300,000 / 0.22 the projection is 77 / 82 / 66 / 43 / 96 / 84s patient and
+  // 42 / 27 / 27 / 31 / 34 / 40s spam. The 4.4x-turned-2x gap between the two
+  // columns is the standing finding: PLAYSTYLE swings fight length several-fold
+  // on identical hp, so no single "how long is this fight" number means anything
+  // without saying who is holding the phone.
+  //
+  // CAVEAT ON PRECISION. Fight length here is wall clock in a browser and the
+  // measured spreads run to 254% on a rung where nothing varied but the fight
+  // (encounter 4: 18.2s, 5.8s, 3.5s). Read this ladder as a SHAPE, not as six
+  // numbers, and do not chase a rung by 10%.
+  //
+  // Re-derive with the harness after ANY change to player output, to the
+  // UPGRADES pool, or to Vader's move set — more telegraphs means more time not
+  // shooting, which moves this.
+  hp: 300000,
   radius: 56,
   speed: 165,
   contactDamage: 300,
@@ -891,7 +917,8 @@ export const ENDLESS = {
   //
   // The measured table for all six lives beside BOSS.hp. Do not tune this from
   // #1 and #2 again.
-  bossHpStep: 0.15,    // boss n has hp x (1 + 0.15*(n-1))
+  bossHpStep: 0.22,    // boss n has hp x (1 + 0.22*(n-1)) — see the ladder
+                       // table above BOSS.hp; player dps grows ~1.9-2.2x over the six
   bossScoreStep: 0.5,  // and is worth proportionally more
 
   // Vader is a RECURRING NEMESIS, not a kill. Driving him to zero wounds him
@@ -960,7 +987,13 @@ export const ENDLESS = {
     //
     // A fraction of hpMax rather than a flat number, so it behaves the same on
     // encounter 1 and on a late Vader with several times the health.
-    vanishHpFrac: 0.10,
+    // Scaled with the pool, not left behind by it. This is a fraction of
+    // hpMax, so raising hp 6.5x silently raised the trigger from 4,600 damage
+    // in 2s to 30,000 — more than any playstyle produces in that window, which
+    // would have retired the mechanic without anyone noticing. 0.025 of 300,000
+    // is 7,500, against ~7,800 for two seconds of patient output and ~14,400 of
+    // spam: a real burst sets it off, and the 14s lockout caps how often.
+    vanishHpFrac: 0.025,
     vanishWindowMs: 2000,
     vanishLockMs: 14000,
   },
