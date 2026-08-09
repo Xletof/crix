@@ -989,13 +989,43 @@ export function paintPlayer(scene, key = 'player') {
 }
 
 // ── GRUNT: Stormtrooper (20×20, 24 frames) — 4-DIRECTIONAL ─────────────────
+// Frames 24-32: raise / thrust / recoil, three per facing, in beat order.
+//
+// Shared by the two 20x20 trooper sheets. Every nemesis base collapses to one
+// of them — grunt/bomber/swarmling to `grunt`, shooter/shielded/sniper to
+// `shooter` — so nine frames each covers all five archetypes.
+//
+// The order MUST stay `POSE_BASE + facingIndex * 3 + poseIndex`, because
+// PreloadScene derives the anim keys from that arithmetic for Vader and for
+// these alike.
+function paintPoseFrames(draw) {
+  const dirs = ['front', 'back', 'side'];
+  const poses = ['raise', 'thrust', 'recoil'];
+  dirs.forEach((d, di) => poses.forEach((p, pi) => draw(24 + di * 3 + pi, 0, d, false, p)));
+}
+
 export function paintGrunt(scene, key = 'grunt') {
-  const ss = new SpriteSheet(scene, key, 20, 20, 24, 4);
+  const ss = new SpriteSheet(scene, key, 20, 20, 33, 4);
   const C = PAL;
 
-  function drawTrooper(f, legPhase = 0, dir = 'front', hurt = false) {
+  function drawTrooper(f, legPhase = 0, dir = 'front', hurt = false, pose = null) {
     ss.frame(f);
-    const bob = (legPhase === 0) ? 0 : (Math.abs(legPhase) === 2 ? 1 : 0);
+    // ── Attack poses ──────────────────────────────────────────────────────
+    //
+    // Same two channels drawVader uses, halved for a 20x20 body: a vertical
+    // BOB and a forward LEAN, plus an arm offset because at this size the
+    // shoulder blocks are the only limbs there are. Without these a scripted
+    // move played out with the body standing in its idle frame, which is the
+    // single thing that made Vader's moves read as broken before he had them.
+    const poseBob = pose === 'raise' ? -1 : pose === 'thrust' ? 1 : pose === 'recoil' ? 2 : null;
+    const lean    = pose === 'raise' ? -1 : pose === 'thrust' ? 2 : pose === 'recoil' ? -1 : 0;
+    // Arms move on BOTH axes. First pass used the vertical alone and the strike
+    // frame sank the shoulder blocks into the torso, so at a glance the arms
+    // just vanished — the silhouette got smaller on the one beat that should
+    // read as reaching. Out is what sells a strike at this size.
+    const armDy   = pose === 'raise' ? -3 : pose === 'thrust' ? -1 : pose === 'recoil' ? 2 : 0;
+    const armDx   = pose === 'raise' ?  0 : pose === 'thrust' ?  2 : pose === 'recoil' ? 1 : 0;
+    const bob = poseBob !== null ? poseBob : ((legPhase === 0) ? 0 : (Math.abs(legPhase) === 2 ? 1 : 0));
     const main = hurt ? '#ffffff' : C.troopWhite;
     const mid  = hurt ? C.troopLight : C.troopLight;
 
@@ -1025,12 +1055,14 @@ export function paintGrunt(scene, key = 'grunt') {
 
     // ── BODY LAYOUTS ──────────────────────────────────────────────────────
     if (dir === 'front') {
-      ss.rect(3, 11 + bob, 3, 3, main);
-      ss.rect(14, 11 + bob, 3, 3, main);
-      ss.hline(11 + bob, 3,  5, C.troopLight);
-      ss.hline(11 + bob, 14, 16, C.troopLight);
-      ss.hline(13 + bob, 3,  5, C.troopShade);
-      ss.hline(13 + bob, 14, 16, C.troopShade);
+      const ay = 11 + bob + armDy;
+      const alx = 3 - armDx, arx = 14 + armDx;
+      ss.rect(alx, ay, 3, 3, main);
+      ss.rect(arx, ay, 3, 3, main);
+      ss.hline(ay, alx, alx + 2, C.troopLight);
+      ss.hline(ay, arx, arx + 2, C.troopLight);
+      ss.hline(ay + 2, alx, alx + 2, C.troopShade);
+      ss.hline(ay + 2, arx, arx + 2, C.troopShade);
 
       ss.rect(6, 12 + bob, 8, 4, main);
       ss.hline(12 + bob, 6, 13, C.troopLight);
@@ -1043,8 +1075,8 @@ export function paintGrunt(scene, key = 'grunt') {
       ss.px(8,  16 + bob, C.impSheen); ss.px(11, 16 + bob, C.impSheen);
 
     } else if (dir === 'back') {
-      ss.rect(3, 11 + bob, 3, 3, main);
-      ss.rect(14, 11 + bob, 3, 3, main);
+      ss.rect(3 - armDx, 11 + bob + armDy, 3, 3, main);
+      ss.rect(14 + armDx, 11 + bob + armDy, 3, 3, main);
       ss.rect(6, 12 + bob, 8, 4, main);
       ss.hline(12 + bob, 6, 13, C.troopLight);
       ss.hline(15 + bob, 6, 13, C.troopShade);
@@ -1052,11 +1084,11 @@ export function paintGrunt(scene, key = 'grunt') {
       ss.hline(17 + bob, 7, 12, C.impGrey);
 
     } else if (dir === 'side') {
-      ss.rect(5, 11 + bob, 4, 5, main);
-      ss.hline(11 + bob, 5, 8, C.troopLight);
-      ss.hline(15 + bob, 5, 8, C.troopShade);
-      ss.vline(7, 12 + bob, 14 + bob, C.black);
-      ss.rect(9, 12 + bob, 6, 4, main);
+      ss.rect(5 + lean, 11 + bob, 4, 5, main);
+      ss.hline(11 + bob, 5 + lean, 8 + lean, C.troopLight);
+      ss.hline(15 + bob, 5 + lean, 8 + lean, C.troopShade);
+      ss.vline(7 + lean, 12 + bob, 14 + bob, C.black);
+      ss.rect(9 + lean, 12 + bob, 6, 4, main);
       ss.hline(16 + bob, 8, 13, C.impGrey);
     }
 
@@ -1110,17 +1142,38 @@ export function paintGrunt(scene, key = 'grunt') {
   drawTrooper(22, -1, 'side', false);
   drawTrooper(23, 0, 'side', true);
 
+  // ── Attack poses, frames 24-32 ────────────────────────────────────────
+  // Three per facing in beat order, matching Vader's layout so PreloadScene
+  // builds the anim keys the same way. Legs held at phase 0: the pose owns the
+  // body, and a walk cycle underneath it just muddies both.
+  paintPoseFrames(drawTrooper);
+
   ss.finish();
 }
 
 // ── SHOOTER: Death Trooper (20×20, 8 frames) ──────────────────────────────
 export function paintShooter(scene, key = 'shooter') {
-  const ss = new SpriteSheet(scene, key, 20, 20, 24, 4);
+  const ss = new SpriteSheet(scene, key, 20, 20, 33, 4);
   const C = PAL;
 
-  function drawDeathTrooper(f, legPhase = 0, dir = 'front', hurt = false) {
+  function drawDeathTrooper(f, legPhase = 0, dir = 'front', hurt = false, pose = null) {
     ss.frame(f);
-    const bob = (legPhase === 0) ? 0 : (Math.abs(legPhase) === 2 ? 1 : 0);
+    // ── Attack poses ──────────────────────────────────────────────────────
+    //
+    // Same two channels drawVader uses, halved for a 20x20 body: a vertical
+    // BOB and a forward LEAN, plus an arm offset because at this size the
+    // shoulder blocks are the only limbs there are. Without these a scripted
+    // move played out with the body standing in its idle frame, which is the
+    // single thing that made Vader's moves read as broken before he had them.
+    const poseBob = pose === 'raise' ? -1 : pose === 'thrust' ? 1 : pose === 'recoil' ? 2 : null;
+    const lean    = pose === 'raise' ? -1 : pose === 'thrust' ? 2 : pose === 'recoil' ? -1 : 0;
+    // Arms move on BOTH axes. First pass used the vertical alone and the strike
+    // frame sank the shoulder blocks into the torso, so at a glance the arms
+    // just vanished — the silhouette got smaller on the one beat that should
+    // read as reaching. Out is what sells a strike at this size.
+    const armDy   = pose === 'raise' ? -3 : pose === 'thrust' ? -1 : pose === 'recoil' ? 2 : 0;
+    const armDx   = pose === 'raise' ?  0 : pose === 'thrust' ?  2 : pose === 'recoil' ? 1 : 0;
+    const bob = poseBob !== null ? poseBob : ((legPhase === 0) ? 0 : (Math.abs(legPhase) === 2 ? 1 : 0));
     const main = hurt ? C.dthLight : C.dthMid;
     const dark = hurt ? C.dthMid   : C.dthDark;
 
@@ -1147,12 +1200,14 @@ export function paintShooter(scene, key = 'shooter') {
 
     // ── BODY LAYOUTS ──────────────────────────────────────────────────────
     if (dir === 'front') {
-      ss.rect(3, 11 + bob, 3, 3, main);
-      ss.rect(14, 11 + bob, 3, 3, main);
-      ss.hline(11 + bob, 3,  5, C.dthLight);
-      ss.hline(11 + bob, 14, 16, C.dthLight);
-      ss.hline(13 + bob, 3,  5, dark);
-      ss.hline(13 + bob, 14, 16, dark);
+      const ay = 11 + bob + armDy;
+      const alx = 3 - armDx, arx = 14 + armDx;
+      ss.rect(alx, ay, 3, 3, main);
+      ss.rect(arx, ay, 3, 3, main);
+      ss.hline(ay, alx, alx + 2, C.dthLight);
+      ss.hline(ay, arx, arx + 2, C.dthLight);
+      ss.hline(ay + 2, alx, alx + 2, dark);
+      ss.hline(ay + 2, arx, arx + 2, dark);
 
       ss.rect(6, 12 + bob, 8, 4, main);
       ss.hline(12 + bob, 6, 13, C.dthLight);
@@ -1166,8 +1221,8 @@ export function paintShooter(scene, key = 'shooter') {
       ss.px(10, 16 + bob, C.dthLEDBright);
 
     } else if (dir === 'back') {
-      ss.rect(3, 11 + bob, 3, 3, main);
-      ss.rect(14, 11 + bob, 3, 3, main);
+      ss.rect(3 - armDx, 11 + bob + armDy, 3, 3, main);
+      ss.rect(14 + armDx, 11 + bob + armDy, 3, 3, main);
       ss.rect(6, 12 + bob, 8, 4, main);
       ss.hline(12 + bob, 6, 13, C.dthLight);
       ss.hline(15 + bob, 6, 13, dark);
@@ -1176,11 +1231,11 @@ export function paintShooter(scene, key = 'shooter') {
       ss.hline(17 + bob, 7, 12, C.black);
 
     } else if (dir === 'side') {
-      ss.rect(5, 11 + bob, 4, 5, main);
-      ss.hline(11 + bob, 5, 8, C.dthLight);
-      ss.hline(15 + bob, 5, 8, dark);
-      ss.vline(7, 12 + bob, 14 + bob, C.black);
-      ss.rect(9, 12 + bob, 6, 4, main);
+      ss.rect(5 + lean, 11 + bob, 4, 5, main);
+      ss.hline(11 + bob, 5 + lean, 8 + lean, C.dthLight);
+      ss.hline(15 + bob, 5 + lean, 8 + lean, dark);
+      ss.vline(7 + lean, 12 + bob, 14 + bob, C.black);
+      ss.rect(9 + lean, 12 + bob, 6, 4, main);
       ss.hline(16 + bob, 8, 13, dark);
     }
 
@@ -1235,6 +1290,9 @@ export function paintShooter(scene, key = 'shooter') {
   drawDeathTrooper(21, -2, 'side', false);
   drawDeathTrooper(22, -1, 'side', false);
   drawDeathTrooper(23, 0, 'side', true);
+
+  // Attack poses, frames 24-32. See the note in paintGrunt.
+  paintPoseFrames(drawDeathTrooper);
 
   ss.finish();
 }

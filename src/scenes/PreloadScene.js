@@ -196,25 +196,39 @@ export class PreloadScene extends Phaser.Scene {
       }
     }
 
-    // ── Vader's attack poses ─────────────────────────────────────────
+    // ── Attack poses ─────────────────────────────────────────────────
     //
-    // Frames 24-35 of the boss sheet, laid out three-per-facing in beat order.
-    // These exist because he used to play his WALK cycle while attacking: the
-    // body performed none of the move, which is a large part of why the first
-    // version read as broken. `Boss.playVaderAnim` selects them from the beat.
+    // Frames 24-32 of each sheet, laid out three-per-facing in beat order.
+    // These exist because an attacking actor used to play its WALK cycle: the
+    // body performed none of the move, which is a large part of why Vader's
+    // first version read as broken. Selected by `Boss.playVaderAnim` and, for
+    // the rest, by `Enemy.preUpdate` off `_moveAnim`.
+    //
+    // Built for GRUNT and SHOOTER too, not just the boss. Every nemesis base
+    // collapses to one of those two sheets — grunt/bomber/swarmling and
+    // shooter/shielded/sniper — so nine frames each covers all five.
     const POSE_BASE = 24;
     const poseDirs = ['front', 'back', 'side'];
     const poses = ['raise', 'thrust', 'recoil'];
-    poseDirs.forEach((dirName, di) => {
-      poses.forEach((poseName, pi) => {
-        this.anims.create({
-          key: `vader-${poseName}-${dirName}`,
-          frames: [{ key: 'boss', frame: POSE_BASE + di * 3 + pi }],
-          frameRate: 10,
-          repeat: 0,
+    const posed = [
+      { key: 'vader', tex: 'boss' },
+      { key: 'grunt', tex: 'grunt' },
+      { key: 'shooter', tex: 'shooter' },
+    ];
+    for (const c of posed) {
+      poseDirs.forEach((dirName, di) => {
+        poses.forEach((poseName, pi) => {
+          this.anims.create({
+            key: `${c.key}-${poseName}-${dirName}`,
+            frames: [{ key: c.tex, frame: POSE_BASE + di * 3 + pi }],
+            frameRate: 10,
+            repeat: 0,
+          });
         });
       });
-      // Enraged strike, frames 33-35, used from phase 2.
+    }
+    // Enraged strike, frames 33-35. Vader only — nothing else has phases.
+    poseDirs.forEach((dirName, di) => {
       this.anims.create({
         key: `vader-thrusthot-${dirName}`,
         frames: [{ key: 'boss', frame: 33 + di }],
