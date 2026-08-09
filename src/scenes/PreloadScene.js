@@ -47,6 +47,12 @@ import {
   paintCasing,
   paintDashButton,
   paintMeleeButton,
+  paintBustGrunt,
+  paintBustShooter,
+  paintBustBomber,
+  paintBustShielded,
+  paintBustSniper,
+  paintBustVader,
 } from '../systems/pixelArt.js';
 
 // All textures are programmatically painted. No external assets needed.
@@ -131,6 +137,15 @@ export class PreloadScene extends Phaser.Scene {
     paintRegaliaRegenerator(this, 'reg-regenerator');
     paintRegaliaSummoner(this, 'reg-summoner');
     paintRegaliaVolatile(this, 'reg-volatile');
+
+    // Dialogue portraits — one per base archetype, plus Vader. Keyed
+    // `bust-<base>` so DialogueScene can look one up straight from `nem.base`.
+    paintBustGrunt(this, 'bust-grunt');
+    paintBustShooter(this, 'bust-shooter');
+    paintBustBomber(this, 'bust-bomber');
+    paintBustShielded(this, 'bust-shielded');
+    paintBustSniper(this, 'bust-sniper');
+    paintBustVader(this, 'bust-vader');
 
     // ── Animations ───────────────────────────────────────────────────
     const chars = [

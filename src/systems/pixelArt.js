@@ -552,7 +552,274 @@ export function paintRegaliaVolatile(scene, key = 'reg-volatile') {
   c.rect(0, 6, 18, 1, P.impDark);         // strap
   c.finish();
 }
+// ── PORTRAIT BUSTS: the face of the thing talking to you ──────────────────
+//
+// Everything else in this file is TOP-DOWN, because everything else is a body
+// on a floor. These are the one exception: head-and-shoulders, facing the
+// player, for the dialogue card.
+//
+// The alternative was framing the existing 24x24 top-down sprite in the box,
+// the way IntroScene does with the player. It is nearly free and it reads as a
+// placeholder — a bird's-eye body in a portrait frame is a picture of the
+// player looking down at someone's helmet, not a character addressing them.
+// `Telegraph.js` shipped as a circle and a rectangle on exactly that reasoning
+// and it is the reason a boss redesign took four releases.
+//
+// 32x36 logical at scale 5. The first pass was 28x32 with a 12px-wide head and
+// a rectangular shoulder slab, and the screenshot was unambiguous: it read as a
+// robot head sitting on a plinth. The head has to fill most of the frame and
+// the shoulders have to SLOPE, or the neck reads as a post. Head occupies
+// roughly x6-26 / y0-21, then four widening rows of shoulder.
+//
+// NOT TINTED at display time. Tinting full-colour pixel art multiplies every
+// channel and turns a white stormtrooper helmet into a flat wash of the
+// nemesis colour. The per-nemesis colour goes on a glow layer BEHIND the bust
+// in DialogueScene, which reads as lighting on it rather than as paint.
 
+const BUST_W = 32;
+const BUST_H = 36;
+const BUST_SCALE = 5;
+
+// Neck and sloping shoulders — shared, because the difference between these
+// characters is the head and nothing else.
+function bustFrame(c, armor, armorLit, armorDeep) {
+  const P = PAL;
+
+  c.rect(13, 18, 6, 5, P.impDark);          // neck, short and overlapped below
+  c.rect(13, 18, 6, 1, P.black);            // shadow where the helmet sits on it
+  c.rect(13, 19, 1, 4, '#000000');
+
+  // Trapezoid: each row wider than the last, so the silhouette tapers up into
+  // the neck instead of meeting it at a right angle.
+  c.rect(10, 22, 12, 2, armorDeep);
+  c.rect(7, 24, 18, 2, armor);
+  c.rect(4, 26, 24, 2, armor);
+  c.rect(1, 28, 30, 3, armor);
+  c.rect(0, 31, 32, 5, armor);
+
+  c.rect(8, 24, 16, 1, armorLit);           // light along the top of the slope
+  c.rect(4, 26, 4, 1, armorLit);
+  c.rect(24, 26, 4, 1, armorLit);
+  c.rect(1, 28, 4, 1, armorLit);
+  c.rect(27, 28, 4, 1, armorLit);
+  c.rect(0, 34, 32, 2, armorDeep);          // grounded, not floating
+  // Sternum seam, SHORT. A full-height one split the shoulders into two lumps
+  // and read as a bib rather than as a chest.
+  c.rect(15, 25, 2, 5, armorDeep);
+}
+
+/** GRUNT — the stormtrooper everyone knows. Clean white, hollow eyes. */
+export function paintBustGrunt(scene, key = 'bust-grunt') {
+  const c = new PixelCanvas(scene, key, BUST_W, BUST_H, BUST_SCALE);
+  const P = PAL;
+  bustFrame(c, P.troopShade, P.troopWhite, P.troopDark);
+
+  c.rect(7, 2, 18, 17, P.troopWhite);       // shell
+  c.rect(8, 0, 16, 3, P.troopWhite);        // crown
+  c.rect(9, 1, 13, 2, P.troopLight);        // top highlight
+  c.rect(7, 2, 1, 15, P.troopLight);        // rim light down the left
+  c.rect(6, 5, 1, 11, P.troopShade);        // side shade
+  c.rect(24, 4, 1, 13, P.troopShade);
+  c.hline(6, 8, 23, P.troopShade);          // brow line
+
+  c.rect(8, 7, 6, 4, P.troopBlack);         // eye lenses — big, this is the face
+  c.rect(18, 7, 6, 4, P.troopBlack);
+  c.rect(9, 8, 2, 1, P.troopDark);          // lens sheen
+  c.rect(19, 8, 2, 1, P.troopDark);
+  c.rect(14, 6, 4, 7, P.troopWhite);        // centre ridge between the lenses
+  c.rect(15, 7, 2, 5, P.troopLight);
+
+  c.rect(7, 12, 4, 5, P.troopDark);         // cheek vents
+  c.rect(21, 12, 4, 5, P.troopDark);
+  c.rect(12, 13, 8, 5, P.troopBlack);       // mouth grille
+  c.hline(14, 12, 19, P.troopShade);
+  c.hline(16, 12, 19, P.troopShade);
+  c.rect(9, 18, 14, 2, P.troopWhite);       // chin
+  c.hline(19, 10, 21, P.troopShade);
+  c.finish();
+}
+
+/** SHOOTER — marksman's visored helm, comm antenna, lit optic. */
+export function paintBustShooter(scene, key = 'bust-shooter') {
+  const c = new PixelCanvas(scene, key, BUST_W, BUST_H, BUST_SCALE);
+  const P = PAL;
+  bustFrame(c, P.impGrey, P.impSilver, P.impMid);
+
+  c.rect(7, 3, 18, 16, P.troopShade);       // shell — dirtier than a grunt's
+  c.rect(8, 1, 16, 3, P.troopWhite);
+  c.rect(9, 2, 13, 1, P.troopLight);
+  c.rect(7, 4, 1, 13, P.troopWhite);
+  c.rect(6, 6, 1, 10, P.impMid);
+  c.rect(24, 6, 1, 10, P.impMid);
+
+  c.rect(24, 0, 2, 7, P.impSilver);         // comm antenna
+  c.rect(24, 0, 2, 1, P.energyCyan);
+  c.rect(22, 5, 3, 2, P.impGrey);           // its mount
+
+  c.rect(6, 7, 20, 5, P.impDark);           // full wraparound visor
+  c.rect(7, 8, 18, 3, '#2a3c4e');
+  c.rect(8, 9, 9, 1, P.energyCyan);         // lit strip
+  c.rect(20, 9, 2, 1, P.energyGlow);        // targeting dot
+
+  c.rect(12, 14, 8, 5, P.troopBlack);       // respirator
+  c.hline(16, 12, 19, P.impSilver);
+  c.rect(7, 13, 4, 5, P.impGrey);           // cheek plates
+  c.rect(21, 13, 4, 5, P.impGrey);
+  c.rect(9, 19, 14, 2, P.troopShade);
+  c.hline(20, 10, 21, P.impMid);
+  c.finish();
+}
+
+/** BOMBER — demolition hood, blast visor, canisters over the shoulders. */
+export function paintBustBomber(scene, key = 'bust-bomber') {
+  const c = new PixelCanvas(scene, key, BUST_W, BUST_H, BUST_SCALE);
+  const P = PAL;
+  bustFrame(c, P.rocketBody, P.impSheen, P.impDark);
+
+  c.rect(6, 3, 20, 17, P.impGrey);          // wide armoured hood
+  c.rect(7, 1, 18, 3, P.impLight);
+  c.rect(8, 2, 15, 1, P.impSheen);
+  c.rect(6, 3, 1, 15, P.impLight);
+  c.rect(5, 7, 1, 10, P.impMid);            // heavy cheek guards
+  c.rect(26, 7, 1, 10, P.impMid);
+  c.rect(9, 5, 14, 1, P.impDark);           // brow seam
+
+  c.rect(7, 7, 18, 5, P.impDark);           // blast visor, one narrow slit
+  c.rect(8, 9, 16, 2, '#3a2410');
+  c.rect(9, 9, 7, 1, P.expBright);          // ember reflection across the glass
+  c.rect(18, 10, 5, 1, P.expMid);
+
+  c.rect(10, 13, 12, 6, P.impDark);         // filter block
+  c.rect(12, 14, 3, 4, P.expDark);
+  c.rect(17, 14, 3, 4, P.expDark);
+  c.rect(12, 15, 3, 1, P.expMid);
+  c.rect(17, 15, 3, 1, P.expMid);
+  c.hline(19, 10, 21, P.black);
+
+  c.rect(0, 26, 5, 9, P.rocketBody);        // shoulder canisters
+  c.rect(27, 26, 5, 9, P.rocketBody);
+  c.rect(0, 26, 5, 2, P.expDark);
+  c.rect(27, 26, 5, 2, P.expDark);
+  c.rect(1, 29, 3, 1, P.expMid);
+  c.rect(28, 29, 3, 1, P.expMid);
+  c.px(2, 31, P.expBright);
+  c.px(29, 31, P.expBright);
+  c.finish();
+}
+
+/** SHIELDED — riot helm, with the raised shield filling the left of frame. */
+export function paintBustShielded(scene, key = 'bust-shielded') {
+  const c = new PixelCanvas(scene, key, BUST_W, BUST_H, BUST_SCALE);
+  const P = PAL;
+  bustFrame(c, P.beskarDark, P.beskarMid, P.beskarDeep);
+
+  c.rect(8, 2, 17, 17, P.impLight);         // tall riot helm
+  c.rect(9, 0, 15, 3, P.impSilver);
+  c.rect(10, 1, 12, 1, P.impSheen);
+  c.rect(15, 0, 3, 7, P.impSheen);          // centre crest
+  c.rect(16, 1, 1, 5, P.beskarShine);
+  c.rect(8, 3, 1, 14, P.impSilver);
+  c.rect(25, 5, 1, 11, P.impMid);
+
+  c.rect(8, 8, 17, 5, P.impDark);           // wraparound visor
+  c.rect(9, 9, 15, 3, '#1e2e3a');
+  c.rect(9, 9, 15, 1, P.energyCyan);
+  c.rect(11, 10, 4, 1, P.energyGlow);
+  c.rect(12, 14, 8, 5, P.impDark);          // chin block
+  c.hline(16, 12, 19, P.impSilver);
+  c.rect(9, 19, 14, 2, P.impLight);
+
+  // The raised shield, held on the near side. Wide with a domed top and a
+  // central boss — a narrow strip with evenly spaced rivets read as a ruler.
+  c.rect(0, 8, 9, 28, P.beskar);
+  c.rect(1, 6, 7, 3, P.beskar);             // domed top
+  c.rect(2, 5, 5, 2, P.beskar);
+  c.rect(2, 5, 5, 1, P.beskarShine);        // light catching the crown
+  c.rect(1, 7, 7, 1, P.beskarLight);
+  c.rect(0, 8, 1, 27, P.beskarLight);       // outer edge
+  c.rect(8, 8, 1, 28, P.beskarDeep);        // inner edge, in shadow
+  c.rect(2, 16, 5, 7, P.beskarMid);         // central boss
+  c.rect(3, 17, 3, 5, P.beskarDark);
+  c.rect(3, 17, 3, 1, P.beskarShine);
+  c.rect(1, 12, 7, 1, P.beskarDeep);        // two banding rules, not a gauge
+  c.rect(1, 27, 7, 1, P.beskarDeep);
+  c.finish();
+}
+
+/** SNIPER — death trooper. Elongated, matte black, dead green optics. */
+export function paintBustSniper(scene, key = 'bust-sniper') {
+  const c = new PixelCanvas(scene, key, BUST_W, BUST_H, BUST_SCALE);
+  const P = PAL;
+  bustFrame(c, P.dthMid, P.dthLight, P.dthDark);
+
+  c.rect(8, 1, 16, 18, P.dthMid);           // narrow, elongated skull helm
+  c.rect(9, 0, 14, 2, P.dthLight);
+  c.rect(10, 0, 11, 1, P.impSilver);
+  c.rect(8, 2, 1, 15, P.dthLight);          // rim light
+  c.rect(7, 5, 1, 11, P.dthDark);
+  c.rect(24, 5, 1, 11, P.dthDark);
+  c.rect(10, 17, 12, 4, P.dthDark);         // long jaw pushed forward
+  c.rect(11, 19, 10, 1, P.dthMid);
+
+  c.rect(9, 7, 6, 4, P.dthDark);            // sunken lenses
+  c.rect(17, 7, 6, 4, P.dthDark);
+  c.rect(9, 8, 6, 2, P.dthLED);
+  c.rect(17, 8, 6, 2, P.dthLED);
+  c.rect(9, 8, 2, 1, P.dthLEDBright);
+  c.rect(21, 8, 2, 1, P.dthLEDBright);
+  c.rect(15, 6, 2, 7, P.dthLight);          // nasal ridge
+  c.rect(15, 7, 1, 5, P.impSilver);
+
+  c.rect(12, 13, 8, 4, P.dthDark);          // grille
+  c.hline(14, 12, 19, P.dthLight);
+  c.hline(16, 12, 19, P.dthLight);
+  c.rect(23, 3, 5, 4, P.dthLight);          // scope rail on the temple
+  c.rect(23, 3, 5, 1, P.impSilver);
+  c.px(27, 5, P.dthLED);
+  c.finish();
+}
+
+/** VADER — the mask. Nothing lit: he is the only one with no optics at all. */
+export function paintBustVader(scene, key = 'bust-vader') {
+  const c = new PixelCanvas(scene, key, BUST_W, BUST_H, BUST_SCALE);
+  const P = PAL;
+  bustFrame(c, P.vaderArmor, P.vaderSheen, P.vaderHelm);
+
+  // The dome, and the flare that falls from it over the ears. This shape is
+  // the whole silhouette — get it wrong and he is any black helmet.
+  c.rect(7, 0, 18, 8, P.vaderHelm);
+  c.rect(5, 3, 2, 12, P.vaderHelm);         // left flare
+  c.rect(25, 3, 2, 12, P.vaderHelm);        // right flare
+  c.rect(6, 6, 1, 9, P.vaderHelm);
+  c.rect(25, 6, 1, 9, P.vaderHelm);
+  c.rect(9, 0, 14, 1, P.vaderSheen);        // one cold highlight, top only
+  c.rect(8, 1, 5, 1, P.vaderBreath);
+  c.rect(7, 2, 1, 12, P.vaderSheen);        // faint edge light down the left
+
+  c.rect(8, 6, 16, 14, P.vaderArmor);       // face plate
+  c.rect(8, 6, 16, 1, P.vaderSheen);        // brow ridge
+  c.rect(9, 9, 6, 4, P.vaderHelm);          // eye sockets — flat, no lens at all
+  c.rect(17, 9, 6, 4, P.vaderHelm);
+  c.rect(9, 9, 6, 1, P.vaderBreath);        // the only glint, on the socket rim
+  c.rect(17, 9, 6, 1, P.vaderBreath);
+  c.rect(15, 7, 2, 7, P.vaderSheen);        // nose ridge
+
+  c.rect(10, 14, 12, 6, P.vaderHelm);       // respirator
+  c.rect(11, 15, 10, 1, P.vaderSheen);
+  c.rect(11, 17, 10, 1, P.vaderBreath);
+  c.rect(12, 19, 8, 1, P.vaderSheen);
+  c.rect(8, 13, 2, 6, P.vaderBreath);       // cheek tusks
+  c.rect(22, 13, 2, 6, P.vaderBreath);
+  c.rect(11, 20, 10, 2, P.vaderHelm);       // chin
+
+  c.rect(0, 24, 6, 12, P.vaderHelm);        // cape, closing both sides
+  c.rect(26, 24, 6, 12, P.vaderHelm);
+  c.rect(13, 27, 6, 4, P.vaderHelm);        // chest control box
+  c.rect(14, 28, 2, 1, P.saberRed);
+  c.px(17, 28, P.expBright);
+  c.px(14, 30, P.energyCyan);
+  c.finish();
+}
 // ── PLAYER: Mandalorian (24×24, 4 frames) — TOP-DOWN 3/4 HIP-FIRE ──────────
 // Body silhouette does the work: dome on top, wider pauldrons below, chest
 // plate, cape flaring behind, weapon stub at the right hip. The weapon never

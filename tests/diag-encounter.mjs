@@ -414,7 +414,15 @@ async function fightVader(encounter, capMs, spam = false, upgrades = true, run =
     // are behind it.
     const picks = upgrades ? encounter * ENDLESS.bossEvery - 1 : 0;
     if (picks > 0) {
-      const rng = makeRng(0x11f0 + encounter * 131 + run * 7919);
+      // Seeded by ENCOUNTER ONLY — deliberately not by run.
+      //
+      // Varying the build per repeat looked like more coverage and was the
+      // opposite: repeats then measured build variance and wall-clock noise
+      // together, and the number that came out could not tell you which. First
+      // run of this reported 4.6s, 21.1s, 4.6s on one rung — a 348% "spread"
+      // that was mostly three different players. A repeat must vary ONE thing.
+      // Build variance is worth its own sweep, not a seat in this one.
+      const rng = makeRng(0x11f0 + encounter * 131);
       const realRandom = Math.random;
       Math.random = rng.rand;
       try {
@@ -537,7 +545,11 @@ if (MODE === 'vader') {
       + `${(med / 1000).toFixed(1)}s${downedAll ? '' : ` (${medRun.hpEnd} left)`}  [${band}]`);
     console.log(`      runs: ${msList.map((m) => (m / 1000).toFixed(1)).join(', ')}s`
       + `   spread ${(spread * 100).toFixed(0)}%${spread > 0.25 ? '  ** NOISY **' : ''}`);
-    console.log(`      build: ${r.picks} upgrades, dmg x${r.dmgMult}, player hp ${r.playerHpMax}`);
+    // The repeats are only comparable if they were the same player. Assert it
+    // rather than trust it — this is exactly what was silently false before.
+    const sameBuild = runs.every((x) => x.dmgMult === r.dmgMult && x.playerHpMax === r.playerHpMax);
+    console.log(`      build: ${r.picks} upgrades, dmg x${r.dmgMult}, player hp ${r.playerHpMax}`
+      + `${sameBuild ? '' : '   ** BUILD VARIED ACROSS RUNS — spread above is meaningless **'}`);
     console.log(`      phases: ${ph}   `
       + `taken ${medRun.damageTaken}  deaths ${medRun.deaths}  `
       + `supers ${medRun.supers} melee ${medRun.melees}`);

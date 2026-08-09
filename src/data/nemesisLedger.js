@@ -52,7 +52,32 @@ const RETURN_MIN = 2;
 const RETURN_MAX = 4;
 
 export function createLedger() {
-  return { entries: [], vacancies: [], nextId: 1 };
+  return {
+    entries: [],
+    vacancies: [],
+    nextId: 1,
+
+    // ── Narrative state ───────────────────────────────────────────────────
+    //
+    // Both of these live here rather than on the scene for the same reason
+    // everything else does: the ledger is the one run-scoped, seeded, plain
+    // object, and `GameScene` is reused across `scene.start()` (see the note at
+    // GameScene.js:83). A spoken set on the scene would survive into the next
+    // run and silence lines the player has never heard.
+
+    // Line ids already used this run — see `pickLine` in nemesisDialogue.js.
+    spoken: [],
+
+    // Vader has no ledger ENTRY: he is not rolled, does not carry traits and
+    // never leaves for good, so none of the machinery above applies to him. But
+    // he is the most recurring character in the run — six encounters, wounded
+    // rather than killed — and "you made me withdraw last time" needs somewhere
+    // to read that from. This is that somewhere, and nothing else.
+    //   encounters — how many he has FINISHED (so 0 while the first is running)
+    //   lastOutcome — 'wounded' when you drove him off, 'killed-you' when he won
+    //   killedYou — how many times he has put you down across the run
+    vader: { encounters: 0, lastOutcome: null, killedYou: 0 },
+  };
 }
 
 /**
