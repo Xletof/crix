@@ -23,7 +23,9 @@
 
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 
-const PAGE_URL = 'http://localhost:5173/';
+// `?nodlg=1` mutes the dialogue cards. They pause Game and HUD and wait for a
+// tap, which hangs a bot for the whole measurement cap — see systems/debug.js.
+const PAGE_URL = 'http://localhost:5173/?nodlg=1';
 const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 
 const fail = (m) => { console.error(`FAIL: ${m}`); process.exit(1); };

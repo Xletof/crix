@@ -20,6 +20,7 @@ import {
   nemesisFromEntry, promoteSuccessor, displayName, grudgeLine,
 } from '../data/nemesisLedger.js';
 import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.js';
+import { isDialogueMuted } from '../systems/debug.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { moveById } from '../data/nemesisMoves.js';
 import { runMove } from '../systems/MoveScript.js';
@@ -4368,6 +4369,7 @@ export class GameScene extends Phaser.Scene {
   /** Queue a card. `spec` is what DialogueScene.create takes, minus `game`. */
   queueDialogue(spec) {
     if (!spec || !spec.text) return;
+    if (isDialogueMuted()) return;      // harnesses only — see systems/debug.js
     (this._dialogueQueue ||= []).push(spec);
     this._drainDialogue();
   }
