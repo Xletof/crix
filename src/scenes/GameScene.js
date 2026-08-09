@@ -3134,7 +3134,10 @@ export class GameScene extends Phaser.Scene {
     const w = shooter._nemesisWeapon;
     if (w) {
       w.fire(this, shooter, angle);
-      SFX.enemyShoot();
+      // Per-weapon, so a scattergun and a beam lance do not sound the same.
+      // The muzzle flash is drawn by the weapon's own `fire`, at the barrel it
+      // came out of — the repeater alternates barrels and needs both.
+      SFX.enemyShoot(w.muzzleKind);
       return;
     }
     const bx = shooter.x + Math.cos(angle) * (shooter.cfg.radius + 4);
@@ -4735,6 +4738,66 @@ export class GameScene extends Phaser.Scene {
   // Drive the trait behaviours that need a clock. One pass over the (small) set
   // of nemeses alive rather than a per-enemy timer each, so an arena with none
   // costs a single array check.
+  /**
+   * Ambient tells, so a trait announces itself BEFORE it costs you something.
+   *
+   * Six traits with real mechanical weight — 2.2x hp, regen that beats chip
+   * damage, a death blast — and until now every one of them was invisible
+   * until it had already happened. The regalia says WHICH trait; this says it
+   * is doing something right now.
+   *
+   * Budget first: these can be on screen in numbers, on a phone. Throttled to
+   * one emission per enemy per interval, skipped entirely off-camera and under
+   * `isLowQuality`, and never during a scripted move — a move owns the actor's
+   * visuals and a stray mote on top of a wind-up is noise on the one beat that
+   * has to read clearly.
+   */
+  _tickTraitTells(delta) {
+    if (isLowQuality()) return;
+    const cam = this.cameras.main;
+    const view = cam.worldView;
+
+    for (const e of this.enemies.getChildren()) {
+      const nem = e._nemesis;
+      if (!e.alive || !nem?.traits?.length || e._performing) continue;
+      // Off-screen enemies cost nothing. `worldView` is the camera's rect in
+      // world space, padded so a tell does not pop in at the edge.
+      if (e.x < view.x - 60 || e.x > view.right + 60
+        || e.y < view.y - 60 || e.y > view.bottom + 60) continue;
+
+      e._tellT = (e._tellT ?? Math.random() * 600) - delta;
+      if (e._tellT > 0) continue;
+      e._tellT = 420 + Math.random() * 420;
+
+      const r = e.cfg?.radius ?? 12;
+      for (const t of nem.traits) {
+        if (t === 'regenerator') {
+          // Knitting itself back together. Only while actually below full —
+          // a tell for a thing that is not happening teaches the wrong lesson.
+          if (e.hp < e.hpMax) this.fx.inhale?.(e.x, e.y, 'blue', 2, r + 26);
+        } else if (t === 'volatile') {
+          // An ember core, pulsing. The warning is "do not finish this one
+          // standing next to it", and it has to arrive before the finisher.
+          this.fx.burst?.(e.x, e.y - 4, 'red', 2);
+        } else if (t === 'summoner') {
+          // Brightens as the summon approaches, so the standard is a clock.
+          const due = 1 - Math.max(0, Math.min(1, (e._summonT ?? 1) / (e._summonMs || 1)));
+          if (due > 0.55) this.fx.burstDir?.(e.x, e.y - r, 'white', 2, -Math.PI / 2, 30);
+        } else if (t === 'colossal') {
+          // Dust at the feet: mass, without needing a footfall event.
+          this.fx.dustPuff?.(e.x + (Math.random() - 0.5) * r, e.y + r * 0.8);
+        } else if (t === 'swift') {
+          // A smear behind it, and only when it is actually moving fast.
+          const sp = Math.hypot(e.body?.velocity.x || 0, e.body?.velocity.y || 0);
+          if (sp > 120) this.fx.trail?.(e.x, e.y + 6);
+        }
+        // ARMORED has no ambient tell on purpose. Its regalia is the widest
+        // silhouette in the set and its tell is what happens when you shoot it
+        // — adding idle sparks would say "damaged" about an undamaged enemy.
+      }
+    }
+  }
+
   _tickNemesis(delta) {
     // SUNDER: Vader periodically cracks the floor around himself. Reuses the
     // phase-crack visual and the grenade blast, so it reads as his and needs no
@@ -4761,6 +4824,8 @@ export class GameScene extends Phaser.Scene {
         this._castNemesisMove(e);
       }
     }
+
+    this._tickTraitTells(delta);
 
     // Afterimages hold Vader's silhouette. The grunt AI they ride on swaps
     // texture and animation as it changes state, so this is re-asserted rather

@@ -477,7 +477,29 @@ export const SFX = {
     tone({ freq: 90, type: 'sine', dur: 0.22, gain: 0.18, slide: -40, delay: 0.14 });
   },
   // Death Trooper green bolt — lower pitch, slightly different timbre
-  enemyShoot() {
+  // `kind` distinguishes the four nemesis weapons, which all used to make this
+  // one sound. Built from the same two tones rather than four new synths: the
+  // stock bolt is unchanged when no kind is passed.
+  enemyShoot(kind = null) {
+    if (kind === 'spray') {          // scattergun — broad, blunt, close
+      noise({ dur: 0.09, gain: 0.15, hp: 700 });
+      tone({ freq: 380, type: 'square', dur: 0.08, gain: 0.11, slide: -240, vary: 0.12 });
+      return;
+    }
+    if (kind === 'lob') {            // flak — a heavier thump, lower and slower
+      tone({ freq: 210, type: 'square', dur: 0.12, gain: 0.14, slide: -90, vary: 0.1 });
+      noise({ dur: 0.07, gain: 0.09, hp: 300 });
+      return;
+    }
+    if (kind === 'lance') {          // beam — tight, high, and it rings
+      tone({ freq: 1500, type: 'sine', dur: 0.14, gain: 0.10, slide: -900, vary: 0.06 });
+      tone({ freq: 760,  type: 'sine', dur: 0.09, gain: 0.06, slide: -420, vary: 0.06 });
+      return;
+    }
+    if (kind === 'burst') {          // repeater — clipped, since it fires three
+      tone({ freq: 1050, type: 'square', dur: 0.04, gain: 0.08, slide: -520, vary: 0.14 });
+      return;
+    }
     tone({ freq: 900, type: 'square', dur: 0.06, gain: 0.11, slide: -600, vary: 0.12 });
     tone({ freq: 450, type: 'sine',   dur: 0.05, gain: 0.06, slide: -300, vary: 0.12 });
   },
@@ -2475,6 +2497,69 @@ export function attachFX(scene) {
     // Deliberately NOT reusing Vader's: his are crimson and molten because he
     // has a lightsaber. A trooper with a scattergun who cracks the floor in
     // molten crimson is borrowing again, one level down.
+
+    /**
+     * The moment a nemesis weapon fires.
+     *
+     * Four weapons funnelled through one call site with NO muzzle flash and one
+     * generic sound, while the player got `muzzleFlash` — so a scattergun, a
+     * flak launcher, a beam lance and twin repeaters were identical at the
+     * instant that most defines them. Each is drawn from its own `tint`, which
+     * the weapons already carried and nothing rendered.
+     *
+     * `kind` picks the shape; the colour comes from the weapon.
+     */
+    weaponMuzzle(x, y, angle, color = 0xffdd80, kind = 'spray') {
+      if (lowQuality) return;
+      const g = scene.add.graphics().setDepth(27).setBlendMode(Phaser.BlendModes.ADD);
+      const fan = (len, wide, alpha) => {
+        g.fillStyle(color, alpha);
+        g.beginPath();
+        g.moveTo(0, 0);
+        g.lineTo(Math.cos(angle - wide) * len, Math.sin(angle - wide) * len);
+        g.lineTo(Math.cos(angle) * len * 1.15, Math.sin(angle) * len * 1.15);
+        g.lineTo(Math.cos(angle + wide) * len, Math.sin(angle + wide) * len);
+        g.closePath();
+        g.fillPath();
+      };
+
+      if (kind === 'spray') {
+        // Wide and short: the whole point of the weapon is the cone.
+        fan(30, 0.5, 0.75);
+        fan(18, 0.28, 0.9);
+        this.burstDir(x, y, 'yellow', 7, angle, 46);
+      } else if (kind === 'lob') {
+        // Fat and round — a shell leaving, not a bolt. Smoke rather than sparks.
+        g.fillStyle(color, 0.7);
+        g.fillCircle(Math.cos(angle) * 16, Math.sin(angle) * 16, 12);
+        g.fillStyle(0xffffff, 0.5);
+        g.fillCircle(Math.cos(angle) * 12, Math.sin(angle) * 12, 5);
+        this.smokeTrail?.(x + Math.cos(angle) * 20, y + Math.sin(angle) * 20);
+      } else if (kind === 'lance') {
+        // Thin, long, cold: a lens flare down the firing line, plus a crossbar
+        // so it reads as focused rather than sprayed.
+        fan(74, 0.055, 0.85);
+        g.lineStyle(2, 0xffffff, 0.8);
+        g.beginPath();
+        const perp = angle + Math.PI / 2;
+        g.moveTo(Math.cos(perp) * 11, Math.sin(perp) * 11);
+        g.lineTo(-Math.cos(perp) * 11, -Math.sin(perp) * 11);
+        g.strokePath();
+      } else {
+        // Repeater: small and tight. It fires three times, so anything big
+        // would stack into a wall of light.
+        fan(20, 0.2, 0.85);
+        this.burstDir(x, y, 'white', 2, angle, 20);
+      }
+
+      g.setPosition(x, y);
+      scene.tweens.add({
+        targets: g, alpha: 0,
+        duration: kind === 'lance' ? 150 : 95,
+        ease: 'Quad.easeIn',
+        onComplete: () => g.destroy(),
+      });
+    },
 
     /**
      * CHARGE — the scrape of something heavy that has committed to a direction.

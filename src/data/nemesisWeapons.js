@@ -44,6 +44,24 @@ const tinted = (b, color) => {
   return b;
 };
 
+// The instant of firing, which had no visual at all.
+//
+// Every weapon below funnelled through `GameScene.fireShooter` with a single
+// generic `SFX.enemyShoot()` and no flash, while the player got `muzzleFlash`
+// — so four deliberately different weapons were identical at the one moment
+// that most defines them. The colour comes from the `tint` each already
+// carried for its bullets and nothing else rendered.
+//
+// `dx`/`dy` offset the flash off the firing axis, for the twin-barrelled one.
+const muzzle = (scene, e, angle, w, dx = 0, dy = 0) => {
+  const r = (e.cfg?.radius ?? 12) + 6;
+  scene.fx?.weaponMuzzle?.(
+    e.x + Math.cos(angle) * r + dx,
+    e.y + Math.sin(angle) * r + dy,
+    angle, w.tint, w.muzzleKind,
+  );
+};
+
 export const NEMESIS_WEAPONS = [
   {
     id: 'scattergun',
@@ -57,7 +75,9 @@ export const NEMESIS_WEAPONS = [
     speed: 300,
     damage: 34,
     range: 300,          // short on purpose — it has to be walked into
+    muzzleKind: 'spray',
     fire(scene, e, angle) {
+      muzzle(scene, e, angle, this);
       const spread = (this.spreadDeg * Math.PI) / 180;
       const half = (this.pellets - 1) / 2;
       for (let i = 0; i < this.pellets; i++) {
@@ -83,7 +103,9 @@ export const NEMESIS_WEAPONS = [
     range: 620,
     shells: 3,
     arcDeg: 16,
+    muzzleKind: 'lob',
     fire(scene, e, angle) {
+      muzzle(scene, e, angle, this);
       // A slow, wide triple that has to be walked out of rather than dodged at
       // the last moment — the answer is position, not reflex.
       const arc = (this.arcDeg * Math.PI) / 180;
@@ -108,7 +130,9 @@ export const NEMESIS_WEAPONS = [
     speed: 900,
     damage: 120,
     range: 900,
+    muzzleKind: 'lance',
     fire(scene, e, angle) {
+      muzzle(scene, e, angle, this);
       tinted(scene.enemyBullets.fire(
         e.x + Math.cos(angle) * (e.cfg.radius + 8),
         e.y + Math.sin(angle) * (e.cfg.radius + 8),
@@ -129,6 +153,7 @@ export const NEMESIS_WEAPONS = [
     rounds: 3,
     gapMs: 90,
     offset: 9,           // barrel separation, so it reads as twin-barrelled
+    muzzleKind: 'burst',
     fire(scene, e, angle) {
       // Staggered on the scene clock rather than fired as one volley: the point
       // is sustained pressure you have to break line-of-sight from, not a lump
@@ -139,6 +164,9 @@ export const NEMESIS_WEAPONS = [
           if (!e.active || !e.alive) return;
           const perp = angle + Math.PI / 2;
           const side = (i % 2 === 0 ? 1 : -1) * this.offset;
+          // One flash per round, at the barrel that actually fired — the
+          // alternation is the whole reason this reads as twin-barrelled.
+          muzzle(scene, e, angle, this, Math.cos(perp) * side, Math.sin(perp) * side);
           tinted(scene.enemyBullets.fire(
             e.x + Math.cos(angle) * (e.cfg.radius + 6) + Math.cos(perp) * side,
             e.y + Math.sin(angle) * (e.cfg.radius + 6) + Math.sin(perp) * side,
