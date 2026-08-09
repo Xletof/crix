@@ -84,7 +84,7 @@ export const BOSS_MOVES = [
           const a = Math.atan2(p.y - b.y, p.x - b.x);
           h.swing += 1;
           b._aim = a;
-          scene.fx?.bladeArc?.(b.x, b.y, a, 88, h.swing === 2 ? 2 : 1);
+          scene.fx?.saberSweep?.(b.x, b.y, a, 92, h.swing === 2 ? -1 : 1);
           scene.fx?.shake?.(0.008, 90);
           SFX.meleeSwing?.(h.swing);
           // Step in along the swing — but never INTO them. Unclamped, three
@@ -111,7 +111,7 @@ export const BOSS_MOVES = [
       h.swings?.remove(false);
       dropWeapon(scene, b, 120);
       const p = scene.player;
-      scene.fx?.slamShockwave?.(b.x, b.y, this.slamRadius);
+      scene.fx?.saberSlam?.(b.x, b.y, this.slamRadius);
       scene.fx?.shake?.(0.03, 320);
       SFX.meleeSlam?.();
       if (p?.alive && Math.hypot(p.x - b.x, p.y - b.y) <= this.slamRadius) {
@@ -191,20 +191,58 @@ export const BOSS_MOVES = [
       // where Vader ACTUALLY IS. He can walk while it is out and it still finds
       // him, which is the whole appeal of the throw. Nothing snaps it — it
       // arrives, and arriving is what ends the flight.
+      // ── THE OUTBOUND LEG HAS TO ACTUALLY GET THERE ──────────────────────
+      //
+      // The first version decayed the speed 4.5% per 16ms tick AND turned round
+      // at a speed floor of 25%. Those two together fire after 31 ticks, which
+      // is 248px of a 620px reach — it turned round 40% of the way out. "Sword
+      // swing doesn't go all the way, it returns prematurely", and the
+      // arithmetic says exactly that.
+      //
+      // The turn is now DISTANCE ONLY. Deceleration is gentle enough to read as
+      // the throw losing steam without ever being what ends the leg, and the
+      // speed floor is gone as a trigger — the blade goes the whole way or the
+      // move is lying about its own reach, which is also what the lane on the
+      // floor promised.
       const OUT_SPEED = this.reach / (this.actMs * 0.00045);   // reach in 45% of act
       h.blade = {
         vx: Math.cos(h.angle) * OUT_SPEED,
         vy: Math.sin(h.angle) * OUT_SPEED,
         returning: false,
         home: false,
+        last: scene.time.now,
       };
+      // LOOP until it is home, do not budget ticks.
+      //
+      // This was `repeat: actMs/16 + 40`, which assumes one tick per 16ms. At a
+      // low frame rate Phaser's clock catches up by firing several events in
+      // one frame while the blade only advances once — so the budget burned ~3x
+      // faster than the blade flew, ran out mid-flight, and the saber simply
+      // stopped 553px away and hung there. It ends when it is caught, when the
+      // move is cancelled, or on a hard safety cutoff.
+      h.flyDeadline = scene.time.now + this.actMs * 3;
       h.fly = scene.time.addEvent({
         delay: 16,
-        repeat: Math.floor(this.actMs / 16) + 40,   // room to finish the trip
+        loop: true,
         callback: () => {
           const s = h.blade;
           if (!w.active || !b.active || s.home) return;
-          const dt = 0.016;
+          // REAL elapsed time, not a fixed 16ms. The timer fires once per frame
+          // whatever the frame rate, so a hardcoded dt made the blade fly at a
+          // third speed on a slow machine — the throw's whole trip took three
+          // times as long as its own beats and the catch never happened inside
+          // the move. Clamped so one stalled frame cannot teleport it.
+          const now = scene.time.now;
+          if (now > h.flyDeadline) {          // never leak a looping timer
+            s.home = true;
+            b._saberAway = false;
+            b._noMelee = false;
+            if (w.active) { w.x = b.x; w.y = b.y; }
+            h.fly?.remove(false);
+            return;
+          }
+          const dt = Math.min(0.05, Math.max(0.001, (now - s.last) / 1000));
+          s.last = now;
 
           if (!s.returning) {
             // Outbound: decelerate toward the far point, and turn around when
@@ -212,10 +250,12 @@ export const BOSS_MOVES = [
             // the top of the arc.
             w.x += s.vx * dt;
             w.y += s.vy * dt;
-            s.vx *= 0.955;
-            s.vy *= 0.955;
-            if (Math.hypot(w.x - from.x, w.y - from.y) >= this.reach * 0.94
-                || Math.hypot(s.vx, s.vy) < OUT_SPEED * 0.25) {
+            // Gentle, and per SECOND rather than per tick so it does not
+            // change character with the frame rate.
+            const decay = Math.pow(0.6, dt);
+            s.vx *= decay;
+            s.vy *= decay;
+            if (Math.hypot(w.x - from.x, w.y - from.y) >= this.reach * 0.97) {
               s.returning = true;
               scene.fx?.impactRing?.(w.x, w.y, 0xff6040, 26);
               scene.fx?.burst?.(w.x, w.y, 'red', 8);
@@ -237,8 +277,8 @@ export const BOSS_MOVES = [
               s.home = true;
               b._saberAway = false;
               b._noMelee = false;
-              scene.fx?.bladeArc?.(b.x, b.y, b._aim || 0, 80, 1);
-              scene.fx?.burst?.(b.x, b.y, 'yellow', 10);
+              scene.fx?.saberSweep?.(b.x, b.y, b._aim || 0, 80, 1);
+              scene.fx?.burst?.(b.x, b.y, 'red', 10);
               dropWeapon(scene, b, 140);
               h.fly?.remove(false);
             }
@@ -365,7 +405,7 @@ export const BOSS_MOVES = [
       const p = scene.player;
       const a = Math.atan2(p.y - b.y, p.x - b.x);
       dropWeapon(scene, b, 120);
-      scene.fx?.bladeArc?.(b.x, b.y, a, 96, 2);
+      scene.fx?.saberSweep?.(b.x, b.y, a, 96, -1);
       scene.fx?.shake?.(0.018, 220);
       const half = (this.coneDeg * Math.PI) / 180 / 2;
       const d = Math.hypot(p.x - b.x, p.y - b.y);
@@ -502,7 +542,7 @@ export const BOSS_MOVES = [
       // a dust column out of the epicentre, debris thrown along the ring, and
       // ground fractures. The quality bar this move needed was in the repo the
       // whole time; the move just never called it.
-      scene.fx?.slamShockwave?.(b.x, b.y, this.radius * 0.75);
+      scene.fx?.forceWave?.(b.x, b.y, this.radius * 0.8);
       scene.fx?.shake?.(0.03, 340);
     },
 

@@ -367,7 +367,13 @@ export const BOSS = {
   // attacking rather than shoving.
   standoffPx: 108,
   // How often the close-range SABER COMBO comes round while he is at standoff.
-  comboEveryMs: 3200,
+  //
+  // 1000, down from 3200. At 3200 the combo itself takes ~2.2s of its own beats
+  // and then he stood there for a full second doing nothing — "when I stand
+  // still Vader is just looking at me if it's not doing the abilities". A
+  // second between combos is enough of a gap to trade hits or reposition into
+  // and never enough for him to read as idle.
+  comboEveryMs: 1000,
 
   // ── The charge's second beat ──────────────────────────────────────────
   // The rush no longer just runs past: wherever it stops — timeout, wall or

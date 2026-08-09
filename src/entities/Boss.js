@@ -9,6 +9,7 @@ const STATE = {
   IDLE: 'idle',
   CHARGE_WINDUP: 'charge_windup',
   CHARGING: 'charging',
+  SLAM_WINDUP: 'slam_windup',
   SLAM: 'slam',
   SPAWNING: 'spawning',
 };
@@ -190,7 +191,11 @@ export class Boss extends Enemy {
     // saber and the Force. Nothing replaces it in this state machine; his
     // variety now comes from the scripted move pool.
     const r = Math.random();
-    if (this.phase >= 2 && r < 0.28) return STATE.SPAWNING;
+    if (this.phase >= 2 && r < 0.22) return STATE.SPAWNING;
+    // The overhead smash is a STANDING attack and gets equal billing with the
+    // rush, so the two read as different answers rather than one being the
+    // tail of the other.
+    if (r < 0.60) return STATE.SLAM_WINDUP;
     return STATE.CHARGE_WINDUP;
   }
 
@@ -392,7 +397,17 @@ export class Boss extends Enemy {
         if (this.cooldown <= 0) {
           this.state = this.pickAttack();
           this.stateTimer = 0;
-          if (this.state === STATE.CHARGE_WINDUP) {
+          if (this.state === STATE.SLAM_WINDUP) {
+            // OVERHEAD SMASH. He plants where he stands, brings the saber up
+            // over his head and drives it into the deck. No travel — the zone
+            // is around HIM, so the answer is to leave rather than to sidestep
+            // a lane.
+            this.setVelocity(0, 0);
+            SFX.bossRoar();
+            this.setMovePose?.('raise');
+            this._slamAt = { x: this.x, y: this.y };
+            this.scene.events.emit('boss-slam-windup', this, BOSS.slamWindupMs, BOSS.slamRadius);
+          } else if (this.state === STATE.CHARGE_WINDUP) {
             this.setVelocity(0, 0);
             SFX.bossRoar();
             this.chargeAngle = angToPlayer;
@@ -452,23 +467,34 @@ export class Boss extends Enemy {
             onComplete: () => ghost.destroy(),
           });
         }
-        // ── THE CHARGE ENDS IN AN OVERHEAD SLAM ──────────────────────────
+        // THE RUSH IS JUST A RUSH NOW. It used to end in the overhead slam,
+        // which made the slam something he travelled to rather than something
+        // he did — "scrap the dash, I want that attack to become an overhead
+        // hit on ground". The slam is its own standing attack; see SLAM below,
+        // which nothing dashes into.
         //
-        // It ends early if he runs into something, rather than grinding along
-        // a wall for the rest of its duration — a rush that hits a wall is
-        // finished, and the slam should land there.
+        // It still ends early on contact rather than grinding along a wall for
+        // the rest of its duration.
         const blocked = this.body && (this.body.blocked.left || this.body.blocked.right
           || this.body.blocked.up || this.body.blocked.down);
+        // The saber SWEEPS through the run instead of being carried out front.
+        this._chargeSwingT = (this._chargeSwingT || 0) + delta;
+        if (this._chargeSwingT >= 190) {
+          this._chargeSwingT = 0;
+          this._chargeSwingDir = -(this._chargeSwingDir || 1);
+          this.scene.fx?.saberSweep?.(this.x, this.y, this.chargeAngle, 84, this._chargeSwingDir);
+        }
         if (this.stateTimer >= BOSS.chargeDurationMs || blocked) {
           this.setVelocity(0, 0);
-          this.state = STATE.SLAM;
+          this.state = STATE.IDLE;
           this.stateTimer = 0;
           this.setScale(1);
-          this.setMovePose?.('raise');
-          // The zone goes down BEFORE the strike, at the spot he actually
-          // stopped — so the rush has a second beat you can still answer.
-          this._slamAt = { x: this.x, y: this.y };
-          this.scene.events.emit('boss-slam-windup', this, BOSS.slamWindupMs, BOSS.slamRadius);
+          this.cooldown = this.cfg.attackCooldownMs;
+          if (blocked) {
+            this.scene.fx?.saberSlam?.(this.x, this.y, BOSS.slamRadius * 0.7);
+            this.scene.fx?.shake?.(0.026, 260);
+            this._staggerMs = 420;      // a whiffed rush into a wall is punishable
+          }
         }
         break;
       }
@@ -476,20 +502,35 @@ export class Boss extends Enemy {
       // comes down. Kept in the state machine rather than made a separate move
       // so the charge stays ONE attack that escalates — a rush and a slam as
       // two pool entries would just read as two similar rushes.
-      case STATE.SLAM: {
+      // He is raised and about to bring it down. The zone is already filling
+      // on the floor around him; this beat is the hold that makes it readable.
+      case STATE.SLAM_WINDUP: {
         this.setVelocity(0, 0);
         this.stateTimer += delta;
         this.playVaderAnim('idle', angToPlayer);
+        // Rise onto the balls of his feet as it comes.
+        const k = Math.min(1, this.stateTimer / BOSS.slamWindupMs);
+        this.setScale(1 + k * 0.10, 1 + k * 0.16);
         if (this.stateTimer >= BOSS.slamWindupMs) {
-          this.scene.events.emit('boss-slam', this, this._slamAt, BOSS.slamRadius);
-          SFX.bossSlam?.();
-          this.state = STATE.IDLE;
+          this.setScale(1);
+          this.state = STATE.SLAM;
           this.stateTimer = 0;
-          this.cooldown = this.cfg.attackCooldownMs;
-          // A real recovery — the whole two-beat rush is worth punishing.
-          this._staggerMs = BOSS.slamRecoverMs;
-          this._moveAnim = null;
         }
+        break;
+      }
+
+      case STATE.SLAM: {
+        // The strike itself. One frame of commitment, then a long recovery —
+        // this is the biggest punish window he offers.
+        this.setVelocity(0, 0);
+        this.setMovePose?.('thrust');
+        this.scene.events.emit('boss-slam', this, this._slamAt, BOSS.slamRadius);
+        SFX.bossSlam?.();
+        this.state = STATE.IDLE;
+        this.stateTimer = 0;
+        this.cooldown = this.cfg.attackCooldownMs;
+        this._staggerMs = BOSS.slamRecoverMs;
+        this._moveAnim = null;
         break;
       }
     }

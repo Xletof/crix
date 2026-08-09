@@ -2054,7 +2054,7 @@ export class GameScene extends Phaser.Scene {
     this._on('boss-slam', (b, at, radius) => {
       const p = this.player;
       const spot = at || { x: b.x, y: b.y };
-      this.fx?.slamShockwave?.(spot.x, spot.y, radius);
+      this.fx?.saberSlam?.(spot.x, spot.y, radius);
       this.fx?.shake?.(0.034, 380);
       if (p?.alive && Math.hypot(p.x - spot.x, p.y - spot.y) <= radius) {
         const a = Math.atan2(p.y - spot.y, p.x - spot.x);

@@ -140,7 +140,37 @@ export class Telegraph {
       this._ownerOffY = shape.y - this.owner.y;
     }
 
+    // ── THE CHARRED RIM ──────────────────────────────────────────────────
+    //
+    // A plain stroked circle and a plain quad read as debug geometry, which is
+    // what "the circles and rectangles shouldn't be too generic, they should
+    // all fit theme" is about. The zone is now the saber's heat scoring itself
+    // into the deck ahead of the strike: the outline is ragged and uneven,
+    // embers sit along it, and it glows harder as it fills.
+    //
+    // The jitter is SEEDED ONCE here rather than generated per frame. Rebuilt
+    // every frame it crawls like static, which reads as a rendering fault; held
+    // still, it reads as a burn that is already there.
+    this._rim = [];
+    for (let i = 0; i < 72; i++) this._rim.push(0.965 + Math.random() * 0.075);
+    this._embers = [];
+    for (let i = 0; i < 14; i++) {
+      this._embers.push({ u: Math.random(), off: (Math.random() - 0.5) * 9, ph: Math.random() * 6.3 });
+    }
+
     this._draw(0);
+  }
+
+  /**
+   * Ragged offset for the point `u` (0..1) around a zone's rim.
+   *
+   * Sampled from the seeded table, so the same point on the outline is always
+   * displaced by the same amount.
+   */
+  _ragged(u) {
+    const n = this._rim.length;
+    const i = Math.floor(((u % 1) + 1) % 1 * n) % n;
+    return this._rim[i];
   }
 
   /** Driven from the scene's update. Returns false once it is finished. */
@@ -279,7 +309,7 @@ export class Telegraph {
     // Hot as it lands. The fill goes from a dim ember to near-white so the
     // final frames are unmistakably "now".
     const heat = t * t;                          // late-biased, so the ramp bites
-    const fillA = 0.42 + 0.34 * heat;
+    const fillA = 0.50 + 0.32 * heat;
     const fillC = this._mix(this.fillColor, 0xff9060, heat * 0.6);
     const edgeC = this.safe ? this.color : this._mix(this.color, 0xffffff, heat * 0.7);
 
@@ -290,12 +320,25 @@ export class Telegraph {
     const lineW = (3.5 + 2.5 * heat) * pulse;
 
     if (s.kind === 'circle') {
-      sh?.lineStyle(lineW + 4, 0x05050a, 0.85);
-      sh?.strokeCircle(s.x, s.y, s.r);
+      // The burn line: the same circle, walked with a seeded ragged radius.
+      const rimPath = (gfx, rad) => {
+        const N = 48;
+        gfx.beginPath();
+        for (let i = 0; i <= N; i++) {
+          const u = i / N;
+          const a = u * Math.PI * 2;
+          const rr = rad * this._ragged(u);
+          const px = s.x + Math.cos(a) * rr, py = s.y + Math.sin(a) * rr;
+          if (i === 0) gfx.moveTo(px, py); else gfx.lineTo(px, py);
+        }
+        gfx.closePath();
+        gfx.strokePath();
+      };
+      if (sh) { sh.lineStyle(lineW + 5, 0x05050a, 0.9); rimPath(sh, s.r); }
       fg?.fillStyle(fillC, fillA);
       if (t > 0) fg?.fillCircle(s.x, s.y, s.r * t);
-      fg?.lineStyle(lineW, edgeC, 1);
-      fg?.strokeCircle(s.x, s.y, s.r);
+      if (fg) { fg.lineStyle(lineW, edgeC, 1); rimPath(fg, s.r); }
+      this._drawEmbers(g, s, t, heat);
       // Leading edge: a bright ring expanding to meet the outline.
       if (t > 0.02 && t < 1) {
         g.lineStyle(3 + 3 * heat, 0xffc0a0, 0.55 + 0.45 * heat);
@@ -338,12 +381,39 @@ export class Telegraph {
         if (fill) gfx.fillPath(); else gfx.strokePath();
       };
 
-      sh?.lineStyle(lineW + 4, 0x05050a, 0.85);
-      if (sh) path(sh, quad(0, s.len), false);
+      // The long edges are burnt, not ruled: walk them with the seeded jitter
+      // so the lane reads as scorched into the deck rather than drawn on it.
+      // ONE CLOSED burn, not two loose lines. Drawn as a single path down one
+      // edge, across the far end, back up the other and closed at his feet —
+      // two open squiggles with nothing joining them read as a rendering
+      // glitch rather than a scorched patch of deck.
+      const burntEdges = (gfx) => {
+        const N = 26;
+        const edge = (u, side) => {
+          const along = s.len * u;
+          const wob = hw * this._ragged(u * 0.5 + (side > 0 ? 0 : 0.5));
+          return {
+            x: s.x + ca * along - sa * wob * side,
+            y: s.y + sa * along + ca * wob * side,
+          };
+        };
+        gfx.beginPath();
+        for (let i = 0; i <= N; i++) {
+          const p0 = edge(i / N, 1);
+          if (i === 0) gfx.moveTo(p0.x, p0.y); else gfx.lineTo(p0.x, p0.y);
+        }
+        for (let i = N; i >= 0; i--) {
+          const p1 = edge(i / N, -1);
+          gfx.lineTo(p1.x, p1.y);
+        }
+        gfx.closePath();
+        gfx.strokePath();
+      };
+      if (sh) { sh.lineStyle(lineW + 5, 0x05050a, 0.9); burntEdges(sh); }
       fg?.fillStyle(fillC, fillA);
       if (t > 0 && fg) path(fg, quad(0, s.len * t), true);
-      fg?.lineStyle(lineW, edgeC, 1);
-      if (fg) path(fg, quad(0, s.len), false);
+      if (fg) { fg.lineStyle(lineW, edgeC, 1); burntEdges(fg); }
+      this._drawEmbers(g, s, t, heat);
 
       // THE LEADING BAR. Perpendicular to the lane, riding the fill front.
       if (t > 0.02 && t < 1) {
@@ -370,6 +440,46 @@ export class Telegraph {
     return (Math.round(((c >> 16) & 255) * f) << 16)
       | (Math.round(((c >> 8) & 255) * f) << 8)
       | Math.round((c & 255) * f);
+  }
+
+  /**
+   * Embers along the rim, brightening as the strike approaches.
+   *
+   * Drawn on the ADD layer so they bloom, and positioned from the same seeded
+   * table as the ragged outline so they sit ON the burn rather than floating
+   * near it. This is the detail that makes the zone read as heat rather than
+   * as a shape someone drew.
+   */
+  _drawEmbers(g, s, t, heat) {
+    if (!g?.active || this.safe) return;
+    const now = (this.elapsed || 0) / 260;
+    for (const e of this._embers) {
+      let px, py;
+      if (s.kind === 'circle') {
+        const a = e.u * Math.PI * 2;
+        const rr = s.r * this._ragged(e.u) + e.off;
+        px = s.x + Math.cos(a) * rr;
+        py = s.y + Math.sin(a) * rr;
+      } else if (s.kind === 'lane') {
+        const ca = Math.cos(s.angle), sa = Math.sin(s.angle);
+        const along = s.len * e.u;
+        const side = e.off >= 0 ? 1 : -1;
+        const wob = (s.width / 2) * this._ragged(e.u) + Math.abs(e.off) * 0.5;
+        px = s.x + ca * along - sa * wob * side;
+        py = s.y + sa * along + ca * wob * side;
+      } else {
+        const half = (s.spreadDeg * Math.PI) / 180 / 2;
+        const a = s.angle - half + 2 * half * e.u;
+        const rr = s.len * this._ragged(e.u) + e.off;
+        px = s.x + Math.cos(a) * rr;
+        py = s.y + Math.sin(a) * rr;
+      }
+      // Each ember breathes on its own phase, so the rim shimmers unevenly.
+      const flick = 0.45 + 0.55 * Math.abs(Math.sin(now * 3 + e.ph));
+      const r = (1.6 + 2.2 * heat) * flick;
+      g.fillStyle(0xffd0a0, (0.35 + 0.6 * heat) * flick);
+      g.fillCircle(px, py, r);
+    }
   }
 
   /** Blend two packed RGB colours. Used to heat the outline toward white. */

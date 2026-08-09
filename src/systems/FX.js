@@ -2084,6 +2084,194 @@ export function attachFX(scene) {
     // Ground slam: expanding shockwave ring + dust plume + radial debris. The
     // finisher's radial AoE had no radial effect at all before this — it drew
     // the same forward crescent as the other two casts.
+    // ── VADER'S OWN HITS ─────────────────────────────────────────────────
+    //
+    // Everything below this comment belongs to the boss and to nothing else.
+    //
+    // He was borrowing the PLAYER's kit: `slamShockwave` is the Riven melee
+    // finisher (cyan, three-layer, bright) and `bladeArc` is her combo sweep.
+    // Reusing them made his heaviest attacks look like the thing you had just
+    // done to him — "for other supers you are using the same effect of my Riven
+    // Q super. Do not use the same effect we had."
+    //
+    // Two families, so the KIND of attack reads before it lands:
+    //
+    //   saberSlam / saberSweep   crimson, molten, scorching. Anything with the
+    //                            blade in it.
+    //   forceWave                dark, desaturated, violet. Anything he does
+    //                            with a raised hand — and deliberately the
+    //                            inverse of the player's bright cyan slam:
+    //                            debris is pulled IN before it is thrown out.
+
+    /** The overhead smash. Crimson, and it burns the deck where it lands. */
+    saberSlam(x, y, radius = 210) {
+      const HOT = 0xfff0e0, BLADE = 0xff2a18, DEEP = 0x8c0e06;
+      // Molten ring, thick and short-lived — a blade strike, not a shockwave.
+      const ring = scene.add.graphics().setDepth(24)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      const s = { t: 0 };
+      scene.tweens.add({
+        targets: s, t: 1, duration: 300, ease: 'Cubic.easeOut',
+        onUpdate: () => {
+          const t = s.t, a = 1 - t, r = radius * t;
+          ring.clear();
+          ring.lineStyle(18 * (1 - t * 0.8), DEEP, 0.34 * a);
+          ring.strokeCircle(x, y, r);
+          ring.lineStyle(7 * (1 - t * 0.5), BLADE, 0.9 * a);
+          ring.strokeCircle(x, y, r);
+          ring.lineStyle(2, HOT, a);
+          ring.strokeCircle(x, y, r * 0.94);
+        },
+        onComplete: () => ring.destroy(),
+      });
+
+      // The scorch: a dark burn that STAYS a moment, with embers cooling on it.
+      const scorch = scene.add.graphics().setDepth(11);
+      scorch.fillStyle(0x14060a, 0.6);
+      scorch.fillCircle(x, y, radius * 0.62);
+      scorch.lineStyle(3, DEEP, 0.5);
+      scorch.strokeCircle(x, y, radius * 0.62);
+      scene.tweens.add({
+        targets: scorch, alpha: 0, duration: 900, delay: 260,
+        onComplete: () => scorch.destroy(),
+      });
+
+      // Radial fracture lines struck OUT from the point of impact, thin and
+      // hot — the floor splitting along the blade rather than a dust ring.
+      const cracks = scene.add.graphics().setDepth(12)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      const arms = 9;
+      for (let i = 0; i < arms; i++) {
+        const a = (i / arms) * Math.PI * 2 + Math.random() * 0.3;
+        const len = radius * (0.55 + Math.random() * 0.5);
+        cracks.lineStyle(2.5, BLADE, 0.85);
+        cracks.beginPath();
+        cracks.moveTo(x, y);
+        let px = x, py = y, aa = a;
+        for (let seg = 0; seg < 4; seg++) {
+          aa += (Math.random() - 0.5) * 0.4;
+          px += Math.cos(aa) * (len / 4);
+          py += Math.sin(aa) * (len / 4);
+          cracks.lineTo(px, py);
+        }
+        cracks.strokePath();
+      }
+      scene.tweens.add({
+        targets: cracks, alpha: 0, duration: 620, ease: 'Quad.easeIn',
+        onComplete: () => cracks.destroy(),
+      });
+
+      // Slag thrown out along the ring, and a hot core flash.
+      this.burst(x, y, 'red', 18);
+      for (let i = 0; i < 9; i++) {
+        const a = (i / 9) * Math.PI * 2 + Math.random() * 0.3;
+        this.burstDir(x + Math.cos(a) * 24, y + Math.sin(a) * 24, 'red', 3, a, 26);
+      }
+      for (let i = 0; i < 4; i++) {
+        this.dustPuff(x + (Math.random() - 0.5) * 30, y + (Math.random() - 0.5) * 22);
+      }
+    },
+
+    /**
+     * His saber sweep. A crimson crescent that leads with its tip.
+     *
+     * Deliberately not `bladeArc`: that one is the player's, it is built around
+     * her stage-1/2/3 combo escalation and it blooms white-green. This is one
+     * heavy blade travelling through an arc, red-hot at the edge.
+     */
+    saberSweep(x, y, angle, radius = 92, dir = 1) {
+      const g = scene.add.graphics().setDepth(y + 40)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      const span = Math.PI * 1.05;
+      const a0 = angle - dir * span / 2;
+      const st = { t: 0 };
+      scene.tweens.add({
+        targets: st, t: 1, duration: 190, ease: 'Quad.easeOut',
+        onUpdate: () => {
+          const t = st.t;
+          g.clear();
+          const N = 18;
+          // Two passes: a wide dark-red wash, then a thin white-hot leading line
+          // that stops SHORT of the tail, so the eye tracks the tip.
+          for (const [thick, colour, alpha, tailCut] of [
+            [15, 0x8c0e06, 0.5 * (1 - t * 0.4), 0.0],
+            [7,  0xff2a18, 0.85 * (1 - t * 0.3), 0.25],
+            [2,  0xfff0e0, 0.95 * (1 - t * 0.2), 0.6],
+          ]) {
+            g.lineStyle(thick, colour, alpha);
+            g.beginPath();
+            for (let i = 0; i <= N; i++) {
+              const u = tailCut + (1 - tailCut) * (i / N);
+              const a = a0 + dir * span * t * u;
+              const px = x + Math.cos(a) * radius;
+              const py = y + Math.sin(a) * radius;
+              if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+            }
+            g.strokePath();
+          }
+        },
+        onComplete: () => {
+          scene.tweens.add({
+            targets: g, alpha: 0, duration: 110,
+            onComplete: () => g.destroy(),
+          });
+        },
+      });
+      // A spark riding the leading edge.
+      const tipA = a0 + dir * span;
+      this.burstDir(x + Math.cos(tipA) * radius, y + Math.sin(tipA) * radius,
+        'red', 4, tipA + dir * Math.PI / 2, 40);
+    },
+
+    /**
+     * A Force blow. Dark where the player's slam is bright.
+     *
+     * Debris is dragged INWARD first and only then thrown out, which is the
+     * read that separates "he crushed the air" from "something exploded".
+     */
+    forceWave(x, y, radius = 260) {
+      const VIOLET = 0x9a6cff, PALE = 0xd8c8ff;
+
+      // The inhale: a collapsing ring, before anything expands.
+      const pre = scene.add.graphics().setDepth(13);
+      const p = { t: 0 };
+      scene.tweens.add({
+        targets: p, t: 1, duration: 130, ease: 'Quad.easeIn',
+        onUpdate: () => {
+          pre.clear();
+          pre.lineStyle(4, PALE, 0.8 * (1 - p.t));
+          pre.strokeCircle(x, y, radius * (1 - p.t * 0.85));
+        },
+        onComplete: () => pre.destroy(),
+      });
+
+      // Then the wave — dark body, pale rim, and NO additive bloom on the body
+      // so it reads as an absence rather than a light.
+      const wave = scene.add.graphics().setDepth(24);
+      const s = { t: 0 };
+      scene.tweens.add({
+        targets: s, t: 1, duration: 420, delay: 120, ease: 'Cubic.easeOut',
+        onUpdate: () => {
+          const t = s.t, a = 1 - t, r = radius * t;
+          wave.clear();
+          wave.fillStyle(0x120a1e, 0.34 * a);
+          wave.fillCircle(x, y, r);
+          wave.lineStyle(10 * (1 - t * 0.6), VIOLET, 0.55 * a);
+          wave.strokeCircle(x, y, r);
+          wave.lineStyle(2.5, PALE, 0.9 * a);
+          wave.strokeCircle(x, y, r * 0.97);
+        },
+        onComplete: () => wave.destroy(),
+      });
+
+      scene.time.delayedCall(120, () => {
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2 + Math.random() * 0.25;
+          this.burstDir(x + Math.cos(a) * 30, y + Math.sin(a) * 30, 'white', 2, a, 20);
+        }
+      });
+    },
+
     slamShockwave(x, y, radius = 210) {
       // ADD blend, so the ring blooms against the dark floor the way the super's
       // muzzle flash does — without it the slam read flat next to the shotgun.
