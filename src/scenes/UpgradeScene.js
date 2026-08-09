@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { VIEW, FONTS } from '../config.js';
 import { SFX } from '../systems/FX.js';
-import { pickThree } from '../data/upgrades.js';
+import { pickThree, stackScale } from '../data/upgrades.js';
 
 // Overlay scene launched on top of a paused Game + HUD after a room clear.
 // Mirrors PauseScene's launch/pause pattern exactly (its own live input,
@@ -79,10 +79,17 @@ export class UpgradeScene extends Phaser.Scene {
       color: up.color, stroke: '#000000', strokeThickness: 5, letterSpacing: 2,
     }).setOrigin(0.5);
 
-    const desc = this.add.text(cx, cy + 26, up.desc, {
+    // A repeat is worth a decayed share, and a card that still reads "+25%
+    // weapon damage" while delivering 7% is the dishonest half of the fix.
+    const held = (this.gs?.player?._upgrades || []).filter((x) => x === up.id).length;
+    const descText = held > 0
+      ? `${up.desc}   (HELD x${held} — REDUCED)`
+      : up.desc;
+
+    const desc = this.add.text(cx, cy + 26, descText, {
       fontFamily: FONTS.body,
-      fontSize: '20px',
-      color: '#c0d8f0', stroke: '#000000', strokeThickness: 3,
+      fontSize: held > 0 ? '18px' : '20px',
+      color: held > 0 ? '#8fa8c0' : '#c0d8f0', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5);
 
     const zone = this.add.zone(cx, cy, w, h).setOrigin(0.5)
@@ -100,8 +107,12 @@ export class UpgradeScene extends Phaser.Scene {
     this._closing = true;
     SFX.superReady();
 
-    up.apply(this.gs.player);
-    this.gs.player._upgrades.push(up.id);
+    // The scale must be read BEFORE the id is recorded — it counts how many
+    // times this card is already held. See the diminishing-returns note in
+    // upgrades.js.
+    const taken = this.gs.player._upgrades;
+    up.apply(this.gs.player, stackScale(taken, up.id));
+    taken.push(up.id);
 
     this.cameras.main.fadeOut(150, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {

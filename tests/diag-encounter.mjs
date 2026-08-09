@@ -368,7 +368,7 @@ async function fightVader(encounter, capMs, spam = false, upgrades = true, run =
     const gs = window.game.scene.getScene('Game');
     const { ROOMS } = await import('/src/data/rooms.js');
     const { ENDLESS } = await import('/src/config.js');
-    const { pickThree } = await import('/src/data/upgrades.js');
+    const { pickThree, stackScale } = await import('/src/data/upgrades.js');
     const { makeRng } = await import('/src/systems/rng.js');
 
     gs.sector = encounter * ENDLESS.bossEvery;
@@ -440,7 +440,7 @@ async function fightVader(encounter, capMs, spam = false, upgrades = true, run =
           const three = pickThree(p._upgrades);
           const up = three[Math.floor(rng.rand() * three.length)];
           if (!up) break;
-          up.apply(p);
+          up.apply(p, stackScale(p._upgrades, up.id));
           p._upgrades.push(up.id);
         }
       } finally {

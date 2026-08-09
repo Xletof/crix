@@ -15,62 +15,110 @@
 // `killHeal`, which adds one field with a single consumption point in
 // GameScene's enemy-death handler.
 
+// ── Diminishing returns on a repeated card ────────────────────────────────
+//
+// `pickThree` falls back to the FULL pool once fewer than three cards are
+// untaken, so past ~sector 13 every offer can repeat a card already held — and
+// `apply` had no idea it was running a second time. The multipliers simply
+// stacked.
+//
+// Measured, with the harness driving the real pick path: a run reaching Vader
+// #6 has cleared 29 rooms and taken GLASS CANNON five times, MOMENTUM three
+// times and LAST RESORT twice, for a dmgMult of **1240x**. The ladder read
+// 1.7 / 2.6 / 14 / 51 / 729 / 1240 across the six encounters. No boss hp pool
+// survives that, and it is why Vader's fight length could not be tuned: the
+// number being tuned against was not the boss.
+//
+// The fix is a SCALE passed into `apply`. Every effect below is written as a
+// magnitude — `1 + 0.25 * s` rather than `*= 1.25` — so the nth take of a card
+// applies a decayed share of it. `s` falls 1 -> 0.3 -> 0.09 -> ... and then
+// rests on a floor, which is the part that matters for an endless run: a
+// pure geometric decay CONVERGES, so upgrades would stop meaning anything
+// after ~sector 20, and trading an explosion for a cliff is not a fix. With
+// the floor, growth continues forever and slowly.
+//
+// Measured result of these three constants: 1.7 / 2.6 / 4.7 / 9.3 / 13.4 /
+// 14.5 across encounters 1-6, reaching 22.5 by sector 44 and 25.0 by sector
+// 59. Roughly 8x growth over the six Vader fights, which is a power curve a
+// boss hp ladder can actually be matched to.
+export const STACK_DECAY = 0.3;
+export const STACK_FLOOR = 0.12;
+
+// MOMENTUM reads the size of the whole build, so it explodes on its own even
+// taken once: at 20 cards held it was x3.05. Capped at the count where it is
+// still a strong synergy card rather than a runaway one.
+export const MOMENTUM_CAP = 4;
+
+/**
+ * How much of a card's effect this take is worth.
+ *
+ * @param taken  the run's picked ids, in order (player._upgrades)
+ * @param id     the card about to be applied
+ */
+export function stackScale(taken = [], id) {
+  const held = taken.reduce((n, x) => n + (x === id ? 1 : 0), 0);
+  return Math.max(STACK_FLOOR, Math.pow(STACK_DECAY, held));
+}
+
 export const UPGRADES = [
   {
     id: 'heavyRounds',
     name: 'HEAVY ROUNDS',
     desc: '+25% weapon damage',
     color: '#ff5030',
-    apply(p) { p.dmgMult *= 1.25; },
+    apply(p, s = 1) { p.dmgMult *= 1 + 0.25 * s; },
   },
   {
     id: 'rapidLoader',
     name: 'RAPID LOADER',
     desc: '-25% reload time',
     color: '#40c0ff',
-    apply(p) { p.reloadMult *= 0.75; },
+    apply(p, s = 1) { p.reloadMult *= 1 - 0.25 * s; },
   },
   {
     id: 'lightFrame',
     name: 'LIGHT FRAME',
     desc: '+12% move speed',
     color: '#40ff90',
-    apply(p) { p.moveMult *= 1.12; },
+    apply(p, s = 1) { p.moveMult *= 1 + 0.12 * s; },
   },
   {
     id: 'extraThruster',
     name: 'EXTRA THRUSTER',
     desc: '+1 dash charge',
     color: '#ffd040',
-    apply(p) { p.dashChargesBonus += 1; },
+    // A charge is a COUNT, so it cannot be fractional. Rounding the scale
+    // means the first take grants it and repeats grant nothing, which is the
+    // right answer for an effect that has no meaningful half.
+    apply(p, s = 1) { p.dashChargesBonus += Math.round(s); },
   },
   {
     id: 'quickCharge',
     name: 'QUICK CHARGE',
     desc: '-25% dash recharge time',
     color: '#ffd040',
-    apply(p) { p.dashRechargeMult *= 0.75; },
+    apply(p, s = 1) { p.dashRechargeMult *= 1 - 0.25 * s; },
   },
   {
     id: 'overcharge',
     name: 'OVERCHARGE',
     desc: '+30% super meter gain',
     color: '#ff4040',
-    apply(p) { p.superGainMult *= 1.3; },
+    apply(p, s = 1) { p.superGainMult *= 1 + 0.30 * s; },
   },
   {
     id: 'armorPlating',
     name: 'ARMOR PLATING',
     desc: '+200 max HP',
     color: '#90d8ff',
-    apply(p) { p.hpMax += 200; p.hp += 200; },
+    apply(p, s = 1) { const g = Math.round(200 * s); p.hpMax += g; p.hp += g; },
   },
   {
     id: 'fieldMedic',
     name: 'FIELD MEDIC',
     desc: '+50% HP regen rate',
     color: '#1898e8',
-    apply(p) { p.regenMult *= 1.5; },
+    apply(p, s = 1) { p.regenMult *= 1 + 0.50 * s; },
   },
 
   // ── Trade-offs ─────────────────────────────────────────────────────────
@@ -81,9 +129,9 @@ export const UPGRADES = [
     name: 'GLASS CANNON',
     desc: '+70% damage, -30% max HP',
     color: '#ff2020',
-    apply(p) {
-      p.dmgMult *= 1.7;
-      const lost = Math.round(p.hpMax * 0.3);
+    apply(p, s = 1) {
+      p.dmgMult *= 1 + 0.70 * s;
+      const lost = Math.round(p.hpMax * 0.3 * s);
       p.hpMax -= lost;
       p.hp = Math.max(1, Math.min(p.hp, p.hpMax));
     },
@@ -93,23 +141,27 @@ export const UPGRADES = [
     name: 'SIEGE STANCE',
     desc: '+45% damage, -20% move speed',
     color: '#ff8020',
-    apply(p) { p.dmgMult *= 1.45; p.moveMult *= 0.8; },
+    apply(p, s = 1) { p.dmgMult *= 1 + 0.45 * s; p.moveMult *= 1 - 0.20 * s; },
   },
   {
     id: 'lightweightRig',
     name: 'LIGHTWEIGHT RIG',
     desc: '+30% move speed, +1 dash, -15% damage',
     color: '#40ff90',
-    apply(p) { p.moveMult *= 1.3; p.dashChargesBonus += 1; p.dmgMult *= 0.85; },
+    apply(p, s = 1) {
+      p.moveMult *= 1 + 0.30 * s;
+      p.dashChargesBonus += Math.round(s);
+      p.dmgMult *= 1 - 0.15 * s;
+    },
   },
   {
     id: 'hairTrigger',
     name: 'HAIR TRIGGER',
     desc: '-45% reload, -25% max HP',
     color: '#40c0ff',
-    apply(p) {
-      p.reloadMult *= 0.55;
-      const lost = Math.round(p.hpMax * 0.25);
+    apply(p, s = 1) {
+      p.reloadMult *= 1 - 0.45 * s;
+      const lost = Math.round(p.hpMax * 0.25 * s);
       p.hpMax -= lost;
       p.hp = Math.max(1, Math.min(p.hp, p.hpMax));
     },
@@ -123,13 +175,13 @@ export const UPGRADES = [
     name: 'MOMENTUM',
     desc: '+15% damage, and +10% more per upgrade already taken',
     color: '#ffd040',
-    apply(p) {
+    apply(p, s = 1) {
       // The base 15% is not decoration. Without it this card is literally
       // nothing when offered in room 1, where _upgrades is still empty — a
       // trap that reads as a buff and does zero. Every card has to be worth
       // taking at the moment it is shown.
-      const n = (p._upgrades || []).length;
-      p.dmgMult *= 1.15 + 0.10 * n;
+      const n = Math.min((p._upgrades || []).length, MOMENTUM_CAP);
+      p.dmgMult *= 1 + (0.15 + 0.10 * n) * s;
     },
   },
   {
@@ -137,12 +189,12 @@ export const UPGRADES = [
     name: 'LAST RESORT',
     desc: 'The lower your max HP, the more damage you deal',
     color: '#e01818',
-    apply(p) {
+    apply(p, s = 1) {
       // Pays out for having taken the HP-shedding trade-offs and is weakest if
       // you have been stacking armour — but never zero, for the same reason as
       // MOMENTUM above: at base hpMax the old formula multiplied by exactly 1.
       const ratio = Math.max(0.3, Math.min(1.6, p.hpMax / 1000));
-      p.dmgMult *= 1 + Math.max(0.10, (1.6 - ratio) * 0.5);
+      p.dmgMult *= 1 + Math.max(0.10, (1.6 - ratio) * 0.5) * s;
     },
   },
   {
@@ -152,7 +204,7 @@ export const UPGRADES = [
     color: '#ff4060',
     // The one card here that needs new consumption code: GameScene's
     // enemy-death handler reads killHeal. Kept to a single site on purpose.
-    apply(p) { p.killHeal = (p.killHeal || 0) + 45; },
+    apply(p, s = 1) { p.killHeal = (p.killHeal || 0) + 45 * s; },
   },
 ];
 
