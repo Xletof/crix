@@ -299,6 +299,56 @@ r.cap = await page.evaluate(async () => {
   return { cap: b._dmgCap, taken, hpMax: b.hpMax, capped: taken <= b._dmgCap + 1 };
 });
 
+// ── The punish window must not kill him ──────────────────────────────────
+//
+// `Enemy.damage` multiplies incoming damage by `_punishMult` while the enemy is
+// in a punish window, and `Boss.damage`'s retreat intercept used to test the
+// UNMULTIPLIED number. So a hit that was not lethal raw became lethal once the
+// parent applied it: super.damage drove hp to zero, called die(), and Vader was
+// KILLED in endless — the one thing the ladder promises cannot happen.
+//
+// It was latent for as long as the punish window and the retreat have coexisted,
+// and it only surfaced when the hp pool moved, because that changed where hits
+// land relative to punish windows. The checks above caught it by luck of the
+// arithmetic. This one aims at it: set a punish window, leave him with LESS hp
+// than the multiplied hit but MORE than the raw one, and hit him once. That is
+// the exact band the old condition let through.
+
+r.punish = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const { ROOMS } = await import('/src/data/rooms.js');
+  gs.sector = 5;
+  gs.loadRoom(ROOMS.find((rm) => rm.boss));
+  await new Promise((res) => setTimeout(res, 2000));
+  gs.arenaActive = false;
+  gs.lives = 9999;
+  gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
+  if (!gs.boss?.alive) {
+    gs.spawnBoss(gs.player.x + 380, gs.player.y);
+    await new Promise((res) => setTimeout(res, 700));
+  }
+  const b = gs.boss;
+  gs._maybeCompleteRoom = () => {};
+
+  let died = 0; let wounded = 0;
+  const onD = () => died++; const onW = () => wounded++;
+  gs.events.on('boss-died', onD);
+  gs.events.on('boss-wounded', onW);
+
+  // 1000 raw, x3 in the window = 3000 applied. Sit him at 2000: survives the
+  // raw hit, dies to the applied one.
+  b._punishMs = 5000;
+  b._punishMult = 3;
+  b.hp = 2000;
+  const retreats = b._retreats;
+  b.damage(1000);
+  await new Promise((res) => setTimeout(res, 400));
+
+  gs.events.off('boss-died', onD);
+  gs.events.off('boss-wounded', onW);
+  return { died, wounded, retreats, hp: b.hp };
+});
+
 await browser.close();
 
 // ── Ladder ───────────────────────────────────────────────────────────────
@@ -364,6 +414,14 @@ check(r.wound.seen[2].mech > r.wound.seen[0].mech && r.wound.seen[2].hpMax > r.w
   'and he returns harder AND weirder each time',
   `${r.wound.seen[0].hpMax}hp/${r.wound.seen[0].mech} -> ${r.wound.seen[2].hpMax}hp/${r.wound.seen[2].mech}`);
 check(r.wound.restored, 'the test put the room transition back', '');
+
+check(r.punish.retreats === true, 'the punish probe is aimed at a retreating Vader',
+  `_retreats ${r.punish.retreats} — without this the check below proves nothing`);
+check(r.punish.died === 0 && r.punish.wounded === 1,
+  'a hit that is only lethal AFTER the punish bonus still WOUNDS him, never kills',
+  `${r.punish.died} died / ${r.punish.wounded} wounded — Enemy.damage multiplies by _punishMult, so the retreat intercept has to test the multiplied number`);
+
+
 
 // ── Intake cap ───────────────────────────────────────────────────────────
 check(r.cap.taken >= 3999, 'a big hit lands in FULL — there is no intake cap',

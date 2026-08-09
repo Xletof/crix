@@ -4,6 +4,9 @@ import { BOSS, ENDLESS } from '../config.js';
 const BOSS_MECH = ENDLESS.bossMech;
 import { SFX } from '../systems/FX.js';
 import { Enemy } from './Enemy.js';
+// One definition of the punish bonus, shared with Enemy.damage — see the note
+// in damage() for why this file has to know about it.
+import { punishMultiplier } from '../systems/MoveScript.js';
 
 const STATE = {
   IDLE: 'idle',
@@ -113,7 +116,20 @@ export class Boss extends Enemy {
     // back at the next boss sector harder and with one more trick. Intercepted
     // BEFORE super.damage, because Enemy.damage calls die() the moment hp hits
     // zero and there is no undoing that afterwards.
-    if (this._retreats && this.hp - effective <= 0) {
+    //
+    // It must test the SAME number the parent is about to subtract.
+    // `Enemy.damage` multiplies by `_punishMult` inside a punish window
+    // (Enemy.js: `if (this._punishMs > 0) amount *= this._punishMult`), so a
+    // hit that is not lethal raw can be lethal applied — the intercept let it
+    // through, `super.damage` drove hp to zero and called `die()`, and VADER
+    // DIED IN ENDLESS. That is the one promise this whole ladder makes.
+    //
+    // Latent since the punish window and the retreat started coexisting; it
+    // surfaced only when the hp pool moved, because that changed where hits
+    // land relative to punish windows. `smoke-vader` caught it by luck of the
+    // arithmetic, so there is now an explicit check for the punish case.
+    const lethal = effective * punishMultiplier(this);
+    if (this._retreats && this.hp - lethal <= 0) {
       this.hp = 0;
       this.retreat();
       return;
