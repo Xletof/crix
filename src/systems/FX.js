@@ -2456,6 +2456,250 @@ export function attachFX(scene) {
       });
     },
 
+    // ── THE NEMESES' OWN HITS ────────────────────────────────────────────
+    //
+    // Same rule as Vader's block above, applied to the other half of the cast.
+    // Their five moves shared five generic calls between them — `burst`,
+    // `shake`, `explosion`, `groundFractures` (which is the PLAYER's cyan) and
+    // `slashSwipe`, which is the stealth TAKEDOWN effect and is documented a
+    // few lines down as too thin to read as a sword swing.
+    //
+    // One family per MOVE, because the move is what the player has to learn.
+    // Every one takes a `color` so the nemesis's leading trait tints it: the
+    // attack stays recognisable while ARMORED and VOLATILE doing it look like
+    // different creatures. That is the split the boss pass did not need — he is
+    // one character, they are forty-one loadouts.
+    //
+    //   chargeWake / crossCut / crushRing / whirlArms / summonRune
+    //
+    // Deliberately NOT reusing Vader's: his are crimson and molten because he
+    // has a lightsaber. A trooper with a scattergun who cracks the floor in
+    // molten crimson is borrowing again, one level down.
+
+    /**
+     * CHARGE — the scrape of something heavy that has committed to a direction.
+     *
+     * Called per frame while the run is live, so it is deliberately cheap: two
+     * short streaks behind the runner and an occasional floor scuff. The mass
+     * reads from the LENGTH of the streak, not from its brightness.
+     */
+    chargeWake(x, y, angle, color = 0xff6030) {
+      if (lowQuality) return;
+      const g = scene.add.graphics().setDepth(11);
+      const back = angle + Math.PI;
+      for (let i = 0; i < 2; i++) {
+        const off = (i === 0 ? 1 : -1) * (7 + Math.random() * 5);
+        const px = x + Math.cos(angle + Math.PI / 2) * off;
+        const py = y + Math.sin(angle + Math.PI / 2) * off;
+        const len = 22 + Math.random() * 18;
+        g.lineStyle(4 - i, color, 0.8);
+        g.beginPath();
+        g.moveTo(px, py);
+        g.lineTo(px + Math.cos(back) * len, py + Math.sin(back) * len);
+        g.strokePath();
+      }
+      scene.tweens.add({
+        targets: g, alpha: 0, duration: 260, ease: 'Quad.easeIn',
+        onComplete: () => g.destroy(),
+      });
+    },
+
+    /**
+     * BLINK — the departure and the arrival.
+     *
+     * Deliberately the same shape both ends: a ring and a spike burst. A player
+     * who learns the shape learns "it just left / it just landed" without
+     * having to work out which, and the position is the information that
+     * matters. Cheap enough to fire twice in one move.
+     */
+    blinkOut(x, y, color = 0x40ffd0) {
+      const g = scene.add.graphics().setDepth(26).setBlendMode(Phaser.BlendModes.ADD);
+      g.lineStyle(3, color, 0.9);
+      g.strokeCircle(0, 0, 40);
+      g.setPosition(x, y).setScale(1);
+      scene.tweens.add({
+        targets: g, scale: 0.15, alpha: 0,
+        duration: 200, ease: 'Quart.easeIn',
+        onComplete: () => g.destroy(),
+      });
+      // Four spikes on the diagonal, so it reads as displacement rather than as
+      // an explosion — nothing is thrown outward, the space closes up.
+      const sp = scene.add.graphics().setDepth(26).setBlendMode(Phaser.BlendModes.ADD);
+      sp.lineStyle(2, 0xffffff, 0.7);
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+        sp.beginPath();
+        sp.moveTo(Math.cos(a) * 14, Math.sin(a) * 14);
+        sp.lineTo(Math.cos(a) * 46, Math.sin(a) * 46);
+        sp.strokePath();
+      }
+      sp.setPosition(x, y);
+      scene.tweens.add({
+        targets: sp, alpha: 0, scale: 0.4,
+        duration: 220, ease: 'Quad.easeIn',
+        onComplete: () => sp.destroy(),
+      });
+    },
+
+    /**
+     * BLINK — the cut at the end of the reappearance.
+     *
+     * Replaces `slashSwipe` here. Two crossing passes rather than one arc: a
+     * single 5px stroke reads as a rendering artifact, which is exactly what
+     * the note under `bladeArc` says about it. The second pass is offset in
+     * time as well as angle so the eye sees a sequence, not an X.
+     */
+    crossCut(x, y, angle, color = 0x40ffd0, radius = 62) {
+      const pass = (a, delay, width) => {
+        scene.time.delayedCall(delay, () => {
+          if (!scene.scene?.isActive?.()) return;
+          const g = scene.add.graphics().setDepth(32).setBlendMode(Phaser.BlendModes.ADD);
+          g.lineStyle(width, color, 0.95);
+          g.beginPath();
+          g.arc(x, y, radius, a - 0.55, a + 0.55);
+          g.strokePath();
+          // A brighter core inside the same sweep gives it an edge.
+          g.lineStyle(Math.max(1, width - 3), 0xffffff, 0.8);
+          g.beginPath();
+          g.arc(x, y, radius, a - 0.34, a + 0.34);
+          g.strokePath();
+          scene.tweens.add({
+            targets: g, alpha: 0, duration: 150, ease: 'Quad.easeIn',
+            onComplete: () => g.destroy(),
+          });
+        });
+      };
+      pass(angle - 0.5, 0, 7);
+      pass(angle + 0.5, 70, 5);
+      this.burstDir(x, y, 'white', 8, angle, 40);
+    },
+
+    /**
+     * BAIT SLAM — weight landing. Compression, not detonation.
+     *
+     * Not additive and not bright: this is a body arriving, so it reads as the
+     * floor being pushed DOWN. Vader's `saberSlam` is molten because a blade
+     * did it; the player's `slamShockwave` is bright cyan. This is the third
+     * thing and has to look like neither.
+     */
+    crushRing(x, y, radius = 155, color = 0xffb020) {
+      const g = scene.add.graphics().setDepth(20);
+      const dark = scene.add.graphics().setDepth(19);
+      // A dark disc that snaps out first: the shadow of the impact.
+      dark.fillStyle(0x0a0a10, 0.5);
+      dark.fillCircle(0, 0, radius * 0.9);
+      dark.setPosition(x, y).setScale(0.2);
+      scene.tweens.add({
+        targets: dark, scale: 1, alpha: 0,
+        duration: 380, ease: 'Cubic.easeOut',
+        onComplete: () => dark.destroy(),
+      });
+      // Then a thick compression ring, widest at the start and thinning out.
+      g.lineStyle(9, color, 0.9);
+      g.strokeCircle(0, 0, radius * 0.55);
+      g.lineStyle(3, 0xffffff, 0.5);
+      g.strokeCircle(0, 0, radius * 0.55);
+      g.setPosition(x, y).setScale(0.35);
+      scene.tweens.add({
+        targets: g, scale: 1.05, alpha: 0,
+        duration: 300, ease: 'Quart.easeOut',
+        onComplete: () => g.destroy(),
+      });
+      this.burstDir(x, y, 'yellow', 10, -Math.PI / 2, 160);
+    },
+
+    /**
+     * SPIRAL — the spin-up, and the arms as they leave.
+     *
+     * This move had NO effects at all: it span and bullets appeared. The rings
+     * counter-rotate so the wind-up reads as something being loaded rather than
+     * something already happening.
+     */
+    whirlArms(owner, radius = 120, durationMs = 900, color = 0xc080ff) {
+      const g = scene.add.graphics().setDepth(12).setBlendMode(Phaser.BlendModes.ADD);
+      const start = scene.time.now;
+      let rot = 0;
+      const ev = scene.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () => {
+          const t = (scene.time.now - start) / durationMs;
+          if (t >= 1 || !owner?.active) { ev.remove(); g.destroy(); return; }
+          rot += 0.11;
+          g.clear();
+          const grow = 0.35 + t * 0.65;
+          for (let arm = 0; arm < 3; arm++) {
+            const a0 = rot + (arm * Math.PI * 2) / 3;
+            g.lineStyle(4, color, 0.85 * (1 - t * 0.35));
+            g.beginPath();
+            g.arc(owner.x, owner.y, radius * grow, a0, a0 + 1.1);
+            g.strokePath();
+          }
+          // Counter-rotating inner ring — the thing being wound up.
+          g.lineStyle(3, 0xffffff, 0.6);
+          g.beginPath();
+          g.arc(owner.x, owner.y, radius * 0.42 * grow, -rot * 1.6, -rot * 1.6 + 2.4);
+          g.strokePath();
+        },
+      });
+      return { stop() { ev.remove(); g.destroy(); } };
+    },
+
+    /**
+     * RITE — the channel, and its interruption.
+     *
+     * The rune used to be built with `scene.add.graphics()` INSIDE the move
+     * data file, which is the only place in the codebase where a data module
+     * drew anything. It follows the caster and returns a handle, matching
+     * `forceVortex`, so the move parks it on `h` and stops it in impact and in
+     * onCancel.
+     */
+    summonRune(owner, radius = 160, durationMs = 1800, color = 0xc080ff) {
+      const g = scene.add.graphics().setDepth(12);
+      const start = scene.time.now;
+      const ev = scene.time.addEvent({
+        delay: 32,
+        loop: true,
+        callback: () => {
+          const t = Math.min(1, (scene.time.now - start) / durationMs);
+          if (!owner?.active) { ev.remove(); g.destroy(); return; }
+          g.clear();
+          const r = 40 + (radius - 40) * t;
+          g.lineStyle(2, color, 0.35 + 0.4 * t);
+          g.strokeCircle(owner.x, owner.y, r);
+          g.strokeCircle(owner.x, owner.y, r * 0.62);
+          // Six orbiting nodes closing on the caster as the channel completes:
+          // the READING is "this finishes soon", which is what makes shooting
+          // it the right answer rather than a guess.
+          for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2 + t * 3.2;
+            const nr = r * (1 - t * 0.35);
+            g.fillStyle(color, 0.5 + 0.5 * t);
+            g.fillCircle(owner.x + Math.cos(a) * nr, owner.y + Math.sin(a) * nr, 3 + 2 * t);
+          }
+        },
+      });
+      return { stop() { ev.remove(); g.destroy(); } };
+    },
+
+    /** The rite broken. Deliberately loud — interrupting one is an achievement. */
+    riteShatter(x, y, color = 0xc080ff) {
+      const g = scene.add.graphics().setDepth(24).setBlendMode(Phaser.BlendModes.ADD);
+      g.lineStyle(4, color, 0.9);
+      g.strokeCircle(0, 0, 70);
+      g.setPosition(x, y);
+      scene.tweens.add({
+        targets: g, scale: 1.9, alpha: 0,
+        duration: 380, ease: 'Expo.easeOut',
+        onComplete: () => g.destroy(),
+      });
+      // Shards flying outward on the diagonal, so it reads as glass, not a ring.
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 + 0.4;
+        this.burstDir(x + Math.cos(a) * 34, y + Math.sin(a) * 34, 'white', 3, a, 24);
+      }
+    },
+
     // A sweeping curved arc for takedown animations
     slashSwipe(x, y, angle, radius = 45, color = 0x40ff80) {
       const g = scene.add.graphics().setDepth(32);
