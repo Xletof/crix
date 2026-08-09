@@ -37,6 +37,9 @@
 //   node tests/diag-encounter.mjs --mode dps
 //   node tests/diag-encounter.mjs --mode sweep --runs 3
 //   node tests/diag-encounter.mjs --sector 30
+//   node tests/diag-encounter.mjs --mode vader --repeats 3            # the ladder
+//   node tests/diag-encounter.mjs --mode vader --spam 0               # patient
+//   node tests/diag-encounter.mjs --mode vader --upgrades 0           # stock A/B
 
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 
@@ -345,21 +348,26 @@ async function fightLoadout(traits, sector, capMs) {
 //
 // The target is a 60-90s fight playing well, so all three phases land. Nothing
 // had ever measured whether that happened, and the two knobs that decide it —
-// `bossHpStep` and `bossDamageCap` — were both invented. The first run of this
-// found the answer was 10.6 SECONDS.
+// `bossHpStep` and the old `bossDamageCap` — were both invented. The first run
+// of this found the answer was 10.6 SECONDS. The cap has since been removed
+// from the game entirely, and the columns that reported it are gone with it:
+// they printed `cap undefined` and `cap floor NaN` in every row, and a
+// diagnostic that prints NaN teaches its reader to skim past its own output.
 //
-// The cap is the subtle one, and the trap is real enough to be worth stating:
-// it looks irrelevant next to sustained dps, because 1600 per 120ms is ~13,300
-// dmg/sec. But damage does not arrive evenly — a super lands five pellets in
-// ONE window — so it bites on burst and nothing else. Cutting it to 500 on that
-// bad reasoning stretched encounter 1 to 135.7s. `capFloorMs` below is the
-// theoretical floor the cap alone imposes, reported so it is visible which of
-// the two knobs is actually binding.
-async function fightVader(encounter, capMs, spam = false) {
-  return page.evaluate(async ({ encounter, capMs, spam }) => {
+// Two things this path gets right that it did not before, both of which had to
+// be fixed BEFORE any hp number was touched:
+//
+//   - the bot arrives with the UPGRADES a real run would have (see the block
+//     inside `fightVader`). Without them it was a stock Player at every rung.
+//   - each rung is sampled `--repeats` times and the SPREAD is reported. Fight
+//     length is wall clock in a browser; one sample cannot tell you it is noise.
+async function fightVader(encounter, capMs, spam = false, upgrades = true, run = 0) {
+  return page.evaluate(async ({ encounter, capMs, spam, upgrades, run }) => {
     const gs = window.game.scene.getScene('Game');
     const { ROOMS } = await import('/src/data/rooms.js');
     const { ENDLESS } = await import('/src/config.js');
+    const { pickThree } = await import('/src/data/upgrades.js');
+    const { makeRng } = await import('/src/systems/rng.js');
 
     gs.sector = encounter * ENDLESS.bossEvery;
     gs.loadRoom(ROOMS.find((r) => r.boss));
@@ -368,11 +376,60 @@ async function fightVader(encounter, capMs, spam = false) {
     // Same isolation as the loadout sweep: one encounter, not a wave.
     gs.arenaActive = false;
     gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
-    gs.player.hp = gs.player.hpMax;
     gs.player.shieldHp = 0;
     gs.player.superCharge = 0;
     gs.player.meleeCharge = 0;
     gs.lives = 9999;              // defeat() must never fire mid-measurement
+
+    // ── The build the player actually brings ──────────────────────────────
+    //
+    // The bot used to arrive at every rung with a stock Player, while a real run
+    // reaching encounter 6 has cleared 29 rooms and taken 29 upgrade cards. Six
+    // of the fourteen multiply `dmgMult`, and they COMPOUND — so the harness was
+    // measuring a player who does not exist, and the whole ladder table was a
+    // measurement of the wrong fight.
+    //
+    // Upgrades are applied through the game's own path: the real `pickThree`
+    // against the real `UPGRADES`, `up.apply(p)`, `p._upgrades.push(id)` —
+    // exactly what `UpgradeScene._pick` does. One path in, one set of numbers
+    // out; tuning a card moves this harness too. `pickThree` draws on
+    // `Math.random`, so it is stubbed with a seeded stream for the duration
+    // rather than reimplemented, which would fork the selection logic.
+    const p = gs.player;
+    // Snapshot a virgin Player once. The same instance survives every rung, and
+    // upgrades mutate it in place, so without this the builds would stack across
+    // the whole ladder.
+    if (!window.__playerBaseline) {
+      window.__playerBaseline = {
+        dmgMult: p.dmgMult, reloadMult: p.reloadMult, moveMult: p.moveMult,
+        dashChargesBonus: p.dashChargesBonus, dashRechargeMult: p.dashRechargeMult,
+        superGainMult: p.superGainMult, regenMult: p.regenMult,
+        killHeal: p.killHeal, hpMax: p.hpMax,
+      };
+    }
+    Object.assign(p, window.__playerBaseline);
+    p._upgrades = [];
+
+    // One card per room cleared. Encounter n sits at sector 5n, so 5n-1 rooms
+    // are behind it.
+    const picks = upgrades ? encounter * ENDLESS.bossEvery - 1 : 0;
+    if (picks > 0) {
+      const rng = makeRng(0x11f0 + encounter * 131 + run * 7919);
+      const realRandom = Math.random;
+      Math.random = rng.rand;
+      try {
+        for (let i = 0; i < picks; i++) {
+          const three = pickThree(p._upgrades);
+          const up = three[Math.floor(rng.rand() * three.length)];
+          if (!up) break;
+          up.apply(p);
+          p._upgrades.push(up.id);
+        }
+      } finally {
+        Math.random = realRandom;   // synchronous block: no frame runs stubbed
+      }
+    }
+    p.hp = p.hpMax;                 // after the cards, which move hpMax
 
     if (!gs.boss?.alive) {
       gs.spawnBoss(gs.player.x + 400, gs.player.y);
@@ -380,7 +437,6 @@ async function fightVader(encounter, capMs, spam = false) {
     }
     const boss = gs.boss;
     const hpMax = boss.hpMax;
-    const dmgCap = boss._dmgCap ?? ENDLESS.bossDamageCap;
     const dmgBefore = gs.runDamageTaken || 0;
 
     let deaths = 0;
@@ -391,7 +447,8 @@ async function fightVader(encounter, capMs, spam = false) {
     // target is that all three happen — a fight that spends 55s in phase 1 and
     // 3s in phase 3 hits the band and still fails the intent.
     const phaseAt = {};
-    const onPhase = (p) => { phaseAt[p] = Math.round(performance.now() - t0); };
+    // Named `phase`, not `p` — `p` is the player in this scope now.
+    const onPhase = (phase) => { phaseAt[phase] = Math.round(performance.now() - t0); };
     gs.events.on('boss-phase', onPhase);
 
     window.__bot.target = boss;
@@ -416,9 +473,13 @@ async function fightVader(encounter, capMs, spam = false) {
       ms: Math.round(elapsed),
       hpMax: Math.round(hpMax),
       hpEnd: Math.round(Math.max(0, boss.hp)),
-      dmgCap,
-      capFloorMs: Math.round((hpMax / dmgCap) * 120),
       phaseAt,
+      // The build that fought it. `dmgMult` is the single number that explains
+      // most of the difference between two rungs, so it is reported rather than
+      // left implicit in "upgrades were on".
+      picks,
+      dmgMult: Math.round(p.dmgMult * 100) / 100,
+      playerHpMax: Math.round(p.hpMax),
       damageTaken: Math.round((gs.runDamageTaken || 0) - dmgBefore),
       deaths,
       revives: window.__bot.stats.revives,
@@ -426,7 +487,7 @@ async function fightVader(encounter, capMs, spam = false) {
       melees: window.__bot.stats.melees,
       mechanics: (boss._mechanics || []).slice(),
     };
-  }, { encounter, capMs, spam });
+  }, { encounter, capMs, spam, upgrades, run });
 }
 
 // ── Run ───────────────────────────────────────────────────────────────────
@@ -435,26 +496,60 @@ const out = [];
 if (MODE === 'vader') {
   const last = Number(arg('encounters', 6));
   const SPAM = arg('spam', '1') !== '0';
-  console.log(`\n── Vader ladder (encounters 1-${last}, ${CAP_MS / 1000}s cap) ──`);
+  const UPG = arg('upgrades', '1') !== '0';
+  // Three runs per rung, not one.
+  //
+  // Fight length here is WALL CLOCK in a real browser, so it carries the
+  // machine's frame rate and whatever else is running. The dps path has always
+  // taken four samples and warned above 30% spread; the ladder took ONE and the
+  // six numbers it produced were about to be used to set two config constants.
+  // Every intermittent result in this project has turned out to be the
+  // instrument (see docs/POST-MORTEM-vader-moves.md), and a single sample cannot
+  // tell you that it is one.
+  const REPEATS = Number(arg('repeats', 3));
+  const median = (xs) => {
+    const s = xs.slice().sort((a, b) => a - b);
+    return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+  };
+
+  console.log(`\n── Vader ladder (encounters 1-${last}, ${CAP_MS / 1000}s cap, `
+    + `${REPEATS} run(s) each) ──`);
+  console.log(`   policy: ${SPAM ? 'spam' : 'patient'}   upgrades: ${UPG ? 'on' : 'OFF'}`);
   console.log('   target: 60-90s with all three phases reached\n');
+
   for (let n = 1; n <= last; n++) {
-    const r = await fightVader(n, CAP_MS, SPAM);
-    const secs = (r.ms / 1000).toFixed(1);
-    const band = !r.downed ? 'OVER CAP' : r.ms < 60000 ? 'TOO SHORT' : r.ms > 90000 ? 'TOO LONG' : 'in band';
-    const ph = [2, 3].map((p) => r.phaseAt[p] != null ? `p${p} ${(r.phaseAt[p] / 1000).toFixed(0)}s` : `p${p} NEVER`).join(', ');
-    // The intake-cap columns are gone: the cap itself was removed from the game,
-    // so they printed `cap undefined` and `cap floor NaNs` in every row. A
-    // diagnostic that prints NaN teaches the reader to skim past its own output.
+    const runs = [];
+    for (let i = 0; i < REPEATS; i++) runs.push(await fightVader(n, CAP_MS, SPAM, UPG, i));
+
+    const msList = runs.map((r) => r.ms);
+    const med = median(msList);
+    const spread = med ? (Math.max(...msList) - Math.min(...msList)) / med : 0;
+    const r = runs[0];
+    const downedAll = runs.every((x) => x.downed);
+    const band = !downedAll ? 'OVER CAP' : med < 60000 ? 'TOO SHORT' : med > 90000 ? 'TOO LONG' : 'in band';
+    // Phase timings from the median run, so the row is internally consistent
+    // rather than an average of fights that went differently.
+    const medRun = runs.find((x) => x.ms === med) || r;
+    const ph = [2, 3].map((p) => medRun.phaseAt[p] != null
+      ? `p${p} ${(medRun.phaseAt[p] / 1000).toFixed(0)}s` : `p${p} NEVER`).join(', ');
+
     console.log(`  encounter ${n}  hp ${String(r.hpMax).padStart(6)}  `
-      + `${r.downed ? `${secs}s` : `${secs}s (${r.hpEnd} left)`}  [${band}]`);
+      + `${(med / 1000).toFixed(1)}s${downedAll ? '' : ` (${medRun.hpEnd} left)`}  [${band}]`);
+    console.log(`      runs: ${msList.map((m) => (m / 1000).toFixed(1)).join(', ')}s`
+      + `   spread ${(spread * 100).toFixed(0)}%${spread > 0.25 ? '  ** NOISY **' : ''}`);
+    console.log(`      build: ${r.picks} upgrades, dmg x${r.dmgMult}, player hp ${r.playerHpMax}`);
     console.log(`      phases: ${ph}   `
-      + `taken ${r.damageTaken}  deaths ${r.deaths}  supers ${r.supers} melee ${r.melees}`);
+      + `taken ${medRun.damageTaken}  deaths ${medRun.deaths}  `
+      + `supers ${medRun.supers} melee ${medRun.melees}`);
     console.log(`      mechanics: ${r.mechanics.join(', ') || 'none'}`);
-    out.push(r);
+    out.push({ ...medRun, ms: med, spread, runs: msList });
   }
-  console.log('\n  NOTE: the bot never picks up an upgrade, and a real run gains'
-    + '\n  fifteen sectors of them between encounter 1 and 4. Later encounters'
-    + '\n  reading long here is a limit of the instrument, not a verdict.');
+
+  if (!UPG) {
+    console.log('\n  NOTE: --upgrades 0 — the bot arrives stock at every rung, while a'
+      + '\n  real run reaching encounter 6 has taken 29 cards. This is the A/B'
+      + '\n  baseline, not a picture of the game.');
+  }
 }
 
 if (MODE === 'all' || MODE === 'dps') {
@@ -482,7 +577,8 @@ if (MODE === 'all' || MODE === 'dps') {
     console.log('  ** NOISY (>30% spread) — treat comparisons below ~1.5x as meaningless. **');
   }
   console.log(`  A 60-90s fight at this rate needs ${Math.round(mean * 60).toLocaleString()}`
-    + `-${Math.round(mean * 90).toLocaleString()} hp, BEFORE the boss damage cap is applied.`);
+    + `-${Math.round(mean * 90).toLocaleString()} hp — for a STOCK player. The ladder`
+    + `\n  (--mode vader) models the upgrades a real run brings; use that to size Vader.`);
 }
 
 if (MODE === 'all' || MODE === 'sweep') {
