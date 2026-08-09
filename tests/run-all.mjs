@@ -39,6 +39,7 @@ const TESTS = [
   'smoke-moves',
   'smoke-music-tiers',
   'smoke-nemesis',
+  'smoke-nemesis-fx',
   'smoke-nemesis-kit',
   'smoke-nemesis-memory',
   'smoke-pathing',
