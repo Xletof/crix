@@ -27,6 +27,7 @@ would corrupt each other's world state.
 | `smoke-controls.mjs` | The control-layout editor moves the real hit regions (not just sprites), persists, and resets |
 | `smoke-debug.mjs` | Debug menu actions actually apply *and* the HUD re-syncs |
 | `smoke-depth.mjs` | Airborne objects draw over the room; nose tracks travel (no tumble) |
+| `smoke-dialogue.mjs` | **The nemeses speak, and a stranger stays quiet.** No line repeats until its pool is exhausted; a first-time nemesis raises no card at all (the pacing contract); both scenes pause AND resume; a card refuses to open over the upgrade picker and is held rather than dropped |
 | `smoke-flight.mjs` | The attack run banks, arrives under power, honours both speed caps, lights its exhaust |
 | `smoke-hum.mjs` | Saber hum carries in the band a phone speaker can reproduce |
 | `smoke-leak.mjs` | Primary fire is isolated from the cluster (no pool cross-talk) |
@@ -200,3 +201,35 @@ growth.
 8. **The camera lerps.** Teleport an actor and freeze immediately and you catch
    the camera still travelling, which is how a screenshot pass came back with the
    fight jammed against the bottom edge. Settle it before casting anything.
+
+### Three more ways this harness will lie to you
+
+**The bot never dies, so its dps is a ceiling and not a fight.** `diag-encounter`
+sets `lives = 9999` and revives the player in-frame inside `step()`, deliberately,
+so a death cannot end a measurement early. That makes `hp / dps` answer "how long
+to chew through this pool while taking no consequences" — which is not how long a
+fight takes. Sizing Vader's hp pool off it produced 300,000, shipped, and came
+straight back from the phone as unkillable. Use the harness for RELATIVE
+comparison; every absolute stays a playtest. (This file and the top of
+`diag-encounter.mjs` both already said so.)
+
+**A check can be protected by a guard you did not mean to test.** The "a stranger
+raises no card" check passed happily against a build with its gate removed,
+because a *second* guard downstream returned null anyway. Deleting one line is
+not an A/B — the A/B has to be the regression that would actually happen. Here
+that was a generic fallback entry, the thing someone adds when they want
+strangers to speak too, and against that the check failed immediately.
+
+**Repeats must vary exactly one thing.** `--mode vader` got `--repeats` to measure
+wall-clock noise, and its first version seeded the bot's upgrade build off the run
+index too. Three runs of one rung came back 4.6s, 21.1s, 4.6s — a "348% spread"
+that was mostly three different players. The second attempt seeded per encounter,
+which made rung-to-rung comparison mix hp scaling with build luck. It now seeds
+once for the whole ladder, so rung n's build is a true prefix of rung n+1's, and
+asserts across the repeats that the build did not vary.
+
+**Anything that spawns a boss or a nemesis must load `?nodlg=1`.** The dialogue
+card pauses Game and HUD and waits for a tap. Without the flag the bot sits behind
+it for the entire cap — the first run after the narrative landed reported
+encounter 1 as 180.2s with 45,826 of 46,000 hp left. Eleven files carry the flag;
+`smoke-dialogue` deliberately does not.

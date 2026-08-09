@@ -89,6 +89,24 @@ the finding is already established earlier in the conversation.
   player in from every bearing. Zones follow their caster while winding up
   unless passed `anchor: 'world'` — a LANDING marker must be anchored, or it
   trails the actor off the spot he is about to teleport to.
+- **The measuring bot never dies.** `tests/diag-encounter.mjs` sets `lives = 9999`
+  and revives the player in-frame so a death cannot cut a measurement short. Its
+  dps is an uninterrupted CEILING, so `hp / dps` is not fight length. It is a good
+  instrument for RELATIVE comparison and a bad one for any absolute — sizing
+  Vader's pool off it shipped a 300,000-hp boss that came back from the phone as
+  "cannot even dent it". Absolutes are a playtest.
+- **`vanishHpFrac` and anything else written as a FRACTION of `hpMax` moves when
+  the pool moves.** Raising Vader's hp 6.5x pushed VANISH's trigger from 4,600
+  damage in 2s to 30,000, which nothing produces — the mechanic would have retired
+  itself with no test failing. Re-check the fractions on any hp change.
+- **An upgrade's `apply` can run more than once.** `pickThree` falls back to the
+  FULL pool once fewer than three cards are untaken, so past ~sector 13 cards
+  repeat. Effects take an `s` scale and must be written as magnitudes
+  (`1 + 0.25 * s`, never `*= 1.25`); a bare multiplier compounds, and that is how
+  player damage reached 1240x by Vader #6.
+- **The dialogue card PAUSES Game and HUD.** Any test that spawns a boss or a
+  nemesis must load with `?nodlg=1` or it will sit behind the card for its whole
+  cap. `smoke-dialogue` is the only one that must not.
 - **Recoil/kick timers carry their own duration.** `recoilT`/`recoilDur`/`recoilMag`
   and `_wKickT`/`_wKickDur`/`_wKickMag`. Never reintroduce a hardcoded divisor; that
   bug made the super shrink the player instead of popping it.

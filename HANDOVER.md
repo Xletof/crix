@@ -502,6 +502,65 @@ displacement drags him off a telegraph he is the origin of.
 tuning is zero-sum: the highest attacks-per-minute came from starving the
 scripted moves.
 
+## 10c. The narrative system
+
+**The ledger has always remembered; nothing spoke.** `nemesisLedger.js` tracks
+who got away, whether it drew blood, how many times you have met and who
+inherited a dead one's grudge — and the entire payoff was a 26px medal in the
+`score-medal` lane that flew past in one second. A nemesis that nearly killed
+you in sector 4 was indistinguishable from a fresh roll. This is the other half.
+
+**Three files, and the split matters:**
+
+| file | what it owns |
+|---|---|
+| `src/data/nemesisDialogue.js` | the lines, and which one is chosen. Pure — no Phaser, no `Math.random()`, rng injected, same contract as `nemesisLedger.js` |
+| `src/scenes/DialogueScene.js` | the card. Knows nothing about the ledger; takes a `{bust, name, color, sub, text, traits}` and renders it |
+| `GameScene` | the five hooks, and the queue |
+
+**A line is a gated pool entry, not a switch case.** `{ id, kind, priority,
+when(ctx), text(ctx) }`. `pickLine` filters by beat, then by `when` against
+ledger state, then drops anything already spoken this run; only when a beat's
+whole pool is exhausted does it reset that beat's ids. `priority` lets a line
+that knows something specific ("you left me on sector four") beat the generic
+one while it is unspoken. `grudgeLine` is still a switch and is still right to
+be — four labels on a banner should be stable. Speech should not.
+
+**`ledger.spoken` and `ledger.vader` are on the LEDGER, not the scene.**
+`GameScene` is reused across `scene.start()` (see §the note at GameScene.js:83),
+so a spoken set on the scene would survive into the next run and silence lines
+the player has never heard. `ledger.vader` exists because Vader has no ledger
+entry — he is not rolled, carries no traits and never leaves for good — and
+"you made me withdraw last time" needs somewhere to read from.
+
+**The card is a FULL STOP.** It pauses Game and HUD and waits for a tap. That is
+only affordable because it is rare, and the thing that keeps it rare is
+`_nemesisArrivalDialogue` returning null for a nemesis with no ledger entry. **A
+first-time stranger raises nothing** — it keeps the banner and trait line it
+already had. If cards ever start appearing on every mini-boss spawn, that gate
+is what broke; `smoke-dialogue` asserts it directly.
+
+**Who speaks, and where:**
+
+| beat | site | who |
+|---|---|---|
+| arrival | `_spawnMiniBoss` | a RETURN or an HEIR only |
+| death | the `enemy-died` handler | any nemesis — `recordKill` returns the entry, which is the last moment the pre-death state exists |
+| it killed you | `_handlePlayerDeath` | respawn path only, never `defeat()` |
+| Vader arrives | `spawnBoss` | every encounter |
+| Vader withdraws / falls | `boss-wounded` / `boss-died` | `ledger.vader` is written BEFORE the line is chosen |
+
+**Vader gets no card when he kills you** — only the `killedYou` record. Being
+made to sit through a speech before you can get back up is the pace cost with
+none of the payoff, and he has a line about it waiting for his next entrance.
+
+**The busts are never tinted.** `setTint` multiplies every channel, so a white
+stormtrooper helmet becomes a flat wash of the nemesis colour and every
+archetype looks alike again — which is the problem the busts were painted to
+solve. The colour goes on a glow layer BEHIND the bust, inside the portrait
+recess. The recess itself is not decoration: drawn straight onto the plate, the
+32x36 art ends at a hard edge mid-shoulder and reads as clipped.
+
 ## 11. State as of this handover
 
 Everything is committed, pushed and deployed; `FRIX` is level with the dev
@@ -510,65 +569,109 @@ unused — Pages builds from `FRIX` only.
 
 **Recently completed** (most recent first):
 
-- **The Vader fight, rebuilt over four rounds** — see §10b, and read
-  `docs/POST-MORTEM-vader-moves.md` before touching any of it. Ownership gate so
-  one system drives an actor at a time; telegraphs that show timing and are
-  scorched into the floor; his own crimson/Force effect families; 12 new attack
-  frames; a standing overhead slam; a boomerang saber throw; a reactive VANISH;
-  no knockback on him; the green bullet FAN removed
+- **Vader's hp set from PLAY, not from the harness** — 60,000. See the long note
+  above `BOSS.hp` in `config.js`; the short version is in the next section
+  because it is the most expensive lesson in this handover.
+- **Player damage no longer compounds without bound.** `pickThree` falls back to
+  the FULL pool once fewer than three cards are untaken, so past ~sector 13 every
+  offer can repeat a card already held — and `apply()` had no idea it was running
+  a second time. Measured through the game's own pick path, a run reaching Vader
+  #6 had taken GLASS CANNON five times and MOMENTUM three, for **dmgMult 1240x**.
+  Effects are now magnitudes scaled by an `s` argument, decayed 0.3x per copy
+  held and resting on a floor — the floor matters, because a pure geometric decay
+  converges and trading an explosion for a cliff is not a fix. Result: 1.7 / 2.6
+  / 4.7 / 9.3 / 13.4 / 14.5 across encounters 1-6, still climbing to 25x by
+  sector 59. The card reads "(HELD x2 — REDUCED)" on a repeat.
+- **The narrative pass** — the nemeses and Vader speak. See §10c.
+- **Phase 3 was escalating nothing.** `Math.max(900, 1100 - 400*(p-1))` gives 900
+  at phase 2 AND at phase 3 — the clamp ate the whole term, so his attack rate
+  was identical in both and phase 3's only gain was move speed. Explicit
+  per-phase cooldowns now (1100 / 950 / 820).
+- The Vader fight, rebuilt over four rounds — see §10b and
+  `docs/POST-MORTEM-vader-moves.md`
 - Nemesis system: memory, grudges, scars and succession within a run
-  (`src/data/nemesisLedger.js`), per-elite weapons and regalia, five scripted moves
 - Seeded RNG with independent named streams (`src/systems/rng.js`)
-- Encounter balance harness (`tests/diag-encounter.mjs`)
 - Endless as the single run structure; Vader every 5th sector, wounded not killed
 - Music round 2, dynamic tiers, full 8-bar march (§7)
 - Touch-control layout editor at Pause → CONTROLS
 
-**Measured, and open for a decision.** Vader ladder, encounters 1-6,
-`node tests/diag-encounter.mjs --mode vader --encounters 6` at the 180s cap. The
-bot is a yardstick, not a player — it never picks up an upgrade, while a real run
-gains fifteen sectors of them between encounter 1 and 4:
+### The hp episode, and the rule it cost
 
-| encounter | hp | patient | spam | deaths (patient) |
-|---|---|---|---|---|
-| 1 | 46,000 | 23.9s | 4.4s | 0 |
-| 2 | 52,900 | 23.4s | 12.6s | 2 |
-| 3 | 59,800 | 44.7s | 10.0s | 1 |
-| 4 | 66,700 | 44.0s | 9.0s | 2 |
-| 5 | 73,600 | 50.9s | 28.3s | 3 |
-| 6 | 80,500 | 98.1s | 14.4s | 5 |
+The harness was taught to model a real run's upgrades, sample each rung three
+times and report spread. It then measured every Vader encounter at **4-12s**
+against a 60-90s target, and the arithmetic said the pool needed to be ~7x
+bigger. 300,000 shipped. The verdict from the phone came back the same day:
+*"literally cannot be killed, cant even dent it."*
 
-- **The four-minute problem is gone.** Encounter 6 took ~4 minutes when this arc
-  started; it is 98s patient and 14s spam now.
-- **The design target was 60-90s with all three phases reached. Only encounter 6
-  is in band, and it overshoots.** Encounters 1-5 land at 24-51s. All three
-  phases are reached in every patient fight, so the SHAPE is right and only the
-  hp pool is short. Nothing has been tuned off these numbers yet.
-- **Playstyle swings it 5-7x** (encounter 6: 14.4s vs 98.1s). No single
-  fight-length number means anything without saying who is playing.
-- Spam mode **refills the super meter every frame**, so that column is a DPS
-  ceiling rather than a playstyle — a real masher still has to earn charge.
+The numbers were not wrong. **The instrument was answering a different
+question.** The bot never dies — `lives = 9999`, and `step()` revives it in-frame
+so a death cannot end a measurement early — and it never misses, never
+repositions badly and fires on every frame the cooldown allows. Its dps is an
+UNINTERRUPTED CEILING, so `hp / dps` answers "how long to chew through this pool
+while taking no consequences", which is not "how long is this fight". A real
+player spends time dead, disengaged, out of ammo and backing off.
+
+`tests/diag-encounter.mjs` says at the top, in its own words, that every ABSOLUTE
+judgement stays a phone playtest. A table of six numbers overrode it anyway.
+
+**What the harness was still right about**, because it is relative and relative is
+what it is for:
+
+- **Output does not track `dmgMult`.** Spam saturates at ~15,000-16,000 dmg/sec
+  from encounter 2 on while `dmgMult` climbs 2.6 -> 14.5: cadence, ammo and
+  reload bind long before damage does. So hp never had to chase the upgrade curve.
+- **The hp CURVE was about right.** Player dps grows 1.9x (patient) to 2.2x
+  (spam) across the six rungs against a curve growing 1.75x, so `bossHpStep`
+  stays at 0.15. Only the base was ever wrong.
+
+**`vanishHpFrac` is a fraction of `hpMax` and moves whenever the pool does.** At
+300,000 its trigger became 30,000 damage in a 2s window, which no playstyle
+reaches — VANISH would have retired itself and nothing would have failed. Check
+it on any hp change.
+
+### Three seeding lessons, all the same lesson
+
+A measurement must vary ONE thing, and the ladder harness got it wrong twice
+before it was right:
+
+- seeded per REPEAT — three runs of one rung read 4.6s / 21.1s / 4.6s, a "348%
+  spread" that was mostly three different players;
+- seeded per ENCOUNTER — rung 3 drew 14 cards worth 3.4x damage while rung 2
+  drew 9 worth 4.07x, so rung-to-rung comparison mixed hp scaling with build luck;
+- seeded ONCE for the ladder — rung n's build is a true prefix of rung n+1's,
+  which is what a run actually does.
+
+It now asserts across repeats that the build did not vary, and prints
+`** BUILD VARIED ACROSS RUNS **` if it ever does.
 
 **Open, not started** — the user's call, not an oversight:
 
-- **Hades-style narrative for the nemesis system.** Approved with a treatment
-  chosen (portrait + nameplate box, lines keyed to ledger state) and never built.
-  `nemesisLedger.js` already tracks name, scars, encounter count and
-  `lastOutcome`, and `grudgeLine()` returns text — nothing renders it as a
-  character speaking.
 - **Trait multiplier tuning.** The sweep measured `armored+colossal` at 3.9x hp
   and 5.5x time-to-kill against the median loadout. The numbers exist; the tuning
-  pass does not.
+  pass does not. Note the lesson above before sizing anything off the bot.
 - **Per-move FX for the nemeses.** Scope was deliberately "Vader + shared
   foundations": they inherited the ownership fix and the new telegraphs but not
   their own effects. Now that Vader has bespoke ones, they are the generic half.
+- **Campaign-mode Vader gets no scaling and no move kit at all** — the whole
+  block in `spawnBoss` is inside `if (mode === 'endless' || opts.encounter)`.
+  Real, and a separate decision.
 
 **Watch:**
 
-- **Suite runtime** — ~15 minutes, long enough to be a problem in itself. Several
-  checks are load-sensitive: the afterimage-damage check in `smoke-boss-moves`,
-  and `smoke-flight`'s `avgArrivalFrac < 0.6` threshold against a value landing
-  ~0.53-0.70. Both pass standalone.
+- **The dialogue card pauses Game and HUD**, so any harness that spawns a boss or
+  a nemesis must load with `?nodlg=1` or it will hang for its whole cap. Eleven
+  test files do. `smoke-dialogue` is the one that must NOT.
+- **Three checks are load-sensitive**, all passing standalone and all capable of
+  failing when the machine is busy: `smoke-readability`'s boomerang return (read
+  207px against a 60px threshold immediately after a `npm run build`),
+  `smoke-boss-moves`'s afterimage damage, and `smoke-flight`'s `avgArrivalFrac`.
+  The thresholds are not the problem.
+- **Fight length itself is noisy.** Encounter 1 measured 11.3 / 23.4 / 13.0s on
+  an identical build — 93% spread with nothing varying but the fight. Read that
+  ladder as a shape, never as six numbers.
+- **`api.github.com` is blocked by the agent proxy (403).** Check deploy status
+  through the GitHub MCP tools.
+- **Suite runtime** — ~15 minutes, long enough to be a problem in itself.
 - **Close-range spacing in the Vader fight** — standoff distance, the combo's
   step-in clamp and the slam knockback all interact, and it is the part most
   likely to need tuning by feel rather than by measurement.
