@@ -4566,7 +4566,13 @@ export class GameScene extends Phaser.Scene {
       act: (sc, actor, h) => move.act(sc, actor, h),
       impact: (sc, actor, h) => move.impact?.(sc, actor, h),
       recover: (sc, actor, h) => move.recover?.(sc, actor, h),
-      onCancel: (sc, actor) => move.onCancel?.(sc, actor),
+      // The HANDLE is forwarded, unlike before. `MoveScript.cancel` sweeps
+      // anything on `h` that has a `.destroy()` — a telegraph, a Graphics — but
+      // a `TimerEvent` needs `.remove()` and a vortex-style handle needs
+      // `.stop()`, and neither is reachable without this argument. The boss path
+      // has always passed it (`_castBossMove`); this one silently did not, so an
+      // interrupted nemesis move leaked whatever it had parked.
+      onCancel: (sc, actor, h) => move.onCancel?.(sc, actor, h),
     });
     handle.move = move;
     e._chargeHit = false;      // latch for once-per-charge contact damage

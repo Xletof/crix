@@ -2338,8 +2338,22 @@ export function attachFX(scene) {
     // The shadow is what makes them read. The floor is #161620 (paintBackdrop),
     // so a mid-dark crack is invisible — which is exactly why the obvious reuse,
     // _spawnVaderGroundCrack at 0x1a1a22, showed nothing at all here.
-    groundFractures(x, y, radius = 210) {
-      const SHADOW = 0x05050a, BODY = 0x2f7fb8, HOT = 0x90d8ff, CORE = 0xeafbff;
+    /**
+     * Cracked floor, left as a permanent scar.
+     *
+     * `palette` is optional and defaults to the cyan this has always been. That
+     * default is not neutral — it is the PLAYER's colour, from the melee
+     * finisher this was written for — and yet it is the only ground effect the
+     * nemeses use, in two of their five moves. So an enemy attack has been
+     * leaving the player's own energy in the floor. Passing a palette lets a
+     * nemesis crack the ground in its own trait colour without forking the
+     * geometry, which is 120 lines of shard maths worth keeping in one place.
+     */
+    groundFractures(x, y, radius = 210, palette = null) {
+      const SHADOW = 0x05050a;
+      const BODY = palette?.body ?? 0x2f7fb8;
+      const HOT  = palette?.hot  ?? 0x90d8ff;
+      const CORE = palette?.core ?? 0xeafbff;
       // Scar palette. The pit alone baked down to a flat dark star that barely
       // separated from the floor, so the permanent mark is built in three
       // layers: a lit RIM on the raised broken edge, the dark PIT over it, and

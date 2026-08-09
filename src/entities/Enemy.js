@@ -576,6 +576,24 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  /**
+   * Name the beat the body is playing. Called by the move scripts.
+   *
+   * `preUpdate` has always READ `_moveAnim` and nothing has ever written it, so
+   * every scripted enemy move ran with the body playing idle or walk — the
+   * "telegraph plus a damage callback, with the enemy standing still" shape that
+   * `MoveScript`'s header exists to prevent, surviving in the one place the
+   * header could not reach.
+   *
+   * Mirrors `Boss.setMovePose` but does not force a frame: the selection in
+   * `preUpdate` falls back to idle when `<prefix>-<pose>-<dir>` does not exist,
+   * so this is safe on any archetype whose sheet has no pose frames yet.
+   * `MoveScript` clears it on done and on cancel, so a pose is never stranded.
+   */
+  setMovePose(pose) {
+    this._moveAnim = pose || null;
+  }
+
   // ── Common preUpdate bookkeeping ──────────────────────────────────────────
 
   preUpdate(time, delta) {
