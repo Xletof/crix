@@ -9,6 +9,7 @@ import { HUDScene } from './systems/HUD.js';
 import { GameOverScene } from './scenes/GameOverScene.js';
 import { PauseScene } from './scenes/PauseScene.js';
 import { UpgradeScene } from './scenes/UpgradeScene.js';
+import { DialogueScene } from './scenes/DialogueScene.js';
 import { DebugScene } from './scenes/DebugScene.js';
 import { ControlsScene } from './scenes/ControlsScene.js';
 
@@ -40,7 +41,7 @@ const config = {
   input: {
     activePointers: 4,
   },
-  scene: [BootScene, PreloadScene, TitleScene, IntroScene, GameScene, HUDScene, GameOverScene, PauseScene, UpgradeScene, DebugScene, ControlsScene],
+  scene: [BootScene, PreloadScene, TitleScene, IntroScene, GameScene, HUDScene, GameOverScene, PauseScene, UpgradeScene, DialogueScene, DebugScene, ControlsScene],
 };
 
 window.addEventListener('load', () => {

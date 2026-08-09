@@ -17,8 +17,9 @@ import { perimeterOpenings } from '../data/mapUtils.js';
 import { rollNemesis, traitLine } from '../data/nemesis.js';
 import {
   createLedger, recordEscape, recordKill, dueAt, applyScar,
-  nemesisFromEntry, promoteSuccessor,
+  nemesisFromEntry, promoteSuccessor, displayName, grudgeLine,
 } from '../data/nemesisLedger.js';
+import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { moveById } from '../data/nemesisMoves.js';
 import { runMove } from '../systems/MoveScript.js';
@@ -1747,6 +1748,13 @@ export class GameScene extends Phaser.Scene {
       if (this._bossGuard) {
         this.time.delayedCall(900, () => { this.bossSpawnMinions(); this._bossGuard = 0; });
       }
+
+      // He speaks EVERY encounter, unlike a nemesis — six times in a run at
+      // most, and he is the only character the player meets again by design.
+      // The first line is fixed in the pool: it is the one meeting everyone
+      // gets, and it should always be the same first impression.
+      const card = this._vaderDialogue('vader-arrive');
+      if (card) this.time.delayedCall(1100, () => this.queueDialogue(card));
     }
 
     this.physics.add.collider(this.boss, this.walls);
@@ -2131,6 +2139,12 @@ export class GameScene extends Phaser.Scene {
       this.fx.burst(boss.x, boss.y, 'red', 40);
       this.fx.shake(0.025, 500);
       SFX.bossDie();
+
+      this.ledger.vader.encounters = (this.ledger.vader.encounters || 0) + 1;
+      this.ledger.vader.lastOutcome = 'killed';
+      const last = this._vaderDialogue('vader-slain');
+      if (last) this.time.delayedCall(1100, () => this.queueDialogue(last));
+
       if (this.mode === 'endless') {
         // The climb goes ON past Vader — he is a milestone, not the end. Open
         // the exit the boss room now carries and hand control back.
@@ -2156,8 +2170,16 @@ export class GameScene extends Phaser.Scene {
       this.fx.shake(0.018, 400);
       SFX.bossDie?.();
       this._enemiesCleared = true;
+
+      // Record BEFORE the line is chosen: "you made me withdraw" has to be able
+      // to see the withdrawal it is about.
+      this.ledger.vader.encounters = (this.ledger.vader.encounters || 0) + 1;
+      this.ledger.vader.lastOutcome = 'wounded';
+      const hurt = this._vaderDialogue('vader-wounded');
+
       this.time.delayedCall(1500, () => {
         this.events.emit('show-banner', 'HE WILL RETURN', '#ff8080');
+        if (hurt) this.queueDialogue(hurt);
         this._maybeCompleteRoom();
       });
     });
@@ -2316,7 +2338,25 @@ export class GameScene extends Phaser.Scene {
       // still leaves a hole in the roster for someone to fill. That is what
       // keeps succession the norm and a fresh stranger the exception.
       if (enemy._nemesis) {
-        recordKill(this.ledger, enemy._nemesis, this.sector || 1);
+        // `recordKill` RETURNS the entry it just removed, which is the only
+        // moment the pre-death state still exists — read it for the last words
+        // before it is gone. Only a remembered one gets them, same rule as the
+        // arrival card.
+        const gone = recordKill(this.ledger, enemy._nemesis, this.sector || 1);
+        if (gone) {
+          const line = pickLine('nemesis-kill', nemesisContext(gone),
+            this.ledger.spoken, this.rng.nemesis);
+          if (line) {
+            this.time.delayedCall(900, () => this.queueDialogue({
+              bust: `bust-${gone.base}`,
+              name: displayName(gone),
+              color: enemy._nemesis.tint,
+              sub: 'DOWN',
+              text: line.text,
+              traits: gone.traits,
+            }));
+          }
+        }
         const scars = enemy._nemesis.scars || 0;
         if (scars >= 2) {
           this.spawnWeaponChoice(enemy.x, enemy.y, 'TROPHY');
@@ -2424,6 +2464,37 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // Who put you down. Captured HERE, before the respawn clears the arena
+    // state — and only on the respawn path: `defeat()` ends the run and hands
+    // off to GameOverScene, which is not a place to pause for a conversation.
+    // Attribution is the same lookup `player-hurt` does; at most one nemesis is
+    // alive at a time, so it is near-exact.
+    let killer = null;
+    if (this.boss?.alive) {
+      // Vader gets NO card here — only the record. Dying to him mid-fight and
+      // then being made to sit through a speech before you can get back up is
+      // the pace cost with none of the payoff, and he has a line about it
+      // waiting for the next time he walks in, which is where it lands better.
+      this.ledger.vader.killedYou = (this.ledger.vader.killedYou || 0) + 1;
+    } else {
+      const nem = this.enemies.getChildren().find((e) => e.alive && e._nemesis);
+      const entry = nem && this.ledger.entries.find((x) => x.id === nem._nemesis.ledgerId);
+      if (entry) {
+        const line = pickLine('nemesis-killed-you', nemesisContext(entry),
+          this.ledger.spoken, this.rng.nemesis);
+        if (line) {
+          killer = {
+            bust: `bust-${entry.base}`,
+            name: displayName(entry),
+            color: nem._nemesis.tint,
+            sub: 'YOU DIED HERE',
+            text: line.text,
+            traits: entry.traits,
+          };
+        }
+      }
+    }
+
     // Respawn at room entrance after short pause
     this.time.delayedCall(400, () => {
       this.cameras.main.fadeOut(300, 0, 0, 0);
@@ -2446,6 +2517,9 @@ export class GameScene extends Phaser.Scene {
         this.events.emit('player-ammo-changed');
         this.events.emit('player-super-changed');
         this.cameras.main.fadeIn(300, 0, 0, 0);
+        // After the respawn is on screen, not during the fade — a card that
+        // opens mid-fade leaves the camera black behind it.
+        if (killer) this.time.delayedCall(500, () => this.queueDialogue(killer));
       });
     });
   }
@@ -4278,6 +4352,97 @@ export class GameScene extends Phaser.Scene {
    * Every branch draws from `this.rng.nemesis`, so the whole climb stays
    * reproducible from the run seed.
    */
+  // ── Dialogue ──────────────────────────────────────────────────────────────
+  //
+  // The ledger has remembered everything worth saying for a while; until now
+  // the entire payoff was a 26px medal that flew past in one second. These
+  // raise `DialogueScene` instead — the character itself, talking about what
+  // happened between you.
+  //
+  // A card is a FULL STOP: Game and HUD pause and it waits for a tap. That is
+  // affordable only because cards are rare, and the thing that keeps them rare
+  // is `_nemesisArrivalDialogue` refusing one for an enemy with no history. A
+  // first-time stranger raises nothing. If this ever fires on every mini-boss
+  // spawn it has regressed, and `smoke-dialogue` checks exactly that.
+
+  /** Queue a card. `spec` is what DialogueScene.create takes, minus `game`. */
+  queueDialogue(spec) {
+    if (!spec || !spec.text) return;
+    (this._dialogueQueue ||= []).push(spec);
+    this._drainDialogue();
+  }
+
+  _drainDialogue() {
+    if (!this._dialogueQueue?.length || this._dialogueOpen) return;
+
+    // Never over another overlay. Two cards, or a card over the upgrade picker,
+    // would leave whichever resumed second fighting the other over the pause
+    // state — and `UpgradeScene` holds the door shut until it is answered.
+    if (this.scene.isActive('Upgrade') || this.scene.isActive('Pause')
+      || this.scene.isActive('Controls') || this.scene.isActive('Dialogue')) {
+      // Retry rather than drop: consuming the line has already marked it spoken,
+      // so discarding it here would silently burn a line the player never saw.
+      // A timer created on a paused scene starts ticking when it resumes, which
+      // is exactly when this wants to run again.
+      this.time.delayedCall(600, () => this._drainDialogue());
+      return;
+    }
+
+    const spec = this._dialogueQueue.shift();
+    this._dialogueOpen = true;
+    this.scene.launch('Dialogue', { ...spec, game: this });
+    this.scene.pause();
+    this.scene.pause('HUD');
+  }
+
+  /** Called by DialogueScene once it has resumed the scenes beneath it. */
+  _dialogueClosed() {
+    this._dialogueOpen = false;
+    if (this._dialogueQueue?.length) this.time.delayedCall(320, () => this._drainDialogue());
+  }
+
+  /**
+   * The card for a nemesis walking in — or null, which is the common case.
+   *
+   * Only a REMEMBERED one speaks: a returning grudge or an heir. A stranger has
+   * no history to reference, so it keeps the banner and the trait line it
+   * already had and does not stop the game.
+   */
+  _nemesisArrivalDialogue(nem) {
+    if (!nem?.ledgerId) return null;                     // stranger
+    const entry = this.ledger.entries.find((e) => e.id === nem.ledgerId);
+    if (!entry) return null;
+
+    const kind = entry.successorOf ? 'nemesis-heir' : 'nemesis-return';
+    const ctx = nemesisContext(entry);
+    const line = pickLine(kind, ctx, this.ledger.spoken, this.rng.nemesis);
+    if (!line) return null;
+
+    return {
+      bust: `bust-${nem.base}`,
+      name: displayName(entry),
+      color: nem.tint,
+      sub: grudgeLine(entry),
+      text: line.text,
+      traits: entry.traits,
+    };
+  }
+
+  /** Vader's card. He has no ledger entry — `ledger.vader` is his record. */
+  _vaderDialogue(kind) {
+    const ctx = vaderContext(this.ledger.vader);
+    const line = pickLine(kind, ctx, this.ledger.spoken, this.rng.boss);
+    if (!line) return null;
+    return {
+      bust: 'bust-vader',
+      name: 'DARTH VADER',
+      color: '#ff2828',
+      sub: ctx.encounters > 0 ? `ENCOUNTER ${ctx.encounters + 1}` : 'THE DARK LORD',
+      text: line.text,
+      traits: [],
+    };
+  }
+
   _nextNemesis() {
     const sector = this.sector || 1;
     const rng = this.rng.nemesis;
@@ -4361,6 +4526,13 @@ export class GameScene extends Phaser.Scene {
         if (e.active) this.events.emit('score-medal', traitLine(nem.traits), 0, nem.tint);
       });
     }
+
+    // ...and then, for a remembered one only, it says something. After the
+    // banner rather than before it, so the name is already on screen when the
+    // card names it again.
+    const card = this._nemesisArrivalDialogue(nem);
+    if (card) this.time.delayedCall(700, () => { if (e.active) this.queueDialogue(card); });
+
     return e;
   }
 

@@ -255,7 +255,7 @@ export const LINES = [
     kind: 'vader-slain',
     priority: 2,
     when: (c) => c.encounters >= 4,
-    text: () => 'Five times you walked away.\nOnly one of us had to.',
+    text: () => 'Every time, you walked away.\nOnly one of us had to.',
   },
   {
     id: 'vader-end-generic-a',
