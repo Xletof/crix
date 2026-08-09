@@ -89,6 +89,13 @@ the finding is already established earlier in the conversation.
   player in from every bearing. Zones follow their caster while winding up
   unless passed `anchor: 'world'` — a LANDING marker must be anchored, or it
   trails the actor off the spot he is about to teleport to.
+- **A subclass that intercepts `damage()` must test the number the PARENT will
+  subtract.** `Enemy.damage` multiplies by `_punishMult` inside a punish window,
+  and `Boss.damage`'s wound-instead-of-die intercept tested the raw amount — so a
+  hit that was not lethal raw became lethal applied, and Vader DIED in endless,
+  which ends the ladder. Latent for as long as both systems have existed; it
+  surfaced only when the hp pool moved and changed where hits land relative to
+  punish windows.
 - **The measuring bot never dies.** `tests/diag-encounter.mjs` sets `lives = 9999`
   and revives the player in-frame so a death cannot cut a measurement short. Its
   dps is an uninterrupted CEILING, so `hp / dps` is not fight length. It is a good
