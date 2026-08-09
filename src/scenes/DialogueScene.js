@@ -66,10 +66,18 @@ export class DialogueScene extends Phaser.Scene {
     const dim = this.add.graphics();
     dim.fillStyle(0x000000, 0.72);
     dim.fillRect(0, 0, VIEW.width, VIEW.height);
-    for (let y = 0; y < VIEW.height; y += 6) {
-      dim.fillStyle(colorNum, 0.022);
-      dim.fillRect(0, y, VIEW.width, 2);
-    }
+    // Step 16, not 6. A Graphics object re-submits its whole command list every
+    // frame, so a scanline every 6px over a 1280px screen was 213 fills per
+    // frame for something the eye reads as "faintly striped" either way.
+    //
+    // HONESTLY: this was a suspect for why the card's scene steps at ~6.5fps
+    // against a ~10.6fps loop, and trimming it moved that to 6.8 — i.e. it is
+    // NOT the cause. Kept anyway because 213 fills per frame for an identical
+    // look is not worth paying, but do not read this as a fix. The real cost is
+    // elsewhere (the arena and HUD keep rendering underneath while paused), and
+    // nothing depends on the frame rate here any more — see `_close`.
+    dim.fillStyle(colorNum, 0.03);
+    for (let y = 0; y < VIEW.height; y += 16) dim.fillRect(0, y, VIEW.width, 2);
 
     // ── Plate ───────────────────────────────────────────────────────────
     // Same construction as the sector sign: engraved signage, not a soft glow.
@@ -260,16 +268,23 @@ export class DialogueScene extends Phaser.Scene {
     this._typeTimer?.remove();
     SFX.uiClick?.();
 
-    this.cameras.main.fadeOut(140, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      // Resume BOTH, and only if they are still there. `PauseScene._restart()`
-      // can tear the run down while this card is open; resuming a scene that
-      // no longer exists throws and would leave the game frozen behind a
-      // card that has already faded out.
-      if (this.scene.isPaused('Game')) this.scene.resume('Game');
-      if (this.scene.isPaused('HUD')) this.scene.resume('HUD');
-      this.gs?._dialogueClosed?.();
-      this.scene.stop();
-    });
+    // RESUME UNCONDITIONALLY AND SYNCHRONOUSLY. This used to hang off
+    // `camerafadeoutcomplete`, copying UpgradeScene, and that is a bad gate for
+    // the one action that must not be missed: if the event is late or never
+    // fires, Game and HUD stay paused behind a card that has already gone, and
+    // the player is looking at a frozen game with nothing left to tap.
+    //
+    // Not hypothetical. Measured here at ~10fps: the camera's fade effect was
+    // still reporting 83% progress 900ms after a 140ms fadeOut, and the card's
+    // own scene was stepping at 6.5fps while the loop ran at 10.6. On a loaded
+    // phone that gap is wider, not narrower. A dismissal has to be a state
+    // change, not an animation callback.
+    //
+    // `isPaused` guards because PauseScene._restart() can tear the run down
+    // while the card is open — resuming a scene that no longer exists throws.
+    if (this.scene.isPaused('Game')) this.scene.resume('Game');
+    if (this.scene.isPaused('HUD')) this.scene.resume('HUD');
+    this.gs?._dialogueClosed?.();
+    this.scene.stop();
   }
 }
