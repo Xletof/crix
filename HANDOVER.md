@@ -504,41 +504,73 @@ scripted moves.
 
 ## 11. State as of this handover
 
-Everything is committed, pushed and deployed. Working tree clean, `FRIX` level
-with the dev branch, deploy run #114 green.
-
-> **Note on branches.** The music/depth work above was developed on
-> `claude/project-handover-ack-9ai0av`, a per-task branch, and fast-forwarded
-> onto `FRIX` from there. The touch-control work was developed on
-> `claude/touch-control-customisation-0e4nvk` (a per-task branch), then
-> fast-forwarded onto the dev branch named in §1. Both dev branches and `FRIX`
-> now point at the same commit, so either name is a valid place to continue
-> from. `origin/main` is unrelated and unused — Pages builds from `FRIX` only.
+Everything is committed, pushed and deployed; `FRIX` is level with the dev
+branch `claude/project-handover-ack-9ai0av`. `origin/main` is unrelated and
+unused — Pages builds from `FRIX` only.
 
 **Recently completed** (most recent first):
 
-- Music round 2: breather keeps playing, 5 combat variations, mini-boss B
-  section, Vader in octaves (§7)
-- Dynamic music: tiers, heat, half-time boss feel, tempo ramp (§7)
-- Full 8-bar Imperial March phrase + `tests/smoke-march.mjs` (§7)
-- Depth bug of §6 investigated and closed as not observable
+- **The Vader fight, rebuilt over four rounds** — see §10b, and read
+  `docs/POST-MORTEM-vader-moves.md` before touching any of it. Ownership gate so
+  one system drives an actor at a time; telegraphs that show timing and are
+  scorched into the floor; his own crimson/Force effect families; 12 new attack
+  frames; a standing overhead slam; a boomerang saber throw; a reactive VANISH;
+  no knockback on him; the green bullet FAN removed
+- Nemesis system: memory, grudges, scars and succession within a run
+  (`src/data/nemesisLedger.js`), per-elite weapons and regalia, five scripted moves
+- Seeded RNG with independent named streams (`src/systems/rng.js`)
+- Encounter balance harness (`tests/diag-encounter.mjs`)
+- Endless as the single run structure; Vader every 5th sector, wounded not killed
+- Music round 2, dynamic tiers, full 8-bar march (§7)
 - Touch-control layout editor at Pause → CONTROLS
-- Powered attack run for cluster munitions + exhaust flame (`084904d`)
-- Saber hum re-voiced for phone speakers, melee bus +2dB (`cd0f9b4`)
-- 8 munitions at 290 damage each (`faf7809`)
-- Sustained booster burn (`685874e`)
-- Dotted trajectory lines, booster on lock, thinner impact (`9ae16c6`)
-- Distinct-target locking and dive (`9981d17`)
-- In-game debug menu (`9c8e1cb`)
+
+**Measured, and open for a decision.** Vader ladder, encounters 1-6,
+`node tests/diag-encounter.mjs --mode vader --encounters 6` at the 180s cap. The
+bot is a yardstick, not a player — it never picks up an upgrade, while a real run
+gains fifteen sectors of them between encounter 1 and 4:
+
+| encounter | hp | patient | spam | deaths (patient) |
+|---|---|---|---|---|
+| 1 | 46,000 | 23.9s | 4.4s | 0 |
+| 2 | 52,900 | 23.4s | 12.6s | 2 |
+| 3 | 59,800 | 44.7s | 10.0s | 1 |
+| 4 | 66,700 | 44.0s | 9.0s | 2 |
+| 5 | 73,600 | 50.9s | 28.3s | 3 |
+| 6 | 80,500 | 98.1s | 14.4s | 5 |
+
+- **The four-minute problem is gone.** Encounter 6 took ~4 minutes when this arc
+  started; it is 98s patient and 14s spam now.
+- **The design target was 60-90s with all three phases reached. Only encounter 6
+  is in band, and it overshoots.** Encounters 1-5 land at 24-51s. All three
+  phases are reached in every patient fight, so the SHAPE is right and only the
+  hp pool is short. Nothing has been tuned off these numbers yet.
+- **Playstyle swings it 5-7x** (encounter 6: 14.4s vs 98.1s). No single
+  fight-length number means anything without saying who is playing.
+- Spam mode **refills the super meter every frame**, so that column is a DPS
+  ceiling rather than a playstyle — a real masher still has to earn charge.
 
 **Open, not started** — the user's call, not an oversight:
 
-*(nothing currently open)*
+- **Hades-style narrative for the nemesis system.** Approved with a treatment
+  chosen (portrait + nameplate box, lines keyed to ledger state) and never built.
+  `nemesisLedger.js` already tracks name, scars, encounter count and
+  `lastOutcome`, and `grudgeLine()` returns text — nothing renders it as a
+  character speaking.
+- **Trait multiplier tuning.** The sweep measured `armored+colossal` at 3.9x hp
+  and 5.5x time-to-kill against the median loadout. The numbers exist; the tuning
+  pass does not.
+- **Per-move FX for the nemeses.** Scope was deliberately "Vader + shared
+  foundations": they inherited the ownership fix and the new telegraphs but not
+  their own effects. Now that Vader has bespoke ones, they are the generic half.
 
-**Watch:** the cluster's total damage output (§5) against a full arena, and the
-music tier thresholds in `MUSIC.heat` — measured-correct but not yet tuned by
-ear on a handset. Also `smoke-flight`: it failed twice today inside a full-suite
-run while passing every standalone attempt, on a hard `avgArrivalFrac < 0.6`
-threshold against a value that lands ~0.53-0.70. Music is not playing during
-that test, so it is not the audio work; it looks like a knife-edge threshold on
-a frame-rate-sensitive measurement under container load.
+**Watch:**
+
+- **Suite runtime** — ~15 minutes, long enough to be a problem in itself. Several
+  checks are load-sensitive: the afterimage-damage check in `smoke-boss-moves`,
+  and `smoke-flight`'s `avgArrivalFrac < 0.6` threshold against a value landing
+  ~0.53-0.70. Both pass standalone.
+- **Close-range spacing in the Vader fight** — standoff distance, the combo's
+  step-in clamp and the slam knockback all interact, and it is the part most
+  likely to need tuning by feel rather than by measurement.
+- The cluster's total damage output (§5) against a full arena, and the music tier
+  thresholds in `MUSIC.heat` — measured-correct, not yet tuned by ear.

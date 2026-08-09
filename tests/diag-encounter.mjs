@@ -50,7 +50,11 @@ const arg = (name, dflt) => {
 const MODE = arg('mode', 'all');
 const RUNS = Number(arg('runs', 2));
 const SECTOR = Number(arg('sector', 12));
-const CAP_MS = Number(arg('cap', 30000));
+// 180s. The default was 30s, which is shorter than a late encounter actually
+// takes — so encounter 6 reported "OVER CAP" when all that had happened was the
+// stopwatch running out. A cap is a safety net against a hung fight, not a
+// judgement, and it must sit well above the longest real answer.
+const CAP_MS = Number(arg('cap', 180000));
 
 // The loadouts swept. Deliberately not all 41 combinations — that is ~40 minutes
 // of wall clock for a diagnostic. Every trait alone (so each one's individual
@@ -438,9 +442,12 @@ if (MODE === 'vader') {
     const secs = (r.ms / 1000).toFixed(1);
     const band = !r.downed ? 'OVER CAP' : r.ms < 60000 ? 'TOO SHORT' : r.ms > 90000 ? 'TOO LONG' : 'in band';
     const ph = [2, 3].map((p) => r.phaseAt[p] != null ? `p${p} ${(r.phaseAt[p] / 1000).toFixed(0)}s` : `p${p} NEVER`).join(', ');
-    console.log(`  encounter ${n}  hp ${String(r.hpMax).padStart(6)}  cap ${r.dmgCap}  `
+    // The intake-cap columns are gone: the cap itself was removed from the game,
+    // so they printed `cap undefined` and `cap floor NaNs` in every row. A
+    // diagnostic that prints NaN teaches the reader to skim past its own output.
+    console.log(`  encounter ${n}  hp ${String(r.hpMax).padStart(6)}  `
       + `${r.downed ? `${secs}s` : `${secs}s (${r.hpEnd} left)`}  [${band}]`);
-    console.log(`      phases: ${ph}   cap floor ${(r.capFloorMs / 1000).toFixed(0)}s   `
+    console.log(`      phases: ${ph}   `
       + `taken ${r.damageTaken}  deaths ${r.deaths}  supers ${r.supers} melee ${r.melees}`);
     console.log(`      mechanics: ${r.mechanics.join(', ') || 'none'}`);
     out.push(r);
