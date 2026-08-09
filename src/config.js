@@ -315,61 +315,50 @@ export const ENEMY = {
 };
 
 export const BOSS = {
-  // MEASURED across the WHOLE LADDER, against the build a real run brings.
+  // 60,000 — SET BY HAND, ON THE PHONE, and that is the point of this comment.
   //
   // History, because the mistakes are instructive:
   //   12,000 -> 10.6s. Phase 3 at 7s; two thirds of the fight never happened.
   //   62,000 -> 56-85s. In the 60-90s band, and too strong in the hand.
-  //   46,000 -> measured at encounters 1 and 2 only, and SHIPPED on that. With
-  //             the old per-encounter cap taper, #6 was 115,000 hp absorbing
-  //             960/window: FOUR MINUTES on the phone. Measuring two rungs of a
-  //             six-rung ladder and extrapolating is how that happened.
+  //   46,000 -> measured at encounters 1 and 2 only and SHIPPED on that. With
+  //             the old cap taper, #6 was FOUR MINUTES on the phone. Measuring
+  //             two rungs of a six-rung ladder and extrapolating did that.
+  //   300,000 -> the harness said every rung was 4-12s and wanted ~7x more hp.
+  //             Shipped it. The verdict from the phone was immediate: "literally
+  //             cannot be killed, cant even dent it". Reverted the same day.
   //
-  // And the mistake this pass found, which is the same one wearing a different
-  // hat: every figure above was measured against a bot that never picked up a
-  // single upgrade, while a real run reaching encounter 6 has cleared 29 rooms
-  // and taken 29 cards. The ladder was a measurement of a player who does not
-  // exist. `--mode vader` now applies them through the game's own
-  // pickThree/apply path (see the diminishing-returns note in upgrades.js,
-  // which is the OTHER thing that had to be fixed before any of this could be
-  // read: damage was compounding to 1240x by encounter 6).
+  // WHY THE HARNESS WAS WRONG, since the numbers themselves were not:
   //
-  // Measured with dmgMult 1.7 / 2.6 / 4.7 / 9.3 / 13.4 / 14.5, medians of 3:
+  // The bot never dies. `lives = 9999`, and `step()` revives it in-frame the
+  // moment it drops, precisely so a death cannot end a measurement early. It
+  // also never misses, never repositions badly, never hesitates, and fires on
+  // every frame the cooldown allows. Its dps is therefore an UNINTERRUPTED
+  // ceiling, and dividing hp by that ceiling answers "how long to chew through
+  // this pool while taking no consequences" — which is not the same question as
+  // "how long is this fight". A real player spends time dead, disengaged, out of
+  // ammo, and backing off. Sizing an hp pool off the ceiling multiplies the gap
+  // between those two questions straight into the number.
   //
-  //   enc   hp @46k   patient   spam    -> effective dps
-  //   1     46,000    11.8s     6.4s       3,900 / 7,200
-  //   2     52,900    11.8s     3.9s       4,500 / 13,600
-  //   3     59,800     9.2s     3.8s       6,500 / 15,700
-  //   4     66,700     5.8s     4.2s      11,500 / 15,900
-  //   5     73,600    12.5s     4.5s       5,900 / 16,400
-  //   6     80,500    10.7s     5.1s       7,500 / 15,800
-  //
-  // Two things fall out of that and they set the two constants:
+  // The harness is still right about RELATIVE things, which is all it was ever
+  // claimed to be good for (see the top of tests/diag-encounter.mjs). Two of its
+  // findings from this pass hold and are worth keeping:
   //
   //   - Output does NOT track dmgMult. Spam saturates at ~15,000-16,000 dmg/sec
-  //     from encounter 2 on while dmgMult goes 2.6 -> 14.5, because cadence,
-  //     ammo and reload bind long before damage does. So hp does not have to
-  //     chase the upgrade curve.
+  //     from encounter 2 on while dmgMult climbs 2.6 -> 14.5, because cadence,
+  //     ammo and reload bind long before damage does. hp does not have to chase
+  //     the upgrade curve.
   //   - Player dps grows ~1.9x (patient) to 2.2x (spam) across the six rungs,
-  //     and the hp curve already grew 1.75x. THE SHAPE WAS RIGHT AND THE BASE
-  //     WAS SEVEN TIMES TOO SMALL. `bossHpStep` moves 0.15 -> 0.22 to close the
-  //     remaining gap; `hp` does the real work.
+  //     against an hp curve that grows 1.75x. The SHAPE is about right, so
+  //     `bossHpStep` stays where it is.
   //
-  // At 300,000 / 0.22 the projection is 77 / 82 / 66 / 43 / 96 / 84s patient and
-  // 42 / 27 / 27 / 31 / 34 / 40s spam. The 4.4x-turned-2x gap between the two
-  // columns is the standing finding: PLAYSTYLE swings fight length several-fold
-  // on identical hp, so no single "how long is this fight" number means anything
-  // without saying who is holding the phone.
+  // So: keep the shape, and set the base from play. 46,000 was the last number
+  // anyone had actually played and it read as slightly short; +30% is the
+  // adjustment that came back from the handset.
   //
-  // CAVEAT ON PRECISION. Fight length here is wall clock in a browser and the
-  // measured spreads run to 254% on a rung where nothing varied but the fight
-  // (encounter 4: 18.2s, 5.8s, 3.5s). Read this ladder as a SHAPE, not as six
-  // numbers, and do not chase a rung by 10%.
-  //
-  // Re-derive with the harness after ANY change to player output, to the
-  // UPGRADES pool, or to Vader's move set — more telegraphs means more time not
-  // shooting, which moves this.
-  hp: 300000,
+  // THE RULE THIS COST: an absolute is a phone judgement. Every ABSOLUTE
+  // judgement stays a phone playtest — that sentence was already at the top of
+  // the harness file, and it was still overridden by a table of six numbers.
+  hp: 60000,
   radius: 56,
   speed: 165,
   contactDamage: 300,
@@ -917,8 +906,10 @@ export const ENDLESS = {
   //
   // The measured table for all six lives beside BOSS.hp. Do not tune this from
   // #1 and #2 again.
-  bossHpStep: 0.22,    // boss n has hp x (1 + 0.22*(n-1)) — see the ladder
-                       // table above BOSS.hp; player dps grows ~1.9-2.2x over the six
+  // Unchanged at 0.15. The harness measured player dps growing 1.9-2.2x across
+  // the six encounters against this curve's 1.75x, so the SHAPE is close; it was
+  // only ever the base that was wrong. See the note above BOSS.hp.
+  bossHpStep: 0.15,    // boss n has hp x (1 + 0.15*(n-1))
   bossScoreStep: 0.5,  // and is worth proportionally more
 
   // Vader is a RECURRING NEMESIS, not a kill. Driving him to zero wounds him
@@ -987,13 +978,12 @@ export const ENDLESS = {
     //
     // A fraction of hpMax rather than a flat number, so it behaves the same on
     // encounter 1 and on a late Vader with several times the health.
-    // Scaled with the pool, not left behind by it. This is a fraction of
-    // hpMax, so raising hp 6.5x silently raised the trigger from 4,600 damage
-    // in 2s to 30,000 — more than any playstyle produces in that window, which
-    // would have retired the mechanic without anyone noticing. 0.025 of 300,000
-    // is 7,500, against ~7,800 for two seconds of patient output and ~14,400 of
-    // spam: a real burst sets it off, and the 14s lockout caps how often.
-    vanishHpFrac: 0.025,
+    // A FRACTION OF hpMax, so it moves whenever the pool does — worth checking
+    // on any hp change. At 60,000 this is 6,000 damage inside the 2s window,
+    // near the 4,600 it was at 46,000 and comfortably inside what a burst
+    // produces. (The 300,000 experiment pushed it to 30,000, which no playstyle
+    // reaches: the mechanic would have quietly retired itself.)
+    vanishHpFrac: 0.10,
     vanishWindowMs: 2000,
     vanishLockMs: 14000,
   },
