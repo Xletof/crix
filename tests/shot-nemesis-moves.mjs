@@ -25,6 +25,16 @@ const CASES = [
   { move: 'spiral',   traits: ['volatile'],    at: 'windup' },
   { move: 'spiral',   traits: ['volatile'],    at: 'act' },
   { move: 'rite',     traits: ['summoner'],    at: 'act' },
+  // The kits authored for the duel pass. Both grunt moves are combos, so the
+  // second zone matters as much as the first — hence a windup AND an impact
+  // capture for each rather than one representative frame.
+  { move: 'slidesmash', traits: ['armored'],    at: 'windup' },
+  { move: 'slidesmash', traits: ['armored'],    at: 'impact' },
+  { move: 'tripledash', traits: ['swift'],      at: 'act' },
+  { move: 'mortar',     traits: ['volatile'],   at: 'act' },
+  { move: 'minefield',  traits: ['volatile'],   at: 'act' },
+  { move: 'chaindet',   traits: ['volatile'],   at: 'windup' },
+  { move: 'chaindet',   traits: ['volatile'],   at: 'impact' },
 ];
 
 const browser = await chromium.launch({

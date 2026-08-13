@@ -28,6 +28,48 @@ import { moveById } from '../data/nemesisMoves.js';
 // _equipNemesisKit. Cadence then tightens per phase (66% / 33% hp).
 const NEMESIS_FIRST_MOVE_MS = 2000;
 const NEMESIS_PHASE_CADENCE = { 1: 1, 2: 0.78, 3: 0.6 };
+
+/**
+ * How much hp a nemesis carries over its base archetype.
+ *
+ * Two separate problems, one function.
+ *
+ * SIZE. It was a flat x6, which put a one-trait sector-1 nemesis at ~1,300 hp
+ * against a 3,000-damage super: "killed in 1-2 supers, so it's seconds top".
+ * A curated kit needs long enough to actually show itself — the whole point of
+ * authoring moves is undone if the fight ends before the second one casts.
+ *
+ * SPREAD. Trait multipliers ran 0.7 (swift) to 3.96 (armored+colossal), a 5.7x
+ * range on top of everything else. Raising a flat multiplier scales that spread
+ * up with it. Taking the trait product to a fractional power keeps the ORDERING
+ * — armored is still tougher than swift — while compressing that component to
+ * about 2.8x. Measured effect, in supers-to-kill:
+ *
+ *   swift grunt, sector 1          0.4 -> 1.0
+ *   armored shielded, sector 1     2.5 -> 3.6
+ *   3-trait shooter, sector 20    15.2 -> 15.8
+ *
+ * i.e. it lifts the floor, which is the reported problem, and barely touches
+ * the ceiling. It does NOT flatten the whole curve: the remaining spread at
+ * high sectors is the sector multiplier (1 + 0.12 per sector, 3.3x by sector
+ * 20), not traits. Whether a sector-20 nemesis is too long is a separate
+ * question and a separate playtest — changing endless progression to chase a
+ * fight-length target is exactly the move that produced the 300,000-hp Vader.
+ *
+ * THE NUMBER ITSELF IS A PHONE JUDGEMENT. config.js records what it cost to
+ * forget that: a harness measured six rungs, asked for 300,000 hp on Vader, and
+ * the verdict from the handset was "literally cannot be killed". The bot never
+ * dies, so hp/dps answers "how long to chew this pool while taking no
+ * consequences", which is not how long a fight is. So this is deliberately a
+ * modest step — roughly double, not seven times — put in front of a player
+ * rather than derived from a table.
+ */
+const NEMESIS_HP_BASE = 12;
+const NEMESIS_TRAIT_COMPRESSION = 0.6;
+function nemesisHpMult(nem) {
+  const traitMult = Math.max(0.05, nem?.hpMult ?? 1);
+  return NEMESIS_HP_BASE * Math.pow(traitMult, NEMESIS_TRAIT_COMPRESSION);
+}
 import { runMove } from '../systems/MoveScript.js';
 import { bossMoveById, bossMovesFor } from '../data/bossMoves.js';
 import { makeStreams, newSeed } from '../systems/rng.js';
@@ -4582,7 +4624,7 @@ export class GameScene extends Phaser.Scene {
     const nem = preRolled || this._nextNemesis();
     const e = this.spawnEnemyAt(nem.base, gx, gy, {});
     this._makeElite(e, {
-      hpMult: 6 * nem.hpMult,
+      hpMult: nemesisHpMult(nem),
       scale: 1.8 * nem.scale,
       tint: Phaser.Display.Color.HexStringToColor(nem.tint).color,
       speedMult: 0.8 * nem.speedMult,
