@@ -33,6 +33,7 @@
 // answer is offence. If every move is "get out of the way", the fight has one
 // verb no matter how many moves it has.
 
+import Phaser from 'phaser';
 import { DASH_REACH } from '../systems/Telegraph.js';
 import {
   squash, rearBack, leapArc, charge, spin, vanish, appear,
@@ -48,6 +49,17 @@ const WINDUP = 800;
 // fraction of the caster's hp — see the interrupt check in `rite`. Exported so
 // the test and the design share one number, as with FAIRNESS_REACH below.
 export const RITE_BREAK_DAMAGE = 1500;
+
+// MINEFIELD: how far the retreat may bend toward the arena centre to avoid
+// backing into a wall, and the minimum gap between two mines.
+const MINE_BEND = 0.9;
+const MINE_SPACING = 96;
+const MINE_MARGIN = 140;
+
+/** Keep a laid mine on the floor rather than inside a wall. */
+const clampAxis = (v, extent) =>
+  Math.max(MINE_EDGE, Math.min(extent - MINE_EDGE, v));
+const MINE_EDGE = 90;
 
 // ── Colour ────────────────────────────────────────────────────────────────
 //
@@ -780,7 +792,30 @@ export const NEMESIS_MOVES = [
 
     anticipate(scene, e, h) {
       const p = scene.player;
-      h.angle = Math.atan2(e.y - p.y, e.x - p.x);   // AWAY from the player
+      // Away from the player — bent toward the arena centre ONLY if a straight
+      // retreat would run out of floor.
+      //
+      // Caught against the top wall, the bomber travelled almost nowhere and
+      // dropped all five mines in one pile: the move that is supposed to
+      // reshape the arena marked a single spot instead. But bending
+      // unconditionally is worse — the first version of this turned the
+      // retreat into a diagonal walk TOWARD the player, because the arena
+      // centre happened to lie that way. Only bend when there is a wall to
+      // avoid, and never far enough to stop reading as a retreat.
+      const away = Math.atan2(e.y - p.y, e.x - p.x);
+      const b = scene.physics.world.bounds;
+      const reach = this.speed * (this.actMs / 1000);
+      const endX = e.x + Math.cos(away) * reach;
+      const endY = e.y + Math.sin(away) * reach;
+      const wouldHitWall = endX < MINE_MARGIN || endX > b.width - MINE_MARGIN
+        || endY < MINE_MARGIN || endY > b.height - MINE_MARGIN;
+      if (wouldHitWall) {
+        const toMid = Math.atan2(b.height / 2 - e.y, b.width / 2 - e.x);
+        const bend = Math.atan2(Math.sin(toMid - away), Math.cos(toMid - away));
+        h.angle = away + Phaser.Math.Clamp(bend, -MINE_BEND, MINE_BEND);
+      } else {
+        h.angle = away;
+      }
       e.body?.setVelocity(0, 0);
       e.setMovePose?.('raise');
       rearBack(scene, e, h.angle + Math.PI, 22, this.anticipateMs * 0.6);
@@ -794,13 +829,30 @@ export const NEMESIS_MOVES = [
     // to reposition before the mines arm, not to dodge on reaction.
     act(scene, e, h) {
       e.setMovePose?.('thrust');
+      h.start = { x: e.x, y: e.y };
+      h.laid = 0;
+      const b0 = scene.physics.world.bounds;
       charge(scene, e, h.angle, { speed: this.speed, ms: this.actMs });
       h.timer = scene.time.addEvent({
         delay: this.mineGapMs,
         repeat: this.mines - 1,
         callback: () => {
           if (!e.active || !e.alive) return;
-          const mx = e.x, my = e.y;
+          // Mines are laid along the retreat's PLANNED path, not at wherever
+          // the body happens to be.
+          //
+          // Reading e.x/e.y each tick sounds more honest and is worse: a
+          // retreat that stalls — walled in, shoved, or just a slow frame —
+          // drops the whole volley on one spot, and measured against a wall the
+          // body covered 64px of an intended 576. The move's job is to make a
+          // patch of floor unavailable, so the field has to exist even when the
+          // walk does not. The body still retreats along this exact line, so
+          // what the player sees and what the floor does still agree.
+          const step = h.laid++;
+          const mx = clampAxis(h.start.x + Math.cos(h.angle) * MINE_SPACING * (step + 1),
+            b0.width);
+          const my = clampAxis(h.start.y + Math.sin(h.angle) * MINE_SPACING * (step + 1),
+            b0.height);
           const tel = scene.spawnTelegraph(
             { kind: 'circle', x: mx, y: my, r: this.radius },
             { windupMs: this.armMs, owner: e, color: h.tint, anchor: 'world' },

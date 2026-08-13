@@ -151,6 +151,68 @@ const phases = await page.evaluate(async () => {
   return { seen, phase: foe._phase };
 });
 
+// ── 4. MINEFIELD actually seeds a field ───────────────────────────────────
+//
+// A screenshot cannot settle this: one frame at the start of ACT shows a single
+// mine whether the move works or not, and the spread develops over 900ms. It
+// was caught by eye as a PILE — the bomber retreated into the top wall, went
+// nowhere, and dropped all five mines on one spot, so the move that is supposed
+// to reshape the arena marked a single patch instead. Measured, not looked at.
+const mines = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const { ROOMS } = await import('/src/data/rooms.js');
+  const { rollNemesis } = await import('/src/data/nemesis.js');
+  gs.loadRoom(ROOMS[0]);
+  await new Promise((r) => setTimeout(r, 1400));
+  gs.enemies.getChildren().slice().forEach((x) => gs._destroyEnemyFully(x));
+  await new Promise((r) => setTimeout(r, 250));
+
+  const b = gs.physics.world.bounds;
+  const out = [];
+  // Two placements: mid-arena, and jammed against the top wall — the second is
+  // the case that produced the pile, so testing only the first proves nothing.
+  for (const spot of [{ x: b.width / 2, y: b.height / 2 }, { x: b.width / 2, y: 120 }]) {
+    const nem = rollNemesis(4, { rng: gs.rng.nemesis, base: 'bomber', traits: ['volatile'] });
+    const e = gs._spawnMiniBoss(nem);
+    e.setPosition(spot.x, spot.y);
+    e.body?.setVelocity(0, 0);
+    gs.player.setPosition(spot.x, spot.y + 200);
+    await new Promise((r) => setTimeout(r, 300));
+
+    const start = { x: e.x, y: e.y };
+    const seen = [];
+    const sample = () => {
+      for (const z of gs._telegraphs || []) {
+        if (z.shape?.kind !== 'circle') continue;
+        const p = { x: Math.round(z.shape.x), y: Math.round(z.shape.y) };
+        if (!seen.some((s) => Math.hypot(s.x - p.x, s.y - p.y) < 6)) seen.push(p);
+      }
+    };
+    gs.events.on('postupdate', sample);
+    e._activeMove = null;
+    gs._castNemesisMove(e, 'minefield');
+    await new Promise((r) => setTimeout(r, 2600));
+    gs.events.off('postupdate', sample);
+
+    // Closest pair — one stacked pair is the whole failure.
+    let closest = Infinity;
+    for (let i = 0; i < seen.length; i++) {
+      for (let j = i + 1; j < seen.length; j++) {
+        closest = Math.min(closest, Math.hypot(seen[i].x - seen[j].x, seen[i].y - seen[j].y));
+      }
+    }
+    out.push({
+      laid: seen.length,
+      closest: Number.isFinite(closest) ? Math.round(closest) : -1,
+      travelled: Math.round(Math.hypot(e.x - start.x, e.y - start.y)),
+      inBounds: e.x > 0 && e.x < b.width && e.y > 0 && e.y < b.height,
+    });
+    gs._destroyEnemyFully(e);
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  return out;
+});
+
 // ── Screenshot: the duel bar, mid-fight ───────────────────────────────────
 await page.evaluate(() => {
   const gs = window.game.scene.getScene('Game');
@@ -198,6 +260,17 @@ check(gotPhases.includes(2) && gotPhases.includes(3),
 check(gotPhases.length === new Set(gotPhases).size,
   'and each fires exactly once',
   `${gotPhases.join(',')}`);
+
+const [mid, wall] = mines;
+check(mid.laid >= 3 && wall.laid >= 3,
+  'MINEFIELD lays a field, not one mine',
+  `mid-arena ${mid.laid}, against a wall ${wall.laid}`);
+check(mid.closest >= 60 && wall.closest >= 60,
+  'and spaces them out even when the retreat is walled in',
+  `closest pair — mid-arena ${mid.closest}px, against a wall ${wall.closest}px`);
+check(wall.travelled > 120 && wall.inBounds,
+  'a bomber jammed against a wall still gets somewhere to retreat to',
+  `${wall.travelled}px travelled, in bounds: ${wall.inBounds}`);
 
 check(pageErrors.length === 0, 'no exception across the run', pageErrors.join(' | '));
 
