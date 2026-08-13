@@ -58,6 +58,7 @@ export class GameScene extends Phaser.Scene {
     // game loop and leaves the canvas frozen black while the DOM buttons and
     // Web Audio keep responding.
     this.arenaActive   = false;
+    this._duelActive   = false;
     this.arenaCfg      = null;
     this._roomArenaCfg = null;
     this._wave         = null;
@@ -618,12 +619,7 @@ export class GameScene extends Phaser.Scene {
     setMusicPhase('wave'); // combat is live again (also covers the breather->next-wave swell)
 
     if (wave.miniBoss) {
-      this.events.emit('show-banner', 'MINI-BOSS', '#ff8020');
-      setMusicPhase('miniboss');
-      SFX.bossRoar?.();
-      this.cameras.main.flash(300, 255, 90, 20, false);
-      this.fx.shake(0.02, 300);
-      this._spawnMiniBoss();
+      this._beginDuel(wave);
     } else if (this.mode === 'endless' && idx === 0) {
       // First wave of an endless room headlines the SECTOR — the run's main
       // progress unit — instead of a generic "WAVE 1", so endless reads as its
@@ -4178,6 +4174,10 @@ export class GameScene extends Phaser.Scene {
     // than counted a second time.
     // The mini-boss dying is what ends the half-time feel; the wave itself
     // usually continues, so this cannot wait for the wave-clear cue.
+    // The duel is over the moment the nemesis is, not when the last swarmling
+    // it summoned is mopped up — the mop-up is the reward, not the fight.
+    if (this._duelActive && !this._miniBossAlive) this._endDuel();
+
     if (this._musicMiniBoss && !this._miniBossAlive) {
       this._musicMiniBoss = false;
       if (this._wavePhase !== 'breather') setMusicPhase('wave');
@@ -4466,6 +4466,56 @@ export class GameScene extends Phaser.Scene {
     }
 
     return rollNemesis(sector, { rng });
+  }
+
+  /**
+   * Start a nemesis DUEL.
+   *
+   * A nemesis used to be one more member of an ordinary wave: it spawned at the
+   * far gate, counted toward the clear, and the rest of the wave kept dripping
+   * in around it. Curated moves cannot read through that. A telegraph is a
+   * promise about which patch of floor is about to hurt, and it is worthless
+   * when four other things are also shooting.
+   *
+   * The lockout is expressed through the wave phase machine rather than a new
+   * one: the duel wave spends its entire spawn budget up front, so the drip in
+   * `_tickArena` has nothing left to release, and `clearing` then waits on the
+   * nemesis (plus anything IT summoned) exactly as it would wait on a wave.
+   * That means the duel cannot desync from the wave state — there is only one
+   * state machine, and it already knows how to end.
+   */
+  _beginDuel(wave) {
+    this._duelActive = true;
+    this.events.emit('show-banner', 'MINI-BOSS', '#ff8020');
+    setMusicPhase('miniboss');
+    SFX.bossRoar?.();
+    this.cameras.main.flash(300, 255, 90, 20, false);
+    this.fx.shake(0.02, 300);
+
+    // Sweep the floor. Anything already walking is dismissed rather than killed
+    // — a kill would pay score and combo for enemies the player never fought,
+    // and would fire the volatile/bomber death blasts across the arena at the
+    // exact moment the duel is trying to establish its own read.
+    this.enemies.getChildren()
+      .filter((e) => e.alive && !e._miniBoss)
+      .forEach((e) => {
+        this.fx.burst(e.x, e.y, 'white', 8);
+        this._destroyEnemyFully(e);
+      });
+
+    // Budget spent: no drip for the duration.
+    this._waveSpawned = wave.count;
+    this._wavePhase = 'clearing';
+
+    const e = this._spawnMiniBoss();
+    if (e) this.events.emit('duel-start', e);
+    return e;
+  }
+
+  _endDuel() {
+    if (!this._duelActive) return;
+    this._duelActive = false;
+    this.events.emit('duel-end');
   }
 
   // Mini-boss: a super-elite spawned at wave start. Counts toward the clear.
@@ -4970,6 +5020,7 @@ export class GameScene extends Phaser.Scene {
 
   _onArenaCompleted() {
     this.arenaActive = false;
+    this._endDuel();   // a room cannot finish with a duel still notionally live
     this.events.emit('wave-update', null, null); // clear the wave HUD
     this.events.emit('wave-remaining', 0);
 

@@ -1,6 +1,11 @@
 import Phaser from 'phaser';
 import { ENEMY, FONTS } from '../config.js';
 import { SFX } from '../systems/FX.js';
+import { stagger } from '../systems/actorMotion.js';
+
+// Nemesis bomber contact burst — see EnemyBomber._contactBurst.
+const BOMBER_BURST_CD_MS = 2600;
+const BOMBER_BURST_DMG_MULT = 0.55;
 
 // ── AI state constants ────────────────────────────────────────────────────────
 export const ST = {
@@ -1286,6 +1291,7 @@ export class EnemyBomber extends EnemyGrunt {
     this._archetype = 'bomber';
     this._detonated = false;
     this._bombPulse = 0;
+    this._burstCd = 0;
     this.setTint(0xff6a33);
     this.weaponSprite?.setVisible(false); // no gun — it IS the weapon
     this.body.setCircle(
@@ -1310,8 +1316,39 @@ export class EnemyBomber extends EnemyGrunt {
     const b = Math.round(51 + flash * t * 110);
     this.setTint(Phaser.Display.Color.GetColor(255, g, b));
 
-    if (dist <= this.cfg.contactRange) { this._detonate(); return; }
+    if (this._burstCd > 0) this._burstCd -= delta;
+
+    if (dist <= this.cfg.contactRange) {
+      // A NEMESIS bomber must not end its own fight on the first touch.
+      //
+      // Stock behaviour is `_detonate()` → `hp = 0; die()`. On a nemesis that
+      // is catastrophic: it carries 6x hp, traits, regalia, a generated name
+      // and a ledger grudge, and it deletes all of it by walking into you.
+      // The entire hp pool was unreachable, which is exactly the "explodes on
+      // impact with me" complaint.
+      //
+      // It still explodes — that is the archetype — but as a recoiling burst
+      // on a cooldown, so contact is a pressure tool rather than a suicide.
+      if (this._miniBoss) { this._contactBurst(player); return; }
+      this._detonate();
+      return;
+    }
     this._moveToward(player.x, player.y, this.cfg.speed);
+  }
+
+  // Survivable contact blast, nemesis-only. Hurts less than a true detonation
+  // (that one costs a life, this one does not) and throws the bomber clear so
+  // it cannot chain-stun by sitting on top of the player.
+  _contactBurst(player) {
+    if (this._burstCd > 0) {
+      this._moveToward(player.x, player.y, this.cfg.speed);
+      return;
+    }
+    this._burstCd = BOMBER_BURST_CD_MS;
+    this._blast(1.5, BOMBER_BURST_DMG_MULT);
+    const away = Math.atan2(this.y - player.y, this.x - player.x);
+    this.body?.setVelocity(Math.cos(away) * 420, Math.sin(away) * 420);
+    stagger(this.scene, this, 700, 1.4);
   }
 
   _blast(scale, dmgMult) {

@@ -44,6 +44,21 @@ export class HUDScene extends Phaser.Scene {
     this.bossTint = this.add.graphics().setDepth(6);
     this._bossPhase = 1;
 
+    // ── Duel bar ────────────────────────────────────────────────────────
+    // A nemesis had no health bar at all, which is most of why it read as "a
+    // normal enemy but enlarged": there was nothing on screen saying this one
+    // is a fight. `_duelFoe` is the live enemy; it is dropped on duel-end so a
+    // recycled pool sprite can never keep the bar alive.
+    this._duelFoe = null;
+    this.duelBar = this.add.graphics().setDepth(37).setVisible(false);
+    this.duelName = this.add
+      .text(VIEW.width / 2, HUDCFG.topBarHeight + 12, '', {
+        fontFamily: FONTS.body, fontSize: '20px', color: '#ffffff',
+      })
+      .setOrigin(0.5, 0)
+      .setDepth(38)
+      .setVisible(false);
+
     // ── Imperial top bar ────────────────────────────────────────────────
     // Its height is the shared inset the game camera is pushed down by, so the
     // world never renders behind it (see GameScene camera setViewport).
@@ -471,6 +486,8 @@ export class HUDScene extends Phaser.Scene {
     gbind('boss-phase',           (phase)          => { this._bossPhase = phase; this.showBanner('ENRAGED!', '#ff8888'); });
     gbind('boss-died',            ()               => { this._bossPhase = 1; });
     gbind('show-banner',          (text, color)    => this.showBanner(text, color));
+    gbind('duel-start',           (foe)            => this.startDuel(foe));
+    gbind('duel-end',             ()               => this.endDuel());
     gbind('lives-changed',        (n)              => this.drawLives(n));
     gbind('secondary-equipped',     (id)           => this.refreshSecondary(id));
     gbind('secondary-ammo-changed', ()             => this.refreshSecondary());
@@ -851,6 +868,8 @@ export class HUDScene extends Phaser.Scene {
     this._drawHitArcs(delta);
     // Off-screen threat chevrons
     this._drawThreatChevrons();
+    // Nemesis duel health bar
+    this._drawDuelBar(time);
     // Exit waypoint guidance (endless)
     this._drawExitWaypoint(time);
   }
@@ -1532,6 +1551,61 @@ export class HUDScene extends Phaser.Scene {
         duration: 140,
       });
     }
+  }
+
+  startDuel(foe) {
+    if (!foe) return;
+    this._duelFoe = foe;
+    this._duelTint = Phaser.Display.Color.HexStringToColor(
+      foe._nemesis?.tint || '#ff8020').color;
+    this.duelName.setText((foe._nemesis?.name || 'NEMESIS').toUpperCase());
+    this.duelName.setColor(foe._nemesis?.tint || '#ff8020');
+    this.duelBar.setVisible(true);
+    this.duelName.setVisible(true);
+  }
+
+  endDuel() {
+    this._duelFoe = null;
+    this.duelBar.setVisible(false).clear();
+    this.duelName.setVisible(false);
+  }
+
+  /**
+   * The duel bar. Drawn per frame from the foe's live hp rather than pushed on
+   * a damage event, because damage arrives from bullets, melee, blasts and
+   * regen ticks — an event-driven bar would need a hook on every one of them
+   * and would silently desync the first time a new damage source was added.
+   */
+  _drawDuelBar() {
+    const foe = this._duelFoe;
+    if (!foe) return;
+    // The pool recycles sprites, so a dead or reassigned foe must drop the bar
+    // rather than keep rendering some other enemy's hp.
+    if (!foe.active || !foe.alive || !foe._miniBoss) { this.endDuel(); return; }
+
+    const frac = Phaser.Math.Clamp(foe.hp / (foe.hpMax || 1), 0, 1);
+    const w = VIEW.width - 96;
+    const h = 14;
+    const x = 48;
+    const y = HUDCFG.topBarHeight + 38;
+
+    const g = this.duelBar;
+    g.clear();
+    // Dark bed, so the bar reads against a bright floor as well as the void.
+    g.fillStyle(0x05060a, 0.85);
+    g.fillRect(x - 3, y - 3, w + 6, h + 6);
+    g.fillStyle(0x1a1c24, 1);
+    g.fillRect(x, y, w, h);
+    // Fill in the nemesis's own tint — the same colour as its banner, its
+    // regalia and its telegraphs, so the bar is identifiably THIS enemy's.
+    g.fillStyle(this._duelTint, 1);
+    g.fillRect(x, y, w * frac, h);
+    // Phase pips at the thresholds where its kit changes, so the player can
+    // see a transition coming instead of being surprised by it.
+    g.fillStyle(0xffffff, 0.55);
+    for (const t of [0.33, 0.66]) g.fillRect(x + w * t - 1, y - 2, 2, h + 4);
+    g.lineStyle(2, 0x000000, 0.6);
+    g.strokeRect(x, y, w, h);
   }
 
   showBanner(text, color = '#ff2828') {
