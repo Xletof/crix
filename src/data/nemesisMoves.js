@@ -132,7 +132,8 @@ export const NEMESIS_MOVES = [
       h.tel = scene.spawnTelegraph({
         kind: 'lane', x: e.x, y: e.y, angle: h.angle,
         len: this.laneLen, width: this.laneWidth,
-      }, { windupMs: this.anticipateMs, owner: e, color: h.tint });
+      }, { windupMs: this.anticipateMs, owner: e, color: h.tint,
+           kineticMs: 1000 * this.laneLen / this.speed });
       // Gathering, at the feet. The same idiom the boss's FORCE PUSH uses for
       // its wind-up, which is the one place a repeated `inhale` reads as effort.
       h.gather = scene.time.addEvent({
@@ -567,7 +568,9 @@ export const NEMESIS_MOVES = [
       h.tel = scene.spawnTelegraph({
         kind: 'lane', x: e.x, y: e.y, angle: h.angle,
         len: this.laneLen, width: this.laneWidth,
-      }, { windupMs: this.anticipateMs, owner: e, color: h.tint });
+      }, { windupMs: this.anticipateMs, owner: e, color: h.tint,
+           // Chevrons scroll at the speed the body will actually travel.
+           kineticMs: 1000 * this.laneLen / this.speed });
       scene.events.emit('show-banner', 'SLIDE & SMASH', e._nemesis?.tint || '#ff6030');
     },
 

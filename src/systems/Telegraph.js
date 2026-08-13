@@ -90,6 +90,10 @@ export class Telegraph {
     this.shape = shape;
     this.windupMs = Math.max(1, opts.windupMs ?? 800);
     this.elapsed = 0;
+    // One scroll cycle of the kinetic layer, in ms. Lower reads as faster, so a
+    // move can hand its own speed in and have the chevrons match what is about
+    // to happen rather than every zone pulsing at one generic rate.
+    this.kineticMs = opts.kineticMs ?? 620;
     this.committed = false;
     this.dead = false;
     this.onCommit = opts.onCommit || null;
@@ -101,8 +105,19 @@ export class Telegraph {
     // the outline and the stock RED inside it, which reads as two different
     // warnings stacked on each other. Derived, so a new move only ever has to
     // name one colour.
+    //
+    // ...but the fill is dragged back toward DANGER regardless of the hue it
+    // was given. Trait tints are not all threatening: ARMORED is #90a8c0, a
+    // pale blue-grey, and a zone filled with it on the brown deck read as a
+    // washed-out grey smear rather than as something about to hurt. The outline
+    // and the kinetic layer keep the trait's colour so the nemesis still owns
+    // its attack; the fill only borrows it.
     this.fillColor = opts.fillColor
-      ?? (this.safe ? SAFE_FILL : (opts.color ? this._shade(opts.color, 0.3) : DANGER_FILL));
+      ?? (this.safe
+        ? SAFE_FILL
+        : (opts.color
+          ? this._mix(this._shade(opts.color, 0.35), DANGER_FILL, 0.62)
+          : DANGER_FILL));
 
     // THREE layers, split by blend mode, because one mode cannot do both jobs.
     //
@@ -339,6 +354,7 @@ export class Telegraph {
       if (t > 0) fg?.fillCircle(s.x, s.y, s.r * t);
       if (fg) { fg.lineStyle(lineW, edgeC, 1); rimPath(fg, s.r); }
       this._drawEmbers(g, s, t, heat);
+      this._drawKinetic(g, s, t, heat);
       // Leading edge: a bright ring expanding to meet the outline.
       if (t > 0.02 && t < 1) {
         g.lineStyle(3 + 3 * heat, 0xffc0a0, 0.55 + 0.45 * heat);
@@ -364,6 +380,7 @@ export class Telegraph {
         }
         g.strokePath();
       }
+      this._drawKinetic(g, s, t, heat);
     } else if (s.kind === 'lane') {
       const ca = Math.cos(s.angle), sa = Math.sin(s.angle);
       const hw = s.width / 2;
@@ -414,6 +431,7 @@ export class Telegraph {
       if (t > 0 && fg) path(fg, quad(0, s.len * t), true);
       if (fg) { fg.lineStyle(lineW, edgeC, 1); burntEdges(fg); }
       this._drawEmbers(g, s, t, heat);
+      this._drawKinetic(g, s, t, heat);
 
       // THE LEADING BAR. Perpendicular to the lane, riding the fill front.
       if (t > 0.02 && t < 1) {
@@ -507,6 +525,91 @@ export class Telegraph {
   // The snap. The sweep has been promising this for the whole wind-up, so it
   // has to arrive as an event: the zone goes white all at once, a ring punches
   // out of the origin, and dust lifts along the axis.
+  /**
+   * The KINETIC layer — direction and speed, drawn on top of the zone.
+   *
+   * ── What was missing ────────────────────────────────────────────────────
+   *
+   * The zone already said WHERE (the outline) and WHEN (the fill sweeping to a
+   * leading edge). What it never said was WHICH WAY and HOW FAST, and those are
+   * the two things a player actually needs from an incoming attack — the note
+   * was "stuff that will show velocity direction impact".
+   *
+   * Everything here scrolls on `elapsed` rather than on `t`. That is the whole
+   * trick: `t` is a countdown and always crawls at the same rate whatever the
+   * move is, while a scroll rate can be tied to how fast the thing will
+   * actually travel, so a 1150px/s slide reads visibly more urgent than a
+   * 640px/s retreat. It is drawn on the ADD layer so it reads as light over the
+   * zone rather than as more paint in it.
+   *
+   * Purely cosmetic — `contains` never consults any of it.
+   */
+  _drawKinetic(g, s, t, heat) {
+    const scroll = (this.elapsed || 0) / Math.max(60, this.kineticMs);
+    const bright = 0.35 + 0.5 * heat;
+    const tint = this.safe ? SAFE_COLOR : 0xffe0b0;
+
+    if (s.kind === 'lane') {
+      // Chevrons racing toward the target. The eye tracks the motion, so the
+      // lane reads as a thing rushing down it rather than a rectangle on the
+      // floor.
+      const ca = Math.cos(s.angle), sa = Math.sin(s.angle);
+      const hw = s.width / 2;
+      const N = Math.max(3, Math.round(s.len / 110));
+      const barb = Math.min(hw * 0.8, 26);
+      for (let i = 0; i < N; i++) {
+        const u = ((i / N) + scroll) % 1;
+        // Fade in at the caster and out at the far end so chevrons appear to
+        // travel through the lane instead of popping at its edges.
+        const fade = Math.sin(u * Math.PI);
+        const along = s.len * u;
+        const cx = s.x + ca * along, cy = s.y + sa * along;
+        g.lineStyle(3 + 2 * heat, tint, bright * fade);
+        g.beginPath();
+        g.moveTo(cx - sa * hw - ca * barb, cy + ca * hw - sa * barb);
+        g.lineTo(cx, cy);
+        g.lineTo(cx + sa * hw - ca * barb, cy - ca * hw - sa * barb);
+        g.strokePath();
+      }
+    } else if (s.kind === 'circle') {
+      // A ring closing INWARD. The fill grows outward to show the clock; this
+      // converges to show that something is arriving at the middle, which is
+      // the opposite reading and the one a slam needs.
+      const u = scroll % 1;
+      const rr = s.r * (1 - u);
+      g.lineStyle(2 + 3 * heat, tint, bright * Math.sin(u * Math.PI));
+      g.strokeCircle(s.x, s.y, Math.max(2, rr));
+      // Gauge ticks around the rim, filling clockwise with the countdown, so
+      // the remaining time is readable without watching the fill.
+      const TICKS = 24;
+      for (let i = 0; i < TICKS; i++) {
+        const lit = (i / TICKS) < t;
+        const a = -Math.PI / 2 + (i / TICKS) * Math.PI * 2;
+        const r0 = s.r * 1.02, r1 = s.r * (lit ? 1.14 : 1.07);
+        g.lineStyle(3, tint, lit ? 0.35 + 0.55 * heat : 0.12);
+        g.beginPath();
+        g.moveTo(s.x + Math.cos(a) * r0, s.y + Math.sin(a) * r0);
+        g.lineTo(s.x + Math.cos(a) * r1, s.y + Math.sin(a) * r1);
+        g.strokePath();
+      }
+    } else if (s.kind === 'cone') {
+      // Sweep lines fanning from the apex and running outward.
+      const half = (s.spreadDeg * Math.PI) / 180 / 2;
+      const N = 7;
+      for (let i = 0; i <= N; i++) {
+        const a = s.angle - half + (i / N) * half * 2;
+        const u = ((i / N) * 0.5 + scroll) % 1;
+        const r0 = s.len * u * 0.75;
+        const r1 = Math.min(s.len, r0 + s.len * 0.22);
+        g.lineStyle(2 + 2 * heat, tint, bright * Math.sin(u * Math.PI));
+        g.beginPath();
+        g.moveTo(s.x + Math.cos(a) * r0, s.y + Math.sin(a) * r0);
+        g.lineTo(s.x + Math.cos(a) * r1, s.y + Math.sin(a) * r1);
+        g.strokePath();
+      }
+    }
+  }
+
   _flash() {
     const g = this.gfx;
     if (!g?.active) return;
@@ -515,6 +618,33 @@ export class Telegraph {
     this.fillGfx?.clear();
     g.clear();
     g.fillStyle(this.safe ? SAFE_COLOR : 0xffffff, this.safe ? 0.32 : 0.7);
+    // A DIRECTIONAL bloom on commit for anything with an axis. A flat white
+    // flash says "now" and nothing else; streaks thrown along the attack line
+    // say which way the thing went, which is the difference between knowing you
+    // were hit and knowing what hit you.
+    if (!this.safe && (s.kind === 'lane' || s.kind === 'cone')) {
+      const bloom = this.scene.add.graphics()
+        .setDepth(TELEGRAPH_DEPTH + 2)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      const ca = Math.cos(s.angle), sa = Math.sin(s.angle);
+      const reach = s.kind === 'lane' ? s.len : s.len * 0.9;
+      const spread = s.kind === 'lane' ? s.width / 2 : reach * 0.35;
+      for (let i = 0; i < 9; i++) {
+        const off = (i / 8 - 0.5) * 2 * spread;
+        const jitter = 0.55 + 0.45 * this._ragged(i / 9);
+        bloom.lineStyle(2 + (i % 3), 0xfff0d0, 0.55);
+        bloom.beginPath();
+        bloom.moveTo(s.x - sa * off, s.y + ca * off);
+        bloom.lineTo(s.x - sa * off + ca * reach * jitter,
+          s.y + ca * off + sa * reach * jitter);
+        bloom.strokePath();
+      }
+      this.scene.tweens.add({
+        targets: bloom, alpha: 0, duration: 190, ease: 'Quart.easeOut',
+        onComplete: () => bloom.destroy(),
+      });
+      this.scene.fx?.camPunch?.(s.angle, 4);
+    }
     if (s.kind === 'circle') {
       g.fillCircle(s.x, s.y, s.r);
     } else if (s.kind === 'cone') {
