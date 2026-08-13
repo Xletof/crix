@@ -1327,6 +1327,11 @@ export class GameScene extends Phaser.Scene {
   // animations, and physics all read consistently. Safe to overlap calls —
   // the latest scale wins.
   _slowMo(floor = 0.3, durMs = 380) {
+    // Take the clocks back from hitstop before driving them. Both systems write
+    // time.timeScale and physics.world.timeScale, and a hitstop restore landing
+    // mid-ramp would snap this to 1 halfway through. See the precedence note in
+    // systems/juice.js.
+    this.fx?.cancelHitstop?.();
     const pw = this.physics.world;
     const t  = this.time;
     if (this._slowMoPwTween) this._slowMoPwTween.stop();

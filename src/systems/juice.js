@@ -64,8 +64,26 @@ export function attachJuice(scene, fx) {
     } catch (_) { /* torn down mid-restore; nothing left to restore */ }
   };
 
+  // Exposed so the OTHER owner of these clocks can take them back cleanly.
+  fx.cancelHitstop = endHitstop;
+
   fx.hitstop = (ms = 50, scale = 0.06) => {
     if (!scene.scene?.isActive?.()) return;
+    // ── ONE SYSTEM DRIVES THE CLOCK AT A TIME ──────────────────────────────
+    //
+    // `GameScene._slowMo` already owns `time.timeScale` and
+    // `physics.world.timeScale` — it is the scripted slow-motion on a wound or
+    // a takedown, and it TWEENS them back to 1 over ~380ms. Hitstop writing the
+    // same two fields is the same bug as the AI and a scripted move both
+    // writing velocity: whichever ran last wins, and the loser's effect
+    // silently half-happens. It surfaced as smoke-vader's darkness overlay
+    // never rising, because the beat it was waiting on landed on a clock that
+    // was being fought over.
+    //
+    // Precedence is explicit: a scripted dramatic beat outranks a momentary
+    // impact. A slam landing during Vader's wound slow-mo simply does not add
+    // its own freeze.
+    if (scene._slowMoTTween || scene._slowMoPwTween) return;
     const dur = Phaser.Math.Clamp(ms, 0, HITSTOP_MAX_MS);
     if (dur <= 0) return;
     const now = scene.time.now;
