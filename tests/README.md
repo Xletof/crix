@@ -15,6 +15,40 @@ npm run smoke -- --only cluster,flight
 pause physics or stop the game loop to take a measurement; in parallel they
 would corrupt each other's world state.
 
+## The suite is load-sensitive. Prove a regression before chasing one.
+
+Under sustained load this suite returns 26-28/29 with a **different** test
+failing each run, and every failing test passes standalone. Observed across six
+consecutive runs: smoke-boss-moves, smoke-vader, smoke-endless, smoke-moves,
+smoke-pathing, smoke-progress, smoke-readability, smoke-nemesis-fx — spanning
+doorway geometry, sprite drift, pathing and audio, which is not the profile of
+one code regression.
+
+Several thresholds sit close enough to their intended value that load tips them:
+`smoke-readability` allows 40px of wind-up drift against a `rearBack` that
+deliberately moves 30px, and it measured 43px.
+
+**Do not conclude either way from a failing suite run.** Run the baseline:
+
+```
+git checkout -q <last-known-good-sha>
+node tests/run-all.mjs            # same box, same load
+git checkout -q <your-branch>
+```
+
+If the known-good commit also fails, the instability is the machine. Measured
+2026-08-13: `fed4241`, the commit live on FRIX at the time, came back 28/29
+failing smoke-nemesis-fx.
+
+This cuts BOTH ways and both mistakes were made on the same day. Four suite
+failures that session were real bugs (a dead AI gate, a hitstop restore on the
+clock it was slowing, two systems owning time.timeScale, a retreat that ran at
+the player) — dismissing them as flakiness would have shipped every one. Then
+several more were environmental, and treating those as regressions cost hours.
+The baseline run is the only thing that tells them apart, and it costs one
+suite.
+
+
 ## `?nofreeze=1` — mute hitstop, or measurements lie
 
 Hitstop freezes `time.timeScale`, `physics.world.timeScale` and the **game-wide**
