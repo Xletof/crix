@@ -23,6 +23,11 @@ import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.
 import { isDialogueMuted } from '../systems/debug.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { moveById } from '../data/nemesisMoves.js';
+
+// First nemesis move lands 2s in, not a full `everyMs` later — see
+// _equipNemesisKit. Cadence then tightens per phase (66% / 33% hp).
+const NEMESIS_FIRST_MOVE_MS = 2000;
+const NEMESIS_PHASE_CADENCE = { 1: 1, 2: 0.78, 3: 0.6 };
 import { runMove } from '../systems/MoveScript.js';
 import { bossMoveById, bossMovesFor } from '../data/bossMoves.js';
 import { makeStreams, newSeed } from '../systems/rng.js';
@@ -4469,6 +4474,35 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Nemesis phase transitions at 66% and 33%.
+   *
+   * The pips on the duel bar are drawn at exactly these fractions, so the
+   * player can see a transition coming rather than being surprised by one. A
+   * phase does not hand the nemesis new moves it never showed — it speeds up
+   * the cadence and announces itself, so the pressure changes without the
+   * fight becoming unreadable at the moment it gets harder.
+   */
+  _tickNemesisPhase(e) {
+    if (!e._miniBoss || !e.hpMax) return;
+    const frac = e.hp / e.hpMax;
+    const want = frac <= 0.33 ? 3 : (frac <= 0.66 ? 2 : 1);
+    if (want <= (e._phase || 1)) return;   // never regresses on a regen tick
+    e._phase = want;
+
+    const tint = e._nemesis?.tint || '#ff8020';
+    this.events.emit('show-banner', want === 3 ? 'ENRAGED' : 'PRESSING', tint);
+    this.fx.burst(e.x, e.y, 'white', 18);
+    this.fx.impactRing(e.x, e.y,
+      Phaser.Display.Color.HexStringToColor(tint).color);
+    this.fx.shake(0.018, 240);
+    SFX.bossRoar?.();
+    // Bring the next move forward so the transition reads as an escalation
+    // rather than as a banner followed by the same pause as before.
+    e._moveT = Math.min(e._moveT, 900);
+    this.events.emit('nemesis-phase', e, want);
+  }
+
+  /**
    * Start a nemesis DUEL.
    *
    * A nemesis used to be one more member of an ordinary wave: it spawned at the
@@ -4763,10 +4797,13 @@ export class GameScene extends Phaser.Scene {
     if (e._moveIds.length) {
       const first = moveById(e._moveIds[0]);
       e._moveEvery = first?.everyMs ?? 8000;
-      // A full interval before the first cast: a telegraph landing during the
-      // spawn banner is a bad spawn, not a surprise.
-      e._moveT = e._moveEvery;
+      // Long enough that the telegraph does not land under the spawn banner,
+      // short enough that a fight is a fight. A full `everyMs` here meant the
+      // first move arrived 8-11 seconds in, which on a nemesis that died in
+      // twenty was most of the encounter spent watching it walk.
+      e._moveT = NEMESIS_FIRST_MOVE_MS;
       e._moveIdx = -1;
+      e._phase = 1;
     }
 
     // Trait marks. Derived from the loadout, so they cannot disagree with it.
@@ -4868,9 +4905,12 @@ export class GameScene extends Phaser.Scene {
     // mid-windup takes its pending move with it.
     for (const e of this.enemies.getChildren()) {
       if (!e.alive || !e._moveIds?.length) continue;
+      this._tickNemesisPhase(e);
       e._moveT -= delta;
       if (e._moveT <= 0) {
-        e._moveT = e._moveEvery;
+        // Cadence tightens with the phase, so the fight escalates instead of
+        // metronoming at one rate until the hp runs out.
+        e._moveT = e._moveEvery * (NEMESIS_PHASE_CADENCE[e._phase || 1] ?? 1);
         this._castNemesisMove(e);
       }
     }

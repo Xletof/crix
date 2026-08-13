@@ -44,6 +44,10 @@ import { SFX } from '../systems/FX.js';
 // fact that the player is usually mid-decision about something else.
 const WINDUP = 800;
 
+// Damage that must land inside RITE's channel to break it. Flat, not a
+// fraction of the caster's hp — see the interrupt check in `rite`.
+const RITE_BREAK_DAMAGE = 1500;
+
 // ── Colour ────────────────────────────────────────────────────────────────
 //
 // Every effect below takes a tint from the caster's LEADING trait, so the same
@@ -430,7 +434,14 @@ export const NEMESIS_MOVES = [
         callback: () => {
           if (!e.active || !e.alive) return;
           // Interrupt check, on the caster's own hp.
-          if (h.hpAtStart - e.hp > (e.hpMax * 0.06)) {
+          // A FLAT damage bar, not a fraction of max hp.
+          //
+          // It used to be 6% of hpMax. On a 20,000-hp nemesis that is 1,200
+          // damage inside a 1.8s channel — met by holding the trigger, so the
+          // one move in the game whose correct answer is offence resolved
+          // essentially never, and the player never learned it was a choice.
+          // A flat bar asks the same real commitment of every nemesis.
+          if (h.hpAtStart - e.hp > RITE_BREAK_DAMAGE) {
             h.broken = true;
             h.channel?.remove(false);
             h.rune?.stop();
@@ -477,18 +488,454 @@ export const NEMESIS_MOVES = [
       e.setMovePose?.(null);
     },
   },
+  // ── Signature kit: GRUNT, the brute ────────────────────────────────────
+  //
+  // Both of these are COMBOS: more than one thing to evade per cast. A single
+  // dodge answering a whole move is what made the old kit feel like an obstacle
+  // rather than an opponent — you sidestepped once and went back to shooting.
+
+  {
+    id: 'slidesmash',
+    name: 'SLIDE & SMASH',
+    traits: ['armored', 'colossal', 'swift'],
+    everyMs: 8000,
+    anticipateMs: 750,
+    actMs: 520,
+    recoverMs: 1050,
+    speed: 900,
+    laneWidth: 140,        // worst escape 70px, well inside a 228px dash
+    laneLen: 520,
+    radius: 170,           // the smash, worst escape 170px
+    damage: 120,           // the slide
+    smashDamage: 210,
+    smashWindupMs: 360,
+
+    anticipate(scene, e, h) {
+      const p = scene.player;
+      h.angle = Math.atan2(p.y - e.y, p.x - e.x);
+      e.body?.setVelocity(0, 0);
+      e._holdAim = h.angle;
+      e.setMovePose?.('raise');
+      rearBack(scene, e, h.angle, 26, this.anticipateMs * 0.5);
+      squash(scene, e, this.anticipateMs * 0.7, 0.24);
+      h.tint = tintOf(e, 0xff6030);
+      h.tel = scene.spawnTelegraph({
+        kind: 'lane', x: e.x, y: e.y, angle: h.angle,
+        len: this.laneLen, width: this.laneWidth,
+      }, { windupMs: this.anticipateMs, owner: e, color: h.tint });
+      scene.events.emit('show-banner', 'SLIDE & SMASH', e._nemesis?.tint || '#ff6030');
+    },
+
+    act(scene, e, h) {
+      e._charging = true;
+      e.setMovePose?.('thrust');
+      scene.fx?.chargeWake?.(e.x, e.y, h.angle, h.tint);
+      charge(scene, e, h.angle, {
+        speed: this.speed, ms: this.actMs,
+        onEnd: () => { e._charging = false; },
+      });
+    },
+
+    // The second half. The slide is the setup; this is the payoff, and it gets
+    // its OWN telegraph at the spot the slide actually ended — so a player who
+    // dodged the lane still has a decision to make instead of a free window.
+    impact(scene, e, h) {
+      e._charging = false;
+      e.body?.setVelocity(0, 0);
+      e.setMovePose?.('raise');
+      const spot = { x: e.x, y: e.y };
+      h.spot = spot;
+      // World-anchored: the smash lands where the slide stopped. Left to follow
+      // the caster it would drift with the recoil and stop being a promise.
+      h.tel2 = scene.spawnTelegraph(
+        { kind: 'circle', x: spot.x, y: spot.y, r: this.radius },
+        { windupMs: this.smashWindupMs, owner: e, color: h.tint, anchor: 'world' },
+      );
+      h.smash = scene.time.delayedCall(this.smashWindupMs, () => {
+        if (!e.active || !e.alive) return;
+        e.setMovePose?.('thrust');
+        scene.fx?.slamShockwave?.(spot.x, spot.y, this.radius);
+        scene.fx?.groundFractures?.(spot.x, spot.y, this.radius, scarPalette(h.tint));
+        scene.fx?.shake?.(0.028, 320);
+        SFX.meleeSlam?.();
+        const p = scene.player;
+        if (p?.alive && Math.hypot(p.x - spot.x, p.y - spot.y) <= this.radius) {
+          p.damage(this.smashDamage, Math.atan2(p.y - spot.y, p.x - spot.x));
+        }
+        stagger(scene, e, this.recoverMs - this.smashWindupMs, 2.0);
+      });
+    },
+
+    // Deliberately empty of a stagger: the punish window opens when the SMASH
+    // resolves, not when the slide does. Staggering here would hand the player
+    // a reward while the second hit was still coming.
+    recover() {},
+
+    onChargeTouch(scene, e) {
+      scene.player.damage(this.damage,
+        Math.atan2(scene.player.y - e.y, scene.player.x - e.x));
+    },
+
+    onCancel(scene, e, h) { h?.smash?.remove(false); h?.tel2?.destroy?.(); },
+  },
+
+  {
+    id: 'tripledash',
+    name: 'TRIPLE DASH',
+    traits: ['swift', 'armored', 'volatile'],
+    everyMs: 9500,
+    anticipateMs: 700,
+    actMs: 1560,
+    recoverMs: 950,
+    dashes: 3,
+    speed: 980,
+    dashMs: 240,
+    linkWindupMs: 260,
+    laneWidth: 140,
+    laneLen: 380,
+    damage: 110,
+
+    anticipate(scene, e, h) {
+      e.body?.setVelocity(0, 0);
+      e.setMovePose?.('raise');
+      squash(scene, e, this.anticipateMs * 0.8, 0.2);
+      h.tint = tintOf(e, 0x40ff90);
+      h.links = [];
+      scene.events.emit('show-banner', 'TRIPLE DASH', e._nemesis?.tint || '#40ff90');
+    },
+
+    // Three dashes, each RE-AIMED at wherever the player went after the last
+    // one. Each link telegraphs for itself: the short 260ms windup is fair only
+    // because you are already inside a pattern you were given 700ms to read.
+    // A single zone covering all three would be unreadable, and no zone at all
+    // is the decal-with-no-body failure this whole file exists to avoid.
+    act(scene, e, h) {
+      const step = (n) => {
+        if (n >= this.dashes || !e.active || !e.alive || !scene.player?.alive) return;
+        const p = scene.player;
+        const angle = Math.atan2(p.y - e.y, p.x - e.x);
+        e._holdAim = angle;
+        const tel = scene.spawnTelegraph({
+          kind: 'lane', x: e.x, y: e.y, angle,
+          len: this.laneLen, width: this.laneWidth,
+        }, { windupMs: this.linkWindupMs, owner: e, color: h.tint });
+        h.links.push(tel);
+        rearBack(scene, e, angle, 14, this.linkWindupMs * 0.6);
+        h.timer = scene.time.delayedCall(this.linkWindupMs, () => {
+          if (!e.active || !e.alive) return;
+          e._charging = true;
+          e._chargeHit = false;          // each dash may land its own hit
+          e.setMovePose?.('thrust');
+          scene.fx?.chargeWake?.(e.x, e.y, angle, h.tint);
+          charge(scene, e, angle, {
+            speed: this.speed, ms: this.dashMs,
+            onEnd: () => {
+              e._charging = false;
+              e.setMovePose?.('raise');
+              step(n + 1);
+            },
+          });
+        });
+      };
+      step(0);
+    },
+
+    impact(scene, e, h) {
+      e._charging = false;
+      h.links.forEach((t) => t?.destroy?.());
+      h.links.length = 0;
+    },
+
+    recover(scene, e) { stagger(scene, e, this.recoverMs, 1.8); },
+
+    onChargeTouch(scene, e) {
+      scene.player.damage(this.damage,
+        Math.atan2(scene.player.y - e.y, scene.player.x - e.x));
+    },
+
+    onCancel(scene, e, h) {
+      h?.timer?.remove(false);
+      h?.links?.forEach((t) => t?.destroy?.());
+    },
+  },
+
+  // ── Signature kit: BOMBER, the demolisher ──────────────────────────────
+  //
+  // The bomber used to have exactly one behaviour — walk into the player and
+  // die. These give it a reason to keep its distance and a reason to be feared
+  // at that distance, which is what makes the archetype survive being a boss.
+
+  {
+    id: 'mortar',
+    name: 'MORTAR VOLLEY',
+    traits: ['volatile', 'colossal', 'summoner'],
+    everyMs: 8500,
+    anticipateMs: 900,
+    actMs: 1800,
+    recoverMs: 900,
+    shells: 4,
+    shellGapMs: 400,
+    shellWindupMs: 700,
+    radius: 120,
+    damage: 150,
+
+    anticipate(scene, e, h) {
+      e.body?.setVelocity(0, 0);
+      e.setMovePose?.('raise');
+      raiseWeapon(scene, e, 280);
+      squash(scene, e, 340, 0.2);
+      h.tint = tintOf(e, 0xff5030);
+      h.shells = [];
+      scene.events.emit('show-banner', 'MORTAR VOLLEY', e._nemesis?.tint || '#ff5030');
+    },
+
+    // Each shell is lobbed at where the player IS, then lands 700ms later. The
+    // move is answered by moving continuously: standing still eats every shell,
+    // and one dodge does not answer four.
+    act(scene, e, h) {
+      h.timer = scene.time.addEvent({
+        delay: this.shellGapMs,
+        repeat: this.shells - 1,
+        callback: () => {
+          if (!e.active || !e.alive || !scene.player?.alive) return;
+          const p = scene.player;
+          const spot = { x: p.x, y: p.y };
+          e.setMovePose?.('thrust');
+          rearBack(scene, e, Math.atan2(spot.y - e.y, spot.x - e.x), 12, 140);
+          scene.fx?.weaponMuzzle?.(e.x, e.y,
+            Math.atan2(spot.y - e.y, spot.x - e.x), h.tint, 'lob');
+          SFX.enemyShoot?.('lob');
+          const tel = scene.spawnTelegraph(
+            { kind: 'circle', x: spot.x, y: spot.y, r: this.radius },
+            { windupMs: this.shellWindupMs, owner: e, color: h.tint, anchor: 'world' },
+          );
+          h.shells.push(tel);
+          scene.time.delayedCall(this.shellWindupMs, () => {
+            if (!scene.scene?.isActive?.()) return;
+            scene.fx?.explosion?.(spot.x, spot.y, 1.3);
+            scene.fx?.groundFractures?.(spot.x, spot.y, this.radius * 0.8,
+              scarPalette(h.tint));
+            scene.fx?.shake?.(0.016, 200);
+            const pl = scene.player;
+            if (pl?.alive && Math.hypot(pl.x - spot.x, pl.y - spot.y) <= this.radius) {
+              pl.damage(this.damage, Math.atan2(pl.y - spot.y, pl.x - spot.x));
+            }
+          });
+        },
+      });
+    },
+
+    impact(scene, e, h) { h.timer?.remove(false); },
+    recover(scene, e) { stagger(scene, e, this.recoverMs, 1.6); },
+    onCancel(scene, e, h) {
+      h?.timer?.remove(false);
+      h?.shells?.forEach((t) => t?.destroy?.());
+    },
+  },
+
+  {
+    id: 'minefield',
+    name: 'MINEFIELD',
+    traits: ['volatile', 'swift', 'regenerator'],
+    everyMs: 10000,
+    anticipateMs: 650,
+    actMs: 900,
+    recoverMs: 800,
+    mines: 5,
+    mineGapMs: 160,
+    armMs: 900,
+    liveMs: 7000,
+    radius: 110,
+    damage: 160,
+    speed: 640,
+
+    anticipate(scene, e, h) {
+      const p = scene.player;
+      h.angle = Math.atan2(e.y - p.y, e.x - p.x);   // AWAY from the player
+      e.body?.setVelocity(0, 0);
+      e.setMovePose?.('raise');
+      rearBack(scene, e, h.angle + Math.PI, 22, this.anticipateMs * 0.6);
+      h.tint = tintOf(e, 0xff5030);
+      h.mines = [];
+      scene.events.emit('show-banner', 'MINEFIELD', e._nemesis?.tint || '#ff5030');
+    },
+
+    // Retreats and seeds the floor behind it. This is the move that changes the
+    // SHAPE of the arena rather than threatening one patch of it: the answer is
+    // to reposition before the mines arm, not to dodge on reaction.
+    act(scene, e, h) {
+      e.setMovePose?.('thrust');
+      charge(scene, e, h.angle, { speed: this.speed, ms: this.actMs });
+      h.timer = scene.time.addEvent({
+        delay: this.mineGapMs,
+        repeat: this.mines - 1,
+        callback: () => {
+          if (!e.active || !e.alive) return;
+          const mx = e.x, my = e.y;
+          const tel = scene.spawnTelegraph(
+            { kind: 'circle', x: mx, y: my, r: this.radius },
+            { windupMs: this.armMs, owner: e, color: h.tint, anchor: 'world' },
+          );
+          h.mines.push(tel);
+          let blown = false;
+          const blow = () => {
+            if (blown) return;
+            blown = true;
+            poll?.remove(false);
+            tel?.destroy?.();
+            const i = h.mines.indexOf(tel);
+            if (i >= 0) h.mines.splice(i, 1);
+            scene.fx?.explosion?.(mx, my, 1.1);
+            scene.fx?.impactRing?.(mx, my, h.tint);
+            scene.fx?.shake?.(0.012, 160);
+            const pl = scene.player;
+            if (pl?.alive && Math.hypot(pl.x - mx, pl.y - my) <= this.radius) {
+              pl.damage(this.damage, Math.atan2(pl.y - my, pl.x - mx));
+            }
+          };
+          // Armed after `armMs`, then trips on proximity or times out. Polled
+          // rather than hooked into the frame loop so the mine owns its whole
+          // lifetime and cannot outlive its own cleanup.
+          let poll = null;
+          scene.time.delayedCall(this.armMs, () => {
+            if (blown) return;
+            let age = 0;
+            poll = scene.time.addEvent({
+              delay: 80,
+              loop: true,
+              callback: () => {
+                age += 80;
+                const pl = scene.player;
+                if (!pl?.alive || age >= this.liveMs) { blow(); return; }
+                if (Math.hypot(pl.x - mx, pl.y - my) <= this.radius) blow();
+              },
+            });
+            h.polls = h.polls || [];
+            h.polls.push(poll);
+          });
+        },
+      });
+    },
+
+    impact(scene, e, h) { h.timer?.remove(false); },
+    recover(scene, e) { stagger(scene, e, this.recoverMs, 1.5); },
+    onCancel(scene, e, h) {
+      h?.timer?.remove(false);
+      h?.polls?.forEach((p) => p?.remove(false));
+      h?.mines?.forEach((t) => t?.destroy?.());
+    },
+  },
+
+  {
+    id: 'chaindet',
+    name: 'CHAIN DETONATION',
+    traits: ['volatile', 'armored', 'colossal'],
+    everyMs: 11000,
+    anticipateMs: 1400,     // long on purpose — this one is BAITED, not reacted to
+    actMs: 300,
+    recoverMs: 1200,
+    radius: 220,            // just inside DASH_REACH (228): escapable, barely
+    damage: 280,
+
+    anticipate(scene, e, h) {
+      e.body?.setVelocity(0, 0);
+      e.setMovePose?.('raise');
+      h.tint = tintOf(e, 0xff5030);
+      squash(scene, e, this.anticipateMs, 0.3);
+      scene.fx?.inhale?.(e.x, e.y, 'red', 10, this.radius);
+      // Follows the caster: it is centred on the bomber's own body, so pinning
+      // it to the floor would let it walk out of its own blast.
+      h.tel = scene.spawnTelegraph(
+        { kind: 'circle', x: e.x, y: e.y, r: this.radius },
+        { windupMs: this.anticipateMs, owner: e, color: h.tint },
+      );
+      scene.events.emit('show-banner', 'CHAIN DETONATION', e._nemesis?.tint || '#ff5030');
+    },
+
+    act(scene, e, h) {
+      e.setMovePose?.('thrust');
+      scene.fx?.crushRing?.(e.x, e.y, this.radius, h.tint);
+    },
+
+    impact(scene, e, h) {
+      scene.fx?.slamShockwave?.(e.x, e.y, this.radius * 0.8);
+      scene.fx?.explosion?.(e.x, e.y, 2.0);
+      scene.fx?.groundFractures?.(e.x, e.y, this.radius, scarPalette(h.tint));
+      scene.fx?.shake?.(0.034, 380);
+      SFX.bossSlam?.();
+      const p = scene.player;
+      if (p?.alive && Math.hypot(p.x - e.x, p.y - e.y) <= this.radius) {
+        p.damage(this.damage, Math.atan2(p.y - e.y, p.x - e.x));
+      }
+    },
+
+    // The heaviest commitment in the game, so the heaviest punish.
+    recover(scene, e) { stagger(scene, e, this.recoverMs, 2.2); },
+  },
 ];
 
 const BY_ID = Object.fromEntries(NEMESIS_MOVES.map((m) => [m.id, m]));
 export const moveById = (id) => BY_ID[id] || null;
 
+// ── Kits ──────────────────────────────────────────────────────────────────
+//
+// Movesets used to be chosen by TRAIT alone, two per nemesis, cycled in a fixed
+// order. That is why fights blurred together: an ARMORED grunt and an ARMORED
+// shooter drew from the same pool and played identically, and with `everyMs`
+// between 7.5s and 11s a short fight showed exactly one move.
+//
+// Identity now comes from the BASE — what the thing is — and traits graft an
+// extra move on top of it rather than being the whole of it.
+//
+// `grunt` and `bomber` are authored. The other three draw from the original
+// five while their signature kits are being built; those are real moves that
+// work, not stubs, so a shooter nemesis is never worse off than it is today —
+// it just is not yet distinctive. Authoring fifteen moves against a framework
+// nobody has played is how the last rejected release happened.
+export const KITS = {
+  grunt:    ['slidesmash', 'tripledash', 'baitslam'],
+  bomber:   ['mortar', 'minefield', 'chaindet'],
+  shooter:  ['spiral', 'blink', 'charge'],
+  shielded: ['charge', 'baitslam', 'spiral'],
+  sniper:   ['blink', 'spiral', 'baitslam'],
+};
+
+// One extra move per trait, added on top of the base kit.
+export const TRAIT_MOVES = {
+  armored:     'charge',
+  swift:       'tripledash',
+  colossal:    'baitslam',
+  volatile:    'chaindet',
+  summoner:    'rite',
+  regenerator: 'spiral',
+};
+
 /**
- * Two moves for a nemesis, gated by its traits.
+ * Build a nemesis's moveset: base identity plus one move per trait.
  *
  * `rng` is injected like every other encounter decision, so a seed reproduces
- * the moveset along with the traits and the weapon. An untraited nemesis still
- * gets moves — otherwise it would be the only enemy in the game with nothing to
- * dodge, which reads as a bug rather than as a breather.
+ * the moveset along with the traits and the weapon.
+ *
+ * The kit is deliberately NOT trimmed to a fixed size. A three-trait nemesis
+ * carrying six moves is the point — it is the one you remember — and the cast
+ * clock cycles whatever it is given.
+ */
+export function buildKit(base, traits = [], rng) {
+  const kit = (KITS[base] || KITS.grunt).slice();
+  for (const t of traits) {
+    const extra = TRAIT_MOVES[t];
+    if (extra && !kit.includes(extra)) kit.push(extra);
+  }
+  const known = kit.filter((id) => BY_ID[id]);
+  return rng ? rng.shuffle(known) : known;
+}
+
+/**
+ * Back-compat shim: trait-only selection.
+ *
+ * Kept because it is the shape `smoke-moves` asserts variety against, and
+ * because a nemesis rolled without a base still needs a moveset. New callers
+ * should use `buildKit`.
  */
 export function pickMoves(traits = [], rng, count = 2) {
   let usable = NEMESIS_MOVES.filter((m) => m.traits.some((t) => traits.includes(t)));
