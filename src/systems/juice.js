@@ -256,8 +256,15 @@ export function attachJuice(scene, fx) {
   // the next one a timeScale of 0.06; a scene PAUSED mid-freeze (pause menu,
   // upgrade card) would come back in slow motion. `once` is wrong for pause and
   // resume — they happen repeatedly over a run.
-  scene.events.on('pause', endHitstop);
-  scene.events.on('resume', endHitstop);
+  // ONLY when a freeze is actually in flight. `endHitstop` forces both clocks
+  // to 1, and `_slowMo` — the scripted wound/takedown ramp — legitimately holds
+  // them elsewhere. Calling this unconditionally on every pause and resume
+  // snapped that ramp to 1 mid-effect, which is how Vader's wound stopped
+  // opening the exit: the beat after it was waiting on a clock this handler had
+  // reset out from under it. A no-op when hitstop is idle.
+  const restoreIfFrozen = () => { if (stopTimer) endHitstop(); };
+  scene.events.on('pause', restoreIfFrozen);
+  scene.events.on('resume', restoreIfFrozen);
   scene.events.once('shutdown', endHitstop);
   scene.events.once('destroy', endHitstop);
 

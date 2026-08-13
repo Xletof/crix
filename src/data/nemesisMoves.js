@@ -906,19 +906,37 @@ export const NEMESIS_MOVES = [
       // retreat into a diagonal walk TOWARD the player, because the arena
       // centre happened to lie that way. Only bend when there is a wall to
       // avoid, and never far enough to stop reading as a retreat.
+      // Pick the retreat that STAYS AWAY, not the one that heads for the middle.
+      //
+      // Straight-away was version one and piled every mine against a wall.
+      // Bending toward the arena centre was version two, and once the dash
+      // actually covered its distance that bend carried the bomber PAST the
+      // player — measured at 361px closer than it started, on a move whose
+      // entire point is to open ground. The rule was never "go to the middle",
+      // it is "end up further away with floor under you", so that is what it
+      // now searches for: the smallest deviation from straight-away that stays
+      // in bounds and does not close the gap.
       const away = Math.atan2(e.y - p.y, e.x - p.x);
       const b = scene.physics.world.bounds;
       const reach = this.speed * (this.actMs / 1000);
-      const endX = e.x + Math.cos(away) * reach;
-      const endY = e.y + Math.sin(away) * reach;
-      const wouldHitWall = endX < MINE_MARGIN || endX > b.width - MINE_MARGIN
-        || endY < MINE_MARGIN || endY > b.height - MINE_MARGIN;
-      if (wouldHitWall) {
-        const toMid = Math.atan2(b.height / 2 - e.y, b.width / 2 - e.x);
-        const bend = Math.atan2(Math.sin(toMid - away), Math.cos(toMid - away));
-        h.angle = away + Phaser.Math.Clamp(bend, -MINE_BEND, MINE_BEND);
-      } else {
-        h.angle = away;
+      const startGap = Math.hypot(e.x - p.x, e.y - p.y);
+      const score = (ang) => {
+        const ex = e.x + Math.cos(ang) * reach;
+        const ey = e.y + Math.sin(ang) * reach;
+        const inBounds = ex > MINE_MARGIN && ex < b.width - MINE_MARGIN
+          && ey > MINE_MARGIN && ey < b.height - MINE_MARGIN;
+        return { inBounds, gap: Math.hypot(ex - p.x, ey - p.y) };
+      };
+      h.angle = away;
+      // Straight back first, then progressively wider, alternating sides.
+      const tries = [0, 0.5, -0.5, 1.0, -1.0, 1.5, -1.5, 2.0, -2.0];
+      let best = null;
+      for (const d of tries) {
+        const ang = away + d;
+        const r = score(ang);
+        if (r.inBounds && r.gap >= startGap) { h.angle = ang; best = r; break; }
+        // Fall back to whichever in-bounds option opens the most ground.
+        if (r.inBounds && (!best || r.gap > best.gap)) { best = r; h.angle = ang; }
       }
       e.body?.setVelocity(0, 0);
       e.setMovePose?.('raise');
