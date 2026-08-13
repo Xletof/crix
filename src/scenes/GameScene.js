@@ -70,6 +70,19 @@ const NEMESIS_PHASE_CADENCE = { 1: 1, 2: 0.78, 3: 0.6 };
  * modest step — roughly double, not seven times — put in front of a player
  * rather than derived from a table.
  */
+// Which body each base wears, and the render scale that keeps a 32x32 sheet
+// the same on-screen size the old 20x20-at-1.8x was.
+const NEMESIS_BODIES = {
+  grunt:     { tex: 'nem-brute', prefix: 'nembrute' },
+  bomber:    { tex: 'nem-demo',  prefix: 'nemdemo' },
+  swarmling: { tex: 'nem-brute', prefix: 'nembrute' },
+  shooter:   { tex: 'nem-marks', prefix: 'nemmarks' },
+  shielded:  { tex: 'nem-marks', prefix: 'nemmarks' },
+  sniper:    { tex: 'nem-marks', prefix: 'nemmarks' },
+};
+// 20 logical px x 1.8 = 36; 32 logical px x 1.125 = 36. Same size, more art.
+const NEMESIS_RENDER_SCALE = 1.125;
+
 const NEMESIS_HP_BASE = 12;
 const NEMESIS_TRAIT_COMPRESSION = 0.6;
 function nemesisHpMult(nem) {
@@ -4526,6 +4539,27 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Put a nemesis in its own body.
+   *
+   * A nemesis used to be the 20x20 trooper sheet at 1.8x, which is why it read
+   * as "a not-scale-intended big classic enemy" — see the note above
+   * paintNemesisSheet for what that art actually does at that scale. These
+   * sheets are 32x32 at the same pixel scale, so the same on-screen size
+   * carries 2.5x the detail; NEMESIS_RENDER_SCALE compensates for the larger
+   * frame so the fight does not silently change size.
+   *
+   * Everything downstream builds animation keys from `_animPrefix`
+   * (Enemy.preUpdate), so this is a texture swap and a prefix and nothing else.
+   */
+  _wearNemesisBody(e, nem) {
+    const body = NEMESIS_BODIES[nem.base] || NEMESIS_BODIES.grunt;
+    if (!this.textures.exists(body.tex)) return;   // never leave it invisible
+    e.setTexture(body.tex);
+    e._animPrefix = body.prefix;
+    e.anims?.stop();
+  }
+
+  /**
    * Nemesis phase transitions at 66% and 33%.
    *
    * The pips on the duel bar are drawn at exactly these fractions, so the
@@ -4725,9 +4759,13 @@ export class GameScene extends Phaser.Scene {
     // is a different fight each time without a hundred hand-authored ones.
     const nem = preRolled || this._nextNemesis();
     const e = this.spawnEnemyAt(nem.base, gx, gy, {});
+    // Swap to the purpose-drawn nemesis body BEFORE _makeElite, which derives
+    // the body circle's offset from `width/2` — a texture swapped afterwards
+    // leaves the hitbox centred for the old frame size.
+    this._wearNemesisBody(e, nem);
     this._makeElite(e, {
       hpMult: nemesisHpMult(nem),
-      scale: 1.8 * nem.scale,
+      scale: NEMESIS_RENDER_SCALE * nem.scale,
       tint: Phaser.Display.Color.HexStringToColor(nem.tint).color,
       speedMult: 0.8 * nem.speedMult,
     });

@@ -53,6 +53,7 @@ import {
   paintBustShielded,
   paintBustSniper,
   paintBustVader,
+  paintNemesisBrute, paintNemesisDemolisher, paintNemesisMarksman,
 } from '../systems/pixelArt.js';
 
 // All textures are programmatically painted. No external assets needed.
@@ -68,6 +69,12 @@ export class PreloadScene extends Phaser.Scene {
     paintGrunt(this);
     paintShooter(this);
     paintBoss(this);
+    // Nemesis bodies — 32x32, purpose-drawn for the size they actually render
+    // at. See the note above paintNemesisSheet for why the trooper art could
+    // not simply be scaled up.
+    paintNemesisBrute(this);
+    paintNemesisDemolisher(this);
+    paintNemesisMarksman(this);
 
     // ── Environment ──────────────────────────────────────────────────
     // No shared backdrop here any more: GameScene paints one per room, at the
@@ -152,7 +159,10 @@ export class PreloadScene extends Phaser.Scene {
       { key: 'mando', tex: 'player' },
       { key: 'grunt', tex: 'grunt' },
       { key: 'shooter', tex: 'shooter' },
-      { key: 'vader', tex: 'boss' }
+      { key: 'vader', tex: 'boss' },
+      { key: 'nembrute', tex: 'nem-brute' },
+      { key: 'nemdemo',  tex: 'nem-demo' },
+      { key: 'nemmarks', tex: 'nem-marks' },
     ];
 
     for (const c of chars) {
@@ -214,6 +224,9 @@ export class PreloadScene extends Phaser.Scene {
       { key: 'vader', tex: 'boss' },
       { key: 'grunt', tex: 'grunt' },
       { key: 'shooter', tex: 'shooter' },
+      { key: 'nembrute', tex: 'nem-brute' },
+      { key: 'nemdemo',  tex: 'nem-demo' },
+      { key: 'nemmarks', tex: 'nem-marks' },
     ];
     for (const c of posed) {
       poseDirs.forEach((dirName, di) => {

@@ -3100,3 +3100,240 @@ export function paintMeleeButton(scene) {
   make('melee-btn', true);
   make('melee-btn-off', false);
 }
+
+// ── NEMESIS BODIES ──────────────────────────────────────────────────────────
+//
+// Why these exist at all: a nemesis used to be the ordinary 20x20 trooper sheet
+// rendered at 1.8x. The verdict was "the detached head and torso looks bad, and
+// doesn't look special like a mini boss. Just looks like a not-scale-intended
+// big classic enemy" — and that is exactly what it was.
+//
+// The trooper is drawn with rows y=10..11 EMPTY between the helmet (y 4..9) and
+// the torso (y 12..15), and with arms as free-floating 3x3 blocks separated
+// from the torso by another clear pixel. At 1x those gaps are hairlines that
+// read as shading. At 1.8x each logical pixel is ~7 screen px, so the gap
+// becomes a ~14px transparent band and the sprite comes apart into three
+// pieces. No amount of tinting or regalia fixes art whose proportions assume it
+// will never be looked at closely.
+//
+// The reference for what "special" means here is `drawVader`, and the three
+// things he does that a trooper does not:
+//
+//   1. a SOLVED CURVED dome, not a stack of hlines
+//   2. head -> gorget -> pauldrons -> chest WELDED, each overlapping the next,
+//      so there is no row the silhouette can come apart on
+//   3. MASS BELOW THE BELT — his cape. It is the single biggest silhouette
+//      differentiator between a boss and a trooper, and troopers have two 2px
+//      boots there.
+//
+// These are 32x32 (Vader is 40x40, a trooper 20x20) at the same scale 4, so a
+// nemesis carries 2.5x the art resolution it used to at the same on-screen
+// size — `_spawnMiniBoss` drops the render scale to compensate.
+//
+// Frame order is IDENTICAL to the trooper sheets (0-7 front, 8-15 back, 16-23
+// side, 24-32 poses via paintPoseFrames), so PreloadScene's anim-key arithmetic
+// and everything reading `_animPrefix` keeps working untouched.
+
+const NEM_W = 32, NEM_H = 32, NEM_FRAMES = 33;
+
+/**
+ * One nemesis sheet.
+ *
+ * `skin` carries the palette and the per-type details, so a new archetype is a
+ * data object rather than another 200-line painter — "types, then variations".
+ */
+function paintNemesisSheet(scene, key, skin) {
+  const ss = new SpriteSheet(scene, key, NEM_W, NEM_H, NEM_FRAMES, 4);
+  const C = PAL;
+  const cx = 16;
+
+  function draw(f, legPhase = 0, dir = 'front', hurt = false, pose = null) {
+    ss.frame(f);
+    // Same two channels as drawVader: a vertical BOB and a forward LEAN, so a
+    // pose changes the SILHOUETTE and not just an arm. A pose that only moves
+    // limbs is invisible at this size.
+    const poseBob = pose === 'raise' ? -2 : pose === 'thrust' ? 2 : pose === 'recoil' ? 3 : null;
+    const lean = pose === 'raise' ? -2 : pose === 'thrust' ? 3 : pose === 'recoil' ? -2 : 0;
+    const armDx = pose === 'raise' ? 0 : pose === 'thrust' ? 3 : pose === 'recoil' ? 2 : 0;
+    const armDy = pose === 'raise' ? -4 : pose === 'thrust' ? -1 : pose === 'recoil' ? 3 : 0;
+    const bob = poseBob !== null ? poseBob : (legPhase === 0 ? 0 : (Math.abs(legPhase) === 2 ? 1 : 0));
+
+    const main = hurt ? C.white : skin.main;
+    const mid = hurt ? C.offWhite : skin.mid;
+    const dark = skin.dark;
+    const trim = skin.trim;
+
+    // ── SKIRT / TASSETS — mass below the belt ───────────────────────────────
+    // Drawn FIRST so the belt and boots overlap it rather than the reverse.
+    // This is the boss-silhouette trick: without weight down here the shape is
+    // a trooper however big it is drawn.
+    const sy = 24 + bob;
+    for (let i = 0; i < 6; i++) {
+      const w = 6 + i;                       // widens as it falls
+      // Lit at the top, falling to black at the hem, so it reads as a hanging
+      // mass rather than a painted trapezoid.
+      const tone = i === 0 ? skin.light : (i < 3 ? skin.skirt : dark);
+      ss.hline(sy + i, cx - w + lean, cx + w - 1 + lean, tone);
+    }
+    // Vertical folds, so the skirt is not a flat slab.
+    for (const fx of [-7, -3, 2, 6]) {
+      ss.vline(cx + fx + lean, sy + 1, sy + 5, C.black);
+    }
+
+    // ── LEGS ────────────────────────────────────────────────────────────────
+    // Short: the skirt carries the mass down here, and long legs under it turn
+    // the shape back into a trooper.
+    const step = legPhase;
+    ss.rect(cx - 5 + lean, 30 + bob + (step > 0 ? -1 : 0), 4, 2, C.black);
+    ss.rect(cx + 1 + lean, 30 + bob + (step < 0 ? -1 : 0), 4, 2, C.black);
+
+    // ── TORSO ───────────────────────────────────────────────────────────────
+    const ty = 16 + bob;
+    ss.rect(cx - 6 + lean, ty, 12, 10, main);
+    ss.hline(ty, cx - 6 + lean, cx + 5 + lean, skin.light);      // lit top edge
+    ss.hline(ty + 9, cx - 6 + lean, cx + 5 + lean, dark);        // shaded bottom
+    ss.vline(cx - 6 + lean, ty, ty + 9, dark);
+    ss.vline(cx + 5 + lean, ty, ty + 9, dark);
+    // Chest plate, so the middle of the body is not empty at this size.
+    ss.rect(cx - 4 + lean, ty + 2, 8, 5, mid);
+    ss.hline(ty + 2, cx - 4 + lean, cx + 3 + lean, skin.light);
+    skin.chest?.(ss, cx + lean, ty, C);
+
+    // ── BELT ────────────────────────────────────────────────────────────────
+    ss.hline(24 + bob, cx - 7 + lean, cx + 6 + lean, C.impGrey);
+    ss.hline(25 + bob, cx - 7 + lean, cx + 6 + lean, C.black);
+    ss.rect(cx - 2 + lean, 24 + bob, 4, 2, trim);                // buckle
+
+    // ── PAULDRONS ───────────────────────────────────────────────────────────
+    // 8 wide and overlapping the torso by 2px on each side. The trooper's arms
+    // are 3x3 with a clear pixel between them and the body; these are welded,
+    // which is most of why the silhouette holds together when scaled.
+    // 6 wide, not 8. The first pass ran them cx-12..cx+11 — 24px of a 32px
+    // frame against a 12px torso — which made the silhouette a squat T. Vader
+    // reads as a boss partly because he is VERTICAL; a nemesis whose widest
+    // feature is its shoulders reads as a beetle.
+    const py = 15 + bob + armDy;
+    ss.rect(cx - 10 - armDx + lean, py, 6, 8, mid);
+    ss.rect(cx + 4 + armDx + lean, py, 6, 8, mid);
+    ss.hline(py, cx - 10 - armDx + lean, cx - 5 - armDx + lean, skin.light);
+    ss.hline(py, cx + 4 + armDx + lean, cx + 9 + armDx + lean, skin.light);
+    ss.hline(py + 7, cx - 10 - armDx + lean, cx - 5 - armDx + lean, dark);
+    ss.hline(py + 7, cx + 4 + armDx + lean, cx + 9 + armDx + lean, dark);
+    // Trim ridge along the top of each pauldron.
+    ss.hline(py + 1, cx - 9 - armDx + lean, cx - 6 - armDx + lean, trim);
+    ss.hline(py + 1, cx + 5 + armDx + lean, cx + 8 + armDx + lean, trim);
+
+    // ── GORGET ──────────────────────────────────────────────────────────────
+    // The piece the trooper does not have. It fills rows 13..16 between the
+    // dome and the chest, so there is no row where the body can separate.
+    ss.rect(cx - 4 + lean, 13 + bob, 8, 4, dark);
+    ss.hline(13 + bob, cx - 4 + lean, cx + 3 + lean, C.impSilver);
+
+    // ── HELMET DOME ─────────────────────────────────────────────────────────
+    // Solved per row rather than stacked hlines, and it overlaps the gorget by
+    // two rows so head and body are one shape.
+    const hy = 9 + bob;
+    const R = 6;
+    for (let dy = -R; dy <= R; dy++) {
+      const w = Math.round(Math.sqrt(Math.max(0, R * R - dy * dy)));
+      if (w <= 0) continue;
+      const tone = dy <= -4 ? skin.light : (dy >= 4 ? dark : (dy <= -2 ? main : mid));
+      ss.hline(hy + dy, cx - w + lean, cx + w - 1 + lean, tone);
+    }
+    // Crown glint.
+    ss.px(cx - 3 + lean, hy - 4, C.white);
+    ss.px(cx - 2 + lean, hy - 4, C.white);
+
+    // ── FACE, per facing ────────────────────────────────────────────────────
+    if (dir === 'front') {
+      ss.rect(cx - 5 + lean, hy, 10, 3, C.black);                // visor band
+      skin.visor?.(ss, cx + lean, hy, C);
+      // Breathing vents, centred under the visor.
+      ss.rect(cx - 2 + lean, hy + 3, 4, 2, C.impDark);
+    } else if (dir === 'side') {
+      ss.rect(cx + 1 + lean, hy, 5, 3, C.black);
+      skin.visor?.(ss, cx + 2 + lean, hy, C);
+      ss.rect(cx - 5 + lean, hy + 1, 3, 3, dark);                // rear cowl
+    } else {
+      // Back: a ridged crest, plus a nape shadow, so the reverse view is
+      // recognisably the back of something and not a blank dome.
+      ss.vline(cx + lean, hy - 5, hy + 5, dark);
+      ss.vline(cx - 1 + lean, hy - 5, hy + 5, skin.light);
+      ss.hline(hy + 4, cx - 4 + lean, cx + 3 + lean, dark);
+      ss.px(cx - 1 + lean, hy - 5, C.white);
+    }
+
+    skin.extra?.(ss, cx + lean, bob, dir, C, { armDx, armDy, lean });
+  }
+
+  // Frame table — identical shape to the trooper sheets.
+  const walk = [0, 1, 2, 1, 0, -1, -2, -1];
+  ['front', 'back', 'side'].forEach((dir, di) => {
+    const base = di * 8;
+    draw(base, 0, dir);                                   // idle
+    for (let i = 1; i <= 6; i++) draw(base + i, walk[i], dir);
+    draw(base + 7, 0, dir, true);                         // hurt / fire
+  });
+  paintPoseFrames(draw);
+  ss.finish();
+}
+
+// ── The types ───────────────────────────────────────────────────────────────
+//
+// Variation is palette and a couple of drawn details, not a new painter. A
+// trait recolours on top of this at runtime via setTint, exactly as before.
+
+export function paintNemesisBrute(scene, key = 'nem-brute') {
+  paintNemesisSheet(scene, key, {
+    main: PAL.beskar, mid: PAL.beskarMid, dark: PAL.beskarDeep,
+    light: PAL.beskarLight, trim: PAL.gold, skirt: PAL.beskarDark,
+    visor: (ss, cx, hy, C) => { ss.px(cx - 3, hy + 1, C.ledRed); ss.px(cx + 2, hy + 1, C.ledRed); },
+    chest: (ss, cx, ty, C) => {
+      // A heavy central rib — the brute reads as armour first.
+      ss.vline(cx, ty + 2, ty + 6, C.beskarShine);
+      ss.rect(cx - 3, ty + 7, 6, 2, C.impDark);
+    },
+  });
+}
+
+export function paintNemesisDemolisher(scene, key = 'nem-demo') {
+  paintNemesisSheet(scene, key, {
+    main: PAL.impGrey, mid: PAL.impLight, dark: PAL.impDark,
+    light: PAL.impSheen, trim: PAL.expMid, skirt: PAL.impMid,
+    visor: (ss, cx, hy, C) => { ss.rect(cx - 2, hy + 1, 4, 1, C.expBright); },
+    chest: (ss, cx, ty, C) => {
+      // Warning chevrons across the chest.
+      for (let i = 0; i < 3; i++) ss.hline(ty + 3 + i, cx - 3 + i, cx + 2 - i, C.expBright);
+    },
+    // The charge pack, DRAWN INTO THE BODY. It used to be the `reg-volatile`
+    // overlay: an 18px-wide slab of canisters pinned at a fixed world offset
+    // that did not flip with the sprite or track its walk bob, which is why it
+    // read as "not attached properly to enemy".
+    extra: (ss, cx, bob, dir, C) => {
+      if (dir === 'back') return;                 // the pack is on its back
+      const py = 18 + bob;
+      for (const dx of [-11, -8, 8, 11]) {
+        ss.rect(cx + dx - 1, py, 3, 6, C.rocketBody);
+        ss.rect(cx + dx - 1, py, 3, 2, C.expDark);
+        ss.px(cx + dx, py + 3, C.expBright);
+      }
+    },
+  });
+}
+
+export function paintNemesisMarksman(scene, key = 'nem-marks') {
+  paintNemesisSheet(scene, key, {
+    main: PAL.dthMid, mid: PAL.dthLight, dark: PAL.dthDark,
+    light: PAL.impSilver, trim: PAL.dthLED, skirt: PAL.dthDark,
+    visor: (ss, cx, hy, C) => {
+      ss.px(cx - 3, hy + 1, C.dthLEDBright);
+      ss.px(cx + 2, hy + 1, C.dthLEDBright);
+      ss.hline(hy + 2, cx - 3, cx + 2, C.dthLED);
+    },
+    chest: (ss, cx, ty, C) => {
+      // Sensor bank — reads as equipment rather than plate.
+      for (let i = 0; i < 3; i++) ss.px(cx - 2 + i * 2, ty + 4, C.dthLEDBright);
+      ss.hline(ty + 6, cx - 3, cx + 2, C.impDark);
+    },
+  });
+}
