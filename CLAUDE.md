@@ -40,6 +40,17 @@ the finding is already established earlier in the conversation.
   `setCircle(this.width / 2)`, so changing a projectile texture's dimensions silently
   changes its collision size. Keep canvas dimensions fixed when redrawing projectiles,
   and assert `body.radius` parity in tests.
+- **A nemesis bomber must never run the stock contact path.** `EnemyBomber._detonate()`
+  sets `hp = 0` and calls `die()`; on a nemesis that throws away 6× hp, traits,
+  regalia, a name and a ledger grudge on first touch. `_tickSwarm` branches to
+  `_contactBurst` for `_miniBoss`. `smoke-duel` gates it.
+- **A move that schedules its own links needs an `h.over` flag**, set at the impact
+  beat. Timers resolve coarsely on a slow frame, so a chain link can *start* after
+  RECOVER has already run — TRIPLE DASH finished combos in a wind-up pose that way.
+  A generous `actMs` is a race, not a fix. Likewise, `onEnd` on a chain's last link
+  fires after RECOVER: never set a pose there unconditionally.
+- **A move's second zone needs `anchor: 'world'`** when it marks a place rather than
+  a body, or it drifts with the caster's recoil and stops being a promise.
 - **Super pellets are `piercing`**, so anything gated behind `if (!b.piercing)` never
   runs for them (this hid the super's impact explosion for a long time).
 - **The super is hardcoded.** `superPellets` / `superDamage` are flat `PLAYER` config
