@@ -5074,6 +5074,11 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => {
         tg.destroy();
         if (!this.arenaActive) return;
+        // A gate telegraph runs for 600ms before the enemy materialises, so one
+        // already in flight when a duel begins would drop a trooper into it
+        // AFTER the floor was swept. Rare enough that it only showed up under
+        // suite load — and it is exactly the crowd the duel exists to remove.
+        if (this._duelActive) return;
         if (type === 'swarmling') {
           this._spawnSwarmlingPack(gx, gy);
         } else {

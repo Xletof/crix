@@ -129,10 +129,46 @@ const duel = await page.evaluate(async () => {
   };
 });
 
+// ── 2b. The gate-telegraph race, made deterministic ───────────────────────
+//
+// `spawnAtGate` telegraphs for 600ms before the enemy materialises, and its
+// completion originally checked only `arenaActive` — so a gate already in
+// flight when a duel began dropped a trooper in AFTER the floor was swept.
+//
+// This first appeared as smoke-duel failing in the suite and passing on its
+// own, which is the signature of a load-dependent race. Waiting for it to
+// happen by luck is not a test: the spawn is started and the duel begun 150ms
+// into its telegraph, so the window is hit every run.
+const race = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const { ROOMS } = await import('/src/data/rooms.js');
+  gs.loadRoom(ROOMS[0]);
+  await new Promise((r) => setTimeout(r, 1400));
+  gs.enemies.getChildren().slice().forEach((x) => gs._destroyEnemyFully(x));
+  await new Promise((r) => setTimeout(r, 300));
+
+  gs.arenaActive = true;
+  gs.spawnAtGate('grunt');                       // 600ms telegraph now running
+  await new Promise((r) => setTimeout(r, 150));  // ...begin the duel inside it
+  gs._beginDuel({ count: 8, miniBoss: true });
+  await new Promise((r) => setTimeout(r, 2500));
+  const adds = gs.enemies.getChildren().filter((x) => x.alive && !x._miniBoss).length;
+  gs.enemies.getChildren().slice().forEach((x) => gs._destroyEnemyFully(x));
+  return { adds };
+});
+
 // ── 3. Phases fire at the thresholds the bar draws pips at ────────────────
 const phases = await page.evaluate(async () => {
   const gs = window.game.scene.getScene('Game');
-  const foe = gs.enemies.getChildren().find((x) => x.alive && x._miniBoss);
+  const { rollNemesis } = await import('/src/data/nemesis.js');
+  // Spawn its OWN foe rather than reusing whatever an earlier section left
+  // behind. Depending on that leftover is how this block came to report "none"
+  // the moment a section above it started cleaning up after itself — and the
+  // companion "fires exactly once" check passed anyway, because an empty list
+  // has no duplicates in it.
+  const nem = rollNemesis(5, { rng: gs.rng.nemesis, base: 'grunt', traits: ['armored'] });
+  const foe = gs._spawnMiniBoss(nem);
+  await new Promise((r) => setTimeout(r, 400));
   if (!foe) return { seen: [], ok: false };
   const seen = [];
   const onPhase = (e, p) => seen.push({ p, frac: +(e.hp / e.hpMax).toFixed(3) });
@@ -201,10 +237,18 @@ const mines = await page.evaluate(async () => {
         closest = Math.min(closest, Math.hypot(seen[i].x - seen[j].x, seen[i].y - seen[j].y));
       }
     }
+    // DIRECTION, not distance. Distance travelled is a frame-rate reading:
+    // the same walled-in retreat measured 159px standalone and 66px under
+    // suite load, so any pixel threshold on it is a threshold on how busy the
+    // machine is. Whether the bomber went AWAY from the player is the thing the
+    // move actually promises, and it does not move with the clock.
+    const before = Math.hypot(start.x - gs.player.x, start.y - gs.player.y);
+    const after = Math.hypot(e.x - gs.player.x, e.y - gs.player.y);
     out.push({
       laid: seen.length,
       closest: Number.isFinite(closest) ? Math.round(closest) : -1,
-      travelled: Math.round(Math.hypot(e.x - start.x, e.y - start.y)),
+      retreated: after >= before - 1,
+      gained: Math.round(after - before),
       inBounds: e.x > 0 && e.x < b.width && e.y > 0 && e.y < b.height,
     });
     gs._destroyEnemyFully(e);
@@ -246,6 +290,9 @@ check(duel.afterSweep === 0,
 check(duel.maxAdds === 0,
   'and no wave adds arrive while it runs',
   `peak uninvited adds: ${duel.maxAdds} over 7s`);
+check(race.adds === 0,
+  'a gate telegraph already in flight cannot drop an add into the duel',
+  `${race.adds} arrived after the sweep — this is the race that only showed up under suite load`);
 check(duel.barVisible && duel.barName.length > 0,
   'the duel names its opponent and shows a health bar',
   `bar=${duel.barVisible} name="${duel.barName}"`);
@@ -257,9 +304,11 @@ const gotPhases = (phases.seen || []).map((s) => s.p);
 check(gotPhases.includes(2) && gotPhases.includes(3),
   'phases fire at the thresholds the bar draws pips at',
   (phases.seen || []).map((s) => `p${s.p}@${s.frac}`).join(' ') || 'none');
-check(gotPhases.length === new Set(gotPhases).size,
+check(gotPhases.length > 0 && gotPhases.length === new Set(gotPhases).size,
   'and each fires exactly once',
-  `${gotPhases.join(',')}`);
+  // The length guard is not decoration: without it this passed while the check
+  // above it failed with "none", because an empty list has no duplicates.
+  gotPhases.length ? gotPhases.join(',') : 'no transitions fired at all');
 
 const [mid, wall] = mines;
 check(mid.laid >= 3 && wall.laid >= 3,
@@ -268,9 +317,10 @@ check(mid.laid >= 3 && wall.laid >= 3,
 check(mid.closest >= 60 && wall.closest >= 60,
   'and spaces them out even when the retreat is walled in',
   `closest pair — mid-arena ${mid.closest}px, against a wall ${wall.closest}px`);
-check(wall.travelled > 120 && wall.inBounds,
-  'a bomber jammed against a wall still gets somewhere to retreat to',
-  `${wall.travelled}px travelled, in bounds: ${wall.inBounds}`);
+check(mid.retreated && wall.retreated && wall.inBounds,
+  'a bomber jammed against a wall retreats AWAY, not into the player',
+  `distance gained — mid-arena ${mid.gained}px, against a wall ${wall.gained}px;`
+  + ` in bounds: ${wall.inBounds}`);
 
 check(pageErrors.length === 0, 'no exception across the run', pageErrors.join(' | '));
 
