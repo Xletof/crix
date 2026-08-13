@@ -157,6 +157,8 @@ export const NEMESIS_MOVES = [
       // The wake is drawn on its own clock rather than per frame from the scene
       // tick: this move already owns a handle, and the streaks only need to
       // land often enough to read as a smear.
+      h.stopTrail = scene.fx?.motionTrail?.(e, { tint: h.tint, everyMs: 48, alpha: 0.4 });
+      scene.fx?.stretchAlong?.(e, h.angle, 0.2, 200);
       h.wake = scene.time.addEvent({
         delay: 55, loop: true,
         callback: () => {
@@ -174,10 +176,16 @@ export const NEMESIS_MOVES = [
       const blocked = e.body && (e.body.blocked.left || e.body.blocked.right
         || e.body.blocked.up || e.body.blocked.down);
       h.wake?.remove(false);
+      h.stopTrail?.();
       if (blocked) {
+        // Running into a wall at full speed: freeze, kick the camera back along
+        // the run, and throw the debris the way the body was going.
+        scene.fx?.hitstop?.(60);
         scene.fx?.groundFractures?.(e.x, e.y, 160, scarPalette(h.tint ?? 0xff6030));
-        scene.fx?.shake?.(0.03, 320);
-        scene.fx?.burst?.(e.x, e.y, 'yellow', 18);
+        scene.fx?.impactSpray?.(e.x, e.y, h.angle, 'yellow', 12, { tint: h.tint });
+        scene.fx?.camPunch?.(h.angle, 9);
+        scene.fx?.landingDust?.(e.x, e.y, 7, 60);
+        scene.fx?.shake?.(0.016, 240);
         SFX.meleeSlam?.();
         h.hitWall = true;
       }
@@ -194,6 +202,7 @@ export const NEMESIS_MOVES = [
     onCancel(scene, e, h) {
       h?.gather?.remove(false);
       h?.wake?.remove(false);
+      h?.stopTrail?.();
       e.setMovePose?.(null);
     },
 
@@ -328,13 +337,20 @@ export const NEMESIS_MOVES = [
 
     impact(scene, e, h) {
       const s = h.spot;
+      // The landing is the entire move — it is the one the player was baited
+      // into dodging early, so it has to hit like the commitment it was.
+      scene.fx?.hitstop?.(70);
       scene.fx?.crushRing?.(s.x, s.y, this.radius, h.tint ?? 0xffb020);
       scene.fx?.groundFractures?.(s.x, s.y, this.radius, scarPalette(h.tint ?? 0xffb020));
-      scene.fx?.shake?.(0.026, 300);
+      scene.fx?.landingDust?.(s.x, s.y, 10, this.radius * 0.55);
+      scene.fx?.shake?.(0.016, 240);
       SFX.bossSlam?.();
       const p = scene.player;
       if (Math.hypot(p.x - s.x, p.y - s.y) <= this.radius) {
-        p.damage(this.damage, Math.atan2(p.y - s.y, p.x - s.x));
+        const a = Math.atan2(p.y - s.y, p.x - s.x);
+        p.damage(this.damage, a);
+        scene.fx?.impactSpray?.(p.x, p.y, a, 'red', 10, { tint: h.tint ?? 0xffb020 });
+        scene.fx?.camPunch?.(a, 11);
       }
     },
 
@@ -569,6 +585,11 @@ export const NEMESIS_MOVES = [
         speed: this.speed, ms: this.actMs,
         onEnd: () => { e._charging = false; },
       });
+      // Ghosts behind the body: the faster it moves the further apart they
+      // land, so the speed is legible in a single frame rather than only
+      // across several. This is the "show velocity" part.
+      h.stopTrail = scene.fx?.motionTrail?.(e, { tint: h.tint, everyMs: 40, alpha: 0.45 });
+      scene.fx?.stretchAlong?.(e, h.angle, 0.22, 200);
       h.wake = scene.time.addEvent({
         delay: 45, loop: true,
         callback: () => {
@@ -586,6 +607,7 @@ export const NEMESIS_MOVES = [
     impact(scene, e, h) {
       e._charging = false;
       h.wake?.remove(false);
+      h.stopTrail?.();
       e.body?.setVelocity(0, 0);
       e.setMovePose?.('raise');
       const spot = { x: e.x, y: e.y };
@@ -609,15 +631,23 @@ export const NEMESIS_MOVES = [
       h.smash = scene.time.delayedCall(this.smashWindupMs, () => {
         if (!e.active || !e.alive) return;
         e.setMovePose?.('thrust');
+        // Hitstop FIRST: the freeze has to start on the frame the blow lands,
+        // or it reads as the game stuttering just after something happened
+        // rather than as the blow having weight.
+        scene.fx?.hitstop?.(70);
         scene.fx?.slamShockwave?.(spot.x, spot.y, this.radius);
         scene.fx?.crushRing?.(spot.x, spot.y, this.radius, h.tint);
         scene.fx?.groundFractures?.(spot.x, spot.y, this.radius, scarPalette(h.tint));
-        scene.fx?.shake?.(0.042, 380);
+        scene.fx?.landingDust?.(spot.x, spot.y, 9, this.radius * 0.5);
+        scene.fx?.camPunch?.(h.angle, 10);
+        scene.fx?.shake?.(0.02, 260);
         SFX.meleeSlam?.();
         SFX.bossSlam?.();
         const p = scene.player;
         if (p?.alive && Math.hypot(p.x - spot.x, p.y - spot.y) <= this.radius) {
           p.damage(this.smashDamage, Math.atan2(p.y - spot.y, p.x - spot.x));
+          scene.fx?.impactSpray?.(p.x, p.y,
+            Math.atan2(p.y - spot.y, p.x - spot.x), 'red', 10, { tint: h.tint });
         }
         e.setMovePose?.('recoil');
         stagger(scene, e, this.recoverMs - this.smashWindupMs, 2.0);
@@ -637,14 +667,16 @@ export const NEMESIS_MOVES = [
       const a = Math.atan2(p.y - e.y, p.x - e.x);
       p.damage(this.damage, a);
       p.body?.setVelocity(Math.cos(a) * KNOCKBACK, Math.sin(a) * KNOCKBACK);
-      scene.fx?.impactRing?.(p.x, p.y, tintOf(e, 0xff6030));
-      scene.fx?.shake?.(0.03, 220);
+      scene.fx?.hitstop?.(45);
+      scene.fx?.impactSpray?.(p.x, p.y, a, 'red', 9, { tint: tintOf(e, 0xff6030) });
+      scene.fx?.camPunch?.(a, 8);
     },
 
     onCancel(scene, e, h) {
       h?.smash?.remove(false);
       h?.wake?.remove(false);
-      h?.charge?.stopCharge?.();   // also puts the body's drag back
+      h?.stopTrail?.();            // a trail outliving its owner samples a corpse
+      h?.charge?.stopCharge?.();
       h?.tel2?.destroy?.();
     },
   },
@@ -709,6 +741,9 @@ export const NEMESIS_MOVES = [
           e._chargeHit = false;          // each dash may land its own hit
           e.setMovePose?.('thrust');
           scene.fx?.chargeWake?.(e.x, e.y, angle, h.tint);
+          h.stopTrail?.();
+          h.stopTrail = scene.fx?.motionTrail?.(e, { tint: h.tint, everyMs: 36, alpha: 0.42 });
+          scene.fx?.stretchAlong?.(e, angle, 0.22, 150);
           charge(scene, e, angle, {
             speed: this.speed, ms: this.dashMs,
             onEnd: () => {
@@ -731,6 +766,7 @@ export const NEMESIS_MOVES = [
     impact(scene, e, h) {
       h.over = true;
       h.timer?.remove(false);
+      h.stopTrail?.();
       e._charging = false;
       h.links.forEach((t) => t?.destroy?.());
       h.links.length = 0;
@@ -742,13 +778,17 @@ export const NEMESIS_MOVES = [
     },
 
     onChargeTouch(scene, e) {
-      scene.player.damage(this.damage,
-        Math.atan2(scene.player.y - e.y, scene.player.x - e.x));
+      const p = scene.player;
+      const a = Math.atan2(p.y - e.y, p.x - e.x);
+      p.damage(this.damage, a);
+      scene.fx?.impactSpray?.(p.x, p.y, a, 'red', 7, { tint: tintOf(e, 0x40ff90) });
+      scene.fx?.camPunch?.(a, 5);
     },
 
     onCancel(scene, e, h) {
       if (h) h.over = true;
       h?.timer?.remove(false);
+      h?.stopTrail?.();
       h?.links?.forEach((t) => t?.destroy?.());
       e.setMovePose?.(null);
     },
@@ -1016,14 +1056,19 @@ export const NEMESIS_MOVES = [
     },
 
     impact(scene, e, h) {
+      scene.fx?.hitstop?.(80);
       scene.fx?.slamShockwave?.(e.x, e.y, this.radius * 0.8);
+      scene.fx?.landingDust?.(e.x, e.y, 12, this.radius * 0.5);
       scene.fx?.explosion?.(e.x, e.y, 2.0);
       scene.fx?.groundFractures?.(e.x, e.y, this.radius, scarPalette(h.tint));
       scene.fx?.shake?.(0.034, 380);
       SFX.bossSlam?.();
       const p = scene.player;
       if (p?.alive && Math.hypot(p.x - e.x, p.y - e.y) <= this.radius) {
-        p.damage(this.damage, Math.atan2(p.y - e.y, p.x - e.x));
+        const a = Math.atan2(p.y - e.y, p.x - e.x);
+        p.damage(this.damage, a);
+        scene.fx?.impactSpray?.(p.x, p.y, a, 'red', 12, { tint: h.tint });
+        scene.fx?.camPunch?.(a, 12);
       }
     },
 

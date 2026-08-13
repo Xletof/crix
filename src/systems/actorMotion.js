@@ -286,12 +286,16 @@ export function dropWeapon(scene, sprite, ms = 120) {
  * it a dodge earns nothing, and a move with no payoff for dodging is just
  * damage on a timer — which is what the last pass shipped.
  */
-export function stagger(scene, sprite, ms = 900, dmgMult = 1.5) {
+export function stagger(scene, sprite, ms = 900, dmgMult = 1.5, opts = {}) {
   if (!sprite?.active) return;
   sprite._staggerMs = Math.max(sprite._staggerMs || 0, ms);
   sprite._punishMult = dmgMult;
   sprite._punishMs = ms;
-  sprite.body?.setVelocity(0, 0);
+  // `keepVelocity` exists because the bomber's contact burst set a 420px/s
+  // shove and then called this, which zeroed it on the very next line — so the
+  // throw-clear never happened and the bomber stayed sitting inside the player.
+  // A stagger that follows a deliberate knockback has to let the knockback ride.
+  if (!opts.keepVelocity) sprite.body?.setVelocity(0, 0);
   scene.tweens.add({
     targets: sprite,
     alpha: 0.75,

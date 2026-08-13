@@ -10,6 +10,10 @@ const BOMBER_BURST_DMG_MULT = 0.55;
 // How much of a knockback a PLANTED actor takes — see Enemy.damage.
 const PLANTED_KNOCKBACK = 0.12;
 
+// The bomber's close-range jab, filling the gap between contact blasts.
+const BOMBER_SWIPE_CD_MS = 800;
+const BOMBER_SWIPE_DAMAGE = 55;
+
 // ── AI state constants ────────────────────────────────────────────────────────
 export const ST = {
   PATROL:     'patrol',     // walking assigned waypoints, unalerted
@@ -1334,6 +1338,8 @@ export class EnemyBomber extends EnemyGrunt {
     this._detonated = false;
     this._bombPulse = 0;
     this._burstCd = 0;
+    this._swipeCd = 0;
+    this._burstOrbit = 1;
     this.setTint(0xff6a33);
     this.weaponSprite?.setVisible(false); // no gun — it IS the weapon
     this.body.setCircle(
@@ -1378,19 +1384,56 @@ export class EnemyBomber extends EnemyGrunt {
     this._moveToward(player.x, player.y, this.cfg.speed);
   }
 
-  // Survivable contact blast, nemesis-only. Hurts less than a true detonation
-  // (that one costs a life, this one does not) and throws the bomber clear so
-  // it cannot chain-stun by sitting on top of the player.
+  /**
+   * Survivable contact blast, nemesis-only, plus something to do afterwards.
+   *
+   * The first version had a dead window: the shove was cancelled by its own
+   * `stagger()` (which zeroed velocity on the next line), so the bomber never
+   * got clear — and then for the rest of the 2.6s cooldown it walked straight
+   * back into the player and stood there with no gun, no melee and no
+   * animation. Reported exactly as "it doesn't do anything and stays like
+   * inside player".
+   *
+   * The cooldown branch now uses the codebase's existing close-range idiom,
+   * copied from EnemySwarmling: orbit perpendicular instead of pressing in, and
+   * fill the gap with a cheap short-cooldown swipe so the state is never empty.
+   * The big blast stays the heavy; the swipe is the jab between them.
+   */
   _contactBurst(player) {
     if (this._burstCd > 0) {
-      this._moveToward(player.x, player.y, this.cfg.speed);
+      const toPlayer = Math.atan2(player.y - this.y, player.x - this.x);
+      // Orbit at 0.4x rather than walking into them — pressing in is what put
+      // the bomber inside the player's sprite with nothing to do.
+      const perp = toPlayer + this._burstOrbit * Math.PI / 2;
+      this.setVelocity(
+        Math.cos(perp) * this.cfg.speed * 0.4,
+        Math.sin(perp) * this.cfg.speed * 0.4,
+      );
+      this._aim = toPlayer;
+      if (this._swipeCd > 0) this._swipeCd -= this.scene.game.loop.delta;
+      if (this._swipeCd <= 0 && player.alive) {
+        this._swipeCd = BOMBER_SWIPE_CD_MS;
+        player.damage(BOMBER_SWIPE_DAMAGE, toPlayer);
+        this._fireAnimTimer = 120;
+        this.recoilT = 80;
+        this.setMovePose?.('thrust');
+        this.scene.fx?.impactSpray?.(player.x, player.y, toPlayer, 'red', 6);
+        this.scene.fx?.camPunch?.(toPlayer, 3);
+        SFX.hit?.();
+      }
       return;
     }
     this._burstCd = BOMBER_BURST_CD_MS;
+    this._swipeCd = BOMBER_SWIPE_CD_MS;
+    // Flip the orbit direction each burst so it does not circle predictably.
+    this._burstOrbit = -this._burstOrbit;
     this._blast(1.5, BOMBER_BURST_DMG_MULT);
     const away = Math.atan2(this.y - player.y, this.x - player.x);
+    this.scene.fx?.camPunch?.(away + Math.PI, 7);
+    this.scene.fx?.hitstop?.(55);
     this.body?.setVelocity(Math.cos(away) * 420, Math.sin(away) * 420);
-    stagger(this.scene, this, 700, 1.4);
+    // keepVelocity: the shove has to survive the stagger that follows it.
+    stagger(this.scene, this, 700, 1.4, { keepVelocity: true });
   }
 
   _blast(scale, dmgMult) {

@@ -2,6 +2,7 @@
 // via Web Audio API. No external sound assets needed for the vertical slice.
 
 import Phaser from 'phaser';
+import { attachJuice } from './juice.js';
 import { DEPTH, MUSIC } from '../config.js';
 
 let audioCtx = null;
@@ -3132,5 +3133,9 @@ export function attachFX(scene) {
   // Ambient motes sit above the floor decals but below the live Y-sort
   // layer (entities are at depth = y, minimum ~60 in this 1600px arena).
   fx.ambientMotes.setDepth(3);
+  // Hitstop, directional camera punch, motion trails, directional impact.
+  // Attached rather than defined here so this file stays about particles and
+  // audio; see systems/juice.js for why they are shared and not per-move.
+  attachJuice(scene, fx);
   return fx;
 }
