@@ -52,9 +52,16 @@ export function attachJuice(scene, fx) {
     if (stopTimer) clearTimeout(stopTimer);
     stopTimer = null;
     stopUntil = 0;
-    scene.time.timeScale = 1;
-    if (scene.physics?.world) scene.physics.world.timeScale = 1;
-    if (scene.anims) scene.anims.globalTimeScale = 1;
+    // Defensive on every field: this can run after a scene has been torn down,
+    // and a throw in here would leave the clock slowed — the exact failure it
+    // exists to prevent.
+    try {
+      if (scene.time) scene.time.timeScale = 1;
+      if (scene.physics?.world) scene.physics.world.timeScale = 1;
+      // NOTE: `scene.anims` is the GAME-wide AnimationManager, not per scene.
+      // Leaving this scaled slows animations everywhere, including menus.
+      if (scene.anims) scene.anims.globalTimeScale = 1;
+    } catch (_) { /* torn down mid-restore; nothing left to restore */ }
   };
 
   fx.hitstop = (ms = 50, scale = 0.06) => {
@@ -70,18 +77,20 @@ export function attachJuice(scene, fx) {
     if (scene.physics?.world) scene.physics.world.timeScale = 1 / Math.max(0.01, scale);
     if (scene.anims) scene.anims.globalTimeScale = scale;
     if (stopTimer) clearTimeout(stopTimer);
-    // REAL time, not `scene.time`.
+    // REAL time, and UNCONDITIONAL. Both halves of that were learned the hard
+    // way, one after the other.
     //
-    // scene.time is the clock being slowed, so a delayedCall on it stretches
-    // with the freeze: at scale 0.06 a 70ms stop takes 70/0.06 ≈ 1.2 SECONDS to
-    // lift. I wrote a comment saying exactly this and then used scene.time
-    // anyway; the suite caught it as every dash after a slam measuring short,
-    // because the leaked slow-motion was still running during the next
-    // measurement. A raw timeout is immune to the thing it is undoing.
-    stopTimer = setTimeout(() => {
-      if (scene.scene?.isActive?.()) endHitstop();
-      else { stopTimer = null; stopUntil = 0; }
-    }, dur);
+    // `scene.time` is the clock being slowed, so a delayedCall on it stretches
+    // with the freeze: at scale 0.06 a 70ms stop takes ~1.2 SECONDS to lift.
+    // A raw timeout is immune to the thing it is undoing.
+    //
+    // And the restore must not be gated on the scene being active. That sounds
+    // defensive and is the opposite — pausing is exactly when a hitstop is most
+    // likely to be in flight (pause menu, upgrade card, a test freezing a
+    // frame), and skipping the restore then left the clock at 0.06 and physics
+    // at 16x slow permanently. It surfaced as three unrelated suites failing
+    // under load and passing alone.
+    stopTimer = setTimeout(endHitstop, dur);
   };
 
   /**
@@ -222,9 +231,13 @@ export function attachJuice(scene, fx) {
     }
   };
 
-  // Restoring the clock is not optional. A scene torn down mid-hitstop would
-  // otherwise hand the next scene a timeScale of 0.06 — every restart after a
-  // heavy hit would come back in slow motion.
+  // Restoring the clock is not optional, and there are three ways to leave a
+  // hitstop other than waiting it out. A scene torn down mid-freeze would hand
+  // the next one a timeScale of 0.06; a scene PAUSED mid-freeze (pause menu,
+  // upgrade card) would come back in slow motion. `once` is wrong for pause and
+  // resume — they happen repeatedly over a run.
+  scene.events.on('pause', endHitstop);
+  scene.events.on('resume', endHitstop);
   scene.events.once('shutdown', endHitstop);
   scene.events.once('destroy', endHitstop);
 

@@ -257,6 +257,42 @@ const mines = await page.evaluate(async () => {
   return out;
 });
 
+// ── 5. Hitstop never leaves the clock slowed ──────────────────────────────
+//
+// Hitstop scales `time.timeScale`, `physics.world.timeScale` and — note —
+// `anims.globalTimeScale`, which is GAME-wide, not per scene. A freeze that
+// fails to lift does not crash; it silently runs the whole game at 1/16 speed,
+// which is why the first version of it surfaced as three unrelated suites
+// failing under load and passing alone.
+//
+// Pausing is the dangerous moment, because it is exactly when a freeze is most
+// likely to be in flight, so that is what this reproduces.
+const clock = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const read = () => ({
+    time: gs.time.timeScale,
+    physics: gs.physics.world.timeScale,
+    anims: gs.anims.globalTimeScale,
+  });
+
+  gs.fx.hitstop(80);
+  const during = read();
+  // Pause INSIDE the freeze, wait past its duration, then resume.
+  gs.scene.pause();
+  await new Promise((r) => setTimeout(r, 400));
+  const whilePaused = read();
+  gs.scene.resume();
+  await new Promise((r) => setTimeout(r, 250));
+  const afterResume = read();
+
+  // And the ordinary path: a freeze that is simply allowed to expire.
+  gs.fx.hitstop(60);
+  await new Promise((r) => setTimeout(r, 400));
+  const afterExpiry = read();
+
+  return { during, whilePaused, afterResume, afterExpiry };
+});
+
 // ── Screenshot: the duel bar, mid-fight ───────────────────────────────────
 await page.evaluate(() => {
   const gs = window.game.scene.getScene('Game');
@@ -321,6 +357,18 @@ check(mid.retreated && wall.retreated && wall.inBounds,
   'a bomber jammed against a wall retreats AWAY, not into the player',
   `distance gained — mid-arena ${mid.gained}px, against a wall ${wall.gained}px;`
   + ` in bounds: ${wall.inBounds}`);
+
+const normal = (c) => c.time === 1 && c.physics === 1 && c.anims === 1;
+check(clock.during.time < 1,
+  'hitstop actually slows the clock',
+  `timeScale ${clock.during.time} — if this is 1 the checks below are vacuous`);
+check(normal(clock.afterExpiry),
+  'and lifts when it expires',
+  `time ${clock.afterExpiry.time}, physics ${clock.afterExpiry.physics}, anims ${clock.afterExpiry.anims}`);
+check(normal(clock.afterResume),
+  'a hitstop caught by a PAUSE does not leave the game in slow motion',
+  `time ${clock.afterResume.time}, physics ${clock.afterResume.physics},`
+  + ` anims ${clock.afterResume.anims} (anims is game-wide, so a stuck value slows menus too)`);
 
 check(pageErrors.length === 0, 'no exception across the run', pageErrors.join(' | '));
 
