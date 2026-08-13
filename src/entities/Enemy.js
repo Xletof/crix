@@ -7,6 +7,9 @@ import { stagger } from '../systems/actorMotion.js';
 const BOMBER_BURST_CD_MS = 2600;
 const BOMBER_BURST_DMG_MULT = 0.55;
 
+// How much of a knockback a PLANTED actor takes — see Enemy.damage.
+const PLANTED_KNOCKBACK = 0.12;
+
 // ── AI state constants ────────────────────────────────────────────────────────
 export const ST = {
   PATROL:     'patrol',     // walking assigned waypoints, unalerted
@@ -165,9 +168,18 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const wasPatrolling = this.state === ST.PATROL || this.state === ST.SUSPICIOUS;
     this.hp = Math.max(0, this.hp - amount);
     if (knockbackVec) {
+      // A PLANTED actor barely moves. Knockback is added to velocity and enemy
+      // bodies have no drag, so a single bullet during a wind-up used to send a
+      // nemesis coasting for the whole beat — it drifted out from under its own
+      // telegraph while the zone stayed where it was cast. That is the reported
+      // "enemy doesn't stop completely… the smash area lags behind".
+      //
+      // Not zero: the shove still reads, it just cannot relocate a mini-boss
+      // that has committed to standing still.
+      const kb = this._movePlanted ? PLANTED_KNOCKBACK : 1;
       this.body.setVelocity(
-        this.body.velocity.x + knockbackVec.x,
-        this.body.velocity.y + knockbackVec.y,
+        this.body.velocity.x + knockbackVec.x * kb,
+        this.body.velocity.y + knockbackVec.y * kb,
       );
       // Pause AI for a few frames so the slide is actually visible.
       // 90ms ≈ ~5 frames at 60fps, long enough for a satisfying shove.
@@ -775,7 +787,16 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // here would zero a charge every frame and turn it into a standing pose. A
     // move that wants the actor planted calls `setVelocity(0, 0)` in its own
     // anticipate beat — and now that call actually survives the frame.
-    if (this._performing) return;
+    if (this._performing) {
+      // ...EXCEPT when the move has explicitly planted the actor. `charge` and
+      // `leapArc` clear this flag for exactly as long as they are travelling,
+      // so a plant holds for every frame of a wind-up and a recovery without
+      // ever clobbering deliberate movement. One frame of setVelocity(0,0) in
+      // the move's own anticipate could not do that: bodies have no drag, so
+      // anything that touched the velocity afterwards persisted unopposed.
+      if (this._movePlanted) this.setVelocity(0, 0);
+      return;
+    }
 
     // ── Stuck-state recovery ────────────────────────────────────────────────
     // If we're in a movement state but physics keeps stopping us (wall/cover),
@@ -858,6 +879,27 @@ export class EnemyShooter extends Enemy {
     if (!this.alive) return;
     // Suspend AI while staggered so the knockback slide reads on screen.
     if (this._staggerMs > 0) return;
+
+    // ── THE GATE, AGAIN ─────────────────────────────────────────────────────
+    //
+    // `Enemy.preUpdate` already yields while `_performing`, and this override
+    // used to run `_tickSwarm` straight afterwards regardless — so the gate was
+    // dead for every archetype in the game. EVERY enemy descends from this
+    // class (grunt -> shooter, bomber -> grunt, shielded/sniper -> shooter,
+    // swarmling -> grunt), which means "one system drives the actor at a time"
+    // was implemented in the base class and silently defeated here.
+    //
+    // What that looked like in play: the swarm AI wrote a velocity toward the
+    // player on every frame of a scripted move, so a nemesis crept during its
+    // own wind-up (leaving its telegraph behind) and a dash was fighting the AI
+    // the whole way down its lane. It is also why re-asserting velocity every
+    // frame inside `charge` appeared to "fix drag" — there is no drag; there
+    // was an AI overwriting the dash.
+    if (this._performing) {
+      if (this._movePlanted) this.setVelocity(0, 0);
+      return;
+    }
+
     const player = this.scene.player;
     if (!player?.alive) { this.setVelocity(0, 0); return; }
 

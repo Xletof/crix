@@ -77,6 +77,10 @@ export function leapArc(scene, sprite, to, opts = {}) {
   // the sprite off the arc mid-flight.
   const hadBody = !!sprite.body;
   if (hadBody) { sprite.body.setVelocity(0, 0); sprite.body.enable = false; }
+  // Travelling, so the move-gate must not pin it. The body is disabled here
+  // anyway, but the flag has to agree or the gate zeroes a velocity the tween
+  // is not using and re-enables into a stale state.
+  sprite._movePlanted = false;
 
   return scene.tweens.add({
     targets: state,
@@ -102,9 +106,10 @@ export function leapArc(scene, sprite, to, opts = {}) {
       }
     },
     onComplete: () => {
-      if (hadBody && sprite.body) sprite.body.enable = true;
+      if (hadBody && sprite.body) { sprite.body.enable = true; sprite.body.setVelocity(0, 0); }
       if (shadow?.active) { shadow.setScale(1); shadow.setAlpha(0.45); }
       if (sprite.active) { sprite.x = to.x; sprite.y = to.y; }
+      sprite._movePlanted = true;       // landed: hold the spot it slammed
       opts.onLand?.();
     },
   });
@@ -119,23 +124,26 @@ export function leapArc(scene, sprite, to, opts = {}) {
 /**
  * A committed dash: constant speed, in a straight line, for `ms`.
  *
- * ── Why the drag is suspended ────────────────────────────────────────────
+ * ── Why the velocity is re-asserted every frame ──────────────────────────
  *
- * `Enemy` bodies carry `setDrag(900, 900)` so ordinary walking settles instead
- * of skating. This used to set velocity ONCE and let the body coast, which
- * means drag ate the dash almost immediately: at 900px/s against 900px/s² the
- * speed is gone inside a second, and a 520ms dash covered a fraction of its
- * length. The move looked exactly like "the telegraph drew and then nothing
- * happened" — the zone promised a lane and the body barely left its own feet.
+ * An earlier version of this comment blamed drag. That was wrong, and worth
+ * recording as wrong: enemy bodies have NO drag (they are constructed fresh per
+ * spawn and the constructor never calls `setDrag` — the only `setDrag(900,900)`
+ * in `Enemy` is in `die()`, for the corpse slide).
  *
- * The tests did report it, in a form that was easy to read past: `smoke-moves`
- * printed "charge: travelled 127px" where the numbers say 738, and I took the
- * check passing (it only asks that the actor MOVED) as the move working.
+ * The real thief was the swarm AI. `EnemyShooter.preUpdate` ran `_tickSwarm`
+ * regardless of `_performing`, and every archetype in the game descends from
+ * it, so the AI wrote a velocity toward the player on every frame of a scripted
+ * move — a dash spent its whole run being overwritten and covered a sixth of
+ * its lane. That gate is fixed in Enemy.js now, and re-asserting here is the
+ * belt to its braces: a dash that silently loses its speed is the failure this
+ * comment exists to stop recurring, and the AI is not the only thing that can
+ * write to a body.
  *
- * So the drag is suspended for the duration and restored afterwards, and the
- * velocity is re-asserted each frame — drag is not the only thing that can
- * write to a body mid-dash, and a dash that silently loses its speed is the
- * failure this whole comment exists to prevent recurring.
+ * `_movePlanted` is cleared for the duration so the move-gate's "hold still"
+ * does not fight the travel, and restored afterwards so the body stops dead on
+ * arrival instead of creeping through IMPACT and RECOVER — the creep is what
+ * made a world-anchored smash zone look like it lagged behind the caster.
  */
 export function charge(scene, sprite, angle, opts = {}) {
   if (!sprite?.active || !sprite.body) return null;
@@ -144,9 +152,7 @@ export function charge(scene, sprite, angle, opts = {}) {
   const vx = Math.cos(angle) * speed;
   const vy = Math.sin(angle) * speed;
 
-  const dragX = sprite.body.drag?.x ?? 0;
-  const dragY = sprite.body.drag?.y ?? 0;
-  sprite.body.setDrag(0, 0);
+  sprite._movePlanted = false;          // this beat travels
   sprite.body.setVelocity(vx, vy);
   sprite._chargingMs = ms;
 
@@ -161,9 +167,11 @@ export function charge(scene, sprite, angle, opts = {}) {
   const stop = () => {
     hold.remove(false);
     if (!sprite.active) return;
-    sprite.body?.setDrag(dragX, dragY);
     sprite.body?.setVelocity(0, 0);
     sprite._chargingMs = 0;
+    // Re-plant unconditionally: the move is still performing, and everything
+    // after a dash (impact, recovery) wants the body stationary.
+    sprite._movePlanted = true;
   };
 
   const timer = scene.time.delayedCall(ms, () => {

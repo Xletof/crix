@@ -70,6 +70,7 @@ export function runMove(scene, actor, script) {
     }
     if (actor._activeMove === handle) {
       actor._performing = false;
+      actor._movePlanted = false;
       actor._moveAnim = null;        // never strand an attack pose on the body
     }
     script.onCancel?.(scene, actor, handle);
@@ -91,6 +92,14 @@ export function runMove(scene, actor, script) {
   // The AI reads this and yields. It is cleared on `done` and on `cancel`, and
   // `die()` must never leave it set — hence the guard in the cancel path above.
   actor._performing = true;
+  // Planted by default. Almost every beat of almost every move wants the body
+  // rooted — winding up, channelling, recovering — and the two primitives that
+  // DO travel (`charge`, `leapArc`) clear the flag for exactly as long as they
+  // are moving. Defaulting the other way meant every move had to remember to
+  // plant itself, and a single setVelocity(0,0) in `anticipate` could not hold
+  // anyway: bodies have no drag, so one bullet's knockback coasted for the
+  // whole beat and carried the actor out of its own telegraph.
+  actor._movePlanted = true;
 
   const anticipateMs = script.anticipateMs ?? 700;
   const actMs = script.actMs ?? 500;
@@ -113,6 +122,7 @@ export function runMove(scene, actor, script) {
         handle.phase = 'done';
         if (actor._activeMove === handle) actor._activeMove = null;
         actor._performing = false;
+        actor._movePlanted = false;
         actor._moveAnim = null;
         actor._punishMult = 1;
       });
