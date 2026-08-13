@@ -80,7 +80,8 @@ const r = await page.evaluate(async () => {
   // generic five (burst / shake / explosion / groundFractures / slashSwipe) are
   // deliberately excluded: having only those is the state being fixed.
   const BESPOKE = ['chargeWake', 'blinkOut', 'crossCut', 'crushRing',
-    'whirlArms', 'summonRune', 'riteShatter', 'inhale', 'burstDir'];
+    'whirlArms', 'summonRune', 'riteShatter', 'inhale', 'burstDir',
+    'mortarFall', 'mineArm', 'slamShockwave'];
 
   const calls = [];
   const wrapped = new Set();

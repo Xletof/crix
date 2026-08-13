@@ -52,7 +52,8 @@ await page.waitForFunction(() => !!window.game?.scene?.getScene('Game')?.player,
 await page.waitForTimeout(1500);
 
 const r = await page.evaluate(async () => {
-  const { NEMESIS_MOVES, pickMoves, moveById } = await import('/src/data/nemesisMoves.js');
+  const { NEMESIS_MOVES, pickMoves, moveById, RITE_BREAK_DAMAGE } =
+    await import('/src/data/nemesisMoves.js');
   const { runMove } = await import('/src/systems/MoveScript.js');
   const { DASH_REACH, Telegraph } = await import('/src/systems/Telegraph.js');
   const { rollNemesis } = await import('/src/data/nemesis.js');
@@ -196,10 +197,18 @@ const r = await page.evaluate(async () => {
     gs.events.on('postupdate', onFrame);
     gs.player.alive = true;
     e._activeMove = null;
+    // The break bar is a FLAT damage number, not a fraction of max hp (a
+    // fraction meant a big nemesis was interrupted by holding the trigger, so
+    // the move never resolved). Give the caster enough hp that the break
+    // damage cannot kill it and confuse "interrupted" with "dead", then hit it
+    // with the real threshold — imported, so this test cannot drift from the
+    // number the game uses.
+    e.hpMax = 20000;
+    e.hp = 20000;
     gs._castNemesisMove(e, 'rite');
     // Break the channel partway through by dealing real damage.
     await new Promise((res) => setTimeout(res, m.anticipateMs + m.actMs * 0.4));
-    e.damage(e.hpMax * 0.12);
+    e.damage(RITE_BREAK_DAMAGE + 200);
     await new Promise((res) => setTimeout(res, m.actMs + 500));
     gs.events.off('postupdate', onFrame);
     brokenStagger = Math.round(brokenStagger);
@@ -214,9 +223,36 @@ const r = await page.evaluate(async () => {
     await new Promise((res) => setTimeout(res, m.anticipateMs + m.actMs + 500));
     const afterClean = gs.enemies.getChildren().filter((x) => x.alive).length;
 
+    // ── The invariant that matters: the bar does not move with max hp ──
+    //
+    // The old check was `damage > hpMax * 0.06`, which scales the wrong way —
+    // the tougher the nemesis, the more the interrupt demanded, so the move
+    // stopped being answerable on exactly the enemies it mattered against.
+    // Same damage, two very different hp pools, must give the same verdict.
+    // This is the part that fails on the pre-change build: at hpMax 80,000 the
+    // old bar was 4,800 and 1,700 damage did nothing.
+    const breakAt = async (hpMax) => {
+      gs.enemies.getChildren().slice().filter((x) => x !== e)
+        .forEach((x) => gs._destroyEnemyFully(x));
+      await new Promise((res) => setTimeout(res, 200));
+      const n0 = gs.enemies.getChildren().filter((x) => x.alive).length;
+      e.hpMax = hpMax;
+      e.hp = hpMax;
+      e._activeMove = null;
+      gs._castNemesisMove(e, 'rite');
+      await new Promise((res) => setTimeout(res, m.anticipateMs + m.actMs * 0.4));
+      e.damage(RITE_BREAK_DAMAGE + 200);
+      await new Promise((res) => setTimeout(res, m.actMs + 500));
+      const n1 = gs.enemies.getChildren().filter((x) => x.alive).length;
+      return { hpMax, before: n0, after: n1, summoned: n1 > n0 };
+    };
+    const small = await breakAt(20000);
+    const large = await breakAt(80000);
+
     out.rite = {
       interrupted: { before, after: afterBroken, stagger: brokenStagger },
       clean: { before: before2, after: afterClean },
+      scale: { small, large },
     };
     gs._destroyEnemyFully(e);
   }
@@ -291,6 +327,10 @@ check(r.rite.interrupted.stagger > 800,
 check(r.rite.clean.after > r.rite.clean.before,
   'while an uninterrupted rite really does bring friends',
   `${r.rite.clean.before} -> ${r.rite.clean.after}`);
+check(!r.rite.scale.small.summoned && !r.rite.scale.large.summoned,
+  'the same damage breaks the rite whatever the nemesis is made of',
+  `${r.rite.scale.small.hpMax}hp: ${r.rite.scale.small.summoned ? 'summoned' : 'broken'}`
+  + ` · ${r.rite.scale.large.hpMax}hp: ${r.rite.scale.large.summoned ? 'summoned' : 'broken'}`);
 
 // ── The dodge contract ───────────────────────────────────────────────────
 const unfair = r.fairness.filter((f) => f.worst > r.reach);

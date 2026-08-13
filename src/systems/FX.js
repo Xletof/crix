@@ -2694,6 +2694,102 @@ export function attachFX(scene) {
     },
 
     /**
+     * MORTAR VOLLEY — the shell coming down.
+     *
+     * The zone on the floor says WHERE; this says HOW LONG, which a circle
+     * cannot. A shell falls out of the top of the screen into the marked spot,
+     * with its shadow growing underneath as it closes — so the player reads the
+     * timing off the object rather than off a fill sweeping a decal.
+     *
+     * `durationMs` should match the telegraph's windup or the two disagree, and
+     * the one that lies is the one the player is watching.
+     */
+    mortarFall(x, y, durationMs = 700, color = 0xff5030) {
+      if (lowQuality) return;
+      const fallFrom = 260;
+      const shadow = scene.add.graphics().setDepth(11);
+      shadow.fillStyle(0x05060a, 0.45);
+      shadow.fillCircle(0, 0, 26);
+      shadow.setPosition(x, y).setScale(0.25);
+      scene.tweens.add({
+        targets: shadow, scale: 1, duration: durationMs, ease: 'Quad.easeIn',
+        onComplete: () => shadow.destroy(),
+      });
+
+      // DEPTH.AIR: it is genuinely flying over the room, so it must clear the
+      // wall/cover band rather than sit under it.
+      const shell = scene.add.graphics().setDepth(DEPTH.AIR + 10);
+      shell.fillStyle(color, 1);
+      shell.fillCircle(0, 0, 9);
+      shell.fillStyle(0xffffff, 0.75);
+      shell.fillCircle(-2, -3, 4);
+      // Fins, so it reads as ordnance rather than as a falling dot.
+      shell.fillStyle(color, 0.8);
+      shell.fillTriangle(-9, -2, -14, -12, -4, -8);
+      shell.fillTriangle(9, -2, 14, -12, 4, -8);
+      shell.setPosition(x, y - fallFrom);
+      scene.tweens.add({
+        targets: shell, y, duration: durationMs, ease: 'Quad.easeIn',
+        onComplete: () => shell.destroy(),
+      });
+      // Smoke off the tail on the way down.
+      const puff = scene.time.addEvent({
+        delay: 70, loop: true,
+        callback: () => { if (shell.active) this.smokeTrail?.(shell.x, shell.y); },
+      });
+      scene.time.delayedCall(durationMs, () => puff.remove(false));
+    },
+
+    /**
+     * MINEFIELD — a mine arming, then tripping.
+     *
+     * Two states the player must tell apart at a glance, because the whole move
+     * is about which parts of the floor have become unavailable. Arming pips
+     * blink faster as they close; a live mine holds a steady pulse.
+     */
+    mineArm(x, y, armMs = 900, color = 0xff5030) {
+      if (lowQuality) return;
+      const g = scene.add.graphics().setDepth(13);
+      const draw = (t, live) => {
+        g.clear();
+        // Casing.
+        g.fillStyle(0x14161e, 0.95);
+        g.fillCircle(0, 0, 13);
+        g.lineStyle(2, color, live ? 0.95 : 0.5 + 0.45 * t);
+        g.strokeCircle(0, 0, 13);
+        // Three prongs.
+        for (let i = 0; i < 3; i++) {
+          const a = -Math.PI / 2 + (i / 3) * Math.PI * 2;
+          g.lineStyle(2, color, 0.8);
+          g.beginPath();
+          g.moveTo(Math.cos(a) * 11, Math.sin(a) * 11);
+          g.lineTo(Math.cos(a) * 20, Math.sin(a) * 20);
+          g.strokePath();
+        }
+        // The lamp: blinking while arming, steady once live.
+        const on = live
+          ? 0.55 + 0.45 * Math.sin(scene.time.now * 0.012)
+          : (Math.sin(t * t * 60) > 0 ? 1 : 0.15);
+        g.fillStyle(0xffffff, on);
+        g.fillCircle(0, 0, 4);
+      };
+      g.setPosition(x, y);
+      const start = scene.time.now;
+      const ev = scene.time.addEvent({
+        delay: 40, loop: true,
+        callback: () => {
+          if (!g.active) { ev.remove(false); return; }
+          const age = scene.time.now - start;
+          draw(Math.min(1, age / armMs), age >= armMs);
+        },
+      });
+      draw(0, false);
+      // Handed back so the move can kill it exactly when the mine resolves —
+      // a mine sprite outliving its own detonation is a lie about the floor.
+      return { gfx: g, stop: () => { ev.remove(false); g.destroy(); } };
+    },
+
+    /**
      * SPIRAL — the spin-up, and the arms as they leave.
      *
      * This move had NO effects at all: it span and bullets appeared. The rings

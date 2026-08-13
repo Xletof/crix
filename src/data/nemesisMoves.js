@@ -45,8 +45,9 @@ import { SFX } from '../systems/FX.js';
 const WINDUP = 800;
 
 // Damage that must land inside RITE's channel to break it. Flat, not a
-// fraction of the caster's hp — see the interrupt check in `rite`.
-const RITE_BREAK_DAMAGE = 1500;
+// fraction of the caster's hp — see the interrupt check in `rite`. Exported so
+// the test and the design share one number, as with FAIRNESS_REACH below.
+export const RITE_BREAK_DAMAGE = 1500;
 
 // ── Colour ────────────────────────────────────────────────────────────────
 //
@@ -436,11 +437,13 @@ export const NEMESIS_MOVES = [
           // Interrupt check, on the caster's own hp.
           // A FLAT damage bar, not a fraction of max hp.
           //
-          // It used to be 6% of hpMax. On a 20,000-hp nemesis that is 1,200
-          // damage inside a 1.8s channel — met by holding the trigger, so the
-          // one move in the game whose correct answer is offence resolved
-          // essentially never, and the player never learned it was a choice.
-          // A flat bar asks the same real commitment of every nemesis.
+          // It used to be `> hpMax * 0.06`, which scales the WRONG way: the
+          // tougher the nemesis, the more damage the interrupt demanded. 1,200
+          // on a 20,000-hp body inside a 1.8s channel, 2,760 on a 46,000-hp
+          // one — so the single move whose correct answer is offence quietly
+          // stopped being answerable on exactly the enemies it mattered
+          // against, and the skill it taught did not transfer between fights.
+          // Flat asks the same real commitment of every nemesis.
           if (h.hpAtStart - e.hp > RITE_BREAK_DAMAGE) {
             h.broken = true;
             h.channel?.remove(false);
@@ -562,6 +565,7 @@ export const NEMESIS_MOVES = [
         if (p?.alive && Math.hypot(p.x - spot.x, p.y - spot.y) <= this.radius) {
           p.damage(this.smashDamage, Math.atan2(p.y - spot.y, p.x - spot.x));
         }
+        e.setMovePose?.('recoil');
         stagger(scene, e, this.recoverMs - this.smashWindupMs, 2.0);
       });
     },
@@ -585,7 +589,12 @@ export const NEMESIS_MOVES = [
     traits: ['swift', 'armored', 'volatile'],
     everyMs: 9500,
     anticipateMs: 700,
-    actMs: 1560,
+    // Three links at ~500ms each, plus headroom. Timers resolve coarsely on a
+    // slow frame, and an actMs that only just fits meant the third dash STARTED
+    // after the recover beat had already run — the combo finished in a wind-up
+    // pose because a link outlived the move that owned it. `h.over` is the
+    // actual guard; this is just enough room that it rarely has to fire.
+    actMs: 1900,
     recoverMs: 950,
     dashes: 3,
     speed: 980,
@@ -611,6 +620,7 @@ export const NEMESIS_MOVES = [
     // is the decal-with-no-body failure this whole file exists to avoid.
     act(scene, e, h) {
       const step = (n) => {
+        if (h.over) return;   // the move has left ACT; nothing more may start
         if (n >= this.dashes || !e.active || !e.alive || !scene.player?.alive) return;
         const p = scene.player;
         const angle = Math.atan2(p.y - e.y, p.x - e.x);
@@ -631,8 +641,14 @@ export const NEMESIS_MOVES = [
             speed: this.speed, ms: this.dashMs,
             onEnd: () => {
               e._charging = false;
-              e.setMovePose?.('raise');
-              step(n + 1);
+              // Only reset to the ready pose if another dash follows. The last
+              // link's onEnd lands AFTER the recover beat, so setting it
+              // unconditionally overwrote the recoil pose with a wind-up —
+              // the body finished the combo looking like it was starting one.
+              if (n + 1 < this.dashes) {
+                e.setMovePose?.('raise');
+                step(n + 1);
+              }
             },
           });
         });
@@ -641,12 +657,17 @@ export const NEMESIS_MOVES = [
     },
 
     impact(scene, e, h) {
+      h.over = true;
+      h.timer?.remove(false);
       e._charging = false;
       h.links.forEach((t) => t?.destroy?.());
       h.links.length = 0;
     },
 
-    recover(scene, e) { stagger(scene, e, this.recoverMs, 1.8); },
+    recover(scene, e) {
+      e.setMovePose?.('recoil');
+      stagger(scene, e, this.recoverMs, 1.8);
+    },
 
     onChargeTouch(scene, e) {
       scene.player.damage(this.damage,
@@ -654,8 +675,10 @@ export const NEMESIS_MOVES = [
     },
 
     onCancel(scene, e, h) {
+      if (h) h.over = true;
       h?.timer?.remove(false);
       h?.links?.forEach((t) => t?.destroy?.());
+      e.setMovePose?.(null);
     },
   },
 
@@ -710,6 +733,9 @@ export const NEMESIS_MOVES = [
             { windupMs: this.shellWindupMs, owner: e, color: h.tint, anchor: 'world' },
           );
           h.shells.push(tel);
+          // The shell itself, falling for exactly as long as the zone winds up.
+          // If these two disagree the player is watching the one that lies.
+          scene.fx?.mortarFall?.(spot.x, spot.y, this.shellWindupMs, h.tint);
           scene.time.delayedCall(this.shellWindupMs, () => {
             if (!scene.scene?.isActive?.()) return;
             scene.fx?.explosion?.(spot.x, spot.y, 1.3);
@@ -726,7 +752,10 @@ export const NEMESIS_MOVES = [
     },
 
     impact(scene, e, h) { h.timer?.remove(false); },
-    recover(scene, e) { stagger(scene, e, this.recoverMs, 1.6); },
+    recover(scene, e) {
+      e.setMovePose?.('recoil');
+      stagger(scene, e, this.recoverMs, 1.6);
+    },
     onCancel(scene, e, h) {
       h?.timer?.remove(false);
       h?.shells?.forEach((t) => t?.destroy?.());
@@ -777,11 +806,15 @@ export const NEMESIS_MOVES = [
             { windupMs: this.armMs, owner: e, color: h.tint, anchor: 'world' },
           );
           h.mines.push(tel);
+          const dev = scene.fx?.mineArm?.(mx, my, this.armMs, h.tint);
+          h.devices = h.devices || [];
+          if (dev) h.devices.push(dev);
           let blown = false;
           const blow = () => {
             if (blown) return;
             blown = true;
             poll?.remove(false);
+            dev?.stop?.();
             tel?.destroy?.();
             const i = h.mines.indexOf(tel);
             if (i >= 0) h.mines.splice(i, 1);
@@ -818,10 +851,14 @@ export const NEMESIS_MOVES = [
     },
 
     impact(scene, e, h) { h.timer?.remove(false); },
-    recover(scene, e) { stagger(scene, e, this.recoverMs, 1.5); },
+    recover(scene, e) {
+      e.setMovePose?.('recoil');
+      stagger(scene, e, this.recoverMs, 1.5);
+    },
     onCancel(scene, e, h) {
       h?.timer?.remove(false);
       h?.polls?.forEach((p) => p?.remove(false));
+      h?.devices?.forEach((d) => d?.stop?.());
       h?.mines?.forEach((t) => t?.destroy?.());
     },
   },
@@ -870,7 +907,10 @@ export const NEMESIS_MOVES = [
     },
 
     // The heaviest commitment in the game, so the heaviest punish.
-    recover(scene, e) { stagger(scene, e, this.recoverMs, 2.2); },
+    recover(scene, e) {
+      e.setMovePose?.('recoil');
+      stagger(scene, e, this.recoverMs, 2.2);
+    },
   },
 ];
 
