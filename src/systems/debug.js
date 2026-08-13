@@ -31,3 +31,42 @@ let dialogueMuted = false;
 
 export function isDialogueMuted() { return dialogueMuted; }
 export function setDialogueMuted(v) { dialogueMuted = !!v; }
+
+// ── Straight into a fight ──────────────────────────────────────────────────
+//
+// The first nemesis a run can meet is at SECTOR 3 — mini-bosses come only from
+// the `detention` arena — so checking a change to one meant playing two rooms
+// first, every time, on a phone. That is minutes per look at an 800ms
+// telegraph, and it is the reason a broken dash survived a whole pass: nobody
+// was going to replay to sector 3 to watch the same move again.
+//
+// `?duel=` drops you into the fight on load. It is a URL rather than a menu so
+// it can be bookmarked on the handset and re-opened with one tap, and so a
+// specific fight can be sent to someone else exactly as it was seen.
+//
+//   ?duel=1                       a random nemesis, right now
+//   ?duel=bomber                  that base
+//   ?duel=grunt:armored,colossal  that base with those traits
+//   &move=slidesmash              it casts ONLY this move, on a 2s clock
+//   &sector=12                     scale it as if the run were that deep
+//
+// Combine freely: ?duel=grunt:armored&move=slidesmash&sector=12
+let duelRequest = null;
+
+export function getDuelRequest() { return duelRequest; }
+export function setDuelRequest(v) { duelRequest = v; }
+
+/** Parse the `duel`/`move`/`sector` params into a request, or null. */
+export function parseDuelParams(params) {
+  const raw = params.get('duel');
+  if (!raw) return null;
+  const [base, traitList] = raw.split(':');
+  const traits = traitList ? traitList.split(',').filter(Boolean) : null;
+  const sector = parseInt(params.get('sector') || '', 10);
+  return {
+    base: base && base !== '1' ? base : null,
+    traits,
+    move: params.get('move') || null,
+    sector: Number.isFinite(sector) ? sector : null,
+  };
+}

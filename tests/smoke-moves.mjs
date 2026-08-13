@@ -150,6 +150,8 @@ const r = await page.evaluate(async () => {
       punishMult: Number(peak.mult.toFixed(2)),
       alive: e.alive,
       dashPx: m.dashPx ?? null,
+      laneLen: m.laneLen ?? null,
+      dashLinks: m.dashLinks ?? 1,
     });
     gs._destroyEnemyFully(e);
     await new Promise((res) => setTimeout(res, 150));
@@ -315,6 +317,21 @@ for (const m of r.motion) {
 const dashers = r.motion.filter((m) => m.dashPx);
 check(dashers.length >= 3, 'there are dash moves to hold to their distance',
   `${dashers.length} moves declare dashPx`);
+// A dash must also not outrun the lane it drew. The telegraph is a promise
+// about which floor is dangerous, so a body that travels further than its own
+// zone hits players who correctly stepped past the end of it. Caught by looking
+// at a screenshot: SLIDE & SMASH covered 713px behind a 520px lane and left the
+// screen entirely on a 720px-wide phone.
+// Per LINK, not per cast: a combo's dashPx is the total across its links while
+// laneLen is the lane each link draws.
+const overrun = r.motion.filter((m) =>
+  m.dashPx && m.laneLen && (m.dashPx / (m.dashLinks || 1)) > m.laneLen);
+check(overrun.length === 0,
+  'a dash never travels further than the lane it drew',
+  overrun.length
+    ? overrun.map((m) => `${m.id} dashes ${Math.round(m.dashPx / (m.dashLinks || 1))} per link behind a ${m.laneLen}px lane`).join(', ')
+    : 'every dash stops inside its own telegraph');
+
 const short = dashers.filter((m) => m.moved < m.dashPx * 0.55);
 check(short.length === 0,
   'a dash covers the ground its lane promised',

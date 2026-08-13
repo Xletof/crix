@@ -613,6 +613,38 @@ not stubs. First cast is 2s in, and cadence tightens per phase.
 | MINEFIELD | bomber | Changes the *shape* of the arena rather than threatening one patch |
 | CHAIN DETONATION | bomber | r=220 against a 228px dash. Escapable, barely — baited, not reacted to |
 
+### Testing a nemesis without playing to sector 3
+
+The first nemesis a run can meet is at **sector 3** — mini-bosses come only from
+the `detention` arena (`ARENA.detention` is the one wave list with
+`miniBoss: true`). Checking one change therefore meant playing two rooms first,
+every time, on a phone. That is why a dash covering a sixth of its lane survived
+a whole pass: nobody replays to sector 3 to watch the same 800ms telegraph again.
+
+`?duel=` drops straight into the fight on load. URL rather than a menu so it can
+be bookmarked on the handset and re-opened with one tap, and so a specific fight
+can be handed to someone else exactly as it was seen.
+
+```
+?duel=1                          a random nemesis, right now
+?duel=bomber                     that base
+?duel=grunt:armored,colossal     that base with those traits
+&move=slidesmash                 it casts ONLY that move, on a 2s clock
+&sector=12                       scale it as if the run were that deep
+&nodlg=1                         skip the dialogue cards
+```
+
+Combine freely: `?duel=grunt:armored&move=slidesmash&sector=12&nodlg=1`
+
+It skips the title, places the nemesis **on screen** rather than at the farthest
+gate (`_spawnMiniBoss` puts it there so it can make an entrance, which is right
+in play and useless for a debug link), and polls for a live player rather than
+guessing a delay — the first version fired against a half-built scene, returned
+at its own guard, and did nothing at all silently.
+
+The debug panel (Pause → DEBUG) still has the trait loadouts and FORCE MOVE for
+when you are already in a run.
+
 ### Traps this pass left behind
 
 - **A chained move can outlive the move that owns it.** Timers resolve coarsely
@@ -625,6 +657,16 @@ not stubs. First cast is 2s in, and cadence tightens per phase.
 - **A second zone in the same move must be `anchor: 'world'`** if it marks a
   place rather than a body — otherwise it drifts with the caster's recoil and
   stops being a promise.
+- **A dash must not outrun the lane it drew.** The telegraph is a promise about
+  which floor is dangerous; a body travelling past its own zone hits players who
+  correctly stepped clear. `dashPx` on the move records the intended travel and
+  `smoke-moves` asserts both that the dash covers it and that it does not exceed
+  `laneLen`. For a combo, `dashPx` is the TOTAL and `dashLinks` says how many
+  links to divide it by.
+- **`charge()` suspends the body's drag.** Enemy bodies carry `setDrag(900,900)`;
+  setting velocity once and coasting meant every dash in the game decayed almost
+  immediately. Restore drag on cancel as well as on completion, or a cancelled
+  charger stays frictionless for life.
 - **RITE's interrupt is a flat damage bar** (`RITE_BREAK_DAMAGE`), not a
   fraction of max hp. The old `> hpMax * 0.06` scaled the wrong way: the tougher
   the nemesis, the more the interrupt demanded, so the one move whose correct

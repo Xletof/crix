@@ -101,13 +101,19 @@ export const NEMESIS_MOVES = [
     traits: ['armored', 'colossal', 'swift'],
     everyMs: 8000,
     anticipateMs: WINDUP,
-    actMs: 900,
+    // 750ms, not 900: the dash must not outrun its own telegraph. See dashPx.
+    actMs: 750,
     recoverMs: 1100,
     speed: 820,
     // How far the dash is MEANT to carry, so a test can hold the move to it.
-    // "Did the actor move at all" is what let a drag bug ship: every dash was
-    // covering a fraction of its lane and the check still went green.
-    dashPx: 738,          // 820px/s x 0.9s
+    //
+    // Two separate failures live here. "Did the actor move at all" is what let
+    // a drag bug ship — every dash covered a sixth of its lane and the check
+    // still went green. And this number must stay <= laneLen, because the lane
+    // is drawn as a promise about which floor is dangerous: a dash that travels
+    // further than its telegraph hits people who correctly stepped past the end
+    // of it. Both are now asserted in smoke-moves.
+    dashPx: 615,          // 820px/s x 0.75s, inside the 620px lane
     damage: 170,
     laneWidth: 150,      // worst-case escape is half of this: 75px, well inside a dash
     laneLen: 620,
@@ -522,10 +528,10 @@ export const NEMESIS_MOVES = [
     traits: ['armored', 'colossal', 'swift'],
     everyMs: 8000,
     anticipateMs: 750,
-    actMs: 620,
+    actMs: 450,
     recoverMs: 1050,
-    speed: 1150,
-    dashPx: 713,           // 1150px/s x 0.62s
+    speed: 1150,           // fast and heavy, but bounded by the lane it drew
+    dashPx: 518,           // 1150px/s x 0.45s, inside the 520px lane
     laneWidth: 140,        // worst escape 70px, well inside a 228px dash
     laneLen: 520,
     radius: 170,           // the smash, worst escape 170px
@@ -659,6 +665,11 @@ export const NEMESIS_MOVES = [
     dashes: 3,
     speed: 980,
     dashPx: 706,          // 3 links x 980px/s x 0.24s
+    // Chained: dashPx is the TOTAL, so a per-link comparison against laneLen
+    // needs to know how many links it is spread over. Without this the lane
+    // check reads a 706px total against a 380px per-link lane and calls a
+    // correct move an overrun.
+    dashLinks: 3,
     dashMs: 240,
     linkWindupMs: 260,
     laneWidth: 140,

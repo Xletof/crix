@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { rankFor } from '../data/ranks.js';
 import { VIEW, FONTS } from '../config.js';
+import { getDuelRequest } from '../systems/debug.js';
 import { SFX } from '../systems/FX.js';
 
 export class TitleScene extends Phaser.Scene {
@@ -9,6 +10,14 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create() {
+    // `?duel=` skips the title entirely. The point of that flag is to remove
+    // every step between opening a link and looking at the fight, and a menu
+    // you have to tap through is one of the steps.
+    if (getDuelRequest()) {
+      this.scene.start('Game', { mode: 'endless' });
+      return;
+    }
+
     this.cameras.main.setBackgroundColor('#06060c');
     const cx = VIEW.width / 2;
 

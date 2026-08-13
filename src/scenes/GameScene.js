@@ -20,7 +20,7 @@ import {
   nemesisFromEntry, promoteSuccessor, displayName, grudgeLine,
 } from '../data/nemesisLedger.js';
 import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.js';
-import { isDialogueMuted } from '../systems/debug.js';
+import { isDialogueMuted, getDuelRequest, setDuelRequest } from '../systems/debug.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { moveById } from '../data/nemesisMoves.js';
 
@@ -333,6 +333,10 @@ export class GameScene extends Phaser.Scene {
     // ── Start the run ──────────────────────────────────────────────────────
     this.cameras.main.fadeIn(300, 0, 0, 0);
     this.time.delayedCall(200, () => this.loadRoom(ROOMS[0]));
+    // `?duel=` — drop straight into a nemesis fight. Armed here rather than in
+    // loadRoom so it polls for a live player instead of racing the room load;
+    // see _armDebugDuel and systems/debug.js.
+    this._armDebugDuel();
 
     // ── Cleanup on shutdown ────────────────────────────────────────────────
     this.events.once('shutdown', () => {
@@ -4548,6 +4552,98 @@ export class GameScene extends Phaser.Scene {
     // rather than as a banner followed by the same pause as before.
     e._moveT = Math.min(e._moveT, 900);
     this.events.emit('nemesis-phase', e, want);
+  }
+
+  /**
+   * `?duel=` — drop straight into a nemesis fight on load.
+   *
+   * The first nemesis a run can reach is at sector 3, so looking at one used to
+   * cost two rooms of play every time, on a phone. That is why a dash that
+   * covered a sixth of its lane survived a whole pass unnoticed: nobody replays
+   * to sector 3 to watch the same 800ms telegraph again.
+   *
+   * `move` pins the nemesis to a single move on a short clock, which is the
+   * difference between checking one attack and waiting out a 7-10s cycle
+   * hoping the one you changed comes up.
+   */
+  /**
+   * Wait for the run to actually be running, THEN start the debug duel.
+   *
+   * The first version hooked `loadRoom` and fired 900ms later. That consumed
+   * the request against a scene whose player was not alive yet, so it returned
+   * at the guard and the flag was gone — the link simply did nothing, silently,
+   * which is the worst possible behaviour for a debug affordance. Poll for
+   * readiness instead of guessing a delay.
+   */
+  _armDebugDuel() {
+    const req = getDuelRequest();
+    if (!req) return;
+    setDuelRequest(null);            // consume once, whatever happens next
+    let tries = 0;
+    const attempt = () => {
+      if (!this.scene.isActive()) return;
+      if (this.player?.alive && this.roomSpec) { this._debugDuel(req); return; }
+      if (++tries > 40) return;      // ~12s, then give up rather than spin
+      this.time.delayedCall(300, attempt);
+    };
+    this.time.delayedCall(300, attempt);
+  }
+
+  _debugDuel(req) {
+    if (!this.player?.alive) return;
+    if (req.sector) {
+      this.sector = req.sector;
+      this._applySectorScaling?.(this.roomSpec);
+      this.events.emit('sector-changed', this.sector);
+    }
+
+    const nem = rollNemesis(this.sector || 3, {
+      rng: this.rng.nemesis,
+      ...(req.base ? { base: req.base } : {}),
+      ...(req.traits ? { traits: req.traits } : {}),
+    });
+
+    this._duelActive = true;
+    this.enemies.getChildren()
+      .filter((e) => e.alive && !e._miniBoss)
+      .forEach((e) => this._destroyEnemyFully(e));
+    this._waveSpawned = 999;
+    this._wavePhase = 'clearing';
+    setMusicPhase('miniboss');
+    SFX.bossRoar?.();
+
+    const e = this._spawnMiniBoss(nem);
+    if (!e) return;
+
+    // Put it ON SCREEN. `_spawnMiniBoss` places a nemesis at the gate FARTHEST
+    // from the player so it makes an entrance, which in play is right — it
+    // walks to you. For a debug link it means opening the URL and looking at an
+    // empty room with a chevron at the edge, so the first thing the tool does
+    // is fail at its one job. Placed below the player because the camera shows
+    // more room that way in portrait.
+    const b = this.physics.world.bounds;
+    e.setPosition(
+      Phaser.Math.Clamp(this.player.x, 120, b.width - 120),
+      Phaser.Math.Clamp(this.player.y - 360, 120, b.height - 120),
+    );
+    e.body?.setVelocity(0, 0);
+    this.events.emit('duel-start', e);
+
+    if (req.move) {
+      // Pin it. `_moveIds` is what the cast clock cycles, so a single-entry
+      // list means every cast is the move under test — no registry lookup and
+      // no special case in the caster.
+      if (moveById(req.move)) {
+        e._moveIds = [req.move];
+        e._moveIdx = -1;
+        e._moveEvery = 2000;
+        e._moveT = 1200;
+        this.events.emit('show-banner', moveById(req.move).name, nem.tint);
+      } else {
+        this.events.emit('show-banner', `NO MOVE "${req.move}"`, '#ff4040');
+      }
+    }
+    return e;
   }
 
   /**
