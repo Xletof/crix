@@ -22,6 +22,7 @@
 // on a phone it reads as the game stuttering.
 
 import Phaser from 'phaser';
+import { isHitstopMuted } from './debug.js';
 
 // Hitstop is clamped hard. Past ~90ms it stops reading as impact and starts
 // reading as a hitch, and on a 60fps handset 70ms is already four frames.
@@ -68,6 +69,7 @@ export function attachJuice(scene, fx) {
   fx.cancelHitstop = endHitstop;
 
   fx.hitstop = (ms = 50, scale = 0.06) => {
+    if (isHitstopMuted()) return;
     if (!scene.scene?.isActive?.()) return;
     // ── ONE SYSTEM DRIVES THE CLOCK AT A TIME ──────────────────────────────
     //

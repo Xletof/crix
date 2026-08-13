@@ -10,7 +10,7 @@
 
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 
-const URL = process.env.FRIX_URL || 'http://localhost:5173/?nodlg=1';
+const URL = process.env.FRIX_URL || 'http://localhost:5173/?nodlg=1&nofreeze=1';
 const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const OUT = process.env.SHOT_DIR || '/tmp/frix-shots';
 

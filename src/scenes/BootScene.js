@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { setDialogueMuted, setDuelRequest, parseDuelParams } from '../systems/debug.js';
+import { setDialogueMuted, setDuelRequest, parseDuelParams, setHitstopMuted } from '../systems/debug.js';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -14,6 +14,8 @@ export class BootScene extends Phaser.Scene {
     // note in systems/debug.js.
     const params = new URLSearchParams(globalThis.location?.search || '');
     if (params.has('nodlg')) setDialogueMuted(true);
+    // `?nofreeze=1` mutes hitstop. Harnesses only — see systems/debug.js.
+    if (params.has('nofreeze')) setHitstopMuted(true);
     // `?duel=` drops straight into a nemesis fight — see systems/debug.js for
     // the grammar. Parsed here so the request survives the Preload/Title hop.
     setDuelRequest(parseDuelParams(params));

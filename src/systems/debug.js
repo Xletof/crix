@@ -32,6 +32,27 @@ let dialogueMuted = false;
 export function isDialogueMuted() { return dialogueMuted; }
 export function setDialogueMuted(v) { dialogueMuted = !!v; }
 
+// ── Hitstop mute ───────────────────────────────────────────────────────────
+//
+// Hitstop deliberately freezes `time.timeScale`, `physics.world.timeScale` and
+// the game-wide `anims.globalTimeScale` for 45-80ms on a heavy landing. That is
+// correct for a player and poison for a harness: the headless loop runs at
+// ~10fps, so a single 70ms freeze swallows most of a sampled frame, and every
+// measurement expressed in "how far did this move over N frames" reads short.
+//
+// It cost two full suite runs to work that out. The symptom is the tell — a
+// DIFFERENT test failed each run (smoke-boss-moves, then smoke-vader, then
+// smoke-endless and smoke-moves), all of them passing standalone, because
+// whichever measurement happened to overlap a freeze was the one that lost.
+//
+// Muted via `?nofreeze=1` for the same reason `?nodlg=1` exists, and with the
+// same rule: the one test whose SUBJECT is hitstop (`smoke-duel`) deliberately
+// loads without the flag, so the behaviour itself stays covered.
+let hitstopMuted = false;
+
+export function isHitstopMuted() { return hitstopMuted; }
+export function setHitstopMuted(v) { hitstopMuted = !!v; }
+
 // ── Straight into a fight ──────────────────────────────────────────────────
 //
 // The first nemesis a run can meet is at SECTOR 3 — mini-bosses come only from

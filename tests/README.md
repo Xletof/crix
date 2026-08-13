@@ -15,6 +15,25 @@ npm run smoke -- --only cluster,flight
 pause physics or stop the game loop to take a measurement; in parallel they
 would corrupt each other's world state.
 
+## `?nofreeze=1` — mute hitstop, or measurements lie
+
+Hitstop freezes `time.timeScale`, `physics.world.timeScale` and the **game-wide**
+`anims.globalTimeScale` for 45–80ms on a heavy landing. Correct for a player,
+poison for this harness: the headless loop runs at ~10fps, so one freeze
+swallows most of a sampled frame and anything measured as "how far did this move
+over N frames" reads short.
+
+The symptom is the tell, and it cost two full suite runs to read correctly: a
+**different** test failed each run — smoke-boss-moves, then smoke-vader, then
+smoke-endless and smoke-moves — and **every one passed standalone**. Whichever
+measurement happened to overlap a freeze was the one that lost. Three unrelated
+files failing at once is shared state, not three bugs.
+
+Every harness therefore loads `?nodlg=1&nofreeze=1`. `smoke-duel` deliberately
+does NOT, because hitstop is its subject — same split as `smoke-dialogue` and
+`?nodlg=1`.
+
+
 ## The files
 
 **Assertions** — exit non-zero on failure, and are what "the suite passes" means.
