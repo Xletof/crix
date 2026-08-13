@@ -831,7 +831,14 @@ export const NEMESIS_MOVES = [
           // lifetime and cannot outlive its own cleanup.
           let poll = null;
           scene.time.delayedCall(this.armMs, () => {
-            if (blown) return;
+            // `h.cancelled` as well as `blown`: this callback fires armMs after
+            // the mine was laid, which can be AFTER the move was cancelled. A
+            // poll registered at that point was never in h.polls when onCancel
+            // swept it, so the mine would outlive its owner and go on arming an
+            // arena that has moved on. Impact deliberately does NOT stop this —
+            // mines are meant to persist past the move; only cancellation kills
+            // them.
+            if (blown || h.cancelled) { dev?.stop?.(); tel?.destroy?.(); return; }
             let age = 0;
             poll = scene.time.addEvent({
               delay: 80,
@@ -856,6 +863,7 @@ export const NEMESIS_MOVES = [
       stagger(scene, e, this.recoverMs, 1.5);
     },
     onCancel(scene, e, h) {
+      if (h) h.cancelled = true;
       h?.timer?.remove(false);
       h?.polls?.forEach((p) => p?.remove(false));
       h?.devices?.forEach((d) => d?.stop?.());
