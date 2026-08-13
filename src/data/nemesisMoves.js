@@ -52,6 +52,9 @@ export const RITE_BREAK_DAMAGE = 1500;
 
 // MINEFIELD: how far the retreat may bend toward the arena centre to avoid
 // backing into a wall, and the minimum gap between two mines.
+// How hard a committed dash throws the player on contact.
+const KNOCKBACK = 620;
+
 const MINE_BEND = 0.9;
 const MINE_SPACING = 96;
 const MINE_MARGIN = 140;
@@ -101,6 +104,10 @@ export const NEMESIS_MOVES = [
     actMs: 900,
     recoverMs: 1100,
     speed: 820,
+    // How far the dash is MEANT to carry, so a test can hold the move to it.
+    // "Did the actor move at all" is what let a drag bug ship: every dash was
+    // covering a fraction of its lane and the check still went green.
+    dashPx: 738,          // 820px/s x 0.9s
     damage: 170,
     laneWidth: 150,      // worst-case escape is half of this: 75px, well inside a dash
     laneLen: 620,
@@ -515,9 +522,10 @@ export const NEMESIS_MOVES = [
     traits: ['armored', 'colossal', 'swift'],
     everyMs: 8000,
     anticipateMs: 750,
-    actMs: 520,
+    actMs: 620,
     recoverMs: 1050,
-    speed: 900,
+    speed: 1150,
+    dashPx: 713,           // 1150px/s x 0.62s
     laneWidth: 140,        // worst escape 70px, well inside a 228px dash
     laneLen: 520,
     radius: 170,           // the smash, worst escape 170px
@@ -541,13 +549,28 @@ export const NEMESIS_MOVES = [
       scene.events.emit('show-banner', 'SLIDE & SMASH', e._nemesis?.tint || '#ff6030');
     },
 
+    // The dash is the point. It has to read as a FREIGHT TRAIN — committed,
+    // unstoppable, and loud the whole way — not as a step forward. That means
+    // the wake is drawn continuously rather than once, the camera stays live
+    // through the travel, and contact throws the player rather than pinging
+    // them, so being hit by it feels like being hit by a body.
     act(scene, e, h) {
       e._charging = true;
+      e._chargeHit = false;
       e.setMovePose?.('thrust');
-      scene.fx?.chargeWake?.(e.x, e.y, h.angle, h.tint);
-      charge(scene, e, h.angle, {
+      SFX.dash?.();
+      h.charge = charge(scene, e, h.angle, {
         speed: this.speed, ms: this.actMs,
         onEnd: () => { e._charging = false; },
+      });
+      h.wake = scene.time.addEvent({
+        delay: 45, loop: true,
+        callback: () => {
+          if (!e.active || !e._charging) { h.wake?.remove(false); return; }
+          scene.fx?.chargeWake?.(e.x, e.y, h.angle, h.tint);
+          scene.fx?.dustPuff?.(e.x, e.y);
+          scene.fx?.shake?.(0.006, 60);   // a rumble under the whole run
+        },
       });
     },
 
@@ -556,10 +579,21 @@ export const NEMESIS_MOVES = [
     // dodged the lane still has a decision to make instead of a free window.
     impact(scene, e, h) {
       e._charging = false;
+      h.wake?.remove(false);
       e.body?.setVelocity(0, 0);
       e.setMovePose?.('raise');
       const spot = { x: e.x, y: e.y };
       h.spot = spot;
+      // Ending the run against a wall is the loud outcome, same as CHARGE:
+      // the slide stops dead, the floor cracks on arrival, and the smash that
+      // follows is the same but the whole thing reads as a crash.
+      const blocked = e.body && (e.body.blocked.left || e.body.blocked.right
+        || e.body.blocked.up || e.body.blocked.down);
+      if (blocked) {
+        scene.fx?.crushRing?.(e.x, e.y, 130, h.tint);
+        scene.fx?.shake?.(0.03, 260);
+        SFX.bossSlam?.();
+      }
       // World-anchored: the smash lands where the slide stopped. Left to follow
       // the caster it would drift with the recoil and stop being a promise.
       h.tel2 = scene.spawnTelegraph(
@@ -570,9 +604,11 @@ export const NEMESIS_MOVES = [
         if (!e.active || !e.alive) return;
         e.setMovePose?.('thrust');
         scene.fx?.slamShockwave?.(spot.x, spot.y, this.radius);
+        scene.fx?.crushRing?.(spot.x, spot.y, this.radius, h.tint);
         scene.fx?.groundFractures?.(spot.x, spot.y, this.radius, scarPalette(h.tint));
-        scene.fx?.shake?.(0.028, 320);
+        scene.fx?.shake?.(0.042, 380);
         SFX.meleeSlam?.();
+        SFX.bossSlam?.();
         const p = scene.player;
         if (p?.alive && Math.hypot(p.x - spot.x, p.y - spot.y) <= this.radius) {
           p.damage(this.smashDamage, Math.atan2(p.y - spot.y, p.x - spot.x));
@@ -587,12 +623,24 @@ export const NEMESIS_MOVES = [
     // a reward while the second hit was still coming.
     recover() {},
 
+    // Contact THROWS you. A dash this committed pinging the player for damage
+    // and leaving them standing where they were is the thing that makes a big
+    // move feel small.
     onChargeTouch(scene, e) {
-      scene.player.damage(this.damage,
-        Math.atan2(scene.player.y - e.y, scene.player.x - e.x));
+      const p = scene.player;
+      const a = Math.atan2(p.y - e.y, p.x - e.x);
+      p.damage(this.damage, a);
+      p.body?.setVelocity(Math.cos(a) * KNOCKBACK, Math.sin(a) * KNOCKBACK);
+      scene.fx?.impactRing?.(p.x, p.y, tintOf(e, 0xff6030));
+      scene.fx?.shake?.(0.03, 220);
     },
 
-    onCancel(scene, e, h) { h?.smash?.remove(false); h?.tel2?.destroy?.(); },
+    onCancel(scene, e, h) {
+      h?.smash?.remove(false);
+      h?.wake?.remove(false);
+      h?.charge?.stopCharge?.();   // also puts the body's drag back
+      h?.tel2?.destroy?.();
+    },
   },
 
   {
@@ -610,6 +658,7 @@ export const NEMESIS_MOVES = [
     recoverMs: 950,
     dashes: 3,
     speed: 980,
+    dashPx: 706,          // 3 links x 980px/s x 0.24s
     dashMs: 240,
     linkWindupMs: 260,
     laneWidth: 140,
@@ -789,6 +838,7 @@ export const NEMESIS_MOVES = [
     radius: 110,
     damage: 160,
     speed: 640,
+    dashPx: 576,          // 640px/s x 0.9s
 
     anticipate(scene, e, h) {
       const p = scene.player;

@@ -116,18 +116,65 @@ export function leapArc(scene, sprite, to, opts = {}) {
  * Velocity rather than a position tween on purpose: a charge has to COLLIDE —
  * with walls, with the player — and a tweened position walks through solids.
  */
+/**
+ * A committed dash: constant speed, in a straight line, for `ms`.
+ *
+ * ── Why the drag is suspended ────────────────────────────────────────────
+ *
+ * `Enemy` bodies carry `setDrag(900, 900)` so ordinary walking settles instead
+ * of skating. This used to set velocity ONCE and let the body coast, which
+ * means drag ate the dash almost immediately: at 900px/s against 900px/s² the
+ * speed is gone inside a second, and a 520ms dash covered a fraction of its
+ * length. The move looked exactly like "the telegraph drew and then nothing
+ * happened" — the zone promised a lane and the body barely left its own feet.
+ *
+ * The tests did report it, in a form that was easy to read past: `smoke-moves`
+ * printed "charge: travelled 127px" where the numbers say 738, and I took the
+ * check passing (it only asks that the actor MOVED) as the move working.
+ *
+ * So the drag is suspended for the duration and restored afterwards, and the
+ * velocity is re-asserted each frame — drag is not the only thing that can
+ * write to a body mid-dash, and a dash that silently loses its speed is the
+ * failure this whole comment exists to prevent recurring.
+ */
 export function charge(scene, sprite, angle, opts = {}) {
   if (!sprite?.active || !sprite.body) return null;
   const speed = opts.speed ?? 900;
   const ms = opts.ms ?? 700;
-  sprite.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+  const vx = Math.cos(angle) * speed;
+  const vy = Math.sin(angle) * speed;
+
+  const dragX = sprite.body.drag?.x ?? 0;
+  const dragY = sprite.body.drag?.y ?? 0;
+  sprite.body.setDrag(0, 0);
+  sprite.body.setVelocity(vx, vy);
   sprite._chargingMs = ms;
-  return scene.time.delayedCall(ms, () => {
+
+  const hold = scene.time.addEvent({
+    delay: 16, loop: true,
+    callback: () => {
+      if (!sprite.active || !sprite.body) { hold.remove(false); return; }
+      sprite.body.setVelocity(vx, vy);
+    },
+  });
+
+  const stop = () => {
+    hold.remove(false);
     if (!sprite.active) return;
+    sprite.body?.setDrag(dragX, dragY);
     sprite.body?.setVelocity(0, 0);
     sprite._chargingMs = 0;
+  };
+
+  const timer = scene.time.delayedCall(ms, () => {
+    stop();
     opts.onEnd?.();
   });
+  // Handed back so a cancelled move can stop the dash AND put the drag back.
+  // Restoring drag only on the happy path would leave a cancelled charger
+  // frictionless for the rest of its life.
+  timer.stopCharge = stop;
+  return timer;
 }
 
 /** Spin in place. Used by the spiral, and as a wind-up for anything circular. */

@@ -34,10 +34,16 @@ const NEMESIS_PHASE_CADENCE = { 1: 1, 2: 0.78, 3: 0.6 };
  *
  * Two separate problems, one function.
  *
- * SIZE. It was a flat x6, which put a one-trait sector-1 nemesis at ~1,300 hp
+ * SIZE. It was a flat x6, which put the weakest reachable nemesis at ~1,700 hp
  * against a 3,000-damage super: "killed in 1-2 supers, so it's seconds top".
  * A curated kit needs long enough to actually show itself — the whole point of
  * authoring moves is undone if the fight ends before the second one casts.
+ *
+ * NOTE ON THE FLOOR: the first nemesis a run can meet is at SECTOR 3, not
+ * sector 1 — mini-bosses come only from the `detention` arena (ARENA.detention
+ * in config.js is the one wave list carrying `miniBoss: true`), and that is the
+ * third room in the cycle. Quoting sector-1 numbers describes a fight nobody
+ * can have, and makes the low end look worse than it is.
  *
  * SPREAD. Trait multipliers ran 0.7 (swift) to 3.96 (armored+colossal), a 5.7x
  * range on top of everything else. Raising a flat multiplier scales that spread
@@ -45,8 +51,8 @@ const NEMESIS_PHASE_CADENCE = { 1: 1, 2: 0.78, 3: 0.6 };
  * — armored is still tougher than swift — while compressing that component to
  * about 2.8x. Measured effect, in supers-to-kill:
  *
- *   swift grunt, sector 1          0.4 -> 1.0
- *   armored shielded, sector 1     2.5 -> 3.6
+ *   swift grunt, sector 3          0.6 -> 1.3
+ *   armored shielded, sector 3     3.1 -> 4.5
  *   3-trait shooter, sector 20    15.2 -> 15.8
  *
  * i.e. it lifts the floor, which is the reported problem, and barely touches

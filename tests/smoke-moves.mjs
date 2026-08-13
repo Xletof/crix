@@ -149,6 +149,7 @@ const r = await page.evaluate(async () => {
       staggerMs: Math.round(peak.stagger),
       punishMult: Number(peak.mult.toFixed(2)),
       alive: e.alive,
+      dashPx: m.dashPx ?? null,
     });
     gs._destroyEnemyFully(e);
     await new Promise((res) => setTimeout(res, 150));
@@ -297,6 +298,29 @@ check(still.length === 0,
 for (const m of r.motion) {
   check(true, `  ${m.id}: travelled ${m.moved}px${m.scaled ? ', scaled' : ''}${m.spun ? ', spun' : ''}, stagger ${m.staggerMs}ms x${m.punishMult} [${m.phases}${m.cancelled ? ' CANCELLED' : ''}]`, '');
 }
+
+// ── A dash must cover the ground it promised ─────────────────────────────
+//
+// "Did the actor move at all" is what let a real bug ship. Enemy bodies carry
+// setDrag(900, 900) and `charge` set velocity once, so every dash in the game
+// decayed almost immediately: CHARGE covered 127px of an intended 738, and
+// SLIDE & SMASH 121 of 468. In play that reads as the telegraph drawing and
+// then nothing happening, which is exactly how it was reported. The check went
+// green the whole time because 127 is greater than zero.
+//
+// `dashPx` lives on the move, so the distance a dash intends is data rather
+// than a number duplicated in a test. 55% is slack for a coarse headless clock
+// and for a dash that ends early against a wall — it is not slack for a dash
+// that has quietly lost its speed.
+const dashers = r.motion.filter((m) => m.dashPx);
+check(dashers.length >= 3, 'there are dash moves to hold to their distance',
+  `${dashers.length} moves declare dashPx`);
+const short = dashers.filter((m) => m.moved < m.dashPx * 0.55);
+check(short.length === 0,
+  'a dash covers the ground its lane promised',
+  short.length
+    ? short.map((m) => `${m.id} ${m.moved}/${m.dashPx}px`).join(', ')
+    : dashers.map((m) => `${m.id} ${m.moved}/${m.dashPx}`).join(' · '));
 
 // A refused cast (`_castNemesisMove` returns null while another move is live)
 // looks EXACTLY like a move that granted nothing, and that is what three of
