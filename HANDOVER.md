@@ -138,7 +138,7 @@ an upgrade choice. Room 4 ends with Vader.
 |---|---|---|---|
 | `grunt` | 320 | 230 | Baseline. The damage yardstick — "one shot nearly kills a grunt" means ~290 |
 | `shooter` | 450 | 190 | Holds 380px, fires faster |
-| `bomber` | 200 | 300 | Suicide charger, 155px blast for 240 |
+| `bomber` | 200 | 300 | Suicide charger, 155px blast for 240. **As a nemesis it does not suicide** — see §10d |
 | `shielded` | 560 | 140 | ~154° frontal shield, turns at 2.6 rad/s — slow enough that a dash beats it |
 | `sniper` | 260 | 150 | Glass cannon. 800ms windup, 260ms locked beam, 220 damage |
 | `swarmling` | 60 | 310 | Melee, spawns in packs of 4–6. One primary bolt kills |
@@ -560,6 +560,76 @@ archetype looks alike again — which is the problem the busts were painted to
 solve. The colour goes on a glow layer BEHIND the bust, inside the portrait
 recess. The recess itself is not decoration: drawn straight onto the plate, the
 32x36 art ends at a hard edge mid-shoulder and reads as clipped.
+
+## 10d. Nemesis duels
+
+The verdict that started this: *"I don't want the Nemeses to be same as normal
+enemies but just enlarged, they can be killed in 1-2 supers... the explosive
+nemesis literally explodes on impact with me."* Four measured causes, four
+fixes.
+
+**1. The bomber deleted itself.** `bomber` is a legal nemesis base and
+`EnemyBomber` ran stock contact logic — `_detonate()` sets `hp = 0` and calls
+`die()`. A body with 6× hp, traits, regalia, a generated name and a ledger
+grudge ended its own fight by walking into you, so its entire hp pool was
+unreachable. A nemesis bomber now does a **recoiling contact burst** on a
+cooldown (`_contactBurst`, `Enemy.js`) instead: it still explodes, because that
+is the archetype, but as pressure rather than suicide. `smoke-duel` gates this
+directly — it is the cheapest thing in the file to regress by accident.
+
+**2. There was no encounter.** The nemesis was one more wave member with the
+trash drip continuing around it. A telegraph is a promise about which patch of
+floor is about to hurt and it cannot keep that promise through a crowd, so every
+curated move built on top was wasted.
+
+`_beginDuel` expresses the lockout **through the existing wave phase machine**
+rather than a new one: the duel wave spends its whole spawn budget up front, so
+the drip has nothing to release, and `clearing` then waits on the nemesis
+exactly as it would wait on a wave. One state machine, and it already knows how
+to end. Trash already on the floor is *dismissed*, not killed — a kill would pay
+score for enemies the player never fought and fire every volatile death blast at
+the moment the duel is trying to establish its read.
+
+**3. Nothing said it was a fight.** `HUD` now draws a **duel bar** with the
+nemesis's name in its own tint and white pips at 66% and 33%, which is where its
+phases fire. The bar reads hp **per frame** rather than on a damage event:
+damage arrives from bullets, melee, blasts and regen, and an event-driven bar
+would desync the first time a new source was added.
+
+**4. Movesets were chosen by trait alone**, two per nemesis, cycled in fixed
+order, first cast a full `everyMs` (7.5–11s) after spawn. So an armored grunt
+and an armored shooter played identically, and a short fight showed one move.
+
+Identity now comes from the **base** (`KITS` in `nemesisMoves.js`) and traits
+graft one move on top (`TRAIT_MOVES`). `grunt` and `bomber` are authored; the
+other three draw from the original five while their kits are built — real moves,
+not stubs. First cast is 2s in, and cadence tightens per phase.
+
+| move | base | the idea |
+|---|---|---|
+| SLIDE & SMASH | grunt | Combo. Telegraphs the slide, then telegraphs the smash **again** at wherever the slide actually stopped, so beating the lane earns a decision rather than a free window |
+| TRIPLE DASH | grunt | Three links, each re-aimed at where you went after the last |
+| MORTAR VOLLEY | bomber | Four shells; answered by moving continuously, not by one dodge |
+| MINEFIELD | bomber | Changes the *shape* of the arena rather than threatening one patch |
+| CHAIN DETONATION | bomber | r=220 against a 228px dash. Escapable, barely — baited, not reacted to |
+
+### Traps this pass left behind
+
+- **A chained move can outlive the move that owns it.** Timers resolve coarsely
+  on a slow frame, and TRIPLE DASH's third link once *started* after the recover
+  beat had already run — so the combo finished in a wind-up pose. Any move that
+  schedules its own links needs an `h.over` flag set at the impact beat; a
+  generous `actMs` alone is a race, not a fix.
+- **`onEnd` on the last link of a chain fires after RECOVER.** Setting a pose
+  there unconditionally overwrites the recovery pose.
+- **A second zone in the same move must be `anchor: 'world'`** if it marks a
+  place rather than a body — otherwise it drifts with the caster's recoil and
+  stops being a promise.
+- **RITE's interrupt is a flat damage bar** (`RITE_BREAK_DAMAGE`), not a
+  fraction of max hp. The old `> hpMax * 0.06` scaled the wrong way: the tougher
+  the nemesis, the more the interrupt demanded, so the one move whose correct
+  answer is offence stopped being answerable on exactly the enemies it mattered
+  against.
 
 ## 11. State as of this handover
 
