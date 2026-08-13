@@ -643,7 +643,10 @@ export class Telegraph {
         targets: bloom, alpha: 0, duration: 190, ease: 'Quart.easeOut',
         onComplete: () => bloom.destroy(),
       });
-      this.scene.fx?.camPunch?.(s.angle, 4);
+      // Deliberately NO camera punch here. The MOVE owns its impact feel and
+      // already punches on the frame it deals damage; a zone punching as well
+      // double-kicks the camera on every commit in the game, including zones
+      // the player dodged clean. The bloom is the zone's contribution.
     }
     if (s.kind === 'circle') {
       g.fillCircle(s.x, s.y, s.r);
