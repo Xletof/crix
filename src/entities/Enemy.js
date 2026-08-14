@@ -4,7 +4,13 @@ import { SFX } from '../systems/FX.js';
 import { stagger } from '../systems/actorMotion.js';
 
 // Nemesis bomber contact burst — see EnemyBomber._contactBurst.
-const BOMBER_BURST_CD_MS = 2600;
+// 1700, not 2600. At 2600 the orbit-and-swipe filler ran for three swipes
+// between heavies, so the filler WAS the fight — "it pivots around me hitting
+// 55 until a skill comes". The heavy is the archetype; the jab fills gaps.
+const BOMBER_BURST_CD_MS = 1700;
+// How hard, and for how long the shove ignores the stagger decay.
+const BOMBER_SHOVE_SPEED = 700;
+const BOMBER_SHOVE_MS = 280;
 const BOMBER_BURST_DMG_MULT = 0.55;
 
 // How much of a knockback a PLANTED actor takes — see Enemy.damage.
@@ -633,10 +639,18 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
     // Stagger decay — bleed velocity off so the knockback slide ends smoothly.
     if (this._punishMs > 0) this._punishMs -= delta;
+    if (this._shoveMs > 0) this._shoveMs -= delta;
     if (this._staggerMs > 0) {
       this._staggerMs -= delta;
-      this.body.velocity.x *= 0.85;
-      this.body.velocity.y *= 0.85;
+      // A deliberate SHOVE is exempt from the decay. The decay exists to bleed
+      // off a knockback slide, and it does that in ~200ms — which quietly ate
+      // the bomber's throw-clear too: 420px/s decayed to nothing inside 40px,
+      // less than its own 48px contact range, so it never actually left the
+      // player. Reported as "the bomber doesn't shove me".
+      if (this._shoveMs <= 0) {
+        this.body.velocity.x *= 0.85;
+        this.body.velocity.y *= 0.85;
+      }
     }
     // Y-sort: depth tracks world Y so this entity occludes / is occluded by
     // others based on its position. Related sprites ride small offsets.
@@ -1376,6 +1390,7 @@ export class EnemyBomber extends EnemyGrunt {
     this._bombPulse = 0;
     this._burstCd = 0;
     this._swipeCd = 0;
+    this._shoveMs = 0;
     this._burstOrbit = 1;
     this.setTint(0xff6a33);
     this.weaponSprite?.setVisible(false); // no gun — it IS the weapon
@@ -1464,11 +1479,23 @@ export class EnemyBomber extends EnemyGrunt {
     this._swipeCd = BOMBER_SWIPE_CD_MS;
     // Flip the orbit direction each burst so it does not circle predictably.
     this._burstOrbit = -this._burstOrbit;
-    this._blast(1.5, BOMBER_BURST_DMG_MULT);
+    this._blast(2.0, BOMBER_BURST_DMG_MULT);
     const away = Math.atan2(this.y - player.y, this.x - player.x);
-    this.scene.fx?.camPunch?.(away + Math.PI, 7);
-    this.scene.fx?.hitstop?.(55);
-    this.body?.setVelocity(Math.cos(away) * 420, Math.sin(away) * 420);
+    const tint = 0xff5030;
+    // The heavy is the archetype's whole identity, so it has to be
+    // unmistakable — it was reading as just another chip hit.
+    this.scene.fx?.crushRing?.(this.x, this.y, this.cfg.blastRadius, tint);
+    this.scene.fx?.impactSpray?.(player.x, player.y, away + Math.PI, 'red', 12, { tint });
+    this.scene.fx?.camPunch?.(away + Math.PI, 11);
+    this.scene.fx?.hitstop?.(70);
+    SFX.bossSlam?.();
+    // BOTH bodies move: it throws itself clear AND throws the player back, so
+    // contact resolves into open ground instead of the two sprites overlapping.
+    this._shoveMs = BOMBER_SHOVE_MS;
+    this.body?.setVelocity(Math.cos(away) * BOMBER_SHOVE_SPEED,
+      Math.sin(away) * BOMBER_SHOVE_SPEED);
+    player.body?.setVelocity(Math.cos(away + Math.PI) * BOMBER_SHOVE_SPEED * 0.8,
+      Math.sin(away + Math.PI) * BOMBER_SHOVE_SPEED * 0.8);
     // keepVelocity: the shove has to survive the stagger that follows it.
     stagger(this.scene, this, 700, 1.4, { keepVelocity: true });
   }
