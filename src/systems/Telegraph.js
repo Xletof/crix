@@ -99,7 +99,20 @@ export class Telegraph {
     this.onCommit = opts.onCommit || null;
     // `safe` inverts the read: stand HERE rather than leave.
     this.safe = !!opts.safe;
+    // A DANGER zone may never wear the SAFE hue.
+    //
+    // `safe` inverts the read to "stand here" and paints it SAFE_COLOR
+    // (#40ff90). The SWIFT trait's tint is #40ff90 — the same value — so a
+    // swift nemesis drew its lethal lanes in the exact colour this system uses
+    // to mean the opposite. Seen in a PLANT & SNIPE screenshot: a piercing
+    // 900px lane rendered in "stand here" green.
+    //
+    // Trait colour still comes through for everything else; a hostile zone just
+    // gets pulled off that hue far enough to never be confused with it.
     this.color = opts.color ?? (this.safe ? SAFE_COLOR : DANGER);
+    if (!this.safe && opts.color != null && this._nearSafeHue(this.color)) {
+      this.color = this._mix(this.color, DANGER, 0.55);
+    }
     // The fill follows the outline's hue. A move that passes its own colour —
     // FORCE PUSH is pale blue, FORCE PULL violet — used to get that colour on
     // the outline and the stock RED inside it, which reads as two different
@@ -501,6 +514,18 @@ export class Telegraph {
   }
 
   /** Blend two packed RGB colours. Used to heat the outline toward white. */
+  /**
+   * Is this colour close enough to SAFE_COLOR to be misread as "stand here"?
+   * Compared per channel rather than by hue distance — cheap, and the only
+   * case that matters is a tint sitting right on top of the safe green.
+   */
+  _nearSafeHue(c) {
+    const dr = ((c >> 16) & 0xff) - ((SAFE_COLOR >> 16) & 0xff);
+    const dg = ((c >> 8) & 0xff) - ((SAFE_COLOR >> 8) & 0xff);
+    const db = (c & 0xff) - (SAFE_COLOR & 0xff);
+    return Math.abs(dr) < 70 && Math.abs(dg) < 70 && Math.abs(db) < 70;
+  }
+
   _mix(a, b, k) {
     const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
     const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
