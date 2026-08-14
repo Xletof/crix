@@ -230,7 +230,13 @@ export const ENEMY = {
     radius: 22,
     desiredRange: 350,
     fireCooldownMs: 1200,
-    bulletSpeed: 360,     // slowed (was 520) for dodging
+    // 620, not 360. At 360 a grunt bolt is SLOWER than the player walks
+    // (PLAYER.speed 380) — it literally cannot catch you, which is why enemy
+    // fire read as "an Atari game, dodging coming shapes". The old comment
+    // said "slowed for dodging" and that was the whole problem: a projectile
+    // you outwalk is scenery. ~1.6x walk speed threatens without being a
+    // reaction test.
+    bulletSpeed: 620,
     bulletDamage: 80,     // density compensation — many more grunts on screen now
     bulletRange: 480,
     color: 0xdcdce8,
@@ -242,7 +248,7 @@ export const ENEMY = {
     radius: 22,
     desiredRange: 380,
     fireCooldownMs: 800,
-    bulletSpeed: 420,     // slowed (was 640) for dodging
+    bulletSpeed: 700,     // was 420 — see the grunt note above
     bulletDamage: 130,    // lowered (was 180) for swarms
     bulletRange: 560,
     color: 0x181820,
@@ -271,7 +277,7 @@ export const ENEMY = {
     radius: 24,
     desiredRange: 260,    // holds closer than a shooter so the shield matters
     fireCooldownMs: 1500,
-    bulletSpeed: 420,
+    bulletSpeed: 700,
     bulletDamage: 120,
     bulletRange: 520,
     shieldHalfArc: 1.35,  // rad — ~77° each side (~154° frontal cover)

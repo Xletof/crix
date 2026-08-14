@@ -53,6 +53,20 @@ export class Bullet extends Phaser.Physics.Arcade.Image {
     this.hitSet.clear();
     this.body.setCircle(this.width / 2);
     this.body.setOffset(0, 0);
+
+    // TRACER STRETCH — scale only, never the texture.
+    //
+    // A round dot gives the eye nothing to read speed from, which is most of
+    // why enemy fire felt like "dodging coming shapes". Stretching along the
+    // flight axis reads as velocity for free, because the sprite is already
+    // rotated to `angle`.
+    //
+    // It MUST be `setScale`. The hitbox above comes from `this.width` — the
+    // TEXTURE width — so redrawing a longer projectile silently enlarges the
+    // collision circle (see the bullet-hitbox trap in CLAUDE.md). Scale does
+    // not touch `width`, so the body is identical whatever this does.
+    const stretch = Phaser.Math.Clamp(speed / 620, 1, 2.2);
+    this.setScale(stretch, 1);
   }
 
   preUpdate(time, delta) {

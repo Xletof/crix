@@ -3391,6 +3391,11 @@ export class GameScene extends Phaser.Scene {
           this.fx.smokeTrail(b.x, b.y); // missiles get extra smoke puff
         }
       }
+      // Enemy bolts had NO trail at all — this loop covered only the three
+      // player groups. A bolt with no wake and no stretch is a shape sliding
+      // across the floor, which is exactly how incoming fire read.
+      for (const b of this.enemyBullets.getChildren())
+        if (b.active) this.fx.trail(b.x, b.y);
     }
 
     // Camera lookahead — shift the follow target toward where the player is

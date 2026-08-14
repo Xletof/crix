@@ -293,6 +293,39 @@ const clock = await page.evaluate(async () => {
   return { during, whilePaused, afterResume, afterExpiry };
 });
 
+// ── 6. Enemy fire is fast enough to threaten, and the stretch is cosmetic ──
+//
+// Grunt bolts used to travel 360px/s against PLAYER.speed 380 — literally
+// slower than walking, so they could not catch the player at all. Reported as
+// "the ammo of enemies are so slow it feels like playing an Atari game".
+//
+// The tracer stretch is the dangerous half of the fix: `Bullet.fire` sizes the
+// hitbox with `setCircle(this.width / 2)` from the TEXTURE, so a longer
+// projectile drawn rather than scaled silently enlarges the collision circle.
+// CLAUDE.md records that trap; this asserts it stayed shut.
+const bolts = await page.evaluate(async () => {
+  const { ENEMY, PLAYER } = await import('/src/config.js');
+  const { NEMESIS_WEAPONS } = await import('/src/data/nemesisWeapons.js');
+  const gs = window.game.scene.getScene('Game');
+
+  const speeds = {
+    grunt: ENEMY.grunt.bulletSpeed,
+    shooter: ENEMY.shooter.bulletSpeed,
+    shielded: ENEMY.shielded.bulletSpeed,
+    sniper: ENEMY.sniper.bulletSpeed,
+  };
+  for (const w of NEMESIS_WEAPONS || []) speeds[`wpn:${w.id}`] = w.speed;
+
+  // Fire one slow and one fast bolt and compare the resulting body radius.
+  const fireAt = (speed) => {
+    const b = gs.enemyBullets.fire(400, 400, 0, speed, 10, 900, { owner: 'enemy' });
+    const out = { radius: b?.body?.radius ?? null, scaleX: b?.scaleX ?? null };
+    b?.kill?.();
+    return out;
+  };
+  return { speeds, playerSpeed: PLAYER.speed, slow: fireAt(300), fast: fireAt(1000) };
+});
+
 // ── Screenshot: the duel bar, mid-fight ───────────────────────────────────
 await page.evaluate(() => {
   const gs = window.game.scene.getScene('Game');
@@ -369,6 +402,18 @@ check(normal(clock.afterResume),
   'a hitstop caught by a PAUSE does not leave the game in slow motion',
   `time ${clock.afterResume.time}, physics ${clock.afterResume.physics},`
   + ` anims ${clock.afterResume.anims} (anims is game-wide, so a stuck value slows menus too)`);
+
+const slowBolts = Object.entries(bolts.speeds)
+  .filter(([, v]) => v < bolts.playerSpeed * 1.5);
+check(slowBolts.length === 0,
+  'every enemy projectile outruns the player by a clear margin',
+  slowBolts.length
+    ? slowBolts.map(([k, v]) => `${k} ${v} vs walk ${bolts.playerSpeed}`).join(', ')
+    : `all >= ${Math.round(bolts.playerSpeed * 1.5)}px/s`);
+check(bolts.slow.radius != null && bolts.slow.radius === bolts.fast.radius,
+  'the tracer stretch does NOT change the bullet hitbox',
+  `radius ${bolts.slow.radius} at 300px/s vs ${bolts.fast.radius} at 1000px/s`
+  + ` (scaleX ${bolts.slow.scaleX} -> ${bolts.fast.scaleX})`);
 
 check(pageErrors.length === 0, 'no exception across the run', pageErrors.join(' | '));
 

@@ -72,7 +72,7 @@ export const NEMESIS_WEAPONS = [
     bases: ['shooter', 'shielded'],
     pellets: 5,
     spreadDeg: 34,
-    speed: 300,
+    speed: 620,
     damage: 34,
     range: 300,          // short on purpose — it has to be walked into
     muzzleKind: 'spray',
@@ -98,7 +98,14 @@ export const NEMESIS_WEAPONS = [
     tint: 0xffd040,        // heavy yellow
     // The bomber already throws things; this is the same idea with a shell.
     bases: ['bomber', 'shooter'],
-    speed: 210,
+    // 600, not 380. The old design note called this "a slow, wide triple that
+    // has to be walked out of rather than dodged at the last moment — the
+    // answer is position, not reflex". The intent is right and the number was
+    // wrong: at 380 it matched the player's walk speed exactly, so it could not
+    // be walked INTO either. It is still the slowest gun in the game, but it
+    // now closes on you while you reposition, which is what makes positioning a
+    // decision instead of a formality.
+    speed: 600,
     damage: 46,
     range: 620,
     shells: 3,
@@ -147,7 +154,7 @@ export const NEMESIS_WEAPONS = [
     tex: 'wpn-nem-repeater',
     tint: 0x80ff80,        // repeater green
     bases: ['shooter', 'sniper', 'bomber'],
-    speed: 420,
+    speed: 700,
     damage: 22,
     range: 640,
     rounds: 3,

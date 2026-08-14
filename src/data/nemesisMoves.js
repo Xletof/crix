@@ -403,7 +403,7 @@ export const NEMESIS_MOVES = [
     recoverMs: 800,
     arms: 3,
     rateMs: 110,
-    speed: 230,
+    speed: 400,
     damage: 60,
 
     anticipate(scene, e, h) {
