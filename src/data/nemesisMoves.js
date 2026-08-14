@@ -1131,6 +1131,259 @@ export const NEMESIS_MOVES = [
       stagger(scene, e, this.recoverMs, 2.2);
     },
   },
+
+  // ── Signature kits: the RANGED archetypes ──────────────────────────────
+  //
+  // shooter, shielded and sniper had no authored kit — they drew from the
+  // original five, all of which are melee-range commitments, so a "marksman"
+  // fought exactly like a brute. These four give range its own verbs: hold a
+  // line, keep moving, outrun a thing, or get pushed off a piece of floor.
+
+  {
+    id: 'plantsnipe',
+    name: 'PLANT & SNIPE',
+    traits: ['armored', 'regenerator', 'summoner'],
+    everyMs: 8500,
+    anticipateMs: 1100,     // long: the answer is to leave the lane, not to react
+    actMs: 420,
+    recoverMs: 1100,
+    laneWidth: 96,          // worst escape 48px — a step, not a dash
+    laneLen: 900,
+    damage: 240,
+
+    anticipate(scene, e, h) {
+      // Roots itself. The whole read is "that line is about to be lethal, get
+      // off it" — so the body must visibly commit and stop tracking you.
+      const p = scene.player;
+      h.angle = Math.atan2(p.y - e.y, p.x - e.x);
+      h.tint = tintOf(e, 0x40c8ff);
+      e.body?.setVelocity(0, 0);
+      e._holdAim = h.angle;
+      e.setMovePose?.('raise');
+      raiseWeapon(scene, e, 320);
+      squash(scene, e, this.anticipateMs * 0.5, 0.16);
+      h.tel = scene.spawnTelegraph({
+        kind: 'lane', x: e.x, y: e.y, angle: h.angle,
+        len: this.laneLen, width: this.laneWidth,
+      }, { windupMs: this.anticipateMs, owner: e, color: h.tint, kineticMs: 420 });
+      // Charge gathering at the muzzle, so the wind-up has a focal point.
+      h.gather = scene.time.addEvent({
+        delay: 80,
+        repeat: Math.floor(this.anticipateMs / 80) - 1,
+        callback: () => scene.fx?.inhale?.(
+          e.x + Math.cos(h.angle) * 26, e.y + Math.sin(h.angle) * 26, 'blue', 3, 70),
+      });
+      scene.events.emit('show-banner', 'PLANT & SNIPE', e._nemesis?.tint || '#40c8ff');
+    },
+
+    act(scene, e, h) {
+      h.gather?.remove(false);
+      e.setMovePose?.('thrust');
+      rearBack(scene, e, h.angle, -10, 90);        // recoil kick, forward-negative
+      scene.fx?.weaponMuzzle?.(e.x, e.y, h.angle, h.tint, 'lance');
+      scene.fx?.camPunch?.(h.angle, 5);
+      SFX.enemyShoot?.('lance');
+      // A single PIERCING bolt down the lane. Piercing is the point: hiding
+      // behind a swarmling does not save you, only leaving the line does.
+      scene.enemyBullets.fire(
+        e.x + Math.cos(h.angle) * 24, e.y + Math.sin(h.angle) * 24,
+        h.angle, 1400, this.damage, this.laneLen,
+        { owner: 'enemy', piercing: true },
+      );
+    },
+
+    impact(scene, e, h) {
+      scene.fx?.impactSpray?.(e.x, e.y, h.angle, 'blue', 6, { tint: h.tint });
+    },
+
+    recover(scene, e) {
+      e.setMovePose?.('recoil');
+      stagger(scene, e, this.recoverMs, 1.9);   // rooted and spent: punish it
+    },
+
+    onCancel(scene, e, h) { h?.gather?.remove(false); e.setMovePose?.(null); },
+  },
+
+  {
+    id: 'sweepbarrage',
+    name: 'SWEEPING BARRAGE',
+    traits: ['summoner', 'colossal', 'armored'],
+    everyMs: 10000,
+    anticipateMs: 800,
+    actMs: 2400,
+    recoverMs: 900,
+    spreadDeg: 150,
+    len: 620,
+    rateMs: 130,
+    speed: 700,
+    damage: 55,
+
+    anticipate(scene, e, h) {
+      const p = scene.player;
+      h.tint = tintOf(e, 0xffb020);
+      // Start the sweep BEHIND the player and turn through them, so standing
+      // still is always wrong and the direction to run is legible.
+      h.from = Math.atan2(p.y - e.y, p.x - e.x) - (this.spreadDeg * Math.PI / 180) / 2;
+      h.dir = 1;
+      e.body?.setVelocity(0, 0);
+      e.setMovePose?.('raise');
+      squash(scene, e, this.anticipateMs, 0.14);
+      h.tel = scene.spawnTelegraph({
+        kind: 'cone', x: e.x, y: e.y, angle: h.from + (this.spreadDeg * Math.PI / 180) / 2,
+        len: this.len, spreadDeg: this.spreadDeg,
+      }, { windupMs: this.anticipateMs, owner: e, color: h.tint });
+      scene.events.emit('show-banner', 'SWEEPING BARRAGE', e._nemesis?.tint || '#ffb020');
+    },
+
+    act(scene, e, h) {
+      e.setMovePose?.('thrust');
+      const span = this.spreadDeg * Math.PI / 180;
+      const shots = Math.floor(this.actMs / this.rateMs);
+      let n = 0;
+      h.timer = scene.time.addEvent({
+        delay: this.rateMs,
+        repeat: shots - 1,
+        callback: () => {
+          if (!e.active || !e.alive) return;
+          const a = h.from + span * (n / Math.max(1, shots - 1));
+          n++;
+          e._holdAim = a;
+          scene.fx?.weaponMuzzle?.(e.x, e.y, a, h.tint, 'spray');
+          scene.enemyBullets.fire(
+            e.x + Math.cos(a) * 22, e.y + Math.sin(a) * 22,
+            a, this.speed, this.damage, this.len, { owner: 'enemy' },
+          );
+          SFX.enemyShoot?.('burst');
+        },
+      });
+    },
+
+    impact(scene, e, h) { h.timer?.remove(false); },
+    recover(scene, e) { e.setMovePose?.('recoil'); stagger(scene, e, this.recoverMs, 1.5); },
+    onCancel(scene, e, h) { h?.timer?.remove(false); e.setMovePose?.(null); },
+  },
+
+  {
+    id: 'seeker',
+    name: 'SEEKER ORB',
+    traits: ['regenerator', 'volatile', 'swift'],
+    everyMs: 9000,
+    anticipateMs: 750,
+    actMs: 500,
+    recoverMs: 900,
+    speed: 300,           // slow ON PURPOSE — this one is outrun, not dodged
+    damage: 180,
+    lifeMs: 4200,
+
+    anticipate(scene, e, h) {
+      const p = scene.player;
+      h.angle = Math.atan2(p.y - e.y, p.x - e.x);
+      h.tint = tintOf(e, 0x40ffd0);
+      e.body?.setVelocity(0, 0);
+      e.setMovePose?.('raise');
+      raiseWeapon(scene, e, 280);
+      // No floor zone: the ORB is the telegraph, and it is a threat that
+      // persists rather than one that resolves. Every other move in the kit
+      // resolves on a timer; this one follows you until you deal with it.
+      scene.fx?.inhale?.(e.x, e.y, 'blue', 8, 90);
+      scene.events.emit('show-banner', 'SEEKER ORB', e._nemesis?.tint || '#40ffd0');
+    },
+
+    act(scene, e, h) {
+      e.setMovePose?.('thrust');
+      scene.fx?.weaponMuzzle?.(e.x, e.y, h.angle, h.tint, 'lob');
+      SFX.enemyShoot?.('lob');
+      const orb = scene.enemyBullets.fire(
+        e.x + Math.cos(h.angle) * 24, e.y + Math.sin(h.angle) * 24,
+        h.angle, this.speed, this.damage, 4000,
+        // The homing option the bullet pool already supports — reused rather
+        // than hand-steered, so it obeys the same "a turn never accelerates"
+        // rule every other homing projectile does.
+        { owner: 'enemy', homing: { target: scene.player, turnRate: 2.4 } },
+      );
+      if (orb) {
+        orb.setScale(1.6);
+        h.orb = orb;
+        // Bounded life: a seeker that never expires is a permanent tax.
+        h.expire = scene.time.delayedCall(this.lifeMs, () => {
+          if (orb.active) { scene.fx?.impactRing?.(orb.x, orb.y, h.tint); orb.kill?.(); }
+        });
+      }
+    },
+
+    impact(scene, e) { e.setMovePose?.('recoil'); },
+    recover(scene, e) { stagger(scene, e, this.recoverMs, 1.4); },
+    onCancel(scene, e, h) { h?.expire?.remove(false); e.setMovePose?.(null); },
+  },
+
+  {
+    id: 'suppress',
+    name: 'SUPPRESSING WALL',
+    traits: ['armored', 'colossal', 'summoner'],
+    everyMs: 9500,
+    anticipateMs: 900,
+    actMs: 1500,
+    recoverMs: 800,
+    laneWidth: 150,
+    laneLen: 560,
+    rateMs: 120,
+    speed: 620,
+    damage: 45,
+
+    anticipate(scene, e, h) {
+      // Aims ACROSS the player's approach rather than at them: this is zoning,
+      // so the zone is the ground between you and it.
+      const p = scene.player;
+      const toPlayer = Math.atan2(p.y - e.y, p.x - e.x);
+      h.angle = toPlayer;
+      h.perp = toPlayer + Math.PI / 2;
+      h.tint = tintOf(e, 0x90a8c0);
+      e.body?.setVelocity(0, 0);
+      e.setMovePose?.('raise');
+      squash(scene, e, this.anticipateMs * 0.6, 0.14);
+      const mid = { x: e.x + Math.cos(toPlayer) * this.laneLen * 0.5,
+        y: e.y + Math.sin(toPlayer) * this.laneLen * 0.5 };
+      h.tel = scene.spawnTelegraph({
+        kind: 'lane', x: mid.x - Math.cos(h.perp) * this.laneLen * 0.5,
+        y: mid.y - Math.sin(h.perp) * this.laneLen * 0.5,
+        angle: h.perp, len: this.laneLen, width: this.laneWidth,
+      }, { windupMs: this.anticipateMs, owner: e, color: h.tint, anchor: 'world' });
+      h.mid = mid;
+      scene.events.emit('show-banner', 'SUPPRESSING WALL', e._nemesis?.tint || '#90a8c0');
+    },
+
+    act(scene, e, h) {
+      e.setMovePose?.('thrust');
+      const shots = Math.floor(this.actMs / this.rateMs);
+      let n = 0;
+      h.timer = scene.time.addEvent({
+        delay: this.rateMs,
+        repeat: shots - 1,
+        callback: () => {
+          if (!e.active || !e.alive) return;
+          // Walk the muzzle along the perpendicular so the shots lay a WALL
+          // across the approach rather than a stream at the player.
+          const t = (n / Math.max(1, shots - 1)) - 0.5;
+          n++;
+          const ox = Math.cos(h.perp) * this.laneLen * t;
+          const oy = Math.sin(h.perp) * this.laneLen * t;
+          const from = { x: e.x, y: e.y };
+          const to = { x: h.mid.x + ox, y: h.mid.y + oy };
+          const a = Math.atan2(to.y - from.y, to.x - from.x);
+          scene.fx?.weaponMuzzle?.(e.x, e.y, a, h.tint, 'spray');
+          scene.enemyBullets.fire(
+            from.x + Math.cos(a) * 22, from.y + Math.sin(a) * 22,
+            a, this.speed, this.damage, this.laneLen * 1.4, { owner: 'enemy' },
+          );
+          SFX.enemyShoot?.('burst');
+        },
+      });
+    },
+
+    impact(scene, e, h) { h.timer?.remove(false); },
+    recover(scene, e) { e.setMovePose?.('recoil'); stagger(scene, e, this.recoverMs, 1.6); },
+    onCancel(scene, e, h) { h?.timer?.remove(false); e.setMovePose?.(null); },
+  },
 ];
 
 const BY_ID = Object.fromEntries(NEMESIS_MOVES.map((m) => [m.id, m]));
@@ -1154,9 +1407,9 @@ export const moveById = (id) => BY_ID[id] || null;
 export const KITS = {
   grunt:    ['slidesmash', 'tripledash', 'baitslam'],
   bomber:   ['mortar', 'minefield', 'chaindet'],
-  shooter:  ['spiral', 'blink', 'charge'],
-  shielded: ['charge', 'baitslam', 'spiral'],
-  sniper:   ['blink', 'spiral', 'baitslam'],
+  shooter:  ['sweepbarrage', 'suppress', 'spiral', 'blink'],
+  shielded: ['suppress', 'plantsnipe', 'charge'],
+  sniper:   ['plantsnipe', 'seeker', 'blink'],
 };
 
 // One extra move per trait, added on top of the base kit.
