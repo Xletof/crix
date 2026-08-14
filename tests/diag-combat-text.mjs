@@ -320,7 +320,15 @@ if (SHOTS) {
     if (!g.boss?.alive) throw new Error('vader capture: no boss in the room');
     // In frame WITH him, and close enough that his zone reaches the player —
     // the point of the frame is text, body and lethal telegraph together.
+    //
+    // STOP THE FOLLOW FIRST. This is why four consecutive attempts at this
+    // capture came back with no Vader in them: the main camera follows the
+    // player, so centerOn was correct for exactly one frame and then the
+    // follow dragged the view back before the shutter. Placing the actors is
+    // not enough while something else still owns the camera — the same
+    // "one system drives it at a time" rule the game itself is built on.
     g.player.setPosition(760, 940);
+    g.cameras.main.stopFollow();
     g.cameras.main.centerOn(760, 780);
     g.player.hp = g.player.hpMax;
     // Cast a move so a zone is on the floor, then land real hits on him while
@@ -341,6 +349,42 @@ if (SHOTS) {
       await new Promise((r) => setTimeout(r, 45));
     }
   })()`, 420);
+
+  // ORDINARY boss damage, on its own, with nothing else competing.
+  //
+  // Deliberately no move and no telegraph: the subject here is only the
+  // non-CRIT number, and the playtest complaint was that it reads too heavy
+  // and piles up on his body. 690 is the figure from the report. Note that
+  // the boss path has NO crit branch at all — `boss-hit` never emits a CRIT
+  // label whatever the amount — so every number in this frame is the ordinary
+  // one, which is exactly what makes the frame worth comparing.
+  await frozen('vader-damage', `(async () => {
+    const g = window.game.scene.getScene('Game');
+    clearInterval(window.__auto);
+    const { ROOMS } = await import('/src/data/rooms.js');
+    g.sector = 15;
+    g.loadRoom(ROOMS.find((r) => r.boss));
+    await new Promise((r) => setTimeout(r, 2200));
+    g.lives = 9999;
+    g.enemies.getChildren().slice().forEach((e) => g._destroyEnemyFully(e));
+    window.game.scene.getScene('HUD')?.setDarkness?.(false);
+    if (!g.boss?.alive) g.spawnBoss(760, 660);
+    await new Promise((r) => setTimeout(r, 2000));
+    if (!g.boss?.alive) throw new Error('vader-damage: no boss in the room');
+    g.player.setPosition(760, 980);
+    g.cameras.main.stopFollow();
+    g.cameras.main.centerOn(760, 800);
+    g.player.hp = g.player.hpMax;
+    const hp0 = g.boss.hp;
+    for (let i = 0; i < 8; i++) {
+      if (g.boss?.alive) g.boss.damage(690);
+      await new Promise((r) => setTimeout(r, 55));
+    }
+    // Assert the hits LANDED. Vader intercepts damage() to wound instead of
+    // die, and a frame full of nothing would otherwise photograph as a very
+    // clean result.
+    if (g.boss.hp >= hp0) throw new Error('vader-damage: no damage was dealt');
+  })()`, 260);
 }
 
 const totals = await page.evaluate(() => {
