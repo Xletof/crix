@@ -618,11 +618,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  addSuperHit() {
+  /**
+   * @param {number} [scale=1] fraction of a normal hit's charge. Nemesis hits
+   *   pass a reduced value — see the note at the call site in GameScene.
+   */
+  addSuperHit(scale = 1) {
     const max        = PLAYER.superHitsToCharge;
     const before     = this.superCharge;
     // Charge gains scaled by current combo multiplier
-    this.superCharge = Math.min(max, this.superCharge + this.accuracyMult * this.superGainMult);
+    this.superCharge = Math.min(max,
+      this.superCharge + this.accuracyMult * this.superGainMult * scale);
     if (before < max && this.superCharge >= max) {
       SFX.superReady();
       this.scene.events.emit('player-super-ready');

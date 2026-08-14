@@ -83,11 +83,38 @@ const NEMESIS_BODIES = {
 // 20 logical px x 1.8 = 36; 32 logical px x 1.125 = 36. Same size, more art.
 const NEMESIS_RENDER_SCALE = 1.125;
 
-const NEMESIS_HP_BASE = 12;
-const NEMESIS_TRAIT_COMPRESSION = 0.6;
-function nemesisHpMult(nem) {
-  const traitMult = Math.max(0.05, nem?.hpMult ?? 1);
-  return NEMESIS_HP_BASE * Math.pow(traitMult, NEMESIS_TRAIT_COMPRESSION);
+// ── Nemesis hp ──────────────────────────────────────────────────────────────
+//
+// Computed ONCE, explicitly, rather than by compounding multipliers. The old
+// chain multiplied: archetype hp x endless enemyHpMult x 6 x trait product x a
+// 0.12/sector term that had ALREADY been folded into the trait product. Two
+// sector terms and two elite terms, and it reached 116,000hp by sector 10 while
+// a sector-3 roll landed anywhere between 12,600 and 40,300 — a 3.2x spread
+// inside one sector, which is why some nemeses melted and others dragged.
+//
+// `traitHpMult` is the loadout WITHOUT sector (recorded in nemesis.js), the
+// exponent compresses the 0.63x-5.15x trait spread, and the floor stops swift
+// and volatile — which both REDUCE hp — from making the early rolls the
+// flimsiest ones a player meets.
+const NEMESIS_HP_BASE = 26;
+const NEMESIS_TRAIT_COMPRESSION = 0.4;
+const NEMESIS_TRAIT_FLOOR = 1.2;
+const NEMESIS_SECTOR_STEP = 0.05;
+// Fraction of normal super-meter gain from a primary hit on a nemesis.
+const NEMESIS_SUPER_GAIN = 0.34;
+
+/**
+ * @param {object} nem
+ * @param {number} sector
+ * @param {number} endlessMult  the generic per-enemy hp multiplier already
+ *   applied by spawnEnemyAt — divided back out so it is not counted twice.
+ */
+function nemesisHpMult(nem, sector = 1, endlessMult = 1) {
+  const trait = Math.max(0.05, nem?.traitHpMult ?? nem?.hpMult ?? 1);
+  const traitFactor = Math.max(NEMESIS_TRAIT_FLOOR,
+    Math.pow(trait, NEMESIS_TRAIT_COMPRESSION));
+  const sectorFactor = 1 + Math.max(0, sector - 1) * NEMESIS_SECTOR_STEP;
+  return (NEMESIS_HP_BASE * traitFactor * sectorFactor) / Math.max(0.01, endlessMult);
 }
 import { runMove } from '../systems/MoveScript.js';
 import { bossMoveById, bossMovesFor } from '../data/bossMoves.js';
@@ -3573,7 +3600,18 @@ export class GameScene extends Phaser.Scene {
           // chaining — the fun part) but NOT off mini-bosses, so a mini-boss
           // can't be spam-supered the way a swarm can.
           if (b.owner === 'player' && !(isSuper && e._miniBoss)) {
-            this.player.addSuperHit();
+            // On a NEMESIS the meter fills slowly. This is the actual spam
+            // engine the playtest hit: `accuracyMult` reaches 2.0 on a hit
+            // streak, so at full combo TWO primary bolts fill a super — and a
+            // super is 3000 damage. That loop is ~3,100-5,400 effective dps,
+            // which is why a mini-boss "can be killed so so fast if I just spam
+            // normal hit and super". Slowing the gain makes a super a burst
+            // window you earn during the fight rather than a rotation you hold.
+            //
+            // Deliberately NOT a damage cap: caps were removed here twice by
+            // request because they lie about the number they just showed you.
+            // This changes how often you get the big number, not what it is.
+            this.player.addSuperHit(e._miniBoss ? NEMESIS_SUPER_GAIN : 1);
             // Melee has its OWN meter; feed it from the same hits so both
             // skills come online through normal play.
             this.player.addMeleeHit();
@@ -4774,7 +4812,7 @@ export class GameScene extends Phaser.Scene {
     // leaves the hitbox centred for the old frame size.
     this._wearNemesisBody(e, nem);
     this._makeElite(e, {
-      hpMult: nemesisHpMult(nem),
+      hpMult: nemesisHpMult(nem, this.sector || 1, this.enemyHpMult || 1),
       scale: NEMESIS_RENDER_SCALE * nem.scale,
       tint: Phaser.Display.Color.HexStringToColor(nem.tint).color,
       speedMult: 0.8 * nem.speedMult,

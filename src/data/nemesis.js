@@ -183,6 +183,12 @@ export function rollNemesis(sector = 1, opts = {}) {
   // glance before you have read the name.
   n.tint = wanted[0]?.color || '#ff4020';
 
+  // The TRAIT-ONLY multiplier, recorded before sector scaling touches it.
+  // `nemesisHpMult` needs the loadout separated from the sector, because the
+  // sector was being counted twice — once here and once through the generic
+  // endless `enemyHpMult` at spawn — which compounded to 116,000hp by sector 10.
+  n.traitHpMult = n.hpMult;
+
   // Sector scaling on top of the loadout. The mini-boss has to stay a step
   // above the wave it arrives in, and the wave itself is already scaling.
   n.hpMult *= 1 + Math.max(0, sector - 1) * 0.12;
