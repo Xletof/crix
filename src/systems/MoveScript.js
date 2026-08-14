@@ -44,6 +44,12 @@ export function runMove(scene, actor, script) {
   }
 
   const handle = { cancelled: false, phase: 'anticipate', timers: [] };
+  // Exposed so a BEAT can schedule its own follow-up on the move's clock.
+  // A beat that reaches for `scene.time.delayedCall` directly gets a timer the
+  // handle cannot cancel: BLINK's teleport did that, so a nemesis killed during
+  // its wind-up still warped across the arena 234ms later and left a telegraph
+  // nothing owned. Anything a beat schedules must be cancellable with the move.
+  handle.later = (ms, fn) => later(ms, fn);
   const alive = () => !handle.cancelled
     && actor?.active && actor?.alive
     && scene?.scene?.isActive?.();

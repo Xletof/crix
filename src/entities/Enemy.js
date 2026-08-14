@@ -655,9 +655,14 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.shadow.setPosition(this.x + sDx, this.y + 18 + sDy);
     this.shadow.setScale(sSq, sSq);
     this.shadow.setDepth(this.y - 1);
-    this.alertMark.setPosition(this.x, this.y - this.cfg.radius - 24);
+    this.alertMark.setPosition(this.x, this.y - this._headroom() - 20);
     this.updateHpBar();
-    this.setAlpha(this.hiddenInBush ? 0.55 : 1);
+    // Not while a scripted move owns the body. `vanish`/`appear` tween alpha to
+    // sell a teleport, and this line rewrote it every frame — so BLINK had no
+    // fade at either end and read as the enemy simply being somewhere else. Same
+    // class of bug as the AI overwriting a dash's velocity: one system drives a
+    // channel at a time, and during a move that system is the move.
+    if (!this._performing) this.setAlpha(this.hiddenInBush ? 0.55 : 1);
 
     // Weapon overlay (rotates to the aim angle — body never rotates)
     if (this.weaponSprite) {
@@ -685,8 +690,14 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       for (let i = 0; i < this.regaliaSprites.length; i++) {
         const s = this.regaliaSprites[i];
         if (!s.active) continue;
-        s.x = this.x + (i === 0 ? 0 : this.cfg.radius * 0.55);
-        s.y = this.y - (i === 0 ? this.cfg.radius * 0.75 : this.cfg.radius * 0.15);
+        // Off the DRAWN body, like the hp bar — and the shoulder mark mirrors
+        // with the sprite. It used to be pinned to the right by a collider
+        // fraction, so on a west-facing enemy the mark sat on the wrong
+        // shoulder and drifted as scale changed.
+        const half = this._headroom();
+        const side = this.flipX ? -1 : 1;
+        s.x = this.x + (i === 0 ? 0 : half * 0.62 * side);
+        s.y = this.y - (i === 0 ? half * 0.78 : half * 0.18);
         s.setAlpha(alpha);
         // Back mark UNDER the body, shoulder mark over it — that ordering is
         // what makes it read as worn rather than as a decal floating on top.
@@ -769,6 +780,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.recoilT -= delta;
       this.setScale(bs * (1 - Math.max(0, this.recoilT / 80) * 0.12));
       this.angle = 0;
+    } else if (this._performing) {
+      // A move owns the scale channel too — `squash`, `appear` and
+      // `stretchAlong` all tween it, and re-asserting the base scale here
+      // flattened every one of them.
+      this.angle = 0;
     } else if (this.alive && isMoving) {
       this.angle = 0;
       this.setScale(bs);
@@ -836,6 +852,27 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  /**
+   * Half the DRAWN height of this body, in world px.
+   *
+   * Everything that floats above an enemy — hp bar, alert mark, regalia — used
+   * to be offset from `cfg.radius`, which is the PHYSICS COLLIDER, plus a magic
+   * number. Those are two unrelated quantities: for a 20x20 sprite the collider
+   * is 20-24 against a half-height of 10, and `_makeElite` then grows the
+   * collider on its own curve (`radius * (0.6 + scale*0.55)`) while the sprite
+   * grows by `scale`. The two diverge, so the bar floats above a small enemy
+   * and sits on a large one's head — reported exactly as "on their forehead or
+   * else depending on size", and it got worse when nemeses moved to 32x32
+   * sheets at a different render scale.
+   *
+   * `_baseScale` rather than live `scaleY` on purpose: the stagger and recoil
+   * blocks in preUpdate write `scaleY` every frame, so a live read would make
+   * the bar bounce on every hit taken.
+   */
+  _headroom() {
+    return (this.height * (this._baseScale || this.scaleY || 1)) / 2;
+  }
+
   updateHpBar() {
     if (!this.alive) return;
     const ratio = this.hp / this.hpMax;
@@ -843,7 +880,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.hpBar.visible = true;
     this.hpBar.clear();
     const w = 48, h = 6;
-    const bx = this.x - w / 2, by = this.y - this.cfg.radius - 14;
+    const bx = this.x - w / 2, by = this.y - this._headroom() - 8;
     this.hpBar.fillStyle(0x000000, 0.7);
     this.hpBar.fillRect(bx - 1, by - 1, w + 2, h + 2);
     this.hpBar.fillStyle(0x1a2028, 1);

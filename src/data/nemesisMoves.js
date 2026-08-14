@@ -225,42 +225,74 @@ export const NEMESIS_MOVES = [
     speed: 1000,
     damage: 150,
     laneWidth: 130,
+    // The lane is the DASH, not the room.
+    //
+    // It used to be drawn `Math.hypot(bounds.w, bounds.h)` long — the whole
+    // ~2263px arena diagonal — against a dash that covers 760px. Reported as
+    // "it cuts a diagonal line through the whole map", and it breaks the rule
+    // this file is built on: the drawn shape IS the hit test, so a zone three
+    // times longer than the attack is a lie about which floor is dangerous.
+    laneLen: 780,
+    dashPx: 760,          // 1000px/s x 0.76s
 
     anticipate(scene, e, h) {
-      // Vanish, then reappear at the arena edge FARTHEST from the player, so the
-      // dash always crosses the room. Reappearing near them would make it an
-      // ambush with no readable travel, which is the thing being fixed.
+      // Blink to a spot that KEEPS IT IN THE FIGHT.
+      //
+      // It used to pick the arena corner farthest from the player, which is why
+      // it "teleports to top corner": from a corner the dash cannot reach
+      // anybody, so the move resolved having threatened nothing. It now lands
+      // just under a dash-length out, so the run passes through the player.
       h.tint = tintOf(e, 0x40ffd0);
       e.setMovePose?.('raise');
       scene.fx?.blinkOut?.(e.x, e.y, h.tint);
       vanish(scene, e, this.anticipateMs * 0.4);
       const b = scene.physics.world.bounds;
       const p = scene.player;
-      const corners = [
-        { x: 110, y: 110 }, { x: b.width - 110, y: 110 },
-        { x: 110, y: b.height - 110 }, { x: b.width - 110, y: b.height - 110 },
-      ];
-      h.spot = corners.reduce((a, c) =>
-        Math.hypot(c.x - p.x, c.y - p.y) > Math.hypot(a.x - p.x, a.y - p.y) ? c : a);
+      const R = this.dashPx * 0.8;
+      const M = 130;                       // keep clear of the walls
+      const from = { x: e.x, y: e.y };
+      let best = null;
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        const c = { x: p.x + Math.cos(a) * R, y: p.y + Math.sin(a) * R };
+        if (c.x < M || c.x > b.width - M || c.y < M || c.y > b.height - M) continue;
+        // Prefer the biggest relocation: a blink that lands where it already
+        // stood is not a blink.
+        const moved = Math.hypot(c.x - from.x, c.y - from.y);
+        if (!best || moved > best.moved) best = { ...c, moved };
+      }
+      h.spot = best || { x: p.x, y: p.y };
 
-      scene.time.delayedCall(this.anticipateMs * 0.45, () => {
-        if (!e.active || !e.alive) return;
-        e.setPosition(h.spot.x, h.spot.y);
-        e.body?.setVelocity(0, 0);
-        appear(scene, e, 200);
-        scene.fx?.blinkOut?.(e.x, e.y, h.tint);   // the arrival, same shape inverted
-        h.angle = Math.atan2(p.y - e.y, p.x - e.x);
-        e._holdAim = h.angle;
-        h.tel = scene.spawnTelegraph({
-          kind: 'lane', x: e.x, y: e.y, angle: h.angle,
-          len: Math.hypot(b.width, b.height), width: this.laneWidth,
-        }, { windupMs: this.anticipateMs * 0.5, owner: e, color: h.tint });
-      });
+      // ALWAYS have an aim. `act` bailed on a null angle, so if the teleport
+      // callback was ever skipped the whole ACT beat became a no-op — no dash,
+      // no `_charging`, and therefore no contact damage — while IMPACT and
+      // RECOVER still ran on schedule. That is the "no damage to no one".
+      h.angle = Math.atan2(p.y - e.y, p.x - e.x);
+
+      // On the MOVE's clock, so cancelling the move cancels the teleport. A
+      // bare scene.time.delayedCall here warped a dead nemesis across the arena
+      // and left a telegraph the handle never swept.
+      (h.later || scene.time.delayedCall.bind(scene.time))(
+        this.anticipateMs * 0.45, () => {
+          if (!e.active || !e.alive) return;
+          e.setPosition(h.spot.x, h.spot.y);
+          e.body?.setVelocity(0, 0);
+          appear(scene, e, 200);
+          scene.fx?.blinkOut?.(e.x, e.y, h.tint);   // arrival, same shape inverted
+          h.angle = Math.atan2(p.y - e.y, p.x - e.x);
+          e._holdAim = h.angle;
+          h.tel = scene.spawnTelegraph({
+            kind: 'lane', x: e.x, y: e.y, angle: h.angle,
+            len: this.laneLen, width: this.laneWidth,
+          }, { windupMs: this.anticipateMs * 0.5, owner: e, color: h.tint,
+               kineticMs: 1000 * this.laneLen / this.speed });
+        },
+      );
       scene.events.emit('show-banner', 'BLINK STRIKE', '#40ffd0');
     },
 
     act(scene, e, h) {
-      if (h.angle == null) return;
+      if (h.angle == null) h.angle = e._holdAim || 0;
       e.setMovePose?.('thrust');
       e._charging = true;
       SFX.meleeSwing?.(1);
