@@ -2209,8 +2209,30 @@ export class GameScene extends Phaser.Scene {
     this._on('boss-charge',       ()      => this.fx.shake(0.015, 200));
     this._on('boss-hit', (boss, amount) => {
       this.fx.hitFlash(boss);
-      this.fx.damageNumber(boss.x + (Math.random() * 30 - 15), boss.y - boss.cfg.radius,
-        Math.round(amount), '#ffd166', true);
+      // NO DAMAGE NUMBER HERE. The boss already gets one, from `enemy-hit`.
+      //
+      // `Boss.damage` emits `boss-hit` and then calls `super.damage`, which is
+      // `Enemy.damage`, which emits `enemy-hit` — so every single hit on Vader
+      // was printing the SAME figure twice: gold `#ffd166` at the 'major' tier
+      // from here, and orange `#ff8020` at 'minor' from the enemy handler, plus
+      // the CRIT label. Probed directly, one `boss.damage(690)` produced three
+      // labels. That duplicate is what "ordinary numbers are too strong and
+      // cluster on the boss body" actually was: not one number too large, but
+      // two numbers for one hit, the louder of them on the crit-and-super tier
+      // at 34px against 21, held 780ms against 420.
+      //
+      // Deleting this line is the whole fix. What survives is the enemy path,
+      // which is already the tiered, pooled, telegraph-aware one — it draws the
+      // ordinary figure at 'minor' and still raises a full-strength CRIT above
+      // it, which is exactly the hierarchy the boss fight was missing.
+      //
+      // The lethal hit is the one exception: `Boss.damage` intercepts above and
+      // returns before `super.damage`, so the wounding blow prints no number.
+      // It arrives with the retreat animation and a HE WILL RETURN banner, and
+      // does not need one.
+      //
+      // Everything else in this handler stays — the flash, the burst, the
+      // shake, the slow-mo spike and the sound are how a boss hit feels.
       this.fx.burst(boss.x, boss.y, 'red', 6);
       this.fx.shake(0.005, 60);
       // Big-damage spike → slow-mo ramp instead of a binary freeze. Shorter

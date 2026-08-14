@@ -361,16 +361,19 @@ if (SHOTS) {
   await frozen('vader-damage', `(async () => {
     const g = window.game.scene.getScene('Game');
     clearInterval(window.__auto);
-    const { ROOMS } = await import('/src/data/rooms.js');
-    g.sector = 15;
-    g.loadRoom(ROOMS.find((r) => r.boss));
-    await new Promise((r) => setTimeout(r, 2200));
+    // REUSE the boss room the previous capture already loaded. Calling
+    // loadRoom again while a boss fight is live tears the room down and
+    // rebuilds it, and the player is briefly invalid while that happens —
+    // which is what "Cannot read properties of undefined" was, not a bug in
+    // the thing being photographed.
     g.lives = 9999;
     g.enemies.getChildren().slice().forEach((e) => g._destroyEnemyFully(e));
     window.game.scene.getScene('HUD')?.setDarkness?.(false);
     if (!g.boss?.alive) g.spawnBoss(760, 660);
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 1200));
     if (!g.boss?.alive) throw new Error('vader-damage: no boss in the room');
+    if (!g.player?.active) throw new Error('vader-damage: no player');
+    g.boss.setPosition(760, 660);
     g.player.setPosition(760, 980);
     g.cameras.main.stopFollow();
     g.cameras.main.centerOn(760, 800);
