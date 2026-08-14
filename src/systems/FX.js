@@ -1686,6 +1686,16 @@ export function duckSfx(amount = 0.5, restoreInMs = 600) {
 
 // --- Visual FX helpers (attached to scenes via attach()) ---
 
+// Combat-text tiers and the hard clutter bound. Module scope because the fx
+// object below is an object literal — and because these are the two numbers a
+// future readability pass will want to reach for first, so they should not be
+// buried mid-file. See `damageNumber` for what was measured to pick them.
+const DMG_POOL = 26;
+const DMG_TIER = {
+  minor: { size: 21, stroke: 4, pop: 1.0,  popMs: 110, lifeMs: 420, rise: 46 },
+  major: { size: 34, stroke: 6, pop: 1.45, popMs: 130, lifeMs: 780, rise: 62 },
+};
+
 export function attachFX(scene) {
   const fx = {
     scene,
@@ -3044,71 +3054,180 @@ export function attachFX(scene) {
       });
     },
 
-    damageNumber(x, y, amount, color = '#ffffff', big = false) {
-      const t = scene.add
-        .text(x, y, String(amount), {
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: big ? '32px' : '24px',
-          fontStyle: 'bold',
-          color,
-          stroke: '#000000',
-          strokeThickness: 5,
-        })
-        .setOrigin(0.5)
-        .setDepth(30)
-        .setScale(0.2);
-
-      // Fan successive numbers around a circle by the golden angle instead of
-      // rolling an independent random offset each time. Random offsets cluster:
-      // several hits landing on one enemy in the same frame drew their numbers
-      // within a few pixels of each other, stacking into an illegible blob.
-      // A golden-angle sequence guarantees consecutive labels separate.
-      // Numbers used to spawn on the hit point with only a random drift, so a
-      // burst of hits in one frame stacked into a single unreadable blob.
-      //
-      // Deal them into 8 fixed slots instead — two rings of four, the outer ring
-      // rotated 45 degrees between the inner ones. Fixed slots beat both random
-      // offsets and a golden-angle spiral here: with only a handful of labels on
-      // screen, random clusters and a spiral squashed into a top-down ellipse
-      // still puts consecutive points ~10px apart. This guarantees ~34px.
-      this._dmgSeq = (this._dmgSeq || 0) + 1;
-      const slot  = this._dmgSeq % 8;
+    // ── Combat text ───────────────────────────────────────────────────────
+    //
+    // Two tiers and a fixed pool. Measured on the live build before any of this
+    // existed (`tests/diag-combat-text.mjs`): a dense fight held **79** labels
+    // on screen at once, **51** of them overlapping an actor's body, and
+    // allocated **219 Text objects per second**. Every one of those was a
+    // `scene.add.text` — a fresh canvas and a fresh WebGL texture upload each.
+    //
+    // Three things follow from that measurement, and each is a different fix:
+    //
+    //  1. THE POOL CAPS THE CLUTTER BY CONSTRUCTION. `DMG_POOL` labels exist,
+    //     ever. Asking for one past the end recycles the oldest, which is also
+    //     the least interesting. This is not primarily an allocation
+    //     optimisation — it is the only clutter bound that cannot be defeated
+    //     by a faster weapon, a bigger crowd or a longer combo, because it does
+    //     not depend on hit RATE at all.
+    //  2. TIER, NOT SIZE-FOR-EVERYONE. An ordinary hit is 21px and lives 420ms;
+    //     a crit or a super is 34px and lives 780ms. The ratio is what creates
+    //     hierarchy, so making ordinary damage smaller is what makes a CRIT
+    //     read as special — the alternative, shrinking everything equally,
+    //     just makes a quieter screen with the same confusion in it.
+    //  3. A LABEL MAY NOT SIT ON A LETHAL TELEGRAPH. The slot picker below
+    //     tests candidate positions against every live danger zone using the
+    //     zone's OWN `contains()`, so what the check tests is exactly what will
+    //     hurt the player. A number covering a telegraph is not clutter, it is
+    //     false information, and no assertion about counts would ever catch it.
+    // Eight slots, two rings of four, the outer ring rotated 45 degrees.
+    //
+    // Kept from the original, and the reasoning is still right: random offsets
+    // cluster (several hits in one frame drew within a few pixels and stacked
+    // into a blob) and a golden-angle spiral squashed into a top-down ellipse
+    // still puts consecutive points ~10px apart. Fixed slots guarantee ~34px.
+    // What is new is that the sequence can now SKIP a slot that would put the
+    // label on a danger zone.
+    _dmgSlotXY(slot) {
       const outer = slot >= 4;
-      const a     = ((slot % 4) * 90 + (outer ? 45 : 0)) * Math.PI / 180;
-      const rad   = outer ? 62 : 34;
-      const ox = Math.cos(a) * rad, oy = Math.sin(a) * rad * 0.75;
+      const a = ((slot % 4) * 90 + (outer ? 45 : 0)) * Math.PI / 180;
+      const rad = outer ? 62 : 34;
+      return [Math.cos(a) * rad, Math.sin(a) * rad * 0.75];
+    },
+
+    _dmgOverZone(px, py) {
+      const zones = scene._telegraphs;
+      if (!zones?.length) return false;
+      for (const z of zones) {
+        if (!z || z.dead || z.safe) continue;
+        try { if (z.contains(px, py)) return true; } catch { /* mid-teardown */ }
+      }
+      return false;
+    },
+
+    // Round-robin over the pool. A label still fading is reclaimed rather than
+    // waited for: at the hit rates this has to survive, refusing to draw would
+    // silently drop the newest damage — the one the player just caused — in
+    // favour of one that is already 400ms stale.
+    _dmgAcquire() {
+      const pool = this._dmgPool || (this._dmgPool = []);
+      if (pool.length < DMG_POOL) {
+        const t = scene.add.text(0, 0, '', {
+          fontFamily: 'system-ui, sans-serif',
+          fontStyle: 'bold',
+        }).setOrigin(0.5).setDepth(30);
+        pool.push(t);
+        return t;
+      }
+      this._dmgNext = ((this._dmgNext || 0) + 1) % DMG_POOL;
+      const t = pool[this._dmgNext];
+      scene.tweens.killTweensOf(t);
+      return t;
+    },
+
+    /**
+     * @param {number|string} amount  drawn verbatim; callers round.
+     * @param {boolean|'minor'|'major'} tier  `true` is accepted as 'major' so
+     *        the older `big` call sites keep working unchanged.
+     */
+    damageNumber(x, y, amount, color = '#ffffff', tier = false) {
+      const key = tier === true ? 'major' : (tier === false ? 'minor' : tier);
+      const cfg = DMG_TIER[key] || DMG_TIER.minor;
+
+      const t = this._dmgAcquire();
+      // Identity token. The pool recycles, so a caller holding a reference has
+      // no way to know whether the object it kept is still ITS label or has
+      // since been handed to a different enemy — re-punching someone else's
+      // number would be worse than the stacking it is there to prevent.
+      t._dmgTag = this._dmgTagSeq = (this._dmgTagSeq || 0) + 1;
+      t.setText(String(amount));
+      t.setStyle({
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: `${cfg.size}px`,
+        fontStyle: 'bold',
+        color,
+        stroke: '#000000',
+        strokeThickness: cfg.stroke,
+      });
+      t.setActive(true).setVisible(true).setAlpha(1).setScale(0.2);
+
+      // Drift OUTWARD, away from the player, instead of orbiting the thing that
+      // was hit. A label that leaves the contact point uncovers the animation
+      // that produced it; one that hovers over it does not, however briefly it
+      // lives. Upward bias is kept — it reads as a pop rather than as spill.
+      const px = scene.player?.x ?? x, py = scene.player?.y ?? y;
+      let awx = x - px, awy = y - py;
+      const len = Math.hypot(awx, awy) || 1;
+      awx /= len; awy /= len;
+      const driftOf = (ox, oy) => [ox * 0.7 + awx * 26, oy * 0.7 + awy * 18 - cfg.rise];
+
+      // Pick the slot that keeps the label off a lethal zone for its WHOLE
+      // life, not just at the instant it appears.
+      //
+      // Scoring both endpoints is the entire point, and the first version of
+      // this — which tested only the spawn point — made the duel case WORSE
+      // than the code it replaced (3% of labels on a live danger zone, up from
+      // 0.2). The drift above pushes away from the player, and in a duel that
+      // is precisely the direction of the nemesis and the zone it is standing
+      // in, so labels were being launched into the telegraph from a start
+      // position that had been checked and cleared. Measured, not reasoned:
+      // the check that only looked at frame one passed while the thing it was
+      // protecting got worse.
+      this._dmgSeq = (this._dmgSeq || 0) + 1;
+      let ox = 0, oy = 0, best = Infinity;
+      for (let i = 0; i < 8; i++) {
+        const [cx, cy] = this._dmgSlotXY((this._dmgSeq + i) % 8);
+        const [ddx, ddy] = driftOf(cx, cy);
+        const score = (this._dmgOverZone(x + cx, y + cy) ? 2 : 0)
+                    + (this._dmgOverZone(x + cx + ddx, y + cy + ddy) ? 1 : 0);
+        if (score < best) { best = score; ox = cx; oy = cy; if (!score) break; }
+      }
       t.setPosition(x + ox, y + oy);
-      // Then keep drifting outward along the same bearing, so the pop reads as
-      // scatter rather than as a ring that sits still.
-      const dx = ox * 0.9;
-      const dy = oy * 0.9 - 58;                              // biased upward
+      const [dx, dy] = driftOf(ox, oy);
 
-      // Bounce scale tween
+      // Punch in, settle, then drift and fade. The punch is the satisfying part
+      // and it is untouched at both tiers; what shortened is the TAIL, which is
+      // the part that was still sitting on the fight 700ms after the hit.
       scene.tweens.add({
-        targets: t,
-        scale: big ? 1.45 : 1.1,
-        duration: 130,
-        ease: 'Back.easeOut',
+        targets: t, scale: cfg.pop, duration: cfg.popMs, ease: 'Back.easeOut',
         onComplete: () => {
-          scene.tweens.add({
-            targets: t,
-            scale: 0.9,
-            duration: 100,
-            ease: 'Quad.easeIn',
-          });
-        }
+          if (t.active) scene.tweens.add({ targets: t, scale: cfg.pop * 0.86, duration: 90, ease: 'Quad.easeIn' });
+        },
       });
-
-      // Arc/bounce movement tween
       scene.tweens.add({
         targets: t,
-        x: x + dx,
-        y: y + dy,
+        x: x + ox + dx,
+        y: y + oy + dy,
         alpha: { start: 1, end: 0 },
-        duration: 750,
+        duration: cfg.lifeMs,
+        // Held at full opacity for the first third, then dropped. A linear fade
+        // over 420ms is legible for about half of it; this way the number is
+        // solid while it is being read and gone quickly afterwards.
         ease: 'Cubic.easeOut',
-        onComplete: () => t.destroy(),
+        onComplete: () => { t.setVisible(false).setActive(false); },
       });
+      return t;
+    },
+
+    // A crit landing on something already wearing a live CRIT label.
+    //
+    // Rapid same-source crits used to stack IDENTICAL labels on one contact
+    // point — three "CRIT!"s superimposed read as one smeared glyph, which is
+    // both unreadable and a lie about how many landed. Re-punching the live one
+    // says the same thing louder, in the place the player is already looking.
+    // Only the LABEL coalesces; the damage numbers stay discrete, because
+    // separate impacts are the tactile feedback.
+    repunchDamage(t, tag) {
+      if (!t?.active || !t.visible) return false;
+      if (tag != null && t._dmgTag !== tag) return false;
+      scene.tweens.killTweensOf(t);
+      t.setAlpha(1).setScale(DMG_TIER.major.pop * 1.25);
+      scene.tweens.add({ targets: t, scale: DMG_TIER.major.pop, duration: 120, ease: 'Back.easeOut' });
+      scene.tweens.add({
+        targets: t, alpha: 0, y: t.y - 34, delay: 220, duration: 560, ease: 'Cubic.easeOut',
+        onComplete: () => { t.setVisible(false).setActive(false); },
+      });
+      return true;
     },
 
     shake(intensity = 0.005, duration = 80) {

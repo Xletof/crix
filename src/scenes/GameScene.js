@@ -2301,17 +2301,49 @@ export class GameScene extends Phaser.Scene {
           if (this.anims.exists(`${prefix}-idle-front`)) enemy.play(`${prefix}-idle-front`);
         }
       });
+      // Where the label goes is the DRAWN top of the sprite, not the collider.
+      // `cfg.radius` is a physics constant that `_makeElite` grows on a
+      // different curve than the art, so on a big nemesis a number anchored to
+      // it lands inside the chest — the same defect the hp bar had, with the
+      // same fix.
+      const head = enemy._headroom?.() ?? enemy.cfg.radius;
+
       // CRIT callout on big hits — one-shot territory for most enemies.
       const crit = amount >= 400;
       if (crit) {
-        this.fx.damageNumber(enemy.x, enemy.y - enemy.cfg.radius - 30,
-          'CRIT!', '#ffe040', true);
-        this.fx.damageNumber(enemy.x + 18, enemy.y - enemy.cfg.radius,
-          Math.round(amount), '#ff8020', false);
+        // ONE "CRIT!" PER CONTACT AREA — area, not enemy.
+        //
+        // A melee finisher or a super lands several qualifying hits inside a
+        // couple of frames, and identical labels superimposed smear into one
+        // illegible glyph; three at once was measured on the pre-change build.
+        // Re-punch the live one instead: the same information, louder, where
+        // the eye already is.
+        //
+        // The key is a POSITION, not the enemy. Keying per-enemy left the
+        // stacking in place whenever two enemies half a body apart both crit —
+        // visible in a melee-crowd screenshot as "CRIT!" printed through
+        // "CRIT!" on two different foes. The player reads a place on the
+        // screen, not an entity id, so the coalescing has to agree with that.
+        //
+        // The DAMAGE NUMBERS below stay discrete. Merging those would erase the
+        // per-impact feedback that makes a finisher feel like several hits.
+        const now = this.time.now;
+        const last = this._critLabel;
+        const near = last && Math.hypot(enemy.x - last.x, enemy.y - last.y) < 96;
+        if (!near || now - (last.at || 0) >= 380
+            || !this.fx.repunchDamage(last.obj, last.tag)) {
+          const obj = this.fx.damageNumber(enemy.x, enemy.y - head - 30,
+            'CRIT!', '#ffe040', 'major');
+          this._critLabel = { obj, tag: obj?._dmgTag, x: enemy.x, y: enemy.y, at: now };
+        } else {
+          this._critLabel.at = now;
+        }
+        this.fx.damageNumber(enemy.x + 18, enemy.y - head,
+          Math.round(amount), '#ff8020', 'minor');
         // Super hits far from the player shake much less than close ones.
         this.fx.shake(0.005 * this._superShakeFalloff(enemy), 70);
       } else {
-        this.fx.damageNumber(enemy.x, enemy.y - enemy.cfg.radius, Math.round(amount));
+        this.fx.damageNumber(enemy.x, enemy.y - head, Math.round(amount));
         // Chipping a tank (elite or just high-HP): the old 0.002 shake was
         // invisible (and now scaled down further). Give it a real visible bite —
         // a bright impact ring — so hitting armor reads as landing, not whiffing.

@@ -95,6 +95,7 @@ does NOT, because hitstop is its subject — same split as `smoke-dialogue` and
 | File | Use it when |
 |---|---|
 | `diag-flight.mjs` | A munition is missing: per-munition flight time, closest approach, end altitude |
+| `diag-combat-text.mjs` | **What is the combat text covering?** Concurrent labels, how many overlap an actor's body, how many sit on a live danger telegraph, and the allocation rate — across six real fights. `--shots` also captures frozen frames of the Broken Wings casts and a Vader exchange. Run it with `--label baseline` on the old build and `--label after` on the new one; it prints an A/B you can read side by side. `--only-frozen` re-shoots just the stills (40s instead of 6min) |
 | `smoke-audio.mjs` | Comparing SFX levels across the mix |
 | `smoke-fragsfx.mjs` | Judging impact-sound *timbre* (low band vs crack band), not just loudness |
 | `shot-run.mjs` | Capturing a frame sequence across a whole attack run → `tests/out/` |
@@ -265,6 +266,21 @@ fight takes. Sizing Vader's hp pool off it produced 300,000, shipped, and came
 straight back from the phone as unkillable. Use the harness for RELATIVE
 comparison; every absolute stays a playtest. (This file and the top of
 `diag-encounter.mjs` both already said so.)
+
+**A census counts what EXISTS, and what matters is what is DRAWN.** The combat-text
+diagnostic's first version filtered the display list on `type === 'Text'`. That was
+fine against a build that destroyed each label — and wrong the instant labels were
+pooled, because a retired one stays in the list forever with its old string set. It
+reported the change that *cut* peak concurrent labels from 79 to 28 as having raised
+them from 12 to 21. The fix is one clause (`o.visible && o.alpha > 0.02`); the lesson
+is that changing a lifecycle can invalidate an instrument that never mentioned it.
+
+**Photograph the subject on purpose; do not hope it walks into frame.** Four
+consecutive attempts at a "Vader mid-move, being hit" still came back with no Vader
+in them — first because `spawnBoss()` was called without the coordinates it takes
+(so no boss existed, the move was refused, and an empty deck photographed as a clean
+pass), then because the camera follows the player and the player was elsewhere. Place
+the actors, assert the cast returned non-null, and only then open the shutter.
 
 **A check can be protected by a guard you did not mean to test.** The "a stranger
 raises no card" check passed happily against a build with its gate removed,

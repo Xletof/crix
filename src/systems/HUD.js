@@ -1456,6 +1456,21 @@ export class HUDScene extends Phaser.Scene {
   }
 
   // Splash an "x2!", "x3!" etc combo text when chain kills happen.
+  //
+  // ── Why this is tiered ────────────────────────────────────────────────
+  //
+  // It used to draw every streak at 64px and blow it out to scale 1.5 on the
+  // way out — a ~430x96 slab across the upper play area. That is the right
+  // treatment for x10. It is the wrong one for x2, and x2 fires constantly:
+  // _tickKillCombo splashes on EVERY chained kill from the second onward, so
+  // the loudest text in the game was also the most frequent, and in a crowded
+  // wave it was over the enemies for more of the fight than it was not.
+  //
+  // Escalation is the whole point of the counter, so the fix is to give it
+  // somewhere to escalate TO rather than to turn it down. Routine streaks are
+  // now quick and modest; the milestones every ten are bigger and longer than
+  // anything the old flat treatment ever produced. The dopamine curve is
+  // steeper, not shallower.
   showCombo(n) {
     // Reuse a single text object — kill any previous tween/state.
     if (!this.comboText) {
@@ -1464,7 +1479,6 @@ export class HUDScene extends Phaser.Scene {
       // need their own lanes or they overlap into an unreadable pile.
       this.comboText = this.add.text(VIEW.width / 2, HUDCFG.topBarHeight + 146, ' ', {
         fontFamily: FONTS.display,
-        fontSize: '64px',
         fontStyle: 'bold',
         color: '#ffd040',
         stroke: '#000000',
@@ -1472,17 +1486,45 @@ export class HUDScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(35).setAlpha(0).setResolution(2);
     }
     this.tweens.killTweensOf(this.comboText);
+
+    // SIZE TRACKS THE STREAK, and the milestone is a flourish ON TOP of that
+    // — not the thing that earns the size.
+    //
+    // The first cut of this tiered on `n % 10 === 0`, which put x20 in the big
+    // slab and x114 back in the routine one. A screenshot showed the two side
+    // by side and the longer streak was visibly the smaller text: the display
+    // was contradicting the achievement it was reporting. Divisibility is a
+    // property of a number, not a measure of how well the player is doing.
+    const milestone = n >= 10 && n % 10 === 0;
+    const tier = n >= 10 ? 2 : (n >= 5 ? 1 : 0);
+    const size    = [30, 46, 76][tier];
+    const peak    = [1.0, 1.12, 1.3][tier];
+    const holdMs  = [260, 520, 900][tier];
+    const fadeMs  = [300, 500, 700][tier];
+    const exit    = [1.06, 1.22, 1.62][tier];
+
     const colors = [null, null, '#ffd040', '#ffaa20', '#ff8020', '#ff4020', '#ff2020'];
-    const col = colors[Math.min(colors.length - 1, n)] || '#ff2020';
+    const col = milestone ? '#ffffff' : (colors[Math.min(colors.length - 1, n)] || '#ff2020');
+
+    // Lane arbitration. A multikill emits its banner and this splash in the
+    // same instant; the banner's exit tween grows it downward, so the splash
+    // steps down out of the way when one is live rather than printing through
+    // it. Milestones sit lower again — they are big enough to reach the banner
+    // from the ordinary lane.
+    const bannerLive = (this.banner?.alpha ?? 0) > 0.05;
+    this.comboText.y = HUDCFG.topBarHeight + 146
+      + (bannerLive ? 58 : 0) + (tier === 2 ? 26 : 0);
+
+    this.comboText.setFontSize(size);
     this.comboText.setText(`x${n}!`).setColor(col);
-    this.comboText.setScale(0.5).setAlpha(1);
+    this.comboText.setScale(peak * 0.5).setAlpha(1);
     this.tweens.add({
-      targets: this.comboText, scale: 1.15,
-      duration: 180, ease: 'Back.easeOut',
+      targets: this.comboText, scale: peak,
+      duration: milestone ? 220 : 170, ease: 'Back.easeOut',
     });
     this.tweens.add({
-      targets: this.comboText, alpha: 0, scale: 1.5,
-      duration: 600, delay: 700, ease: 'Cubic.easeIn',
+      targets: this.comboText, alpha: 0, scale: exit,
+      duration: fadeMs, delay: holdMs, ease: 'Cubic.easeIn',
     });
   }
 
@@ -1619,6 +1661,22 @@ export class HUDScene extends Phaser.Scene {
     this.banner.setColor(color);
     this.banner.setAlpha(0);
     this.banner.setScale(0.6);
+
+    // THE BANNER MOVES OUT OF THE DUEL BLOCK'S WAY.
+    //
+    // The duel readout occupies screen y 96-139 (name at topBarHeight+12, bar
+    // at +38 with its bed). The banner's home is topBarHeight+66 = 150, and a
+    // 60px line centred there spans 120-180 — straight through the bar. Caught
+    // in a screenshot of a nemesis fight: 'CHARGE' was drawn across the foe's
+    // name and its own health bar, so the attack callout and the thing it was
+    // an attack by were illegible together.
+    //
+    // A nemesis is exactly when a callout matters most, so the callout yields
+    // rather than the bar: the fight-critical text is the one that must be
+    // clean, and the bar is persistent while the banner is transient.
+    const duelLive = this.duelBar?.visible;
+    this.banner.y = HUDCFG.topBarHeight + (duelLive ? 112 : 66);
+
     this.tweens.add({
       targets: this.banner,
       alpha: 1,
@@ -1628,7 +1686,10 @@ export class HUDScene extends Phaser.Scene {
         this.tweens.add({
           targets: this.banner,
           alpha: 0,
-          scale: 1.3,
+          // 1.16, not 1.3. The exit grew a 60px line to ~78px tall and pushed
+          // its bottom edge into the combo lane below, which is how MULTIKILL
+          // and a combo splash ended up printed through each other.
+          scale: 1.16,
           duration: 650,
           delay: 700,
         });
