@@ -354,10 +354,19 @@ if (SHOTS) {
   //
   // Deliberately no move and no telegraph: the subject here is only the
   // non-CRIT number, and the playtest complaint was that it reads too heavy
-  // and piles up on his body. 690 is the figure from the report. Note that
-  // the boss path has NO crit branch at all — `boss-hit` never emits a CRIT
-  // label whatever the amount — so every number in this frame is the ordinary
-  // one, which is exactly what makes the frame worth comparing.
+  // and piles up on his body. 690 is the figure from the report.
+  //
+  // A hit on the boss reaches TWO handlers: `Boss.damage` emits `boss-hit`
+  // and then calls `super.damage`, which is `Enemy.damage`, which emits
+  // `enemy-hit`. So a CRIT label appears here too, from the enemy path — the
+  // frame is worth comparing precisely because it shows how many labels one
+  // hit produces, which is the thing that was wrong.
+  //
+  // Frozen 90ms after the last hit, not 260. An ordinary label lives 420ms
+  // and the old duplicate lived 780, so a late freeze catches only the
+  // long-lived one and flatters the fix: the first attempt at this frame came
+  // back showing a fading CRIT and no numbers at all, which is not what the
+  // screen does in play. Both sides of the A/B are shot at this timing.
   await frozen('vader-damage', `(async () => {
     const g = window.game.scene.getScene('Game');
     clearInterval(window.__auto);
@@ -387,7 +396,7 @@ if (SHOTS) {
     // die, and a frame full of nothing would otherwise photograph as a very
     // clean result.
     if (g.boss.hp >= hp0) throw new Error('vader-damage: no damage was dealt');
-  })()`, 260);
+  })()`, 90);
 }
 
 const totals = await page.evaluate(() => {
