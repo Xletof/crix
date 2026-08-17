@@ -442,6 +442,7 @@ export class Boss extends Enemy {
             this.setVelocity(0, 0);
             SFX.bossRoar();
             this.chargeAngle = angToPlayer;
+            this._dragFrom = null;      // the furrow starts where the run does
             // The lane on the floor. His charge has always had a windup and a
             // scale pulse, and NOTHING on the ground — "he only charges but no
             // lane light or anything" was a precise description of that. The
@@ -524,11 +525,13 @@ export class Boss extends Enemy {
         // record of the path he has already taken, which a thrown blade never
         // produces. Also the reason it reads on a still: the furrow is the
         // difference between "something is moving" and "he came from there".
-        this._dragT = (this._dragT || 0) + delta;
-        if (this._dragT >= 60) {
-          this._dragT = 0;
-          this.scene.fx?.saberDrag?.(this.x, this.y, this.chargeAngle);
+        // Segment-to-segment, from where he was to where he is, so the furrow
+        // is continuous at any frame rate rather than a dashed line whose gaps
+        // measure the machine.
+        if (this._dragFrom) {
+          this.scene.fx?.saberDrag?.(this._dragFrom.x, this._dragFrom.y, this.x, this.y);
         }
+        this._dragFrom = { x: this.x, y: this.y };
         if (this.stateTimer >= BOSS.chargeDurationMs || blocked) {
           this.setVelocity(0, 0);
           this.state = STATE.IDLE;

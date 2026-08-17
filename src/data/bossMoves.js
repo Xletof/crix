@@ -196,7 +196,15 @@ export const BOSS_MOVES = [
         // time (`actMs * 0.45`, the same constant OUT_SPEED is derived from in
         // `act`) makes the light on the floor move at exactly the speed the
         // saber will. Geometry, width and windup all unchanged.
-      }, { windupMs: this.anticipateMs, owner: b, kineticMs: this.actMs * 0.45 });
+        // ...and the commit is a SPEAR, not a wall. What leaves his hand is one
+        // object on the axis; the full-width bloom every other lane uses made
+        // the throw's release frame and the CHARGE's release frame the same
+        // photograph, which is the closest pair in his kit failing at exactly
+        // the moment it matters most.
+      }, {
+        windupMs: this.anticipateMs, owner: b,
+        kineticMs: this.actMs * 0.45, bloom: 'spear',
+      });
       announceMove(scene, 'SABER THROW', '#ff2828');
     },
 

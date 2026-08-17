@@ -2324,10 +2324,19 @@ export function attachFX(scene) {
     // accumulate, because they outlive the effect that spawned them. `_scar`
     // keeps a hard cap of the OLDEST-first kind, so a phase-3 Vader swinging
     // continuously cannot paper the arena.
+    // 48, not 16: a 900ms CHARGE at 60fps lays one furrow segment per frame, so
+    // a smaller cap evicted the start of the run while he was still making it
+    // and the furrow could never show the whole path. This is the only effect
+    // here that is spent at frame rate, and it is bounded rather than trusted.
     _scars: [],
     _keepScar(g) {
       this._scars.push(g);
-      while (this._scars.length > 16) this._scars.shift()?.destroy();
+      while (this._scars.length > 48) {
+        const old = this._scars.shift();
+        // Kill the fade first: destroying a live tween target is how this
+        // project has produced console noise before.
+        if (old) { scene.tweens.killTweensOf(old); old.destroy(); }
+      }
       return g;
     },
 
@@ -2377,19 +2386,26 @@ export function attachFX(scene) {
      * pair in his kit. This is the thing only the rush does: he drags the point
      * through the deck as he goes, so the run leaves a continuous furrow behind
      * him while the throw leaves nothing on the ground at all.
+     *
+     * Takes the two ENDPOINTS he actually travelled between rather than a
+     * fixed length, so the furrow is exactly the path and joins up at any frame
+     * rate. Sized as a constant it was a dashed line at 950px/s — the gaps were
+     * a picture of the frame rate, which is the mistake this repo keeps
+     * finding in its instruments and had no business shipping in the art.
      */
-    saberDrag(x, y, angle, len = 46) {
+    saberDrag(fromX, fromY, toX, toY) {
       if (lowQuality) return;
+      const dx = toX - fromX, dy = toY - fromY;
+      const d = Math.hypot(dx, dy);
+      if (d < 2 || d > 400) return;      // a teleport is not a drag
       const g = this._keepScar(scene.add.graphics().setDepth(11));
-      const ca = Math.cos(angle), sa = Math.sin(angle);
-      // Offset to his trailing side, where a dragged blade actually is.
-      const ox = x - ca * len * 0.5 - sa * 16;
-      const oy = y - sa * len * 0.5 + ca * 16;
+      // Offset to his trailing side, where a dragged point actually is.
+      const nx = -dy / d * 16, ny = dx / d * 16;
       for (const [thick, colour, alpha] of [[15, 0x1a0704, 0.7], [6, 0x8c1a08, 0.8], [2, 0xff7a3a, 0.95]]) {
         g.lineStyle(thick, colour, alpha);
         g.beginPath();
-        g.moveTo(ox, oy);
-        g.lineTo(ox + ca * len, oy + sa * len);
+        g.moveTo(fromX + nx, fromY + ny);
+        g.lineTo(toX + nx, toY + ny);
         g.strokePath();
       }
       scene.tweens.add({

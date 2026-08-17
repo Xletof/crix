@@ -115,6 +115,20 @@ export class Telegraph {
     // once, for the same reason the rim jitter is: rebuilt per frame it crawls
     // like static.
     this.stress = !!opts.stress;
+    // ── WHAT THE COMMIT LOOKS LIKE ───────────────────────────────────────
+    //
+    // The commit bloom throws streaks across the FULL WIDTH of the zone, which
+    // is right when the whole width is the hazard — a body ploughing down a
+    // lane, a cone of blade. It is wrong for a single object travelling: SABER
+    // THROW promises a 150px lane and the blade's actual hit test is a 52px
+    // radius that follows it, so a full-width fan overstates the shape of what
+    // is coming and, measured off the first review sheet, made the throw's
+    // release frame and the CHARGE's release frame the same photograph.
+    //
+    // 'spear' concentrates the same streaks on the axis. Strictly narrower than
+    // the zone, so it can only under-claim, never over-claim — the one
+    // direction a telegraph is allowed to be wrong in.
+    this.bloom = opts.bloom === 'spear' ? 'spear' : 'fan';
     this.committed = false;
     this.dead = false;
     this.onCommit = opts.onCommit || null;
@@ -751,7 +765,6 @@ export class Telegraph {
     this.shadowGfx?.clear();
     this.fillGfx?.clear();
     g.clear();
-    g.fillStyle(this.safe ? SAFE_COLOR : 0xffffff, this.safe ? 0.32 : 0.7);
     // A DIRECTIONAL bloom on commit for anything with an axis. A flat white
     // flash says "now" and nothing else; streaks thrown along the attack line
     // say which way the thing went, which is the difference between knowing you
@@ -762,7 +775,8 @@ export class Telegraph {
         .setBlendMode(Phaser.BlendModes.ADD);
       const ca = Math.cos(s.angle), sa = Math.sin(s.angle);
       const reach = s.kind === 'lane' ? s.len : s.len * 0.9;
-      const spread = s.kind === 'lane' ? s.width / 2 : reach * 0.35;
+      const spread = (s.kind === 'lane' ? s.width / 2 : reach * 0.35)
+        * (this.bloom === 'spear' ? 0.22 : 1);
       for (let i = 0; i < 9; i++) {
         const off = (i / 8 - 0.5) * 2 * spread;
         const jitter = 0.55 + 0.45 * this._ragged(i / 9);
@@ -782,20 +796,59 @@ export class Telegraph {
       // double-kicks the camera on every commit in the game, including zones
       // the player dodged clean. The bloom is the zone's contribution.
     }
+    // ── THE FLASH MUST NOT DELETE THE MAN CASTING IT ─────────────────────
+    //
+    // This was one flat fill at 0.7 white across the whole zone. For anything
+    // whose origin is the caster's own feet — a cone, a slam, a Force circle,
+    // which is most of Vader's kit — that paints an opaque white mass directly
+    // over his body on the frame the attack lands. Caught in a SABER COMBO
+    // still: at the release beat he was a white blob, at the exact moment the
+    // player needs to read which way the blade is going.
+    //
+    // The same claim, redistributed: the fill ramps from nearly clear at the
+    // origin to full at the rim, so the flash still says "all of this fired"
+    // while the thing at the origin stays legible. The hit test is untouched —
+    // `contains` has never consulted the drawing, and that is the point.
+    const BANDS = 7;
+    const bandA = (i) => {
+      const u = (i + 0.5) / BANDS;
+      return (this.safe ? 0.32 : 0.7) * (0.14 + 0.86 * u * u);
+    };
     if (s.kind === 'circle') {
-      g.fillCircle(s.x, s.y, s.r);
+      const bw = s.r / BANDS;
+      for (let i = 0; i < BANDS; i++) {
+        g.lineStyle(bw + 1, this.safe ? SAFE_COLOR : 0xffffff, bandA(i));
+        g.strokeCircle(s.x, s.y, bw * (i + 0.5));
+      }
     } else if (s.kind === 'cone') {
       const half = (s.spreadDeg * Math.PI) / 180 / 2;
-      this._arcPath(g, s.x, s.y, s.len, s.angle - half, s.angle + half, true);
+      const bw = s.len / BANDS;
+      for (let i = 0; i < BANDS; i++) {
+        g.lineStyle(bw + 1, this.safe ? SAFE_COLOR : 0xffffff, bandA(i));
+        g.beginPath();
+        const r = bw * (i + 0.5);
+        const N = 14;
+        for (let k = 0; k <= N; k++) {
+          const a = s.angle - half + (2 * half * k) / N;
+          const px = s.x + Math.cos(a) * r, py = s.y + Math.sin(a) * r;
+          if (k === 0) g.moveTo(px, py); else g.lineTo(px, py);
+        }
+        g.strokePath();
+      }
     } else if (s.kind === 'lane') {
       const ca = Math.cos(s.angle), sa = Math.sin(s.angle), hw = s.width / 2;
-      g.beginPath();
-      g.moveTo(s.x - sa * hw, s.y + ca * hw);
-      g.lineTo(s.x + ca * s.len - sa * hw, s.y + sa * s.len + ca * hw);
-      g.lineTo(s.x + ca * s.len + sa * hw, s.y + sa * s.len - ca * hw);
-      g.lineTo(s.x + sa * hw, s.y - ca * hw);
-      g.closePath();
-      g.fillPath();
+      const bw = s.len / BANDS;
+      for (let i = 0; i < BANDS; i++) {
+        const f = bw * i, t2 = bw * (i + 1);
+        g.fillStyle(this.safe ? SAFE_COLOR : 0xffffff, bandA(i));
+        g.beginPath();
+        g.moveTo(s.x + ca * f - sa * hw, s.y + sa * f + ca * hw);
+        g.lineTo(s.x + ca * t2 - sa * hw, s.y + sa * t2 + ca * hw);
+        g.lineTo(s.x + ca * t2 + sa * hw, s.y + sa * t2 - ca * hw);
+        g.lineTo(s.x + ca * f + sa * hw, s.y + sa * f - ca * hw);
+        g.closePath();
+        g.fillPath();
+      }
     }
 
     if (!this.safe) {
