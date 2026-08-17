@@ -27,8 +27,9 @@ the finding is already established earlier in the conversation.
 
 - **Deploys only happen from the `FRIX` branch.** `.github/workflows/deploy.yml`
   triggers on pushes to `FRIX` only. Work lands on the dev branch
-  (`claude/mobile-run-game-design-OZLYF`); GitHub Pages will serve a **stale build**
-  until `FRIX` is fast-forwarded.
+  (`claude/project-handover-ack-9ai0av`); GitHub Pages will serve a **stale build**
+  until `FRIX` is fast-forwarded. If a session ever finds this name stale again,
+  trust `git rev-parse --abbrev-ref HEAD` over this line and fix the line.
 - **Always deploy — don't ask.** The user tests on a phone against GitHub Pages,
   so a dev-branch push they can't play is not a finished task. Fast-forward `FRIX`
   in the same turn as the commit, then confirm the workflow went green. This
@@ -40,6 +41,23 @@ the finding is already established earlier in the conversation.
   `setCircle(this.width / 2)`, so changing a projectile texture's dimensions silently
   changes its collision size. Keep canvas dimensions fixed when redrawing projectiles,
   and assert `body.radius` parity in tests.
+- **A HIT ON A BOSS FIRES TWO DAMAGE EVENTS.** `Boss.damage` (`Boss.js:97`) emits
+  `boss-hit` and then calls `super.damage` — which is `Enemy.damage`, which emits
+  `enemy-hit` (`Enemy.js:216`). So anything that draws, counts or scores per-hit
+  feedback runs **twice** on a boss and once on everything else. This shipped: every
+  hit on Vader printed its damage number twice, in two colours at two sizes, and it
+  survived a whole readability pass because both halves looked plausible on their
+  own. The lethal blow is the one exception — the wound intercept returns before
+  `super.damage`, so only `boss-hit` fires there.
+- **Combat text is pooled and hard-capped.** Never `scene.add.text` for a damage
+  number; call `fx.damageNumber(x, y, amount, color, tier)`. `DMG_POOL` (26, in
+  `FX.js`) is the clutter bound, and it is deliberately independent of hit rate —
+  it is the only limit a faster weapon or a longer combo cannot defeat. Two
+  consequences: a retired label **stays in the display list** with its old string
+  set, so anything counting labels must filter on `visible`; and the last argument
+  is a TIER (`'minor'` ordinary, `'major'` crits and supers), not a boolean. `true`
+  is legacy for `'major'` and is exactly how ordinary boss damage sat on the crit
+  tier without anyone noticing.
 - **A nemesis bomber must never run the stock contact path.** `EnemyBomber._detonate()`
   sets `hp = 0` and calls `die()`; on a nemesis that throws away 6× hp, traits,
   regalia, a name and a ledger grudge on first touch. `_tickSwarm` branches to

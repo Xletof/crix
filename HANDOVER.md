@@ -16,7 +16,9 @@ Vite, vanilla JS ES modules, no TypeScript, no framework.
 
 - **Repo:** `Xletof/crix` — GitHub MCP tools are restricted to it
 - **Live:** https://xletof.github.io/crix/
-- **Dev branch:** `claude/mobile-run-game-design-OZLYF`
+- **Dev branch:** `claude/project-handover-ack-9ai0av` — this name changes
+  between sessions; if it looks wrong, believe `git rev-parse --abbrev-ref HEAD`
+  and correct this line
 - **Deploy branch:** `FRIX` — Pages builds **only** from this (see §8)
 - **Logical resolution:** 720×1280 portrait, `Phaser.Scale.FIT`
 - **Arena:** 1600×1600 world, camera follows the player with aim-lookahead
@@ -214,6 +216,12 @@ caused several bugs.
 2. **Flat constants** used by nearly everything else: bullets 26, grenade 22,
    particles 0. These sit permanently *underneath* the entire Y-sorted layer.
 
+**Combat text is the asymmetric case.** Damage numbers draw at 30 — *above*
+every telegraph (12–14) and *below* the whole Y-sorted actor band. So draw order
+alone hides text behind bodies while doing nothing to keep it off a lethal zone,
+which is why `damageNumber` tests candidate positions against live telegraphs
+itself rather than trusting depth (§10e).
+
 `DEPTH.AIR` (2000, in config.js) is the band for things genuinely flying **over**
 the room. Anything in it must add its **ground y** — where its shadow is — never
 its rendered y, or draw order drifts as it changes altitude.
@@ -392,13 +400,20 @@ play is not a finished task. **Deploy in the same turn as the commit — don't
 ask.**
 
 ```bash
-git push -u origin claude/mobile-run-game-design-OZLYF
+git push -u origin "$(git rev-parse --abbrev-ref HEAD)"   # the dev branch, whatever it is called
 git fetch origin FRIX
 git merge-base --is-ancestor origin/FRIX HEAD   # MUST pass
 git push origin HEAD:FRIX
 ```
 
 If the ancestor check fails, **stop and ask**. Never force-push `FRIX`.
+
+Then confirm the build went green — `curl` the REST API, not the MCP tool:
+
+```bash
+curl -s https://api.github.com/repos/Xletof/crix/commits/<sha>/check-runs \
+  | python3 -c "import json,sys;[print(c['name'],c['status'],c['conclusion']) for c in json.load(sys.stdin)['check_runs']]"
+```
 
 Then confirm the run went green (`mcp__github__actions_list` /
 `actions_get`). Note that `actions_list` reliably exceeds the tool result size
@@ -663,15 +678,92 @@ when you are already in a run.
   `smoke-moves` asserts both that the dash covers it and that it does not exceed
   `laneLen`. For a combo, `dashPx` is the TOTAL and `dashLinks` says how many
   links to divide it by.
-- **`charge()` suspends the body's drag.** Enemy bodies carry `setDrag(900,900)`;
-  setting velocity once and coasting meant every dash in the game decayed almost
-  immediately. Restore drag on cancel as well as on completion, or a cancelled
-  charger stays frictionless for life.
+- **`charge()` re-asserts velocity every frame, and the thief was never drag.**
+  Setting velocity once and coasting meant every dash in the game decayed almost
+  immediately. This entry used to say enemy bodies carry `setDrag(900,900)` and
+  that `charge()` suspends it. **That is false** — the only `setDrag` on an enemy
+  is `Enemy.js:241`, inside `die()`, for the corpse slide. The real thief is the
+  AI: `Enemy.preUpdate`/`Boss.preUpdate` rewrite velocity every frame, so a
+  set-and-coast dash is overwritten rather than damped. `charge()` therefore
+  re-asserts on a 16ms timer and holds `_movePlanted` for the duration, and the
+  general rule survives the correction intact: **restore whatever you suspended
+  on cancel as well as on completion**, or a cancelled charger keeps the
+  suspension for life.
 - **RITE's interrupt is a flat damage bar** (`RITE_BREAK_DAMAGE`), not a
   fraction of max hp. The old `> hpMax * 0.06` scaled the wrong way: the tougher
   the nemesis, the more the interrupt demanded, so the one move whose correct
   answer is offence stopped being answerable on exactly the enemies it mattered
   against.
+
+## 10e. Combat text and the information hierarchy
+
+The screen is loud on purpose. The problem this section records is that at peak
+it was loud *undifferentiated* — a crit and a grunt chip were nearly the same
+object, so nothing outranked anything, and the fight disappeared under its own
+scoreboard. Measured on the build that shipped before this pass
+(`tests/diag-combat-text.mjs`, evidence in `docs/evidence/combat-text/`):
+
+| | before | after |
+|---|---|---|
+| peak concurrent labels | 79 | **28** |
+| peak labels overlapping a body | 46 | **14** |
+| crowded wave — labels on a body | 42% | **25%** |
+| nemesis duel — labels on a body | 43% | **23%** |
+| peak labels on a live danger zone | 5 | **1** |
+| `Text` allocations at peak | 219/sec | a fixed pool of 26 |
+
+**The intended rank, and it is a gameplay statement, not a style one:** lethal
+space (telegraphs) → bodies and weapon action → CRIT → ordinary damage.
+
+### What the system is
+
+Everything below lives in `FX.js` (`damageNumber`, `DMG_TIER`, `DMG_POOL`),
+`HUD.js` (`showCombo`, `showBanner`) and the three call sites in `GameScene`.
+There is deliberately **no general UI framework** — the problem did not need one.
+
+- **Two tiers.** `minor` 21px/420ms, `major` 34px/780ms. The RATIO is the
+  mechanism: making ordinary damage smaller is what makes a CRIT read as
+  special. Shrinking everything equally would have bought a quieter screen with
+  the same confusion still in it.
+- **A fixed pool of 26** is the clutter bound. Not primarily an allocation
+  optimisation — it is the only limit that cannot be defeated by a faster
+  weapon, a bigger crowd or a longer combo, because it does not depend on hit
+  rate at all.
+- **One CRIT per contact AREA** (96px / 380ms), re-punched rather than
+  restacked. Keyed on position, not entity: per-enemy keying still stacked
+  identical labels whenever two foes half a body apart both crit. Only the
+  label coalesces — the damage numbers stay discrete, because separate impacts
+  are the tactile feedback and merging them is a lie about how many landed.
+- **No label on a lethal telegraph.** Candidate slots are scored with each
+  zone's own `contains()`, so the check and the hit test cannot drift apart.
+- **The combo splash escalates**: routine streaks quick and modest, x10+ the
+  full slab, every tenth a white flourish.
+- **Lanes arbitrate**: the banner steps clear of the duel readout, the combo
+  splash steps clear of the banner.
+
+### Traps this pass left behind
+
+- **A hit on a boss fires TWO damage events** — `boss-hit` *and* `enemy-hit`.
+  See the CLAUDE.md trap; this is the one most likely to bite next. It is why
+  `boss-hit` now draws no damage number at all.
+- **Score the drift destination, not just the spawn point.** The first
+  telegraph-avoidance check tested only where a label appeared, and made the
+  duel case *worse* than the code it replaced — the drift pushes away from the
+  player, which in a duel is precisely the direction of the nemesis and the zone
+  it is standing in. Labels were being launched into a telegraph from a start
+  position that had been checked and cleared.
+- **Tier a counter by MAGNITUDE, never by divisibility.** The first combo
+  tiering used `n % 10 === 0`, which drew **x114 smaller than x20** — the
+  display contradicting the achievement it was reporting.
+- **Anchor to the drawn sprite, not to `cfg.radius`.** `_makeElite` grows the
+  collider on a different curve than the art, so a label anchored to the physics
+  constant lands inside a big nemesis's chest. Use `_headroom()`; the hp bar had
+  the identical defect.
+- **Depth is asymmetric** — see §6. Combat text at 30 is *above* every telegraph
+  and *below* the whole Y-sorted actor band. That asymmetry is the entire reason
+  the telegraph-avoidance check has to exist: draw order will not save you.
+
+---
 
 ## 11. State as of this handover
 
@@ -681,6 +773,22 @@ unused — Pages builds from `FRIX` only.
 
 **Recently completed** (most recent first):
 
+- **Ordinary boss damage was printed twice** (`2ac65df`). `Boss.damage` emits
+  `boss-hit` and then calls `super.damage`, which emits `enemy-hit` — so every
+  hit on Vader drew its figure twice, gold on the crit tier and orange on the
+  ordinary one, plus the CRIT label. Three labels for one hit. The fix is a
+  deletion: `boss-hit` no longer draws a number and the already-tiered enemy path
+  is the sole producer. §10e.
+- **Combat-information hierarchy** (`b312aa6`) — tiers, a bounded pool, CRIT
+  coalescing, telegraph avoidance, combo tiering and HUD lane arbitration. §10e
+  has the numbers and the traps.
+- **Round-three nemesis pass** (`17d77f2`) — hp bars anchored to the drawn
+  sprite rather than the collider; BLINK STRIKE fixed (it drew the full arena
+  diagonal, teleported to the farthest corner, could no-op its own ACT beat, and
+  parked an uncancellable timer); enemy bolts 360→620 against a 380 walk speed,
+  with tracers; nemeses made much sturdier with the super meter charging at
+  0.34x off a mini-boss; and four ranged moves — PLANT & SNIPE, SWEEPING
+  BARRAGE, SEEKER ORB, SUPPRESSING WALL. §10d.
 - **Vader's hp set from PLAY, not from the harness** — 60,000. See the long note
   above `BOSS.hp` in `config.js`; the short version is in the next section
   because it is the most expensive lesson in this handover.
@@ -778,12 +886,28 @@ It now asserts across repeats that the build did not vary, and prints
   207px against a 60px threshold immediately after a `npm run build`),
   `smoke-boss-moves`'s afterimage damage, and `smoke-flight`'s `avgArrivalFrac`.
   The thresholds are not the problem.
+  **The signature is a DIFFERENT check failing each run.** Cleanest example yet,
+  2026-08-14: `smoke-boss-moves` failed twice in one session on two unrelated
+  checks — FORCE PUSH's dash-charge cost, then VANISH's relocation — and then
+  passed 3/3 standalone on the branch *and* 3/3 standalone on baseline
+  `17d77f2`. One code regression does not move between assertions like that. Note
+  the baseline-standalone run alone proves nothing, because every one of these
+  passes standalone; it is the *different check each time* that discriminates.
 - **Fight length itself is noisy.** Encounter 1 measured 11.3 / 23.4 / 13.0s on
   an identical build — 93% spread with nothing varying but the fight. Read that
   ladder as a shape, never as six numbers.
-- **`api.github.com` is blocked by the agent proxy (403).** Check deploy status
-  through the GitHub MCP tools.
-- **Suite runtime** — ~15 minutes, long enough to be a problem in itself.
+- **Checking a deploy: use `curl`, not the MCP `actions_list` tool.** This entry
+  used to say `api.github.com` is blocked by the proxy (403) and to use the MCP
+  tools. It is the other way round now, measured 2026-08-14:
+  `curl -s https://api.github.com/repos/Xletof/crix/commits/<sha>/check-runs`
+  answers fine, while `mcp__github__actions_list` returns ~377,000 characters in
+  one line and blows the token limit before you can read a conclusion.
+- **Suite runtime** — ~15 minutes, long enough to be a problem in itself, and
+  long enough that wrapping it in a shell `timeout` is tempting. **Do not
+  under-size that timeout.** A 900s cap cut `run-all.mjs` off at 22 of 29 tests
+  and the command still exited 0; the truncated log was briefly reported as a
+  full pass. Give it 1500s+, and trust the final `N/N passed` line rather than
+  the exit code.
 - **Close-range spacing in the Vader fight** — standoff distance, the combo's
   step-in clamp and the slam knockback all interact, and it is the part most
   likely to need tuning by feel rather than by measurement.

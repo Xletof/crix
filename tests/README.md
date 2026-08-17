@@ -267,6 +267,23 @@ straight back from the phone as unkillable. Use the harness for RELATIVE
 comparison; every absolute stays a playtest. (This file and the top of
 `diag-encounter.mjs` both already said so.)
 
+**`git stash push src/` stashes NOTHING when the change is already committed.**
+The "before" half of an A/B then runs the fixed code, and the comparison shows
+the fix on both sides while looking perfectly well-formed. Check the pre-change
+file out explicitly — `git checkout <sha> -- <path>` — and restore it after. And
+prove the revert actually landed by looking at the ARTEFACT, not by grepping for
+a token: the grep used here (`ffd166`) matched the new explanatory comment as
+well as the old code, so it returned 1 in both states and confirmed nothing. The
+before-screenshot showing the bug is the only proof that the before-run ran the
+buggy build.
+
+**A freeze timed past the shorter-lived thing flatters the change.** The Vader
+capture froze 260ms after the last hit. An ordinary label lives 420ms and the
+duplicate being removed lived 780ms, so the "after" frame caught only a fading
+CRIT and no numbers at all — it looked like a triumph and was an artefact of
+when the shutter opened. Both sides of an A/B must be sampled where the
+SHORTER-lived subject is still alive; this one moved to 90ms.
+
 **A census counts what EXISTS, and what matters is what is DRAWN.** The combat-text
 diagnostic's first version filtered the display list on `type === 'Text'`. That was
 fine against a build that destroyed each label — and wrong the instant labels were
