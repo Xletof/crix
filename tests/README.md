@@ -111,6 +111,7 @@ does NOT, because hitstop is its subject — same split as `smoke-dialogue` and
 | `diag-flight.mjs` | A munition is missing: per-munition flight time, closest approach, end altitude |
 | `diag-combat-text.mjs` | **What is the combat text covering?** Concurrent labels, how many overlap an actor's body, how many sit on a live danger telegraph, and the allocation rate — across six real fights. `--shots` also captures frozen frames of the Broken Wings casts and a Vader exchange. Run it with `--label baseline` on the old build and `--label after` on the new one; it prints an A/B you can read side by side. `--only-frozen` re-shoots just the stills (40s instead of 6min) |
 | `diag-encounter.mjs` | Fight length and dps across the endless ladder. **Its bot never dies** (`lives = 9999`, revived in-frame), so its dps is an uninterrupted CEILING and `hp / dps` is not fight length — read it for RELATIVE comparison only. Sizing Vader's pool off it once shipped a 300,000-hp boss |
+| `diag-vader-perf.mjs` | **Did an effects pass cost anything?** Frame delta, display-list size and live tween count across a 30s boss stress fight. Run `--label before` on the baseline (`git checkout <sha> -- src/`) and `--label after` on the branch. Read the DISPLAY LIST, not the frame delta: two runs of an identical build measured 131.9ms and 140.6ms, a 6.5% spread that swallows any effect this instrument could detect. It also fails outright if fewer than 5 casts landed, because a benchmark of an idle arena is the "a refused call reads like a failed one" trap wearing a stopwatch |
 | `smoke-audio.mjs` | Comparing SFX levels across the mix |
 | `smoke-fragsfx.mjs` | Judging impact-sound *timbre* (low band vs crack band), not just loudness |
 
@@ -127,6 +128,7 @@ so telegraphs tick on and destroy themselves before the shutter.
 | `shot-dialogue.mjs` | The dialogue card in every shape it takes — a returning grudge, an heir (the LONG name, where the nameplate overruns), a kill, and Vader |
 | `shot-busts.mjs` | The portrait busts |
 | `shot-poses.mjs` | The attack pose frames |
+| `shot-vader-language.mjs` | **Can the move be identified with its NAME hidden?** All seven live attacks — the four `shot-boss-moves` covers plus SABER COMBO and the two that live in his state machine, CHARGE and OVERHEAD SLAM, which had never been photographed at all. Four marks each (early wind-up, late wind-up, release, recovery) plus a continuous 8-frame sequence, because the claim under review is about MOTION and motion cannot be assembled out of four unrelated casts. Run it twice: plain for the labelled key, `--nonames` for the review sheet |
 
 ## Environment
 
@@ -347,6 +349,25 @@ card pauses Game and HUD and waits for a tap. Without the flag the bot sits behi
 it for the entire cap — the first run after the narrative landed reported
 encounter 1 as 180.2s with 45,826 of 46,000 hp left. Eleven files carry the flag;
 `smoke-dialogue` deliberately does not.
+
+**Sampling a beat on the frame it BEGINS can photograph the one frame two moves
+share.** The first Vader visual-language sheet came back with SABER THROW and
+CHARGE producing near-identical "release" stills, which read as the two moves
+still being confusable. They were not: both marks had landed on the telegraph's
+own commit bloom, which is generic across every lane zone in the game and fires
+exactly as `act` begins. The moves diverge on the next frame — one has thrown
+its blade, the other is travelling. `shot-vader-language` now holds three frames
+past the beat. A frame index is part of a measurement's definition, and "the
+first frame of the phase" is a specific and often unrepresentative choice.
+
+**A threshold expressed as a fraction of a SHORT window is a threshold on the
+frame rate.** The same harness asked to freeze at 95% of a wind-up. At ~50ms a
+frame a 420ms wind-up yields exactly one frame above 0.9, and whether it exists
+at all depends on the machine: a probe caught 0.75 then 0.95, a full run caught
+0.75 then 1.17 and reported "never reached the mark" on a build that was fine.
+The fix was not a smaller number — it was accepting `tel.committed` as
+satisfying a late mark, which removes the race in both directions. Third
+instrument in this file to learn the same thing.
 
 **A measurement window that runs past the moment of truth proves nothing.**
 `smoke-readability`'s "the saber comes back to his hand even after he moves"

@@ -113,6 +113,28 @@ the finding is already established earlier in the conversation.
   and divide by 1.35, so any unmatched pair compounded — the boss's saber reached
   a ~1100px slab. Always set an ABSOLUTE multiple of a remembered rest scale.
   Same family as the touch-widget `setScale(1)` trap above.
+- **A commit flash centred on the caster will delete the caster.** `Telegraph._flash`
+  used to paint one flat 0.7-alpha white fill over the whole zone, and most of
+  Vader's kit originates at his own feet — so on the frame SABER COMBO landed he
+  was a white blob, at exactly the moment the player needs to read the blade. The
+  fill now ramps from nearly clear at the origin to full at the rim: same claim
+  about the same area, caster still legible. Any new full-zone fill has the same
+  trap in it.
+- **A circle telegraph's kinetic ring carries DIRECTION, not time.** The fill
+  sweeping outward is the clock; the ring says which way the move points
+  (`kinetic: 'in' | 'out'`). It defaulted to inward for everyone because the
+  first circle move that needed one was a slam, and FORCE PUSH inherited it — so
+  a 420px shove *away* from him was announced by a ring travelling *toward* him.
+  Purely cosmetic: `contains()` consults none of it. Pass the right one.
+- **`kineticMs` should be the move's real travel time, not left at the default.**
+  SABER THROW and CHARGE are both crimson lanes out of the same man with the same
+  blade; at the stock 620ms scroll the only difference was 20px of width. They are
+  now told apart by chevrons running at the blade's flight time and at his run
+  time respectively. A new lane move that omits it re-enters that collision.
+- **Floor marks are the one FX here that accumulate**, because they outlive the
+  effect that spawned them. `fx._keepScar` caps them at 48 (a 900ms CHARGE lays
+  one segment per frame at 60fps) and kills the fade tween before evicting.
+  Anything drawn into the floor must go through it.
 - **A telegraph's shape IS its hit test** (`Telegraph.contains`). Never draw one
   shape and resolve another: FORCE PULL drew a 90-degree cone while dragging the
   player in from every bearing. Zones follow their caster while winding up

@@ -507,7 +507,8 @@ The green bullet FAN was removed entirely.
 scorching) for anything with the blade, `fx.forceWave` (dark, desaturated) for
 the Force powers. Do NOT reuse `slamShockwave` or `bladeArc` on him — those are
 the PLAYER's Riven melee, and borrowing them made his attacks look like the
-thing you had just done to him.
+thing you had just done to him. **§10f is the current state of that vocabulary**
+and is where to look before touching any of it.
 
 **He takes no knockback at all** (`Boss.damage` nulls the vector). Any
 displacement drags him off a telegraph he is the origin of.
@@ -516,6 +517,81 @@ displacement drags him off a telegraph he is the origin of.
 `attackCooldownMs` comment in `config.js`. The two systems block each other, so
 tuning is zero-sum: the highest attacks-per-minute came from starving the
 scripted moves.
+
+## 10f. Vader's visual language
+
+The fight was mechanically approved and fun. The problem this section records is
+that it did not COMMUNICATE: with the attack-name banner hidden, four of his
+seven attacks could not be told apart from their motion, their telegraph and
+their effects. Nothing about the combat changed in this pass — no hp, damage,
+cooldown, selection, phase threshold, geometry, timing or punish window. What
+changed is what each attack says about itself.
+
+**The test that drove it, and it is still the test:** load with `?nonames=1`,
+which suppresses the six per-attack callouts and nothing else, and see whether
+the move is still identifiable. `shot-vader-language.mjs` produces the sheet.
+
+### The four families, and the one rule each
+
+| family | moves | the rule |
+|---|---|---|
+| **Saber** | COMBO, THROW, CHARGE, OVERHEAD SLAM | crimson, hot, and it BURNS THE FLOOR. A saber mark has an orientation, so the deck carries the direction of the strike for a beat after the strike |
+| **Force** | PULL, PUSH | desaturated violet, and told apart by MOTION rather than hue. Pull contracts, push expands |
+| **Displacement** | VANISH | a shear, run one way to leave and the other to arrive. No ring, no circle |
+| **The zone itself** | all of them | the telegraph is geometry and is never beautified into a different promise |
+
+**What each move now owns, and why it did not before:**
+
+- **FORCE PULL / FORCE PUSH were the worst pair.** A violet circle and a pale
+  blue circle whose kinetic rings BOTH converged inward — because inward was the
+  only behaviour a circle zone had, and the first circle move that needed one was
+  a slam. So a 420px shove *away* from him was announced by a ring travelling
+  *toward* him, and the only thing separating the two moves was the printed name.
+  They now share one Force violet; `kinetic: 'in' | 'out'` picks the direction,
+  arrowheads ride the ring so it survives a still frame, PULL's vortex gained
+  explicit contracting rings, and PUSH's wave carries debris on the front with
+  tails pointing back at the origin. The player's body is marked with a violet
+  streak along whichever way it is being moved.
+- **SABER THROW drew a static lane for a moving weapon**, and its blade drew
+  nothing outbound and the PLAYER's `trail()` (bullet motion blur) on the way
+  home. The lane's chevrons now scroll at the blade's own outbound flight time,
+  the blade has a bespoke crimson streak on both legs, a scar marks the turn, and
+  the commit bloom is a `bloom: 'spear'` on the axis rather than the full-width
+  fan every lane uses.
+- **CHARGE was the same crimson lane, 20px wider.** Its chevrons run at the speed
+  HE crosses it, and he drags the point through the deck — a continuous furrow
+  drawn between the two points he actually travelled between. The furrow is the
+  thing a thrown blade can never produce.
+- **OVERHEAD SLAM existed for N milliseconds; it did not LOAD.** `stress: true`
+  opens staggered fractures out of the centre and brightens a core across the
+  wind-up, the raised blade gathers through `fx.chargeGlow`, and the release is
+  `saberSlam(..., 'overhead')` — a real crater, fissures that outrun the ring, a
+  dust column after the brightest frame. One call used to serve this, the combo
+  finisher and a whiffed rush into a wall.
+- **VANISH used `slashSwipe`** — the stealth TAKEDOWN's arc, green by default.
+  `fx.phaseRift` now shears him apart where he leaves and back together where he
+  lands, with residue only at the departure point. It draws no ring: the landing
+  marker stays the only thing allowed to promise a position, which is the bug
+  this move already shipped once.
+- **SABER COMBO drew one arc three times.** The swings escalate in reach and
+  weight and each scores the deck along its own path, so the chain accumulates.
+
+### Traps this pass left behind
+
+- **`Telegraph._flash` will delete the caster** if it is a flat fill and the zone
+  originates at his feet. It ramps from the origin now. See CLAUDE.md.
+- **`kineticMs` and `kinetic` are per-move statements.** Left at their defaults a
+  new move inherits "620ms, inward", which is a claim about it that is probably
+  false. Both are cosmetic — `contains()` reads neither.
+- **Floor marks accumulate.** `fx._keepScar` is the bound (48) and everything
+  drawn into the floor must go through it.
+- **The zone FILL is still dragged toward danger-red for every move**, by design
+  (a pale trait tint filled a zone with grey smear once). So the Force family's
+  violet lives in the outline, the motes and the motion — not in the fill — and
+  the outline itself heats toward white in the last quarter. That is the weakest
+  remaining part of the family read and it is a deliberate trade, not an oversight.
+- **`?nonames=1` is a diagnostic, not a decision.** Whether the names ship is a
+  human call that has not been made.
 
 ## 10c. The narrative system
 
@@ -772,6 +848,11 @@ branch `claude/project-handover-ack-9ai0av`. `origin/main` is unrelated and
 unused — Pages builds from `FRIX` only.
 
 **Recently completed** (most recent first):
+
+- **Vader's visual language** — every attack now communicates its own identity,
+  direction, anticipation and consequence. No combat value changed. §10f has the
+  vocabulary, the per-move reasoning and the traps; `shot-vader-language.mjs`
+  produces the labelled and `--nonames` unlabelled review sheets.
 
 - **Ordinary boss damage was printed twice** (`2ac65df`). `Boss.damage` emits
   `boss-hit` and then calls `super.damage`, which emits `enemy-hit` — so every
