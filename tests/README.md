@@ -76,16 +76,30 @@ does NOT, because hitstop is its subject — same split as `smoke-dialogue` and
 |---|---|
 | `smoke-arc.mjs` | Cluster canister pops *above* the burst before descending |
 | `smoke-boost.mjs` | Booster SFX sustains for the whole dive instead of blipping |
+| `smoke-boss.mjs` | Boss phases fire once each at the configured thresholds and never reverse |
 | `smoke-cluster.mjs` | Munitions lock **distinct** targets, flat scale, no ground phase, guidance lines cleaned up, generic hit beep suppressed |
 | `smoke-controls.mjs` | The control-layout editor moves the real hit regions (not just sprites), persists, and resets |
 | `smoke-debug.mjs` | Debug menu actions actually apply *and* the HUD re-syncs |
 | `smoke-depth.mjs` | Airborne objects draw over the room; nose tracks travel (no tumble) |
 | `smoke-dialogue.mjs` | **The nemeses speak, and a stranger stays quiet.** No line repeats until its pool is exhausted; a first-time nemesis raises no card at all (the pacing contract); both scenes pause AND resume; a card refuses to open over the upgrade picker and is held rather than dropped |
+| `smoke-duel.mjs` | **A nemesis encounter is a duel**: the arena locks to it, its phases turn at 66%/33%, and the bomber survives its own contact burst instead of dying to it. Also the one file that deliberately loads WITHOUT `?nofreeze=1`, because hitstop is its subject |
+| `smoke-endless.mjs` | The climb reaches Vader, scales him, and carries on past. The arena rotation is the trap — derived from the current room index it sends every post-boss run back to the hangar, and Vader was unreachable in the mode people actually play |
 | `smoke-flight.mjs` | The attack run banks, arrives under power, honours both speed caps, lights its exhaust |
 | `smoke-hum.mjs` | Saber hum carries in the band a phone speaker can reproduce |
 | `smoke-leak.mjs` | Primary fire is isolated from the cluster (no pool cross-talk) |
 | `smoke-march.mjs` | The music plays the full 8-bar march phrase and loops at 32 beats, not the opening fragment |
+| `smoke-nemesis.mjs` | **Variety, measured as an output space** — not that one roll looks plausible, since a generator returning the same thing 90% of the time passes every single-roll assertion you can write. VOLATILE and REGENERATOR are checked for their EFFECT in a live arena, because both are load-bearing on balance |
+| `smoke-nemesis-fx.mjs` | The nemeses perform their moves, in their own colours — asserted by **iterating `NEMESIS_MOVES`**, so a move cannot be added without satisfying it. Same rule as `smoke-readability`, for the same reason |
+| `smoke-nemesis-kit.mjs` | A nemesis looks and fights like its own enemy rather than a recoloured trooper: its marks, its weapon and its shot pattern — plus the pool-contamination check, since a tinted bolt handed back would leave ordinary troopers shooting in the nemesis's colour |
+| `smoke-nemesis-memory.mjs` | **Continuity**, where `smoke-nemesis` covers variety: an escape returns scarred five sectors later, a nemesis dies once, and an heir succeeds it. The ledger is pure by design, so most of this runs as a direct import |
+| `smoke-pathing.mjs` | Path QUALITY, not arrival — the shape of the route a horde takes, because "they arrived" and "they moved intelligently" are different claims and a long wall makes a conga line out of the second. Reports its figures without gating on them; it fails only when the run itself is broken |
+| `smoke-progress.mjs` | Upgrades apply and stack, rooms tear down, stats persist — driven through the real `UPGRADES[].apply`, `GameScene.loadRoom` and the actual `loadStats`/`saveStats` pair |
 | `smoke-readability.mjs` | **Can the player SEE the attack coming?** Every move draws a zone before it damages, one zone per attack, he is planted and his body winds up, the zone tracks its caster, he settles at saber range, a super cannot shove him, and a final pass with NOTHING silenced asserts the two systems never attack together |
+| `smoke-restart.mjs` | Restarts leave no duplicate handlers and no stale arena |
+| `smoke-rng.mjs` | Runs are reproducible from a seed, and the named streams do not couple |
+| `smoke-score.mjs` | Kills, chain multiplier and wave bonuses all score |
+| `smoke-title.mjs` | Endless leads, and its record is the first thing you read |
+| `smoke-vader.mjs` | **The ladder is mechanics, not multipliers** — each Vader encounter adds a trick rather than a bigger number |
 | `smoke-boss-moves.mjs` | Vader performs his own moves, a cancelled move takes its zone with it, and his afterimages are a real threat |
 | `smoke-moves.mjs` | Nemesis moves MOVE the actor, and beating one pays (stagger + bonus damage) |
 | `smoke-music-tiers.mjs` | Tiers change what the bed plays (calm drops the melody but keeps its pulse), and the director's heat rises faster than it falls, ignores a stale kill streak, and never outvotes the lifecycle phase |
@@ -96,9 +110,23 @@ does NOT, because hitstop is its subject — same split as `smoke-dialogue` and
 |---|---|
 | `diag-flight.mjs` | A munition is missing: per-munition flight time, closest approach, end altitude |
 | `diag-combat-text.mjs` | **What is the combat text covering?** Concurrent labels, how many overlap an actor's body, how many sit on a live danger telegraph, and the allocation rate — across six real fights. `--shots` also captures frozen frames of the Broken Wings casts and a Vader exchange. Run it with `--label baseline` on the old build and `--label after` on the new one; it prints an A/B you can read side by side. `--only-frozen` re-shoots just the stills (40s instead of 6min) |
+| `diag-encounter.mjs` | Fight length and dps across the endless ladder. **Its bot never dies** (`lives = 9999`, revived in-frame), so its dps is an uninterrupted CEILING and `hp / dps` is not fight length — read it for RELATIVE comparison only. Sizing Vader's pool off it once shipped a 300,000-hp boss |
 | `smoke-audio.mjs` | Comparing SFX levels across the mix |
 | `smoke-fragsfx.mjs` | Judging impact-sound *timbre* (low band vs crack band), not just loudness |
-| `shot-run.mjs` | Capturing a frame sequence across a whole attack run → `tests/out/` |
+
+**Screenshots** — `shot-*` capture frames and assert nothing, on purpose.
+Post-mortem rule 6: screenshots caught three bugs no assertion did. Freeze with
+`scene.pause()`, not `tweens.timeScale = 0` — that does not stop `scene.update`,
+so telegraphs tick on and destroy themselves before the shutter.
+
+| File | What it photographs |
+|---|---|
+| `shot-run.mjs` | A frame sequence across a whole attack run → `tests/out/` |
+| `shot-boss-moves.mjs` | Vader's moves, one frame per BEAT |
+| `shot-nemesis-moves.mjs` | Each nemesis move, at wind-up and at impact |
+| `shot-dialogue.mjs` | The dialogue card in every shape it takes — a returning grudge, an heir (the LONG name, where the nameplate overruns), a kill, and Vader |
+| `shot-busts.mjs` | The portrait busts |
+| `shot-poses.mjs` | The attack pose frames |
 
 ## Environment
 
