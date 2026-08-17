@@ -971,6 +971,12 @@ export const ENDLESS = {
     reflectEveryMs: 9000,
     reflectMs: 1400,        // the window itself
     reflectWindupMs: 500,   // telegraph, so holding fire beats it outright
+    // How long the blade stays out on the intercept bearing after a deflection.
+    // Purely the length of the parry ANIMATION — it gates nothing, opens no
+    // window and blocks no second bolt, so a burst deflected inside one window
+    // parries once per bolt exactly as it always did. Short on purpose: a Jedi
+    // deflect is a flick, and anything longer reads as a pose he is holding.
+    parryMs: 190,
     blackoutEveryMs: 16000,
     blackoutMs: 2600,
     afterimageEveryMs: 13000,

@@ -974,14 +974,16 @@ export class HUDScene extends Phaser.Scene {
 
     // Collect off-screen fast, incoming enemy projectiles, nearest first.
     const projs = [];
-    gs.enemyBullets?.getChildren().forEach((b) => {
+    // Both hostile pools: a deflected bolt is incoming fire like any other, and
+    // it is the one the player has the least warning about.
+    (gs.hostileBullets ?? [gs.enemyBullets]).forEach((grp) => grp?.getChildren().forEach((b) => {
       if (!b.active || onScreen(b.x, b.y)) return;
       const vx = b.body?.velocity.x || 0, vy = b.body?.velocity.y || 0;
       if (Math.hypot(vx, vy) < FAST_PROJ) return;
       // incoming = moving toward the player (velocity dotted with bullet→player)
       if (vx * (p.x - b.x) + vy * (p.y - b.y) <= 0) return;
       projs.push({ x: b.x, y: b.y, d: Math.hypot(b.x - p.x, b.y - p.y) });
-    });
+    }));
     projs.sort((a, b) => a.d - b.d);
 
     const drawChevron = (wx, wy, coreColor, glowColor, boss) => {

@@ -134,6 +134,78 @@ r.reflect = await page.evaluate(async () => {
   return { normalDamage, guardedDamage, reflWhileDown, reflWhileUp, whileUp, whileDown };
 });
 
+// ── THE DEFLECTION IS A PARRY, AND WHAT COMES BACK IS THE SHOT ────────────
+//
+// Three claims, and each is asserted against the thing that used to be true:
+// the returned bolt was a GREEN enemy bolt at a flat 437px/s spawned 50px from
+// Vader on the boss->player line, and his blade never moved.
+//
+// The bolt is fired from a FLANK on purpose. Vader's saber rests on the bearing
+// to the player every frame, so a shot arriving down that same line would give
+// a parry pose identical to the resting pose — the check would pass on a build
+// with no parry in it at all.
+r.deflect = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const b = gs.boss, p = gs.player;
+
+  // Sample from INSIDE the frame loop. The parry is 190ms; a page.evaluate
+  // round trip is 200-400ms, so polling from outside would miss all of it.
+  const seen = { parryTicks: 0, maxDevDeg: 0 };
+  const probe = () => {
+    if (b._parryT > 0) seen.parryTicks++;
+    const ws = b.weaponSprite;
+    if (!ws) return;
+    const toPlayer = Math.atan2(p.y - b.y, p.x - b.x);
+    // Wrapped by hand — `Phaser` is bundled, not a page global.
+    let dev = (ws.rotation - toPlayer) % (Math.PI * 2);
+    if (dev > Math.PI) dev -= Math.PI * 2;
+    if (dev < -Math.PI) dev += Math.PI * 2;
+    seen.maxDevDeg = Math.max(seen.maxDevDeg, Math.abs(dev) * 180 / Math.PI);
+  };
+  gs.events.on('postupdate', probe);
+
+  b._reflectUntil = gs.time.now + 4000;
+  // Perpendicular to the boss->player line, so the intercept bearing is ~90deg
+  // off where the blade is resting.
+  const toPlayer = Math.atan2(p.y - b.y, p.x - b.x);
+  const flank = toPlayer + Math.PI / 2;
+  const SPEED = 880;
+  const RANGE = 900;
+  const shot = gs.playerBullets.fire(
+    b.x + Math.cos(flank) * 90, b.y + Math.sin(flank) * 90,
+    flank + Math.PI, SPEED, 400, RANGE, { owner: 'player' });
+  const shotTex = shot?.texture?.key ?? null;
+
+  await new Promise((res) => setTimeout(res, 500));
+  gs.events.off('postupdate', probe);
+  b._reflectUntil = 0;
+
+  // `?.` throughout: on a build with no deflected pool this must report zeros,
+  // not throw — a thrown evaluate fails the run with a stack trace instead of
+  // the measurement that explains it.
+  // The pool is exclusive to deflections and grows on demand, so any child that
+  // exists at all was made by this one. Taking it after it has been killed is
+  // fine — a pooled bullet keeps its texture, speed and range.
+  const born = gs.deflectedBullets?.getChildren() ?? [];
+  const d = born[0] ?? null;
+  const green = (gs.enemyBullets?.getChildren() ?? []).filter((x) => x.active).length;
+
+  return {
+    shotTex,
+    made: born.length,
+    tex: d?.texture?.key ?? null,
+    speed: d ? Math.round(d._speed) : 0,
+    range: d?.range ?? 0,
+    firedSpeed: SPEED,
+    firedRange: RANGE,
+    greenInFlight: green,
+    parryTicks: seen.parryTicks,
+    maxDevDeg: Math.round(seen.maxDevDeg),
+    hasParry: typeof b.parry === 'function',
+    hasFx: typeof gs.fx?.saberParry === 'function',
+  };
+});
+
 await keepAlive();
 
 // ── DISARM ────────────────────────────────────────────────────────────────
@@ -370,6 +442,27 @@ check(r.reflect.reflWhileUp === 1 && r.reflect.reflWhileDown === 0,
   `${r.reflect.reflWhileDown} while down, ${r.reflect.reflWhileUp} while up`);
 check(r.reflect.whileUp && !r.reflect.whileDown, 'and the window closes on its own',
   `up=${r.reflect.whileUp} down=${r.reflect.whileDown}`);
+
+// ── The deflection is a parry, and what comes back is the shot ───────────
+check(r.deflect.made >= 1, 'a deflection produces a bolt in the deflected pool',
+  `${r.deflect.made} in deflectedBullets — it used to go into the enemy pool`);
+check(r.deflect.tex === r.deflect.shotTex,
+  'the returned bolt wears the PLAYER bolt texture, not the green enemy one',
+  `player fired '${r.deflect.shotTex}', got back '${r.deflect.tex}'`);
+check(r.deflect.greenInFlight === 0, 'and no green bolt was made by the deflection',
+  `${r.deflect.greenInFlight} enemy-pool bolts in flight`);
+check(Math.abs(r.deflect.speed - r.deflect.firedSpeed) <= 2,
+  'it comes back at the speed it went out at',
+  `fired ${r.deflect.firedSpeed}, returned ${r.deflect.speed} — the old one was a flat 437`);
+check(r.deflect.range === r.deflect.firedRange, 'and with the reach to get home',
+  `fired ${r.deflect.firedRange}, returned ${r.deflect.range}`);
+// The parry itself. 45deg is well inside the ~90deg the flank shot demands and
+// well outside the couple of degrees the boss's own drift produces in 500ms.
+check(r.deflect.parryTicks > 0, 'Vader is in a parry on the frame he turns it',
+  `_parryT was positive on ${r.deflect.parryTicks} frames`);
+check(r.deflect.maxDevDeg > 45,
+  'and his blade leaves its guard to meet the bolt, not the player',
+  `saber deviated ${r.deflect.maxDevDeg}deg from the bearing to the player`);
 
 // ── Disarm ───────────────────────────────────────────────────────────────
 check(r.disarm.during.id === null, 'a disarm removes the secondary', `still ${r.disarm.during.id}`);

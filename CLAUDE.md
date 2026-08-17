@@ -140,6 +140,21 @@ the finding is already established earlier in the conversation.
   player in from every bearing. Zones follow their caster while winding up
   unless passed `anchor: 'world'` — a LANDING marker must be anchored, or it
   trails the actor off the spot he is about to teleport to.
+- **Incoming fire lives in TWO pools now.** `enemyBullets` (green) and
+  `deflectedBullets` (the player's own red bolt, turned by Vader's DEFLECTION).
+  Iterate `GameScene.hostileBullets`, never `enemyBullets` alone — six places
+  sweep incoming fire and half of them are not collision code (HUD threat
+  chevrons, bullet trails, room clear, the debug purge). The split exists
+  because `BulletGroup.fire` re-asserts its group's texture on every recycle, so
+  a red bolt in the green pool is either re-textured after the fact — which
+  silently resizes its hitbox — or leaks red into the next trooper's shot.
+- **A collision-time pose lands one frame after its effect.** Collisions resolve
+  in scene `update`; `preUpdate` has already drawn the actor for that frame. So
+  `Boss.parry()` flags a pose the weapon-sprite block picks up on the NEXT
+  frame, while the FX draws immediately. 16ms in the hand and invisible — but a
+  full frame in the ~20fps harness, so a screenshot of the first qualifying
+  frame photographs the effect with the pose missing and looks like the pose is
+  not implemented.
 - **A subclass that intercepts `damage()` must test the number the PARENT will
   subtract.** `Enemy.damage` multiplies by `_punishMult` inside a punish window,
   and `Boss.damage`'s wound-instead-of-die intercept tested the raw amount — so a

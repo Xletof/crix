@@ -593,6 +593,54 @@ the move is still identifiable. `shot-vader-language.mjs` produces the sheet.
 - **`?nonames=1` is a diagnostic, not a decision.** Whether the names ship is a
   human call that has not been made.
 
+### DEFLECTION is a parry now (added after the pass)
+
+The endless mechanic (`bossMechanics[2]`, so Vader #3 onward) used to answer a
+player shot by **killing it and firing a green enemy bolt**: `bullet-enemy`
+texture, a flat 437px/s, spawned 50px from Vader on the boss→player line, with a
+red `impactRing` at the contact — the same ring the player's own landed hits
+draw. So the mechanic read as *Vader shooting back*, the tell said *your shot
+connected* at the instant it had not, and a player standing inside that 50px was
+never hit by their own shot at all.
+
+It is now a deflection in the literal sense. **The bolt that returns is the bolt
+that was fired**: the player's own red `bullet` texture, its own speed, its own
+range, leaving from the point on the blade where it was stopped and aimed back
+at the player.
+
+Four things to know before touching it:
+
+- **Deflected fire has its own pool**, `GameScene.deflectedBullets`. A red bolt
+  cannot live in the green pool — `BulletGroup.fire` re-asserts its group's
+  texture on every recycle, and re-texturing after the fact silently resizes the
+  hitbox (`setCircle(this.width / 2)`). Same reasoning that gave
+  `playerFragBullets` its own pool. **`GameScene.hostileBullets` is the list to
+  iterate**, not `enemyBullets` — six places sweep incoming fire (player
+  collision, walls, trails, HUD threat chevrons, room clear, the debug purge)
+  and the getter is what stops one being forgotten.
+- **`Boss.parry(angle)` only asks.** `Boss.preUpdate` rewrites the weapon
+  sprite's position, rotation, flip and depth every frame from the bearing to
+  the player, so the parry is a flag that block reads — not a tween from the
+  scene. One writer. It sets no `_performing`: a deflection is a reflex and must
+  be able to happen mid-charge without interrupting the charge.
+- **The blade arrives one frame after the flash.** Collisions resolve in scene
+  update, which is after `preUpdate` — so on the contact frame the saber has
+  already been drawn at rest. 16ms in the hand, but a full frame at the
+  harness's ~20fps, and photographing the first qualifying frame gives you a
+  picture of a flash with no blade in it. `shot-parry` skips one tick for this.
+- **The returned bolt gets the ORIGINAL range, not what was left of it.** The
+  remaining range is by definition the distance it has already travelled, and
+  the trip home is that distance again — spending it down strands every
+  deflection just short of the player.
+
+**The damage is unchanged and it is the open question here.** It is still
+`round(incoming * 0.5)`, and `incoming` already carries `player.dmgMult` — so a
+deflection scales with the player's upgrades, not with Vader. Base is 60 against
+1000hp; at the mid-endless `dmgMult` ≈ 14.5 quoted in `config.js` it is ~870.
+**Super pellets are deflectable** (`owner: 'player'`; the branch never checks
+`piercing`), which is five bolts at `600 × dmgMult × 0.5` each from 50px away.
+Nobody has playtested that, and it is a phone question, not a harness one.
+
 ## 10c. The narrative system
 
 **The ledger has always remembered; nothing spoke.** `nemesisLedger.js` tracks

@@ -203,6 +203,15 @@ export class GameScene extends Phaser.Scene {
     // are isolated at the input layer already; this isolates them at the pool.
     this.playerFragBullets  = new BulletGroup(this, 'frag-missile');
     this.enemyBullets       = new BulletGroup(this, 'bullet-enemy');
+    // Deflected player fire. Hostile, but it must LOOK like the player's own
+    // bolt, and a pooled bullet's texture is re-asserted by its group on every
+    // fire() — so a red bolt cannot live in the green pool without either
+    // leaking red into the next trooper's shot or being re-textured after the
+    // fact, which silently resizes its hitbox (`setCircle(this.width / 2)`).
+    // Its own pool is the same answer `playerFragBullets` already needed, for
+    // the same reason. `hostileBullets` below is what stops the split being
+    // forgotten at one of the seven places that iterate incoming fire.
+    this.deflectedBullets   = new BulletGroup(this, 'bullet');
 
     // ── Grenades group ─────────────────────────────────────────────────────
     this.grenades = this.physics.add.group();
@@ -798,7 +807,8 @@ export class GameScene extends Phaser.Scene {
      ...this.playerRifleBullets.getChildren(),
      ...this.playerSuperBullets.getChildren(),
      ...this.playerFragBullets.getChildren(),
-     ...this.enemyBullets.getChildren()].forEach((b) => { if (b.active) b.kill(); });
+     ...this.enemyBullets.getChildren(),
+     ...this.deflectedBullets.getChildren()].forEach((b) => { if (b.active) b.kill(); });
 
     // Health orbs
     this.healthOrbs.forEach((o) => { this.tweens.killTweensOf(o.gfx); o.gfx.destroy(); });
@@ -3486,6 +3496,7 @@ export class GameScene extends Phaser.Scene {
     this.handleBulletWallHits(this.playerSuperBullets, true);
     this.handleBulletWallHits(this.playerFragBullets, false);
     this.handleBulletWallHits(this.enemyBullets, false);
+    this.handleBulletWallHits(this.deflectedBullets, false);
 
     // Bullet trails — every OTHER frame (frame parity), halving particle
     // churn at horde bullet counts; the motion-blur tail still reads at 30Hz.
@@ -3504,8 +3515,9 @@ export class GameScene extends Phaser.Scene {
       // Enemy bolts had NO trail at all — this loop covered only the three
       // player groups. A bolt with no wake and no stretch is a shape sliding
       // across the floor, which is exactly how incoming fire read.
-      for (const b of this.enemyBullets.getChildren())
-        if (b.active) this.fx.trail(b.x, b.y);
+      for (const g of this.hostileBullets)
+        for (const b of g.getChildren())
+          if (b.active) this.fx.trail(b.x, b.y);
     }
 
     // Camera lookahead — shift the follow target toward where the player is
@@ -3611,13 +3623,37 @@ export class GameScene extends Phaser.Scene {
           // Boss.damage because the shot must not count as damage at all — no
           // hit flash, no meter charge, no intake window opened.
           if (b.owner === 'player' && this.boss.isReflecting?.()) {
-            const back = Math.atan2(this.player.y - this.boss.y, this.player.x - this.boss.x);
-            this.enemyBullets.fire(
-              this.boss.x + Math.cos(back) * 50, this.boss.y + Math.sin(back) * 50,
-              back, BOSS.fanBulletSpeed * 1.15, Math.round(b.damage * 0.5),
-              BOSS.fanBulletRange, { owner: 'boss' },
+            // ── A TRUE DEFLECTION ────────────────────────────────────────
+            //
+            // The shot that comes back is the shot that went out: same red
+            // bolt, same speed, same reach, leaving from the point on the
+            // blade where it was actually stopped. It used to be a slower
+            // GREEN bolt spawned 50px from Vader on the boss->player line, which
+            // read as him firing rather than as him blocking — and because the
+            // spawn point was ahead of the contact, a player standing inside
+            // that 50px never got hit by their own shot at all.
+            const speed = Math.hypot(b.body.velocity.x, b.body.velocity.y)
+              || BOSS.fanBulletSpeed;
+            // In: the bearing the blade has to reach to be in the way.
+            // Out: back at the player. Return-to-sender is the fantasy, and it
+            // is also the only aim that stays fair — a mirrored bounce off a
+            // moving boss would be unreadable.
+            const inAng  = Math.atan2(b.y - this.boss.y, b.x - this.boss.x);
+            const back   = Math.atan2(this.player.y - b.y, this.player.x - b.x);
+            this.deflectedBullets.fire(
+              b.x, b.y, back, speed, Math.round(b.damage * 0.5),
+              // The ORIGINAL range, not what was left of it. The remaining
+              // range is by definition the distance it has already come, and
+              // the trip home is that distance again — so spending it down
+              // would strand every deflection in mid-air a few pixels short of
+              // the player, which looks like the mechanic being broken.
+              b.range, { owner: 'boss' },
             );
-            this.fx.impactRing(b.x, b.y, 0xff3030);
+            // He answers it with the blade. `parry` only asks — the weapon
+            // sprite is drawn by the one system that owns it, in Boss.preUpdate.
+            this.boss.parry?.(inAng);
+            this.fx.saberParry?.(b.x, b.y, inAng, back);
+            SFX.saberDeflect?.();
             // Announced so a deflection is countable. The arena is full of other
             // enemy bullets — his fan, his guards — so "a hostile bolt exists"
             // is not evidence that one was turned around.
@@ -3705,9 +3741,21 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Every pool that can hurt the PLAYER.
+   *
+   * One list, so the deflected-fire pool cannot be forgotten at one of the
+   * places that sweep incoming fire — collision, walls, trails, off-screen
+   * threat chevrons, room clear, the debug purge. Six sites is exactly the
+   * count at which "remember to add it in both places" stops working.
+   */
+  get hostileBullets() {
+    return [this.enemyBullets, this.deflectedBullets];
+  }
+
   handleEnemyBulletsVsPlayer() {
     if (this.player?.isDashing) return;
-    for (const b of this.enemyBullets.getChildren()) {
+    for (const g of this.hostileBullets) for (const b of g.getChildren()) {
       if (!b.active) continue;
       if (this.circleOverlap(b, this.player)) {
         // Pass the bullet's flight angle so the player gets shoved in the

@@ -66,6 +66,10 @@ export class Boss extends Enemy {
     this._disarmEvery     = 0;
     this._disarmT         = 0;
 
+    // The parry pose. Not a mechanic clock — see `parry()`.
+    this._parryT     = 0;
+    this._parryAngle = 0;
+
     // ── Damage-burst window, for the reactive VANISH ─────────────────────
     // VANISH is no longer on his attack rotation. It fires when the player
     // hurts him HARD in a short window — an escape from pressure, which is
@@ -317,15 +321,35 @@ export class Boss extends Enemy {
     // The flight happens on the scene clock, which runs after this, so it wins
     // either way — but reclaiming a sprite that is 500px away every frame is
     // the kind of thing that only stays harmless by accident.
+    // Ticked out here rather than inside the branch below: the saber can be in
+    // the AIR when a parry is asked for, and a timer that only counts down
+    // while the sprite is in his hand would come back stuck at full the next
+    // time he caught it — a parry pose held for the rest of the fight.
+    if (this._parryT > 0) this._parryT -= delta;
+
     if (this.weaponSprite && !this._saberAway) {
-      const offset = BOSS.radius - 6;
-      this.weaponSprite.x = this.x + Math.cos(angToPlayer) * offset;
-      this.weaponSprite.y = this.y + Math.sin(angToPlayer) * offset;
-      this.weaponSprite.rotation = angToPlayer;
-      this.weaponSprite.setFlipY(Math.abs(angToPlayer) > Math.PI / 2);
+      // A deflection is the one moment his blade answers something other than
+      // the player's body, so it is the one moment it may point elsewhere. The
+      // blade SNAPS to the intercept bearing on the frame of contact and eases
+      // back to guard over `parryMs`, thrust out furthest at the moment it is
+      // actually meeting the bolt.
+      let aim = angToPlayer;
+      let offset = BOSS.radius - 6;
+      if (this._parryT > 0) {
+        const u = 1 - this._parryT / BOSS_MECH.parryMs;          // 0 at contact
+        const w = (1 - u) * (1 - u);                             // ease back
+        // Shortest way round, so a bolt taken from behind swings the blade the
+        // near way rather than sweeping it through his own body.
+        aim = angToPlayer + Phaser.Math.Angle.Wrap(this._parryAngle - angToPlayer) * w;
+        offset += 30 * w;
+      }
+      this.weaponSprite.x = this.x + Math.cos(aim) * offset;
+      this.weaponSprite.y = this.y + Math.sin(aim) * offset;
+      this.weaponSprite.rotation = aim;
+      this.weaponSprite.setFlipY(Math.abs(aim) > Math.PI / 2);
       this.weaponSprite.setAlpha(this.alive ? (this.hiddenInBush ? 0.55 : 1) : 0);
-      
-      const degBoss = Phaser.Math.RadToDeg(angToPlayer);
+
+      const degBoss = Phaser.Math.RadToDeg(aim);
       const isFacingNorth = (degBoss < -45 && degBoss > -135);
       this.weaponSprite.setDepth(isFacingNorth ? this.y - 1 : this.y + 1);
     }
@@ -650,6 +674,28 @@ export class Boss extends Enemy {
 
     // Cleared here rather than on a timer that could outlive him.
     if (this._reflectUntil && this.scene.time.now > this._reflectUntil) this._reflectUntil = 0;
+  }
+
+  /**
+   * Meet a bolt with the blade.
+   *
+   * `angle` is the bearing from HIM to the shot he is turning — the direction
+   * the saber has to reach to be in its way.
+   *
+   * OWNED HERE, and that is the whole design note. `preUpdate` rewrites the
+   * weapon sprite's position, rotation, flip and depth every single frame from
+   * the angle to the player, so a parry tweened from the scene would be one
+   * more system writing the same four properties — the exact fight that got
+   * his moves rejected the first time. Instead the scene asks for a parry and
+   * the block that already owns the saber draws it. One writer, no argument.
+   *
+   * It sets no `_performing` and takes no ownership of his body: a deflection
+   * is a reflex, not an attack, and it must be able to happen in the middle of
+   * a charge or a combo without interrupting either.
+   */
+  parry(angle) {
+    this._parryAngle = angle;
+    this._parryT = BOSS_MECH.parryMs;
   }
 
   /** True while the saber is up. Read by the player-bullet collision. */

@@ -99,7 +99,7 @@ does NOT, because hitstop is its subject — same split as `smoke-dialogue` and
 | `smoke-rng.mjs` | Runs are reproducible from a seed, and the named streams do not couple |
 | `smoke-score.mjs` | Kills, chain multiplier and wave bonuses all score |
 | `smoke-title.mjs` | Endless leads, and its record is the first thing you read |
-| `smoke-vader.mjs` | **The ladder is mechanics, not multipliers** — each Vader encounter adds a trick rather than a bigger number |
+| `smoke-vader.mjs` | **The ladder is mechanics, not multipliers** — each Vader encounter adds a trick rather than a bigger number. Also: a DEFLECTION returns *the shot* (player texture, its own speed and reach, in `deflectedBullets`) and Vader's blade leaves its guard to meet it |
 | `smoke-boss-moves.mjs` | Vader performs his own moves, a cancelled move takes its zone with it, and his afterimages are a real threat |
 | `smoke-moves.mjs` | Nemesis moves MOVE the actor, and beating one pays (stagger + bonus damage) |
 | `smoke-music-tiers.mjs` | Tiers change what the bed plays (calm drops the melody but keeps its pulse), and the director's heat rises faster than it falls, ignores a stale kill streak, and never outvotes the lifecycle phase |
@@ -313,6 +313,18 @@ duplicate being removed lived 780ms, so the "after" frame caught only a fading
 CRIT and no numbers at all — it looked like a triumph and was an artefact of
 when the shutter opened. Both sides of an A/B must be sampled where the
 SHORTER-lived subject is still alive; this one moved to 90ms.
+
+**A wrong argument to a staging call reads as the feature not existing.** A
+throwaway rig for the parry called `gs.spawnBoss({ encounter: 3 })`, but the
+signature is `spawnBoss(bx, by, opts)` — so `boss.x` became an *object*, every
+velocity step appended `NaN` to it as a string, and the boss had no numeric
+position at all. Every angle derived from it came out `NaN`, the probe bullet
+never moved, nothing was ever deflected, and the rig reported "never caught a
+parry frame", which is exactly what a missing parry would report. The tell was
+in the diagnostic dump, not the failure line: `bx` serialised as
+`"[object Object]NaNNaNNaN…"`. **Failure messages on a staged rig should print
+the staged state, and staging should assert it** — `Number.isFinite(boss.x)` is
+one line and would have failed in the right place.
 
 **A census counts what EXISTS, and what matters is what is DRAWN.** The combat-text
 diagnostic's first version filtered the display list on `type === 'Text'`. That was

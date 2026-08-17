@@ -509,6 +509,18 @@ export const SFX = {
     noise({ dur: 0.06, gain: 0.14, hp: 1400 });
     tone({ freq: 300, type: 'square', dur: 0.04, gain: 0.10, vary: 0.12 });
   },
+  // Saber deflection — plasma turned, not absorbed.
+  //
+  // Deliberately NOT `hit()`. That is the sound of a shot landing, and the
+  // whole point of a deflection is that it did not. The tell is the direction
+  // of the slide: every impact in this game falls, so this one RISES, which
+  // reads as energy leaving rather than energy stopping. Kept up in the 1.2-3kHz
+  // band on purpose — a handset speaker has almost nothing below ~400Hz, and a
+  // parry that is inaudible on a phone is a parry the player never learns.
+  saberDeflect() {
+    tone({ freq: 1250, type: 'square', dur: 0.05, gain: 0.09, slide: 900, vary: 0.15 });
+    noise({ dur: 0.05, gain: 0.11, hp: 3000 });
+  },
   // Player hurt — lower, painful
   hurt() {
     tone({ freq: 220, type: 'sawtooth', dur: 0.22, gain: 0.24, slide: -100 });
@@ -2444,6 +2456,62 @@ export function attachFX(scene) {
         targets: g, alpha: 0, duration: 180, ease: 'Quad.easeIn',
         onComplete: () => g.destroy(),
       });
+    },
+
+    /**
+     * A bolt meeting the blade and leaving on a new heading.
+     *
+     * The deflection used to be a red `impactRing` at the point of contact and
+     * nothing else — the same ring the player's own hits on the boss draw — so
+     * the read was "my shot connected" at the exact instant it had not, and the
+     * green bolt that appeared 50px away was a separate, unexplained object.
+     *
+     * Three parts, and each one is doing a specific job:
+     *   - a hard white core at the contact point. Plasma on plasma is the
+     *     brightest thing in the fight for two frames and nothing else here is
+     *     white-hot, so it cannot be confused with an impact.
+     *   - a short blade-flare ACROSS the incoming bearing: the edge that stopped
+     *     it, drawn perpendicular so it reads as an obstruction rather than as
+     *     another beam.
+     *   - sparks thrown along the OUTGOING bearing. This is the part that says
+     *     the energy went somewhere instead of being absorbed, and it points at
+     *     the shot that is now on its way back.
+     *
+     * NO floor scar. Everything Vader's blade touches burns the deck, but that
+     * vocabulary means "the blade arrived HERE" — a parry happens in the air, and
+     * scarring it would put a combo's mark under a move that never landed.
+     */
+    saberParry(x, y, inAngle, outAngle) {
+      // Drawn around a LOCAL origin with the object placed at (x, y), not at
+      // world coordinates. A Graphics scales about its own origin, so painting
+      // at absolute coordinates and then tweening scale to 1.5 would throw the
+      // flash half a screen away from the blade instead of blooming it.
+      const g = scene.add.graphics({ x, y }).setDepth(DEPTH.AIR)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      // Across the incoming bolt, not along it.
+      const across = inAngle + Math.PI / 2;
+      const ca = Math.cos(across), sa = Math.sin(across);
+      for (const [thick, colour, alpha, len] of [
+        [11, 0xff3a1c, 0.55, 26],
+        [5,  0xffb060, 0.8,  20],
+        [2,  0xffffff, 1,    13],
+      ]) {
+        g.lineStyle(thick, colour, alpha);
+        g.lineBetween(-ca * len, -sa * len, ca * len, sa * len);
+      }
+      g.fillStyle(0xffffff, 0.95); g.fillCircle(0, 0, 7);
+      g.fillStyle(0xffd0a0, 0.5);  g.fillCircle(0, 0, 13);
+      // 90ms, and short is the point: a deflection is over before the bolt it
+      // produced has travelled its own length, and a lingering flare would sit
+      // on top of the returning shot and hide the thing the player must react to.
+      scene.tweens.add({
+        targets: g, alpha: 0, scaleX: 1.5, scaleY: 1.5, duration: 90,
+        ease: 'Quad.easeOut', onComplete: () => g.destroy(),
+      });
+      // Most of the spray follows the shot home; a little of it scatters back
+      // the way the bolt came, which is what keeps it from reading as a muzzle.
+      this.burstDir(x, y, 'white', 6, outAngle, 34);
+      this.burstDir(x, y, 'yellow', 3, inAngle + Math.PI, 90);
     },
 
     /**
