@@ -515,6 +515,20 @@ export class Boss extends Enemy {
           this._chargeSwingDir = -(this._chargeSwingDir || 1);
           this.scene.fx?.saberSweep?.(this.x, this.y, this.chargeAngle, 84, this._chargeSwingDir);
         }
+        // ── THE ONE THING ONLY THE RUSH DOES ──────────────────────────────
+        //
+        // The rush and the throw both put a crimson lane on the floor, and
+        // once the lane was gone they were two crimson blurs travelling. This
+        // is what separates them for good: he drags the point through the deck
+        // as he goes, so the run leaves a continuous furrow BEHIND him — a
+        // record of the path he has already taken, which a thrown blade never
+        // produces. Also the reason it reads on a still: the furrow is the
+        // difference between "something is moving" and "he came from there".
+        this._dragT = (this._dragT || 0) + delta;
+        if (this._dragT >= 60) {
+          this._dragT = 0;
+          this.scene.fx?.saberDrag?.(this.x, this.y, this.chargeAngle);
+        }
         if (this.stateTimer >= BOSS.chargeDurationMs || blocked) {
           this.setVelocity(0, 0);
           this.state = STATE.IDLE;

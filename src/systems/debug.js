@@ -53,6 +53,28 @@ let hitstopMuted = false;
 export function isHitstopMuted() { return hitstopMuted; }
 export function setHitstopMuted(v) { hitstopMuted = !!v; }
 
+// ── Unlabelled review ──────────────────────────────────────────────────────
+//
+// `?nonames=1` suppresses the ATTACK-NAME banner for Vader's moves and nothing
+// else. It exists to answer one question that no assertion can: with the name
+// hidden, can the move still be identified from his motion, the telegraph and
+// the effects alone? A move that only reads because the word FORCE PULL is
+// printed across the top of the screen has not communicated anything.
+//
+// Deliberately narrow. It gates the six per-attack callouts (the five scripted
+// moves plus the state machine's SLAM) and leaves every other banner alone —
+// VADER APPROACHES, ENRAGED, DEFLECTION, LIGHTS OUT are phase and event
+// presentation, not attack identity, and blanking them would change what the
+// reviewer is looking at rather than what they are being asked about.
+//
+// It is inert unless the flag is on the URL, exactly like `?nodlg=1`, so the
+// production build is untouched. This does NOT decide whether attack names ship
+// — that stays a human call.
+let moveNamesMuted = false;
+
+export function areMoveNamesMuted() { return moveNamesMuted; }
+export function setMoveNamesMuted(v) { moveNamesMuted = !!v; }
+
 // ── Straight into a fight ──────────────────────────────────────────────────
 //
 // The first nemesis a run can meet is at SECTOR 3 — mini-bosses come only from

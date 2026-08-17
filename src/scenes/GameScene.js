@@ -20,7 +20,9 @@ import {
   nemesisFromEntry, promoteSuccessor, displayName, grudgeLine,
 } from '../data/nemesisLedger.js';
 import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.js';
-import { isDialogueMuted, getDuelRequest, setDuelRequest } from '../systems/debug.js';
+import {
+  isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
+} from '../systems/debug.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { moveById } from '../data/nemesisMoves.js';
 
@@ -2132,10 +2134,19 @@ export class GameScene extends Phaser.Scene {
     // pulse and nothing you could read at a glance, which is what the player
     // meant by "he only charges but no lane light or anything".
     this._on('boss-charge-windup', (b, angle, ms) => {
+      const len = BOSS.chargeSpeed * (BOSS.chargeDurationMs / 1000) * 0.8;
       this.spawnTelegraph({
-        kind: 'lane', x: b.x, y: b.y, angle,
-        len: BOSS.chargeSpeed * (BOSS.chargeDurationMs / 1000) * 0.8, width: 170,
-      }, { windupMs: ms, owner: b });
+        kind: 'lane', x: b.x, y: b.y, angle, len, width: 170,
+        // ── THE RUSH AND THE THROW ARE THE CLOSEST PAIR HE HAS ────────────
+        //
+        // Both draw a crimson lane out of the same man with the same blade, and
+        // both used the stock 620ms chevron cycle — so the only difference on
+        // the floor was 20px of width. The chevrons here now run at the speed
+        // HE will cross the lane (chargeDurationMs), and SABER THROW's run at
+        // the speed the BLADE will; the rush is much the faster of the two, and
+        // the difference is legible without reading either name. Geometry,
+        // width and windup unchanged.
+      }, { windupMs: ms, owner: b, kineticMs: BOSS.chargeDurationMs });
     });
     this._on('boss-spawn',        ()      => this.bossSpawnMinions());
     // VANISH is a REACTION now, not a rotation entry: Boss.preUpdate raises
@@ -2154,14 +2165,32 @@ export class GameScene extends Phaser.Scene {
     this._on('boss-slam-windup', (b, ms, radius) => {
       this.spawnTelegraph(
         { kind: 'circle', x: b.x, y: b.y, r: radius },
-        { windupMs: ms, owner: b, anchor: 'world', color: 0xff6030 },
+        // ── THE WIND-UP IS PART OF THE ATTACK ────────────────────────────
+        //
+        // His biggest commitment drew the same zone as everything else: an
+        // outline, a fill that swept out, and then an explosion. It existed for
+        // N milliseconds; it did not LOAD. `stress` opens fractures out of the
+        // centre in staggered stages and brightens a core as the hold runs, so
+        // the floor is visibly taking the strain and the last quarter is
+        // unmistakably a man committing rather than a countdown expiring.
+        // Radius, anchor, windup and the damage beat are all untouched.
+        { windupMs: ms, owner: b, anchor: 'world', color: 0xff6030, stress: true },
       );
-      this.events.emit('show-banner', 'SLAM', '#ff6030');
+      // ...and the blade over his head is doing the same thing. A separate
+      // additive layer that only reads his weapon's position — deliberately NOT
+      // a scale mutation on the sprite, which is the trap that once grew his
+      // saber into a 1100px slab.
+      const glow = this.fx?.chargeGlow?.(b.weaponSprite, ms);
+      this.time.delayedCall(ms + 90, () => glow?.stop?.());
+      if (!areMoveNamesMuted()) this.events.emit('show-banner', 'SLAM', '#ff6030');
     });
     this._on('boss-slam', (b, at, radius) => {
       const p = this.player;
       const spot = at || { x: b.x, y: b.y };
-      this.fx?.saberSlam?.(spot.x, spot.y, radius);
+      // 'overhead' — the heavy tier. This is the one attack in his kit whose
+      // whole point is consequence, and it was resolving as the identical
+      // 300ms ring the combo finisher and a whiffed rush into a wall both use.
+      this.fx?.saberSlam?.(spot.x, spot.y, radius, 'overhead');
       this.fx?.shake?.(0.034, 380);
       if (p?.alive && Math.hypot(p.x - spot.x, p.y - spot.y) <= radius) {
         const a = Math.atan2(p.y - spot.y, p.x - spot.x);

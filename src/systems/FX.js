@@ -1888,7 +1888,8 @@ export function attachFX(scene) {
       if (lowQuality) return;
       const key = color === 'red' ? 'spark-red'
         : color === 'yellow' ? 'spark-yellow'
-          : color === 'blue' ? 'spark-blue' : 'spark';
+          : color === 'violet' ? 'spark-violet'
+            : color === 'blue' ? 'spark-blue' : 'spark';
       if (!scene.textures.exists(key)) return;
       for (let i = 0; i < count; i++) {
         const a = Math.random() * Math.PI * 2;
@@ -1978,6 +1979,21 @@ export function attachFX(scene) {
             g.moveTo(tx, ty);
             g.lineTo(px, py);
             g.strokePath();
+          }
+
+          // 1b. CONTRACTING RINGS. The spirals carry the rotation, but a
+          // spiral arm read as a still frame is just a curved line — it does
+          // not say which end it is travelling toward, and this move's entire
+          // meaning is the direction. Three rings on staggered phases collapse
+          // toward him continuously, which is the same statement FORCE PUSH's
+          // front makes in reverse: whatever you can see is heading for the
+          // middle, and so are you.
+          for (let k = 0; k < 3; k++) {
+            const u = ((t / 0.62) + k / 3) % 1;
+            const cr = radius * (1 - u);
+            if (cr < 14) continue;
+            g.lineStyle(2 + 2 * tighten, color, (0.20 + 0.35 * tighten) * Math.sin(u * Math.PI));
+            g.strokeCircle(cx, cy, cr);
           }
 
           // 2. counter-rotating dashed ring
@@ -2136,15 +2152,34 @@ export function attachFX(scene) {
     //                            inverse of the player's bright cyan slam:
     //                            debris is pulled IN before it is thrown out.
 
-    /** The overhead smash. Crimson, and it burns the deck where it lands. */
-    saberSlam(x, y, radius = 210) {
+    /**
+     * A blade driven into the deck. Crimson, and it burns where it lands.
+     *
+     * ── WHY THIS TAKES A TIER ────────────────────────────────────────────
+     *
+     * One call served three different attacks: the SABER COMBO's finisher, the
+     * OVERHEAD SMASH, and a CHARGE that ran into a wall. Three moves that mean
+     * three different things — a chain ending, his single biggest commitment,
+     * and a whiff — all resolved as the identical crimson ring, so the one the
+     * player most needs to recognise looked exactly like the one they can
+     * ignore. The geometry and the damage are untouched; what changes is how
+     * much event each one is.
+     *
+     *   'blade'    the default. The combo's finisher and the wall whiff: quick,
+     *              tight, over in 300ms.
+     *   'overhead' the smash. Slower to open, a real crater, fissures that run
+     *              past the ring and cool visibly, and a dust column — the
+     *              release the wind-up has been loading toward.
+     */
+    saberSlam(x, y, radius = 210, tier = 'blade') {
+      const heavy = tier === 'overhead';
       const HOT = 0xfff0e0, BLADE = 0xff2a18, DEEP = 0x8c0e06;
       // Molten ring, thick and short-lived — a blade strike, not a shockwave.
       const ring = scene.add.graphics().setDepth(24)
         .setBlendMode(Phaser.BlendModes.ADD);
       const s = { t: 0 };
       scene.tweens.add({
-        targets: s, t: 1, duration: 300, ease: 'Cubic.easeOut',
+        targets: s, t: 1, duration: heavy ? 520 : 300, ease: 'Cubic.easeOut',
         onUpdate: () => {
           const t = s.t, a = 1 - t, r = radius * t;
           ring.clear();
@@ -2159,13 +2194,22 @@ export function attachFX(scene) {
       });
 
       // The scorch: a dark burn that STAYS a moment, with embers cooling on it.
+      // The overhead leaves a real crater — a hot inner disc inside the char,
+      // held longer, because the whole point of that move is consequence.
       const scorch = scene.add.graphics().setDepth(11);
-      scorch.fillStyle(0x14060a, 0.6);
-      scorch.fillCircle(x, y, radius * 0.62);
+      scorch.fillStyle(0x14060a, heavy ? 0.78 : 0.6);
+      scorch.fillCircle(x, y, radius * (heavy ? 0.72 : 0.62));
       scorch.lineStyle(3, DEEP, 0.5);
-      scorch.strokeCircle(x, y, radius * 0.62);
+      scorch.strokeCircle(x, y, radius * (heavy ? 0.72 : 0.62));
+      if (heavy) {
+        scorch.fillStyle(0x5c1206, 0.55);
+        scorch.fillCircle(x, y, radius * 0.34);
+        scorch.fillStyle(0xff5a24, 0.42);
+        scorch.fillCircle(x, y, radius * 0.15);
+      }
       scene.tweens.add({
-        targets: scorch, alpha: 0, duration: 900, delay: 260,
+        targets: scorch, alpha: 0,
+        duration: heavy ? 1500 : 900, delay: heavy ? 620 : 260,
         onComplete: () => scorch.destroy(),
       });
 
@@ -2173,10 +2217,10 @@ export function attachFX(scene) {
       // hot — the floor splitting along the blade rather than a dust ring.
       const cracks = scene.add.graphics().setDepth(12)
         .setBlendMode(Phaser.BlendModes.ADD);
-      const arms = 9;
+      const arms = heavy ? 14 : 9;
       for (let i = 0; i < arms; i++) {
         const a = (i / arms) * Math.PI * 2 + Math.random() * 0.3;
-        const len = radius * (0.55 + Math.random() * 0.5);
+        const len = radius * (heavy ? 0.85 + Math.random() * 0.6 : 0.55 + Math.random() * 0.5);
         cracks.lineStyle(2.5, BLADE, 0.85);
         cracks.beginPath();
         cracks.moveTo(x, y);
@@ -2190,18 +2234,29 @@ export function attachFX(scene) {
         cracks.strokePath();
       }
       scene.tweens.add({
-        targets: cracks, alpha: 0, duration: 620, ease: 'Quad.easeIn',
+        targets: cracks, alpha: 0, duration: heavy ? 1100 : 620, ease: 'Quad.easeIn',
         onComplete: () => cracks.destroy(),
       });
 
       // Slag thrown out along the ring, and a hot core flash.
-      this.burst(x, y, 'red', 18);
-      for (let i = 0; i < 9; i++) {
-        const a = (i / 9) * Math.PI * 2 + Math.random() * 0.3;
+      this.burst(x, y, 'red', heavy ? 26 : 18);
+      for (let i = 0; i < (heavy ? 12 : 9); i++) {
+        const a = (i / (heavy ? 12 : 9)) * Math.PI * 2 + Math.random() * 0.3;
         this.burstDir(x + Math.cos(a) * 24, y + Math.sin(a) * 24, 'red', 3, a, 26);
       }
-      for (let i = 0; i < 4; i++) {
-        this.dustPuff(x + (Math.random() - 0.5) * 30, y + (Math.random() - 0.5) * 22);
+      for (let i = 0; i < (heavy ? 8 : 4); i++) {
+        this.dustPuff(x + (Math.random() - 0.5) * (heavy ? 48 : 30),
+          y + (Math.random() - 0.5) * (heavy ? 34 : 22));
+      }
+      // The overhead's own beat: a column of dust standing up out of the
+      // crater a moment AFTER the ring, so the strike has a follow-through
+      // instead of ending on its brightest frame.
+      if (heavy && !lowQuality) {
+        scene.time.delayedCall(90, () => {
+          for (let i = 0; i < 6; i++) {
+            this.dustPuff(x + (Math.random() - 0.5) * 26, y + (Math.random() - 0.5) * 18);
+          }
+        });
       }
     },
 
@@ -2256,6 +2311,280 @@ export function attachFX(scene) {
         'red', 4, tipA + dir * Math.PI / 2, 40);
     },
 
+    // ── THE FLOOR REMEMBERS THE BLADE ────────────────────────────────────
+    //
+    // Every saber attack he has resolved as light in the air and left the deck
+    // exactly as it found it, so a swing, a rush and a throw all read as "a red
+    // thing happened here" and nothing said which. A lightsaber's one
+    // unmistakable property is that it BURNS WHAT IT TOUCHES, and a burn has an
+    // orientation — so a mark on the floor carries the direction and the shape
+    // of the strike that made it, for a beat after the strike is gone.
+    //
+    // Shared bound, not per-call: marks are the one thing here that can
+    // accumulate, because they outlive the effect that spawned them. `_scar`
+    // keeps a hard cap of the OLDEST-first kind, so a phase-3 Vader swinging
+    // continuously cannot paper the arena.
+    _scars: [],
+    _keepScar(g) {
+      this._scars.push(g);
+      while (this._scars.length > 16) this._scars.shift()?.destroy();
+      return g;
+    },
+
+    /**
+     * A curved score across the deck, following a swing.
+     *
+     * Drawn UNDER the actors (depth 11, with the telegraph decals) so it reads
+     * as being in the floor rather than over it, and it is an arc rather than a
+     * ring: it tells you which way the blade went, which is the whole reason it
+     * exists. Cheap — one Graphics, one tween, no emitter.
+     */
+    saberScar(x, y, angle, radius = 92, dir = 1, span = Math.PI * 0.9) {
+      if (lowQuality) return;
+      const g = this._keepScar(scene.add.graphics().setDepth(11));
+      const a0 = angle - dir * span / 2;
+      const N = 16;
+      // Two passes: a wide charred band, then a thin molten line inside it that
+      // cools away first. The char is what stays visible for the beat after.
+      for (const [thick, colour, alpha] of [[13, 0x1a0704, 0.75], [5, 0x8c1a08, 0.85], [2, 0xff6a2e, 0.9]]) {
+        g.lineStyle(thick, colour, alpha);
+        g.beginPath();
+        for (let i = 0; i <= N; i++) {
+          const u = i / N;
+          const a = a0 + dir * span * u;
+          // Wobble the radius so the burn is uneven, like the telegraph rim.
+          const rr = radius * (0.94 + 0.12 * Math.sin(u * 9 + a0));
+          const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+          if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+        }
+        g.strokePath();
+      }
+      scene.tweens.add({
+        targets: g, alpha: 0, duration: 900, delay: 200, ease: 'Quad.easeIn',
+        onComplete: () => {
+          const i = this._scars.indexOf(g);
+          if (i >= 0) this._scars.splice(i, 1);
+          g.destroy();
+        },
+      });
+    },
+
+    /**
+     * A straight gouge under a travelling body — the CHARGE, and only it.
+     *
+     * The rush and the throw both draw a crimson lane on the floor and both
+     * come out of the same man with the same blade, which made them the closest
+     * pair in his kit. This is the thing only the rush does: he drags the point
+     * through the deck as he goes, so the run leaves a continuous furrow behind
+     * him while the throw leaves nothing on the ground at all.
+     */
+    saberDrag(x, y, angle, len = 46) {
+      if (lowQuality) return;
+      const g = this._keepScar(scene.add.graphics().setDepth(11));
+      const ca = Math.cos(angle), sa = Math.sin(angle);
+      // Offset to his trailing side, where a dragged blade actually is.
+      const ox = x - ca * len * 0.5 - sa * 16;
+      const oy = y - sa * len * 0.5 + ca * 16;
+      for (const [thick, colour, alpha] of [[15, 0x1a0704, 0.7], [6, 0x8c1a08, 0.8], [2, 0xff7a3a, 0.95]]) {
+        g.lineStyle(thick, colour, alpha);
+        g.beginPath();
+        g.moveTo(ox, oy);
+        g.lineTo(ox + ca * len, oy + sa * len);
+        g.strokePath();
+      }
+      scene.tweens.add({
+        targets: g, alpha: 0, duration: 620, delay: 140, ease: 'Quad.easeIn',
+        onComplete: () => {
+          const i = this._scars.indexOf(g);
+          if (i >= 0) this._scars.splice(i, 1);
+          g.destroy();
+        },
+      });
+    },
+
+    /**
+     * The thrown blade's own streak.
+     *
+     * Not `trail()`. That is `bulletTrail`, the PLAYER's primary-bolt motion
+     * blur — so the single most dangerous object Vader puts in the air was
+     * wearing the same smear as the thing you shoot him with, and only on the
+     * way home. This is hot, crimson, tapered along the blade's travel, and it
+     * runs on BOTH legs so departure and return are one continuous object
+     * moving through space.
+     */
+    saberTrail(x, y, angle, hot = 1) {
+      if (lowQuality) return;
+      const g = scene.add.graphics().setDepth(y + 6)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      const ca = Math.cos(angle), sa = Math.sin(angle);
+      const L = 30 * hot;
+      g.lineStyle(9, 0x8c1a08, 0.42);
+      g.lineBetween(x, y, x - ca * L, y - sa * L);
+      g.lineStyle(4, 0xff3a1c, 0.7);
+      g.lineBetween(x, y, x - ca * L * 0.8, y - sa * L * 0.8);
+      g.lineStyle(1.5, 0xfff0e0, 0.9);
+      g.lineBetween(x, y, x - ca * L * 0.5, y - sa * L * 0.5);
+      scene.tweens.add({
+        targets: g, alpha: 0, duration: 180, ease: 'Quad.easeIn',
+        onComplete: () => g.destroy(),
+      });
+    },
+
+    /**
+     * A blade being charged, held over the head, about to come down.
+     *
+     * Follows a sprite and OWNS NOTHING ON IT. The obvious way to sell a
+     * charging saber is to grow the weapon sprite, and this repo has already
+     * paid for that twice: `raiseWeapon`/`dropWeapon` multiplied scale and an
+     * unmatched pair compounded into a 1100px slab, and the touch widgets have
+     * the same trap. So this is a SEPARATE additive sprite that reads the
+     * target's position and writes only to itself, and it cannot leave anything
+     * behind when it goes.
+     */
+    chargeGlow(target, durationMs = 700, color = 0xff5a2a) {
+      if (!target?.active) return { stop() {} };
+      const g = scene.add.graphics().setDepth((target.depth ?? 0) + 1)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      let t = 0;
+      let stopped = false;
+      const ev = scene.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () => {
+          if (stopped || !g.active || !target.active) return;
+          t = Math.min(1, t + 16 / durationMs);
+          g.clear();
+          g.setDepth((target.depth ?? 0) + 1);
+          const flick = 0.85 + 0.15 * Math.sin(t * 70);
+          // A halo that tightens and brightens rather than growing: energy
+          // being gathered INTO the blade, not radiating off it.
+          g.fillStyle(color, 0.10 + 0.30 * t * flick);
+          g.fillCircle(target.x, target.y, (26 - 9 * t) * (1 + 0.15 * t));
+          g.fillStyle(0xfff0e0, 0.12 + 0.5 * t * t * flick);
+          g.fillCircle(target.x, target.y, (11 - 4 * t));
+          // Motes falling in along the blade, appearing only late, so the last
+          // third of the wind-up is visibly hotter than the first.
+          if (t > 0.45 && Math.random() < 0.5) {
+            const a = Math.random() * Math.PI * 2;
+            const r = 34 + Math.random() * 26;
+            g.lineStyle(2, color, 0.5 * t);
+            g.lineBetween(target.x + Math.cos(a) * r, target.y + Math.sin(a) * r,
+              target.x + Math.cos(a) * r * 0.45, target.y + Math.sin(a) * r * 0.45);
+          }
+        },
+      });
+      return {
+        stop() {
+          if (stopped) return;
+          stopped = true;
+          ev.remove(false);
+          scene.tweens.add({
+            targets: g, alpha: 0, duration: 120,
+            onComplete: () => g.destroy(),
+          });
+        },
+      };
+    },
+
+    // ── DISPLACEMENT, NOT A PUFF OF SMOKE ────────────────────────────────
+    //
+    // VANISH resolved as a generic fade out and a thin green takedown arc
+    // borrowed from the stealth code. Nothing about it said "his position has
+    // stopped being reliable", which is the only thing the move means.
+    //
+    // Both halves are built from the SAME shear language so departure and
+    // arrival are legibly one event with a gap in the middle: the silhouette
+    // splits into vertical slices that slide apart and drain of colour, and a
+    // dark rift is left standing where he was. No ring, no circle, nothing that
+    // could be mistaken for a danger zone — the landing marker is the only
+    // thing on the floor allowed to make a promise about where he will be, and
+    // a second circle appearing after a teleport is a bug this fight has
+    // already shipped once.
+    //
+    // `mode` is 'out' (he is leaving) or 'in' (he is arriving); the slices run
+    // the opposite way for each, so the two are mirror images.
+    phaseRift(x, y, mode = 'out', color = 0x9a6cff) {
+      const outward = mode === 'out';
+      const g = scene.add.graphics().setDepth(y + 2)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      const slices = lowQuality ? 4 : 7;
+      const bars = [];
+      for (let i = 0; i < slices; i++) {
+        const u = i / (slices - 1) - 0.5;
+        bars.push({ u, w: 5 + Math.random() * 7, h: 28 + Math.random() * 34, ph: Math.random() });
+      }
+      const st = { t: 0 };
+      scene.tweens.add({
+        targets: st, t: 1, duration: outward ? 260 : 220,
+        ease: outward ? 'Quad.easeIn' : 'Quart.easeOut',
+        onUpdate: () => {
+          // Arriving runs the same shape backwards: slices converge instead of
+          // scattering, so "he is assembling here" is the same gesture as "he
+          // came apart there".
+          const k = outward ? st.t : 1 - st.t;
+          g.clear();
+          for (const b of bars) {
+            const spread = 20 + 46 * k;
+            const bx = x + b.u * spread;
+            const by = y + (b.ph - 0.5) * 16 * k;
+            g.fillStyle(color, 0.75 * (1 - k * 0.65));
+            g.fillRect(bx - b.w / 2, by - b.h / 2, b.w, b.h * (1 - k * 0.35));
+            g.fillStyle(0xffffff, 0.5 * (1 - k));
+            g.fillRect(bx - 1, by - b.h / 2, 2, b.h * (1 - k * 0.35));
+          }
+          // The rift itself: a thin vertical tear at the spot, brightest at the
+          // moment of the swap.
+          const tear = 1 - Math.abs(k - 0.15) * 1.6;
+          if (tear > 0) {
+            g.fillStyle(0xe8d8ff, 0.7 * tear);
+            g.fillRect(x - 1.5, y - 46 * tear, 3, 92 * tear);
+          }
+        },
+        onComplete: () => g.destroy(),
+      });
+      // Residue that stays behind at the DEPARTURE point only: it is a fact
+      // about where he was, and there is nothing to leave behind where he
+      // arrives because he is standing there.
+      if (outward) {
+        const r = scene.add.graphics().setDepth(11);
+        r.fillStyle(0x1a1030, 0.5);
+        r.fillEllipse(x, y + 14, 46, 18);
+        for (let i = 0; i < 5; i++) {
+          const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.5;
+          r.lineStyle(2, color, 0.55);
+          r.lineBetween(x, y + 10, x + Math.cos(a) * 26, y + 10 + Math.sin(a) * 26);
+        }
+        scene.tweens.add({
+          targets: r, alpha: 0, duration: 620, delay: 160,
+          onComplete: () => r.destroy(),
+        });
+      }
+    },
+
+    /**
+     * One violet streak, pointing the way the Force is moving something.
+     *
+     * The saber family's counterpart is `saberTrail`, and the two are kept
+     * apart on purpose: crimson and tapered means the blade, violet and even
+     * means his hand. Used to mark the PLAYER while a pull is dragging them,
+     * where the streak is drawn along the direction of travel so the player's
+     * own body carries the move's direction.
+     */
+    forceStreak(x, y, angle, len = 26, color = 0xa888ff) {
+      if (lowQuality) return;
+      const g = scene.add.graphics().setDepth(y + 6)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      const ca = Math.cos(angle), sa = Math.sin(angle);
+      g.lineStyle(5, color, 0.35);
+      g.lineBetween(x - ca * len, y - sa * len, x + ca * len * 0.4, y + sa * len * 0.4);
+      g.lineStyle(1.5, 0xe8d8ff, 0.75);
+      g.lineBetween(x - ca * len * 0.7, y - sa * len * 0.7, x + ca * len * 0.3, y + sa * len * 0.3);
+      scene.tweens.add({
+        targets: g, alpha: 0, duration: 220, ease: 'Quad.easeIn',
+        onComplete: () => g.destroy(),
+      });
+    },
+
     /**
      * A Force blow. Dark where the player's slam is bright.
      *
@@ -2280,7 +2609,21 @@ export function attachFX(scene) {
 
       // Then the wave — dark body, pale rim, and NO additive bloom on the body
       // so it reads as an absence rather than a light.
+      //
+      // ── THE FRONT IS THE MOVE ────────────────────────────────────────────
+      //
+      // This was three concentric strokes on a growing radius, which is a ring
+      // getting bigger — and a ring getting bigger is also what a pull looks
+      // like played backwards. What makes it a PUSH is that the front carries
+      // things with it, so the debris below is integrated on the same radius as
+      // the ring rather than sprayed once at the centre. Motion points outward,
+      // and it points outward the whole way rather than at one instant.
       const wave = scene.add.graphics().setDepth(24);
+      const shards = [];
+      for (let i = 0; i < (lowQuality ? 8 : 16); i++) {
+        shards.push({ a: (i / (lowQuality ? 8 : 16)) * Math.PI * 2 + Math.random() * 0.3,
+          lag: Math.random() * 0.18, len: 16 + Math.random() * 22 });
+      }
       const s = { t: 0 };
       scene.tweens.add({
         targets: s, t: 1, duration: 420, delay: 120, ease: 'Cubic.easeOut',
@@ -2293,6 +2636,16 @@ export function attachFX(scene) {
           wave.strokeCircle(x, y, r);
           wave.lineStyle(2.5, PALE, 0.9 * a);
           wave.strokeCircle(x, y, r * 0.97);
+          // Debris riding the front, each trailing BACK toward the origin —
+          // the tail is what makes the direction unambiguous in a still frame.
+          for (const sh of shards) {
+            const rr = radius * Math.max(0, t - sh.lag);
+            if (rr <= 0) continue;
+            const ca = Math.cos(sh.a), sa = Math.sin(sh.a);
+            wave.lineStyle(3, PALE, 0.8 * a);
+            wave.lineBetween(x + ca * rr, y + sa * rr,
+              x + ca * (rr - sh.len), y + sa * (rr - sh.len));
+          }
         },
         onComplete: () => wave.destroy(),
       });

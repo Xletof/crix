@@ -112,6 +112,7 @@ export class PreloadScene extends Phaser.Scene {
     paintSpark(this, 'spark-red',    PAL.boltRed,    3);
     paintSpark(this, 'spark-yellow', PAL.expBright,  3);
     paintSpark(this, 'spark-blue',   PAL.sparkBlue,  3);
+    paintSpark(this, 'spark-violet', PAL.sparkViolet, 3);
     paintShadow(this, 'shadow',      34);
     paintShadow(this, 'shadow-boss', 80);
     paintJetFlame(this, 'jet-flame');

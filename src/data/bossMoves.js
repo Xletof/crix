@@ -25,6 +25,21 @@ import {
   raiseWeapon, dropWeapon, stagger,
 } from '../systems/actorMotion.js';
 import { SFX } from '../systems/FX.js';
+import { areMoveNamesMuted } from '../systems/debug.js';
+
+/**
+ * Raise a move's ATTACK-NAME callout — unless a review is deliberately hiding
+ * them (`?nonames=1`, see systems/debug.js).
+ *
+ * One helper rather than a check at six emit sites, and one place for the
+ * production behaviour to change if it ever does. Muting is a diagnostic: it
+ * answers "does this move read without its label", and nothing else about the
+ * move — timing, geometry, damage — is touched by it.
+ */
+export function announceMove(scene, name, color) {
+  if (areMoveNamesMuted()) return;
+  scene.events.emit('show-banner', name, color);
+}
 
 export const BOSS_MOVES = [
   {
@@ -59,13 +74,17 @@ export const BOSS_MOVES = [
       // run — the same gap SABER THROW had, which is exactly why that check
       // iterates the registry instead of naming moves.
       squash(scene, b, 260, 0.16);
-      scene.events.emit('show-banner', 'SABER COMBO', '#ff6030');
+      announceMove(scene, 'SABER COMBO', '#ff6030');
       // Short wind-up on purpose: this is his bread-and-butter, not an event.
       // The reading that matters is the FINISHER, which telegraphs separately.
       h.tel = scene.spawnTelegraph({
         kind: 'cone', x: b.x, y: b.y, angle: h.angle,
         len: this.reach, spreadDeg: this.arcDeg,
-      }, { windupMs: this.anticipateMs, owner: b, color: 0xff5030 });
+        // The cone's sweep lines run at the speed the swings will actually
+        // arrive at (three inside actMs), so the zone's motion is a preview of
+        // the cadence rather than the stock 620ms every other zone uses. Same
+        // geometry, same windup — only how fast the light moves through it.
+      }, { windupMs: this.anticipateMs, owner: b, color: 0xff5030, kineticMs: this.actMs / 3 });
     },
 
     act(scene, b, h) {
@@ -84,8 +103,21 @@ export const BOSS_MOVES = [
           const a = Math.atan2(p.y - b.y, p.x - b.x);
           h.swing += 1;
           b._aim = a;
-          scene.fx?.saberSweep?.(b.x, b.y, a, 92, h.swing === 2 ? -1 : 1);
-          scene.fx?.shake?.(0.008, 90);
+          // ── THREE SWINGS THAT ESCALATE ─────────────────────────────────
+          //
+          // The chain drew the SAME arc at the same radius three times, mirrored
+          // on the second, so a combo two thirds finished looked identical to
+          // one that had just started and nothing signalled that a finisher was
+          // coming. Each swing now reaches further and cuts harder than the one
+          // before it, and each leaves a burn on the deck along its own path —
+          // so the floor accumulates the chain and the third swing is visibly
+          // the one that has been building. Nothing about the hit test changed:
+          // reach, arc and damage are read from the same config as before.
+          const dir = h.swing === 2 ? -1 : 1;
+          const grow = 84 + h.swing * 12;
+          scene.fx?.saberSweep?.(b.x, b.y, a, grow, dir);
+          scene.fx?.saberScar?.(b.x, b.y, a, grow, dir, Math.PI * (0.7 + 0.12 * h.swing));
+          scene.fx?.shake?.(0.008 + 0.004 * h.swing, 90);
           SFX.meleeSwing?.(h.swing);
           // Step in along the swing — but never INTO them. Unclamped, three
           // 26px steps walked him from standoff to zero and he finished the
@@ -111,7 +143,10 @@ export const BOSS_MOVES = [
       h.swings?.remove(false);
       dropWeapon(scene, b, 120);
       const p = scene.player;
-      scene.fx?.saberSlam?.(b.x, b.y, this.slamRadius);
+      // 'blade' tier deliberately: this is a chain ENDING, not the overhead
+      // smash. Both used to call the identical effect, which made his biggest
+      // commitment look like his bread-and-butter finisher.
+      scene.fx?.saberSlam?.(b.x, b.y, this.slamRadius, 'blade');
       scene.fx?.shake?.(0.03, 320);
       SFX.meleeSlam?.();
       if (p?.alive && Math.hypot(p.x - b.x, p.y - b.y) <= this.slamRadius) {
@@ -152,8 +187,17 @@ export const BOSS_MOVES = [
       h.tel = scene.spawnTelegraph({
         kind: 'lane', x: b.x, y: b.y, angle: h.angle,
         len: this.reach, width: this.laneWidth,
-      }, { windupMs: this.anticipateMs, owner: b });
-      scene.events.emit('show-banner', 'SABER THROW', '#ff2828');
+        // ── THE LANE TRAVELS AT THE BLADE'S SPEED ────────────────────────
+        //
+        // A static crimson rectangle is the wrong shape of promise for a moving
+        // weapon: it says "this whole corridor is dangerous now" when the truth
+        // is "one object will cross it, this fast, and then come back". The
+        // chevrons already scroll; tying their cycle to the outbound flight
+        // time (`actMs * 0.45`, the same constant OUT_SPEED is derived from in
+        // `act`) makes the light on the floor move at exactly the speed the
+        // saber will. Geometry, width and windup all unchanged.
+      }, { windupMs: this.anticipateMs, owner: b, kineticMs: this.actMs * 0.45 });
+      announceMove(scene, 'SABER THROW', '#ff2828');
     },
 
     act(scene, b, h) {
@@ -250,6 +294,11 @@ export const BOSS_MOVES = [
             // the top of the arc.
             w.x += s.vx * dt;
             w.y += s.vy * dt;
+            // ITS OWN STREAK, ON BOTH LEGS. The outbound flight drew nothing at
+            // all and the return borrowed `trail()`, which is the PLAYER's
+            // bullet blur — so the most dangerous object he puts in the air was
+            // invisible going out and wearing the player's colours coming back.
+            scene.fx?.saberTrail?.(w.x, w.y, Math.atan2(s.vy, s.vx));
             // Gentle, and per SECOND rather than per tick so it does not
             // change character with the frame rate.
             const decay = Math.pow(0.6, dt);
@@ -257,8 +306,14 @@ export const BOSS_MOVES = [
             s.vy *= decay;
             if (Math.hypot(w.x - from.x, w.y - from.y) >= this.reach * 0.97) {
               s.returning = true;
+              // The turn is the beat that makes it a BOOMERANG rather than a
+              // projectile, and it used to pass in one frame of a small ring.
+              // A scar across the deck at the far point marks where it stopped,
+              // so the outbound leg has an end you can see and the return has
+              // somewhere to have come from.
               scene.fx?.impactRing?.(w.x, w.y, 0xff6040, 26);
               scene.fx?.burst?.(w.x, w.y, 'red', 8);
+              scene.fx?.saberScar?.(w.x, w.y, h.angle + Math.PI, 40, 1, Math.PI * 1.5);
             }
           } else {
             // Homing: accelerate along the bearing to his CURRENT position.
@@ -271,7 +326,10 @@ export const BOSS_MOVES = [
             if (sp > cap) { s.vx *= cap / sp; s.vy *= cap / sp; }
             w.x += s.vx * dt;
             w.y += s.vy * dt;
-            scene.fx?.trail?.(w.x, w.y);
+            // Hotter on the way home: it is accelerating toward him, and the
+            // longer streak is what says "returning" rather than "a second
+            // throw". Same effect, same family, one parameter apart.
+            scene.fx?.saberTrail?.(w.x, w.y, Math.atan2(s.vy, s.vx), 1.5);
             if (Math.hypot(w.x - b.x, w.y - b.y) < 26) {
               // Caught. THIS is what ends the flight, not the clock.
               s.home = true;
@@ -350,7 +408,7 @@ export const BOSS_MOVES = [
       raiseWeapon(scene, b, 320);
       squash(scene, b, 400, 0.2);
       b.setMovePose?.('raise');
-      scene.events.emit('show-banner', 'FORCE PULL', '#8060ff');
+      announceMove(scene, 'FORCE PULL', '#7a4cd8');
       // A CIRCLE, because the pull comes from every direction.
       //
       // This drew a 90-degree cone while `act` dragged the player in from
@@ -361,13 +419,34 @@ export const BOSS_MOVES = [
       // this whole system that must never be false.
       h.tel = scene.spawnTelegraph({
         kind: 'circle', x: b.x, y: b.y, r: this.pullRadius,
-      }, { windupMs: this.anticipateMs, owner: b, color: 0xa070ff });
-      // The vortex proper — spirals, a counter-rotating ring and a rising core.
-      // Not `inhale`: that is four motes on straight lines and this move is the
-      // one being judged on its effect.
-      h.vortex = scene.fx?.forceVortex?.(b, this.pullRadius, this.anticipateMs + this.actMs);
-      h.ring = scene.add.graphics().setDepth(12);
-      h.t = 0;
+        // ── PULL AND PUSH ARE ONE FAMILY TOLD APART BY DIRECTION ─────────
+        //
+        // These two were a bright violet circle and a pale blue circle whose
+        // kinetic rings BOTH converged inward, because inward was the only
+        // behaviour a circle zone had. So the shape, the motion and the size
+        // all agreed, and the only thing separating a 300px drag toward him
+        // from a 420px throw away from him was the word printed at the top of
+        // the screen — which is exactly the failure this pass exists to find.
+        //
+        // They now share the Force's desaturated violet, deep here and pale on
+        // PUSH, and the ring travels the way the player will. Radius, windup
+        // and the drag itself are untouched.
+      }, {
+        windupMs: this.anticipateMs, owner: b, color: 0x7a4cd8, kinetic: 'in',
+      });
+      // The vortex proper — spirals, contracting rings, a counter-rotating
+      // inner ring and a rising core. Not `inhale`: that is four motes on
+      // straight lines and this move is the one being judged on its effect.
+      //
+      // ONE RING WRITER. This used to run the vortex AND a hand-rolled
+      // `h.ring` Graphics drawing its own contracting circle on the pull's
+      // 16ms callback — two systems drawing the same idea at different rates,
+      // one of them only alive while the drag was actually running, and the
+      // generic one on top. The vortex owns the ring language now; the extra
+      // Graphics is gone rather than restyled.
+      h.vortex = scene.fx?.forceVortex?.(
+        b, this.pullRadius, this.anticipateMs + this.actMs, 0x9a6cff,
+      );
     },
 
     act(scene, b, h) {
@@ -385,13 +464,12 @@ export const BOSS_MOVES = [
           if (p.isDashing) return;                 // the escape
           const a = Math.atan2(b.y - p.y, b.x - p.x);
           p.body?.setVelocity(Math.cos(a) * this.pullSpeed, Math.sin(a) * this.pullSpeed);
-          if (h.ring?.active) {
-            h.t += 0.12;
-            h.ring.clear();
-            h.ring.lineStyle(3, 0x8060ff, 0.8);
-            const r = 200 - (h.t * 40) % 160;
-            h.ring.strokeCircle(b.x, b.y, Math.max(30, r));
-          }
+          // Force streaks torn off the PLAYER along the bearing the drag is
+          // applying. The vortex says the space around him is converging; this
+          // says the thing being converged is YOU, which is the part of the
+          // move the player actually has to answer. Violet, not crimson: this
+          // is his hand, not his blade.
+          if (Math.random() < 0.4) scene.fx?.forceStreak?.(p.x, p.y, a);
         },
       });
     },
@@ -399,13 +477,15 @@ export const BOSS_MOVES = [
     impact(scene, b, h) {
       h.pull?.remove(false);
       h.vortex?.stop?.();
-      h.ring?.destroy();
-      h.ring = null;
-      // Then the swing that the pull set up.
+      // Then the swing that the pull set up. This beat is CRIMSON on purpose:
+      // the drag was the Force and the payoff is the blade, and watching the
+      // colour change at the moment the pull ends is what tells you the
+      // channelling is over and the strike has started.
       const p = scene.player;
       const a = Math.atan2(p.y - b.y, p.x - b.x);
       dropWeapon(scene, b, 120);
       scene.fx?.saberSweep?.(b.x, b.y, a, 96, -1);
+      scene.fx?.saberScar?.(b.x, b.y, a, 96, -1);
       scene.fx?.shake?.(0.018, 220);
       const half = (this.coneDeg * Math.PI) / 180 / 2;
       const d = Math.hypot(p.x - b.x, p.y - b.y);
@@ -418,7 +498,6 @@ export const BOSS_MOVES = [
       b.setMovePose?.(null);
       h?.pull?.remove(false);
       h?.vortex?.stop?.();
-      h?.ring?.destroy();
     },
   },
 
@@ -442,7 +521,14 @@ export const BOSS_MOVES = [
     anticipate(scene, b, h) {
       vanish(scene, b, 260);
       b.body?.setVelocity(0, 0);
-      scene.events.emit('show-banner', 'VANISH', '#6040a0');
+      // He comes APART where he was. The move used to be a plain alpha fade and
+      // a landing circle, so the departure said nothing at all and the whole
+      // read was carried by a marker on the floor — which is a promise about
+      // where he WILL be, not a statement that where he IS has stopped being
+      // reliable. The shear runs the opposite way on arrival, so departure and
+      // reappearance are legibly the same event with a gap in the middle.
+      scene.fx?.phaseRift?.(b.x, b.y, 'out');
+      announceMove(scene, 'VANISH', '#6040a0');
       const p = scene.player;
       // Lands BEHIND you relative to where he was — punishes camping at one
       // range, and the marker is what stops it being an unreadable ambush.
@@ -468,13 +554,22 @@ export const BOSS_MOVES = [
 
     act(scene, b, h) {
       b.setPosition(h.spot.x, h.spot.y);
+      // Assembling, not fading in. Same shear, run backwards, on the landing
+      // spot the marker has been holding for the whole wind-up — so the marker
+      // is paid off by the thing it promised rather than by a body appearing.
+      scene.fx?.phaseRift?.(h.spot.x, h.spot.y, 'in');
       appear(scene, b, 240);
       spin(scene, b, { ms: this.actMs, turns: 1 });
     },
 
     impact(scene, b, h) {
       const p = scene.player;
-      scene.fx?.slashSwipe?.(b.x, b.y, b._aim || 0, 90, 0xff4040);
+      // `slashSwipe` was the STEALTH TAKEDOWN's arc — one thin 5px crescent,
+      // written for a knife across a trooper's throat, and green by default.
+      // His own crimson sweep instead, so a displacement still ends in a saber
+      // strike that belongs to him and not to the player's stealth kit.
+      scene.fx?.saberSweep?.(b.x, b.y, b._aim || 0, 96, 1);
+      scene.fx?.saberScar?.(b.x, b.y, b._aim || 0, 96, 1);
       scene.fx?.shake?.(0.02, 220);
       if (Math.hypot(p.x - h.spot.x, p.y - h.spot.y) <= this.radius) {
         p.damage(this.damage, Math.atan2(p.y - b.y, p.x - b.x));
@@ -504,19 +599,28 @@ export const BOSS_MOVES = [
       rearBack(scene, b, Math.atan2(scene.player.y - b.y, scene.player.x - b.x), 26, 300);
       squash(scene, b, 420, 0.24);
       b.setMovePose?.('raise');
-      scene.events.emit('show-banner', 'FORCE PUSH', '#a0c0ff');
+      announceMove(scene, 'FORCE PUSH', '#b9a0ff');
       // The other move that drew NOTHING. A 420px shove that costs a dash
       // charge is a big deal and it arrived with no warning whatsoever.
       // The expanding fill doubles as the range read: if the sweep reaches you
       // before it commits, you are getting thrown.
       h.tel = scene.spawnTelegraph(
         { kind: 'circle', x: b.x, y: b.y, r: this.radius },
-        { windupMs: this.anticipateMs, owner: b, color: 0x90b8ff },
+        // The inverse of FORCE PULL, and told apart by MOTION rather than by
+        // hue: same Force violet, paler, with the kinetic ring and its barbs
+        // travelling OUTWARD. It used to converge inward — the same ring PULL
+        // draws — so the zone announcing a 420px shove away from him was
+        // pointing at him. Radius, knockback and windup are unchanged.
+        { windupMs: this.anticipateMs, owner: b, color: 0xb9a0ff, kinetic: 'out' },
       );
+      // The gather still runs INWARD during the wind-up, and that is not a
+      // contradiction with the ring above: he is drawing the air in before he
+      // throws it, and the ring is the promise about what happens when he lets
+      // go. Violet rather than 'blue' — `spark-blue` is the HEALING mote.
       h.inhale = scene.time.addEvent({
         delay: 55,
         repeat: Math.floor(this.anticipateMs / 55),
-        callback: () => scene.fx?.inhale?.(b.x, b.y, 'blue', 4, 240),
+        callback: () => scene.fx?.inhale?.(b.x, b.y, 'violet', 4, 240),
       });
     },
 
@@ -548,6 +652,15 @@ export const BOSS_MOVES = [
 
     impact(scene, b, h) {
       scene.fx?.burst?.(b.x, b.y, 'white', 22);
+      // Only if it actually connected. A streak leaving the player along the
+      // shove bearing is the same statement FORCE PULL makes in reverse, and
+      // drawing it on a player who was out of range would be the effect lying
+      // about what the move did.
+      const p = scene.player;
+      if (h?.pushed && p?.alive) {
+        const a = Math.atan2(p.y - b.y, p.x - b.x);
+        for (let i = 0; i < 3; i++) scene.fx?.forceStreak?.(p.x, p.y, a, 30);
+      }
     },
 
     recover(scene, b) { b.setMovePose?.('recoil'); stagger(scene, b, this.recoverMs, 1.5); },

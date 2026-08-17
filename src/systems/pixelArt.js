@@ -158,6 +158,12 @@ export const PAL = {
   sparkWhite:   '#ffffff',
   sparkYellow:  '#ffdd40',
   sparkBlue:    '#40a0ff',
+  // The Force family's own mote. FORCE PULL and FORCE PUSH used to draw their
+  // gathering motes from `spark-blue`, which is the HEALING colour — a pale
+  // cyan-blue that belongs to a bacta pickup, not to a man crushing the air.
+  // Both Force powers now share one desaturated violet so they read as one
+  // family, and are told apart by which WAY the motes move.
+  sparkViolet:  '#a888ff',
 };
 
 // ── PixelCanvas (single-frame, unchanged from Wild West for env / FX) ────────

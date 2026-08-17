@@ -94,6 +94,27 @@ export class Telegraph {
     // move can hand its own speed in and have the chevrons match what is about
     // to happen rather than every zone pulsing at one generic rate.
     this.kineticMs = opts.kineticMs ?? 620;
+    // ── WHICH WAY THE MOVE POINTS ────────────────────────────────────────
+    //
+    // A circle zone's kinetic ring used to ALWAYS converge inward, because the
+    // first circle move that needed one was a slam and inward is what a slam
+    // means. FORCE PUSH then inherited it, so a 420px shove that throws you
+    // away from him was announced by a ring travelling toward him — the one
+    // reading it most needed to give, given exactly backwards. FORCE PULL had
+    // the same ring and the same meaning, so the pair were indistinguishable.
+    //
+    // Cosmetic only: `contains()` never consults this and the geometry is
+    // untouched. It changes what the motion SAYS, not what it does.
+    this.kinetic = opts.kinetic === 'out' ? 'out' : 'in';
+    // ── A ZONE THAT LOADS ────────────────────────────────────────────────
+    //
+    // For a charged attack (the overhead smash), the wind-up is part of the
+    // attack rather than warning UI. `stress` accumulates fractures out of the
+    // centre as `t` climbs, so the floor visibly takes the strain before the
+    // blade lands and the last quarter is unmistakably a commitment. Seeded
+    // once, for the same reason the rim jitter is: rebuilt per frame it crawls
+    // like static.
+    this.stress = !!opts.stress;
     this.committed = false;
     this.dead = false;
     this.onCommit = opts.onCommit || null;
@@ -184,6 +205,29 @@ export class Telegraph {
     this._embers = [];
     for (let i = 0; i < 14; i++) {
       this._embers.push({ u: Math.random(), off: (Math.random() - 0.5) * 9, ph: Math.random() * 6.3 });
+    }
+    // The fracture skeleton for `stress`. Each arm is a fixed jointed path out
+    // of the centre; the draw only decides HOW FAR along it has opened, so the
+    // crack grows rather than being redrawn somewhere else every frame.
+    this._fractures = [];
+    if (this.stress) {
+      const arms = 11;
+      for (let i = 0; i < arms; i++) {
+        let a = (i / arms) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
+        const pts = [{ x: 0, y: 0 }];
+        let px = 0, py = 0;
+        for (let seg = 0; seg < 5; seg++) {
+          a += (Math.random() - 0.5) * 0.55;
+          const step = (0.16 + Math.random() * 0.09);
+          px += Math.cos(a) * step;
+          py += Math.sin(a) * step;
+          pts.push({ x: px, y: py });
+        }
+        // `at` staggers when each arm starts opening, so the floor splits in
+        // stages instead of all at once — that is what makes it read as load
+        // building rather than as a decal fading in.
+        this._fractures.push({ pts, at: 0.08 + (i / arms) * 0.55 });
+      }
     }
 
     this._draw(0);
@@ -366,6 +410,7 @@ export class Telegraph {
       fg?.fillStyle(fillC, fillA);
       if (t > 0) fg?.fillCircle(s.x, s.y, s.r * t);
       if (fg) { fg.lineStyle(lineW, edgeC, 1); rimPath(fg, s.r); }
+      this._drawStress(g, s, t, heat);
       this._drawEmbers(g, s, t, heat);
       this._drawKinetic(g, s, t, heat);
       // Leading edge: a bright ring expanding to meet the outline.
@@ -569,6 +614,46 @@ export class Telegraph {
    *
    * Purely cosmetic — `contains` never consults any of it.
    */
+  /**
+   * The STRESS layer — a floor that is being loaded, not a floor being warned.
+   *
+   * Only drawn for zones that asked for it (the overhead smash). Three things
+   * accumulate with `t` and none of them reset: fractures open outward from the
+   * centre one after another, the core brightens, and a compression ring pulls
+   * the eye to the point the blade will land. By the last quarter the zone is
+   * visibly under more load than it was at the start, which is the difference
+   * between "this will hurt in a moment" and "he is committing to this".
+   */
+  _drawStress(g, s, t, heat) {
+    if (!this.stress || !g?.active || s.kind !== 'circle') return;
+    const R = s.r;
+    for (const f of this._fractures) {
+      // How far this arm has opened: 0 until its stagger point, then out.
+      const k = Math.max(0, Math.min(1, (t - f.at) / (1 - f.at)));
+      if (k <= 0) continue;
+      const span = (f.pts.length - 1) * k;
+      const last = Math.floor(span);
+      g.lineStyle(1.5 + 2.6 * k, 0xff5424, 0.30 + 0.6 * k);
+      g.beginPath();
+      g.moveTo(s.x, s.y);
+      for (let i = 1; i <= last; i++) {
+        g.lineTo(s.x + f.pts[i].x * R, s.y + f.pts[i].y * R);
+      }
+      // Partial final segment, so the crack creeps rather than snapping a
+      // joint at a time.
+      const frac = span - last;
+      if (last + 1 < f.pts.length && frac > 0) {
+        const a = f.pts[last], b2 = f.pts[last + 1];
+        g.lineTo(s.x + (a.x + (b2.x - a.x) * frac) * R,
+                 s.y + (a.y + (b2.y - a.y) * frac) * R);
+      }
+      g.strokePath();
+    }
+    // The molten core, growing with the load.
+    g.fillStyle(0xffcf9a, 0.16 + 0.55 * heat);
+    g.fillCircle(s.x, s.y, (7 + 26 * t) * (0.9 + 0.1 * Math.sin(this.elapsed / 40)));
+  }
+
   _drawKinetic(g, s, t, heat) {
     const scroll = (this.elapsed || 0) / Math.max(60, this.kineticMs);
     const bright = 0.35 + 0.5 * heat;
@@ -597,13 +682,37 @@ export class Telegraph {
         g.strokePath();
       }
     } else if (s.kind === 'circle') {
-      // A ring closing INWARD. The fill grows outward to show the clock; this
-      // converges to show that something is arriving at the middle, which is
-      // the opposite reading and the one a slam needs.
+      // ── WHICH WAY ────────────────────────────────────────────────────────
+      //
+      // The fill grows outward to show the CLOCK, so the kinetic ring is free
+      // to carry the move's DIRECTION. Inward converges on the middle, which is
+      // what a slam and a pull both mean; outward propagates away from him,
+      // which is what a push means. Two rings and two barb sets, so the read
+      // survives at a glance on a phone: barbs point the way you are going.
       const u = scroll % 1;
-      const rr = s.r * (1 - u);
-      g.lineStyle(2 + 3 * heat, tint, bright * Math.sin(u * Math.PI));
+      const inward = this.kinetic === 'in';
+      const rr = s.r * (inward ? 1 - u : u);
+      const fade = Math.sin(u * Math.PI);
+      g.lineStyle(2 + 3 * heat, tint, bright * fade);
       g.strokeCircle(s.x, s.y, Math.max(2, rr));
+      // Arrowheads riding the ring. A ring alone is ambiguous the moment you
+      // catch it mid-cycle — it is only travelling if you watched it start.
+      const BARBS = 8;
+      const barb = 13 + 5 * heat;
+      for (let i = 0; i < BARBS; i++) {
+        const a = (i / BARBS) * Math.PI * 2 + u * 0.5;
+        const cx = s.x + Math.cos(a) * rr, cy = s.y + Math.sin(a) * rr;
+        // Tip leads the travel; the two tails trail it.
+        const tipR = rr + (inward ? -barb : barb);
+        const tx = s.x + Math.cos(a) * tipR, ty = s.y + Math.sin(a) * tipR;
+        const wing = barb * 0.62;
+        g.lineStyle(2 + 1.6 * heat, tint, bright * fade);
+        g.beginPath();
+        g.moveTo(cx - Math.sin(a) * wing, cy + Math.cos(a) * wing);
+        g.lineTo(tx, ty);
+        g.lineTo(cx + Math.sin(a) * wing, cy - Math.cos(a) * wing);
+        g.strokePath();
+      }
       // Gauge ticks around the rim, filling clockwise with the countdown, so
       // the remaining time is readable without watching the fill.
       const TICKS = 24;
