@@ -56,6 +56,17 @@ const countListeners = () => page.evaluate(() => {
 
 const before = await countListeners();
 
+// Raise a medal BEFORE the restarts, and it has to be here rather than after.
+// The lazy text only becomes a stale handle if it was ever CREATED in the run
+// that gets torn down — the first version of this check awarded medals only
+// afterwards, so `_medalText` was still null, the lazy branch built a fresh one
+// and the check passed happily against the crashing build. A/B is not a
+// formality: a check that passes on the bug is decoration.
+await page.evaluate(async () => {
+  window.game.scene.getScene('Game').events.emit('score-medal', 'ARENA CLEAR', 400, '#ffd040');
+  await new Promise((res) => setTimeout(res, 300));
+});
+
 // Restart four times, the way hammering RETRY does.
 for (let i = 0; i < 4; i++) {
   await page.evaluate(() => window.game.scene.getScene('Game').scene.start('Game'));
@@ -63,6 +74,37 @@ for (let i = 0; i < 4; i++) {
   await page.waitForTimeout(1400);
 }
 const after = await countListeners();
+
+// ── A LAZY HUD TEXT MUST NOT SURVIVE THE RESTART ──────────────────────────
+//
+// Phaser reuses the scene INSTANCE across `scene.start()`, so anything cached
+// on `this` and created lazily comes back as a destroyed object with a null
+// canvas. `HUD._medalText` did, and the next medal after a restart threw
+// `Cannot read properties of null (reading 'drawImage')` out of setText, which
+// killed the HUD scene and took the run with it.
+//
+// The generic "no exception across the restarts" check below could not catch
+// it, because nothing in this file had ever awarded a medal AFTER a restart —
+// the crash needs the restart and the medal, in that order. `comboText` is
+// nulled on shutdown for exactly this reason and the medal lane, added later,
+// did not inherit it; so this raises every lane that caches a text object
+// rather than naming the one that broke.
+const medals = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  gs.events.emit('score-medal', 'FLAWLESS', 500, '#ffd040');
+  gs.events.emit('score-medal', 'FAST CLEAR', 250, '#40ff90');
+  gs.events.emit('show-combo', 7);
+  await new Promise((res) => setTimeout(res, 600));
+  const hud = window.game.scene.getScene('HUD');
+  return {
+    medalAlive: !!hud._medalText?.active,
+    medalText: hud._medalText?.text ?? null,
+    // A `_medalShowing` stranded true from the previous run means every future
+    // medal is queued against a drain that will never come — silent, and worse
+    // than the crash because nothing reports it.
+    queueDraining: hud._medalShowing === true,
+  };
+});
 
 // One kill must pay exactly one kill's worth of score and fire one death event.
 const r = await page.evaluate(async () => {
@@ -129,6 +171,13 @@ check(r.scored === r.expected, 'a kill scores exactly once',
 check(alive.advanced >= 3 && alive.running, 'the game loop is still running after the restarts',
   `${alive.advanced} frames advanced, loop.running=${alive.running} — a stalled loop means an exception killed the step (the black screen)`);
 check(alive.contextLost === false, 'the WebGL context is intact', `contextLost=${alive.contextLost}`);
+
+check(medals.medalAlive, 'a medal after a restart draws onto a LIVE text object',
+  `_medalText active=${medals.medalAlive} — a destroyed one is truthy and throws on setText`);
+check(!!medals.medalText && medals.medalText.includes('FLAWLESS'),
+  'and the medal actually rendered its name', `text=${JSON.stringify(medals.medalText)}`);
+check(medals.queueDraining, 'and the medal queue is still draining, not stranded',
+  '_medalShowing left true from a previous run silently swallows every future medal');
 check(pageErrors.length === 0, 'no exception is thrown across the restarts',
   pageErrors.slice(0, 3).join(' | '));
 

@@ -514,6 +514,27 @@ export class HUDScene extends Phaser.Scene {
     this.events.on('shutdown', () => {
       for (const [event, fn, ctx] of bound) ge.off(event, fn, ctx);
       this.comboText = null;
+      // THE SCENE INSTANCE OUTLIVES ITS DISPLAY LIST.
+      //
+      // Phaser reuses the scene object across `scene.start()`, so a lazily
+      // created Text cached on `this` survives the restart as a DESTROYED
+      // object — and the next `setText` on it reaches into a null canvas:
+      //
+      //   TypeError: Cannot read properties of null (reading 'drawImage')
+      //     at updateUVs -> setCutPosition -> setSize -> updateText -> setText
+      //     at _renderMedal (HUD.js) <- _drainMedals <- showMedal
+      //
+      // which kills the HUD scene and takes the run with it. `comboText` above
+      // is the same bug, found and fixed earlier; the medal lane was added
+      // afterwards and did not inherit the lesson. Same family as the ledger
+      // living on the ledger rather than on GameScene (HANDOVER §10c).
+      //
+      // The queue and the flag have to go too, and not only for tidiness: a
+      // `_medalShowing` left true from the previous run means every future
+      // medal is pushed onto a queue that nothing will ever drain.
+      this._medalText = null;
+      this._medalQueue = null;
+      this._medalShowing = false;
       this.darknessOverlay?.destroy();
       this.darknessOverlay = null;
       this.hackMinigame?.shutdown();
@@ -1431,7 +1452,11 @@ export class HUDScene extends Phaser.Scene {
   }
 
   _renderMedal(name, points, color = '#ffd040') {
-    if (!this._medalText) {
+    // `.active` as well as existence: a destroyed Text is still a truthy object
+    // and is exactly what a restart leaves behind here. Belt and braces with the
+    // shutdown handler above, because this is the line that actually throws and
+    // a future teardown path that forgets to null the field would crash again.
+    if (!this._medalText?.active) {
       this._medalText = this.add.text(VIEW.width / 2, HUDCFG.topBarHeight + 232, ' ', {
         fontFamily: FONTS.display,
         fontSize: '26px',
