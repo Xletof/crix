@@ -452,7 +452,21 @@ export class Boss extends Enemy {
         : 0;
       const pulse = 1 + Math.sin(this._glowT * (commit > 0 ? 0.05 : 0.018))
                       * (commit > 0 ? 0.16 : 0.07);
-      const r  = (9 + Math.min(held, 8) * 3.2 + commit * 16) * pulse;
+      // ── THE LAUNCH BEAT ─────────────────────────────────────────────
+      // The last `superLaunchMs` of the release window, and it is carved OUT
+      // of that window rather than added to it: the approved 620ms of
+      // anticipation does not move. Handset review found the held state read
+      // well and the flying state read poorly, with nothing joining them — the
+      // orb simply stopped being at his hand and started being a bright circle
+      // in the air. So the mass now gathers into itself and its core goes
+      // white just before it goes, which is the frame the eye needs to accept
+      // that the thing now crossing the room IS the thing he was holding.
+      const lz = BOSS_MECH.superLaunchMs;
+      const launch = (this._releaseT > 0 && this._releaseT < lz)
+        ? 1 - this._releaseT / lz          // 0 -> 1 across the final beat
+        : 0;
+      const squeeze = 1 - 0.30 * launch;   // compress
+      const r  = (9 + Math.min(held, 8) * 3.2 + commit * 16) * pulse * squeeze;
       const hx = this.x + Math.cos(this._aim) * (BOSS.radius + 4);
       const hy = this.y + Math.sin(this._aim) * (BOSS.radius + 4) - 6;
       const g  = this._absorbOrb;
@@ -461,7 +475,19 @@ export class Boss extends Enemy {
       g.fillStyle(0x5a1e6e, 0.30); g.fillCircle(0, 0, r * 1.35);
       g.fillStyle(0xff2020, 0.55); g.fillCircle(0, 0, r);
       g.fillStyle(0xff8888, 0.75); g.fillCircle(0, 0, r * 0.62);
-      g.fillStyle(0xffffff, 0.95); g.fillCircle(0, 0, r * 0.30);
+      // The core swells as the shell compresses — the energy is not shrinking,
+      // it is being packed. Without the opposed pair it reads as fizzling out.
+      g.fillStyle(0xffffff, 0.95); g.fillCircle(0, 0, r * (0.30 + 0.42 * launch));
+      if (launch > 0) {
+        // Directional bias toward where it is about to go, so the launch has a
+        // heading before it has a velocity. Drawn as a short tongue rather than
+        // a lane: nothing here may imply a hit region.
+        const lx = Math.cos(this._aim), ly = Math.sin(this._aim);
+        g.fillStyle(0xffffff, 0.55 * launch);
+        g.fillCircle(lx * r * 0.9, ly * r * 0.9, r * 0.45 * launch);
+        g.fillStyle(0xff8888, 0.40 * launch);
+        g.fillCircle(lx * r * 1.5, ly * r * 1.5, r * 0.28 * launch);
+      }
     } else if (this._absorbOrb) {
       this._absorbOrb.destroy();
       this._absorbOrb = null;

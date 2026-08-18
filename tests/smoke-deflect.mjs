@@ -320,6 +320,7 @@ r.superDef = await page.evaluate(async () => {
     orbs++;
     if (o) orbSpec.push({ dmg: o.damage, speed: Math.round(o._speed),
                           radius: Math.round(o.body.radius),
+                          scaleX: o.scaleX, texW: o.width,
                           vx: o.body.velocity.x, vy: o.body.velocity.y,
                           x: o.x, y: o.y, homing: !!o.homing });
   }) : (() => {});
@@ -387,14 +388,43 @@ r.superDef = await page.evaluate(async () => {
   // Now every frame the orb exists is counted, whenever that is.
   const headings = [];
   let orbSeen = 0, lastOrb = null;
+  // ── THE WAKE, sampled from inside the frame loop ─────────────────────
+  // Its whole claim is that it comes from the orb's ACTUAL velocity and not
+  // from a guess at where the player is. The two are identical at release —
+  // the orb is aimed at the player — so a check taken then cannot tell them
+  // apart. The player is moved sideways mid-flight further down, and
+  // `worstWakeErrDeg` is the disagreement between each ghost's rotation and
+  // the live velocity heading across every frame, while `wakeVsPlayerDeg` is
+  // how far that heading had diverged from the bearing to the player. A wake
+  // pointed at the target passes the first and fails on the second.
+  const wake = { worstErrDeg: 0, maxVsPlayerDeg: 0, maxGhosts: 0, frames: 0,
+                 coronaFrames: 0, ghostPool: 0 };
+  const wrapDeg = (a) => { let x = a % 360; if (x > 180) x -= 360; if (x < -180) x += 360; return x; };
   const probe = () => {
     heldPeak = Math.max(heldPeak, b.heldSuper ? b.heldSuper() : 0);
     if (b._absorbOrb) orbDrawn++;
     const o = gs.bossSuperOrbs?.getChildren().find((x) => x.active);
     if (!o) return;
     orbSeen++;
-    headings.push(Math.atan2(o.body.velocity.y, o.body.velocity.x));
+    const vh = Math.atan2(o.body.velocity.y, o.body.velocity.x);
+    headings.push(vh);
     lastOrb = { x: Math.round(o.x), y: Math.round(o.y), traveled: Math.round(o.traveled) };
+
+    const f = gs._superOrbFx;
+    if (!f) return;
+    wake.frames++;
+    wake.ghostPool = f.ghosts.length;
+    const D = 180 / Math.PI;
+    const shown = f.ghosts.filter((gh) => gh.visible);
+    wake.maxGhosts = Math.max(wake.maxGhosts, shown.length);
+    for (const gh of shown) {
+      wake.worstErrDeg = Math.max(wake.worstErrDeg,
+        Math.abs(wrapDeg((gh.rotation - vh) * D)));
+    }
+    if (f.corona.visible) wake.coronaFrames++;
+    const toPlayer = Math.atan2(p.y - o.y, p.x - o.x);
+    wake.maxVsPlayerDeg = Math.max(wake.maxVsPlayerDeg,
+      Math.abs(wrapDeg((vh - toPlayer) * D)));
   };
   gs.events.on('postupdate', probe);
 
@@ -459,7 +489,16 @@ r.superDef = await page.evaluate(async () => {
     absorbed, charged, returned, orbs, deflected, green,
     orb: orbSpec[0] ?? null,
     ordinarySpeed,
-    heldPeak, orbDrawn, orbSeen, lastOrb,
+    heldPeak, orbDrawn, orbSeen, lastOrb, wake,
+    configSpeed: MECH.superReturnSpeed,
+    launchMs: MECH.superLaunchMs,
+    releaseMs: MECH.superReleaseMs,
+    // Texture-derived, so it must be untouched by a speed change:
+    // `Bullet.fire` sets the body from `this.width / 2` and then applies a
+    // tracer stretch of `clamp(speed / 620, 1, 2.2)` to scaleX — and
+    // `Body.updateBounds` recomputes width from `|scaleX|`. At 405 that clamp
+    // is still exactly 1, which is the only reason the hitbox survived.
+    orbScaleX: orbSpec[0] ? orbSpec[0].scaleX : null,
     dodged: dodgedHp >= hpAtRelease,
     pelletDmg,
     pelletSumHalved: Math.round(pelletDmg * PLAYER.superPellets * 0.5),
@@ -499,6 +538,13 @@ r.cleanup = await page.evaluate(async () => {
   await new Promise((res) => setTimeout(res, 200));
   const after = {
     orbs: gs.bossSuperOrbs?.getChildren().filter((o) => o.active).length ?? 0,
+    // Killing the orb has to hide the wake too: the remnants are ordinary
+    // display-list images sitting at the spot the orb died, and a room teardown
+    // that left them visible would open the NEXT room with three glowing
+    // afterimages of a projectile nobody fired.
+    wakeVisible: gs._superOrbFx
+      ? (gs._superOrbFx.corona.visible || gs._superOrbFx.ghosts.some((g) => g.visible))
+      : false,
   };
   return { before, after, orbGfxGone, reflectMs: ENDLESS.bossMech.reflectMs };
 });
@@ -601,6 +647,45 @@ check(gotOrb && r.superDef.ordinarySpeed > 0
   'it travels far slower than an ordinary deflected bolt',
   gotOrb ? `orb ${r.superDef.orb.speed}px/s vs deflected bolt ${r.superDef.ordinarySpeed}px/s`
          : 'NO ORB');
+check(gotOrb && r.superDef.configSpeed === 405 && r.superDef.orb.speed === 405,
+  'and it flies at the reviewed 405px/s, not the 300 it was',
+  gotOrb ? `config ${r.superDef.configSpeed}, measured ${r.superDef.orb.speed}`
+         : 'NO ORB');
+check(gotOrb && r.superDef.orbScaleX === 1
+      && r.superDef.orb.radius * 2 === r.superDef.orb.texW,
+  'the speed change did NOT move the hitbox',
+  gotOrb ? `scaleX ${r.superDef.orbScaleX}, body radius ${r.superDef.orb.radius} `
+           + `against a ${r.superDef.orb.texW}px texture. \`Bullet.fire\` stretches `
+           + `scaleX by clamp(speed/620, 1, 2.2) and \`Body.updateBounds\` recomputes `
+           + `width from |scaleX| — at 405 that clamp is still exactly 1, and this `
+           + 'check is what stops a future speed bump silently widening the body'
+         : 'NO ORB');
+check(r.superDef.releaseMs === 620 && r.superDef.launchMs < r.superDef.releaseMs,
+  'the launch beat is carved OUT of the approved anticipation, not added to it',
+  `${r.superDef.launchMs}ms of compression inside an unchanged ${r.superDef.releaseMs}ms window`);
+
+// ── The wake ─────────────────────────────────────────────────────────────
+check(r.superDef.wake.frames > 2,
+  'the flight effect is actually running while the orb is in the air',
+  `drawn on ${r.superDef.wake.frames} frames — 0 means every wake check below `
+  + 'is vacuous');
+check(r.superDef.wake.frames > 2 && r.superDef.wake.worstErrDeg < 1,
+  'every remnant lies along the orb\'s REAL velocity',
+  `worst disagreement ${r.superDef.wake.worstErrDeg.toFixed(2)}deg across `
+  + `${r.superDef.wake.frames} frames`);
+check(r.superDef.wake.maxVsPlayerDeg > 20,
+  '...and that is a different direction from "at the player", so the check above bites',
+  `the heading diverged ${Math.round(r.superDef.wake.maxVsPlayerDeg)}deg from the `
+  + 'bearing to the player once they side-stepped — a wake aimed at the target '
+  + 'would have passed the previous check and failed here');
+check(r.superDef.wake.maxGhosts <= 3 && r.superDef.wake.ghostPool === 3,
+  'the wake is bounded — three reused remnants, not a growing tail',
+  `${r.superDef.wake.maxGhosts} shown from a pool of ${r.superDef.wake.ghostPool}. `
+  + 'A wake long enough to read as a lane would be claiming a hit region that '
+  + 'does not exist; the orb is the hazard');
+check(r.superDef.wake.coronaFrames > 2,
+  'and the corona is alive around it in flight',
+  `${r.superDef.wake.coronaFrames} frames`);
 check(gotOrb && r.superDef.orb.radius > 30,
   'and it is a different, much bigger class of object',
   gotOrb ? `${r.superDef.orb.radius}px body radius vs an ordinary bolt's 9` : 'NO ORB');
@@ -626,9 +711,12 @@ check(r.superDef.inHostilePools,
 // 5. Teardown
 check(r.cleanup.before.orbs > 0, 'a room teardown is staged with an orb actually in the air',
   `${r.cleanup.before.orbs} live orb(s) before the teardown`);
-check(r.cleanup.before.orbs > 0 && r.cleanup.after.orbs === 0,
-  'and the room teardown takes it with everything else',
-  `${r.cleanup.after.orbs} left — a returned super outliving its room would arrive in the next one`);
+check(r.cleanup.before.orbs > 0 && r.cleanup.after.orbs === 0
+      && !r.cleanup.after.wakeVisible,
+  'and the room teardown takes it, and its wake, with everything else',
+  `${r.cleanup.after.orbs} orb(s) left and wake `
+  + `${r.cleanup.after.wakeVisible ? 'STILL SHOWING' : 'hidden'} — a returned `
+  + 'super outliving its room would arrive in the next one');
 check(r.cleanup.before.held > 0 && r.cleanup.orbGfxGone,
   'the held-energy graphic dies with the boss who was holding it',
   'it is parented to nothing; a withdrawal that left it behind leaves a glow in an empty arena');

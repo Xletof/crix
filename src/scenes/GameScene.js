@@ -409,6 +409,10 @@ export class GameScene extends Phaser.Scene {
       // Drop the cached melee telegraph ghost: the scene instance is reused on
       // restart, so a stale handle to a destroyed image would survive with it.
       this._meleeGhost = null;
+      // Same trap, same fix, for the returned super's flight effect. Its four
+      // display objects are created once and reused, so the handle MUST go or
+      // the next run would draw a wake through four destroyed objects.
+      this._superOrbFx = null;
     });
   }
 
@@ -816,6 +820,11 @@ export class GameScene extends Phaser.Scene {
      ...this.enemyBullets.getChildren(),
      ...this.deflectedBullets.getChildren(),
      ...this.bossSuperOrbs.getChildren()].forEach((b) => { if (b.active) b.kill(); });
+    // ...and park the returned super's wake. Killing the orb stops it being
+    // drawn, but the sampled positions behind it are room coordinates, and a
+    // surviving history would put three ghosts in the next room at the spot
+    // this one died.
+    this._hideSuperOrbFx();
 
     // Health orbs
     this.healthOrbs.forEach((o) => { this.tweens.killTweensOf(o.gfx); o.gfx.destroy(); });
@@ -2285,6 +2294,12 @@ export class GameScene extends Phaser.Scene {
       this.bossSuperOrbs.fire(ox, oy, ang, MECH.superReturnSpeed, dmg,
         MECH.superReturnRange, { owner: 'boss' });
       this.fx.burstDir(ox, oy, 'red', 14, ang, 90);
+      // A hard white spray straight down the heading, so the very first frame
+      // of flight already states a direction. The wake below takes two frames
+      // to have any sampled history to draw, and without this the orb's first
+      // moments were the one part of the flight with no motion language at all
+      // — which is where the eye is, because it just changed state.
+      this.fx.burstDir(ox, oy, 'white', 8, ang, 150);
       this.fx.impactRing(ox, oy, 0xff40ff);
       SFX.superRelease?.();
       this.fx.shake(0.010, 240);
@@ -3564,6 +3579,7 @@ export class GameScene extends Phaser.Scene {
     this.handleBulletWallHits(this.enemyBullets, false);
     this.handleBulletWallHits(this.deflectedBullets, false);
     this.handleBulletWallHits(this.bossSuperOrbs, true);
+    this._tickSuperOrbs(delta);
 
     // Bullet trails — every OTHER frame (frame parity), halving particle
     // churn at horde bullet counts; the motion-blur tail still reads at 30Hz.
@@ -3584,7 +3600,10 @@ export class GameScene extends Phaser.Scene {
       // across the floor, which is exactly how incoming fire read.
       for (const g of this.hostileBullets)
         for (const b of g.getChildren())
-          if (b.active) this.fx.trail(b.x, b.y);
+          // The returned super is excluded: it has its own wake (see
+          // `_tickSuperOrbs`), and the generic dot trail underneath it was just
+          // a second, weaker statement about the same motion.
+          if (b.active && g !== this.bossSuperOrbs) this.fx.trail(b.x, b.y);
     }
 
     // Camera lookahead — shift the follow target toward where the player is
@@ -3861,6 +3880,144 @@ export class GameScene extends Phaser.Scene {
         b.kill();
       }
     }
+  }
+
+  /**
+   * THE RETURNED SUPER, IN FLIGHT.
+   *
+   * Handset review of the release: the held state read as "he has my power"
+   * and the flying state read as "a bright circle is at position A, and now it
+   * is at position B". A round sprite translating across a floor gives the eye
+   * nothing to read momentum from — the same problem enemy bolts had before
+   * they were given a stretch and a wake, except this one must NOT be
+   * stretched, because `Bullet.fire` sizes the body from the texture and
+   * `Body.updateBounds` recomputes width from `|scaleX|`. Touching the
+   * projectile's own scale would silently resize a 44px hitbox.
+   *
+   * So everything here is drawn AROUND the projectile and never on it. One
+   * Graphics and three Images, created once and reused for the life of the
+   * scene, and there is at most one orb in the world at a time by construction
+   * (`Boss._tickMechanics` will not commit a release while one is winding up).
+   * The allocation cost of the whole effect is four display objects, forever.
+   *
+   * OWNERSHIP: this is the only writer of these objects, and it writes nothing
+   * on the bullet itself except `rotation`, which `Bullet.fire` sets once at
+   * spawn and `_steer` would only touch on a homing round. This one never homes.
+   */
+  _tickSuperOrbs(delta) {
+    const orb = this.bossSuperOrbs?.getChildren().find((o) => o.active);
+    if (!orb) { this._hideSuperOrbFx(); return; }
+
+    const fx = this._superOrbFx ?? (this._superOrbFx = {
+      // Ghosts wear the orb's OWN texture, so the wake is unmistakably made of
+      // the thing that is chasing you rather than of generic particles.
+      ghosts: [0, 1, 2].map(() => this.add.image(0, 0, 'boss-force-orb')
+        .setBlendMode(Phaser.BlendModes.ADD).setVisible(false)),
+      corona: this.add.graphics().setBlendMode(Phaser.BlendModes.ADD)
+        .setVisible(false),
+      phase: 0,
+    });
+
+    const vx = orb.body.velocity.x, vy = orb.body.velocity.y;
+    const sp = Math.hypot(vx, vy) || 1;
+    // FROM THE ACTUAL VELOCITY, never from the player's position. The orb is
+    // aimed once and then ballistic, so a wake pointed at the player would
+    // start lying the moment the player moved — which is the exact moment the
+    // wake matters most.
+    const ang = Math.atan2(vy, vx);
+    const ux = vx / sp, uy = vy / sp;
+
+    // ── The wake ────────────────────────────────────────────────────────
+    // Three remnants at FIXED DISTANCES behind the orb, each smaller and
+    // fainter. Deliberately SHORT — the hazard is the orb, and a wake long
+    // enough to look like a lane would be claiming a hit region that does not
+    // exist. WAKE_LAG is the whole length of the claim: 78px behind a 44px
+    // body, so the effect never extends much past two body widths.
+    //
+    // Distance, not sampled history. The first version kept the last few
+    // positions and drew the remnants at every other one, which makes the
+    // wake's LENGTH a function of the frame rate: tight at 60fps on a phone,
+    // and — as the evidence rig photographed — strung out over 250px in a
+    // ~20fps headless run, where it stops reading as a wake and starts reading
+    // as three separate objects. Anchoring to distance makes the shape
+    // identical on every device, and the orb travels a straight line (it is
+    // aimed once and never steers), so nothing is lost by not curving.
+    fx.ghosts.forEach((gh, i) => {
+      const lag = 26 + i * 26;
+      gh.setVisible(true)
+        .setPosition(orb.x - ux * lag, orb.y - uy * lag)
+        .setDepth(DEPTH.AIR - 2 - i)
+        .setRotation(ang)
+        .setScale(0.82 - i * 0.17)
+        .setAlpha(0.40 - i * 0.13);
+    });
+
+    // ── The corona ──────────────────────────────────────────────────────
+    // Redrawn each frame around a LOCAL origin with the object positioned at
+    // the orb — a Graphics scales and rotates about its own origin, so drawing
+    // at world coordinates and then transforming would throw it off the
+    // screen. Same trap `FX.saberParry` documents.
+    fx.phase += delta * 0.006;
+    const g = fx.corona;
+    const R = orb.body.radius || 44;
+    g.setVisible(true).setPosition(orb.x, orb.y).setDepth(DEPTH.AIR - 1);
+    g.clear();
+    // Outer jagged tongues, rotating one way. Uneven lengths on purpose: an
+    // even ring reads as a bubble, and the one thing this must not look like
+    // is a containment field. It is not contained, it is barely holding.
+    g.lineStyle(3, 0xff4040, 0.55);
+    for (let i = 0; i < 7; i++) {
+      const a = fx.phase + (i / 7) * Math.PI * 2;
+      const len = R * (1.02 + 0.20 * Math.abs(Math.sin(fx.phase * 1.7 + i * 2.1)));
+      g.lineBetween(Math.cos(a) * R * 0.86, Math.sin(a) * R * 0.86,
+                    Math.cos(a) * len,      Math.sin(a) * len);
+    }
+    // Inner arc, counter-rotating. Two speeds in opposite directions is what
+    // makes a mass look like it is being held together against its will.
+    g.lineStyle(2, 0xffd0d0, 0.5);
+    g.beginPath();
+    g.arc(0, 0, R * 0.66, -fx.phase * 1.6, -fx.phase * 1.6 + 2.2);
+    g.strokePath();
+
+    // ── Directional deformation, ON THE ENVELOPE ONLY ───────────────────
+    // A compressed leading edge and a stretched trailing glow. The body stays
+    // exactly the circle it was: nothing below reads or writes the hitbox, and
+    // the trailing shape is drawn as decaying blobs rather than a cone so the
+    // silhouette never suggests the damage extends behind it.
+    g.fillStyle(0xffffff, 0.30);
+    g.fillCircle(ux * R * 0.42, uy * R * 0.42, R * 0.34);   // packed nose
+    g.lineStyle(3, 0xffffff, 0.45);
+    g.beginPath();
+    g.arc(0, 0, R * 0.95, ang - 0.7, ang + 0.7);
+    g.strokePath();
+    for (let i = 1; i <= 3; i++) {
+      g.fillStyle(0xff3030, 0.22 - i * 0.05);
+      g.fillCircle(-ux * R * 0.55 * i, -uy * R * 0.55 * i, R * (0.52 - i * 0.12));
+    }
+    // A few sparks shearing backward off the shoulders. Cheap, and the only
+    // part that says the mass is shedding rather than cruising.
+    g.lineStyle(2, 0xffb060, 0.5);
+    for (let i = 0; i < 3; i++) {
+      const a = ang + Math.PI + (i - 1) * 0.55 + Math.sin(fx.phase * 2.3 + i) * 0.18;
+      const l = R * (0.7 + 0.35 * Math.abs(Math.sin(fx.phase * 3.1 + i * 1.3)));
+      g.lineBetween(Math.cos(a) * R * 0.7, Math.sin(a) * R * 0.7,
+                    Math.cos(a) * (R * 0.7 + l), Math.sin(a) * (R * 0.7 + l));
+    }
+  }
+
+  /**
+   * Park the flight effect.
+   *
+   * Hidden rather than destroyed, because the objects are reused and there is
+   * at most one orb at a time — but the trail history MUST be cleared, or the
+   * next orb's first frames would draw ghosts at the previous one's positions,
+   * on the other side of the room.
+   */
+  _hideSuperOrbFx() {
+    const fx = this._superOrbFx;
+    if (!fx) return;
+    fx.corona.setVisible(false);
+    fx.ghosts.forEach((gh) => gh.setVisible(false));
   }
 
   handleBulletWallHits(group, isSuper = false) {

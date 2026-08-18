@@ -1074,10 +1074,23 @@ export const ENDLESS = {
     // at point blank — the orb spawns at his hands, so the only reaction room a
     // player standing on top of him gets is this.
     superReleaseMs: 620,
-    // Slow on purpose: an ordinary deflected bolt comes home at the player's
-    // own 900px/s, and this must read as a different, dodgeable class of thing.
-    // 300px/s crosses a 400px gap in 1.3s; a dash is 950px/s for 240ms.
-    superReturnSpeed: 300,
+    // Slower than anything else in the fight on purpose: an ordinary deflected
+    // bolt comes home at the player's own 900px/s, and this must read as a
+    // different, dodgeable class of thing. 405px/s crosses a 400px gap in
+    // 0.99s; a dash is 950px/s for 240ms, so a dash is still an overwhelming
+    // answer and a walk at PLAYER.speed 380 is still a sufficient one.
+    //
+    // Raised from 300 after handset review: at 300 the orb was unambiguously
+    // dodgeable and slightly inert — it read as an object being moved rather
+    // than one with momentum. The extra 35% is urgency, not difficulty: it is
+    // still aimed once, still never steers, still announced by 620ms of
+    // anticipation, and its damage did NOT move to compensate.
+    superReturnSpeed: 405,
+    // The last slice of `superReleaseMs`, during which the stored mass visibly
+    // COMPRESSES and its core goes white before it launches. Carved out of the
+    // 620ms window rather than added to it — the approved gameplay timing does
+    // not move. Purely how the held state hands over to the flying one.
+    superLaunchMs: 110,
     superReturnRange: 1500,
     // ── Return damage ──────────────────────────────────────────────────────
     // Deliberately NOT derived from the pellets' own damage, which carries

@@ -676,7 +676,8 @@ What changed:
   `Graphics`, cleared and redrawn by the same block that owns the saber), and
   after `superAbsorbGraceMs` 380 + `superReleaseMs` 620 he fires exactly one
   slow orb: `bossSuperOrbs` pool, `boss-force-orb` texture, 44px body radius,
-  **300px/s**, no homing, aimed by a snapshot taken at release.
+  **300px/s** (405 after pass 3, below), no homing, aimed by a snapshot taken at
+  release.
 - **The orb's damage is bounded and has nothing to do with the player's
   scaling**: `superReturnBase 180 + 55 × pellets`, ceiling `620`. Five pellets =
   **455** against 1000 player hp. It is a stated ceiling on damage, not a hidden
@@ -694,6 +695,56 @@ What changed:
 **Not done, deliberately:** the encounter ladder is untouched, so DEFLECTION is
 still `bossMechanics[2]` (Vader #3 onward). The debug proving ground already
 summons any encounter, so handset testing did not need the ladder moved.
+
+### The caught super has flight character now (pass 3)
+
+Handset review of pass 2: DEFLECTION passes, do not redesign it. One weakness —
+the held orb reads beautifully, and the moment it leaves his hand it becomes a
+bright circle translating from A to B. So pass 3 touches the projectile's
+CHARACTER and nothing else. Frozen and unchanged: the stance, its duration and
+frequency, the parry vocabulary, ordinary reflection, the absorption rules, one
+returned projectile, **455** damage for a five-pellet catch, the **44px** body,
+snapshot aim, no homing, and the 620ms of anticipation.
+
+- **405px/s, up from 300** (+35%, the reviewed trial value). Verified not to move
+  the hitbox: `Bullet.fire` stretches a tracer by `clamp(speed / 620, 1, 2.2)`
+  and 405/620 still clamps to exactly 1, so `scaleX` stays 1 and the body stays
+  44px. Damage did NOT move to compensate. A 400px gap now closes in ~1.0s
+  against a 380px/s walk and a 950px/s dash.
+- **A launch beat**, `superLaunchMs` **110** — carved OUT of the 620ms window,
+  not added to it. Over the final 110ms the held shell compresses 30% while its
+  white core swells: an opposed pair, because a shell that shrinks on its own
+  reads as fizzling out. A directional bias appears on the release bearing, and
+  a white `burstDir` fires along it at launch.
+- **The wake is three pooled ghosts wearing the orb's own texture**, at FIXED
+  DISTANCES behind it (26/52/78px) along its REAL velocity, with falling scale
+  and alpha. Distance, not sampled history: a history-based wake's length is a
+  function of frame rate — tight at 60fps, strung out over 250px in the ~20fps
+  harness, where it stops reading as a wake and reads as three separate objects.
+  78px behind a 44px body is the whole claim; nothing here implies a lane.
+- **An animated corona**: one `Graphics` redrawn per frame around a local origin
+  — rotating jagged tongues, a counter-rotating inner arc, a packed nose on the
+  leading edge, decaying trailing blobs and backward-sheared sparks. Four
+  objects total for the whole effect (3 images + 1 graphics), created lazily and
+  reused forever; nothing is allocated per frame and nothing accumulates.
+- **`GameScene._tickSuperOrbs` is the single owner** of everything above, the
+  same rule the saber follows. The generic hostile-bullet dot trail now skips
+  `bossSuperOrbs` — it was a second, weaker statement about the same motion.
+- **Held-state ownership verified in the running game, not reasoned about.** The
+  rig shoves Vader 140px mid-hold and measures the orb against the anchor the
+  draw code aims for: error stays ~15px through the shove and while he walks
+  500px, i.e. one frame of intra-frame lag, not separation. Nothing changed.
+- **Offense after the launch is deliberately NOT suppressed.** Measured at
+  ~133ms with the orb still in the air — he asks the next question immediately,
+  which is the anti-dead-air behaviour the handset review liked.
+- **Arena floor grounding was investigated and deliberately omitted.** A moving
+  light pool under a projectile is the same vocabulary this game uses for
+  telegraphs and floor scars; the brief says omit on any ambiguity.
+- `tests/smoke-deflect.mjs` is 40 checks now. `tests/evidence-superorb.mjs` is
+  the new picture rig: it slows only the release beats, and its shutter lives
+  INSIDE the game (a `postupdate` hook that pauses the scene on the qualifying
+  frame) because a `page.evaluate` round trip is wider than the beat being
+  photographed.
 
 ### The endless "soft lock" that wasn't (investigated, no production defect)
 

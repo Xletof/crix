@@ -80,7 +80,7 @@ does NOT, because hitstop is its subject — same split as `smoke-dialogue` and
 | `smoke-cluster.mjs` | Munitions lock **distinct** targets, flat scale, no ground phase, guidance lines cleaned up, generic hit beep suppressed |
 | `smoke-controls.mjs` | The control-layout editor moves the real hit regions (not just sprites), persists, and resets |
 | `smoke-debug.mjs` | Debug menu actions actually apply *and* the HUD re-syncs |
-| `smoke-deflect.mjs` | DEFLECTION is a readable STANCE: eight directional parry families, the live blade matches `parryPose` frame by frame, the guard is not his aim pose, no other saber system may start while it is up, melee still lands — and a super is CAUGHT and returned as one bounded, slow, non-homing orb |
+| `smoke-deflect.mjs` | DEFLECTION is a readable STANCE: eight directional parry families, the live blade matches `parryPose` frame by frame, the guard is not his aim pose, no other saber system may start while it is up, melee still lands — and a super is CAUGHT and returned as one bounded, non-homing 405px/s orb whose 44px body did not grow with the speed, wearing a bounded three-remnant wake that lies along its real velocity rather than at the player |
 | `smoke-depth.mjs` | Airborne objects draw over the room; nose tracks travel (no tumble) |
 | `smoke-dialogue.mjs` | **The nemeses speak, and a stranger stays quiet.** No line repeats until its pool is exhausted; a first-time nemesis raises no card at all (the pacing contract); both scenes pause AND resume; a card refuses to open over the upgrade picker and is held rather than dropped |
 | `smoke-duel.mjs` | **A nemesis encounter is a duel**: the arena locks to it, its phases turn at 66%/33%, and the bomber survives its own contact burst instead of dying to it. Also the one file that deliberately loads WITHOUT `?nofreeze=1`, because hitstop is its subject |
@@ -369,6 +369,47 @@ through the **real** production draw path. A slow-motion camera, not a
 reconstruction. The same applies to `superAbsorbGraceMs`/`superReleaseMs`. The
 alternative — reimplementing the pose in the rig — produces pictures that agree
 with the rig forever, whatever ships.
+
+**Put the shutter INSIDE the game when the thing photographed is shorter than a
+round trip.** `tests/evidence-superorb.mjs` had to catch a ~1.3s flight and a
+110ms compression beat. "Wait from Node, then pause, then screenshot" costs
+200-400ms per `page.evaluate`, during which a 405px/s orb covers up to 160px — a
+mid-flight capture came back showing the orb already landed and Vader mid-slam,
+and the picture is of the slam. The rig now installs a `postupdate` hook that
+tests the condition and calls `scene.pause()` on that very frame; Node only has
+to notice it is paused. Two corollaries learned the hard way: arm the NEXT
+shutter while the scene is still paused, or the gap between resume and arming
+swallows the state; and resuming a paused scene hands the next update an
+oversized delta, so a trigger window narrower than that jump gets stepped over.
+
+**A trigger radius cannot photograph a dodge, because the margin IS the
+measurement.** A fixed "pause when the orb is within 130px" missed a walk that
+cleared by 233px and produced no picture at all. The dodge shutters fire on the
+first frame where the gap starts GROWING again — the closest approach, whatever
+it turns out to be.
+
+**"hp went down afterwards" is not evidence that the thing under test hit.** The
+same rig reported two failed dodges that were clean misses: the player had been
+hit by Vader's own attacks while the orb sailed past. The returned super deals a
+flat 455, so the hurt log is attributable — every check now asks whether a 455
+landed, not whether hp moved. Related: a `player-hurt` listener registered per
+case and never removed made one hit read as four, all with identical
+timestamps.
+
+**A rig's own conveniences destroy the measurements they were added to protect.**
+The staging pin in that file healed the player every frame (so every dodge was
+vacuously clean), held the guard stance open for 60s (so "does he resume offense
+after the launch?" was answered by the rig, not the game — a guarding Vader is
+forbidden to start anything), and pinned his position (so "he moves during the
+stored-energy beat" could never happen). They are three separate switches now,
+and the release turns off the two that are only correct before it.
+
+**Read a mutated config back through the OBJECT, not through your own import.**
+The slow-motion guard in `evidence-deflect.mjs` reads `_parryT` off the boss
+after calling `parry()`. Reading `ENDLESS.bossMech.parryMs` back from the rig's
+own `import()` proves only that the rig agrees with itself: under a Vite HMR
+`?t=` URL the app holds a different module instance and the mutation never
+reaches it.
 
 **A measurement whose subject depends on an uncontrolled variable is
 intermittent, and widening the threshold hides it.** `smoke-deflect`'s

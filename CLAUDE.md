@@ -140,6 +140,19 @@ the finding is already established earlier in the conversation.
   player in from every bearing. Zones follow their caster while winding up
   unless passed `anchor: 'world'` — a LANDING marker must be anchored, or it
   trails the actor off the spot he is about to teleport to.
+- **A wake sampled from POSITION HISTORY has a frame-rate-dependent length.**
+  The returned super's remnants were drawn at every other stored position, which
+  is tight at 60fps on a phone and 250px apart in the ~20fps harness — the same
+  code reading as one object with momentum on one machine and three separate
+  objects on the other. They sit at fixed DISTANCES behind it now (26/52/78px)
+  along its real velocity. Anything trailing a fast body wants distance, not
+  frames.
+- **A projectile's speed can silently resize its hitbox.** `Bullet.fire` sizes
+  the body from the texture and then stretches a tracer by
+  `clamp(speed / 620, 1, 2.2)`, and `Body.updateBounds` recomputes width from
+  `|scaleX|`. Under 620px/s the clamp is exactly 1 and nothing moves; above it,
+  raising a speed widens the body. The caught super at 405 is under the line on
+  purpose — assert `scaleX === 1` and `radius * 2 === texW` when touching it.
 - **Incoming fire lives in THREE pools now.** `enemyBullets` (green),
   `deflectedBullets` (the player's own red bolt, turned by Vader's DEFLECTION)
   and `bossSuperOrbs` (the caught super, handed back as one slow mass).
