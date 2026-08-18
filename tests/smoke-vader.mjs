@@ -147,6 +147,41 @@ r.reflect = await page.evaluate(async () => {
 r.deflect = await page.evaluate(async () => {
   const gs = window.game.scene.getScene('Game');
   const b = gs.boss, p = gs.player;
+  // The DEFLECTION block above already turned one shot, and its returned bolt
+  // flies at the player — who is standing still. Put them back on their feet and
+  // out of the way, or this block stages its shot from a corpse's coordinates.
+  gs.lives = 9999;
+  p.alive = true; p.hp = p.hpMax;
+
+  // CAPTURE THE BOLT THIS BLOCK MAKES, by wrapping the pool's fire().
+  //
+  // Reading `deflectedBullets.getChildren()[0]` looked exact and was a race:
+  // the block above leaves its own deflection in that pool, so whether index 0
+  // was MY bolt depended on whether the earlier one had died and been recycled
+  // by the time I fired. It passed twice and then reported `returned 900` —
+  // which is the other block's muzzle speed, not a wrong deflection.
+  //
+  // Tolerate the pool being ABSENT rather than reaching into it. On the
+  // pre-Deflection build `gs.deflectedBullets` is undefined and this threw
+  // inside the evaluate, which killed the whole file with a Playwright stack and
+  // printed no checks at all — so the A/B meant to prove these checks
+  // discriminate showed nothing either way. Everything below still runs: the
+  // shot is still fired, the green pool is still counted, and the old build
+  // reports what it actually does, which is a green bolt and no parry.
+  let mine = null;
+  const pool = gs.deflectedBullets;
+  const realFire = pool ? pool.fire.bind(pool) : null;
+  if (pool) pool.fire = (...args) => { const bul = realFire(...args); mine = bul; return bul; };
+
+  // Count green bolts the DEFLECTION makes, rather than green bolts that exist.
+  // Counting bolts in flight failed intermittently for an honest reason: his
+  // guards and spawned minions fire the same green bolt, so one trooper taking a
+  // shot during the 500ms window read as the deflection having made it. Clear
+  // the room and count CALLS — then zero means zero, whatever else is happening.
+  gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
+  let greenFired = 0;
+  const realGreen = gs.enemyBullets.fire.bind(gs.enemyBullets);
+  gs.enemyBullets.fire = (...args) => { greenFired++; return realGreen(...args); };
 
   // Sample from INSIDE the frame loop. The parry is 190ms; a page.evaluate
   // round trip is 200-400ms, so polling from outside would miss all of it.
@@ -178,29 +213,69 @@ r.deflect = await page.evaluate(async () => {
 
   await new Promise((res) => setTimeout(res, 500));
   gs.events.off('postupdate', probe);
+
+  // ── DOES A PARRY ACTUALLY MOVE THE BLADE? ─────────────────────────────
+  //
+  // Measured separately, because racing the organic one is measuring the frame
+  // rate. The pose decays as (1-u)^2 across `parryMs` (190ms); at this harness's
+  // 50-200ms frames the single sample can land anywhere on that curve, or after
+  // the whole window has closed inside one slow frame — which is why the organic
+  // deviation read 49deg, then 2deg, then 49deg on three identical runs.
+  //
+  // Calling `parry()` once per frame is NOT enough to hold it: `preUpdate`
+  // subtracts a whole frame's delta, and when a frame is longer than `parryMs`
+  // the window is already spent before the weapon block reads it — the branch
+  // never runs and the deviation is exactly 0. Measured: 0deg across 4 frames.
+  // So write the flag directly with a duration no frame can swallow. What is
+  // under test is the DRAWING — that `preUpdate` honours the flag and aims the
+  // blade at the bearing it was handed — not how long 190ms lasts.
+  //
+  // He is also held still. `reach` is a distance between two things that both
+  // move, and a charging Vader covers ~95px in one of this harness's frames, so
+  // an unpinned measurement reports his velocity rather than his blade's.
+  const held = { maxDevDeg: 0, reach: 0, frames: 0 };
+  const want = Math.atan2(p.y - b.y, p.x - b.x) + Math.PI / 2;   // 90deg off guard
+  const hold = () => {
+    b.setVelocity(0, 0);
+    b._parryAngle = want;
+    b._parryT = 400;
+    const ws = b.weaponSprite;
+    if (!ws) return;
+    const toPlayer = Math.atan2(p.y - b.y, p.x - b.x);
+    let dev = (ws.rotation - toPlayer) % (Math.PI * 2);
+    if (dev > Math.PI) dev -= Math.PI * 2;
+    if (dev < -Math.PI) dev += Math.PI * 2;
+    held.maxDevDeg = Math.max(held.maxDevDeg, Math.abs(dev) * 180 / Math.PI);
+    held.reach = Math.max(held.reach, Math.hypot(ws.x - b.x, ws.y - b.y));
+    held.frames++;
+  };
+  gs.events.on('postupdate', hold);
+  await new Promise((res) => setTimeout(res, 400));
+  gs.events.off('postupdate', hold);
+
+  if (pool) pool.fire = realFire;
+  gs.enemyBullets.fire = realGreen;
   b._reflectUntil = 0;
 
-  // `?.` throughout: on a build with no deflected pool this must report zeros,
-  // not throw — a thrown evaluate fails the run with a stack trace instead of
-  // the measurement that explains it.
-  // The pool is exclusive to deflections and grows on demand, so any child that
-  // exists at all was made by this one. Taking it after it has been killed is
-  // fine — a pooled bullet keeps its texture, speed and range.
-  const born = gs.deflectedBullets?.getChildren() ?? [];
-  const d = born[0] ?? null;
-  const green = (gs.enemyBullets?.getChildren() ?? []).filter((x) => x.active).length;
+  // A pooled bullet keeps its texture, speed and range after it is killed, so
+  // reading `mine` once it has landed is fine — but it must be MINE.
+  const d = mine;
 
   return {
     shotTex,
-    made: born.length,
+    made: d ? 1 : 0,
     tex: d?.texture?.key ?? null,
     speed: d ? Math.round(d._speed) : 0,
     range: d?.range ?? 0,
     firedSpeed: SPEED,
     firedRange: RANGE,
-    greenInFlight: green,
+    greenFired,
     parryTicks: seen.parryTicks,
     maxDevDeg: Math.round(seen.maxDevDeg),
+    heldDevDeg: Math.round(held.maxDevDeg),
+    heldReach: Math.round(held.reach),
+    heldFrames: held.frames,
+    restReach: (await import('/src/config.js')).BOSS.radius - 6,
     hasParry: typeof b.parry === 'function',
     hasFx: typeof gs.fx?.saberParry === 'function',
   };
@@ -444,25 +519,45 @@ check(r.reflect.whileUp && !r.reflect.whileDown, 'and the window closes on its o
   `up=${r.reflect.whileUp} down=${r.reflect.whileDown}`);
 
 // ── The deflection is a parry, and what comes back is the shot ───────────
-check(r.deflect.made >= 1, 'a deflection produces a bolt in the deflected pool',
-  `${r.deflect.made} in deflectedBullets — it used to go into the enemy pool`);
-check(r.deflect.tex === r.deflect.shotTex,
+// Assert the thing under test actually RAN. Without this the four checks below
+// all read from a null bolt and half of them pass vacuously — the refused-cast
+// failure mode the post-mortem names.
+check(r.deflect.made === 1, 'this block\'s shot really was deflected',
+  `${r.deflect.made} bolt(s) fired into deflectedBullets by this block — `
+  + `0 means the staged shot never reached him and every check below is vacuous`);
+// Each of the next three requires `made === 1` explicitly. Without it they read
+// from a null bolt on a build that never deflected and compare null to null,
+// 0 to 0 — three checks passing on the very bug they exist to catch. Measured:
+// the pre-Deflection build failed 4 of these 8 and passed the other 4 vacuously.
+const returned = r.deflect.made === 1;
+check(returned && r.deflect.tex === r.deflect.shotTex,
   'the returned bolt wears the PLAYER bolt texture, not the green enemy one',
   `player fired '${r.deflect.shotTex}', got back '${r.deflect.tex}'`);
-check(r.deflect.greenInFlight === 0, 'and no green bolt was made by the deflection',
-  `${r.deflect.greenInFlight} enemy-pool bolts in flight`);
-check(Math.abs(r.deflect.speed - r.deflect.firedSpeed) <= 2,
+check(r.deflect.greenFired === 0, 'and it put nothing at all in the green enemy pool',
+  `${r.deflect.greenFired} enemyBullets.fire calls during the deflection — `
+  + `the old build's deflection fired its reply into exactly this pool`);
+check(returned && Math.abs(r.deflect.speed - r.deflect.firedSpeed) <= 2,
   'it comes back at the speed it went out at',
   `fired ${r.deflect.firedSpeed}, returned ${r.deflect.speed} — the old one was a flat 437`);
-check(r.deflect.range === r.deflect.firedRange, 'and with the reach to get home',
+check(returned && r.deflect.range === r.deflect.firedRange, 'and with the reach to get home',
   `fired ${r.deflect.firedRange}, returned ${r.deflect.range}`);
-// The parry itself. 45deg is well inside the ~90deg the flank shot demands and
-// well outside the couple of degrees the boss's own drift produces in 500ms.
-check(r.deflect.parryTicks > 0, 'Vader is in a parry on the frame he turns it',
+// Two claims, deliberately split: the deflection ASKS for a parry, and a parry
+// MOVES THE BLADE. Asserting only the second would pass on a build where nothing
+// requests it; asserting only the first would pass on a build where the flag is
+// set and never read. Neither races the 190ms window — see the note in the block.
+check(r.deflect.parryTicks > 0, 'turning a bolt puts Vader in a parry',
   `_parryT was positive on ${r.deflect.parryTicks} frames`);
-check(r.deflect.maxDevDeg > 45,
-  'and his blade leaves its guard to meet the bolt, not the player',
-  `saber deviated ${r.deflect.maxDevDeg}deg from the bearing to the player`);
+check(r.deflect.heldFrames > 2 && r.deflect.heldDevDeg > 45,
+  'and a parry swings his blade off its guard to the bearing it was given',
+  `saber deviated ${r.deflect.heldDevDeg}deg over ${r.deflect.heldFrames} frames — `
+  + `it holds the bearing it was handed while the guard bearing follows the player, `
+  + `so a build that ignores the flag reads exactly 0`);
+// A "the blade reaches further out" check lived here and was DELETED, not fixed.
+// `reach` is a distance between two moving bodies — his AI re-writes his velocity
+// in preUpdate after the hold loop pins it — so on the pre-Deflection build it
+// measured 51px, then 98px, then 26px against a 50px rest, and passed on the bug
+// as often as not. It claimed nothing the deviation check above does not already
+// prove, so there was nothing to salvage by loosening it.
 
 // ── Disarm ───────────────────────────────────────────────────────────────
 check(r.disarm.during.id === null, 'a disarm removes the secondary', `still ${r.disarm.during.id}`);

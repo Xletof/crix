@@ -641,6 +641,37 @@ deflection scales with the player's upgrades, not with Vader. Base is 60 against
 `piercing`), which is five bolts at `600 × dmgMult × 0.5` each from 50px away.
 Nobody has playtested that, and it is a phone question, not a harness one.
 
+### The endless "soft lock" that wasn't (investigated, no production defect)
+
+A P0 was raised: after Vader withdraws, the exit does not open and walking out
+leaves the run in the same Vader sector. `smoke-endless` reproduced it standalone
+on the pre-Deflection build too, so it was not the visual work.
+
+**It is not in the game.** The completion contract was instrumented end to end —
+`Boss.damage` → `retreat()` → `boss-wounded` → `_enemiesCleared` →
+`_maybeCompleteRoom` → `_openDoor` → `doorZone` → `_transitionToNext` — following
+the real production route (arena completes, Vader spawns from
+`_onArenaCompleted`). It works: wound at t=64852, door at t=68336, walking it
+took sector 10 → 11 and room `vader` → `detention`.
+
+The bug was the instrument, in two compounding ways, both now fixed and both
+written up in `tests/README.md`:
+
+- it waited a flat 2500ms for a door that takes ~3500ms in this harness, so it
+  was **reading the frame rate**, and it could not distinguish a late door from
+  an absent one;
+- the walk that follows was gated on that same early sample, so a late door
+  meant **the walk never ran**, inventing a second failure.
+
+It also never exercised the arena→boss hand-off at all, because it hand-spawned
+Vader. It now completes the arena and lets the game spawn him.
+
+**Two soft-locks were injected to prove the rebuilt checks discriminate** —
+dropping `_enemiesCleared = true` from the `boss-wounded` handler, and latching
+`_roomDoorOpened` in `_onArenaCompleted`'s boss branch. Both are caught now, and
+the second was NOT caught before the staging was fixed. If you touch this
+contract, re-run that injection rather than trusting a green file.
+
 ## 10c. The narrative system
 
 **The ledger has always remembered; nothing spoke.** `nemesisLedger.js` tracks

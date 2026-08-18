@@ -314,6 +314,28 @@ CRIT and no numbers at all — it looked like a triumph and was an artefact of
 when the shutter opened. Both sides of an A/B must be sampled where the
 SHORTER-lived subject is still alive; this one moved to 90ms.
 
+**A test that samples too early cannot tell LATE from NEVER.** `smoke-endless`
+waited a flat 2500ms after Vader's wound and then read `!!gs.doorZone`. The exit
+opens on a 1500ms `delayedCall`, which resolves at 3484ms in this harness — so
+the check was reading the container's frame rate, and it reported a soft-locked
+endless run when the door was merely still opening. Worse, the walk that follows
+was wrapped in `if (gs.doorZone)` using that same early sample, so a late door
+SKIPPED THE WALK ENTIRELY and produced a second, invented failure ("walking out
+does not advance the sector") when nothing had walked anywhere. Poll for the
+condition, bound the poll generously, and **report the measured delay** — a
+failure that says "opened 3484ms after the wound" and one that says "never
+opened inside 10s" are different bugs and must not print the same line.
+
+**Hand-staging past a production hand-off leaves it untested.** The same file
+called `gs.spawnBoss(...)` directly the moment the boss room loaded, skipping
+`_onArenaCompleted`'s boss branch — the survive-the-swarm round, the cull, the
+800ms spawn — and fighting Vader with `arenaActive` still true and waves still
+spawning, which no real run ever does. Proved by injecting a soft-lock into that
+branch: the file stayed green. It now clears the arena and lets the game spawn
+him. **If you cannot break a code path and see the test fail, the test does not
+cover it** — inject the bug and check, rather than assuming the staging is
+equivalent.
+
 **A wrong argument to a staging call reads as the feature not existing.** A
 throwaway rig for the parry called `gs.spawnBoss({ encounter: 3 })`, but the
 signature is `spawnBoss(bx, by, opts)` — so `boss.x` became an *object*, every

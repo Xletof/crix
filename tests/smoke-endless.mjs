@@ -79,9 +79,33 @@ const r = await page.evaluate(async () => {
   if (!gs.roomSpec?.boss) await step();      // defensive: never fight in an arena
   out.atBoss = { sector: gs.sector, room: gs.roomSpec.id, hasExit: !!gs.roomSpec.exit };
 
-  // Spawn Vader through the production entry point and check he was scaled.
-  gs.spawnBoss(gs.roomSpec.bossSpawn.x, gs.roomSpec.bossSpawn.y);
-  await new Promise((res) => setTimeout(res, 900));
+  // ── REACH VADER THE WAY A RUN REACHES HIM ───────────────────────────────
+  //
+  // This used to call `gs.spawnBoss(...)` directly, the instant the boss room
+  // loaded. That skips `_onArenaCompleted`'s BOSS BRANCH entirely — the survive-
+  // the-swarm round, the cull, the 800ms spawn — so the whole production
+  // hand-off from arena to boss was unexercised, and the fight ran with
+  // `arenaActive` still true and waves still spawning, which no real run ever
+  // does. Proved by injection: breaking the boss branch left this file green.
+  //
+  // So clear the arena the honest way and let the game spawn him.
+  gs.lives = 9999;
+  const keepStanding = () => {
+    if (gs.player) { gs.player.alive = true; gs.player.hp = gs.player.hpMax; }
+  };
+  for (let i = 0; i < 400 && gs.arenaActive; i++) {
+    keepStanding();
+    gs.enemies.getChildren().forEach((e) => { if (e.alive) e.damage(99999); });
+    await new Promise((res) => setTimeout(res, 120));
+  }
+  out.arenaCompleted = !gs.arenaActive;
+  // He arrives on an 800ms delayedCall out of the arena completion.
+  for (let i = 0; i < 100 && !gs.boss; i++) {
+    keepStanding();
+    await new Promise((res) => setTimeout(res, 100));
+  }
+  out.bossArrived = !!gs.boss;
+  await new Promise((res) => setTimeout(res, 400));
   const n = Math.max(1, Math.floor(gs.sector / ENDLESS.bossEvery));
   out.bossMechanics = (gs.boss?._mechanics || []).slice();
   out.boss = {
@@ -103,22 +127,35 @@ const r = await page.evaluate(async () => {
   let wentToGameOver = false;
   const realStart = gs.scene.start.bind(gs.scene);
   gs.scene.start = (key) => { if (key === 'GameOver') wentToGameOver = true; };
-  // Vader caps intake at 2200 per 120ms window (Boss.damage) so a piercing
-  // super cannot delete him. One big hit therefore does NOT kill him — it takes
-  // 2200 off. Grind him down through the real damage path instead of reaching
-  // past it, which also exercises the cap.
-  // Vader's pool went from 12,000 to a measured 62,000, so this grind now runs
-  // for ~30s of real time instead of a couple of seconds — long enough that he
-  // kills the stationary test player, `defeat()` fires, and the run ends. That
-  // looked exactly like the bug this block is testing for (an endless run ending
-  // at a boss), so keep the player standing.
-  gs.lives = 9999;
-  for (let i = 0; i < 200 && gs.boss?.alive; i++) {
+  // Grind him down through the real damage path rather than reaching past it.
+  // Vader's pool is 60,000 and scales per encounter, so this runs for tens of
+  // seconds — long enough that he kills the stationary test player, `defeat()`
+  // fires and the run ends. That looks exactly like the bug this block tests
+  // for (an endless run ending at a boss), so keep the player standing.
+  for (let i = 0; i < 300 && gs.boss?.alive; i++) {
     gs.boss.damage(5000);
-    if (gs.player) { gs.player.alive = true; gs.player.hp = gs.player.hpMax; }
+    keepStanding();
     await new Promise((res) => setTimeout(res, 130));
   }
-  await new Promise((res) => setTimeout(res, 2500));
+  // ── WAIT FOR THE DOOR, DO NOT GUESS AT IT ───────────────────────────────
+  //
+  // This used to be a flat `setTimeout(2500)` and then `doorOpen: !!gs.doorZone`.
+  // The exit opens on a 1500ms `delayedCall` after the wound, and a Phaser timer
+  // in this ~20fps harness resolves 2-3x long — measured at 3484ms on a clean
+  // production run. So the sample landed BEFORE the door every time the machine
+  // was busy, and the check was reading the container's frame rate.
+  //
+  // Worse than a flaky check: it could not tell "late" from "never". A genuine
+  // soft-lock and a slow frame produced identical output, which is exactly the
+  // failure it exists to catch. Poll for the door with a generous bound and
+  // RECORD HOW LONG IT TOOK, so a future failure says which of the two happened.
+  const woundAt = gs.time.now;
+  let doorAt = null;
+  for (let i = 0; i < 100 && !gs.doorZone; i++) {
+    keepStanding();
+    await new Promise((res) => setTimeout(res, 100));
+  }
+  if (gs.doorZone) doorAt = gs.time.now;
   gs.scene.start = realStart;
 
   out.afterBoss = {
@@ -128,6 +165,7 @@ const r = await page.evaluate(async () => {
     medal: medals.find((m) => m.name === 'VADER DRIVEN OFF') || null,
     mechanics: out.bossMechanics,
     doorOpen: !!gs.doorZone,
+    doorDelayMs: doorAt ? Math.round(doorAt - woundAt) : null,
     stillPlaying: gs.scene.isActive(),
     sector: gs.sector,
   };
@@ -139,14 +177,22 @@ const r = await page.evaluate(async () => {
   // completion callback. A flat 2200ms happened to cover that while Vader had
   // 62,000 hp and stopped covering it at 46,000, which read as "the door is
   // broken" when the door was simply still opening.
-  if (gs.doorZone) {
-    const fromRoom = gs.roomSpec;
-    for (let i = 0; i < 80 && gs.roomSpec === fromRoom; i++) {
-      // Re-assert the position: the wound sequence can nudge the player off the
-      // trigger before the door is live.
-      if (gs.doorZone) gs.player.setPosition(gs.doorZone.x, gs.doorZone.y);
-      await new Promise((res) => setTimeout(res, 100));
-    }
+  // ALWAYS attempt the walk, even if the door never appeared.
+  //
+  // This used to be wrapped in `if (gs.doorZone)`, reading the same too-early
+  // sample as the check above — so when the door had not opened yet the walk was
+  // SKIPPED ENTIRELY and `pastBoss` recorded the unchanged sector. That turned
+  // one late door into two failures and made the second one look like an
+  // independent progression bug ("walking out does not advance the sector")
+  // when nothing had walked anywhere. A loop that finds no door simply times
+  // out, which is the honest result.
+  const fromRoom = gs.roomSpec;
+  for (let i = 0; i < 100 && gs.roomSpec === fromRoom; i++) {
+    // Re-assert the position: the wound sequence can nudge the player off the
+    // trigger before the door is live.
+    if (gs.doorZone) gs.player.setPosition(gs.doorZone.x, gs.doorZone.y);
+    keepStanding();
+    await new Promise((res) => setTimeout(res, 100));
   }
   out.pastBoss = { sector: gs.sector, room: gs.roomSpec?.id, boss: !!gs.roomSpec?.boss };
   return out;
@@ -198,12 +244,24 @@ check(r.boss.dmgCap == null,
   'he has NO damage intake cap at all',
   `cap ${r.boss.dmgCap} — the taper made a 3000-damage super land as 960 at #6, `
   + `turning that fight into four minutes and punishing super-spam specifically`);
-check(r.afterBoss.doorOpen, 'the exit opens once he is down', '');
+check(r.arenaCompleted, 'the boss room\'s survival round completes on its own',
+  'arenaActive never went false — the arena->boss hand-off never ran');
+check(r.bossArrived, 'and the game spawns Vader out of it, unprompted',
+  'no boss appeared after the arena completed — the production spawn is broken');
+check(r.afterBoss.doorOpen, 'the exit opens once he is down',
+  r.afterBoss.doorDelayMs == null
+    ? 'the door NEVER opened inside 10s — this is the soft lock, not a slow frame'
+    : `opened ${r.afterBoss.doorDelayMs}ms after the wound`);
 check(!!r.afterBoss.medal && r.afterBoss.medal.pts > 0, 'and he pays out when driven off',
   r.afterBoss.medal ? `${r.afterBoss.medal.pts}` : 'no VADER DOWN medal');
-check(r.pastBoss.sector > r.afterBoss.sector && !r.pastBoss.boss,
-  'and walking out leads to the next arena sector',
-  `sector ${r.afterBoss.sector} -> ${r.pastBoss.sector}, room ${r.pastBoss.room}`);
+// Exactly ONE sector, not merely "more". A boss room that re-entered itself, or
+// a transition that fired twice behind the fade, both satisfy `>` — and the
+// reported soft-lock symptom is precisely a run stuck in its own Vader sector,
+// so the check has to name the number it expects.
+check(r.pastBoss.sector === r.afterBoss.sector + 1 && !r.pastBoss.boss
+      && r.pastBoss.room !== r.atBoss.room,
+  'and walking out advances exactly one sector, into a non-boss room',
+  `sector ${r.afterBoss.sector} -> ${r.pastBoss.sector}, room ${r.atBoss.room} -> ${r.pastBoss.room}`);
 check(pageErrors.length === 0, 'no exception across the whole climb',
   pageErrors.slice(0, 2).join(' | '));
 
