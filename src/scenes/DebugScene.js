@@ -294,6 +294,7 @@ export class DebugScene extends Phaser.Scene {
     this._clearField();
     this.gs.enemyBullets?.getChildren().forEach((b) => b.kill?.());
     this.gs.deflectedBullets?.getChildren().forEach((b) => b.kill?.());
+    this.gs.bossSuperOrbs?.getChildren().forEach((b) => b.kill?.());
     this.gs.playerBullets?.getChildren().forEach((b) => b.kill?.());
     this.gs.clearTelegraphs?.();
     const p = this._player();

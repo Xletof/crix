@@ -20,6 +20,7 @@ import {
   paintBolt,
   paintSuperSlug,
   paintMissile,
+  paintForceOrb,
   paintExplosion,
   paintMuzzle,
   paintSpark,
@@ -104,6 +105,7 @@ export class PreloadScene extends Phaser.Scene {
     paintSuperSlug(this, 'bullet-super');
     paintBolt(this, 'bullet-enemy',  PAL.boltGreen,      PAL.boltGreenGlow, 14);
     paintMissile(this, 'frag-missile');
+    paintForceOrb(this, 'boss-force-orb');
 
     // ── FX ───────────────────────────────────────────────────────────
     paintMuzzle(this, 'muzzle');

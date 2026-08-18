@@ -1,7 +1,49 @@
 import Phaser from 'phaser';
-import { BOSS, ENDLESS } from '../config.js';
+import { BOSS, ENDLESS, parryArcFor } from '../config.js';
 
 const BOSS_MECH = ENDLESS.bossMech;
+
+/**
+ * Where the blade is, `u` of the way through a parry.
+ *
+ * PURE, EXPORTED, AND CALLED BY `preUpdate` — one implementation, drawn by the
+ * game and read by the test. The alternative is a smoke test that reimplements
+ * the curve, which then agrees with itself forever no matter what ships.
+ *
+ * It is also the only honest way to check this at all. A parry is 300ms and the
+ * headless harness runs at ~20fps with 50-200ms frames, so which point of the
+ * curve any single sample lands on is luck — the previous instrument read 49deg,
+ * then 2deg, then 49deg on three identical runs of correct code. Sampling the
+ * SHAPE here, and separately asserting that the live blade matches this function
+ * at whatever `u` the frame happens to be at, splits that into two claims
+ * neither of which can be outrun by a slow frame.
+ *
+ * `u` is clamped: 0 is the contact frame — blade on the intercept bearing,
+ * thrust to full reach — so a forced `_parryT` larger than `parryMs` pins the
+ * contact pose rather than running the curve backwards.
+ */
+export function parryPose(arc, u) {
+  const t0 = Math.min(1, Math.max(0, u));
+  const sweepEnd = BOSS_MECH.parrySweepEnd;
+  const holdEnd  = BOSS_MECH.parryHoldEnd;
+  let k, reachK;
+  if (t0 < sweepEnd) {
+    // FOLLOW-THROUGH. Fast out of contact, decelerating into the finish — the
+    // shape of a real cut, and the half of the gesture the player actually
+    // reads. There is no wind-up beat because there was no warning: the bolt
+    // was killed and the reply fired on the frame `parry()` was called.
+    const t = t0 / sweepEnd;
+    k = 1 - (1 - t) * (1 - t);
+    reachK = 1 - 0.45 * t;
+  } else if (t0 < holdEnd) {
+    k = 1; reachK = 0.55;              // the finish pose, held to be seen
+  } else {
+    const t = (t0 - holdEnd) / (1 - holdEnd);
+    k = (1 - t) * (1 - t);             // recover to guard
+    reachK = 0.55 * (1 - t);
+  }
+  return { offsetRad: Phaser.Math.DegToRad(arc.arcDeg) * k, reach: arc.reach * reachK };
+}
 import { SFX } from '../systems/FX.js';
 import { Enemy } from './Enemy.js';
 // One definition of the punish bonus, shared with Enemy.damage — see the note
@@ -66,9 +108,22 @@ export class Boss extends Enemy {
     this._disarmEvery     = 0;
     this._disarmT         = 0;
 
-    // The parry pose. Not a mechanic clock — see `parry()`.
+    // The parry gesture. Not a mechanic clock — see `parry()`.
     this._parryT     = 0;
     this._parryAngle = 0;
+    this._parryArc   = null;   // which of PARRY_ARCS is being performed
+
+    // ── SUPER DEFLECTION ──────────────────────────────────────────────────
+    // He catches a super instead of batting it back pellet by pellet, holds
+    // it, and returns one slow orb. Three counters, all TICKED HERE rather
+    // than scheduled: a `delayedCall` on a boss who withdraws mid-sequence
+    // fires into the next sector, which is exactly the bug the reflect windup
+    // already had to be guarded against.
+    this._absorbCount = 0;   // pellets caught and not yet handed back
+    this._absorbT     = 0;   // grace after the last pellet
+    this._releaseN    = 0;   // pellets committed to the orb now winding up
+    this._releaseT    = 0;   // anticipation before it leaves
+    this._absorbOrb   = null;
 
     // ── Damage-burst window, for the reactive VANISH ─────────────────────
     // VANISH is no longer on his attack rotation. It fires when the player
@@ -153,6 +208,7 @@ export class Boss extends Enemy {
     this.shadow.destroy();
     this.weaponSprite?.destroy();
     this.threatRing?.destroy();
+    this._absorbOrb?.destroy(); this._absorbOrb = null;
     this.scene.tweens.add({
       targets: this,
       alpha: 0,
@@ -207,6 +263,9 @@ export class Boss extends Enemy {
    */
   shouldVanish() {
     if (!this.alive || this._performing || this._vanishLockMs > 0) return false;
+    // Not out of the guard: he cannot vanish while holding the player's own
+    // energy in his hands without the energy going with him, unexplained.
+    if (this.isGuarding()) return false;
     const now = this.scene?.time?.now ?? 0;
     const recent = this._burst
       .filter((h) => now - h.t <= BOSS_MECH.vanishWindowMs)
@@ -220,6 +279,11 @@ export class Boss extends Enemy {
     // called from elsewhere too and a second zone on the floor is exactly the
     // failure this release exists to fix.
     if (this._performing) return STATE.IDLE;
+    // Nor while the guard owns him — see `isGuarding`. Returning IDLE rather
+    // than resetting `cooldown` is deliberate: the cooldown keeps running down
+    // past zero underneath, so the frame the stance drops he attacks, with no
+    // dead recovery bolted onto the end of it.
+    if (this.isGuarding()) return STATE.IDLE;
     // THE FAN IS GONE. It was the oldest thing he had — a spread of green
     // bolts fired from a planted stance — and it was cut by request: it read
     // as a generic shooter attack on a character whose whole identity is a
@@ -328,20 +392,36 @@ export class Boss extends Enemy {
     if (this._parryT > 0) this._parryT -= delta;
 
     if (this.weaponSprite && !this._saberAway) {
-      // A deflection is the one moment his blade answers something other than
-      // the player's body, so it is the one moment it may point elsewhere. The
-      // blade SNAPS to the intercept bearing on the frame of contact and eases
-      // back to guard over `parryMs`, thrust out furthest at the moment it is
-      // actually meeting the bolt.
+      // ── THE ONE WRITER ────────────────────────────────────────────────
+      // Everything the saber does — rest, guard, parry — is decided here and
+      // nowhere else. This block rewrites position, rotation, flip and depth
+      // every frame from scratch, so a scene-side tween on any of them is not
+      // an addition, it is a second author for the same four numbers. That
+      // fight is what got his moves rejected the first time round.
+      const rest = BOSS.radius - 6;
       let aim = angToPlayer;
-      let offset = BOSS.radius - 6;
+      let offset = rest;
+
       if (this._parryT > 0) {
-        const u = 1 - this._parryT / BOSS_MECH.parryMs;          // 0 at contact
-        const w = (1 - u) * (1 - u);                             // ease back
-        // Shortest way round, so a bolt taken from behind swings the blade the
-        // near way rather than sweeping it through his own body.
-        aim = angToPlayer + Phaser.Math.Angle.Wrap(this._parryAngle - angToPlayer) * w;
-        offset += 30 * w;
+        // ── A PARRY ──────────────────────────────────────────────────────
+        // Read the beats in `parryMs` order. u = 0 is the CONTACT frame: the
+        // bolt was killed and the return fired on the frame `parry()` was
+        // called, so the blade starts ON the intercept bearing at full reach
+        // and everything after it is follow-through. There is no wind-up to
+        // animate, because there was none — he had no warning either.
+        const arc  = this._parryArc || parryArcFor(this._parryAngle);
+        const pose = parryPose(arc, 1 - this._parryT / BOSS_MECH.parryMs);
+        aim = this._parryAngle + pose.offsetRad;
+        offset = rest + pose.reach;
+      } else if (this.isReflecting()) {
+        // ── THE GUARD ────────────────────────────────────────────────────
+        // The stance has to be readable with nothing in the air. Held off his
+        // aim line, because the aim line is his ordinary pose and a stance that
+        // looks like the ordinary pose announces nothing. The sway is small and
+        // slow; it says "held", not "swinging".
+        const sway = Math.sin(this._glowT * 0.006) * 0.12;
+        aim = angToPlayer + Phaser.Math.DegToRad(BOSS_MECH.guardOffsetDeg) + sway;
+        offset = rest + 14;
       }
       this.weaponSprite.x = this.x + Math.cos(aim) * offset;
       this.weaponSprite.y = this.y + Math.sin(aim) * offset;
@@ -352,6 +432,39 @@ export class Boss extends Enemy {
       const degBoss = Phaser.Math.RadToDeg(aim);
       const isFacingNorth = (degBoss < -45 && degBoss > -135);
       this.weaponSprite.setDepth(isFacingNorth ? this.y - 1 : this.y + 1);
+    }
+
+    // ── THE ENERGY HE IS HOLDING ────────────────────────────────────────
+    // ONE Graphics, cleared and redrawn, never accumulating — and drawn here
+    // rather than in FX for the saber's reason: it sits on his hand, his hand
+    // moves every frame, and a scene-side object following him would be a
+    // second author for the same position. It swells as pellets land and pulses
+    // hard once he has committed; that pulse IS the anticipation before the orb
+    // leaves, and it is the only warning a point-blank player gets.
+    const held = this.heldSuper();
+    if (held > 0) {
+      if (!this._absorbOrb) {
+        this._absorbOrb = this.scene.add.graphics()
+          .setBlendMode(Phaser.BlendModes.ADD);
+      }
+      const commit = this._releaseT > 0
+        ? 1 - this._releaseT / BOSS_MECH.superReleaseMs
+        : 0;
+      const pulse = 1 + Math.sin(this._glowT * (commit > 0 ? 0.05 : 0.018))
+                      * (commit > 0 ? 0.16 : 0.07);
+      const r  = (9 + Math.min(held, 8) * 3.2 + commit * 16) * pulse;
+      const hx = this.x + Math.cos(this._aim) * (BOSS.radius + 4);
+      const hy = this.y + Math.sin(this._aim) * (BOSS.radius + 4) - 6;
+      const g  = this._absorbOrb;
+      g.clear();
+      g.setPosition(hx, hy).setDepth(this.y + 2);
+      g.fillStyle(0x5a1e6e, 0.30); g.fillCircle(0, 0, r * 1.35);
+      g.fillStyle(0xff2020, 0.55); g.fillCircle(0, 0, r);
+      g.fillStyle(0xff8888, 0.75); g.fillCircle(0, 0, r * 0.62);
+      g.fillStyle(0xffffff, 0.95); g.fillCircle(0, 0, r * 0.30);
+    } else if (this._absorbOrb) {
+      this._absorbOrb.destroy();
+      this._absorbOrb = null;
     }
 
     if (this.contactDmgCd > 0) this.contactDmgCd -= delta;
@@ -432,7 +545,7 @@ export class Boss extends Enemy {
           // grinding against the player's collision box waiting for a ranged
           // move's clock to come round.
           this._comboT = (this._comboT ?? 0) - delta;
-          if (this._comboT <= 0) {
+          if (this._comboT <= 0 && !this.isGuarding()) {
             this._comboT = BOSS.comboEveryMs;
             this.scene.events.emit('boss-wants-combo', this);
           }
@@ -672,6 +785,29 @@ export class Boss extends Enemy {
       }
     }
 
+    // ── The caught super ──────────────────────────────────────────────────
+    // Release first, intake second, and the two are mutually exclusive: while
+    // an orb is winding up nothing new can commit, so however hard the player
+    // leans on the button there is exactly one orb in the world at a time.
+    if (this._releaseT > 0) {
+      this._releaseT -= delta;
+      if (this._releaseT <= 0) {
+        this._releaseT = 0;
+        const n = this._releaseN;
+        this._releaseN = 0;
+        this.scene.events.emit('boss-super-return', this, n);
+      }
+    } else if (this._absorbT > 0) {
+      this._absorbT -= delta;
+      if (this._absorbT <= 0 && this._absorbCount > 0) {
+        this._absorbT  = 0;
+        this._releaseN = this._absorbCount;
+        this._absorbCount = 0;
+        this._releaseT = BOSS_MECH.superReleaseMs;
+        this.scene.events.emit('boss-super-charged', this, this._releaseN);
+      }
+    }
+
     // Cleared here rather than on a timer that could outlive him.
     if (this._reflectUntil && this.scene.time.now > this._reflectUntil) this._reflectUntil = 0;
   }
@@ -695,7 +831,51 @@ export class Boss extends Enemy {
    */
   parry(angle) {
     this._parryAngle = angle;
-    this._parryT = BOSS_MECH.parryMs;
+    this._parryArc   = parryArcFor(angle);
+    this._parryT     = BOSS_MECH.parryMs;
+  }
+
+  /**
+   * Catch a super pellet.
+   *
+   * Counts it and restarts the grace clock, so a five-pellet volley arriving
+   * over ~60ms produces ONE answer rather than five. Never refuses: a pellet he
+   * declined would fall through to the ordinary bat-back path carrying
+   * `superDamage * player.dmgMult`, which is the unbounded return this whole
+   * mechanic exists to remove. If an orb is already winding up, the new pellets
+   * simply accumulate behind it — `_tickMechanics` only starts a release when
+   * the previous one has left, so there is never more than one on the way.
+   */
+  absorbSuper() {
+    this._absorbCount++;
+    this._absorbT = BOSS_MECH.superAbsorbGraceMs;
+    if (this._absorbCount === 1 && this._releaseT <= 0) {
+      this.scene?.events.emit('boss-super-absorb-begin', this);
+    }
+    this.scene?.events.emit('boss-super-absorb', this, this._absorbCount);
+    return true;
+  }
+
+  /** Pellets visibly gathered at his hands right now — absorbed or committed. */
+  heldSuper() {
+    return this._absorbCount + this._releaseN;
+  }
+
+  /**
+   * Is the guard in charge of him?
+   *
+   * DEFLECTION owns his saber, so nothing that would also want to draw the
+   * blade may start while it is up — a CHARGE with a parry sweeping sideways
+   * out of it, or a SABER THROW with the blade somehow still batting bolts, are
+   * two systems narrating opposite things about the same weapon. Holding a
+   * caught super counts for the same reason: the energy is in his hands.
+   *
+   * It suppresses the START of an attack only. Anything already running plays
+   * out — cancelling a swing halfway is a worse lie than finishing it.
+   */
+  isGuarding() {
+    return this.alive
+      && (this.isReflecting() || this._absorbCount > 0 || this._releaseT > 0);
   }
 
   /** True while the saber is up. Read by the player-bullet collision. */
@@ -711,6 +891,7 @@ export class Boss extends Enemy {
     this.shadow.destroy();
     this.weaponSprite?.destroy();
     this.threatRing?.destroy();
+    this._absorbOrb?.destroy(); this._absorbOrb = null;
     this.destroy();
   }
 }

@@ -140,14 +140,43 @@ the finding is already established earlier in the conversation.
   player in from every bearing. Zones follow their caster while winding up
   unless passed `anchor: 'world'` — a LANDING marker must be anchored, or it
   trails the actor off the spot he is about to teleport to.
-- **Incoming fire lives in TWO pools now.** `enemyBullets` (green) and
-  `deflectedBullets` (the player's own red bolt, turned by Vader's DEFLECTION).
+- **Incoming fire lives in THREE pools now.** `enemyBullets` (green),
+  `deflectedBullets` (the player's own red bolt, turned by Vader's DEFLECTION)
+  and `bossSuperOrbs` (the caught super, handed back as one slow mass).
   Iterate `GameScene.hostileBullets`, never `enemyBullets` alone — six places
   sweep incoming fire and half of them are not collision code (HUD threat
   chevrons, bullet trails, room clear, the debug purge). The split exists
   because `BulletGroup.fire` re-asserts its group's texture on every recycle, so
   a red bolt in the green pool is either re-textured after the fact — which
   silently resizes its hitbox — or leaks red into the next trooper's shot.
+- **DEFLECTION is a STANCE that owns Vader's saber.** While `Boss.isGuarding()`
+  is true — the reflect window, or a caught super still in his hands — no
+  scripted move and no state-machine attack may START (`_castBossMove`,
+  `pickAttack` and `shouldVanish` all refuse). Anything already running finishes.
+  It suppresses STARTS only, and the cooldown keeps counting down underneath, so
+  offense resumes on the frame the stance drops with no dead recovery. Melee is
+  deliberately unaffected: the stance is projectile defence, and closing to melee
+  is the intended answer to it.
+- **A super pellet is CAUGHT, never batted back.** A super pellet carries
+  `superDamage * player.dmgMult`, and `dmgMult` reaches four figures late in a
+  run, so returning five of them was five simultaneous unavoidable deletions.
+  `Boss.absorbSuper()` consumes them; ONE bounded orb comes back from
+  `boss-super-return`, sized by a flat pellet schedule that never touches
+  `dmgMult`. Anything new that reflects player fire must ask `isSuper` first.
+- **Only ONE system may write the saber, and it is the weapon block in
+  `Boss.preUpdate`.** Rest pose, guard pose, parry gesture and the held-energy
+  orb are all decided there, from scratch, every frame. `parry()` and
+  `absorbSuper()` only set flags. A scene-side tween on the weapon sprite's
+  position, rotation, flip or depth is not an addition — it is a second author
+  for the same four numbers.
+- **The parry gesture is a follow-THROUGH, not an alignment.** `PARRY_ARCS` in
+  `config.js` is eight bearing families; `parryPose(arc, u)` in `Boss.js` is the
+  pure curve, called by `preUpdate` and imported by the test so there is exactly
+  one implementation. `u = 0` is CONTACT — blade on the intercept bearing at
+  full reach — because the bolt is killed and the reply fired on that same
+  frame. Rotating the blade *onto* the incoming bearing (the first
+  implementation) is invisible on a phone: his saber already points at the
+  player, and the player is where the bolt came from.
 - **A collision-time pose lands one frame after its effect.** Collisions resolve
   in scene `update`; `preUpdate` has already drawn the actor for that frame. So
   `Boss.parry()` flags a pose the weapon-sprite block picks up on the NEXT

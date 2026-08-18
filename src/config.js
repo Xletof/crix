@@ -43,6 +43,53 @@ export const DEPTH = {
   AIR: 2000,
 };
 
+/**
+ * VADER'S PARRY VOCABULARY.
+ *
+ * Eight gesture families, indexed by the 45-degree sector of the bearing from
+ * Vader to the bolt he is meeting: 0 = due east (to his right), then clockwise
+ * on screen, so 2 = below him, 4 = to his left, 6 = above him.
+ *
+ * WHY THIS IS A TABLE AND NOT A FORMULA. The first implementation rotated the
+ * blade onto the incoming bearing and pushed it out 30px. That is the smallest
+ * physically sufficient motion, and on a handset it is invisible — Vader's
+ * saber is ALREADY pointing at the player, and the player is where the bolt
+ * came from, so the "parry" was a few degrees of nothing. The flash carried the
+ * whole read. What is missing from a mathematically minimal parry is the part
+ * that makes a parry look like a parry: the blade does not stop the bolt, it
+ * SWEEPS THROUGH it and carries on. So each family names the arc the blade
+ * whips through AFTER contact, and the arcs differ from each other in sign and
+ * in size, so a shot taken high left does not animate like a shot taken low
+ * right.
+ *
+ *   arcDeg  degrees swept from the intercept bearing during the follow-through.
+ *           Sign is the handedness of the cut; magnitude is how big the gesture
+ *           is. Lateral swats are the widest because a bolt crossing his body
+ *           has the most blade to travel; low bats are the tightest because a
+ *           downward cut has nowhere to go.
+ *   reach   px the blade is thrust past its resting hold at the contact frame.
+ *
+ * Kept as data so the smoke test can iterate the registry rather than checking
+ * four hand-picked bearings and forgetting the fifth — the specific mistake
+ * documented in docs/POST-MORTEM-vader-moves.md.
+ */
+export const PARRY_ARCS = [
+  { id: 'swat-right',      arcDeg: -140, reach: 54 },  // 0  E   bolt from his right
+  { id: 'bat-low-right',   arcDeg: -104, reach: 42 },  // 1  SE
+  { id: 'bat-low',         arcDeg:  118, reach: 40 },  // 2  S   from below
+  { id: 'bat-low-left',    arcDeg:  104, reach: 42 },  // 3  SW
+  { id: 'swat-left',       arcDeg:  140, reach: 54 },  // 4  W   from his left
+  { id: 'guard-high-left', arcDeg:  158, reach: 48 },  // 5  NW
+  { id: 'guard-high',      arcDeg: -166, reach: 46 },  // 6  N   from above
+  { id: 'guard-high-right',arcDeg: -158, reach: 48 },  // 7  NE
+];
+
+/** Which family answers a bolt on this bearing (radians, Vader -> bolt). */
+export function parryArcFor(angleRad) {
+  const deg = ((angleRad * 180) / Math.PI) % 360;
+  return PARRY_ARCS[((Math.round(deg / 45) % 8) + 8) % 8];
+}
+
 export const PLAYER = {
   hp: 1000,
   speed: 380,
@@ -969,19 +1016,82 @@ export const ENDLESS = {
   // Mechanic timings. Every window is short on purpose — see above.
   bossMech: {
     reflectEveryMs: 9000,
-    reflectMs: 1400,        // the window itself
+    // THE STANCE, not a window. At 1400ms this was a hidden reflection window:
+    // the player's mag is 3 rounds at 120ms plus a 520ms reload, so one cycle
+    // is ~760ms and a 1.4s window bought at most one bolt in flight — which is
+    // why the handset read was "flash, my shot came back" rather than "he is
+    // guarding". 2400ms is three full mags' worth of opportunity, so a player
+    // who keeps firing WILL see several deliberate parries. It is still only
+    // 2.4s in every 9s, and no attack of his is suppressed for longer than
+    // that, so the fight does not stall waiting it out.
+    reflectMs: 2400,
     reflectWindupMs: 500,   // telegraph, so holding fire beats it outright
-    // How long the blade stays out on the intercept bearing after a deflection.
-    // Purely the length of the parry ANIMATION — it gates nothing, opens no
-    // window and blocks no second bolt, so a burst deflected inside one window
-    // parries once per bolt exactly as it always did. Short on purpose: a Jedi
-    // deflect is a flick, and anything longer reads as a pose he is holding.
-    parryMs: 190,
+    // The blade's angle off pure aim while the stance is up and nothing is
+    // being parried. The stance has to be legible with NO bolt in the air —
+    // otherwise the only thing announcing it is a banner that has already
+    // scrolled away. A raised cross-guard is unmistakably not his aim pose.
+    guardOffsetDeg: 42,
+    // ── The parry ANIMATION ────────────────────────────────────────────────
+    // Length of one whole parry gesture: contact, follow-through, recovery.
+    // 190ms was chosen when the gesture was "rotate a few degrees onto the
+    // incoming bearing", which is a nothing on a phone because the blade is
+    // ALREADY pointing at the player — that is the exact subtlety this pass
+    // exists to fix. A real bat-away needs room to travel; 300ms is 18 frames
+    // at 60 and still short enough that four bolts inside one stance do not
+    // queue up behind each other.
+    //
+    // It still gates NOTHING: no window, no cooldown, no second-bolt block.
+    parryMs: 300,
+    // Beat boundaries inside parryMs, as fractions:
+    //   0        contact. Blade snaps ONTO the bolt's bearing, thrust to full
+    //            reach — the bolt is killed and the return fired on this frame,
+    //            so this genuinely is the moment of contact, not a wind-up.
+    //   ..sweep  FOLLOW-THROUGH. The blade whips through the arc its bearing
+    //            family names. This is the part that reads.
+    //   ..hold   the finish pose, held just long enough to be seen.
+    //   ..1      RECOVERY back to guard.
+    parrySweepEnd: 0.40,
+    parryHoldEnd: 0.62,
     blackoutEveryMs: 16000,
     blackoutMs: 2600,
     afterimageEveryMs: 13000,
     afterimageCount: 3,
     disarmEveryMs: 15000,
+
+    // ── SUPER DEFLECTION ───────────────────────────────────────────────────
+    // The super is NOT batted back pellet by pellet. It used to be: five
+    // pellets each returned at `superDamage * player.dmgMult * 0.5`, and
+    // `dmgMult` reaches four figures late in a run — so one careless super into
+    // his guard came back as five simultaneous unavoidable deletions. He
+    // catches it instead, holds it, and hands back ONE slow thing you can run
+    // away from.
+    //
+    // Grace after the LAST pellet before he commits. One super's five pellets
+    // arrive inside ~60ms, so this only has to outlast a spread; it exists so a
+    // volley produces one orb rather than five.
+    superAbsorbGraceMs: 380,
+    // Anticipation between "he has it" and "it is coming". This IS the fairness
+    // at point blank — the orb spawns at his hands, so the only reaction room a
+    // player standing on top of him gets is this.
+    superReleaseMs: 620,
+    // Slow on purpose: an ordinary deflected bolt comes home at the player's
+    // own 900px/s, and this must read as a different, dodgeable class of thing.
+    // 300px/s crosses a 400px gap in 1.3s; a dash is 950px/s for 240ms.
+    superReturnSpeed: 300,
+    superReturnRange: 1500,
+    // ── Return damage ──────────────────────────────────────────────────────
+    // Deliberately NOT derived from the pellets' own damage, which carries
+    // `player.dmgMult`. Player hp is 1000, so one pellet's worth is 23% of the
+    // bar and a full five-pellet super is 45% — a real punish that is survivable
+    // once, lethal if you keep feeding him, and identical on encounter 1 and on
+    // a Vader six wounds deep with 1000x player damage in the room.
+    //
+    // The ceiling is a STATED ceiling on damage, not a hidden cap on intake:
+    // every pellet is absorbed and counted, the orb carries exactly the number
+    // it will deal, and the number it deals is exactly what it displays.
+    superReturnBase: 180,
+    superReturnPerPellet: 55,
+    superReturnDamageMax: 620,
 
     // VANISH is a REACTION, not a rotation entry. It fires when the player
     // takes this share of his max hp off him inside the window below, then

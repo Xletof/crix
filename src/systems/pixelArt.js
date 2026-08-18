@@ -2562,6 +2562,49 @@ export function paintSuperSlug(scene, key = 'bullet-super') {
   c.finish();
 }
 
+/**
+ * The caught super, handed back.
+ *
+ * Round on purpose. Every other projectile in this game is a stretched bolt
+ * pointing at where it is going, because they are all fast — and the whole
+ * point of this one is that it is SLOW and you are meant to walk away from it.
+ * A sphere reads as a mass being pushed rather than a shot being fired, and it
+ * gives the eye no speed line to misjudge.
+ *
+ * It is the PLAYER'S red, not Vader's crimson lane colour, with a white-hot
+ * core: it has to be legible as your own super coming home. The violet fringe
+ * is the only thing of his in it — that is the Force holding it together.
+ *
+ * SIZE IS A HITBOX. `Bullet.fire` calls `setCircle(this.width / 2)`, so this
+ * canvas's dimensions ARE the collision radius: 22 logical px at scale 4 is an
+ * 88px sprite and a 44px body, against the super pellet's 27 and an ordinary
+ * bolt's 9. Changing the canvas silently changes how hard it is to dodge — see
+ * the bullet-hitbox trap in CLAUDE.md.
+ */
+export function paintForceOrb(scene, key = 'boss-force-orb') {
+  const R = 11;
+  const c = new PixelCanvas(scene, key, R * 2, R * 2, 4);
+  const cx = R - 1, cy = R - 1;
+
+  c.circle(cx, cy, 10, '#5a1e6e');                      // Force fringe
+  c.circle(cx, cy, 9,  PAL.boltRed);
+  c.circle(cx, cy, 7,  PAL.boltRedGlow);
+  c.circle(cx, cy, 4,  PAL.boltRedCore);
+  c.circle(cx, cy, 2,  '#ffffff');
+
+  // Crackle. Four stubs off the equator so the mass looks contained rather than
+  // drawn — a clean gradient sphere reads as a bubble, which is the one thing
+  // it must not read as.
+  for (const [dx, dy] of [[10, 0], [-10, 0], [0, 10], [0, -10],
+                          [7, 7], [-7, -7], [7, -7], [-7, 7]]) {
+    c.px(cx + dx, cy + dy, PAL.boltRedCore);
+  }
+  c.px(cx - 3, cy - 4, '#ffffff');
+  c.px(cx + 4, cy + 3, '#ffffff');
+
+  c.finish();
+}
+
 // Wrist-rocket / missile — points EAST in the texture (nose right, flame left)
 // so setRotation(travelAngle) orients it naturally to its velocity.
 // This is the "future rocket-type weapon" it was kept for: the cluster pod's

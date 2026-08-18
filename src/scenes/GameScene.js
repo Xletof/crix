@@ -212,6 +212,12 @@ export class GameScene extends Phaser.Scene {
     // the same reason. `hostileBullets` below is what stops the split being
     // forgotten at one of the seven places that iterate incoming fire.
     this.deflectedBullets   = new BulletGroup(this, 'bullet');
+    // The caught super, handed back as one slow mass. Its own pool for the
+    // third time and the same reason: a 88px round texture in any existing
+    // group would resize that group's hitboxes on the next recycle
+    // (`setCircle(this.width / 2)`), and this one's radius is 44 against an
+    // ordinary bolt's 9.
+    this.bossSuperOrbs      = new BulletGroup(this, 'boss-force-orb');
 
     // ── Grenades group ─────────────────────────────────────────────────────
     this.grenades = this.physics.add.group();
@@ -808,7 +814,8 @@ export class GameScene extends Phaser.Scene {
      ...this.playerSuperBullets.getChildren(),
      ...this.playerFragBullets.getChildren(),
      ...this.enemyBullets.getChildren(),
-     ...this.deflectedBullets.getChildren()].forEach((b) => { if (b.active) b.kill(); });
+     ...this.deflectedBullets.getChildren(),
+     ...this.bossSuperOrbs.getChildren()].forEach((b) => { if (b.active) b.kill(); });
 
     // Health orbs
     this.healthOrbs.forEach((o) => { this.tweens.killTweensOf(o.gfx); o.gfx.destroy(); });
@@ -2225,6 +2232,63 @@ export class GameScene extends Phaser.Scene {
       b.threatRing?.setAlpha(1);
     });
 
+    // ── SUPER DEFLECTION ───────────────────────────────────────────────────
+    // Three beats, and each one is a separate event so the sequence can be
+    // read from outside — by the smoke test, and by anyone trying to work out
+    // afterwards which half of it went wrong. The Boss owns the clocks (a
+    // `delayedCall` on a boss who withdraws fires into the next sector); the
+    // scene owns the effects, exactly as every other mechanic here works.
+
+    // He has begun taking it. Announced once per volley, not once per pellet.
+    this._on('boss-super-absorb-begin', (b) => {
+      this.events.emit('show-banner', 'ABSORBED', '#ff80ff');
+      this.fx.shake(0.004, 120);
+    });
+
+    // He has all of it and is about to hand it back. This beat exists purely as
+    // anticipation: the orb spawns at his hands, so at point-blank range this
+    // window IS the player's reaction time, and it is why the release is worth
+    // a banner of its own.
+    this._on('boss-super-charged', (b, n) => {
+      this.events.emit('show-banner', 'HE HAS YOUR POWER', '#ff40ff');
+      this.fx.superCharged?.(b.x, b.y, ENDLESS.bossMech.superReleaseMs);
+      SFX.superCharged?.();
+      this.fx.shake(0.006, 200);
+    });
+
+    // ...and it leaves.
+    this._on('boss-super-return', (b, n) => {
+      if (!this.player?.alive || !b.alive) return;
+      const MECH = ENDLESS.bossMech;
+      // A SNAPSHOT, taken now. Nothing about this round steers after release —
+      // the entire promise of the mechanic is that moving works.
+      const ang  = Math.atan2(this.player.y - b.y, this.player.x - b.x);
+      const dist = Math.hypot(this.player.x - b.x, this.player.y - b.y);
+      // Never spawned past the player. A fixed muzzle offset would put the orb
+      // BEHIND someone standing on top of him, travelling away — which is
+      // exactly the bug the old 50px green spawn had, where a close player
+      // never got hit by their own deflected shot at all.
+      const off = Math.min(BOSS.radius + 30,
+                           Math.max(12, dist - PLAYER.radius - 50));
+      const ox = b.x + Math.cos(ang) * off;
+      const oy = b.y + Math.sin(ang) * off;
+      // BOUNDED, and bounded on purpose. Not the sum of what it swallowed:
+      // that number carries `player.dmgMult` and is unbounded by design. This
+      // one is a flat schedule in pellets, so the punish is the same size on
+      // encounter 1 and on a Vader six wounds deep.
+      const dmg = Math.min(
+        MECH.superReturnBase + MECH.superReturnPerPellet * n,
+        MECH.superReturnDamageMax,
+      );
+      this.bossSuperOrbs.fire(ox, oy, ang, MECH.superReturnSpeed, dmg,
+        MECH.superReturnRange, { owner: 'boss' });
+      this.fx.burstDir(ox, oy, 'red', 14, ang, 90);
+      this.fx.impactRing(ox, oy, 0xff40ff);
+      SFX.superRelease?.();
+      this.fx.shake(0.010, 240);
+      this.events.emit('boss-super-returned', b, n, dmg);
+    });
+
     // LIGHTS OUT. Reuses the DARKNESS modifier's overlay wholesale.
     this._on('boss-blackout', (b, ms) => {
       this.events.emit('show-banner', 'LIGHTS OUT', '#8090ff');
@@ -3497,6 +3561,7 @@ export class GameScene extends Phaser.Scene {
     this.handleBulletWallHits(this.playerFragBullets, false);
     this.handleBulletWallHits(this.enemyBullets, false);
     this.handleBulletWallHits(this.deflectedBullets, false);
+    this.handleBulletWallHits(this.bossSuperOrbs, true);
 
     // Bullet trails — every OTHER frame (frame parity), halving particle
     // churn at horde bullet counts; the motion-blur tail still reads at 30Hz.
@@ -3623,6 +3688,34 @@ export class GameScene extends Phaser.Scene {
           // Boss.damage because the shot must not count as damage at all — no
           // hit flash, no meter charge, no intake window opened.
           if (b.owner === 'player' && this.boss.isReflecting?.()) {
+            const inAngle = Math.atan2(b.y - this.boss.y, b.x - this.boss.x);
+
+            // ── A SUPER IS CAUGHT, NOT BATTED ────────────────────────────
+            //
+            // Every other projectile in the game comes back off the blade. The
+            // super does not, and that is a design decision rather than an
+            // implementation detail: a super pellet carries
+            // `superDamage * player.dmgMult`, `dmgMult` reaches four figures by
+            // the sixth Vader, and five of those returned at once was five
+            // simultaneous unreadable deletions from one careless button press.
+            // He takes it instead. What comes back is ONE slow thing, on his
+            // terms, carrying a number that has nothing to do with the player's
+            // scaling — see `boss-super-return` below.
+            if (isSuper) {
+              this.boss.absorbSuper();
+              // The blade still answers it: he is catching it ON the guard, so
+              // the same directional parry gesture plays. What differs is where
+              // the energy goes, and that is what `superCaught` draws.
+              this.boss.parry?.(inAngle);
+              const hx = this.boss.x + Math.cos(this.boss._aim ?? inAngle) * (BOSS.radius + 4);
+              const hy = this.boss.y + Math.sin(this.boss._aim ?? inAngle) * (BOSS.radius + 4) - 6;
+              this.fx.superCaught?.(b.x, b.y, hx, hy);
+              SFX.superAbsorb?.();
+              this.events.emit('boss-absorbed', this.boss, b.damage);
+              b.kill();
+              continue;
+            }
+
             // ── A TRUE DEFLECTION ────────────────────────────────────────
             //
             // The shot that comes back is the shot that went out: same red
@@ -3638,7 +3731,7 @@ export class GameScene extends Phaser.Scene {
             // Out: back at the player. Return-to-sender is the fantasy, and it
             // is also the only aim that stays fair — a mirrored bounce off a
             // moving boss would be unreadable.
-            const inAng  = Math.atan2(b.y - this.boss.y, b.x - this.boss.x);
+            const inAng  = inAngle;
             const back   = Math.atan2(this.player.y - b.y, this.player.x - b.x);
             this.deflectedBullets.fire(
               b.x, b.y, back, speed, Math.round(b.damage * 0.5),
@@ -3750,7 +3843,7 @@ export class GameScene extends Phaser.Scene {
    * count at which "remember to add it in both places" stops working.
    */
   get hostileBullets() {
-    return [this.enemyBullets, this.deflectedBullets];
+    return [this.enemyBullets, this.deflectedBullets, this.bossSuperOrbs];
   }
 
   handleEnemyBulletsVsPlayer() {
@@ -5046,8 +5139,17 @@ export class GameScene extends Phaser.Scene {
     if (b?.alive && b._moveIds?.length) {
       b._moveT -= delta;
       if (b._moveT <= 0) {
-        b._moveT = b._moveEvery;
-        this._castBossMove(b);
+        const cast = this._castBossMove(b);
+        // A cast REFUSED BY THE GUARD must not burn the whole interval. The
+        // stance is 2400ms against a 4800ms move clock, so leaving this at
+        // `_moveEvery` would quietly cost him up to half his scripted moves
+        // every time he raised the saber — the fight getting emptier as a
+        // direct side effect of the fix that made it more readable.
+        //
+        // Narrowed to the guard on purpose: his OTHER refusal (another attack
+        // already owns him) keeps the cadence it has always had, because that
+        // one is not new and is not this pass's to retune.
+        b._moveT = (!cast && b.isGuarding?.()) ? 400 : b._moveEvery;
       }
     }
 
@@ -5105,6 +5207,11 @@ export class GameScene extends Phaser.Scene {
     const pool = forcedId ? [forcedId] : bossMovesFor(b.phase || 1, b._encounterN || 1);
     if (!pool.length || !this.player?.alive) return null;
     if (b._activeMove && b._activeMove.phase !== 'done') return null;
+    // THE GUARD OWNS HIS SABER. Every move in the pool is a saber or a Force
+    // move, and DEFLECTION is drawing the blade every frame — so starting one
+    // here would put two systems on the same weapon, which is the failure this
+    // whole boss was rebuilt to remove. See `Boss.isGuarding`.
+    if (b.isGuarding?.()) return null;
     // ONE ATTACK AT A TIME, FROM EITHER SYSTEM. His own state machine can be
     // mid-charge or mid-volley, and starting a scripted move on top of it is
     // how a charge lane and a saber lane ended up on the floor together — the

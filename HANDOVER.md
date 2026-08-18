@@ -633,13 +633,67 @@ Four things to know before touching it:
   the trip home is that distance again — spending it down strands every
   deflection just short of the player.
 
-**The damage is unchanged and it is the open question here.** It is still
+**Ordinary reflected damage is unchanged and is still the open question.** It is
 `round(incoming * 0.5)`, and `incoming` already carries `player.dmgMult` — so a
 deflection scales with the player's upgrades, not with Vader. Base is 60 against
 1000hp; at the mid-endless `dmgMult` ≈ 14.5 quoted in `config.js` it is ~870.
-**Super pellets are deflectable** (`owner: 'player'`; the branch never checks
-`piercing`), which is five bolts at `600 × dmgMult × 0.5` each from 50px away.
-Nobody has playtested that, and it is a phone question, not a harness one.
+Deliberately left alone in the stance pass: it is a phone question, not a
+harness one.
+
+### DEFLECTION became a STANCE, and the super is caught (pass 2)
+
+Handset review of the above: semantically correct, and *too subtle*. The parry
+rotated the blade onto the incoming bearing and pushed it out 30px — which is
+almost nothing, because his saber already points at the player and the player is
+where the bolt came from. The read was **flash, my shot came back**, with the
+flash carrying all of it. The 1400ms window also only ever bought one bolt in
+flight against a ~760ms player fire cycle (3 rounds at 120ms + a 520ms reload),
+so it was a hidden reflection window rather than a state you could see him enter.
+
+What changed:
+
+- **It is a stance.** `reflectMs` 1400 → **2400**, so a player who keeps firing
+  witnesses several parries. `Boss.isGuarding()` is the new gate: while it is
+  true, `_castBossMove`, `pickAttack` and `shouldVanish` all refuse, so no other
+  saber system can start and fight the guard for his weapon. It suppresses
+  STARTS only — anything already running finishes, and the cooldown keeps
+  running down underneath, so offense resumes the frame it drops. **Melee is
+  untouched on purpose**: the stance is projectile defence, and closing on him
+  is the intended answer to it.
+- **The blade is visible off-aim while guarding**, at `guardOffsetDeg` (42°)
+  with a slow sway. The stance had no read at all with nothing in the air.
+- **A parry is a follow-THROUGH.** `PARRY_ARCS` in `config.js` is eight bearing
+  families (lateral swats widest, low bats tightest, mirrored left/right);
+  `parryPose(arc, u)` in `Boss.js` is the pure curve — contact at `u = 0` (blade
+  on the intercept bearing, thrust to full reach, because the bolt is killed and
+  the reply fired on that same frame), then follow-through, hold, recovery over
+  `parryMs` 190 → **300**. `preUpdate` calls that function and the smoke test
+  imports it, so there is one implementation, not two that agree by accident.
+- **The super is CAUGHT, not batted.** This is the locked design decision. Five
+  pellets each carrying `superDamage × player.dmgMult` returned individually was
+  five simultaneous deletions once `dmgMult` reached four figures. Now
+  `Boss.absorbSuper()` consumes them, energy visibly gathers at his hand (ONE
+  `Graphics`, cleared and redrawn by the same block that owns the saber), and
+  after `superAbsorbGraceMs` 380 + `superReleaseMs` 620 he fires exactly one
+  slow orb: `bossSuperOrbs` pool, `boss-force-orb` texture, 44px body radius,
+  **300px/s**, no homing, aimed by a snapshot taken at release.
+- **The orb's damage is bounded and has nothing to do with the player's
+  scaling**: `superReturnBase 180 + 55 × pellets`, ceiling `620`. Five pellets =
+  **455** against 1000 player hp. It is a stated ceiling on damage, not a hidden
+  cap on intake — every pellet is absorbed, counted, and the orb carries exactly
+  what it deals. **This is the number to argue about on a handset.**
+- **Three hostile pools now.** `bossSuperOrbs` joins `enemyBullets` and
+  `deflectedBullets` in `GameScene.hostileBullets`.
+- Beats are ticked on the Boss (`_absorbT`, `_releaseT`), never scheduled: a
+  `delayedCall` on a Vader who withdraws fires into the next sector.
+- `tests/smoke-deflect.mjs` protects all of it (32 checks; 27 fail on the
+  pre-stance build). `tests/evidence-deflect.mjs` is the picture rig — it slows
+  `parryMs` to 6s and pins `_parryT` so the real production draw can be
+  photographed frame by frame, which a ~20fps harness cannot otherwise do.
+
+**Not done, deliberately:** the encounter ladder is untouched, so DEFLECTION is
+still `bossMechanics[2]` (Vader #3 onward). The debug proving ground already
+summons any encounter, so handset testing did not need the ladder moved.
 
 ### The endless "soft lock" that wasn't (investigated, no production defect)
 

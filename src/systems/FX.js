@@ -521,6 +521,26 @@ export const SFX = {
     tone({ freq: 1250, type: 'square', dur: 0.05, gain: 0.09, slide: 900, vary: 0.15 });
     noise({ dur: 0.05, gain: 0.11, hp: 3000 });
   },
+  // A super pellet caught. The mirror of `saberDeflect`, on purpose: that one
+  // RISES because energy is leaving, so this one FALLS because energy is being
+  // taken in and held. Kept above 600Hz so it survives a handset speaker.
+  superAbsorb() {
+    tone({ freq: 1400, type: 'sine', dur: 0.10, gain: 0.09, slide: -700, vary: 0.1 });
+    noise({ dur: 0.07, gain: 0.07, hp: 1800 });
+  },
+  // He has it. A swell rather than a hit — this is anticipation, and it has to
+  // read as something building over its whole length.
+  superCharged() {
+    tone({ freq: 620,  type: 'sawtooth', dur: 0.55, gain: 0.13, slide: 420 });
+    tone({ freq: 930,  type: 'sine',     dur: 0.50, gain: 0.08, slide: 300, delay: 0.05 });
+  },
+  // ...and it leaves. Heavy, and the only low-heavy sound in the sequence, so
+  // the release is distinguishable from the catch by ear alone.
+  superRelease() {
+    tone({ freq: 300, type: 'sawtooth', dur: 0.30, gain: 0.22, slide: -180 });
+    tone({ freq: 900, type: 'square',   dur: 0.14, gain: 0.12, slide: -500 });
+    noise({ dur: 0.26, gain: 0.18, hp: 300 });
+  },
   // Player hurt — lower, painful
   hurt() {
     tone({ freq: 220, type: 'sawtooth', dur: 0.22, gain: 0.24, slide: -100 });
@@ -2512,6 +2532,60 @@ export function attachFX(scene) {
       // the way the bolt came, which is what keeps it from reading as a muzzle.
       this.burstDir(x, y, 'white', 6, outAngle, 34);
       this.burstDir(x, y, 'yellow', 3, inAngle + Math.PI, 90);
+    },
+
+    /**
+     * A super pellet CAUGHT rather than turned.
+     *
+     * The read has to be the opposite of `saberParry`, and it is built out of
+     * the same parts inverted: the sparks travel INWARD, from the contact point
+     * back to his hands, so the energy visibly goes somewhere and stays there.
+     * A parry throws sparks away down the outgoing line; this one has no
+     * outgoing line, and that absence is the whole message.
+     *
+     * The streak is drawn as a single line from contact to hand rather than as
+     * a particle stream — one object per pellet, five per super, gone in 140ms.
+     * A stream per pellet is how a bounded effect becomes an unbounded one.
+     */
+    superCaught(x, y, hx, hy) {
+      const g = scene.add.graphics({ x, y }).setDepth(DEPTH.AIR)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      const dx = hx - x, dy = hy - y;
+      for (const [thick, colour, alpha] of [
+        [9, 0xff2020, 0.45], [4, 0xff8888, 0.7], [1.5, 0xffffff, 0.95],
+      ]) {
+        g.lineStyle(thick, colour, alpha);
+        g.lineBetween(0, 0, dx, dy);
+      }
+      g.fillStyle(0xffffff, 0.9); g.fillCircle(0, 0, 6);
+      scene.tweens.add({
+        targets: g, alpha: 0, duration: 140, ease: 'Quad.easeIn',
+        onComplete: () => g.destroy(),
+      });
+      // Inward, toward the hand. Nothing scatters back the way it came, because
+      // nothing came back.
+      this.burstDir(x, y, 'red', 4, Math.atan2(dy, dx), 40);
+    },
+
+    /**
+     * He has it, and it is coming.
+     *
+     * A ring that CONVERGES on his hands — deliberately the same grammar as the
+     * player's own super wind-up, which converges on their muzzle, because this
+     * is that super about to be fired at them. The player has already been
+     * taught to read this shape; teaching them a second one for the same event
+     * would be the more expensive choice, not the clearer one.
+     */
+    superCharged(x, y, ms) {
+      const g = scene.add.graphics({ x, y }).setDepth(DEPTH.AIR)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      g.lineStyle(4, 0xff5050, 0.9);  g.strokeCircle(0, 0, 78);
+      g.lineStyle(2, 0xffffff, 0.55); g.strokeCircle(0, 0, 92);
+      scene.tweens.add({
+        targets: g, scale: 0.2, alpha: 0.25,
+        duration: ms, ease: 'Quad.easeIn',
+        onComplete: () => g.destroy(),
+      });
     },
 
     /**

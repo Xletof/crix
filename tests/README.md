@@ -80,6 +80,7 @@ does NOT, because hitstop is its subject — same split as `smoke-dialogue` and
 | `smoke-cluster.mjs` | Munitions lock **distinct** targets, flat scale, no ground phase, guidance lines cleaned up, generic hit beep suppressed |
 | `smoke-controls.mjs` | The control-layout editor moves the real hit regions (not just sprites), persists, and resets |
 | `smoke-debug.mjs` | Debug menu actions actually apply *and* the HUD re-syncs |
+| `smoke-deflect.mjs` | DEFLECTION is a readable STANCE: eight directional parry families, the live blade matches `parryPose` frame by frame, the guard is not his aim pose, no other saber system may start while it is up, melee still lands — and a super is CAUGHT and returned as one bounded, slow, non-homing orb |
 | `smoke-depth.mjs` | Airborne objects draw over the room; nose tracks travel (no tumble) |
 | `smoke-dialogue.mjs` | **The nemeses speak, and a stranger stays quiet.** No line repeats until its pool is exhausted; a first-time nemesis raises no card at all (the pacing contract); both scenes pause AND resume; a card refuses to open over the upgrade picker and is held rather than dropped |
 | `smoke-duel.mjs` | **A nemesis encounter is a duel**: the arena locks to it, its phases turn at 66%/33%, and the bomber survives its own contact burst instead of dying to it. Also the one file that deliberately loads WITHOUT `?nofreeze=1`, because hitstop is its subject |
@@ -347,6 +348,50 @@ in the diagnostic dump, not the failure line: `bx` serialised as
 `"[object Object]NaNNaNNaN…"`. **Failure messages on a staged rig should print
 the staged state, and staging should assert it** — `Number.isFinite(boss.x)` is
 one line and would have failed in the right place.
+
+**A postupdate probe cannot compare a pose to the fields that produced it on a
+collision frame.** Phaser's order is PRE_UPDATE (`Boss.preUpdate` ticks the parry
+timer and *draws* the blade) → UPDATE (scene collisions run; a bolt meets Vader
+and `parry()` writes a **new** angle, arc and timer) → `postupdate` (your probe).
+So on the frame a parry is requested, the sprite still shows the previous pose
+while the fields already describe the next one. `smoke-deflect`'s
+blade-agrees-with-`parryPose` check read a 135° disagreement on correct code —
+which is the arc, not an error. The fix is to watch for the call rather than
+guess at timing: wrap `parry()`, set a dirty flag, and skip exactly the frames
+where it fired. This is the instrument-side view of the "a collision-time pose
+lands one frame after its effect" trap in `CLAUDE.md`.
+
+**Slow the clock, do not sample the shape.** A parry is 300ms — six frames here
+at best, and a screenshot takes far longer than a frame — so photographing it as
+it happens gives you one arbitrary point of the curve. `tests/evidence-deflect.mjs`
+raises `parryMs` to 6s and pins `_parryT` to the fraction it wants, then shoots
+through the **real** production draw path. A slow-motion camera, not a
+reconstruction. The same applies to `superAbsorbGraceMs`/`superReleaseMs`. The
+alternative — reimplementing the pose in the rig — produces pictures that agree
+with the rig forever, whatever ships.
+
+**A measurement whose subject depends on an uncontrolled variable is
+intermittent, and widening the threshold hides it.** `smoke-deflect`'s
+super-return flight checks passed three runs in four. The orb is released ~1s
+after the volley lands, and Vader spends that second walking to his standoff
+range — so it spawned into a gap that was sometimes 500px and sometimes 90, and
+at 90px it reached the player and died inside two frames with nothing to measure.
+The block now pins him still on a clear 520px lane. Whether that gap is 90 or 500
+is his pathing's business and `smoke-boss`'s problem; what the orb DOES once
+released is this file's.
+
+**Pellet spread is geometry, not the feature.** The same file first fired a real
+30° super spread from ~380px and absorbed 5 pellets on one run and 3 on the next,
+because the outer pellets miss a boss who is also moving. Whether a wide pellet
+connects is `circleOverlap`'s business. The volley is now fanned in ORIGIN and
+aimed at him, so all five reach the guard and the count under test is the number
+that come *back*.
+
+**Reading live `hp` when you meant `hpMax` measures what the boss already did to
+you.** "The returned super cannot delete a full-health player" compared 455
+damage against `p.hp`, sampled after a one-second absorb-and-release wait during
+which Vader had taken the test player from 1000 to 150. The check failed, and it
+was right about nothing.
 
 **A census counts what EXISTS, and what matters is what is DRAWN.** The combat-text
 diagnostic's first version filtered the display list on `type === 'Text'`. That was
