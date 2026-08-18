@@ -238,7 +238,16 @@ r.deflect = await page.evaluate(async () => {
   const hold = () => {
     b.setVelocity(0, 0);
     b._parryAngle = want;
-    b._parryT = 400;
+    // FIVE SECONDS, not 400ms, and the margin is the point. `parryPose` clamps
+    // `u` to [0, 1], so any `_parryT` above `parryMs` pins the CONTACT pose —
+    // blade exactly on the bearing it was handed. At 400 against a 300ms
+    // `parryMs` there was only 100ms of headroom, so a single slow frame's
+    // delta subtraction dropped it into the follow-through, where the blade has
+    // swung up to 166deg further round and can land back NEAR the aim line. The
+    // check then read a small deviation and failed on correct code — twice in
+    // eight suite runs. What is under test is that `preUpdate` honours the flag
+    // and aims the blade where it was told, not how long 300ms lasts.
+    b._parryT = 5000;
     const ws = b.weaponSprite;
     if (!ws) return;
     const toPlayer = Math.atan2(p.y - b.y, p.x - b.x);

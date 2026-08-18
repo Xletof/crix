@@ -86,6 +86,13 @@ r.zones = await page.evaluate(async () => {
   const gs = window.game.scene.getScene('Game');
   const b = gs.boss;
   b.cooldown = 1e9;
+  // ...AND HIS GUARD. DEFLECTION owns his saber and `_castBossMove` correctly
+  // refuses every cast while it is up (`Boss.isGuarding`), which is the whole
+  // point of the stance. Silenced here under the same rule and for the same
+  // reason as his attack clock: this file measures MOVE telegraphs, and the
+  // stance is a different subject with its own file. Check 4 below still runs
+  // with nothing silenced at all, and now exercises both systems together.
+  b._reflectUntil = 0; b._absorbCount = 0; b._releaseT = 0;
   const out = [];
   for (const m of BOSS_MOVES) {
     b._activeMove?.cancel?.();
@@ -109,11 +116,17 @@ r.zones = await page.evaluate(async () => {
       b._performing = false;
       b.state = 'idle';
       b.cooldown = 1e9;
+      b._reflectUntil = 0; b._absorbCount = 0; b._releaseT = 0;   // and his guard
       gs.player.alive = true;
       gs.player.hp = gs.player.hpMax;
       h = gs._castBossMove(b, m.id);
       if (!h) {
+        // `guarding` is in here because it was NOT, and that cost a suite run:
+        // the stance refused two casts and the diagnostic printed every other
+        // precondition as healthy, so the failure read as the moves being
+        // broken. A refusal reason that omits a reason is worse than none.
         why = `state=${b.state} performing=${b._performing} active=${!!b._activeMove} `
+          + `guarding=${b.isGuarding?.()} `
           + `playerAlive=${gs.player.alive} bossAlive=${b.alive}`;
         await new Promise((res) => setTimeout(res, 80));
       }
@@ -151,6 +164,7 @@ r.windup = await page.evaluate(async () => {
   const gs = window.game.scene.getScene('Game');
   const b = gs.boss;
   b.cooldown = 1e9;
+  b._reflectUntil = 0; b._absorbCount = 0; b._releaseT = 0;   // and his guard
   const out = [];
   for (const m of BOSS_MOVES) {
     b._activeMove?.cancel?.();
@@ -190,11 +204,17 @@ r.windup = await page.evaluate(async () => {
       b._performing = false;
       b.state = 'idle';
       b.cooldown = 1e9;
+      b._reflectUntil = 0; b._absorbCount = 0; b._releaseT = 0;   // and his guard
       gs.player.alive = true;
       gs.player.hp = gs.player.hpMax;
       h = gs._castBossMove(b, m.id);
       if (!h) {
+        // `guarding` is in here because it was NOT, and that cost a suite run:
+        // the stance refused two casts and the diagnostic printed every other
+        // precondition as healthy, so the failure read as the moves being
+        // broken. A refusal reason that omits a reason is worse than none.
         why = `state=${b.state} performing=${b._performing} active=${!!b._activeMove} `
+          + `guarding=${b.isGuarding?.()} `
           + `playerAlive=${gs.player.alive} bossAlive=${b.alive}`;
         await new Promise((res) => setTimeout(res, 80));
       }
@@ -235,6 +255,7 @@ r.tracking = await page.evaluate(async () => {
   b._performing = false;
   b.state = 'idle';
   b.cooldown = 1e9;
+  b._reflectUntil = 0; b._absorbCount = 0; b._releaseT = 0;   // and his guard
   gs.clearTelegraphs();
   gs.player.setPosition(b.x - 240, b.y);
   gs.player.alive = true;
@@ -303,6 +324,7 @@ r.fight = await page.evaluate(async () => {
   // on my position". Measured as how close he gets to a stationary player.
   b._activeMove?.cancel?.(); b._activeMove = null; b._performing = false;
   b.state = 'idle'; b.cooldown = 1e9;
+ b._reflectUntil = 0; b._absorbCount = 0; b._releaseT = 0;   // and his guard
   gs.clearTelegraphs();
   gs.player.alive = true;
   gs.player.hp = gs.player.hpMax;
@@ -347,6 +369,7 @@ r.fight = await page.evaluate(async () => {
   // shove survives and drags him off his own telegraph.
   b._activeMove?.cancel?.(); b._activeMove = null; b._performing = false;
   b.state = 'idle'; b.cooldown = 1e9;
+ b._reflectUntil = 0; b._absorbCount = 0; b._releaseT = 0;   // and his guard
   b.body?.setVelocity(0, 0);
   let mh = null;
   for (let a = 0; a < 8 && !mh; a++) {
@@ -382,6 +405,7 @@ r.boomerang = await page.evaluate(async () => {
   const out2 = {};
   b._activeMove?.cancel?.(); b._activeMove = null; b._performing = false;
   b.state = 'idle'; b.cooldown = 1e9;
+ b._reflectUntil = 0; b._absorbCount = 0; b._releaseT = 0;   // and his guard
   gs.player.alive = true;
   gs.player.setPosition(b.x - 300, b.y);
   await new Promise((res) => setTimeout(res, 150));

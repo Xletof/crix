@@ -2239,11 +2239,13 @@ export class GameScene extends Phaser.Scene {
     // `delayedCall` on a boss who withdraws fires into the next sector); the
     // scene owns the effects, exactly as every other mechanic here works.
 
-    // He has begun taking it. Announced once per volley, not once per pellet.
-    this._on('boss-super-absorb-begin', (b) => {
-      this.events.emit('show-banner', 'ABSORBED', '#ff80ff');
-      this.fx.shake(0.004, 120);
-    });
+    // He has begun taking it. NO BANNER: 'DEFLECTION' is already on screen from
+    // the stance and 'HE HAS YOUR POWER' follows about a second later, and three
+    // banners inside three seconds is the boss getting busier rather than
+    // clearer — the exact thing this pass is not supposed to do. Five pellets
+    // visibly vanishing into a growing mass at his hand is a better sentence
+    // than a word for it, so this beat is a shake and the FX per pellet.
+    this._on('boss-super-absorb-begin', () => this.fx.shake(0.004, 120));
 
     // He has all of it and is about to hand it back. This beat exists purely as
     // anticipation: the orb spawns at his hands, so at point-blank range this
