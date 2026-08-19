@@ -1074,36 +1074,49 @@ export const ENDLESS = {
     // at point blank — the orb spawns at his hands, so the only reaction room a
     // player standing on top of him gets is this.
     superReleaseMs: 620,
-    // ── LAUNCH → SETTLE → CRUISE ───────────────────────────────────────────
-    // Three constants, one curve, and the reason for it is a handset finding:
-    // at a flat 405px/s the player could walk ALONGSIDE the orb and escort it
-    // across the room, because base walk speed is 380. A projectile a player
-    // can keep pace with is not something that was violently thrown.
+    // ── THE POWER SWEEP ────────────────────────────────────────────────────
+    // He THROWS it. The last `superSweepMs` of the anticipation above is a
+    // saber sweep that drives through the held mass, and the orb leaves on the
+    // sweep's power frame — the same instant, from one clock, so the two can
+    // never drift into "the ball left and then he swung". Carved OUT of the
+    // 620ms, never added to it: the approved anticipation does not move.
+    // `superFollowMs` is the follow-through AFTER launch, and it is the last
+    // of his saber ownership — offense is eligible the moment it ends, while
+    // the orb is still crossing the room on its own.
+    superSweepMs: 260,
+    superFollowMs: 200,
+    // Degrees the blade travels either side of the throw line: it winds up to
+    // `superSweepArcDeg` off the line, drives through it at the power frame,
+    // and carries on `superFollowArcDeg` past. Both are far bigger than any
+    // PARRY_ARCS entry (max 140 total, from a much shorter reach) because this
+    // is a heave, not fencing. `superSweepReach` likewise beats the widest
+    // parry thrust (54px) so the gesture cannot be mistaken for one.
+    superSweepArcDeg: 118,
+    superFollowArcDeg: 96,
+    superSweepReach: 78,
+    // ── ONE SPEED, NO CURVE ────────────────────────────────────────────────
+    // The orb travels at the player's OWN super speed, constant, from release
+    // until something stops it. Not a number of its own: `PLAYER.superSpeed`
+    // is read directly, because the semantic claim is that this IS the
+    // player's captured super handed back at the speed it was fired, and a
+    // duplicated literal here would let the two drift apart silently.
     //
-    // So it is thrown: 650px/s at release, shedding the excess over
-    // `superReturnSettleMs` down to a cruise it then holds forever. This is
-    // NOT deceleration — the excess is an IMPULSE being shed, and the moment
-    // it is gone the orb stops changing speed. Nothing about it dims, shrinks
-    // or fades while that happens; it is losing launch impulse, not energy.
+    // Two rejected designs are worth keeping written down. A flat 405 let the
+    // player WALK ALONGSIDE it (base walk is 380) and escort it across the
+    // room. The fix for that was an overspeed launch shedding to a cruise —
+    // 650 -> 500 over 550ms on a smoothstep — and handset review rejected the
+    // whole concept, not the tuning: the player already gets the DEFLECTION
+    // warning, the visible stored energy, 620ms of release anticipation, a
+    // huge silhouette and a snapshot aim with no homing. All of the fairness
+    // is spent before launch, so the flight has no work left to do and any
+    // falloff is just the punish softening itself after the decision was
+    // already made.
     //
-    // THE SHAPE OF THE CURVE IS THE POINT, and the first attempt got it wrong.
-    // 600 -> 470 over 350ms as `cruise + excess * (1-u)^3` measured 537 at
-    // 70ms and 478 at 210ms: two thirds of the excess was gone inside a fifth
-    // of a second, so on a handset the launch frame and the cruise frame were
-    // the same frame and the whole thing read as constant speed. The excess
-    // now follows `1 - smoothstep(u)`, which is flat at BOTH ends: it holds
-    // near launch speed for the first ~100ms, does its visible shedding across
-    // the middle of the window, and eases into cruise instead of arriving at
-    // it. Over 550ms that is ~11 frames of transition on a phone rather than
-    // ~3. Never dips below cruise — smoothstep is monotone on [0,1].
-    //
-    // 500 cruise is 1.32x the player's 380 walk, so walking beside it is out
-    // and getting off its line is in — which is the intended skill, since it
-    // is aimed once and never steers. A 950px/s dash is still an overwhelming
-    // answer. Damage did NOT move for any of this.
-    superReturnSpeed: 650,        // launch impulse
-    superReturnCruise: 500,       // the speed it keeps until something stops it
-    superReturnSettleMs: 550,     // how long the excess takes to bleed off
+    // 1080 is 2.8x the player's walk and above the 950 dash, so once it is out
+    // there is no outrunning it and no escorting it — the answer is to not be
+    // on the line, which is the skill the snapshot aim exists to test. Damage
+    // did NOT move for any of this: still 455 for a full five-pellet catch.
+    superReturnSpeed: PLAYER.superSpeed,
     superLaunchMs: 110,
     // Its lifetime contract is "until it hits something or leaves the world",
     // not "until it has flown N pixels". The arena's diagonal is ~2263px, so

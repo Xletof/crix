@@ -273,7 +273,7 @@ const setup = (gap, pinBoss) => page.evaluate(async ([g, pin]) => {
       pr.orbSpeed = Math.round(Math.hypot(orb.body.velocity.x, orb.body.velocity.y));
       // The whole velocity curve, stamped with the orb's OWN settle clock, so
       // the record is of the contract rather than of this machine's frame rate.
-      pr.curve.push({ t: Math.round(orb._settleT ?? -1),
+      pr.curve.push({ t: Math.round(orb._ageMs ?? -1),
                       age: Math.round(orb._ageMs ?? -1),
                       v: pr.orbSpeed,
                       hdg: Math.round(Math.atan2(orb.body.velocity.y,
@@ -567,18 +567,34 @@ const hit = await page.evaluate(() => {
 console.log('  direct hit:', JSON.stringify(hit));
 await teardown();
 
-// ══ CASE 5 — THE VELOCITY SENTENCE AND THE LEADING HEAD ═══════════════════
+// ══ CASE 5 — HE THROWS IT ═════════════════════════════════════════════════
 //
-// Two handset findings, one staging. The settle is 550ms of a ~1.8s flight
-// down a 900px lane, photographed at five points across it; the head is then
-// photographed on THREE CONSECUTIVE FRAMES at cruise, because "it fluctuates"
-// is a claim about consecutive frames and nothing else can show it.
+// The nine beats the brief asks to be able to inspect, in one continuous
+// sequence: absorption, the held mass, the pre-sweep settle, the blade coming
+// through, the launch frame itself, the follow-through, early flight, later
+// flight, and Vader back on offense with the orb still in the air.
 //
-// Real clock throughout. The launch beat was slowed in case 1 because it is
-// 110ms and cannot otherwise be photographed at all; the settle is five times
-// that and does not need the help — slowing it here would also be the one
-// thing that could make a too-fast transition look fine.
-console.log('\n== case 5: the settle, frame by frame, and the head at cruise ==');
+// THE GESTURE IS PHOTOGRAPHED IN SLOW MOTION, the flight at full speed, and
+// the reason is arithmetic: the sweep is 260ms, which is five frames at this
+// harness's ~20fps and a screenshot costs longer than one of them — the same
+// problem case 1 has with the 110ms compression beat, solved the same way.
+// `superSweepMs` and `superFollowMs` are scaled by the same factor as
+// `superReleaseMs`, so what is slowed is the playback rate of one curve, not
+// its shape: `superSwingPose` is untouched and `u` still reaches 1 on the
+// launch. Nothing about the orb is slowed — it leaves at the full canonical
+// 1080px/s, which is why beats 7-9 need no help at all.
+console.log('\n== case 5: the throw, beat by beat (gesture in slow motion) ==');
+await page.evaluate(async () => {
+  const { ENDLESS } = await import('/src/config.js');
+  const M = ENDLESS.bossMech;
+  window.__real5 = { rel: M.superReleaseMs, lz: M.superLaunchMs,
+                     grace: M.superAbsorbGraceMs, sw: M.superSweepMs, fo: M.superFollowMs };
+  M.superAbsorbGraceMs = 1600;
+  M.superReleaseMs = 2480;   // 620 x 4
+  M.superLaunchMs  = 440;    // 110 x 4
+  M.superSweepMs   = 1040;   // 260 x 4 — same factor, same curve
+  M.superFollowMs  = 800;    // 200 x 4
+});
 await setup(600, true);
 await fireSuper();
 await waitFor(() => (window.game.scene.getScene('Game').boss?.heldSuper?.() ?? 0) >= 3,
@@ -600,25 +616,32 @@ const lane5 = await page.evaluate(() => {
 });
 console.log('  lane staged:', JSON.stringify(lane5));
 
-// Five points across the settle, then three consecutive frames. Each shutter is
-// armed while the scene is still paused from the previous one.
-await armShutter('orb && orb._settleT > 30');
-if (await waitShutter('the launch frame')) {
-  await shootPaused('11-settle-000', 'orb && orb._settleT > 160');
-  if (await waitShutter('early settle')) {
-    await shootPaused('12-settle-160', 'orb && orb._settleT > 300');
-    if (await waitShutter('mid settle')) {
-      await shootPaused('13-settle-300', 'orb && orb._settleT > 440');
-      if (await waitShutter('late settle')) {
-        await shootPaused('14-settle-440', 'orb && orb._settleT >= 550');
-        if (await waitShutter('cruise')) {
-          // From here the condition is simply "there is an orb", which fires on
-          // the very next frame — the only way to photograph "the leading edge
-          // changes between frames" rather than between moments.
-          await shootPaused('15-cruise-a', 'orb');
-          if (await waitShutter('cruise +1 frame')) {
-            await shootPaused('16-cruise-b', 'orb');
-            if (await waitShutter('cruise +2 frames')) await shootPaused('17-cruise-c');
+// Every shutter is armed while the scene is still paused from the previous
+// one — see `shootPaused`. The conditions read the boss's OWN state, so each
+// picture is of the beat it is named after and not of a moment near it.
+const SW = 'gs.boss.superSwing && gs.boss.superSwing()';
+await armShutter(`gs.boss.heldSuper() > 0 && gs.boss._absorbT > 0`);
+if (await waitShutter('absorption')) {
+  await shootPaused('11-absorb', `gs.boss._releaseT > 0 && !(${SW})`);
+  if (await waitShutter('the held mass, committed')) {
+    await shootPaused('12-held', `(${SW}) && (${SW}).u < 0.34`);
+    if (await waitShutter('the pre-sweep settle')) {
+      await shootPaused('13-presweep', `(${SW}) && (${SW}).u > 0.55 && (${SW}).u < 1`);
+      if (await waitShutter('the blade driving through')) {
+        await shootPaused('14-sweep', `orb && (${SW}) && (${SW}).u >= 1`);
+        if (await waitShutter('the launch frame')) {
+          await shootPaused('15-launch', `orb && gs.boss._followT > 0 && gs.boss._followT < 360`);
+          if (await waitShutter('the follow-through')) {
+            await shootPaused('16-follow', 'orb && orb._ageMs > 120');
+            if (await waitShutter('early flight')) {
+              await shootPaused('17-flight-early', 'orb && orb._ageMs > 420');
+              if (await waitShutter('later flight')) {
+                await shootPaused('18-flight-late', 'orb && !gs.boss.isGuarding()');
+                if (await waitShutter('Vader off the guard, orb still up')) {
+                  await shootPaused('19-offense-orb-alive');
+                }
+              }
+            }
           }
         }
       }
@@ -626,16 +649,58 @@ if (await waitShutter('the launch frame')) {
   }
 }
 const five = await page.evaluate(() => window.__probe);
-console.log('  measured curve:', five.curve.map((c) => `${c.t}ms:${c.v}`).join('  '));
+console.log('  measured speed:', five.curve.map((c) => `${c.t}ms:${c.v}`).join('  '));
 console.log('  flight:', JSON.stringify({
   frames: five.flightFrames, episodes: five.episodes, episodeMs: five.epMs,
   damage: five.orbDamage, radius: five.orbRadius, scaleX: five.orbScaleX,
   maxGhosts: five.maxGhosts, coronaFrames: five.coronaFrames,
+  offenseAfterMs: five.offenseAfterMs, orbAliveAtOffense: five.orbAliveAtOffense,
   headings: [...new Set(five.curve.map((c) => c.hdg))],
 }));
+await teardown();
+await page.evaluate(async () => {
+  const { ENDLESS } = await import('/src/config.js');
+  Object.assign(ENDLESS.bossMech, {
+    superReleaseMs: window.__real5.rel, superLaunchMs: window.__real5.lz,
+    superAbsorbGraceMs: window.__real5.grace, superSweepMs: window.__real5.sw,
+    superFollowMs: window.__real5.fo });
+});
+
+// ══ CASE 6 — THE SAME THROW, REAL CLOCK, THREE CONSECUTIVE FRAMES ═════════
+// Slow motion proves the shape; it cannot prove that the gesture is legible at
+// the speed it actually plays. So: real constants, and three frames in a row
+// through the launch — whatever the harness's frame rate happens to be is
+// exactly what a phone would show, only worse.
+console.log('\n== case 6: the same throw at the real clock, consecutive frames ==');
+await setup(600, true);
+await fireSuper();
+await waitFor(() => (window.game.scene.getScene('Game').boss?.heldSuper?.() ?? 0) >= 3,
+  'the super is caught (case 6)');
+await page.evaluate(() => {
+  window.__bossPin = { x: 800, y: 280 };
+  window.__pinBoss = true;
+  window.__playerPin = { x: 800, y: 1180 };
+});
+await page.waitForTimeout(200);
+await armShutter(`gs.boss.superSwing && gs.boss.superSwing()`);
+if (await waitShutter('the sweep, real clock')) {
+  await shootPaused('20-real-a', 'gs.boss.superSwing() || orb');
+  if (await waitShutter('+1 frame')) {
+    await shootPaused('21-real-b', 'gs.boss.superSwing() || orb');
+    if (await waitShutter('+2 frames')) {
+      await shootPaused('22-real-c', 'gs.boss.superSwing() || orb');
+      if (await waitShutter('+3 frames')) await shootPaused('23-real-d');
+    }
+  }
+}
+const six = await page.evaluate(() => window.__probe);
+console.log('  real-clock flight:', JSON.stringify({
+  frames: six.flightFrames, speed: six.curve.map((c) => c.v),
+  damage: six.orbDamage, radius: six.orbRadius }));
 await teardown();
 
 console.log('\n== summary ==');
 console.log(JSON.stringify({ flight: held, walk, dash, hit,
-  settle: five.curve.map((c) => `${c.t}:${c.v}`) }, null, 1));
+  speed: five.curve.map((c) => `${c.t}:${c.v}`),
+  realClock: six.curve.map((c) => `${c.t}:${c.v}`) }, null, 1));
 await browser.close();

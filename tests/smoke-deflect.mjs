@@ -491,7 +491,7 @@ r.superDef = await page.evaluate(async () => {
       const realKill = o.kill.bind(o);
       o.kill = (...a) => {
         killLog.push({ x: Math.round(o.x), y: Math.round(o.y),
-                       t: Math.round(o._settleT ?? -1), age: Math.round(o._ageMs ?? -1),
+                       t: Math.round(o._ageMs ?? -1), age: Math.round(o._ageMs ?? -1),
                        trav: Math.round(o.traveled),
                        where: (new Error().stack || '').split('\n').slice(1, 4)
                          .map((l) => l.trim().replace(/^at\s+/, '')).join(' <- ') });
@@ -611,16 +611,16 @@ r.superDef = await page.evaluate(async () => {
     orbSeen++;
     const vh = Math.atan2(o.body.velocity.y, o.body.velocity.x);
     headings.push(vh);
-    // The velocity curve, sampled in the frame it is written, paired with the
-    // orb's OWN settle clock rather than with wall time. A ~20fps harness
-    // cannot promise to sample at 350ms, and `_settleT` is the number the
-    // curve is actually computed from — so this reads the contract, not the
-    // machine.
+    // The velocity, sampled in the frame it is written, paired with the orb's
+    // OWN age rather than with wall time — a ~20fps harness cannot promise to
+    // sample at any particular millisecond, and `_ageMs` is the number the
+    // game itself counts in. There is no curve to reconstruct any more: the
+    // contract is that every one of these samples is the same number.
     scaleFlight.min = Math.min(scaleFlight.min, o.scaleX);
     scaleFlight.max = Math.max(scaleFlight.max, o.scaleX);
     scaleFlight.boundsW = Math.round(o.body.width);
     speeds.push({
-      t: Math.round(o._settleT ?? -1),
+      t: Math.round(o._ageMs ?? -1),
       age: Math.round(o._ageMs ?? -1),
       v: Math.round(Math.hypot(o.body.velocity.x, o.body.velocity.y)),
     });
@@ -717,17 +717,20 @@ r.superDef = await page.evaluate(async () => {
     ordinarySpeed,
     heldPeak, orbDrawn, orbSeen, lastOrb, wake, speeds,
     configSpeed: MECH.superReturnSpeed,
-    configCruise: MECH.superReturnCruise,
-    configSettleMs: MECH.superReturnSettleMs,
+    // The SOURCE the orb's speed is supposed to be, read separately so the
+    // test compares two independent reads of the intent rather than a
+    // constant against itself.
+    playerSuperSpeed: PLAYER.superSpeed,
+    playerPelletSpeed: PLAYER.pelletSpeed,
     maxLifeMs: MECH.superReturnMaxLifeMs,
     launchMs: MECH.superLaunchMs,
     releaseMs: MECH.superReleaseMs,
     // Texture-derived, so it must be untouched by a speed change:
     // `Bullet.fire` sets the body from `this.width / 2` and then applies a
     // tracer stretch of `clamp(speed / 620, 1, 2.2)` to scaleX — and
-    // `Body.updateBounds` recomputes width from `|scaleX|`. At the 600 launch
-    // speed that clamp is STILL exactly 1 (600 < 620), which is the only
-    // reason the hitbox survived the impulse.
+    // `Body.updateBounds` recomputes width from `|scaleX|`. The canonical
+    // 1080 is 1.74x over that threshold, so the hitbox only survives because
+    // the release handler explicitly cancels the stretch.
     orbScaleX: orbSpec[0] ? orbSpec[0].scaleX : null,
     killLog,
     scaleFlight,
@@ -758,7 +761,7 @@ r.bounds = await page.evaluate(async () => {
   const wb = gs.physics.world.bounds;
   const orb = gs.bossSuperOrbs.fire(800, 800, 0, M.superReturnSpeed, 400,
     M.superReturnRange, { owner: 'boss' });
-  orb._hx = 1; orb._hy = 0; orb._settleT = 0; orb._ageMs = 0;
+  orb._hx = 1; orb._hy = 0; orb._ageMs = 0;
   await new Promise((res) => setTimeout(res, 150));
   const aliveInside = orb.active;
   // Far outside, on the axis it is already travelling, so nothing about this
@@ -774,6 +777,258 @@ r.bounds = await page.evaluate(async () => {
            range: M.superReturnRange, maxLifeMs: M.superReturnMaxLifeMs,
            worldW: wb.width, worldH: wb.height };
 });
+
+// ── 4c. HE THROWS IT ──────────────────────────────────────────────────────
+//
+// The orb used to detach from his hand and acquire velocity while he stood
+// there. Handset review caught an accidental frame where an ordinary parry
+// sweep happened to coincide with a release and reported that the result was
+// substantially better — it read as Vader physically throwing the energy
+// back. So there is now a dedicated power sweep, and the thing this block has
+// to prove is CAUSALITY: the blade is moving fastest on the frame the orb
+// leaves, from one clock, with no second timer that could drift.
+//
+// Run twice, on opposite bearings, because the gesture is a mirrored pair and
+// a single bearing cannot tell a mirror from a constant.
+r.throwGesture = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const b = gs.boss, p = gs.player;
+  const { ENDLESS } = await import('/src/config.js');
+  const { superSwingPose } = await import('/src/entities/Boss.js');
+  const M = ENDLESS.bossMech;
+  gs.lives = 9999;
+  gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
+  const wrap = (a) => { let x = a; while (x > Math.PI) x -= Math.PI * 2; while (x < -Math.PI) x += Math.PI * 2; return x; };
+  const DEG = 180 / Math.PI;
+
+  const run = async (px, py) => {
+    b._reflectUntil = 0; b._reflectPending = false; b._reflectClaimed = false;
+    b._absorbCount = 0; b._absorbT = 0; b._releaseT = 0; b._releaseN = 0;
+    b._sweepDir = 0; b._followT = 0; b._parryT = 0; b._saberAway = false;
+    b.state = 'idle'; b._activeMove = null; b._performing = false;
+    b.hp = b.hpMax;
+    gs.bossSuperOrbs.getChildren().forEach((o) => o.active && o.kill());
+    // RIG HYGIENE, and it cost a debugging round. VANISH ends with
+    // `spin(scene, b)`, which tweens the WEAPON SPRITE's rotation and keeps
+    // writing it after the move is over — so a VANISH the AI ran in the gap
+    // between the two runs below was still turning the blade during the next
+    // one, and the pose check read 150deg of a tween nobody had cancelled.
+    // Nothing to do with the throw; it is the harness leaving a clock running.
+    gs.tweens.killTweensOf(b.weaponSprite);
+    b.setPosition(800, 800); b.setVelocity(0, 0);
+    p.setPosition(px, py); p.alive = true; p.hp = p.hpMax;
+
+    const frames = [];
+    let launchAt = -1, launchFrame = -1, sweepAt = -1, followEndAt = -1;
+    let castDuringSweep = -1, castAfterFollow = -1, castAfterAt = -1;
+    let orbAtLaunch = null, poseErrDeg = 0, poseSamples = 0, sprites = 0;
+    let awayDuringSweep = 0, worstPose = null;
+    const onRet = () => {
+      launchAt = gs.time.now; launchFrame = frames.length;
+      orbAtLaunch = gs.bossSuperOrbs.getChildren().filter((o) => o.active).length;
+    };
+    const onSweep = () => { sweepAt = gs.time.now; };
+    const onEnd = () => { followEndAt = gs.time.now; };
+    gs.events.on('boss-super-return', onRet);
+    gs.events.on('boss-super-sweep', onSweep);
+    gs.events.on('boss-super-sweep-end', onEnd);
+
+    const probe = () => {
+      const sw = b.superSwing ? b.superSwing() : null;
+      const ws = b.weaponSprite;
+      const live = ws && ws.active;
+      // ONE blade, ever — the same expression the ownership block uses. A
+      // "spawn a second saber" fix would show up here.
+      sprites = Math.max(sprites, gs.children.list.filter(
+        (c) => c.texture?.key === 'wpn-saber' && c.visible && c.active).length);
+      const orb = gs.bossSuperOrbs.getChildren().find((o) => o.active) || null;
+      if (sw && b._saberAway) awayDuringSweep++;
+      if (sw && live && !b._saberAway) {
+        // The LIVE blade against the pure curve `preUpdate` itself calls,
+        // evaluated at whatever `u` this frame landed on. No timing luck.
+        const want = superSwingPose(sw.dir, sw.u);
+        const e = Math.abs(wrap(ws.rotation - (b._aim + want.offsetRad)) * DEG);
+        if (e > poseErrDeg) {
+          poseErrDeg = e;
+          worstPose = { u: +sw.u.toFixed(3), dir: sw.dir,
+                        rot: +ws.rotation.toFixed(3), aim: +b._aim.toFixed(3),
+                        want: +want.offsetRad.toFixed(3),
+                        perf: !!b._performing, mv: b._activeMove?.move?.id ?? null };
+        }
+        poseSamples++;
+      }
+      frames.push({
+        t: Math.round(gs.time.now),
+        u: sw ? +sw.u.toFixed(3) : -1,
+        dir: sw ? sw.dir : 0,
+        off: live ? +(wrap(ws.rotation - b._aim) * DEG).toFixed(1) : 0,
+        reach: live ? Math.round(Math.hypot(ws.x - b.x, ws.y - b.y)) : 0,
+        held: b.heldSuper(),
+        guard: b.isGuarding(),
+        orb: !!orb,
+      });
+      // A saber-owning move must not be able to seize the blade mid-throw...
+      if (sw && sw.u < 1 && castDuringSweep < 0) {
+        castDuringSweep = gs._castBossMove(b, 'saberthrow') ? 1 : 0;
+        if (b._activeMove) { b._activeMove.phase = 'done'; b._activeMove = null; }
+        b._performing = false; b._saberAway = false; b.state = 'idle';
+      }
+      // ...and must be available again the moment the follow-through ends,
+      // with the orb still in the air.
+      if (followEndAt > 0 && castAfterFollow < 0) {
+        b.state = 'idle'; b._activeMove = null; b._performing = false;
+        castAfterFollow = gs._castBossMove(b, 'saberthrow') ? 1 : 0;
+        castAfterAt = gs.time.now;
+        const h = b._activeMove;
+        if (h?.move?.onCancel) h.move.onCancel(gs, b, h.h || h.state || {});
+        if (b._activeMove) { b._activeMove.phase = 'done'; b._activeMove = null; }
+        b._performing = false; b._saberAway = false; b.state = 'idle';
+        if (b.weaponSprite?.active) { b.weaponSprite.x = b.x; b.weaponSprite.y = b.y; }
+        gs.tweens.killTweensOf(b.weaponSprite);
+      }
+    };
+    gs.events.on('postupdate', probe);
+
+    // Five pellets through the production entry point, then let the whole
+    // sequence run: grace -> commit -> sweep -> launch -> follow-through.
+    for (let i = 0; i < 5; i++) b.absorbSuper();
+    await new Promise((res) => setTimeout(res,
+      M.superAbsorbGraceMs + M.superReleaseMs + M.superFollowMs + 700));
+
+    gs.events.off('postupdate', probe);
+    gs.events.off('boss-super-return', onRet);
+    gs.events.off('boss-super-sweep', onSweep);
+    gs.events.off('boss-super-sweep-end', onEnd);
+
+    const swung = frames.filter((f) => f.u >= 0);
+    const pre  = swung.filter((f) => f.u < 1);
+    const post = swung.filter((f) => f.u >= 1);
+    // The blade's per-frame travel, so "fastest at the power frame" is a
+    // measurement rather than a claim about the easing.
+    let peakStepDeg = 0, peakStepU = -1;
+    for (let i = 1; i < swung.length; i++) {
+      const d = Math.abs(wrap((swung[i].off - swung[i - 1].off) / DEG)) * DEG;
+      if (d > peakStepDeg) { peakStepDeg = d; peakStepU = swung[i].u; }
+    }
+    const orbAfterFollow = frames.some((f) => f.u < 0 && f.orb && f.t > (followEndAt || 1e9));
+    return {
+      dir: swung.length ? swung[0].dir : 0,
+      sweepFrames: swung.length, preFrames: pre.length, postFrames: post.length,
+      guardAllSweep: swung.length > 0 && swung.every((f) => f.guard),
+      offSpanDeg: swung.length
+        ? Math.round(Math.max(...swung.map((f) => f.off)) - Math.min(...swung.map((f) => f.off))) : 0,
+      maxReach: swung.length ? Math.max(...swung.map((f) => f.reach)) : 0,
+      peakStepDeg: Math.round(peakStepDeg), peakStepU,
+      poseErrDeg: +poseErrDeg.toFixed(2), poseSamples, awayDuringSweep, worstPose,
+      sprites,
+      launchAt, sweepAt, followEndAt, orbAtLaunch,
+      sweepBeforeLaunchMs: (sweepAt > 0 && launchAt > 0) ? Math.round(launchAt - sweepAt) : -1,
+      followMs: (followEndAt > 0 && launchAt > 0) ? Math.round(followEndAt - launchAt) : -1,
+      castDuringSweep, castAfterFollow,
+      gapMs: (castAfterAt > 0 && followEndAt > 0) ? Math.round(castAfterAt - followEndAt) : -1,
+      orbAfterFollow,
+      // The frame the orb first exists on, against the frame the sweep reached
+      // its power point. Both counted in FRAMES so a slow harness frame cannot
+      // turn a synchronous pair into a drift.
+      launchFrame, uAtLaunch: pre.length ? pre[pre.length - 1].u : -1,
+    };
+  };
+
+  const east = await run(1400, 800);
+  const west = await run(200, 800);
+  // Teardown.
+  gs.bossSuperOrbs.getChildren().forEach((o) => o.active && o.kill());
+  b._sweepDir = 0; b._followT = 0; b._releaseT = 0; b._releaseN = 0;
+  b._absorbCount = 0; b._absorbT = 0;
+  return { east, west, sweepMs: M.superSweepMs, followMs: M.superFollowMs,
+           releaseMs: M.superReleaseMs, arcDeg: M.superSweepArcDeg,
+           followArcDeg: M.superFollowArcDeg, reachPx: M.superSweepReach,
+           parryReachMax: 54, parryArcMax: 166 };
+});
+
+await keepAlive();
+
+const tg = r.throwGesture;
+const bothRan = tg.east.sweepFrames > 3 && tg.west.sweepFrames > 3;
+check(bothRan && tg.east.launchAt > 0 && tg.west.launchAt > 0,
+  'a dedicated power sweep RAN, on both bearings, and both launched',
+  `east ${tg.east.sweepFrames} swept frames / launch at ${tg.east.launchAt}, `
+  + `west ${tg.west.sweepFrames} / ${tg.west.launchAt}. Everything below reads `
+  + 'these frames, so a sweep that never happened fails here first rather than '
+  + 'passing everything vacuously');
+check(bothRan && tg.east.preFrames > 1 && tg.east.postFrames > 0
+      && tg.west.preFrames > 1 && tg.west.postFrames > 0,
+  'the blade is already moving BEFORE the launch and carries on after it',
+  `east ${tg.east.preFrames} wind-up/drive frames then ${tg.east.postFrames} of `
+  + `follow-through; west ${tg.west.preFrames}/${tg.west.postFrames}. A gesture `
+  + 'that started at launch would show 0 pre-frames — the orb would be leaving '
+  + 'next to a man who has not swung yet');
+check(bothRan && tg.east.sweepBeforeLaunchMs > 0 && tg.west.sweepBeforeLaunchMs > 0
+      && tg.east.sweepBeforeLaunchMs <= tg.sweepMs + 120,
+  'the sweep is carved OUT of the approved anticipation, not added to it',
+  `sweep began ${tg.east.sweepBeforeLaunchMs}ms (east) / `
+  + `${tg.west.sweepBeforeLaunchMs}ms (west) before launch, against a `
+  + `${tg.sweepMs}ms sweep inside an unchanged ${tg.releaseMs}ms release window`);
+// THE SYNCHRONISATION CHECK. `u` is one continuous phase across the whole
+// gesture with the power frame at exactly 1, and the launch is the boundary
+// between the two clocks that produce it — so the last pre-launch frame being
+// hard against 1 is the proof that the orb left on the power frame and not
+// on a timer of its own.
+check(bothRan && tg.east.uAtLaunch > 0.78 && tg.west.uAtLaunch > 0.78,
+  'the orb leaves ON the power frame of the sweep, not beside it',
+  `last frame before launch sat at u=${tg.east.uAtLaunch} (east) / `
+  + `${tg.west.uAtLaunch} (west), where u=1 IS the launch. The gap is one `
+  + 'harness frame at ~20fps (u advances ~0.2 per frame over a 260ms sweep), '
+  + 'which is 3-4 frames on a phone');
+check(bothRan && tg.east.peakStepU > 0.5 && tg.west.peakStepU > 0.5,
+  'and the blade is travelling FASTEST as it arrives there',
+  `peak per-frame travel ${tg.east.peakStepDeg}deg at u=${tg.east.peakStepU} `
+  + `(east), ${tg.west.peakStepDeg}deg at u=${tg.west.peakStepU} (west). The `
+  + 'drive is `1-k^2` for exactly this reason — a linear sweep peaks nowhere '
+  + 'and reads as the blade drifting to a halt next to a ball that then leaves');
+check(bothRan && tg.east.dir !== 0 && tg.west.dir !== 0 && tg.east.dir !== tg.west.dir,
+  'it is a MIRRORED pair — the two bearings sweep opposite ways',
+  `east threw with dir ${tg.east.dir}, west with dir ${tg.west.dir}. A single `
+  + 'constant handedness passes every other check in this block');
+check(bothRan && tg.east.offSpanDeg > 140 && tg.west.offSpanDeg > 140
+      && tg.east.maxReach > tg.parryReachMax + 10,
+  'the gesture is unmistakably bigger than any ordinary parry',
+  `${tg.east.offSpanDeg}deg (east) / ${tg.west.offSpanDeg}deg (west) of blade `
+  + `travel and ${tg.east.maxReach}px of reach, against a ${tg.sweepMs}ms sweep `
+  + `spec of ${tg.arcDeg}+${tg.followArcDeg}deg and ${tg.reachPx}px. The widest `
+  + `PARRY_ARCS entry is ${tg.parryArcMax}deg at ${tg.parryReachMax}px reach, `
+  + 'and it is sampled here at whatever u the frames landed on — so this is a '
+  + 'floor on the real travel, not the spec read back to itself');
+check(bothRan && tg.east.poseSamples > 2 && tg.east.poseErrDeg <= 1.5
+      && tg.west.poseSamples > 2 && tg.west.poseErrDeg <= 1.5,
+  'and the live blade IS `superSwingPose` — one curve, one writer',
+  `worst disagreement ${tg.east.poseErrDeg}deg over ${tg.east.poseSamples} east `
+  + `samples, ${tg.west.poseErrDeg}deg over ${tg.west.poseSamples} west `
+  + `(worst ${JSON.stringify(tg.west.worstPose)}; blade in flight for `
+  + `${tg.east.awayDuringSweep}/${tg.west.awayDuringSweep} swept frames). A tween `
+  + 'or a scene-side pose fighting `preUpdate` for the same rotation shows up here');
+check(bothRan && tg.east.sprites <= 1 && tg.west.sprites <= 1,
+  'no second saber was conjured to do it',
+  `${tg.east.sprites} / ${tg.west.sprites} saber sprites in the display list at `
+  + 'the peak of the throw');
+check(bothRan && tg.east.guardAllSweep && tg.west.guardAllSweep
+      && tg.east.castDuringSweep === 0 && tg.west.castDuringSweep === 0,
+  'the throw OWNS the saber — nothing can seize it mid-gesture',
+  `isGuarding() held for every swept frame; a real SABER THROW cast attempted `
+  + `mid-sweep was refused on both bearings (${tg.east.castDuringSweep}/`
+  + `${tg.west.castDuringSweep} accepted)`);
+check(bothRan && tg.east.castAfterFollow === 1 && tg.west.castAfterFollow === 1
+      && tg.east.gapMs >= 0 && tg.east.gapMs < 200,
+  'and hands it straight back — offense is eligible the frame the finish ends',
+  `SABER THROW accepted ${tg.east.gapMs}ms (east) / ${tg.west.gapMs}ms (west) `
+  + `after the follow-through ended, which ran ${tg.east.followMs}ms past launch `
+  + `against a ${tg.followMs}ms spec. He does NOT wait for the orb to land`);
+check(bothRan && tg.east.orbAtLaunch === 1 && tg.west.orbAtLaunch === 1
+      && tg.east.orbAfterFollow && tg.west.orbAfterFollow,
+  'the orb is one object and it goes on living after he is done with it',
+  `${tg.east.orbAtLaunch} orb at the launch event, still in the air after the `
+  + 'follow-through ended on both bearings — the projectile is an independent '
+  + 'spatial threat, not something he escorts');
 
 // ── 5. NOTHING SURVIVES A ROOM TEARDOWN ───────────────────────────────────
 r.cleanup = await page.evaluate(async () => {
@@ -952,112 +1207,71 @@ check(gotOrb && r.superDef.orb.dmg === r.superDef.expectDmg,
 check(gotOrb && r.superDef.orb.dmg < r.superDef.playerHp,
   'and cannot delete a full-health player from one accidental super',
   gotOrb ? `${r.superDef.orb.dmg} damage vs ${r.superDef.playerHp} hp` : 'NO ORB');
-// The CRUISE speed is the comparison, not the launch impulse: the orb spends
-// almost all of its flight at cruise, and that is the number a player is
-// reading when they decide whether to walk or dash. It must still be a
-// different, slower class of object than a bolt handed straight back.
+// SPEED CLASS. It used to be the slow one; handset review rejected the entire
+// launch->settle->cruise concept and it now travels at the player's own super
+// speed, which is FASTER than an ordinary deflected bolt. This check is the
+// inverse of the one it replaces on purpose — it fails on every build before
+// this one.
 check(gotOrb && r.superDef.ordinarySpeed > 0
-      && r.superDef.configCruise < r.superDef.ordinarySpeed * 0.6
-      && r.superDef.orb.speed < r.superDef.ordinarySpeed * 0.75,
-  'it travels far slower than an ordinary deflected bolt',
-  gotOrb ? `orb ${r.superDef.orb.speed}px/s launch, ${r.superDef.configCruise}px/s `
-           + `cruise, vs a deflected bolt at ${r.superDef.ordinarySpeed}px/s`
+      && r.superDef.configSpeed >= r.superDef.ordinarySpeed,
+  'it comes back at least as fast as an ordinary deflected bolt',
+  gotOrb ? `orb ${r.superDef.configSpeed}px/s against a deflected bolt at `
+           + `${r.superDef.ordinarySpeed}px/s (an ordinary deflection preserves the `
+           + `incoming bolt's real speed, so that number IS PLAYER.pelletSpeed `
+           + `${r.superDef.playerPelletSpeed})`
          : 'NO ORB');
-// ── The velocity curve: launch impulse → settle → cruise ─────────────────
-// The `speeds` samples carry the orb's OWN settle clock, so every check below
-// reads the contract rather than the harness's frame rate.
+// ── ONE SPEED, FROM THE CANONICAL SOURCE ─────────────────────────────────
+// Not "is it 1080". The claim being protected is that the orb travels at the
+// speed of the energy it is made of, so the assertion is against
+// `PLAYER.superSpeed` itself — a literal here would let the two drift apart
+// exactly as silently as a literal in the config would.
 const sp = r.superDef.speeds ?? [];
-const early = sp.filter((x) => x.t <= 40);
-const late  = sp.filter((x) => x.t >= r.superDef.configSettleMs);
 const peakV = sp.length ? Math.max(...sp.map((x) => x.v)) : 0;
-const minAfterSettle = late.length ? Math.min(...late.map((x) => x.v)) : 0;
-const maxAfterSettle = late.length ? Math.max(...late.map((x) => x.v)) : 0;
+const minV  = sp.length ? Math.min(...sp.map((x) => x.v)) : 0;
+const CANON = r.superDef.playerSuperSpeed;
 
-check(gotOrb && r.superDef.configSpeed === 650 && r.superDef.configCruise === 500
-      && r.superDef.configSettleMs === 550,
-  'the reviewed launch/settle/cruise numbers are what the game is running',
-  gotOrb ? `${r.superDef.configSpeed} -> ${r.superDef.configCruise} over `
-           + `${r.superDef.configSettleMs}ms` : 'NO ORB');
+check(gotOrb && r.superDef.configSpeed === CANON
+      && CANON >= r.superDef.playerPelletSpeed,
+  'the return speed IS the player\'s super speed, not a number of its own',
+  gotOrb ? `superReturnSpeed reads ${r.superDef.configSpeed} and PLAYER.superSpeed `
+           + `is ${CANON} — the same object. Player primary is `
+           + `${r.superDef.playerPelletSpeed}, which an ordinary deflection hands `
+           + `back unchanged, so the super\'s own speed is the higher of the two `
+           + 'canonical references and the semantically correct one'
+         : 'NO ORB');
 check(sp.length > 3,
-  'the velocity curve was actually sampled in flight',
-  `${sp.length} frames of it — fewer than four makes every curve check below `
+  'the velocity was actually sampled in flight',
+  `${sp.length} frames of it — fewer than four makes every speed check below `
   + 'vacuous, which is exactly how a projectile that never launched passes. '
   + `Deaths: ${JSON.stringify(r.superDef.killLog)}`);
-check(sp.length > 3 && peakV >= 600,
-  'it LAUNCHES — the early frames carry the impulse, not the cruise speed',
-  `peak measured ${peakV}px/s. A flat 500 (or the old flat 405) cannot reach `
-  + 'this. It is short of the 650 launch value because this harness runs at '
-  + '~20fps and its first sample lands 50-90ms in — which the curve checks '
-  + 'below read around rather than guessing at');
-// The launch VALUE cannot be sampled directly here — the first frame the
-// harness sees is already tens of milliseconds into the settle. So compare
-// every sample against the curve evaluated at that sample's own `_settleT`:
-// if the whole curve agrees, its value at t=0 is the 650 launch by
-// construction, and the shape is proved at the same time.
-const excessCfg = r.superDef.configSpeed - r.superDef.configCruise;
-const uOf = (x) => Math.min(1, Math.max(0, x.t / r.superDef.configSettleMs));
-const fracOf = (x) => (x.v - r.superDef.configCruise) / excessCfg;
-const curveErr = sp.map((x) => {
-  const u = uOf(x);
-  const want = r.superDef.configCruise + excessCfg * (1 - u * u * (3 - 2 * u));
-  return Math.abs(x.v - want);
-});
-const worstCurve = curveErr.length ? Math.max(...curveErr) : 999;
-check(sp.some((x) => x.t < 200) && worstCurve <= 4,
-  'and the whole flight follows the launch->settle->cruise curve, frame by frame',
-  `worst disagreement ${worstCurve.toFixed(1)}px/s across ${sp.length} samples `
-  + `(earliest at t=${sp.length ? Math.min(...sp.map((x) => x.t)) : -1}ms). A flat `
-  + 'speed, a linear ramp or a continuing deceleration all fail this');
-
-// ── THE TRANSITION HAS TO LAST LONG ENOUGH TO BE SEEN ────────────────────
-// The previous implementation satisfied "launches at X, cruises at Y" and was
-// still rejected on a handset: `(1-u)^3` over 350ms had shed two thirds of the
-// excess within 120ms, so the launch frame and the cruise frame were the same
-// frame. Start and end values therefore prove nothing on their own. These
-// bands assert the SHAPE at several points in between, and every one of them
-// fails against a front-loaded cubic run over the same 550ms window (which
-// holds only 51% of the excess at u=0.2 and 22% at u=0.4).
-const band = (lo, hi) => sp.filter((x) => uOf(x) >= lo && uOf(x) < hi);
-const early3 = band(0, 0.3), mid3 = band(0.3, 0.65), late3 = band(0.65, 1);
-check(early3.length > 0 && mid3.length > 0 && late3.length > 0,
-  'the settle window was sampled across its whole length, not just at the ends',
-  `${early3.length} early / ${mid3.length} middle / ${late3.length} late samples `
-  + 'of the settle — a zero in any of these makes the band checks below vacuous');
-check(early3.length > 0 && early3.every((x) => fracOf(x) >= 0.72),
-  'the first third of the settle still carries most of the launch impulse',
-  `worst ${(Math.min(...early3.map(fracOf)) * 100).toFixed(0)}% of the excess left `
-  + 'at u<0.3 (smoothstep holds 78% at u=0.3; a cubic is down to 34%)');
-check(mid3.length > 0 && mid3.every((x) => fracOf(x) >= 0.20)
-      && mid3.some((x) => fracOf(x) <= 0.80),
-  'the shedding is VISIBLE across the middle of the window, not over before it',
-  `the middle band spans ${(Math.max(...mid3.map(fracOf)) * 100).toFixed(0)}% down to `
-  + `${(Math.min(...mid3.map(fracOf)) * 100).toFixed(0)}% of the excess — a cubic has `
-  + 'already dropped under 20% here');
-check(late3.length > 0 && late3.every((x) => fracOf(x) <= 0.35)
-      && late3.some((x) => fracOf(x) >= 0.02),
-  'and it EASES into cruise rather than arriving at it early',
-  `the last third spans ${(Math.max(...late3.map(fracOf)) * 100).toFixed(0)}% down to `
-  + `${(Math.min(...late3.map(fracOf)) * 100).toFixed(0)}% of the excess`);
-const halfIdx = sp.findIndex((x) => fracOf(x) <= 0.5);
-const halfU = halfIdx >= 0 ? uOf(sp[halfIdx]) : -1;
-check(halfIdx > 0 && halfU >= 0.40,
-  'half the excess is still there past the middle of the window',
-  `half-shed at u=${halfU.toFixed(2)} (${Math.round(halfU * r.superDef.configSettleMs)}ms `
-  + 'of 550). Smoothstep crosses at 0.50; the rejected cubic crossed at 0.21');
-check(late.length > 0 && Math.abs(maxAfterSettle - r.superDef.configCruise) <= 4
-      && Math.abs(minAfterSettle - r.superDef.configCruise) <= 4,
-  'and it SETTLES to the cruise speed by the end of the settle window',
-  late.length ? `${late.length} sample(s) at/after ${r.superDef.configSettleMs}ms, `
-                + `spanning ${minAfterSettle}-${maxAfterSettle}px/s`
-              : 'the orb never survived to the end of the settle window');
-check(sp.length > 3 && sp.every((x) => x.v >= r.superDef.configCruise - 2),
-  'and NOTHING slows it below cruise — it sheds an impulse, it does not run down',
-  `slowest sample ${sp.length ? Math.min(...sp.map((x) => x.v)) : 0}px/s against a `
-  + `${r.superDef.configCruise} floor. A continuous deceleration fails here`);
-check(late.length > 1,
-  'it is still alive well past the settle window',
-  `${late.length} frames after ${r.superDef.configSettleMs}ms — a range or `
-  + 'lifetime that ended the flight early shows up as 0 or 1');
+check(sp.length > 3 && Math.abs(peakV - CANON) <= 3 && Math.abs(minV - CANON) <= 3,
+  'and it is that speed on EVERY frame — no ramp up, no settle, no falloff',
+  `${sp.length} samples spanning ${minV}-${peakV}px/s against ${CANON}. The `
+  + 'rejected build measured 627 at 137ms and 500 by 550ms; any launch impulse, '
+  + 'any deceleration and any drift all show up as a spread here');
+// SHAPE, not just spread: a curve that happened to be sampled inside one band
+// would pass the range check above. Compare the first third of the flight
+// against the last third — on any falloff design those differ by construction.
+const ages = sp.map((x) => x.t);
+const maxAge = ages.length ? Math.max(...ages) : 0;
+const firstThird = sp.filter((x) => x.t <= maxAge / 3);
+const lastThird  = sp.filter((x) => x.t >= maxAge * 2 / 3);
+const avg = (xs) => xs.reduce((n, x) => n + x.v, 0) / (xs.length || 1);
+check(firstThird.length > 0 && lastThird.length > 0
+      && Math.abs(avg(firstThird) - avg(lastThird)) <= 2,
+  'the end of the flight is exactly as fast as the beginning',
+  `first third averages ${avg(firstThird).toFixed(1)}px/s over `
+  + `${firstThird.length} samples, last third ${avg(lastThird).toFixed(1)}px/s over `
+  + `${lastThird.length} (flight sampled to ${maxAge}ms). The old smoothstep `
+  + 'spanned 650 down to 500 across the same shape of window');
+check(sp.length > 3 && sp.every((x) => x.v >= CANON - 2),
+  'and NOTHING ever slows it — it is thrown, it does not run down',
+  `slowest sample ${minV}px/s against a ${CANON} floor`);
+const lateFlight = sp.filter((x) => x.t >= 550);
+check(lateFlight.length > 1,
+  'it is still alive well past the old settle window',
+  `${lateFlight.length} frames after 550ms — a range or lifetime that ended the `
+  + 'flight early shows up as 0 or 1');
 check(gotOrb && r.superDef.scaleFlight.min === 1 && r.superDef.scaleFlight.max === 1
       && r.superDef.orb.radius * 2 === r.superDef.orb.texW
       && r.superDef.scaleFlight.boundsW === r.superDef.orb.texW,

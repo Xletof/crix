@@ -44,6 +44,63 @@ export function parryPose(arc, u) {
   }
   return { offsetRad: Phaser.Math.DegToRad(arc.arcDeg) * k, reach: arc.reach * reachK };
 }
+
+/**
+ * THE POWER SWEEP — the pure curve of Vader throwing the captured super back.
+ *
+ * `dir` is the handedness (+1 / -1); `u` is one continuous phase across the
+ * WHOLE gesture, and the number that matters is 1: that is the power frame,
+ * the blade on the throw line travelling at its fastest, and it is the tick
+ * the orb departs on.
+ *
+ *   u < 0.34   SETTLE. He takes the blade up and off the line, away from the
+ *              mass he is about to hit. This is the beat that says a throw is
+ *              coming rather than another parry.
+ *   0.34..1    DRIVE, accelerating. `1 - k^2` is deliberately slow to leave
+ *              the wind-up and fastest as it arrives: the biggest blade
+ *              displacement per frame is the frame of the launch, which is
+ *              what makes the swing look like the CAUSE of it. A linear drive
+ *              reads as the blade drifting to a stop next to a ball that then
+ *              leaves on its own.
+ *   1..2       FOLLOW-THROUGH, past the line and back to rest. Nothing is
+ *              being decided here; it exists so the throw has a finish, and
+ *              it is the last of his saber ownership.
+ *
+ * Returned as an offset from the throw bearing and a thrust past the resting
+ * hold, exactly like `parryPose`, because the block in `preUpdate` that draws
+ * the saber is the one writer for both. Exported so the smoke test measures
+ * THIS curve rather than a copy of it.
+ */
+export function superSwingPose(dir, u) {
+  const M = BOSS_MECH;
+  const arc  = Phaser.Math.DegToRad(M.superSweepArcDeg);
+  const back = Phaser.Math.DegToRad(M.superFollowArcDeg);
+  const t = Math.max(0, Math.min(2, u));
+  if (t < 1) {
+    const settleEnd = 0.34;
+    if (t < settleEnd) {
+      const k = t / settleEnd;
+      return { offsetRad: dir * arc * k, reach: M.superSweepReach * 0.30 * k };
+    }
+    const k = (t - settleEnd) / (1 - settleEnd);
+    return {
+      offsetRad: dir * arc * (1 - k * k),
+      reach: M.superSweepReach * (0.30 + 0.70 * k * k),
+    };
+  }
+  const t1 = t - 1;
+  const swingEnd = 0.55;
+  if (t1 < swingEnd) {
+    const k = t1 / swingEnd;
+    return {
+      offsetRad: -dir * back * (1 - (1 - k) * (1 - k)),
+      reach: M.superSweepReach * (1 - 0.55 * k),
+    };
+  }
+  const k = (t1 - swingEnd) / (1 - swingEnd);
+  const e = (1 - k) * (1 - k);
+  return { offsetRad: -dir * back * e, reach: M.superSweepReach * 0.45 * e };
+}
 import { SFX } from '../systems/FX.js';
 import { Enemy } from './Enemy.js';
 // One definition of the punish bonus, shared with Enemy.damage — see the note
@@ -129,6 +186,13 @@ export class Boss extends Enemy {
     this._releaseN    = 0;   // pellets committed to the orb now winding up
     this._releaseT    = 0;   // anticipation before it leaves
     this._absorbOrb   = null;
+    // The throw itself. `_sweepDir` is the handedness of the power sweep and
+    // doubles as its "a sweep is running" flag (0 = none); `_followT` is the
+    // follow-through that outlives the launch. Both are cleared here rather
+    // than only at the end of a gesture, so a boss killed mid-throw — or a
+    // restart, which builds a new one — cannot inherit saber ownership.
+    this._sweepDir    = 0;
+    this._followT     = 0;
 
     // ── Damage-burst window, for the reactive VANISH ─────────────────────
     // VANISH is no longer on his attack rotation. It fires when the player
@@ -395,6 +459,8 @@ export class Boss extends Enemy {
     // while the sprite is in his hand would come back stuck at full the next
     // time he caught it — a parry pose held for the rest of the fight.
     if (this._parryT > 0) this._parryT -= delta;
+    // Before the block below, not after it — see `_tickSuperRelease`.
+    this._tickSuperRelease(delta);
 
     if (this.weaponSprite && !this._saberAway) {
       // ── THE ONE WRITER ────────────────────────────────────────────────
@@ -407,7 +473,22 @@ export class Boss extends Enemy {
       let aim = angToPlayer;
       let offset = rest;
 
-      if (this._parryT > 0) {
+      const swing = this.superSwing();
+      if (swing) {
+        // ── THE THROW ────────────────────────────────────────────────────
+        // First in the chain on purpose. An ordinary bolt reaching the guard
+        // during these few hundred ms is still mechanically deflected — that
+        // path is in the scene and knows nothing about poses — but its
+        // gesture DEFERS rather than fighting this one for the same four
+        // numbers. A blade already sweeping through the throw line is an
+        // honest contact motion for a bolt arriving from the player, who is
+        // on that line; two gestures at once, or a second saber, would not
+        // be. This is the smallest truthful answer and it costs nothing:
+        // `parry()` only sets flags, and `_parryT` keeps running underneath.
+        const pose = superSwingPose(swing.dir, swing.u);
+        aim = this._aim + pose.offsetRad;
+        offset = rest + pose.reach;
+      } else if (this._parryT > 0) {
         // ── A PARRY ──────────────────────────────────────────────────────
         // Read the beats in `parryMs` order. u = 0 is the CONTACT frame: the
         // bolt was killed and the return fired on the frame `parry()` was
@@ -895,28 +976,6 @@ export class Boss extends Enemy {
       }
     }
 
-    // ── The caught super ──────────────────────────────────────────────────
-    // Release first, intake second, and the two are mutually exclusive: while
-    // an orb is winding up nothing new can commit, so however hard the player
-    // leans on the button there is exactly one orb in the world at a time.
-    if (this._releaseT > 0) {
-      this._releaseT -= delta;
-      if (this._releaseT <= 0) {
-        this._releaseT = 0;
-        const n = this._releaseN;
-        this._releaseN = 0;
-        this.scene.events.emit('boss-super-return', this, n);
-      }
-    } else if (this._absorbT > 0) {
-      this._absorbT -= delta;
-      if (this._absorbT <= 0 && this._absorbCount > 0) {
-        this._absorbT  = 0;
-        this._releaseN = this._absorbCount;
-        this._absorbCount = 0;
-        this._releaseT = BOSS_MECH.superReleaseMs;
-        this.scene.events.emit('boss-super-charged', this, this._releaseN);
-      }
-    }
 
     // Cleared here rather than on a timer that could outlive him.
     if (this._reflectUntil && this.scene.time.now > this._reflectUntil) this._reflectUntil = 0;
@@ -943,6 +1002,94 @@ export class Boss extends Enemy {
     this._parryAngle = angle;
     this._parryArc   = parryArcFor(angle);
     this._parryT     = BOSS_MECH.parryMs;
+  }
+
+
+  /**
+   * The caught super's clock — and the saber's, for as long as he is throwing.
+   *
+   * Deliberately NOT inside `_tickMechanics`. That runs after the weapon block
+   * in `preUpdate`, so a phase ticked there is one frame stale by the time the
+   * blade is drawn from it: measured at ~20fps that was 90 degrees of blade,
+   * and on the launch frame it meant the orb left while the blade was still
+   * short of the throw line. Ticked here, immediately before the block that
+   * draws the saber, the pose and the launch come from the same frame's
+   * numbers — which is the whole claim the throw is making.
+   *
+   * Release first, intake second, and the two are mutually exclusive: while an
+   * orb is winding up nothing new can commit, so however hard the player leans
+   * on the button there is exactly one orb in the world at a time.
+   */
+  _tickSuperRelease(delta) {
+    // The follow-through first, so the frame that starts it below gets its
+    // full length rather than one delta less of it.
+    if (this._followT > 0) {
+      this._followT -= delta;
+      if (this._followT <= 0) {
+        this._followT = 0;
+        this._sweepDir = 0;          // saber ownership returns to the AI here
+        this.scene.events.emit('boss-super-sweep-end', this);
+      }
+    }
+    if (this._releaseT > 0) {
+      this._releaseT -= delta;
+      // ── HE THROWS IT ───────────────────────────────────────────────────
+      // The sweep is carved out of the tail of the anticipation, so the orb
+      // still leaves at exactly the moment it always did. ONE CLOCK owns both
+      // halves: the blade's phase is derived from `_releaseT` (see
+      // `superSwing`) and the launch is this same countdown reaching zero, so
+      // there is no second timer that can drift and no frame where the orb is
+      // already travelling and the arm has not moved yet.
+      if (this._sweepDir === 0 && this._releaseT <= BOSS_MECH.superSweepMs) {
+        // Two mirrored sweeps, and the mirror is horizontal: whichever way he
+        // is throwing, the blade winds up ABOVE the throw line and drives
+        // down through it. A chop reads as force at handset scale in a way an
+        // uppercut does not, and the pair covers every bearing without a
+        // second eight-family registry — the gesture is a heave at a large
+        // object, not the precision fencing PARRY_ARCS describes.
+        this._sweepDir = Math.cos(this._aim) >= 0 ? -1 : 1;
+        this.scene.events.emit('boss-super-sweep', this, this._sweepDir);
+      }
+      if (this._releaseT <= 0) {
+        this._releaseT = 0;
+        const n = this._releaseN;
+        this._releaseN = 0;
+        // The power frame. The blade is at the throw line travelling fastest
+        // and the orb departs on the same tick, in this order, from this one
+        // place.
+        this._followT = BOSS_MECH.superFollowMs;
+        this.scene.events.emit('boss-super-return', this, n);
+      }
+    } else if (this._absorbT > 0) {
+      this._absorbT -= delta;
+      if (this._absorbT <= 0 && this._absorbCount > 0) {
+        this._absorbT  = 0;
+        this._releaseN = this._absorbCount;
+        this._absorbCount = 0;
+        this._releaseT = BOSS_MECH.superReleaseMs;
+        this.scene.events.emit('boss-super-charged', this, this._releaseN);
+      }
+    }
+  }
+
+  /**
+   * The throw's phase, or null when he is not throwing.
+   *
+   * Derived, never stored: `_releaseT` counts the anticipation down and
+   * `_followT` counts the finish down, and neither can disagree with the
+   * launch because the launch is the boundary between them. `u` runs 0 -> 2
+   * with the power frame at exactly 1.
+   */
+  superSwing() {
+    if (this._sweepDir === 0) return null;
+    const M = BOSS_MECH;
+    if (this._releaseT > 0) {
+      return { dir: this._sweepDir, u: 1 - this._releaseT / M.superSweepMs };
+    }
+    if (this._followT > 0) {
+      return { dir: this._sweepDir, u: 2 - this._followT / M.superFollowMs };
+    }
+    return null;
   }
 
   /**
@@ -986,7 +1133,7 @@ export class Boss extends Enemy {
   isGuarding() {
     return this.alive
       && (this.isReflecting() || this._reflectClaimed
-          || this._absorbCount > 0 || this._releaseT > 0);
+          || this._absorbCount > 0 || this._releaseT > 0 || this._followT > 0);
   }
 
   /**

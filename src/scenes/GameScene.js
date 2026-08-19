@@ -2296,25 +2296,32 @@ export class GameScene extends Phaser.Scene {
       if (orb) {
         // The heading is stamped ONCE, here, and every later frame reads it
         // back rather than recomputing anything. `_tickSuperOrbs` rewrites the
-        // velocity each frame to bleed the launch impulse, and the one thing
-        // that must not leak into that rewrite is a fresh look at where the
-        // player now is. Storing the unit vector rather than re-deriving it
+        // velocity each frame from it, and the one thing that must not leak
+        // into that rewrite is a fresh look at where the player now is. Storing the unit vector rather than re-deriving it
         // from the live velocity also means a frame that clips the speed to
         // zero cannot lose the direction.
         orb._hx = Math.cos(ang);
         orb._hy = Math.sin(ang);
-        orb._settleT = 0;         // ms since launch, capped at the settle window
-        orb._ageMs = 0;           // for the defensive lifetime cap only
+        orb._ageMs = 0;           // ms since release: lifetime cap, and the
+                                  // launch-freshness driver in `_tickSuperOrbs`
         // ── THE HITBOX MUST NOT FOLLOW THE SPEED ────────────────────────
         // `Bullet.fire` ends with `setScale(clamp(speed / 620, 1, 2.2), 1)`
         // and `Body.updateBounds` recomputes the body's width from |scaleX|.
-        // At the old 600px/s launch the clamp was exactly 1 and this was
-        // invisible; 650 is over the line, so firing at the launch impulse
-        // would have quietly grown the approved 44px radius by 5%. The
+        // At the old 600px/s flat speed the clamp was exactly 1 and this was
+        // invisible; the canonical 1080 is well over the line and would
+        // quietly stretch the approved 44px radius by 74%. The
         // tracer stretch is meaningless here anyway — the orb wears a whole
         // hand-drawn body — so it is cancelled on the frame it is applied.
         orb.setScale(1, 1);
       }
+      // ── THE BLADE DID IT ───────────────────────────────────────────
+      // His own saber crescent, on the throw line, with the handedness of the
+      // sweep that is arriving at this exact frame — this handler IS the power
+      // frame. Not a new effect and not part of the orb's (frozen) visual
+      // system: it is the blade's own trail, and it exists so the eye is given
+      // the CAUSE on the frame it is given the motion. Without it the launch
+      // was a ball departing next to a man who happened to be moving.
+      this.fx.saberSweep?.(b.x, b.y, ang, 104, b._sweepDir || 1);
       this.fx.burstDir(ox, oy, 'red', 14, ang, 90);
       // A hard white spray straight down the heading, so the very first frame
       // of flight already states a direction. The wake below takes two frames
@@ -3940,34 +3947,22 @@ export class GameScene extends Phaser.Scene {
       phase: 0,
     });
 
-    // ── KINEMATICS: launch impulse → settle → cruise ────────────────────
+    // ── KINEMATICS: ONE SPEED ───────────────────────────────────────────
     // Rewritten here, every frame, from the heading stamped at release. This
     // is the ONLY writer of the orb's velocity — the same one-owner rule the
-    // saber and the wake follow.
+    // saber and the wake follow. It is rewritten rather than left to the
+    // physics body so a wall graze or a stray impulse cannot bend the flight:
+    // the heading and the speed are both promises.
     //
-    // The excess over cruise follows `1 - smoothstep(u)`, and the shape is the
-    // whole point. The first version used `(1-u)^3` over 350ms, which measured
-    // 537 at 70ms and 478 at 210ms — most of the excess gone before the eye
-    // had finished registering that anything had launched, so on a handset it
-    // read as constant speed. Smoothstep is FLAT AT BOTH ENDS: it holds near
-    // the launch impulse for the first ~100ms, does its shedding across the
-    // middle of the window, and eases into cruise rather than arriving at it.
-    // Measured: 650 at release, 634 at 110, 597 at 220, 553 at 330, 516 at
-    // 440, 500 by 550 — about eleven frames of visible transition on a phone.
-    // A linear ramp reads as braking; this reads as an over-speed being shed.
-    // After the window the speed is a constant and NOTHING slows it again — it
-    // is not running out of energy, it never had any of its own.
+    // There was a launch->settle->cruise curve here and it is GONE, concept
+    // and machinery both. The player's whole decision window is before
+    // release; a projectile that sheds speed after launch is softening a
+    // punish the player already had every chance to avoid.
     const MECH = ENDLESS.bossMech;
     if (orb._hx !== undefined) {
-      const settleMs = MECH.superReturnSettleMs;
-      orb._settleT = Math.min(settleMs, (orb._settleT ?? settleMs) + delta);
       orb._ageMs = (orb._ageMs ?? 0) + delta;
-      const u = settleMs > 0 ? orb._settleT / settleMs : 1;
-      const excess = MECH.superReturnSpeed - MECH.superReturnCruise;
-      const left = 1 - u * u * (3 - 2 * u);             // 1 - smoothstep(u)
-      const speed = MECH.superReturnCruise + excess * left;
-      orb.body.velocity.set(orb._hx * speed, orb._hy * speed);
-      orb._impulse = u >= 1 ? 0 : left;                 // 1 → 0, drives shape only
+      orb.body.velocity.set(orb._hx * MECH.superReturnSpeed,
+                            orb._hy * MECH.superReturnSpeed);
 
       // ── LIFETIME ──────────────────────────────────────────────────────
       // It flies until it hits the player, hits a wall, or leaves the world.
@@ -3975,7 +3970,7 @@ export class GameScene extends Phaser.Scene {
       // otherwise end the flight mid-arena on an inherited number, and the
       // orb's fantasy is a mass thrown across the room, not a bolt with a
       // fuse. The age cap below is defence against a stuck orb, not a design
-      // constant — at cruise it is over two arena diagonals away.
+      // constant — at this speed it is over four arena diagonals away.
       const wb = this.physics.world.bounds;
       const M = 120;
       if (orb.x < wb.x - M || orb.x > wb.right + M
@@ -3996,7 +3991,14 @@ export class GameScene extends Phaser.Scene {
     const ang = Math.atan2(vy, vx);
     const ux = vx / sp, uy = vy / sp;
     const px = -uy, py = ux;                 // unit vector across the heading
-    const imp = orb._impulse ?? 0;           // 1 at launch, 0 at cruise
+    // LAUNCH FRESHNESS — a VISUAL clock, and it has to stay one. It used to be
+    // the kinematic impulse (1 at launch, 0 at cruise) and the head's amplitude
+    // rode on it for free; with the speed now constant there is no such
+    // quantity, so it is stated outright as time since release. The orb's body
+    // churns identically at every point of the flight — only the first quarter
+    // second of it is a little more violent, which is the transformation from
+    // "in his hand" to "crossing the room".
+    const imp = 1 - Math.min(1, (orb._ageMs ?? 0) / 260);
 
     // ── The wake ────────────────────────────────────────────────────────
     // Three remnants at FIXED DISTANCES behind the orb, each smaller and
