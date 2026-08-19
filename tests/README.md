@@ -380,8 +380,25 @@ to the frame rate. Related: a guard that reads a slowed timer ONCE and only
 complains when it is in the wrong RANGE says nothing when the event has already
 finished — check the largest value a per-frame sampler ever saw instead.
 
+**A rejected design leaves its checks behind, and they will pass on the
+replacement's absence.** The launch-to-cruise curve below was later deleted
+outright — handset review rejected the concept, not the tuning — and every band
+check that had been written to protect its shape then had to go with it, because
+a constant speed satisfies "never dips below cruise" perfectly. What replaced
+them asserts the new claim positively (every sampled frame within 3px/s of
+`PLAYER.superSpeed`) AND comparatively (the first third of the flight against
+the last third, within 2px/s), because a spread check alone passes on a curve
+that happened to be sampled inside one band. Do not keep an obsolete test for
+the safety of its check count.
+
+**Assert against the SOURCE a value is derived from, not a copy of it.** The
+orb's speed is `PLAYER.superSpeed`, so `smoke-deflect` compares the two
+constants rather than either against a literal 1080. A literal in the test is
+the same defect as a literal in the config: it agrees with itself while the two
+things it is supposed to hold together drift apart.
+
 **Start and end values do not protect a curve — its SHAPE is the thing being
-reviewed.** The returned super's first launch-to-cruise curve passed "launches
+reviewed.** (Historical: the curve this describes no longer exists.) The returned super's first launch-to-cruise curve passed "launches
 at 600, cruises at 470, never dips below cruise" and was rejected on a handset
 anyway: `(1-u)^3` sheds two thirds of the excess in the first fifth of the
 window, so the launch frame and the cruise frame are the same frame. The checks
@@ -389,6 +406,28 @@ were true and the feature did not exist. `smoke-deflect` now bins the samples by
 `u` and asserts a floor in each band (>=72% of the excess left at u<0.3, still
 shedding through the middle, eased by the end) plus a half-shed point past
 u=0.4. Every one of those fails on the cubic run over the same window.
+
+**A pose ticked after the block that draws it is one frame stale, and at 20fps
+that is most of the gesture.** The super throw's phase was advanced in
+`_tickMechanics`, which runs after `preUpdate`'s weapon block; the test compared
+the live blade against `superSwingPose` at the phase it read at `postupdate` and
+saw 90 degrees of disagreement. The instrument was right and the game was wrong
+— on the launch frame the orb left while the blade was still short of the throw
+line. Moving the tick ahead of the draw fixed both. When a pure-curve check
+disagrees with a live sprite, suspect the ORDER before the curve.
+
+**Kill the tweens between staged runs.** VANISH ends with `spin(scene, b)`,
+which tweens the WEAPON SPRITE's rotation and keeps writing it after the move is
+over. A VANISH the AI ran in the gap between two staged throws was still turning
+the blade during the second one, and the pose check read 150 degrees of a tween
+nobody had cancelled. `gs.tweens.killTweensOf(b.weaponSprite)` at the top of
+each run. This is also a standing hazard in the game, not only in the harness.
+
+**Photograph the thing the beat is about.** The throw evidence was first staged
+on the 900px lane the flight cases use. The camera follows the PLAYER and shows
+~1196px of world, so all nine beats of "did Vader visibly throw it?" came back
+with Vader cropped off the top edge. A staging that is right for one claim is
+routinely wrong for the next one.
 
 **Give a projectile measurement a RUNWAY, not just a lane.** The same flight was
 measured across a 520px gap — 19 frames on a healthy harness and ONE on a

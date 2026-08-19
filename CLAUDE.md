@@ -147,26 +147,43 @@ the finding is already established earlier in the conversation.
   objects on the other. They sit at fixed DISTANCES behind it now (26/52/78px)
   along its real velocity. Anything trailing a fast body wants distance, not
   frames.
-- **The returned super's speed is a CURVE, and `_tickSuperOrbs` owns it.**
-  `superReturnSpeed` (650) is the launch impulse, not the flight speed;
-  `superReturnCruise` (500) is what it holds after `superReturnSettleMs` (550).
-  The velocity is rewritten every frame from a heading stamped once at release
-  (`orb._hx/_hy`) — never re-derived from the live velocity and never from the
-  player, because "no homing" has to mean no visual homing either. Its lifetime
-  is player hit / wall hit / out-of-bounds, with range and an age cap as
-  backstops only.
-  **The SHAPE of that curve is a handset finding, not a detail.** The excess is
-  shed as `1 - smoothstep(u)`. The first version used `(1-u)^3` and was
-  rejected: a front-loaded curve dumps two thirds of the excess in the first
-  fifth of the window, so launch and cruise are the same frame on a phone and
-  the whole thing reads as constant speed. Start and end values are therefore
-  NOT enough to protect it — `smoke-deflect` asserts three bands across the
-  window and a half-shed point past u=0.4 for exactly that reason.
+- **The returned super has ONE speed, and it is not its own.**
+  `superReturnSpeed` reads `PLAYER.superSpeed` (1080) directly — the claim is
+  that this IS the player's captured super handed back at the speed it was
+  fired, and a literal would let the two drift apart silently. Constant from
+  release to termination. `_tickSuperOrbs` rewrites the velocity every frame
+  from a heading stamped once at release (`orb._hx/_hy`) — never re-derived
+  from the live velocity and never from the player, because "no homing" has to
+  mean no visual homing either. Its lifetime is player hit / wall hit /
+  out-of-bounds, with range and an age cap as backstops only.
+  **Two speed designs have already been rejected here, so do not reopen it
+  without a handset verdict.** A flat 405 let the player walk alongside the orb
+  and escort it (base walk is 380). The fix for that — a 650 launch shedding to
+  a 500 cruise over 550ms on a smoothstep — was rejected as a CONCEPT: all the
+  fairness is spent before launch (the DEFLECTION warning, the visible stored
+  energy, 620ms of anticipation, the silhouette, the snapshot aim), so a
+  post-launch falloff only softens a punish the player already had every chance
+  to avoid. `orb._impulse` and `_settleT` are gone; the head's amplitude now
+  rides on `_ageMs` as a purely VISUAL launch-freshness driver, and it must
+  stay one.
+- **HE THROWS IT, and one clock says so.** The last `superSweepMs` (260) of the
+  unchanged 620ms anticipation is a dedicated saber power sweep; the orb leaves
+  on its power frame; `superFollowMs` (200) of follow-through after that is the
+  last of his saber ownership. `superSwingPose(dir, u)` in `Boss.js` is the pure
+  curve — `u = 1` is the launch — and `superSwing()` derives the phase from
+  `_releaseT` / `_followT`, which cannot disagree because the launch is the
+  boundary between them. Two consequences that cost a round each: the release
+  clock is ticked by `_tickSuperRelease` **before** the weapon block rather than
+  inside `_tickMechanics` after it, or the blade is drawn from a one-frame-stale
+  phase (measured 90 degrees at 20fps, and the orb leaving before the blade
+  arrives); and the sweep branch sits FIRST in the weapon block, so an ordinary
+  parry during the throw defers its gesture while still deflecting for real —
+  never two saber gestures, never a second blade.
 - **A projectile's speed can silently resize its hitbox.** `Bullet.fire` sizes
   the body from the texture and then stretches a tracer by
   `clamp(speed / 620, 1, 2.2)`, and `Body.updateBounds` recomputes width from
   `|scaleX|`. Under 620px/s the clamp is exactly 1 and nothing moves; above it,
-  raising a speed widens the body. The caught super's 650 launch is OVER that
+  raising a speed widens the body. The caught super's 1080 is 1.74x OVER that
   line, so the `boss-super-return` handler cancels the stretch with an explicit
   `setScale(1, 1)` — assert `scaleX === 1` and `radius * 2 === texW` when
   touching it, and sample it IN FLIGHT: a wrapper around `fire()` photographs

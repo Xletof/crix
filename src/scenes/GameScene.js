@@ -3991,6 +3991,19 @@ export class GameScene extends Phaser.Scene {
     const ang = Math.atan2(vy, vx);
     const ux = vx / sp, uy = vy / sp;
     const px = -uy, py = ux;                 // unit vector across the heading
+    // ── THE SPRITE IS ONE STEP AHEAD OF THIS CODE ───────────────────────
+    // Arcade integrates the body AFTER this runs, so `orb.x/y` here is where
+    // the orb was at the END of the last frame — and everything drawn at those
+    // coordinates renders one step behind the sprite it is supposed to BE.
+    // At the old 500px/s cruise that was 8px on a phone, hidden inside a 44px
+    // body. At the canonical 1080 it is 18px on a phone and 54px in this
+    // ~20fps harness, where the evidence rig photographed the hand-drawn body
+    // and its own texture as two separate objects with a gap between them.
+    // The step is exactly `velocity * dt` — no drag, no acceleration, and this
+    // code is the only writer of that velocity — so it is predicted rather
+    // than chased. Everything positional below uses these, never `orb.x/y`.
+    const dt = delta / 1000;
+    const bx = orb.x + vx * dt, by = orb.y + vy * dt;
     // LAUNCH FRESHNESS — a VISUAL clock, and it has to stay one. It used to be
     // the kinematic impulse (1 at launch, 0 at cruise) and the head's amplitude
     // rode on it for free; with the speed now constant there is no such
@@ -4018,7 +4031,7 @@ export class GameScene extends Phaser.Scene {
     fx.ghosts.forEach((gh, i) => {
       const lag = 26 + i * 26;
       gh.setVisible(true)
-        .setPosition(orb.x - ux * lag, orb.y - uy * lag)
+        .setPosition(bx - ux * lag, by - uy * lag)
         .setDepth(DEPTH.AIR - 2 - i)
         .setRotation(ang)
         .setScale(0.82 - i * 0.17)
@@ -4043,7 +4056,7 @@ export class GameScene extends Phaser.Scene {
     const ph = fx.phase;
     const g = fx.corona;
     const R = orb.body.radius || 44;
-    g.setVisible(true).setPosition(orb.x, orb.y).setDepth(DEPTH.AIR - 1);
+    g.setVisible(true).setPosition(bx, by).setDepth(DEPTH.AIR - 1);
     g.clear();
 
     // Precession: the texture rolls slowly about the heading rather than

@@ -546,12 +546,17 @@ await page.evaluate(() => {
   const gs = window.game.scene.getScene('Game');
   gs.player.hp = gs.player.hpMax = 5000;      // survive it, so the number is readable
   gs.events.once('boss-super-returned', () => { window.__hpAtRelease = gs.player.hp; });
+  // ARMED BEFORE THE VOLLEY, not between the launch and the impact. At the
+  // canonical speed a 320px lane is ~300ms — three frames — and a `waitFor`
+  // round trip costs 200-400ms, so the old order set this flag after the orb
+  // had already landed and the case aborted on a hit that had happened. The
+  // hook only fires on a 455 (the orb's flat number), so arming it early
+  // cannot catch anything else.
+  window.__pauseOnOrbHit = true;
 });
 await fireSuper();
-await waitFor(() => window.__hpAtRelease != null, 'the orb leaves (case 4)');
 // The ORB connecting, not merely hp going down — Vader is free to attack after
 // the launch and a slam landing first would photograph the wrong thing.
-await page.evaluate(() => { window.__pauseOnOrbHit = true; });
 await waitFor(() => window.game.scene.getScene('Game').scene.isPaused(), 'the orb connects');
 await shootPaused('08-direct-hit');
 await page.evaluate(() => { window.__pauseOnOrbHit = false; });
@@ -603,9 +608,17 @@ await waitFor(() => (window.game.scene.getScene('Game').boss?.heldSuper?.() ?? 0
 // the pellets have to be able to reach him first, and `PLAYER.superRange` is
 // shorter than the runway the flight wants.
 await page.evaluate(() => {
-  window.__bossPin = { x: 800, y: 280 };
+  // 620px, not the 900 the flight cases use. The camera follows the PLAYER and
+  // shows ~1196px of world, so a 900px lane puts Vader on the top edge — the
+  // first run of this case photographed nine beats of a throw with the thrower
+  // cropped out of every one of them. The whole point here is his body.
+  window.__bossPin = { x: 800, y: 560 };
   window.__pinBoss = true;
   window.__playerPin = { x: 800, y: 1180 };
+  // And the rig's own rolling guard window goes off now: it is what keeps him
+  // reflecting during the staging, and `isGuarding()` is exactly what beat 9
+  // asks about. Leaving it on makes "is he back on offense?" unanswerable.
+  window.__stance = false;
 });
 await page.waitForTimeout(200);
 const lane5 = await page.evaluate(() => {
@@ -630,17 +643,15 @@ if (await waitShutter('absorption')) {
       if (await waitShutter('the blade driving through')) {
         await shootPaused('14-sweep', `orb && (${SW}) && (${SW}).u >= 1`);
         if (await waitShutter('the launch frame')) {
-          await shootPaused('15-launch', `orb && gs.boss._followT > 0 && gs.boss._followT < 360`);
+          // Early in the follow-through, not late: the slowed follow is 800ms
+          // and the flight down this lane is ~570ms, so "late follow-through
+          // with the orb still up" is a state that does not exist here.
+          await shootPaused('15-launch', `orb && gs.boss._followT > 0 && gs.boss._followT < 640`);
           if (await waitShutter('the follow-through')) {
             await shootPaused('16-follow', 'orb && orb._ageMs > 120');
             if (await waitShutter('early flight')) {
               await shootPaused('17-flight-early', 'orb && orb._ageMs > 420');
-              if (await waitShutter('later flight')) {
-                await shootPaused('18-flight-late', 'orb && !gs.boss.isGuarding()');
-                if (await waitShutter('Vader off the guard, orb still up')) {
-                  await shootPaused('19-offense-orb-alive');
-                }
-              }
+              if (await waitShutter('later flight')) await shootPaused('18-flight-late');
             }
           }
         }
@@ -677,9 +688,10 @@ await fireSuper();
 await waitFor(() => (window.game.scene.getScene('Game').boss?.heldSuper?.() ?? 0) >= 3,
   'the super is caught (case 6)');
 await page.evaluate(() => {
-  window.__bossPin = { x: 800, y: 280 };
+  window.__bossPin = { x: 800, y: 560 };
   window.__pinBoss = true;
   window.__playerPin = { x: 800, y: 1180 };
+  window.__stance = false;
 });
 await page.waitForTimeout(200);
 await armShutter(`gs.boss.superSwing && gs.boss.superSwing()`);
@@ -689,7 +701,17 @@ if (await waitShutter('the sweep, real clock')) {
     await shootPaused('21-real-b', 'gs.boss.superSwing() || orb');
     if (await waitShutter('+2 frames')) {
       await shootPaused('22-real-c', 'gs.boss.superSwing() || orb');
-      if (await waitShutter('+3 frames')) await shootPaused('23-real-d');
+      if (await waitShutter('+3 frames')) {
+        // BEAT 9, and it belongs here rather than in case 5: the follow-through
+        // is 200ms at the real clock and 800ms slowed, which outlives a 620px
+        // flight. `isGuarding()` covers the stance, the held energy, the
+        // release and the follow-through, so this frame is "he is done with the
+        // saber" — with the orb still in the air, on its own.
+        await shootPaused('23-real-d', 'orb && !gs.boss.isGuarding()');
+        if (await waitShutter('Vader off the guard, orb still up')) {
+          await shootPaused('24-offense-orb-alive');
+        }
+      }
     }
   }
 }

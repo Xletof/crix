@@ -278,6 +278,13 @@ export class Boss extends Enemy {
     this.weaponSprite?.destroy();
     this.threatRing?.destroy();
     this._absorbOrb?.destroy(); this._absorbOrb = null;
+    // The throw goes with him. `_sweepDir` doubles as "a throw is in progress"
+    // and `isGuarding()` reads it, so a Vader wounded mid-sweep would hand the
+    // next room's rebuild a saber that is permanently owned by a gesture
+    // nobody is running.
+    this._sweepDir = 0; this._followT = 0;
+    this._releaseT = 0; this._releaseN = 0;
+    this._absorbCount = 0; this._absorbT = 0;
     this.scene.tweens.add({
       targets: this,
       alpha: 0,

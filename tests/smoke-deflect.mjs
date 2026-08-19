@@ -595,7 +595,7 @@ r.superDef = await page.evaluate(async () => {
   // the live velocity heading across every frame, while `wakeVsPlayerDeg` is
   // how far that heading had diverged from the bearing to the player. A wake
   // pointed at the target passes the first and fails on the second.
-  const wake = { worstErrDeg: 0, maxVsPlayerDeg: 0, maxGhosts: 0, frames: 0,
+  const wake = { bodyOffPx: 0, worstErrDeg: 0, maxVsPlayerDeg: 0, maxGhosts: 0, frames: 0,
                  coronaFrames: 0, ghostPool: 0 };
   // The hitbox, sampled IN FLIGHT rather than from the fire() wrapper. `fire`
   // ends with a tracer stretch and the release handler cancels it on the next
@@ -628,6 +628,13 @@ r.superDef = await page.evaluate(async () => {
 
     const f = gs._superOrbFx;
     if (!f) return;
+    // THE DRAWN BODY MUST BE ON THE SPRITE. Arcade integrates after the draw,
+    // so a body drawn at `orb.x/y` renders one step behind its own texture —
+    // 8px at the old cruise and hidden inside the 44px hitbox, 54px at the
+    // canonical speed in this harness, where it photographed as two objects
+    // with a gap between them.
+    wake.bodyOffPx = Math.max(wake.bodyOffPx,
+      Math.round(Math.hypot(f.corona.x - o.x, f.corona.y - o.y)));
     wake.frames++;
     wake.ghostPool = f.ghosts.length;
     const D = 180 / Math.PI;
@@ -795,13 +802,21 @@ r.throwGesture = await page.evaluate(async () => {
   const b = gs.boss, p = gs.player;
   const { ENDLESS } = await import('/src/config.js');
   const { superSwingPose } = await import('/src/entities/Boss.js');
+  const { BOSS } = await import('/src/config.js');
   const M = ENDLESS.bossMech;
   gs.lives = 9999;
+  gs.arenaActive = false;      // or the room keeps spawning sabre-carrying guards
   gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
   const wrap = (a) => { let x = a; while (x > Math.PI) x -= Math.PI * 2; while (x < -Math.PI) x += Math.PI * 2; return x; };
   const DEG = 180 / Math.PI;
 
-  const run = async (px, py) => {
+  // `pokeAfter` is the destructive half: casting a real SABER THROW to prove
+  // offense is eligible again LEAVES A BLADE IN THE AIR. Cancelling the move
+  // clears `_saberAway`, but the flight keeps writing the sprite's position
+  // afterwards, so the next run measured a saber that was still coming home and
+  // read as a second author fighting the sweep. The observation runs no longer
+  // do it; one dedicated run at the end does.
+  const run = async (px, py, pokeAfter = false) => {
     b._reflectUntil = 0; b._reflectPending = false; b._reflectClaimed = false;
     b._absorbCount = 0; b._absorbT = 0; b._releaseT = 0; b._releaseN = 0;
     b._sweepDir = 0; b._followT = 0; b._parryT = 0; b._saberAway = false;
@@ -815,14 +830,16 @@ r.throwGesture = await page.evaluate(async () => {
     // one, and the pose check read 150deg of a tween nobody had cancelled.
     // Nothing to do with the throw; it is the harness leaving a clock running.
     gs.tweens.killTweensOf(b.weaponSprite);
-    b.setPosition(800, 800); b.setVelocity(0, 0);
+    const homeX = 800, homeY = 800;
+    b.setPosition(homeX, homeY); b.setVelocity(0, 0);
     p.setPosition(px, py); p.alive = true; p.hp = p.hpMax;
 
     const frames = [];
     let launchAt = -1, launchFrame = -1, sweepAt = -1, followEndAt = -1;
     let castDuringSweep = -1, castAfterFollow = -1, castAfterAt = -1;
     let orbAtLaunch = null, poseErrDeg = 0, poseSamples = 0, sprites = 0;
-    let awayDuringSweep = 0, worstPose = null;
+    let awayDuringSweep = 0, worstPose = null, poking = false, bladeLog = null;
+    let poseSkipped = 0;
     const onRet = () => {
       launchAt = gs.time.now; launchFrame = frames.length;
       orbAtLaunch = gs.bossSuperOrbs.getChildren().filter((o) => o.active).length;
@@ -834,30 +851,84 @@ r.throwGesture = await page.evaluate(async () => {
     gs.events.on('boss-super-sweep-end', onEnd);
 
     const probe = () => {
+      // KEEP HIM ALIVE, every frame. `preUpdate` returns early when the player
+      // is dead — before the sweep clock and before the weapon block — so one
+      // frame of death freezes the blade on whatever pose it last held while
+      // `superSwing()` keeps reporting a phase. That read as 134deg of
+      // disagreement and looked like a second author.
+      p.alive = true; p.hp = p.hpMax; gs.lives = 9999;
+      // BOTH PINNED, every frame. Two reasons, and neither is cosmetic. He
+      // walks at 165px/s, so between the frame the weapon block placed the
+      // blade and this probe he has moved 8-17px — enough to blur the reach
+      // gate below into uselessness. And he closes the lane while the throw
+      // winds up, which is what left the orb with no flight time after the
+      // follow-through ended.
+      b.setVelocity(0, 0); b.setPosition(homeX, homeY);
+      p.setVelocity(0, 0); p.setPosition(px, py);
       const sw = b.superSwing ? b.superSwing() : null;
       const ws = b.weaponSprite;
       const live = ws && ws.active;
-      // ONE blade, ever — the same expression the ownership block uses. A
-      // "spawn a second saber" fix would show up here.
-      sprites = Math.max(sprites, gs.children.list.filter(
-        (c) => c.texture?.key === 'wpn-saber' && c.visible && c.active).length);
+      // ONE blade for HIM, ever. Every other saber in the room belongs to an
+      // enemy that carries one, so they are excluded by owner rather than by
+      // distance — the first version counted four and was counting guards.
+      // Blades AT HIM. Other actors in the room carry sabers of their own —
+      // the first version counted three troopers across the arena and called it
+      // a conjured duplicate. A second saber grown to cover the throw would be
+      // in his hand, which is what this looks at.
+      const blades = gs.children.list.filter(
+        (c) => c.texture?.key === 'wpn-saber' && c.visible && c.active
+               && Math.hypot(c.x - b.x, c.y - b.y) < 200);
+      if (blades.length > sprites) {
+        sprites = blades.length;
+        bladeLog = blades.map((c) => ({ x: Math.round(c.x), y: Math.round(c.y),
+                                        his: c === ws }));
+      }
       const orb = gs.bossSuperOrbs.getChildren().find((o) => o.active) || null;
       if (sw && b._saberAway) awayDuringSweep++;
-      if (sw && live && !b._saberAway) {
+      // The blade has to have been IN HIS HAND when `preUpdate` drew it, and
+      // `_saberAway` read here can be a frame younger than the draw — a throw's
+      // catch lands on the scene clock, after `preUpdate` has already skipped
+      // the weapon block. So the sample is also gated on the sprite being at
+      // arm's length, which is true by construction whenever the block ran.
+      const inHand = live && !b._saberAway
+        && Math.hypot(ws.x - b.x, ws.y - b.y) < 160;
+      // AND the weapon block has to have DRAWN this pose. `preUpdate` bails
+      // early on a dead player or a wounded boss and skips the block entirely,
+      // leaving the blade frozen on whatever it last held while `superSwing()`
+      // keeps reporting a phase — which reads exactly like a second author
+      // fighting for the rotation. The pose fixes the REACH as well as the
+      // angle, so the sprite's distance from him is an independent witness
+      // that this frame is the block's own work.
+      const want = sw ? superSwingPose(sw.dir, sw.u) : null;
+      const drewIt = !!want && live
+        // Exact, because he is pinned: the pose fixes the reach as well as the
+        // angle, so a frame whose reach is not this `u`'s reach is a frame the
+        // block did not draw — a stale pose left behind by an early return.
+        && Math.abs(Math.hypot(ws.x - b.x, ws.y - b.y)
+                    - (BOSS.radius - 6 + want.reach)) < 3;
+      if (sw && inHand && !poking && !drewIt) poseSkipped++;
+      if (sw && inHand && !poking && drewIt) {
         // The LIVE blade against the pure curve `preUpdate` itself calls,
         // evaluated at whatever `u` this frame landed on. No timing luck.
-        const want = superSwingPose(sw.dir, sw.u);
         const e = Math.abs(wrap(ws.rotation - (b._aim + want.offsetRad)) * DEG);
         if (e > poseErrDeg) {
           poseErrDeg = e;
           worstPose = { u: +sw.u.toFixed(3), dir: sw.dir,
                         rot: +ws.rotation.toFixed(3), aim: +b._aim.toFixed(3),
                         want: +want.offsetRad.toFixed(3),
+                        live: +Math.atan2(gs.player.y - b.y, gs.player.x - b.x).toFixed(3),
+                        bx: Math.round(b.x), by: Math.round(b.y),
+                        px: Math.round(gs.player.x), py: Math.round(gs.player.y),
+                        samePlayer: gs.player === p, sameBoss: gs.boss === b,
+                        flipY: ws.flipY, dist: Math.round(Math.hypot(ws.x - b.x, ws.y - b.y)),
                         perf: !!b._performing, mv: b._activeMove?.move?.id ?? null };
         }
         poseSamples++;
       }
       frames.push({
+        away: !!b._saberAway,
+        dist: live ? Math.round(Math.hypot(ws.x - b.x, ws.y - b.y)) : -1,
+        wantReach: want ? Math.round(BOSS.radius - 6 + want.reach) : -1,
         t: Math.round(gs.time.now),
         u: sw ? +sw.u.toFixed(3) : -1,
         dir: sw ? sw.dir : 0,
@@ -875,7 +946,12 @@ r.throwGesture = await page.evaluate(async () => {
       }
       // ...and must be available again the moment the follow-through ends,
       // with the orb still in the air.
-      if (followEndAt > 0 && castAfterFollow < 0) {
+      if (pokeAfter && followEndAt > 0 && castAfterFollow < 0) {
+        // From here the rig is driving him, not watching him: a cast that is
+        // accepted and then cancelled can still leave a queued `act()` that
+        // detaches the saber a second later. That is the rig's doing, so the
+        // gesture measurement stops here rather than trying to survive it.
+        poking = true;
         b.state = 'idle'; b._activeMove = null; b._performing = false;
         castAfterFollow = gs._castBossMove(b, 'saberthrow') ? 1 : 0;
         castAfterAt = gs.time.now;
@@ -919,7 +995,8 @@ r.throwGesture = await page.evaluate(async () => {
         ? Math.round(Math.max(...swung.map((f) => f.off)) - Math.min(...swung.map((f) => f.off))) : 0,
       maxReach: swung.length ? Math.max(...swung.map((f) => f.reach)) : 0,
       peakStepDeg: Math.round(peakStepDeg), peakStepU,
-      poseErrDeg: +poseErrDeg.toFixed(2), poseSamples, awayDuringSweep, worstPose,
+      poseErrDeg: +poseErrDeg.toFixed(2), poseSamples, poseSkipped,
+      awayDuringSweep, worstPose, bladeLog,
       sprites,
       launchAt, sweepAt, followEndAt, orbAtLaunch,
       sweepBeforeLaunchMs: (sweepAt > 0 && launchAt > 0) ? Math.round(launchAt - sweepAt) : -1,
@@ -927,20 +1004,27 @@ r.throwGesture = await page.evaluate(async () => {
       castDuringSweep, castAfterFollow,
       gapMs: (castAfterAt > 0 && followEndAt > 0) ? Math.round(castAfterAt - followEndAt) : -1,
       orbAfterFollow,
+      framesAfterFollow: frames.filter((f) => f.u < 0 && f.t > (followEndAt || 1e9)).length,
+      orbFramesAfterFollow: frames.filter((f) => f.u < 0 && f.orb && f.t > (followEndAt || 1e9)).length,
       // The frame the orb first exists on, against the frame the sweep reached
       // its power point. Both counted in FRAMES so a slow harness frame cannot
       // turn a synchronous pair into a drift.
+      swept: swung.map((f) => ({ u: f.u, d: f.dist, w: f.wantReach, a: f.away, o: f.off })),
       launchFrame, uAtLaunch: pre.length ? pre[pre.length - 1].u : -1,
+      uAtFirstPost: post.length ? post[0].u : -1,
     };
   };
 
-  const east = await run(1400, 800);
-  const west = await run(200, 800);
+  // 760px each way. Shorter and the orb has no flight left once the
+  // follow-through has finished, which is one of the things being asserted.
+  const east = await run(1560, 800);
+  const west = await run(40, 800);
+  const poke = await run(1560, 800, true);
   // Teardown.
   gs.bossSuperOrbs.getChildren().forEach((o) => o.active && o.kill());
   b._sweepDir = 0; b._followT = 0; b._releaseT = 0; b._releaseN = 0;
   b._absorbCount = 0; b._absorbT = 0;
-  return { east, west, sweepMs: M.superSweepMs, followMs: M.superFollowMs,
+  return { east, west, poke, sweepMs: M.superSweepMs, followMs: M.superFollowMs,
            releaseMs: M.superReleaseMs, arcDeg: M.superSweepArcDeg,
            followArcDeg: M.superFollowArcDeg, reachPx: M.superSweepReach,
            parryReachMax: 54, parryArcMax: 166 };
@@ -974,12 +1058,17 @@ check(bothRan && tg.east.sweepBeforeLaunchMs > 0 && tg.west.sweepBeforeLaunchMs 
 // between the two clocks that produce it — so the last pre-launch frame being
 // hard against 1 is the proof that the orb left on the power frame and not
 // on a timer of its own.
-check(bothRan && tg.east.uAtLaunch > 0.78 && tg.west.uAtLaunch > 0.78,
+check(bothRan && tg.east.uAtFirstPost >= 1 && tg.east.uAtFirstPost <= 1.06
+      && tg.west.uAtFirstPost >= 1 && tg.west.uAtFirstPost <= 1.06
+      && tg.east.uAtLaunch > 0.55 && tg.west.uAtLaunch > 0.55,
   'the orb leaves ON the power frame of the sweep, not beside it',
-  `last frame before launch sat at u=${tg.east.uAtLaunch} (east) / `
-  + `${tg.west.uAtLaunch} (west), where u=1 IS the launch. The gap is one `
-  + 'harness frame at ~20fps (u advances ~0.2 per frame over a 260ms sweep), '
-  + 'which is 3-4 frames on a phone');
+  `the frame that launched was drawn at u=${tg.east.uAtFirstPost} (east) / `
+  + `${tg.west.uAtFirstPost} (west), where u=1 IS the power frame — the blade is `
+  + 'on the throw line on the tick the orb departs, because the release clock is '
+  + 'ticked immediately before the block that draws the saber. The frame before '
+  + `it sat at u=${tg.east.uAtLaunch}/${tg.west.uAtLaunch}, already deep in the `
+  + 'drive: one harness frame is a quarter of a 260ms sweep at ~20fps, and a '
+  + 'twelfth of it on a phone');
 check(bothRan && tg.east.peakStepU > 0.5 && tg.west.peakStepU > 0.5,
   'and the blade is travelling FASTEST as it arrives there',
   `peak per-frame travel ${tg.east.peakStepDeg}deg at u=${tg.east.peakStepU} `
@@ -1004,31 +1093,38 @@ check(bothRan && tg.east.poseSamples > 2 && tg.east.poseErrDeg <= 1.5
   'and the live blade IS `superSwingPose` — one curve, one writer',
   `worst disagreement ${tg.east.poseErrDeg}deg over ${tg.east.poseSamples} east `
   + `samples, ${tg.west.poseErrDeg}deg over ${tg.west.poseSamples} west `
-  + `(worst ${JSON.stringify(tg.west.worstPose)}; blade in flight for `
-  + `${tg.east.awayDuringSweep}/${tg.west.awayDuringSweep} swept frames). A tween `
+  + `(worst ${JSON.stringify(tg.west.worstPose)}; `
+  + `west swept frames ${JSON.stringify(tg.west.swept)}; `
+  + `${tg.east.poseSkipped}/${tg.west.poseSkipped} frames skipped because the `
+  + `weapon block did not run, ${tg.east.awayDuringSweep}/${tg.west.awayDuringSweep} `
+  + 'with the blade in flight). A tween '
   + 'or a scene-side pose fighting `preUpdate` for the same rotation shows up here');
 check(bothRan && tg.east.sprites <= 1 && tg.west.sprites <= 1,
   'no second saber was conjured to do it',
   `${tg.east.sprites} / ${tg.west.sprites} saber sprites in the display list at `
-  + 'the peak of the throw');
+  + `the peak of the throw: ${JSON.stringify(tg.east.bladeLog)} / `
+  + `${JSON.stringify(tg.west.bladeLog)}`);
 check(bothRan && tg.east.guardAllSweep && tg.west.guardAllSweep
       && tg.east.castDuringSweep === 0 && tg.west.castDuringSweep === 0,
   'the throw OWNS the saber — nothing can seize it mid-gesture',
   `isGuarding() held for every swept frame; a real SABER THROW cast attempted `
   + `mid-sweep was refused on both bearings (${tg.east.castDuringSweep}/`
   + `${tg.west.castDuringSweep} accepted)`);
-check(bothRan && tg.east.castAfterFollow === 1 && tg.west.castAfterFollow === 1
-      && tg.east.gapMs >= 0 && tg.east.gapMs < 200,
+check(tg.poke.sweepFrames > 3 && tg.poke.castAfterFollow === 1
+      && tg.poke.gapMs >= 0 && tg.poke.gapMs < 200,
   'and hands it straight back — offense is eligible the frame the finish ends',
-  `SABER THROW accepted ${tg.east.gapMs}ms (east) / ${tg.west.gapMs}ms (west) `
-  + `after the follow-through ended, which ran ${tg.east.followMs}ms past launch `
-  + `against a ${tg.followMs}ms spec. He does NOT wait for the orb to land`);
+  `SABER THROW accepted ${tg.poke.gapMs}ms after the follow-through ended, which `
+  + `ran ${tg.poke.followMs}ms past launch against a ${tg.followMs}ms spec, on a `
+  + `third throw of ${tg.poke.sweepFrames} swept frames. He does NOT wait for the `
+  + 'orb to land');
 check(bothRan && tg.east.orbAtLaunch === 1 && tg.west.orbAtLaunch === 1
       && tg.east.orbAfterFollow && tg.west.orbAfterFollow,
   'the orb is one object and it goes on living after he is done with it',
-  `${tg.east.orbAtLaunch} orb at the launch event, still in the air after the `
-  + 'follow-through ended on both bearings — the projectile is an independent '
-  + 'spatial threat, not something he escorts');
+  `${tg.east.orbAtLaunch}/${tg.west.orbAtLaunch} orb(s) at the launch event; after `
+  + `the follow-through ended it was still up for ${tg.east.orbFramesAfterFollow} of `
+  + `${tg.east.framesAfterFollow} east frames and ${tg.west.orbFramesAfterFollow} of `
+  + `${tg.west.framesAfterFollow} west — the projectile is an independent spatial `
+  + 'threat, not something he escorts');
 
 // ── 5. NOTHING SURVIVES A ROOM TEARDOWN ───────────────────────────────────
 r.cleanup = await page.evaluate(async () => {
@@ -1047,6 +1143,11 @@ r.cleanup = await page.evaluate(async () => {
   // His own state dies with HIM — checked first, because the room teardown
   // below destroys the boss and a retreat() called afterwards would throw on a
   // scene that is already gone rather than testing anything.
+  // ...and so does the throw. A boss wounded mid-sweep must not leave the saber
+  // owned by a gesture nobody is running: `_sweepDir` doubles as the "a throw is
+  // in progress" flag and `isGuarding()` reads it.
+  b._sweepDir = -1; b._followT = 400; b._releaseT = 200; b._releaseN = 2;
+  const ownedMidThrow = !!b.superSwing?.();
   b.retreat();
   await new Promise((res) => setTimeout(res, 200));
   const orbGfxGone = !b._absorbOrb;
@@ -1063,7 +1164,11 @@ r.cleanup = await page.evaluate(async () => {
       ? (gs._superOrbFx.corona.visible || gs._superOrbFx.ghosts.some((g) => g.visible))
       : false,
   };
-  return { before, after, orbGfxGone, reflectMs: ENDLESS.bossMech.reflectMs };
+  return { before, after, orbGfxGone, ownedMidThrow,
+           throwStateAfter: { dir: b._sweepDir, follow: Math.round(b._followT),
+                              release: Math.round(b._releaseT), n: b._releaseN },
+           swingAfter: b.superSwing ? b.superSwing() : 'no method',
+           reflectMs: ENDLESS.bossMech.reflectMs };
 });
 
 await browser.close();
@@ -1272,6 +1377,15 @@ check(lateFlight.length > 1,
   'it is still alive well past the old settle window',
   `${lateFlight.length} frames after 550ms — a range or lifetime that ended the `
   + 'flight early shows up as 0 or 1');
+check(r.superDef.wake.frames > 2 && r.superDef.wake.bodyOffPx <= 25,
+  'the hand-drawn body sits ON its own sprite, not one physics step behind it',
+  `worst separation ${r.superDef.wake.bodyOffPx}px over ${r.superDef.wake.frames} `
+  + 'frames, against a 44px radius. Arcade integrates the body AFTER the draw '
+  + 'runs, so drawing at `orb.x/y` puts the mass one step behind its texture — '
+  + `${Math.round(r.superDef.configSpeed / 20)}px per frame in this harness. `
+  + 'The residual here is the difference between the delta the draw saw and the '
+  + 'delta the step used, which is why this is bounded at 25 rather than at 0 — '
+  + 'a full unfixed step in this harness is 54px and up');
 check(gotOrb && r.superDef.scaleFlight.min === 1 && r.superDef.scaleFlight.max === 1
       && r.superDef.orb.radius * 2 === r.superDef.orb.texW
       && r.superDef.scaleFlight.boundsW === r.superDef.orb.texW,
@@ -1359,6 +1473,14 @@ check(r.cleanup.before.orbs > 0 && r.cleanup.after.orbs === 0
   `${r.cleanup.after.orbs} orb(s) left and wake `
   + `${r.cleanup.after.wakeVisible ? 'STILL SHOWING' : 'hidden'} — a returned `
   + 'super outliving its room would arrive in the next one');
+check(r.cleanup.ownedMidThrow && r.cleanup.throwStateAfter.dir === 0
+      && r.cleanup.throwStateAfter.follow === 0 && r.cleanup.throwStateAfter.release === 0
+      && r.cleanup.swingAfter === null,
+  'and a throw interrupted by his wound does not leave the saber owned',
+  `staged mid-sweep (superSwing() non-null: ${r.cleanup.ownedMidThrow}), and after `
+  + `retreat() the throw state reads ${JSON.stringify(r.cleanup.throwStateAfter)} `
+  + `with superSwing() = ${JSON.stringify(r.cleanup.swingAfter)}. A stale `
+  + '`_sweepDir` is a permanent guard on an actor the next room rebuilds');
 check(r.cleanup.before.held > 0 && r.cleanup.orbGfxGone,
   'the held-energy graphic dies with the boss who was holding it',
   'it is parented to nothing; a withdrawal that left it behind leaves a glow in an empty arena');

@@ -843,6 +843,61 @@ it.
   consecutive cruise frames of the head) and
   `tests/evidence-saber-ownership.mjs`.
 
+### Pass 6 — one speed, and he throws it (DEFLECTION frozen here)
+
+Handset review approved everything from pass 5 and returned two last changes.
+
+- **The whole launch → settle → cruise concept is gone.** Not retuned — the
+  finding was that the falloff has no work to do. All of the fairness is spent
+  before the orb exists: the DEFLECTION warning, the visible stored energy, the
+  620ms of release anticipation, the silhouette, the snapshot aim and no homing.
+  A projectile that slows down afterwards is softening a punish the player
+  already had every chance to avoid. It now travels at **`PLAYER.superSpeed`
+  (1080)**, referenced from the constant rather than copied, constant from
+  release until it hits something or leaves the world. Measured in flight:
+  1080 on every sampled frame of every case. The selection rule was the
+  semantics — an ordinary deflection preserves the incoming bolt's real speed,
+  so `PLAYER.pelletSpeed` (900) is the floor, and the energy actually being
+  handed back is a super, so its own speed is the right one. `_settleT` and
+  `_impulse` are deleted; the head's amplitude rides on `_ageMs` now, which is
+  a VISUAL launch-freshness driver and nothing else. 1080 is 1.74x over
+  `Bullet.fire`'s 620 tracer-stretch threshold, so cancelling that stretch (the
+  pass-5 fix that saved 5% of the hitbox) is now saving 74% of it.
+- **He physically throws it.** The old sequence was absorb → hold → the orb
+  acquires velocity while he stands there; handset footage caught an accidental
+  frame where an ordinary parry sweep coincided with a release and reported it
+  read far better. So the last **260ms** of the unchanged 620ms anticipation is
+  now a dedicated power sweep: the blade settles up and off the throw line,
+  drives back down through it on an accelerating curve, and the orb leaves on
+  the power frame. **200ms** of follow-through after that is the last of his
+  saber ownership — offense is eligible the frame it ends, with the orb still
+  crossing the room. `superSwingPose(dir, u)` is the pure curve (`u = 1` is the
+  launch), `superSwing()` derives the phase from `_releaseT`/`_followT`, and
+  `fx.saberSweep` — his own existing crescent, no new pool — fires on the same
+  handler as the launch.
+  Two mirrored sweeps, not a second eight-family registry: whichever way he
+  throws, the blade winds up above the line and chops down through it.
+  **The release clock had to move.** It was ticked in `_tickMechanics`, which
+  runs after the weapon block, so the blade was drawn from a one-frame-stale
+  phase — 90 degrees of error at 20fps, and on the launch frame the orb left
+  while the blade was still short of the line. It is `_tickSuperRelease` now,
+  called immediately before the block that draws the saber.
+  The sweep branch sits FIRST in the weapon block: an ordinary bolt arriving
+  mid-throw is still deflected for real, but its gesture defers. A blade already
+  sweeping through the throw line is an honest contact motion for a bolt coming
+  from the player, who is on that line.
+- `smoke-deflect` is **71 checks**. The curve bands are replaced by constant-speed
+  checks (every frame within 3px/s of `PLAYER.superSpeed`, and first third vs
+  last third within 2px/s, so a curve sampled inside one band cannot pass), plus
+  a new section 4c that runs the whole throw on two opposite bearings and
+  asserts the sweep ran, the launch sat on the power frame, the blade was
+  travelling fastest there, the two bearings mirror, the live blade equals
+  `superSwingPose`, one saber only, nothing can seize it mid-gesture, and
+  offense returns within a frame of the follow-through.
+  Evidence: `tests/evidence-superorb.mjs` case 5 (the nine beats, gesture in
+  4x slow motion, flight at full speed) and case 6 (the same throw at the real
+  clock, four consecutive frames).
+
 ### The endless "soft lock" that wasn't (investigated, no production defect)
 
 A P0 was raised: after Vader withdraws, the exit does not open and walking out
