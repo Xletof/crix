@@ -80,7 +80,7 @@ does NOT, because hitstop is its subject — same split as `smoke-dialogue` and
 | `smoke-cluster.mjs` | Munitions lock **distinct** targets, flat scale, no ground phase, guidance lines cleaned up, generic hit beep suppressed |
 | `smoke-controls.mjs` | The control-layout editor moves the real hit regions (not just sprites), persists, and resets |
 | `smoke-debug.mjs` | Debug menu actions actually apply *and* the HUD re-syncs |
-| `smoke-deflect.mjs` | DEFLECTION is a readable STANCE: eight directional parry families, the live blade matches `parryPose` frame by frame, the guard is not his aim pose, no other saber system may start while it is up, melee still lands — and a super is CAUGHT and returned as one bounded, non-homing 405px/s orb whose 44px body did not grow with the speed, wearing a bounded three-remnant wake that lies along its real velocity rather than at the player |
+| `smoke-deflect.mjs` | DEFLECTION is a readable STANCE: eight directional parry families, the live blade matches `parryPose` frame by frame, the guard is not his aim pose, no other saber system may start while it is up, melee still lands — and a super is CAUGHT and returned as one bounded, non-homing orb that launches at 600px/s, sheds the impulse over 350ms and cruises at 470 without ever slowing further, whose 44px body did not grow with any of it, wearing a bounded three-remnant wake that lies along its real velocity rather than at the player, and which lives until it hits something or leaves the world |
 | `smoke-depth.mjs` | Airborne objects draw over the room; nose tracks travel (no tumble) |
 | `smoke-dialogue.mjs` | **The nemeses speak, and a stranger stays quiet.** No line repeats until its pool is exhausted; a first-time nemesis raises no card at all (the pacing contract); both scenes pause AND resume; a card refuses to open over the upgrade picker and is held rather than dropped |
 | `smoke-duel.mjs` | **A nemesis encounter is a duel**: the arena locks to it, its phases turn at 66%/33%, and the bomber survives its own contact burst instead of dying to it. Also the one file that deliberately loads WITHOUT `?nofreeze=1`, because hitstop is its subject |
@@ -369,6 +369,16 @@ through the **real** production draw path. A slow-motion camera, not a
 reconstruction. The same applies to `superAbsorbGraceMs`/`superReleaseMs`. The
 alternative — reimplementing the pose in the rig — produces pictures that agree
 with the rig forever, whatever ships.
+
+**Sample a physics curve against the OBJECT's own clock, not the wall's.** The
+returned super's speed follows a 350ms launch-to-cruise curve, and this harness's
+first sample of it lands 50-90ms in — so "assert 600px/s at release" cannot pass
+on a correct build. `smoke-deflect` records each sample paired with the orb's own
+`_settleT` and compares it against the curve evaluated at that same `_settleT`.
+That proves the launch value, the shape and the floor at once, and it is immune
+to the frame rate. Related: a guard that reads a slowed timer ONCE and only
+complains when it is in the wrong RANGE says nothing when the event has already
+finished — check the largest value a per-frame sampler ever saw instead.
 
 **Put the shutter INSIDE the game when the thing photographed is shorter than a
 round trip.** `tests/evidence-superorb.mjs` had to catch a ~1.3s flight and a

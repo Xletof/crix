@@ -387,6 +387,7 @@ r.superDef = await page.evaluate(async () => {
   // it attached, there was no way to tell a short flight from a late start.
   // Now every frame the orb exists is counted, whenever that is.
   const headings = [];
+  const speeds = [];
   let orbSeen = 0, lastOrb = null;
   // ── THE WAKE, sampled from inside the frame loop ─────────────────────
   // Its whole claim is that it comes from the orb's ACTUAL velocity and not
@@ -408,6 +409,16 @@ r.superDef = await page.evaluate(async () => {
     orbSeen++;
     const vh = Math.atan2(o.body.velocity.y, o.body.velocity.x);
     headings.push(vh);
+    // The velocity curve, sampled in the frame it is written, paired with the
+    // orb's OWN settle clock rather than with wall time. A ~20fps harness
+    // cannot promise to sample at 350ms, and `_settleT` is the number the
+    // curve is actually computed from — so this reads the contract, not the
+    // machine.
+    speeds.push({
+      t: Math.round(o._settleT ?? -1),
+      age: Math.round(o._ageMs ?? -1),
+      v: Math.round(Math.hypot(o.body.velocity.x, o.body.velocity.y)),
+    });
     lastOrb = { x: Math.round(o.x), y: Math.round(o.y), traveled: Math.round(o.traveled) };
 
     const f = gs._superOrbFx;
@@ -489,15 +500,19 @@ r.superDef = await page.evaluate(async () => {
     absorbed, charged, returned, orbs, deflected, green,
     orb: orbSpec[0] ?? null,
     ordinarySpeed,
-    heldPeak, orbDrawn, orbSeen, lastOrb, wake,
+    heldPeak, orbDrawn, orbSeen, lastOrb, wake, speeds,
     configSpeed: MECH.superReturnSpeed,
+    configCruise: MECH.superReturnCruise,
+    configSettleMs: MECH.superReturnSettleMs,
+    maxLifeMs: MECH.superReturnMaxLifeMs,
     launchMs: MECH.superLaunchMs,
     releaseMs: MECH.superReleaseMs,
     // Texture-derived, so it must be untouched by a speed change:
     // `Bullet.fire` sets the body from `this.width / 2` and then applies a
     // tracer stretch of `clamp(speed / 620, 1, 2.2)` to scaleX — and
-    // `Body.updateBounds` recomputes width from `|scaleX|`. At 405 that clamp
-    // is still exactly 1, which is the only reason the hitbox survived.
+    // `Body.updateBounds` recomputes width from `|scaleX|`. At the 600 launch
+    // speed that clamp is STILL exactly 1 (600 < 620), which is the only
+    // reason the hitbox survived the impulse.
     orbScaleX: orbSpec[0] ? orbSpec[0].scaleX : null,
     dodged: dodgedHp >= hpAtRelease,
     pelletDmg,
@@ -512,6 +527,36 @@ r.superDef = await page.evaluate(async () => {
 });
 
 await keepAlive();
+
+// ── 4b. THE LIFETIME CONTRACT ─────────────────────────────────────────────
+// The orb's promise is now "until it hits something or leaves the world", so
+// the thing that must be proved is the OUT-OF-BOUNDS sweep — it is the only
+// backstop between that promise and an orb flying forever. Staged directly:
+// launch one, confirm it is genuinely alive first (a dead orb passes this
+// vacuously), then put it past the world edge and give the sweep a few frames.
+r.bounds = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const { ENDLESS } = await import('/src/config.js');
+  const M = ENDLESS.bossMech;
+  const wb = gs.physics.world.bounds;
+  const orb = gs.bossSuperOrbs.fire(800, 800, 0, M.superReturnSpeed, 400,
+    M.superReturnRange, { owner: 'boss' });
+  orb._hx = 1; orb._hy = 0; orb._settleT = 0; orb._ageMs = 0;
+  await new Promise((res) => setTimeout(res, 150));
+  const aliveInside = orb.active;
+  // Far outside, on the axis it is already travelling, so nothing about this
+  // is a special case the sweep would not see in a real flight.
+  orb.setPosition(wb.right + 400, 800);
+  await new Promise((res) => setTimeout(res, 250));
+  const deadOutside = !orb.active;
+  const wakeHidden = gs._superOrbFx
+    ? !(gs._superOrbFx.corona.visible || gs._superOrbFx.ghosts.some((g) => g.visible))
+    : true;
+  gs.bossSuperOrbs.getChildren().forEach((o) => o.active && o.kill());
+  return { aliveInside, deadOutside, wakeHidden,
+           range: M.superReturnRange, maxLifeMs: M.superReturnMaxLifeMs,
+           worldW: wb.width, worldH: wb.height };
+});
 
 // ── 5. NOTHING SURVIVES A ROOM TEARDOWN ───────────────────────────────────
 r.cleanup = await page.evaluate(async () => {
@@ -642,15 +687,74 @@ check(gotOrb && r.superDef.orb.dmg === r.superDef.expectDmg,
 check(gotOrb && r.superDef.orb.dmg < r.superDef.playerHp,
   'and cannot delete a full-health player from one accidental super',
   gotOrb ? `${r.superDef.orb.dmg} damage vs ${r.superDef.playerHp} hp` : 'NO ORB');
+// The CRUISE speed is the comparison, not the launch impulse: the orb spends
+// almost all of its flight at cruise, and that is the number a player is
+// reading when they decide whether to walk or dash. It must still be a
+// different, slower class of object than a bolt handed straight back.
 check(gotOrb && r.superDef.ordinarySpeed > 0
-      && r.superDef.orb.speed < r.superDef.ordinarySpeed * 0.55,
+      && r.superDef.configCruise < r.superDef.ordinarySpeed * 0.6
+      && r.superDef.orb.speed < r.superDef.ordinarySpeed * 0.75,
   'it travels far slower than an ordinary deflected bolt',
-  gotOrb ? `orb ${r.superDef.orb.speed}px/s vs deflected bolt ${r.superDef.ordinarySpeed}px/s`
+  gotOrb ? `orb ${r.superDef.orb.speed}px/s launch, ${r.superDef.configCruise}px/s `
+           + `cruise, vs a deflected bolt at ${r.superDef.ordinarySpeed}px/s`
          : 'NO ORB');
-check(gotOrb && r.superDef.configSpeed === 405 && r.superDef.orb.speed === 405,
-  'and it flies at the reviewed 405px/s, not the 300 it was',
-  gotOrb ? `config ${r.superDef.configSpeed}, measured ${r.superDef.orb.speed}`
-         : 'NO ORB');
+// ── The velocity curve: launch impulse → settle → cruise ─────────────────
+// The `speeds` samples carry the orb's OWN settle clock, so every check below
+// reads the contract rather than the harness's frame rate.
+const sp = r.superDef.speeds ?? [];
+const early = sp.filter((x) => x.t <= 40);
+const late  = sp.filter((x) => x.t >= r.superDef.configSettleMs);
+const peakV = sp.length ? Math.max(...sp.map((x) => x.v)) : 0;
+const minAfterSettle = late.length ? Math.min(...late.map((x) => x.v)) : 0;
+const maxAfterSettle = late.length ? Math.max(...late.map((x) => x.v)) : 0;
+
+check(gotOrb && r.superDef.configSpeed === 600 && r.superDef.configCruise === 470
+      && r.superDef.configSettleMs === 350,
+  'the reviewed launch/settle/cruise numbers are what the game is running',
+  gotOrb ? `${r.superDef.configSpeed} -> ${r.superDef.configCruise} over `
+           + `${r.superDef.configSettleMs}ms` : 'NO ORB');
+check(sp.length > 3,
+  'the velocity curve was actually sampled in flight',
+  `${sp.length} frames of it — fewer than four makes every curve check below `
+  + 'vacuous, which is exactly how a projectile that never launched passes');
+check(sp.length > 3 && peakV >= 520,
+  'it LAUNCHES — the early frames carry the impulse, not the cruise speed',
+  `peak measured ${peakV}px/s. A flat 470 (or the old flat 405) cannot reach `
+  + 'this. It is short of the 600 launch value because this harness runs at '
+  + '~20fps and its first sample of a 350ms curve lands 50-90ms in — which the '
+  + 'curve check below reads around rather than guessing at');
+// The launch VALUE cannot be sampled directly here — the first frame the
+// harness sees is already tens of milliseconds into the settle. So compare
+// every sample against the curve evaluated at that sample's own `_settleT`:
+// if the whole curve agrees, its value at t=0 is the 600 launch by
+// construction, and the shape (a cubic shedding of the excess, not a linear
+// brake) is proved at the same time.
+const curveErr = sp.map((x) => {
+  const u = Math.min(1, Math.max(0, x.t / r.superDef.configSettleMs));
+  const want = r.superDef.configCruise
+    + (r.superDef.configSpeed - r.superDef.configCruise) * Math.pow(1 - u, 3);
+  return Math.abs(x.v - want);
+});
+const worstCurve = curveErr.length ? Math.max(...curveErr) : 999;
+check(sp.some((x) => x.t < 140) && worstCurve <= 4,
+  'and the whole flight follows the launch->settle->cruise curve, frame by frame',
+  `worst disagreement ${worstCurve.toFixed(1)}px/s across ${sp.length} samples `
+  + `(earliest at t=${sp.length ? Math.min(...sp.map((x) => x.t)) : -1}ms). A flat `
+  + 'speed, a linear ramp or a continuing deceleration all fail this');
+check(late.length > 0 && Math.abs(maxAfterSettle - r.superDef.configCruise) <= 4
+      && Math.abs(minAfterSettle - r.superDef.configCruise) <= 4,
+  'and it SETTLES to the cruise speed by the end of the settle window',
+  late.length ? `${late.length} sample(s) at/after ${r.superDef.configSettleMs}ms, `
+                + `spanning ${minAfterSettle}-${maxAfterSettle}px/s`
+              : 'the orb never survived to the end of the settle window');
+check(sp.length > 3 && sp.every((x) => x.v >= r.superDef.configCruise - 2),
+  'and NOTHING slows it below cruise — it sheds an impulse, it does not run down',
+  `slowest sample ${sp.length ? Math.min(...sp.map((x) => x.v)) : 0}px/s against a `
+  + `${r.superDef.configCruise} floor. A continuous deceleration fails here`);
+check(late.length > 1,
+  'it is still alive well past the settle window',
+  `${late.length} frames after ${r.superDef.configSettleMs}ms — a range or `
+  + 'lifetime that ended the flight early shows up as 0 or 1');
 check(gotOrb && r.superDef.orbScaleX === 1
       && r.superDef.orb.radius * 2 === r.superDef.orb.texW,
   'the speed change did NOT move the hitbox',
@@ -707,6 +811,23 @@ check(gotOrb && r.superDef.dodged,
 check(r.superDef.inHostilePools,
   'and it is in hostileBullets, so every sweep of incoming fire sees it',
   'six places iterate incoming fire and half of them are not collision code');
+
+// 4b. Lifetime
+check(r.bounds.aliveInside,
+  'an orb inside the world keeps flying',
+  'staged and still alive after 150ms — without this the out-of-bounds check '
+  + 'below would pass on an orb that was never airborne');
+check(r.bounds.aliveInside && r.bounds.deadOutside,
+  'and one that leaves the world is cleaned up',
+  `world ${r.bounds.worldW}x${r.bounds.worldH}; the orb was put 400px past the `
+  + 'right edge and did not survive it');
+check(r.bounds.deadOutside && r.bounds.wakeHidden,
+  'and its wake goes with it',
+  'no ghost or corona left visible at the spot it was culled');
+check(r.bounds.range > 2263 && r.bounds.maxLifeMs > 0,
+  'its range is a backstop, not the thing that ends the flight',
+  `range ${r.bounds.range}px against a ${Math.round(Math.hypot(r.bounds.worldW, r.bounds.worldH))}px `
+  + `arena diagonal, with a ${r.bounds.maxLifeMs}ms defensive age cap behind it`);
 
 // 5. Teardown
 check(r.cleanup.before.orbs > 0, 'a room teardown is staged with an orb actually in the air',

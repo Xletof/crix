@@ -472,21 +472,58 @@ export class Boss extends Enemy {
       const g  = this._absorbOrb;
       g.clear();
       g.setPosition(hx, hy).setDepth(this.y + 2);
+      const t = this._glowT * 0.006;
       g.fillStyle(0x5a1e6e, 0.30); g.fillCircle(0, 0, r * 1.35);
       g.fillStyle(0xff2020, 0.55); g.fillCircle(0, 0, r);
+      // Two lobes drifting inside the shell on rates that are not harmonics of
+      // each other, so the held mass churns instead of sitting still. Restrained
+      // on purpose: handset review liked this state, and the note was "do not
+      // bury it". Six extra draw calls, no new objects.
+      for (let i = 0; i < 2; i++) {
+        const a = t * (0.8 + i * 0.6) + i * 2.1;
+        const d = r * (0.20 + 0.08 * Math.sin(t * 1.7 + i));
+        g.fillStyle(0xff5a5a, 0.22);
+        g.fillCircle(Math.cos(a) * d, Math.sin(a) * d, r * (0.62 + 0.08 * Math.sin(t * 2.1 + i)));
+      }
       g.fillStyle(0xff8888, 0.75); g.fillCircle(0, 0, r * 0.62);
+      // Two internal arcs orbiting at different rates and in opposite
+      // directions — the same vocabulary the flying orb uses, so the thing that
+      // leaves his hand is recognisably the thing he was holding.
+      g.lineStyle(2, 0xffd0d0, 0.5);
+      g.beginPath(); g.arc(0, 0, r * 0.72, t * 1.5, t * 1.5 + 2.2); g.strokePath();
+      g.lineStyle(2, 0xffffff, 0.4);
+      g.beginPath(); g.arc(0, 0, r * 0.44, -t * 2.3, -t * 2.3 + 1.6); g.strokePath();
+      // Tongues collapsing inward and reforming: the containment is his, and it
+      // is working, but only just.
+      g.lineStyle(2, 0xff4040, 0.45);
+      for (let i = 0; i < 5; i++) {
+        const a = t * 0.5 + (i / 5) * Math.PI * 2;
+        const len = r * (1.00 + 0.20 * Math.sin(t * 2.4 + i * 1.9));
+        g.lineBetween(Math.cos(a) * r * 0.86, Math.sin(a) * r * 0.86,
+                      Math.cos(a) * len,      Math.sin(a) * len);
+      }
       // The core swells as the shell compresses — the energy is not shrinking,
       // it is being packed. Without the opposed pair it reads as fizzling out.
       g.fillStyle(0xffffff, 0.95); g.fillCircle(0, 0, r * (0.30 + 0.42 * launch));
       if (launch > 0) {
-        // Directional bias toward where it is about to go, so the launch has a
-        // heading before it has a velocity. Drawn as a short tongue rather than
-        // a lane: nothing here may imply a hit region.
+        // THE FRONT FORMS BEFORE THE VELOCITY DOES. Over the last beat the
+        // sphere grows the same bow shock it will wear in flight, on the aim
+        // it is about to be thrown along, while the shell stretches backward —
+        // so the launch is a transformation of this object rather than the
+        // substitution of a different one.
         const lx = Math.cos(this._aim), ly = Math.sin(this._aim);
         g.fillStyle(0xffffff, 0.55 * launch);
         g.fillCircle(lx * r * 0.9, ly * r * 0.9, r * 0.45 * launch);
         g.fillStyle(0xff8888, 0.40 * launch);
         g.fillCircle(lx * r * 1.5, ly * r * 1.5, r * 0.28 * launch);
+        g.lineStyle(3, 0xffffff, 0.8 * launch);
+        g.beginPath();
+        g.arc(0, 0, r * (1.05 + 0.25 * launch),
+              this._aim - 0.8, this._aim + 0.8);
+        g.strokePath();
+        g.fillStyle(0xff3030, 0.30 * launch);
+        g.fillCircle(-lx * r * (0.5 + 0.5 * launch), -ly * r * (0.5 + 0.5 * launch),
+                     r * 0.5 * launch);
       }
     } else if (this._absorbOrb) {
       this._absorbOrb.destroy();

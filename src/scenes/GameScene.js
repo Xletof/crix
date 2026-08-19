@@ -2291,8 +2291,21 @@ export class GameScene extends Phaser.Scene {
         MECH.superReturnBase + MECH.superReturnPerPellet * n,
         MECH.superReturnDamageMax,
       );
-      this.bossSuperOrbs.fire(ox, oy, ang, MECH.superReturnSpeed, dmg,
+      const orb = this.bossSuperOrbs.fire(ox, oy, ang, MECH.superReturnSpeed, dmg,
         MECH.superReturnRange, { owner: 'boss' });
+      if (orb) {
+        // The heading is stamped ONCE, here, and every later frame reads it
+        // back rather than recomputing anything. `_tickSuperOrbs` rewrites the
+        // velocity each frame to bleed the launch impulse, and the one thing
+        // that must not leak into that rewrite is a fresh look at where the
+        // player now is. Storing the unit vector rather than re-deriving it
+        // from the live velocity also means a frame that clips the speed to
+        // zero cannot lose the direction.
+        orb._hx = Math.cos(ang);
+        orb._hy = Math.sin(ang);
+        orb._settleT = 0;         // ms since launch, capped at the settle window
+        orb._ageMs = 0;           // for the defensive lifetime cap only
+      }
       this.fx.burstDir(ox, oy, 'red', 14, ang, 90);
       // A hard white spray straight down the heading, so the very first frame
       // of flight already states a direction. The wake below takes two frames
@@ -3918,6 +3931,46 @@ export class GameScene extends Phaser.Scene {
       phase: 0,
     });
 
+    // ── KINEMATICS: launch impulse → settle → cruise ────────────────────
+    // Rewritten here, every frame, from the heading stamped at release. This
+    // is the ONLY writer of the orb's velocity — the same one-owner rule the
+    // saber and the wake follow.
+    //
+    // The excess over cruise decays as (1-u)^3, which dumps most of it in the
+    // first third of the window and then tails off: 600 at release, ~525 at
+    // 90ms, ~486 at 175ms, 470 by 350ms. A linear ramp reads as braking; this
+    // reads as an over-speed being shed. After the window the speed is a
+    // constant and NOTHING slows it again — it is not running out of energy,
+    // it never had any of its own.
+    const MECH = ENDLESS.bossMech;
+    if (orb._hx !== undefined) {
+      const settleMs = MECH.superReturnSettleMs;
+      orb._settleT = Math.min(settleMs, (orb._settleT ?? settleMs) + delta);
+      orb._ageMs = (orb._ageMs ?? 0) + delta;
+      const u = settleMs > 0 ? orb._settleT / settleMs : 1;
+      const excess = MECH.superReturnSpeed - MECH.superReturnCruise;
+      const speed = MECH.superReturnCruise + excess * Math.pow(1 - u, 3);
+      orb.body.velocity.set(orb._hx * speed, orb._hy * speed);
+      orb._impulse = u >= 1 ? 0 : Math.pow(1 - u, 3);   // 1 → 0, drives shape only
+
+      // ── LIFETIME ──────────────────────────────────────────────────────
+      // It flies until it hits the player, hits a wall, or leaves the world.
+      // The out-of-bounds sweep is what makes that true: `Bullet.range` would
+      // otherwise end the flight mid-arena on an inherited number, and the
+      // orb's fantasy is a mass thrown across the room, not a bolt with a
+      // fuse. The age cap below is defence against a stuck orb, not a design
+      // constant — at cruise it is over two arena diagonals away.
+      const wb = this.physics.world.bounds;
+      const M = 120;
+      if (orb.x < wb.x - M || orb.x > wb.right + M
+          || orb.y < wb.y - M || orb.y > wb.bottom + M
+          || orb._ageMs > MECH.superReturnMaxLifeMs) {
+        orb.kill();
+        this._hideSuperOrbFx();
+        return;
+      }
+    }
+
     const vx = orb.body.velocity.x, vy = orb.body.velocity.y;
     const sp = Math.hypot(vx, vy) || 1;
     // FROM THE ACTUAL VELOCITY, never from the player's position. The orb is
@@ -3926,6 +3979,8 @@ export class GameScene extends Phaser.Scene {
     // wake matters most.
     const ang = Math.atan2(vy, vx);
     const ux = vx / sp, uy = vy / sp;
+    const px = -uy, py = ux;                 // unit vector across the heading
+    const imp = orb._impulse ?? 0;           // 1 at launch, 0 at cruise
 
     // ── The wake ────────────────────────────────────────────────────────
     // Three remnants at FIXED DISTANCES behind the orb, each smaller and
@@ -3952,56 +4007,108 @@ export class GameScene extends Phaser.Scene {
         .setAlpha(0.40 - i * 0.13);
     });
 
-    // ── The corona ──────────────────────────────────────────────────────
-    // Redrawn each frame around a LOCAL origin with the object positioned at
-    // the orb — a Graphics scales and rotates about its own origin, so drawing
-    // at world coordinates and then transforming would throw it off the
-    // screen. Same trap `FX.saberParry` documents.
+    // ── THE BODY ITSELF ─────────────────────────────────────────────────
+    // Handset finding: the wake said where the orb had BEEN, and the orb still
+    // read as a round sprite whose coordinates changed. So the mass gets a
+    // front, a back and genuine internal motion — all of it drawn here, on one
+    // Graphics, around a LOCAL origin with the object positioned at the orb (a
+    // Graphics scales and rotates about its own origin, so drawing at world
+    // coordinates and then transforming throws it off the screen — the same
+    // trap `FX.saberParry` documents).
+    //
+    // The sprite's SCALE is never touched. `Body.updateBounds` recomputes the
+    // hitbox width from |scaleX|, so an envelope animated by scaling the sprite
+    // would animate the collision circle with it. Rotation is free — a circular
+    // body does not care — so the sprite gets the precession and the Graphics
+    // gets everything else.
     fx.phase += delta * 0.006;
+    const ph = fx.phase;
     const g = fx.corona;
     const R = orb.body.radius || 44;
     g.setVisible(true).setPosition(orb.x, orb.y).setDepth(DEPTH.AIR - 1);
     g.clear();
-    // Outer jagged tongues, rotating one way. Uneven lengths on purpose: an
-    // even ring reads as a bubble, and the one thing this must not look like
-    // is a containment field. It is not contained, it is barely holding.
+
+    // Precession: the texture rolls slowly about the heading rather than
+    // spinning uniformly, which is what stops it reading as a spinning decal.
+    orb.setRotation(ang + Math.sin(ph * 0.9) * 0.30);
+
+    // ── THE HEAD ────────────────────────────────────────────────────────
+    // A compact bow shock on the ACTUAL velocity, not a nose cone: two thin
+    // crescents at a fluctuating stand-off, so it breathes instead of sitting
+    // there like a triangle. It reaches at most ~1.3R ahead — near enough to
+    // read as part of the orb, far too short to imply a lane or a hit region
+    // in front of it. `imp` stretches it during the launch impulse and lets it
+    // relax at cruise; nothing about its BRIGHTNESS follows the speed, because
+    // the orb is not losing energy.
+    const shock = R * (1.06 + 0.10 * Math.abs(Math.sin(ph * 2.6)) + 0.16 * imp);
+    g.lineStyle(4, 0xffffff, 0.85);
+    g.beginPath(); g.arc(0, 0, shock, ang - 0.85, ang + 0.85); g.strokePath();
+    g.lineStyle(2, 0xff6060, 0.6);
+    g.beginPath();
+    g.arc(0, 0, shock * 1.14, ang - 0.55 - 0.1 * imp, ang + 0.55 + 0.1 * imp);
+    g.strokePath();
+    // The compressed cap right at the front — the energy being shovelled into
+    // the leading hemisphere. Sits INSIDE the orb, so it never adds reach.
+    g.fillStyle(0xffffff, 0.42);
+    g.fillCircle(ux * R * 0.44, uy * R * 0.44, R * (0.36 + 0.06 * imp));
+
+    // ── THE SHELL ───────────────────────────────────────────────────────
+    // Three overlapping lobes on their own rates and phases. Consecutive
+    // frames genuinely differ because no two rates are harmonics of each
+    // other; an even ring would read as a containment bubble, and this thing
+    // is explicitly not contained.
+    for (let i = 0; i < 3; i++) {
+      const a = ph * (0.7 + i * 0.53) + i * 2.4;
+      const off = R * (0.16 + 0.07 * Math.sin(ph * 1.9 + i));
+      g.fillStyle(i === 0 ? 0xff3838 : 0xff5a5a, 0.20);
+      g.fillCircle(Math.cos(a) * off, Math.sin(a) * off,
+                   R * (0.80 + 0.10 * Math.sin(ph * 2.3 + i * 1.7)));
+    }
+
+    // ── INTERNAL ARCS ───────────────────────────────────────────────────
+    // Two, counter-rotating, at different radii and different rates, each
+    // squashed along a slowly turning axis so the sphere reads as volumetric
+    // rather than as a flat disc with a spinning ring on it.
+    g.lineStyle(3, 0xffd0d0, 0.55);
+    g.beginPath(); g.arc(0, 0, R * 0.64, ph * 1.7, ph * 1.7 + 2.3); g.strokePath();
+    g.lineStyle(2, 0xffffff, 0.45);
+    g.beginPath(); g.arc(0, 0, R * 0.40, -ph * 2.6, -ph * 2.6 + 1.7); g.strokePath();
+
+    // ── TONGUES ─────────────────────────────────────────────────────────
+    // Uneven, and biased along the heading: longer at the back where the
+    // envelope is being dragged, clipped at the front where it is being
+    // compressed. This is the part that says which way it is going even with
+    // the wake hidden.
     g.lineStyle(3, 0xff4040, 0.55);
     for (let i = 0; i < 7; i++) {
-      const a = fx.phase + (i / 7) * Math.PI * 2;
-      const len = R * (1.02 + 0.20 * Math.abs(Math.sin(fx.phase * 1.7 + i * 2.1)));
+      const a = ph * 0.8 + (i / 7) * Math.PI * 2;
+      const backness = 0.5 - 0.5 * Math.cos(a - ang);   // 0 ahead, 1 behind
+      const len = R * (0.98 + 0.18 * Math.abs(Math.sin(ph * 1.7 + i * 2.1))
+                            + (0.24 + 0.30 * imp) * backness);
       g.lineBetween(Math.cos(a) * R * 0.86, Math.sin(a) * R * 0.86,
                     Math.cos(a) * len,      Math.sin(a) * len);
     }
-    // Inner arc, counter-rotating. Two speeds in opposite directions is what
-    // makes a mass look like it is being held together against its will.
-    g.lineStyle(2, 0xffd0d0, 0.5);
-    g.beginPath();
-    g.arc(0, 0, R * 0.66, -fx.phase * 1.6, -fx.phase * 1.6 + 2.2);
-    g.strokePath();
 
-    // ── Directional deformation, ON THE ENVELOPE ONLY ───────────────────
-    // A compressed leading edge and a stretched trailing glow. The body stays
-    // exactly the circle it was: nothing below reads or writes the hitbox, and
-    // the trailing shape is drawn as decaying blobs rather than a cone so the
-    // silhouette never suggests the damage extends behind it.
-    g.fillStyle(0xffffff, 0.30);
-    g.fillCircle(ux * R * 0.42, uy * R * 0.42, R * 0.34);   // packed nose
-    g.lineStyle(3, 0xffffff, 0.45);
-    g.beginPath();
-    g.arc(0, 0, R * 0.95, ang - 0.7, ang + 0.7);
-    g.strokePath();
+    // ── THE REAR ────────────────────────────────────────────────────────
+    // A modest backward stretch of the envelope — three decaying blobs, not a
+    // cone and not a tail. Their reach grows with the launch impulse and
+    // settles back; their brightness does not, because the orb at cruise is
+    // exactly as dangerous as the orb at launch.
     for (let i = 1; i <= 3; i++) {
-      g.fillStyle(0xff3030, 0.22 - i * 0.05);
-      g.fillCircle(-ux * R * 0.55 * i, -uy * R * 0.55 * i, R * (0.52 - i * 0.12));
+      const d = R * (0.52 + 0.16 * imp) * i;
+      g.fillStyle(0xff3030, 0.24 - i * 0.05);
+      g.fillCircle(-ux * d, -uy * d, R * (0.54 - i * 0.12));
     }
-    // A few sparks shearing backward off the shoulders. Cheap, and the only
-    // part that says the mass is shedding rather than cruising.
+    // Fragments shearing off the shoulders, angled outward as well as back —
+    // energy being stripped away, rather than an exhaust plume.
     g.lineStyle(2, 0xffb060, 0.5);
-    for (let i = 0; i < 3; i++) {
-      const a = ang + Math.PI + (i - 1) * 0.55 + Math.sin(fx.phase * 2.3 + i) * 0.18;
-      const l = R * (0.7 + 0.35 * Math.abs(Math.sin(fx.phase * 3.1 + i * 1.3)));
-      g.lineBetween(Math.cos(a) * R * 0.7, Math.sin(a) * R * 0.7,
-                    Math.cos(a) * (R * 0.7 + l), Math.sin(a) * (R * 0.7 + l));
+    for (let i = -1; i <= 1; i++) {
+      const spread = 0.42 + 0.10 * Math.sin(ph * 3.1 + i);
+      const a = ang + Math.PI + i * spread;
+      const l = R * (0.55 + 0.30 * Math.abs(Math.sin(ph * 2.7 + i * 1.3)));
+      const bx = -ux * R * 0.5 + px * i * R * 0.34;
+      const by = -uy * R * 0.5 + py * i * R * 0.34;
+      g.lineBetween(bx, by, bx + Math.cos(a) * l, by + Math.sin(a) * l);
     }
   }
 

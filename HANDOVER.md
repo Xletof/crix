@@ -746,6 +746,50 @@ snapshot aim, no homing, and the 620ms of anticipation.
   frame) because a `page.evaluate` round trip is wider than the beat being
   photographed.
 
+### The caught super is thrown, not floated (pass 4 — final orb pass)
+
+Handset review of pass 3: DEFLECTION is approved and frozen; the wake, the held
+orb, 455 damage, snapshot aim and the no-homing rule are all keepers. Two things
+remained. At a flat 405px/s the player could **walk alongside the orb and escort
+it** — base walk speed is 380 — and the orb's BODY still read as a bright circle
+whose coordinates changed, with only the wake saying anything about motion.
+
+- **Launch → settle → cruise.** `superReturnSpeed` is now the LAUNCH impulse
+  (600), `superReturnCruise` (470) is what it keeps, and the excess bleeds over
+  `superReturnSettleMs` (350) as `cruise + excess * (1 - u)^3`. Measured in
+  flight: 600 → ~525 at 90ms → ~486 at 175ms → 470 by 350ms → 470 forever. It
+  is an impulse being shed, **not** a deceleration: after the window nothing
+  slows it, and nothing about it dims or shrinks while it settles. 470 is 1.24x
+  the player's walk, so escorting it is out and getting off its line is in.
+- **The lifetime contract changed.** It used to die at `superReturnRange` 1500,
+  an inherited bullet number that ended flights mid-arena. It now flies until it
+  hits the player, hits a wall (`handleBulletWallHits`), or leaves the world —
+  an out-of-bounds sweep in `_tickSuperOrbs` at `world.bounds` + 120px. Range is
+  a 6000px backstop (the arena diagonal is ~2263) and `superReturnMaxLifeMs`
+  5000 is a defensive age cap nothing should reach.
+- **The body has a front and a back now.** One `Graphics`, one owner: a compact
+  bow shock on the ACTUAL velocity at ~1.06-1.3R that breathes rather than
+  sitting there like a nose cone; three shell lobes on non-harmonic rates so
+  consecutive frames genuinely differ; two counter-rotating internal arcs;
+  seven tongues biased longer at the back and clipped at the front; three
+  decaying rear blobs and shoulder sparks shearing outward.
+  **`imp` (1 at launch → 0 at cruise) drives the DEFORMATION only** — never
+  brightness or size, because the orb at cruise is exactly as dangerous as the
+  orb at launch.
+- **The sprite's scale is still never touched.** Its rotation is: it precesses
+  by `sin(phase)*0.3` about the heading, which a circular body does not care
+  about. Scale would have animated the hitbox with the envelope.
+- **The held orb keeps its shape and gains restrained motion** — two drifting
+  lobes, two orbiting arcs, five tongues collapsing and reforming — and during
+  the launch beat it now grows the same bow shock it will wear in flight while
+  its shell drags backward, so the launch is a transformation of that object
+  rather than a substitution.
+- **The wake is unchanged**: three pooled ghosts at 26/52/78px. It was checked
+  at the new speeds and needed no adjustment.
+- Still no floor treatment, for the pass-3 reason.
+- `smoke-deflect` is 50 checks. The curve is asserted against the orb's own
+  `_settleT` rather than wall time, so a ~20fps harness cannot make it lie.
+
 ### The endless "soft lock" that wasn't (investigated, no production defect)
 
 A P0 was raised: after Vader withdraws, the exit does not open and walking out

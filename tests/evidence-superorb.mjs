@@ -162,7 +162,7 @@ const setup = (gap, pinBoss) => page.evaluate(async ([g, pin]) => {
   // Vader is forbidden to START anything. Both are needed BEFORE the release
   // and are wrong after it, so the release turns them off.
   window.__healing = true; window.__stance = true; window.__pinBoss = pin;
-  window.__bossPin = null;      // never inherit the previous case's staging
+  window.__bossPin = null; window.__playerPin = null;   // never inherit staging
   window.__pin = () => {
     gs.lives = 9999;
     gs.arenaActive = false;
@@ -178,6 +178,13 @@ const setup = (gap, pinBoss) => page.evaluate(async ([g, pin]) => {
       const at = window.__bossPin || { x: 800, y: 800 - g };
       b.setVelocity(0, 0); b.setPosition(at.x, at.y);
     }
+    // The player drifts under knockback while Vader keeps working, and case 1
+    // needs a KNOWN lane for its flight photographs — a run where the pair had
+    // closed to ~250px produced a 433ms flight and no usable frames.
+    if (window.__playerPin) {
+      p.setPosition(window.__playerPin.x, window.__playerPin.y);
+      p.setVelocity(0, 0);
+    }
   };
   p.setPosition(800, 800); p.setVelocity(0, 0);
   b.setPosition(800, 800 - g); b.setVelocity(0, 0);
@@ -189,7 +196,9 @@ const setup = (gap, pinBoss) => page.evaluate(async ([g, pin]) => {
                      bossWalk: 0, bossAt: null, shoved: false,
                      releasedAt: null, offenseAfterMs: null, orbAliveAtOffense: null,
                      flightFrames: 0, launchSeen: 0, minOrbDist: 1e9, hurts: [],
+                     maxReleaseT: 0,
                      episodes: 0, epMs: [], epStartMs: 0, orbWasAlive: false,
+                     curve: [],
                      orbSpeed: null, orbDamage: null, orbRadius: null,
                      orbScaleX: null, maxGhosts: 0, coronaFrames: 0 };
   // WHAT ACTUALLY HURT THEM. The first run of this rig called a case "took
@@ -242,6 +251,7 @@ const setup = (gap, pinBoss) => page.evaluate(async ([g, pin]) => {
       if (pr.bossAt) pr.bossWalk += Math.hypot(b.x - pr.bossAt.x, b.y - pr.bossAt.y);
       pr.bossAt = { x: b.x, y: b.y };
       if (b._releaseT > 0 && b._releaseT < 200) pr.launchSeen++;
+      pr.maxReleaseT = Math.max(pr.maxReleaseT, b._releaseT);
     }
     const orb = gs.bossSuperOrbs.getChildren().find((x) => x.active);
     // A super he only half-catches releases what he has, and the pellets still
@@ -261,6 +271,13 @@ const setup = (gap, pinBoss) => page.evaluate(async ([g, pin]) => {
       pr.flightFrames++;
       pr.minOrbDist = Math.min(pr.minOrbDist, Math.hypot(orb.x - p.x, orb.y - p.y));
       pr.orbSpeed = Math.round(Math.hypot(orb.body.velocity.x, orb.body.velocity.y));
+      // The whole velocity curve, stamped with the orb's OWN settle clock, so
+      // the record is of the contract rather than of this machine's frame rate.
+      pr.curve.push({ t: Math.round(orb._settleT ?? -1),
+                      age: Math.round(orb._ageMs ?? -1),
+                      v: pr.orbSpeed,
+                      hdg: Math.round(Math.atan2(orb.body.velocity.y,
+                                                 orb.body.velocity.x) * 180 / Math.PI) });
       pr.orbDamage = orb.damage;
       pr.orbRadius = orb.body.radius;
       pr.orbScaleX = orb.scaleX;
@@ -383,48 +400,54 @@ await shot('01-held-before-release');
 // orb was on the player inside one frame. Re-staging here happens BEFORE the
 // launch beat, so every shot from 02 on is of an unmodified release.
 await page.evaluate(() => {
-  const gs = window.game.scene.getScene('Game');
   window.__bossPin = { x: 800, y: 420 };
   window.__pinBoss = true;
-  gs.player.setPosition(800, 1100);       // a 680px lane, ~1.7s of flight
+  window.__playerPin = { x: 800, y: 1100 };   // a 680px lane, ~1.4s of flight
 });
-await page.waitForTimeout(200);
-// Armed HERE, seconds before the launch. Arming it after the release wait is a
-// round trip wide, and a flight that ends in a hit can be over inside it — one
-// run reported the hook seeing zero orb frames because the orb had lived and
-// died between two `page.evaluate` calls.
-await armShutter('orb && Math.hypot(orb.x - gs.boss.x, orb.y - gs.boss.y) > 90');
-await waitFor(() => (window.game.scene.getScene('Game').boss?._releaseT ?? 0) > 0
-                    || window.__probe.releasedAt != null, 'he commits');
-const relSeen = await page.evaluate(() => window.game.scene.getScene('Game').boss._releaseT);
-if (relSeen > 0 && relSeen < 2000) {
-  console.error(`slow clock did not reach the boss: he read superReleaseMs as `
-    + `~${Math.round(relSeen)}ms, not ~3720. Restart the dev server so no module `
-    + `is served under an HMR ?t= URL, then re-run.`);
+await page.waitForTimeout(250);
+// Read the staging back. A lane that silently failed to apply is the difference
+// between photographing a flight and photographing a point-blank hit, and the
+// two look identical in the log unless the geometry is stated.
+const lane = await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  return { boss: [Math.round(gs.boss.x), Math.round(gs.boss.y)],
+           player: [Math.round(gs.player.x), Math.round(gs.player.y)],
+           gap: Math.round(Math.hypot(gs.boss.x - gs.player.x, gs.boss.y - gs.player.y)) };
+});
+console.log('  lane staged:', JSON.stringify(lane));
+// From here every frame is taken by a shutter armed inside the game, and every
+// resume is explicit. The mixed approach — a plain pause/screenshot/resume for
+// the compression beat, with the flight shutter armed around it — lost the
+// early-flight frame: `shot()` resumes unconditionally, so when the flight
+// shutter fired during its screenshot, its resume threw the pause away.
+await armShutter('gs.boss && gs.boss._releaseT > 0 && gs.boss._releaseT < 180');
+const gotBeat = await waitShutter('the compression beat');
+if (gotBeat) await shootPaused('02-launch-compression',
+  'orb && Math.hypot(orb.x - gs.boss.x, orb.y - gs.boss.y) > 90');
+// PROVE THE SLOW CLOCK REACHED HIM, from the largest release timer the sampler
+// ever saw rather than from a single read. An earlier guard read `_releaseT`
+// once and only complained if it was between 1 and 2000 — when the mutation had
+// gone to a second module instance under a Vite HMR `?t=` URL the release was
+// already over by the time it looked, `_releaseT` read 0, and the guard said
+// nothing while the run photographed a point-blank release at 240px.
+const relSeen = await page.evaluate(() => window.__probe.maxReleaseT);
+if (relSeen < 2000) {
+  console.error(`slow clock did not reach the boss: the largest release timer `
+    + `seen was ${Math.round(relSeen)}ms, not ~3720. Restart the dev server so `
+    + `no module is served under an HMR ?t= URL, then re-run.`);
   await browser.close(); process.exit(1);
 }
-// Wait for the window to run down INTO the launch beat, then photograph it.
-await waitFor(() => {
-  const b = window.game.scene.getScene('Game').boss;
-  return (b?._releaseT > 0 && b._releaseT < 560) || window.__probe.releasedAt != null;
-}, 'the compression beat');
-await shot('02-launch-compression');
-await waitFor(() => window.__probe.releasedAt != null, 'the orb leaves');
-const gotEarly = await waitShutter('the orb clears him');
+const gotEarly = gotBeat && await waitShutter('the orb clears him');
 if (gotEarly) await shootPaused('03-early-flight',
   'orb && Math.hypot(orb.x - gs.player.x, orb.y - gs.player.y) < 430');
 if (gotEarly && await waitShutter('the orb is halfway')) {
   // 230, not 150. Resuming a paused scene hands the next update an oversized
   // delta, so the orb can jump most of a body length in one step — a window
-  // narrower than that jump gets stepped straight over, which is how the
-  // near-player frame was missed once with the hook reporting zero orb frames.
+  // narrower than that jump gets stepped straight over.
   await shootPaused('04-mid-flight',
     'orb && Math.hypot(orb.x - gs.player.x, orb.y - gs.player.y) < 230');
   if (await waitShutter('the orb arrives')) await shootPaused('05-near-player');
 }
-// Let it close on a player who does NOT move, so the near-player frame is a
-// real approach rather than a chase.
-
 const held = await page.evaluate(() => window.__probe);
 console.log('  held-state probe:', JSON.stringify({
   holdFrames: held.holdFrames, shoved: held.shoved,
@@ -432,6 +455,7 @@ console.log('  held-state probe:', JSON.stringify({
   errAfterShovePx: held.errAfterShove,
   rawMaxErrPx: Math.round(held.maxAnchorErr),
   bossWalkedPx: Math.round(held.bossWalk),
+  curve: held.curve.map((c) => `${c.t}ms:${c.v}px/s@${c.hdg}deg`).join('  '),
   minOrbDist: Math.round(held.minOrbDist),
   flightFrames: held.flightFrames, orbEpisodes: held.episodes,
   episodeMs: held.epMs, orbSpeed: held.orbSpeed, orbDamage: held.orbDamage,
@@ -477,7 +501,8 @@ const walk = await page.evaluate(() => {
            hitByOrb: pr.hurts.some((h) => h.amt === 455),
            otherHurts: pr.hurts.filter((h) => h.amt !== 455).map((h) => h.amt),
            closestOrbApproach: Math.round(pr.minOrbDist),
-           flightFrames: pr.flightFrames };
+           flightFrames: pr.flightFrames,
+           curve: pr.curve.map((c) => `${c.t}:${c.v}`).join(' ') };
 });
 console.log('  walk dodge:', JSON.stringify(walk));
 await teardown();
@@ -507,7 +532,8 @@ const dash = await page.evaluate(() => {
            hitByOrb: pr.hurts.some((h) => h.amt === 455),
            otherHurts: pr.hurts.filter((h) => h.amt !== 455).map((h) => h.amt),
            closestOrbApproach: Math.round(pr.minOrbDist),
-           flightFrames: pr.flightFrames };
+           flightFrames: pr.flightFrames,
+           curve: pr.curve.map((c) => `${c.t}:${c.v}`).join(' ') };
 });
 console.log('  dash dodge:', JSON.stringify(dash));
 await teardown();

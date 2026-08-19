@@ -147,6 +147,14 @@ the finding is already established earlier in the conversation.
   objects on the other. They sit at fixed DISTANCES behind it now (26/52/78px)
   along its real velocity. Anything trailing a fast body wants distance, not
   frames.
+- **The returned super's speed is a CURVE, and `_tickSuperOrbs` owns it.**
+  `superReturnSpeed` (600) is the launch impulse, not the flight speed;
+  `superReturnCruise` (470) is what it holds after `superReturnSettleMs` (350).
+  The velocity is rewritten every frame from a heading stamped once at release
+  (`orb._hx/_hy`) — never re-derived from the live velocity and never from the
+  player, because "no homing" has to mean no visual homing either. Its lifetime
+  is player hit / wall hit / out-of-bounds, with range and an age cap as
+  backstops only.
 - **A projectile's speed can silently resize its hitbox.** `Bullet.fire` sizes
   the body from the texture and then stretches a tracer by
   `clamp(speed / 620, 1, 2.2)`, and `Body.updateBounds` recomputes width from

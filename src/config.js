@@ -1074,24 +1074,43 @@ export const ENDLESS = {
     // at point blank — the orb spawns at his hands, so the only reaction room a
     // player standing on top of him gets is this.
     superReleaseMs: 620,
-    // Slower than anything else in the fight on purpose: an ordinary deflected
-    // bolt comes home at the player's own 900px/s, and this must read as a
-    // different, dodgeable class of thing. 405px/s crosses a 400px gap in
-    // 0.99s; a dash is 950px/s for 240ms, so a dash is still an overwhelming
-    // answer and a walk at PLAYER.speed 380 is still a sufficient one.
+    // ── LAUNCH → SETTLE → CRUISE ───────────────────────────────────────────
+    // Three constants, one curve, and the reason for it is a handset finding:
+    // at a flat 405px/s the player could walk ALONGSIDE the orb and escort it
+    // across the room, because base walk speed is 380. A projectile a player
+    // can keep pace with is not something that was violently thrown.
     //
-    // Raised from 300 after handset review: at 300 the orb was unambiguously
-    // dodgeable and slightly inert — it read as an object being moved rather
-    // than one with momentum. The extra 35% is urgency, not difficulty: it is
-    // still aimed once, still never steers, still announced by 620ms of
-    // anticipation, and its damage did NOT move to compensate.
-    superReturnSpeed: 405,
+    // So it is thrown: 600px/s at release, shedding the excess over
+    // `superReturnSettleMs` down to a cruise it then holds forever. This is
+    // NOT deceleration — the excess is an IMPULSE being shed, and the moment
+    // it is gone the orb stops changing speed. Nothing about it dims, shrinks
+    // or fades while that happens; it is losing launch impulse, not energy.
+    //
+    // 470 cruise is 1.24x the player's 380 walk, so walking beside it is out
+    // and getting off its line is in — which is the intended skill, since it
+    // is aimed once and never steers. A 950px/s dash is still an overwhelming
+    // answer. Damage did NOT move for any of this.
+    superReturnSpeed: 600,        // launch impulse
+    superReturnCruise: 470,       // the speed it keeps until something stops it
+    superReturnSettleMs: 350,     // how long the excess takes to bleed off
     // The last slice of `superReleaseMs`, during which the stored mass visibly
-    // COMPRESSES and its core goes white before it launches. Carved out of the
-    // 620ms window rather than added to it — the approved gameplay timing does
-    // not move. Purely how the held state hands over to the flying one.
+    // COMPRESSES, its core goes white and its bow shock forms on the aim it is
+    // about to be thrown along. Carved out of the 620ms window rather than
+    // added to it — the approved gameplay timing does not move. Purely how the
+    // held state hands over to the flying one.
     superLaunchMs: 110,
-    superReturnRange: 1500,
+    // Its lifetime contract is "until it hits something or leaves the world",
+    // not "until it has flown N pixels". The arena's diagonal is ~2263px, so
+    // this range can never be what ends the flight — it is a backstop behind
+    // the wall collision, the player collision and the out-of-bounds sweep in
+    // `GameScene._tickSuperOrbs`, which is also where the defensive age cap
+    // lives. An inherited bullet range was the wrong contract: the orb was
+    // vanishing mid-arena because an ordinary bolt's number said so.
+    superReturnRange: 6000,
+    // Defensive only. Nothing should reach it: at 470px/s cruise this is 2.3
+    // arena diagonals, so an orb still alive here is one that stopped being
+    // able to hit or leave anything, and it dies rather than living forever.
+    superReturnMaxLifeMs: 5000,
     // ── Return damage ──────────────────────────────────────────────────────
     // Deliberately NOT derived from the pellets' own damage, which carries
     // `player.dmgMult`. Player hp is 1000, so one pellet's worth is 23% of the
