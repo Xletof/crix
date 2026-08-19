@@ -148,19 +148,30 @@ the finding is already established earlier in the conversation.
   along its real velocity. Anything trailing a fast body wants distance, not
   frames.
 - **The returned super's speed is a CURVE, and `_tickSuperOrbs` owns it.**
-  `superReturnSpeed` (600) is the launch impulse, not the flight speed;
-  `superReturnCruise` (470) is what it holds after `superReturnSettleMs` (350).
+  `superReturnSpeed` (650) is the launch impulse, not the flight speed;
+  `superReturnCruise` (500) is what it holds after `superReturnSettleMs` (550).
   The velocity is rewritten every frame from a heading stamped once at release
   (`orb._hx/_hy`) — never re-derived from the live velocity and never from the
   player, because "no homing" has to mean no visual homing either. Its lifetime
   is player hit / wall hit / out-of-bounds, with range and an age cap as
   backstops only.
+  **The SHAPE of that curve is a handset finding, not a detail.** The excess is
+  shed as `1 - smoothstep(u)`. The first version used `(1-u)^3` and was
+  rejected: a front-loaded curve dumps two thirds of the excess in the first
+  fifth of the window, so launch and cruise are the same frame on a phone and
+  the whole thing reads as constant speed. Start and end values are therefore
+  NOT enough to protect it — `smoke-deflect` asserts three bands across the
+  window and a half-shed point past u=0.4 for exactly that reason.
 - **A projectile's speed can silently resize its hitbox.** `Bullet.fire` sizes
   the body from the texture and then stretches a tracer by
   `clamp(speed / 620, 1, 2.2)`, and `Body.updateBounds` recomputes width from
   `|scaleX|`. Under 620px/s the clamp is exactly 1 and nothing moves; above it,
-  raising a speed widens the body. The caught super at 405 is under the line on
-  purpose — assert `scaleX === 1` and `radius * 2 === texW` when touching it.
+  raising a speed widens the body. The caught super's 650 launch is OVER that
+  line, so the `boss-super-return` handler cancels the stretch with an explicit
+  `setScale(1, 1)` — assert `scaleX === 1` and `radius * 2 === texW` when
+  touching it, and sample it IN FLIGHT: a wrapper around `fire()` photographs
+  the stretch before the next line undoes it, which is a value no physics step
+  ever sees.
 - **Incoming fire lives in THREE pools now.** `enemyBullets` (green),
   `deflectedBullets` (the player's own red bolt, turned by Vader's DEFLECTION)
   and `bossSuperOrbs` (the caught super, handed back as one slow mass).
@@ -170,6 +181,17 @@ the finding is already established earlier in the conversation.
   because `BulletGroup.fire` re-asserts its group's texture on every recycle, so
   a red bolt in the green pool is either re-textured after the fact — which
   silently resizes its hitbox — or leaks red into the next trooper's shot.
+- **ONE SABER, ONE OWNER — and `_saberAway` is the truth of it.** SABER THROW
+  detaches `weaponSprite` and flies it across the room; while that flag is set
+  Vader is physically unarmed. DEFLECTION shipped ignoring it: the reflect clock
+  fired, the guard opened, and he parried bolts with a blade that was 500px
+  away and still spinning. The scheduler now separates DUE from ACTIVE —
+  `_reflectPending` is owed, `_reflectClaimed` is announced and reserved, and
+  `Boss.canOpenGuard()` (`hasSaber() && !isGuarding()`) is the one gate. The
+  clock still resets at the due moment, so a deferral costs no cadence, and the
+  tell goes up on the frame the blade is caught. Do not write
+  `if (saberThrow) return` anywhere: the flag is the general contract, and a
+  future move that takes the blade only has to set it.
 - **DEFLECTION is a STANCE that owns Vader's saber.** While `Boss.isGuarding()`
   is true — the reflect window, or a caught super still in his hands — no
   scripted move and no state-machine attack may START (`_castBossMove`,

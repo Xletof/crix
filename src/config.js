@@ -1080,24 +1080,30 @@ export const ENDLESS = {
     // across the room, because base walk speed is 380. A projectile a player
     // can keep pace with is not something that was violently thrown.
     //
-    // So it is thrown: 600px/s at release, shedding the excess over
+    // So it is thrown: 650px/s at release, shedding the excess over
     // `superReturnSettleMs` down to a cruise it then holds forever. This is
     // NOT deceleration — the excess is an IMPULSE being shed, and the moment
     // it is gone the orb stops changing speed. Nothing about it dims, shrinks
     // or fades while that happens; it is losing launch impulse, not energy.
     //
-    // 470 cruise is 1.24x the player's 380 walk, so walking beside it is out
+    // THE SHAPE OF THE CURVE IS THE POINT, and the first attempt got it wrong.
+    // 600 -> 470 over 350ms as `cruise + excess * (1-u)^3` measured 537 at
+    // 70ms and 478 at 210ms: two thirds of the excess was gone inside a fifth
+    // of a second, so on a handset the launch frame and the cruise frame were
+    // the same frame and the whole thing read as constant speed. The excess
+    // now follows `1 - smoothstep(u)`, which is flat at BOTH ends: it holds
+    // near launch speed for the first ~100ms, does its visible shedding across
+    // the middle of the window, and eases into cruise instead of arriving at
+    // it. Over 550ms that is ~11 frames of transition on a phone rather than
+    // ~3. Never dips below cruise — smoothstep is monotone on [0,1].
+    //
+    // 500 cruise is 1.32x the player's 380 walk, so walking beside it is out
     // and getting off its line is in — which is the intended skill, since it
     // is aimed once and never steers. A 950px/s dash is still an overwhelming
     // answer. Damage did NOT move for any of this.
-    superReturnSpeed: 600,        // launch impulse
-    superReturnCruise: 470,       // the speed it keeps until something stops it
-    superReturnSettleMs: 350,     // how long the excess takes to bleed off
-    // The last slice of `superReleaseMs`, during which the stored mass visibly
-    // COMPRESSES, its core goes white and its bow shock forms on the aim it is
-    // about to be thrown along. Carved out of the 620ms window rather than
-    // added to it — the approved gameplay timing does not move. Purely how the
-    // held state hands over to the flying one.
+    superReturnSpeed: 650,        // launch impulse
+    superReturnCruise: 500,       // the speed it keeps until something stops it
+    superReturnSettleMs: 550,     // how long the excess takes to bleed off
     superLaunchMs: 110,
     // Its lifetime contract is "until it hits something or leaves the world",
     // not "until it has flown N pixels". The arena's diagonal is ~2263px, so
@@ -1107,7 +1113,7 @@ export const ENDLESS = {
     // lives. An inherited bullet range was the wrong contract: the orb was
     // vanishing mid-arena because an ordinary bolt's number said so.
     superReturnRange: 6000,
-    // Defensive only. Nothing should reach it: at 470px/s cruise this is 2.3
+    // Defensive only. Nothing should reach it: at 500px/s cruise this is 2.2
     // arena diagonals, so an orb still alive here is one that stopped being
     // able to hit or leave anything, and it dies rather than living forever.
     superReturnMaxLifeMs: 5000,

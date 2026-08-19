@@ -790,6 +790,59 @@ whose coordinates changed, with only the wake saying anything about motion.
 - `smoke-deflect` is 50 checks. The curve is asserted against the orb's own
   `_settleT` rather than wall time, so a ~20fps harness cannot make it lie.
 
+### Pass 5 — the velocity sentence, the head, and one saber (final DEFLECTION pass)
+
+Handset review of the whole fight approved the system and returned exactly three
+findings. This pass is those three and nothing else; DEFLECTION is frozen after
+it.
+
+- **The speed transition was not perceptible.** 600 → 470 over 350ms as
+  `(1-u)^3` measured 537 at 70ms and 478 at 210ms — two thirds of the excess
+  gone before the eye had registered a launch, so it read as constant speed. It
+  is now **650 → 500 over 550ms** with the excess shed as `1 - smoothstep(u)`,
+  which is flat at both ends: it holds near launch for ~100ms, sheds visibly
+  across the middle, and eases into cruise. Measured in flight:
+  `137ms:627 · 250:585 · 368:538 · 502:503 · 550:500` and 500 thereafter,
+  forever. Still an impulse being shed, not a deceleration; nothing dims or
+  shrinks while it happens. 500 is 1.32x the player's 380 walk.
+  **650 crosses `Bullet.fire`'s 620px/s tracer-stretch threshold for the first
+  time**, so the release handler now cancels the stretch explicitly — without
+  that the approved 44px hitbox would have grown 5%.
+- **The bow shock was a parenthesis.** Two clean concentric crescents in front
+  of the body read as a bright `)` stuck on a circle. Deleted — a circular arc
+  IS a parenthesis however it is coloured. The leading edge is now made of the
+  same material as the rest of the orb: a forward-biased hot core that drifts
+  across the leading hemisphere, three unequal filled tongues (one dominant, two
+  short, all sliding and swapping length), two ragged polylines of shell folding
+  back over the shoulders, and small fragments peeling off the front into the
+  wake. Reach is still bounded at ~1.35R, everything is keyed off the ACTUAL
+  velocity, and no two consecutive frames photograph the same shape. The held
+  orb's launch beat lost its matching arc for the same reason and grew the same
+  tongues.
+- **Vader could deflect with a saber he did not have.** Real bug, ~26-29s of the
+  footage: SABER THROW sends `weaponSprite` across the room (`_saberAway`), the
+  reflect clock came due mid-flight, and the guard opened anyway. The scheduler
+  now separates DUE from ACTIVE — `_reflectPending` (owed) and `_reflectClaimed`
+  (announced, blade reserved) — gated by one contract, `Boss.canOpenGuard()` =
+  `hasSaber() && !isGuarding()`. The clock still resets at the due moment, so a
+  deferral costs no cadence, and the tell goes up on the frame the blade is
+  caught. The claim starts at the TELL rather than at the open, because nothing
+  otherwise forbade a throw starting inside the 500ms warning. The inverse was
+  already true and is now tested: `_castBossMove` refuses everything while
+  guarding, so a throw cannot take the blade off an open stance.
+  The audit behind `hasSaber()`: of the five scripted moves only SABER THROW
+  dispossesses him. SABER COMBO, VANISH, CHARGE and OVERHEAD SLAM own the
+  blade's ANIMATION, which `isGuarding` and `_performing` already arbitrate, and
+  a parry is deliberately allowed inside them — it is a reflex, not an attack.
+- `smoke-deflect` is **65 checks**. The curve is asserted in three bands across
+  the settle plus a half-shed point past u=0.4, because start and end values
+  passed on the rejected build. The ownership block fails 6 checks on `98da03f`
+  (20 frames of guarding with the blade away, and a bolt genuinely parried by a
+  weapon 500px from his hand). Evidence rigs:
+  `tests/evidence-superorb.mjs` (case 5 = the settle frame by frame, then three
+  consecutive cruise frames of the head) and
+  `tests/evidence-saber-ownership.mjs`.
+
 ### The endless "soft lock" that wasn't (investigated, no production defect)
 
 A P0 was raised: after Vader withdraws, the exit does not open and walking out

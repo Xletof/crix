@@ -567,6 +567,75 @@ const hit = await page.evaluate(() => {
 console.log('  direct hit:', JSON.stringify(hit));
 await teardown();
 
+// ══ CASE 5 — THE VELOCITY SENTENCE AND THE LEADING HEAD ═══════════════════
+//
+// Two handset findings, one staging. The settle is 550ms of a ~1.8s flight
+// down a 900px lane, photographed at five points across it; the head is then
+// photographed on THREE CONSECUTIVE FRAMES at cruise, because "it fluctuates"
+// is a claim about consecutive frames and nothing else can show it.
+//
+// Real clock throughout. The launch beat was slowed in case 1 because it is
+// 110ms and cannot otherwise be photographed at all; the settle is five times
+// that and does not need the help — slowing it here would also be the one
+// thing that could make a too-fast transition look fine.
+console.log('\n== case 5: the settle, frame by frame, and the head at cruise ==');
+await setup(600, true);
+await fireSuper();
+await waitFor(() => (window.game.scene.getScene('Game').boss?.heldSuper?.() ?? 0) >= 3,
+  'the super is caught (case 5)');
+// The 900px lane is set up AFTER the catch, for the same reason case 1 does it:
+// the pellets have to be able to reach him first, and `PLAYER.superRange` is
+// shorter than the runway the flight wants.
+await page.evaluate(() => {
+  window.__bossPin = { x: 800, y: 280 };
+  window.__pinBoss = true;
+  window.__playerPin = { x: 800, y: 1180 };
+});
+await page.waitForTimeout(200);
+const lane5 = await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  return { boss: [Math.round(gs.boss.x), Math.round(gs.boss.y)],
+           player: [Math.round(gs.player.x), Math.round(gs.player.y)],
+           gap: Math.round(Math.hypot(gs.boss.x - gs.player.x, gs.boss.y - gs.player.y)) };
+});
+console.log('  lane staged:', JSON.stringify(lane5));
+
+// Five points across the settle, then three consecutive frames. Each shutter is
+// armed while the scene is still paused from the previous one.
+await armShutter('orb && orb._settleT > 30');
+if (await waitShutter('the launch frame')) {
+  await shootPaused('11-settle-000', 'orb && orb._settleT > 160');
+  if (await waitShutter('early settle')) {
+    await shootPaused('12-settle-160', 'orb && orb._settleT > 300');
+    if (await waitShutter('mid settle')) {
+      await shootPaused('13-settle-300', 'orb && orb._settleT > 440');
+      if (await waitShutter('late settle')) {
+        await shootPaused('14-settle-440', 'orb && orb._settleT >= 550');
+        if (await waitShutter('cruise')) {
+          // From here the condition is simply "there is an orb", which fires on
+          // the very next frame — the only way to photograph "the leading edge
+          // changes between frames" rather than between moments.
+          await shootPaused('15-cruise-a', 'orb');
+          if (await waitShutter('cruise +1 frame')) {
+            await shootPaused('16-cruise-b', 'orb');
+            if (await waitShutter('cruise +2 frames')) await shootPaused('17-cruise-c');
+          }
+        }
+      }
+    }
+  }
+}
+const five = await page.evaluate(() => window.__probe);
+console.log('  measured curve:', five.curve.map((c) => `${c.t}ms:${c.v}`).join('  '));
+console.log('  flight:', JSON.stringify({
+  frames: five.flightFrames, episodes: five.episodes, episodeMs: five.epMs,
+  damage: five.orbDamage, radius: five.orbRadius, scaleX: five.orbScaleX,
+  maxGhosts: five.maxGhosts, coronaFrames: five.coronaFrames,
+  headings: [...new Set(five.curve.map((c) => c.hdg))],
+}));
+await teardown();
+
 console.log('\n== summary ==');
-console.log(JSON.stringify({ flight: held, walk, dash, hit }, null, 1));
+console.log(JSON.stringify({ flight: held, walk, dash, hit,
+  settle: five.curve.map((c) => `${c.t}:${c.v}`) }, null, 1));
 await browser.close();

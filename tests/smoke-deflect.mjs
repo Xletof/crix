@@ -285,6 +285,170 @@ r.stance = await page.evaluate(async () => {
 
 await keepAlive();
 
+// ── 3b. ONE SABER, ONE OWNER ──────────────────────────────────────────────
+//
+// Handset footage, ~26-29s: SABER THROW sent the blade across the room, the
+// reflect clock came due while it was in flight, the guard opened anyway, and
+// Vader parried bolts with a weapon that was several hundred pixels away and
+// still spinning. Two directions to protect, and this block drives both
+// through the production paths — the real move runner, the real mechanic
+// clock, real player bolts.
+//
+// Vacuity is the whole risk here: "no parry happened" passes trivially if the
+// throw never started, if the blade never left, or if DEFLECTION was never due.
+// Each of those is asserted as an event before anything is concluded from its
+// absence.
+r.owner = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const b = gs.boss, p = gs.player;
+  const { ENDLESS } = await import('/src/config.js');
+  const MECH = ENDLESS.bossMech;
+  gs.lives = 9999; p.alive = true; p.hp = p.hpMax;
+  gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
+
+  // Clean slate, and DEFLECTION armed on its real clock rather than by writing
+  // `_reflectUntil` directly — the bug lived in the scheduler, so the scheduler
+  // is what has to run.
+  b._reflectUntil = 0; b._reflectPending = false; b._reflectClaimed = false;
+  b._absorbCount = 0; b._releaseT = 0; b._releaseN = 0; b._absorbT = 0;
+  b.state = 'idle'; b._activeMove = null; b._performing = false;
+  b._reflectEvery = MECH.reflectEveryMs;
+  b._reflectT = MECH.reflectEveryMs;
+
+  const log = [];
+  const onW = () => log.push({ ev: 'windup', t: Math.round(gs.time.now), away: !!b._saberAway });
+  const onO = () => log.push({ ev: 'open',   t: Math.round(gs.time.now), away: !!b._saberAway });
+  gs.events.on('boss-reflect-windup', onW);
+  gs.events.on('boss-reflect-open', onO);
+
+  let deflected = 0;
+  const realFire = gs.deflectedBullets.fire.bind(gs.deflectedBullets);
+  gs.deflectedBullets.fire = (...a) => { deflected++; return realFire(...a); };
+
+  const seen = {
+    awayFrames: 0, pendingWhileAway: 0, reflectingWhileAway: 0,
+    guardingWhileAway: 0, saberFarPx: 0, weaponSprites: 0,
+    awayWhileReflecting: 0, homeFrames: 0, sawAway: 0, caughtAt: -1,
+  };
+  const probe = () => {
+    const ws = b.weaponSprite;
+    if (b._saberAway) {
+      seen.sawAway = 1;
+      seen.awayFrames++;
+      if (b._reflectPending) seen.pendingWhileAway++;
+      if (b.isReflecting()) seen.reflectingWhileAway++;
+      if (b.isGuarding?.()) seen.guardingWhileAway++;
+      if (ws?.active) seen.saberFarPx = Math.max(seen.saberFarPx,
+        Math.round(Math.hypot(ws.x - b.x, ws.y - b.y)));
+    } else {
+      // The frame the blade came back, read from inside the loop. A polling
+      // `setTimeout` cannot time this: it notices the catch up to a frame late,
+      // and the handoff being measured is faster than that — the first draft
+      // reported a NEGATIVE handoff because the tell had already fired before
+      // the poll looked.
+      if (seen.sawAway && seen.caughtAt < 0) seen.caughtAt = Math.round(gs.time.now);
+      seen.homeFrames++;
+      if (b.isReflecting() && b._saberAway) seen.awayWhileReflecting++;
+    }
+    // ONE blade, ever. A "spawn a second saber" fix would show up here.
+    const n = gs.children.list.filter((o) => o.texture?.key === 'wpn-saber'
+                                             && o.visible && o.active).length;
+    seen.weaponSprites = Math.max(seen.weaponSprites, n);
+  };
+  gs.events.on('postupdate', probe);
+
+  // ── CASE A: THROW FIRST ───────────────────────────────────────────────
+  const castThrow = gs._castBossMove(b, 'saberthrow') ? 1 : 0;
+  for (let i = 0; i < 60 && !b._saberAway; i++) {
+    await new Promise((res) => setTimeout(res, 60));
+  }
+  const leftHand = b._saberAway ? 1 : 0;
+  // DEFLECTION comes due NOW, with the blade in the air. This is the exact
+  // frame the handset footage caught.
+  const dueAt = Math.round(gs.time.now);
+  b._reflectT = 1;
+  const tellsBeforeDue = log.length;
+
+  // Real bolts into an unarmed Vader while the blade is away. If anything
+  // parries them, `deflected` moves and his hp does not.
+  const hpBeforeBolts = b.hp;
+  for (let i = 0; i < 3 && b._saberAway; i++) {
+    const a = Math.atan2(p.y - b.y, p.x - b.x) + Math.PI / 2;
+    gs.playerBullets.fire(b.x + Math.cos(a) * 90, b.y + Math.sin(a) * 90,
+      a + Math.PI, 880, 300, 900, { owner: 'player' });
+    await new Promise((res) => setTimeout(res, 140));
+  }
+  const boltsWhileAway = hpBeforeBolts - b.hp;
+  const deflectedWhileAway = deflected;
+  const pendingAtEnd = !!b._reflectPending;
+  const tellsWhileAway = log.filter((x) => x.away).length;
+
+  // Wait for the blade to come home, then for the deferred DEFLECTION.
+  for (let i = 0; i < 90 && b._saberAway; i++) {
+    await new Promise((res) => setTimeout(res, 60));
+  }
+  const homeAt = seen.caughtAt;
+  for (let i = 0; i < 60 && !log.some((x) => x.ev === 'open'); i++) {
+    await new Promise((res) => setTimeout(res, 60));
+  }
+  const tell = log.find((x) => x.ev === 'windup');
+  const open = log.find((x) => x.ev === 'open');
+  const handoffMs = (tell && homeAt >= 0) ? tell.t - homeAt : -1;
+  const deferredMs = tell ? tell.t - dueAt : -1;
+
+  // ...and the recovered stance really does parry.
+  const deflBeforeGuard = deflected;
+  for (let i = 0; i < 3 && b.isReflecting(); i++) {
+    const a = Math.atan2(p.y - b.y, p.x - b.x) + Math.PI / 2;
+    gs.playerBullets.fire(b.x + Math.cos(a) * 90, b.y + Math.sin(a) * 90,
+      a + Math.PI, 880, 300, 900, { owner: 'player' });
+    await new Promise((res) => setTimeout(res, 140));
+  }
+  const parriedAfterReturn = deflected - deflBeforeGuard;
+
+  // ── CASE B: DEFLECTION FIRST ──────────────────────────────────────────
+  // Healed first. `_castBossMove` refuses outright if the player is dead, and
+  // this block has been standing in front of a live Vader for several seconds
+  // by now — a dead player makes both casts below read as "refused" and the
+  // check fails on correct code. (It did, once, before this line.)
+  p.alive = true; p.hp = p.hpMax; gs.lives = 9999;
+  b._reflectUntil = gs.time.now + 2500;
+  b.state = 'idle'; b._activeMove = null; b._performing = false;
+  const throwDuringGuard = gs._castBossMove(b, 'saberthrow') ? 1 : 0;
+  await new Promise((res) => setTimeout(res, 200));
+  const awayDuringGuard = b._saberAway ? 1 : 0;
+  // Guard ends — offense must be available again immediately, not after a
+  // multi-second penalty for having been deferred.
+  b._reflectUntil = 0; b._reflectClaimed = false;
+  p.alive = true; p.hp = p.hpMax;
+  b.state = 'idle'; b._activeMove = null; b._performing = false;
+  const throwAfterGuard = gs._castBossMove(b, 'saberthrow') ? 1 : 0;
+
+  // Teardown: hand the blade back and stop everything this block started.
+  const h = b._activeMove;
+  if (h?.move?.onCancel) h.move.onCancel(gs, b, h.h || h.state || {});
+  if (b._activeMove) b._activeMove.phase = 'done';
+  b._saberAway = false; b._noMelee = false; b._performing = false; b.state = 'idle';
+  if (b.weaponSprite?.active) { b.weaponSprite.x = b.x; b.weaponSprite.y = b.y; }
+  b._reflectUntil = 0; b._reflectPending = false; b._reflectClaimed = false;
+  b._reflectEvery = 0;
+  gs.events.off('postupdate', probe);
+  gs.events.off('boss-reflect-windup', onW);
+  gs.events.off('boss-reflect-open', onO);
+  gs.deflectedBullets.fire = realFire;
+
+  return {
+    ...seen, castThrow, leftHand, tellsBeforeDue, tellsWhileAway,
+    boltsWhileAway: Math.round(boltsWhileAway), deflectedWhileAway,
+    pendingAtEnd, gotTell: !!tell, gotOpen: !!open,
+    handoffMs, deferredMs, parriedAfterReturn,
+    throwDuringGuard, awayDuringGuard, throwAfterGuard,
+    windupMs: MECH.reflectWindupMs, everyMs: MECH.reflectEveryMs,
+  };
+});
+
+await keepAlive();
+
 // ── 4. THE SUPER IS CAUGHT, NOT BATTED ────────────────────────────────────
 //
 // The whole sequence, driven through the production collision path: real super
@@ -316,8 +480,24 @@ r.superDef = await page.evaluate(async () => {
   const un2 = wrapPool(gs.enemyBullets, () => green++);
   // No orb pool at all on the old build: it batted super pellets back into
   // `deflectedBullets` one by one, which is precisely what `deflected` counts.
+  // WHY did the flight end? A 1-frame flight makes a dozen checks below vacuous
+  // and reads identically to "the orb never launched", so the death is logged
+  // with its position, its own clocks and the call site that asked for it.
+  const killLog = [];
   const un3 = gs.bossSuperOrbs ? wrapPool(gs.bossSuperOrbs, (o) => {
     orbs++;
+    if (o && !o.__killWrapped) {
+      o.__killWrapped = true;
+      const realKill = o.kill.bind(o);
+      o.kill = (...a) => {
+        killLog.push({ x: Math.round(o.x), y: Math.round(o.y),
+                       t: Math.round(o._settleT ?? -1), age: Math.round(o._ageMs ?? -1),
+                       trav: Math.round(o.traveled),
+                       where: (new Error().stack || '').split('\n').slice(1, 4)
+                         .map((l) => l.trim().replace(/^at\s+/, '')).join(' <- ') });
+        return realKill(...a);
+      };
+    }
     if (o) orbSpec.push({ dmg: o.damage, speed: Math.round(o._speed),
                           radius: Math.round(o.body.radius),
                           scaleX: o.scaleX, texW: o.width,
@@ -358,12 +538,29 @@ r.superDef = await page.evaluate(async () => {
   // middle of the arena. What is under test is what the orb DOES once released;
   // how far apart they happen to be when it is released is his pathing's
   // business and smoke-boss's problem.
+  // TWO LANES, because the volley and the flight want different distances.
+  //
+  // The pellets have to REACH him, and `PLAYER.superRange` is what it is — 520px
+  // is inside it. The orb then wants the longest clear runway in the room: at
+  // 520px the flight is ~19 frames on a healthy harness and ONE on a stalled
+  // one, where a 500ms step covers a third of the lane. That failed two runs in
+  // four with "1 frames of it", which reads exactly like a projectile that never
+  // launched — the measurement was right and the runway was too short to survive
+  // a bad machine.
+  //
+  // So he is volleyed at 520 across, and then both of them are moved onto a
+  // 900px north-south lane while he is still holding it — well before the
+  // release, so nothing about the launch itself is staged. North-south is the
+  // only bearing with 900 clear pixels here: the meditation pod sits at
+  // (340,740) and an east-west lane that long would have him standing in it.
   const LANE = 520;
-  b.setPosition(800 - LANE / 2, 800);
+  const FLIGHT = 900;
+  let pinX = 800 - LANE / 2, pinY = 800;
+  b.setPosition(pinX, pinY);
   p.setPosition(800 + LANE / 2, 800);
   const pinGeometry = () => {
     b.setVelocity(0, 0);
-    b.setPosition(800 - LANE / 2, 800);
+    b.setPosition(pinX, pinY);
   };
   gs.events.on('postupdate', pinGeometry);
 
@@ -400,6 +597,11 @@ r.superDef = await page.evaluate(async () => {
   // pointed at the target passes the first and fails on the second.
   const wake = { worstErrDeg: 0, maxVsPlayerDeg: 0, maxGhosts: 0, frames: 0,
                  coronaFrames: 0, ghostPool: 0 };
+  // The hitbox, sampled IN FLIGHT rather than from the fire() wrapper. `fire`
+  // ends with a tracer stretch and the release handler cancels it on the next
+  // line, so the wrapper photographs a value no physics step ever sees; what
+  // the body actually collides with is this.
+  const scaleFlight = { min: 99, max: 0, boundsW: 0 };
   const wrapDeg = (a) => { let x = a % 360; if (x > 180) x -= 360; if (x < -180) x += 360; return x; };
   const probe = () => {
     heldPeak = Math.max(heldPeak, b.heldSuper ? b.heldSuper() : 0);
@@ -414,6 +616,9 @@ r.superDef = await page.evaluate(async () => {
     // cannot promise to sample at 350ms, and `_settleT` is the number the
     // curve is actually computed from — so this reads the contract, not the
     // machine.
+    scaleFlight.min = Math.min(scaleFlight.min, o.scaleX);
+    scaleFlight.max = Math.max(scaleFlight.max, o.scaleX);
+    scaleFlight.boundsW = Math.round(o.body.width);
     speeds.push({
       t: Math.round(o._settleT ?? -1),
       age: Math.round(o._ageMs ?? -1),
@@ -438,6 +643,16 @@ r.superDef = await page.evaluate(async () => {
       Math.abs(wrapDeg((vh - toPlayer) * D)));
   };
   gs.events.on('postupdate', probe);
+
+  // Onto the long lane, as soon as the pellets are in his hands and while the
+  // release is still winding up. Polled rather than slept: if the volley never
+  // lands there is nothing to re-stage and the absorb checks fail honestly.
+  for (let i = 0; i < 30 && (b.heldSuper?.() ?? 0) === 0; i++) {
+    await new Promise((res) => setTimeout(res, 60));
+  }
+  pinX = 800; pinY = 800 - FLIGHT / 2;
+  b.setPosition(pinX, pinY);
+  p.setPosition(800, 800 + FLIGHT / 2);
 
   // Generous: absorb grace + release windup is ~1s of game time, and this
   // harness stretches timers 2-3x. Polled rather than slept, so a LATE orb is
@@ -465,7 +680,7 @@ r.superDef = await page.evaluate(async () => {
   // Normal movement, not a dash: 420px is a bit over a second of walking at
   // PLAYER.speed, and the orb takes ~1.7s to cross the lane.
   const hpAtRelease = p.hp;
-  p.setPosition(800 + LANE / 2, 800 + 420);      // straight off the lane
+  p.setPosition(800 + 420, 800 + FLIGHT / 2);    // straight off the lane
   await new Promise((res) => setTimeout(res, 1200));
   gs.events.off('postupdate', probe);
   gs.events.off('postupdate', pinGeometry);
@@ -514,6 +729,8 @@ r.superDef = await page.evaluate(async () => {
     // speed that clamp is STILL exactly 1 (600 < 620), which is the only
     // reason the hitbox survived the impulse.
     orbScaleX: orbSpec[0] ? orbSpec[0].scaleX : null,
+    killLog,
+    scaleFlight,
     dodged: dodgedHp >= hpAtRelease,
     pelletDmg,
     pelletSumHalved: Math.round(pelletDmg * PLAYER.superPellets * 0.5),
@@ -658,6 +875,54 @@ check(r.stance.reflectMs >= 2000,
   'the stance lasts long enough to see several parries',
   `${r.stance.reflectMs}ms against a ~760ms player fire cycle (3 rounds + 520ms reload)`);
 
+// ── ONE SABER, ONE OWNER ─────────────────────────────────────────────────
+// Every check below is preceded by the event that makes it non-vacuous. "No
+// tell while the blade was away" means nothing unless a throw happened, the
+// blade left, and DEFLECTION was genuinely due in between.
+const o = r.owner;
+check(o.castThrow === 1 && o.leftHand === 1 && o.awayFrames > 3
+      && o.saberFarPx > 150,
+  'SABER THROW ran and the blade really did leave his hand',
+  `cast ${o.castThrow ? 'accepted' : 'REFUSED'}, ${o.awayFrames} frames with the `
+  + `saber away, furthest ${o.saberFarPx}px from him. A zero here makes every `
+  + 'ownership check below vacuous');
+check(o.awayFrames > 3 && o.pendingWhileAway > 0,
+  'DEFLECTION came DUE mid-flight and was marked pending rather than lost',
+  `${o.pendingWhileAway} of ${o.awayFrames} unarmed frames with the deflection `
+  + 'owed. Zero means the clock never came due and the rest proves nothing');
+check(o.tellsBeforeDue === 0 && o.tellsWhileAway === 0,
+  'and NOTHING was announced while he had no saber to announce it with',
+  `${o.tellsWhileAway} windup/open events fired during the flight. On 98da03f `
+  + 'the clock fired the tell regardless and the guard opened into an empty hand');
+check(o.reflectingWhileAway === 0 && o.guardingWhileAway === 0,
+  'the guard was never up while the blade was in the air',
+  `${o.reflectingWhileAway} reflecting frames, ${o.guardingWhileAway} guarding `
+  + 'frames with the saber gone');
+check(o.deflectedWhileAway === 0 && o.boltsWhileAway > 0,
+  'and real bolts fired at the unarmed Vader HIT him instead of being parried',
+  `${o.boltsWhileAway} damage taken, ${o.deflectedWhileAway} bolts returned. `
+  + 'Damage of 0 would mean the bolts never reached him and the check is vacuous');
+check(o.weaponSprites <= 1,
+  'no second saber was conjured to cover the gap',
+  `${o.weaponSprites} live saber sprite(s) at peak — the fix must defer the `
+  + 'stance, not duplicate the weapon');
+check(o.gotTell && o.gotOpen && o.handoffMs >= 0 && o.handoffMs < 700,
+  'the deferred DEFLECTION starts as soon as the blade is back in his hand',
+  `tell ${o.handoffMs}ms after the catch (deferred ${o.deferredMs}ms in total), `
+  + `guard opened ${o.gotOpen ? 'yes' : 'NO'}. A dropped occurrence never tells; a `
+  + `restarted ${o.everyMs}ms cadence would show a handoff in the thousands`);
+check(o.parriedAfterReturn > 0,
+  'and the recovered stance parries for real',
+  `${o.parriedAfterReturn} bolt(s) returned once the guard opened — 0 would mean `
+  + 'the deferral cost him the deflection after all');
+check(o.throwDuringGuard === 0 && o.awayDuringGuard === 0,
+  'the inverse holds: SABER THROW cannot start while the guard owns the blade',
+  `cast ${o.throwDuringGuard ? 'ACCEPTED' : 'refused'}, saber away during guard: `
+  + `${o.awayDuringGuard ? 'YES' : 'no'}`);
+check(o.throwAfterGuard === 1,
+  'and it is available again the moment the stance drops — no dead gap',
+  `first throw after the guard ended: ${o.throwAfterGuard ? 'immediate' : 'REFUSED'}`);
+
 // 4. The caught super
 const gotOrb = r.superDef.orbs === 1 && !!r.superDef.orb;
 check(r.superDef.absorbed === 5,
@@ -708,39 +973,77 @@ const peakV = sp.length ? Math.max(...sp.map((x) => x.v)) : 0;
 const minAfterSettle = late.length ? Math.min(...late.map((x) => x.v)) : 0;
 const maxAfterSettle = late.length ? Math.max(...late.map((x) => x.v)) : 0;
 
-check(gotOrb && r.superDef.configSpeed === 600 && r.superDef.configCruise === 470
-      && r.superDef.configSettleMs === 350,
+check(gotOrb && r.superDef.configSpeed === 650 && r.superDef.configCruise === 500
+      && r.superDef.configSettleMs === 550,
   'the reviewed launch/settle/cruise numbers are what the game is running',
   gotOrb ? `${r.superDef.configSpeed} -> ${r.superDef.configCruise} over `
            + `${r.superDef.configSettleMs}ms` : 'NO ORB');
 check(sp.length > 3,
   'the velocity curve was actually sampled in flight',
   `${sp.length} frames of it — fewer than four makes every curve check below `
-  + 'vacuous, which is exactly how a projectile that never launched passes');
-check(sp.length > 3 && peakV >= 520,
+  + 'vacuous, which is exactly how a projectile that never launched passes. '
+  + `Deaths: ${JSON.stringify(r.superDef.killLog)}`);
+check(sp.length > 3 && peakV >= 600,
   'it LAUNCHES — the early frames carry the impulse, not the cruise speed',
-  `peak measured ${peakV}px/s. A flat 470 (or the old flat 405) cannot reach `
-  + 'this. It is short of the 600 launch value because this harness runs at '
-  + '~20fps and its first sample of a 350ms curve lands 50-90ms in — which the '
-  + 'curve check below reads around rather than guessing at');
+  `peak measured ${peakV}px/s. A flat 500 (or the old flat 405) cannot reach `
+  + 'this. It is short of the 650 launch value because this harness runs at '
+  + '~20fps and its first sample lands 50-90ms in — which the curve checks '
+  + 'below read around rather than guessing at');
 // The launch VALUE cannot be sampled directly here — the first frame the
 // harness sees is already tens of milliseconds into the settle. So compare
 // every sample against the curve evaluated at that sample's own `_settleT`:
-// if the whole curve agrees, its value at t=0 is the 600 launch by
-// construction, and the shape (a cubic shedding of the excess, not a linear
-// brake) is proved at the same time.
+// if the whole curve agrees, its value at t=0 is the 650 launch by
+// construction, and the shape is proved at the same time.
+const excessCfg = r.superDef.configSpeed - r.superDef.configCruise;
+const uOf = (x) => Math.min(1, Math.max(0, x.t / r.superDef.configSettleMs));
+const fracOf = (x) => (x.v - r.superDef.configCruise) / excessCfg;
 const curveErr = sp.map((x) => {
-  const u = Math.min(1, Math.max(0, x.t / r.superDef.configSettleMs));
-  const want = r.superDef.configCruise
-    + (r.superDef.configSpeed - r.superDef.configCruise) * Math.pow(1 - u, 3);
+  const u = uOf(x);
+  const want = r.superDef.configCruise + excessCfg * (1 - u * u * (3 - 2 * u));
   return Math.abs(x.v - want);
 });
 const worstCurve = curveErr.length ? Math.max(...curveErr) : 999;
-check(sp.some((x) => x.t < 140) && worstCurve <= 4,
+check(sp.some((x) => x.t < 200) && worstCurve <= 4,
   'and the whole flight follows the launch->settle->cruise curve, frame by frame',
   `worst disagreement ${worstCurve.toFixed(1)}px/s across ${sp.length} samples `
   + `(earliest at t=${sp.length ? Math.min(...sp.map((x) => x.t)) : -1}ms). A flat `
   + 'speed, a linear ramp or a continuing deceleration all fail this');
+
+// ── THE TRANSITION HAS TO LAST LONG ENOUGH TO BE SEEN ────────────────────
+// The previous implementation satisfied "launches at X, cruises at Y" and was
+// still rejected on a handset: `(1-u)^3` over 350ms had shed two thirds of the
+// excess within 120ms, so the launch frame and the cruise frame were the same
+// frame. Start and end values therefore prove nothing on their own. These
+// bands assert the SHAPE at several points in between, and every one of them
+// fails against a front-loaded cubic run over the same 550ms window (which
+// holds only 51% of the excess at u=0.2 and 22% at u=0.4).
+const band = (lo, hi) => sp.filter((x) => uOf(x) >= lo && uOf(x) < hi);
+const early3 = band(0, 0.3), mid3 = band(0.3, 0.65), late3 = band(0.65, 1);
+check(early3.length > 0 && mid3.length > 0 && late3.length > 0,
+  'the settle window was sampled across its whole length, not just at the ends',
+  `${early3.length} early / ${mid3.length} middle / ${late3.length} late samples `
+  + 'of the settle — a zero in any of these makes the band checks below vacuous');
+check(early3.length > 0 && early3.every((x) => fracOf(x) >= 0.72),
+  'the first third of the settle still carries most of the launch impulse',
+  `worst ${(Math.min(...early3.map(fracOf)) * 100).toFixed(0)}% of the excess left `
+  + 'at u<0.3 (smoothstep holds 78% at u=0.3; a cubic is down to 34%)');
+check(mid3.length > 0 && mid3.every((x) => fracOf(x) >= 0.20)
+      && mid3.some((x) => fracOf(x) <= 0.80),
+  'the shedding is VISIBLE across the middle of the window, not over before it',
+  `the middle band spans ${(Math.max(...mid3.map(fracOf)) * 100).toFixed(0)}% down to `
+  + `${(Math.min(...mid3.map(fracOf)) * 100).toFixed(0)}% of the excess — a cubic has `
+  + 'already dropped under 20% here');
+check(late3.length > 0 && late3.every((x) => fracOf(x) <= 0.35)
+      && late3.some((x) => fracOf(x) >= 0.02),
+  'and it EASES into cruise rather than arriving at it early',
+  `the last third spans ${(Math.max(...late3.map(fracOf)) * 100).toFixed(0)}% down to `
+  + `${(Math.min(...late3.map(fracOf)) * 100).toFixed(0)}% of the excess`);
+const halfIdx = sp.findIndex((x) => fracOf(x) <= 0.5);
+const halfU = halfIdx >= 0 ? uOf(sp[halfIdx]) : -1;
+check(halfIdx > 0 && halfU >= 0.40,
+  'half the excess is still there past the middle of the window',
+  `half-shed at u=${halfU.toFixed(2)} (${Math.round(halfU * r.superDef.configSettleMs)}ms `
+  + 'of 550). Smoothstep crosses at 0.50; the rejected cubic crossed at 0.21');
 check(late.length > 0 && Math.abs(maxAfterSettle - r.superDef.configCruise) <= 4
       && Math.abs(minAfterSettle - r.superDef.configCruise) <= 4,
   'and it SETTLES to the cruise speed by the end of the settle window',
@@ -755,14 +1058,18 @@ check(late.length > 1,
   'it is still alive well past the settle window',
   `${late.length} frames after ${r.superDef.configSettleMs}ms — a range or `
   + 'lifetime that ended the flight early shows up as 0 or 1');
-check(gotOrb && r.superDef.orbScaleX === 1
-      && r.superDef.orb.radius * 2 === r.superDef.orb.texW,
+check(gotOrb && r.superDef.scaleFlight.min === 1 && r.superDef.scaleFlight.max === 1
+      && r.superDef.orb.radius * 2 === r.superDef.orb.texW
+      && r.superDef.scaleFlight.boundsW === r.superDef.orb.texW,
   'the speed change did NOT move the hitbox',
-  gotOrb ? `scaleX ${r.superDef.orbScaleX}, body radius ${r.superDef.orb.radius} `
-           + `against a ${r.superDef.orb.texW}px texture. \`Bullet.fire\` stretches `
-           + `scaleX by clamp(speed/620, 1, 2.2) and \`Body.updateBounds\` recomputes `
-           + `width from |scaleX| — at 405 that clamp is still exactly 1, and this `
-           + 'check is what stops a future speed bump silently widening the body'
+  gotOrb ? `scaleX ${r.superDef.scaleFlight.min}-${r.superDef.scaleFlight.max} across the `
+           + `flight, ${r.superDef.scaleFlight.boundsW}px of body bounds, radius `
+           + `${r.superDef.orb.radius} against a ${r.superDef.orb.texW}px texture. `
+           + `\`Bullet.fire\` stretches scaleX by clamp(speed/620, 1, 2.2) and `
+           + `\`Body.updateBounds\` recomputes width from |scaleX| — the 650 launch is `
+           + `OVER that threshold for the first time, so the release handler cancels `
+           + `the stretch and this is what proves it. Sampled in flight, not from the `
+           + `fire() wrapper, which photographs a value no physics step ever sees`
          : 'NO ORB');
 check(r.superDef.releaseMs === 620 && r.superDef.launchMs < r.superDef.releaseMs,
   'the launch beat is carved OUT of the approved anticipation, not added to it',

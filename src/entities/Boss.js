@@ -101,6 +101,11 @@ export class Boss extends Enemy {
     this._reflectEvery    = 0;
     this._reflectT        = 0;
     this._reflectUntil    = 0;   // scene time — the window the bullet code reads
+    // DEFLECTION is DUE vs DEFLECTION is HAPPENING. The clock firing only
+    // makes it owed; it cannot start while something else physically owns the
+    // saber. See `_tickMechanics` and `hasSaber`.
+    this._reflectPending  = false;   // owed, waiting for the blade to come back
+    this._reflectClaimed  = false;   // tell is up, blade reserved, guard not open
     this._blackoutEvery   = 0;
     this._blackoutT       = 0;
     this._afterimageEvery = 0;
@@ -507,20 +512,33 @@ export class Boss extends Enemy {
       g.fillStyle(0xffffff, 0.95); g.fillCircle(0, 0, r * (0.30 + 0.42 * launch));
       if (launch > 0) {
         // THE FRONT FORMS BEFORE THE VELOCITY DOES. Over the last beat the
-        // sphere grows the same bow shock it will wear in flight, on the aim
+        // sphere grows the same leading edge it will wear in flight, on the aim
         // it is about to be thrown along, while the shell stretches backward —
         // so the launch is a transformation of this object rather than the
         // substitution of a different one.
+        //
+        // That edge used to include a clean stroked arc across the front. It
+        // was the same `)` handset review rejected on the flying orb, and it
+        // was here for continuity WITH that motif — so it goes for the same
+        // reason, replaced by the tongue vocabulary the flight now uses.
         const lx = Math.cos(this._aim), ly = Math.sin(this._aim);
         g.fillStyle(0xffffff, 0.55 * launch);
         g.fillCircle(lx * r * 0.9, ly * r * 0.9, r * 0.45 * launch);
         g.fillStyle(0xff8888, 0.40 * launch);
         g.fillCircle(lx * r * 1.5, ly * r * 1.5, r * 0.28 * launch);
-        g.lineStyle(3, 0xffffff, 0.8 * launch);
-        g.beginPath();
-        g.arc(0, 0, r * (1.05 + 0.25 * launch),
-              this._aim - 0.8, this._aim + 0.8);
-        g.strokePath();
+        for (let i = 0; i < 3; i++) {
+          const wob = Math.sin(t * (2.0 + i * 0.7) + i * 1.9);
+          const off = i === 0 ? 0.09 * wob : (i === 1 ? -0.58 : 0.52) + 0.12 * wob;
+          const a = this._aim + off;
+          const len = r * (i === 0 ? 1.30 : 1.00) * launch + r * 0.06 * wob;
+          const w = (i === 0 ? 0.28 : 0.19);
+          g.fillStyle(i === 0 ? 0xffffff : 0xff7a5a, (i === 0 ? 0.6 : 0.4) * launch);
+          g.fillTriangle(
+            Math.cos(a - w) * r * 0.4, Math.sin(a - w) * r * 0.4,
+            Math.cos(a + w) * r * 0.4, Math.sin(a + w) * r * 0.4,
+            Math.cos(a) * len,         Math.sin(a) * len,
+          );
+        }
         g.fillStyle(0xff3030, 0.30 * launch);
         g.fillCircle(-lx * r * (0.5 + 0.5 * launch), -ly * r * (0.5 + 0.5 * launch),
                      r * 0.5 * launch);
@@ -805,8 +823,30 @@ export class Boss extends Enemy {
     if (!this.scene) return;
     if (this._reflectEvery > 0) {
       this._reflectT -= delta;
+      // ── DUE IS NOT ACTIVE ────────────────────────────────────────────
+      // The clock keeps its own cadence whatever else he is doing — it is
+      // reset HERE, at the due moment, so a deferred DEFLECTION does not push
+      // the next one out and does not cost him the 9s over again. All the
+      // clock does is mark it owed.
+      //
+      // Handset footage, ~26-29s: he threw the saber, the reflect clock came
+      // due mid-flight, the guard opened, and he parried bolts with a weapon
+      // that was 500px away and visibly still spinning. The stance is the
+      // blade; he cannot take a stance with a blade he does not have.
       if (this._reflectT <= 0) {
         this._reflectT = this._reflectEvery;
+        this._reflectPending = true;
+      }
+      // Retried every frame, so the handoff is immediate: the beat the blade
+      // is back in his hand is the beat the tell goes up.
+      if (this._reflectPending && this.canOpenGuard()) {
+        this._reflectPending = false;
+        // CLAIMED FROM THE TELL, not from the open. Otherwise a SABER THROW
+        // could start inside the 500ms warning — nothing forbade it, because
+        // `isGuarding()` was still false — and the guard would open into an
+        // empty hand anyway, one move later. The announcement is the
+        // commitment, so the blade is reserved from the announcement.
+        this._reflectClaimed = true;
         // Telegraphed: the flare goes up first and the window opens after it, so
         // holding fire for a beat beats it outright. That is the difference
         // between a surprise and a tax.
@@ -818,6 +858,13 @@ export class Boss extends Enemy {
           // `this.scene.time`. Crashes the whole scene, so it takes the run with
           // it. Pre-existing; surfaced by a suite run, not by this release.
           if (!this.alive || !this.scene) return;
+          this._reflectClaimed = false;
+          // Defence in depth. The claim above should make this unreachable —
+          // nothing can take the blade off him between the tell and the open —
+          // but if some future state ever does, the guard must not open into an
+          // empty hand. It goes back to owed and re-tells when the blade is
+          // back, rather than being lost.
+          if (!this.hasSaber()) { this._reflectPending = true; return; }
           this._reflectUntil = this.scene.time.now + BOSS_MECH.reflectMs;
           this.scene.events.emit('boss-reflect-open', this);
         });
@@ -938,7 +985,46 @@ export class Boss extends Enemy {
    */
   isGuarding() {
     return this.alive
-      && (this.isReflecting() || this._absorbCount > 0 || this._releaseT > 0);
+      && (this.isReflecting() || this._reflectClaimed
+          || this._absorbCount > 0 || this._releaseT > 0);
+  }
+
+  /**
+   * ONE SABER, ONE OWNER — the physical half.
+   *
+   * The single authoritative answer to "is the blade in his hand right now",
+   * and deliberately a statement about the WORLD rather than a list of move
+   * ids. `_saberAway` is set by whatever has physically taken the weapon off
+   * him (today that is only SABER THROW, which detaches `weaponSprite` and
+   * flies it across the room) and cleared when it is caught, when the flight
+   * is cancelled, or by the flight's own safety cutoff. A future move that
+   * takes the blade away has one thing to do — set that flag — and every
+   * consumer of this contract is correct for free. `if (saberThrow) return`
+   * would have been a lie about the general case.
+   *
+   * The audit behind that claim: of the five scripted moves, SABER THROW is
+   * the only one where the weapon leaves him. SABER COMBO and VANISH swing it,
+   * and CHARGE and OVERHEAD SLAM (his own state machine) carry it — they own
+   * the blade's ANIMATION for their duration, which `isGuarding` and the
+   * `_performing` gate already arbitrate at the START of a move. They do not
+   * dispossess him, and a parry is explicitly allowed to happen inside them
+   * (it is a reflex, not an attack — see `parry`). FORCE PULL and FORCE PUSH
+   * do not touch it at all. Blocking those would be blocking compatible
+   * behaviour, which costs him offence for nothing.
+   */
+  hasSaber() {
+    return this.alive && !this._saberAway && !!this.weaponSprite?.active;
+  }
+
+  /**
+   * May DEFLECTION begin its tell right now?
+   *
+   * The gate the scheduler asks. Requires the blade AND requires that nothing
+   * else already has the stance — a second tell inside an open guard would
+   * announce a window he is already in.
+   */
+  canOpenGuard() {
+    return !!this.scene && this.hasSaber() && !this.isGuarding();
   }
 
   /** True while the saber is up. Read by the player-bullet collision. */

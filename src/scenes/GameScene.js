@@ -2305,6 +2305,15 @@ export class GameScene extends Phaser.Scene {
         orb._hy = Math.sin(ang);
         orb._settleT = 0;         // ms since launch, capped at the settle window
         orb._ageMs = 0;           // for the defensive lifetime cap only
+        // ── THE HITBOX MUST NOT FOLLOW THE SPEED ────────────────────────
+        // `Bullet.fire` ends with `setScale(clamp(speed / 620, 1, 2.2), 1)`
+        // and `Body.updateBounds` recomputes the body's width from |scaleX|.
+        // At the old 600px/s launch the clamp was exactly 1 and this was
+        // invisible; 650 is over the line, so firing at the launch impulse
+        // would have quietly grown the approved 44px radius by 5%. The
+        // tracer stretch is meaningless here anyway — the orb wears a whole
+        // hand-drawn body — so it is cancelled on the frame it is applied.
+        orb.setScale(1, 1);
       }
       this.fx.burstDir(ox, oy, 'red', 14, ang, 90);
       // A hard white spray straight down the heading, so the very first frame
@@ -3936,12 +3945,18 @@ export class GameScene extends Phaser.Scene {
     // is the ONLY writer of the orb's velocity — the same one-owner rule the
     // saber and the wake follow.
     //
-    // The excess over cruise decays as (1-u)^3, which dumps most of it in the
-    // first third of the window and then tails off: 600 at release, ~525 at
-    // 90ms, ~486 at 175ms, 470 by 350ms. A linear ramp reads as braking; this
-    // reads as an over-speed being shed. After the window the speed is a
-    // constant and NOTHING slows it again — it is not running out of energy,
-    // it never had any of its own.
+    // The excess over cruise follows `1 - smoothstep(u)`, and the shape is the
+    // whole point. The first version used `(1-u)^3` over 350ms, which measured
+    // 537 at 70ms and 478 at 210ms — most of the excess gone before the eye
+    // had finished registering that anything had launched, so on a handset it
+    // read as constant speed. Smoothstep is FLAT AT BOTH ENDS: it holds near
+    // the launch impulse for the first ~100ms, does its shedding across the
+    // middle of the window, and eases into cruise rather than arriving at it.
+    // Measured: 650 at release, 634 at 110, 597 at 220, 553 at 330, 516 at
+    // 440, 500 by 550 — about eleven frames of visible transition on a phone.
+    // A linear ramp reads as braking; this reads as an over-speed being shed.
+    // After the window the speed is a constant and NOTHING slows it again — it
+    // is not running out of energy, it never had any of its own.
     const MECH = ENDLESS.bossMech;
     if (orb._hx !== undefined) {
       const settleMs = MECH.superReturnSettleMs;
@@ -3949,9 +3964,10 @@ export class GameScene extends Phaser.Scene {
       orb._ageMs = (orb._ageMs ?? 0) + delta;
       const u = settleMs > 0 ? orb._settleT / settleMs : 1;
       const excess = MECH.superReturnSpeed - MECH.superReturnCruise;
-      const speed = MECH.superReturnCruise + excess * Math.pow(1 - u, 3);
+      const left = 1 - u * u * (3 - 2 * u);             // 1 - smoothstep(u)
+      const speed = MECH.superReturnCruise + excess * left;
       orb.body.velocity.set(orb._hx * speed, orb._hy * speed);
-      orb._impulse = u >= 1 ? 0 : Math.pow(1 - u, 3);   // 1 → 0, drives shape only
+      orb._impulse = u >= 1 ? 0 : left;                 // 1 → 0, drives shape only
 
       // ── LIFETIME ──────────────────────────────────────────────────────
       // It flies until it hits the player, hits a wall, or leaves the world.
@@ -4032,26 +4048,6 @@ export class GameScene extends Phaser.Scene {
     // spinning uniformly, which is what stops it reading as a spinning decal.
     orb.setRotation(ang + Math.sin(ph * 0.9) * 0.30);
 
-    // ── THE HEAD ────────────────────────────────────────────────────────
-    // A compact bow shock on the ACTUAL velocity, not a nose cone: two thin
-    // crescents at a fluctuating stand-off, so it breathes instead of sitting
-    // there like a triangle. It reaches at most ~1.3R ahead — near enough to
-    // read as part of the orb, far too short to imply a lane or a hit region
-    // in front of it. `imp` stretches it during the launch impulse and lets it
-    // relax at cruise; nothing about its BRIGHTNESS follows the speed, because
-    // the orb is not losing energy.
-    const shock = R * (1.06 + 0.10 * Math.abs(Math.sin(ph * 2.6)) + 0.16 * imp);
-    g.lineStyle(4, 0xffffff, 0.85);
-    g.beginPath(); g.arc(0, 0, shock, ang - 0.85, ang + 0.85); g.strokePath();
-    g.lineStyle(2, 0xff6060, 0.6);
-    g.beginPath();
-    g.arc(0, 0, shock * 1.14, ang - 0.55 - 0.1 * imp, ang + 0.55 + 0.1 * imp);
-    g.strokePath();
-    // The compressed cap right at the front — the energy being shovelled into
-    // the leading hemisphere. Sits INSIDE the orb, so it never adds reach.
-    g.fillStyle(0xffffff, 0.42);
-    g.fillCircle(ux * R * 0.44, uy * R * 0.44, R * (0.36 + 0.06 * imp));
-
     // ── THE SHELL ───────────────────────────────────────────────────────
     // Three overlapping lobes on their own rates and phases. Consecutive
     // frames genuinely differ because no two rates are harmonics of each
@@ -4110,6 +4106,81 @@ export class GameScene extends Phaser.Scene {
       const by = -uy * R * 0.5 + py * i * R * 0.34;
       g.lineBetween(bx, by, bx + Math.cos(a) * l, by + Math.sin(a) * l);
     }
+
+    // ── THE HEAD ────────────────────────────────────────────────────────
+    // Handset finding on the first attempt: two clean concentric crescents in
+    // front of the body read as a bright `)` stuck onto a circle — generic,
+    // and geometric in a way nothing else about this object is. Deleted. A
+    // circular arc IS a parenthesis, however it is coloured, so the leading
+    // edge is now made of the same material as the rest of the orb: a hot core
+    // shoved forward, uneven tongues torn off it, and shell that folds back
+    // over the shoulders. Everything is keyed off `ang` — the ACTUAL velocity
+    // — and everything wobbles on its own rate, so no two consecutive frames
+    // photograph the same shape and none of it can be mistaken for a fixed
+    // nose, a reticle or a claim on the floor ahead.
+    //
+    // Reach is bounded at ~1.35R, the same as the old shock, so the drawing
+    // still never implies more danger than the 44px body carries.
+
+    // The core, riding forward into the leading hemisphere and drifting across
+    // it — the mass is being shovelled against the direction of travel.
+    const lead = 0.30 + 0.05 * Math.sin(ph * 1.9);
+    const yaw  = Math.sin(ph * 1.3) * 0.22;               // it does not aim
+    const cx   = Math.cos(ang + yaw) * R * lead;
+    const cy   = Math.sin(ang + yaw) * R * lead;
+    g.fillStyle(0xffdcdc, 0.30);
+    g.fillCircle(cx * 0.7, cy * 0.7, R * (0.60 + 0.05 * Math.sin(ph * 2.2)));
+    g.fillStyle(0xffffff, 0.46);
+    g.fillCircle(cx, cy, R * (0.34 + 0.05 * Math.sin(ph * 3.1)));
+
+    // Leading tongues: ONE dominant, two short and unequal, all three sliding
+    // about the front and swapping length. Filled triangles rather than lines,
+    // so they read as material being torn rather than as drawn rays.
+    for (let i = 0; i < 3; i++) {
+      const wob = Math.sin(ph * (2.1 + i * 0.7) + i * 1.9);
+      const off = (i === 0 ? 0.10 * wob : (i === 1 ? -0.62 : 0.55) + 0.14 * wob);
+      const len = R * (i === 0 ? 1.16 + 0.16 * wob + 0.10 * imp
+                               : 0.86 + 0.12 * wob + 0.06 * imp);
+      const a = ang + off;
+      const w = (i === 0 ? 0.30 : 0.20) + 0.05 * Math.sin(ph * 2.6 + i);
+      g.fillStyle(i === 0 ? 0xffffff : 0xff7a5a, i === 0 ? 0.55 : 0.38);
+      g.fillTriangle(
+        Math.cos(a - w) * R * 0.42, Math.sin(a - w) * R * 0.42,
+        Math.cos(a + w) * R * 0.42, Math.sin(a + w) * R * 0.42,
+        Math.cos(a + 0.06 * wob) * len, Math.sin(a + 0.06 * wob) * len,
+      );
+    }
+
+    // Shell folding BACK from the front: two ragged polylines that start near
+    // the leading edge and peel over the shoulders. Segment radii jitter per
+    // vertex, which is what keeps them from closing into an arc.
+    for (const side of [-1, 1]) {
+      g.lineStyle(3, 0xffb4b4, 0.45);
+      g.beginPath();
+      for (let k = 0; k <= 5; k++) {
+        const t = k / 5;
+        const a = ang + side * (0.25 + t * 1.5);
+        const rr = R * (0.98 - 0.22 * t + 0.09 * Math.sin(ph * 2.4 + k * 1.6 + side));
+        const X = Math.cos(a) * rr, Y = Math.sin(a) * rr;
+        if (k === 0) g.moveTo(X, Y); else g.lineTo(X, Y);
+      }
+      g.strokePath();
+    }
+
+    // Shoulder fragments peeling off the leading edge and falling behind —
+    // material actually being stripped, which is the other half of "this side
+    // is cutting". Short, and they die well inside the wake.
+    g.fillStyle(0xffc890, 0.42);
+    for (let i = 0; i < 4; i++) {
+      const side = i % 2 ? 1 : -1;
+      const t = ((ph * 0.6 + i * 0.25) % 1);              // 0 at the front, 1 behind
+      const a = ang + side * (0.45 + t * 1.1);
+      const rr = R * (0.95 + 0.30 * t);
+      g.fillCircle(Math.cos(a) * rr - ux * R * 0.30 * t,
+                   Math.sin(a) * rr - uy * R * 0.30 * t,
+                   R * 0.13 * (1 - t * 0.7));
+    }
+
   }
 
   /**

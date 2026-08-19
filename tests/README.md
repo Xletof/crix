@@ -380,6 +380,25 @@ to the frame rate. Related: a guard that reads a slowed timer ONCE and only
 complains when it is in the wrong RANGE says nothing when the event has already
 finished — check the largest value a per-frame sampler ever saw instead.
 
+**Start and end values do not protect a curve — its SHAPE is the thing being
+reviewed.** The returned super's first launch-to-cruise curve passed "launches
+at 600, cruises at 470, never dips below cruise" and was rejected on a handset
+anyway: `(1-u)^3` sheds two thirds of the excess in the first fifth of the
+window, so the launch frame and the cruise frame are the same frame. The checks
+were true and the feature did not exist. `smoke-deflect` now bins the samples by
+`u` and asserts a floor in each band (>=72% of the excess left at u<0.3, still
+shedding through the middle, eased by the end) plus a half-shed point past
+u=0.4. Every one of those fails on the cubic run over the same window.
+
+**Give a projectile measurement a RUNWAY, not just a lane.** The same flight was
+measured across a 520px gap — 19 frames on a healthy harness and ONE on a
+stalled container, where a single 500ms step covers a third of the lane. Two runs
+in four then failed with "1 frames of it", which is indistinguishable from a
+projectile that never launched. The volley still happens at 520 (any further and
+`PLAYER.superRange` cannot reach him); both actors are moved onto a 900px
+north-south lane while he is still holding it. Pick the geometry from what the
+measurement needs to survive, including a bad machine.
+
 **Put the shutter INSIDE the game when the thing photographed is shorter than a
 round trip.** `tests/evidence-superorb.mjs` had to catch a ~1.3s flight and a
 110ms compression beat. "Wait from Node, then pause, then screenshot" costs
