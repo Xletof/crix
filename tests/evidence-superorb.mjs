@@ -488,9 +488,17 @@ await page.evaluate(() => {
     gs.events.on('postupdate', window.__walk);
   });
 });
+// TWO WAYS FOR THIS TO END, and at the canonical speed the second one is what
+// happens: an ordinary walk begun ON the release frame no longer clears a
+// medium-range lane. That is the intended consequence — the decision window is
+// before launch, not after it — so the shutter photographs whichever outcome
+// the run produces rather than only the flattering one. `armClosestShutter`
+// fires on the closest approach; `__pauseOnOrbHit` fires on the 455.
 await armClosestShutter();
+await page.evaluate(() => { window.__pauseOnOrbHit = true; });
 await fireSuper();
-if (await waitShutter('the orb passes them')) await shootPaused('06-dodged-by-walking');
+if (await waitShutter('the orb reaches them')) await shootPaused('06-walking-was-not-enough');
+await page.evaluate(() => { window.__pauseOnOrbHit = false; });
 const walk = await page.evaluate(() => {
   const gs = window.game.scene.getScene('Game');
   gs.events.off('postupdate', window.__walk);
@@ -545,14 +553,19 @@ await setup(320, true);
 await page.evaluate(() => {
   const gs = window.game.scene.getScene('Game');
   gs.player.hp = gs.player.hpMax = 5000;      // survive it, so the number is readable
-  gs.events.once('boss-super-returned', () => { window.__hpAtRelease = gs.player.hp; });
-  // ARMED BEFORE THE VOLLEY, not between the launch and the impact. At the
-  // canonical speed a 320px lane is ~300ms — three frames — and a `waitFor`
-  // round trip costs 200-400ms, so the old order set this flag after the orb
-  // had already landed and the case aborted on a hit that had happened. The
-  // hook only fires on a 455 (the orb's flat number), so arming it early
-  // cannot catch anything else.
-  window.__pauseOnOrbHit = true;
+  // ARMED FROM INSIDE THE PAGE, on the release event itself. At the canonical
+  // speed a 320px lane is ~300ms — three frames — so arming it from Node after
+  // the release lands after the impact (the case aborted on a hit that had
+  // already happened), and arming it before the volley lets a leftover orb
+  // from the previous case trip the shutter and skip this one entirely. The
+  // release handler is the one moment that is both late enough and early
+  // enough, and it costs no round trip.
+  window.__pauseOnOrbHit = false;
+  gs.events.once('boss-super-returned', () => {
+    window.__hpAtRelease = gs.player.hp;
+    window.__pauseOnOrbHit = true;
+  });
+  if (gs.scene.isPaused()) gs.scene.resume();
 });
 await fireSuper();
 // The ORB connecting, not merely hp going down — Vader is free to attack after
@@ -699,26 +712,60 @@ if (await waitShutter('the sweep, real clock')) {
   await shootPaused('20-real-a', 'gs.boss.superSwing() || orb');
   if (await waitShutter('+1 frame')) {
     await shootPaused('21-real-b', 'gs.boss.superSwing() || orb');
-    if (await waitShutter('+2 frames')) {
-      await shootPaused('22-real-c', 'gs.boss.superSwing() || orb');
-      if (await waitShutter('+3 frames')) {
-        // BEAT 9, and it belongs here rather than in case 5: the follow-through
-        // is 200ms at the real clock and 800ms slowed, which outlives a 620px
-        // flight. `isGuarding()` covers the stance, the held energy, the
-        // release and the follow-through, so this frame is "he is done with the
-        // saber" — with the orb still in the air, on its own.
-        await shootPaused('23-real-d', 'orb && !gs.boss.isGuarding()');
-        if (await waitShutter('Vader off the guard, orb still up')) {
-          await shootPaused('24-offense-orb-alive');
-        }
-      }
-    }
+    if (await waitShutter('+2 frames')) await shootPaused('22-real-c');
   }
 }
 const six = await page.evaluate(() => window.__probe);
 console.log('  real-clock flight:', JSON.stringify({
   frames: six.flightFrames, speed: six.curve.map((c) => c.v),
   damage: six.orbDamage, radius: six.orbRadius }));
+await teardown();
+
+// ══ CASE 7 — BEAT 9: HE IS DONE, THE ORB IS NOT ═══════════════════════════
+// `isGuarding()` covers the stance, the held energy, the release and the
+// follow-through, so the first frame it goes false is the frame his saber
+// belongs to the AI again. The orb has to still be in the air on it.
+//
+// ITS OWN CASE, with nothing photographed before it. The follow-through ends
+// 200ms after launch and the flight down this lane is ~570ms, so the window is
+// ~370ms wide — about four frames here — and case 6 was spending three of them
+// on its consecutive-frame claim before arming this one. It missed on two runs
+// out of three that way, which is a rig that cannot photograph a state the
+// game reliably enters.
+console.log('\n== case 7: beat 9 — off the guard, orb still flying ==');
+// EXPLICITLY RUNNING. Every case above ends on a screenshot, and a screenshot
+// here means a paused scene; if any of them ends paused, this case fires its
+// volley into a frozen world and aborts with five pellets still in the air and
+// a probe that never ticked once. `page.evaluate` keeps working throughout, so
+// nothing about that failure looks like a paused game.
+await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  if (gs.scene.isPaused()) gs.scene.resume();
+});
+await page.waitForTimeout(300);
+// 480px, not the 600 cases 5 and 6 use: `PLAYER.superRange` is 620 and the
+// volley has a 30-degree spread, so at 600 the outer pellets are only just
+// reaching him — one run in this rig ended with all five still in the air and
+// the case aborted. Nothing here depends on the starting gap; the lane the
+// flight uses is staged after the catch anyway.
+await setup(480, true);
+await fireSuper();
+await waitFor(() => (window.game.scene.getScene('Game').boss?.heldSuper?.() ?? 0) >= 3,
+  'the super is caught (case 7)');
+await page.evaluate(() => {
+  window.__bossPin = { x: 800, y: 560 };
+  window.__pinBoss = true;
+  window.__playerPin = { x: 800, y: 1180 };
+  window.__stance = false;
+});
+await armShutter('orb && !gs.boss.isGuarding()');
+if (await waitShutter('Vader off the guard, orb still up')) {
+  await shootPaused('23-offense-orb-alive');
+}
+const seven = await page.evaluate(() => window.__probe);
+console.log('  beat 9:', JSON.stringify({
+  offenseAfterMs: seven.offenseAfterMs, orbAliveAtOffense: seven.orbAliveAtOffense,
+  flightFrames: seven.flightFrames }));
 await teardown();
 
 console.log('\n== summary ==');
