@@ -987,9 +987,12 @@ export const ENDLESS = {
   // like it missed while the damage number lies to you about it. Fight length is
   // hp's job. If something dies too fast, give it more hp.
 
-  // Mechanics he accumulates, one per encounter, in this order. Each is drawn
-  // from behaviour the Boss already has or a small addition, so "weirder every
-  // time" does not mean a new boss written from scratch every five sectors.
+  // The mechanic REGISTRY. Which encounter each one arrives at is `bossLadder`
+  // below — this list is only the definitions, and its order carries no meaning
+  // any more. Each is drawn from behaviour the Boss or the scene already has, so
+  // "weirder every time" does not mean a new boss written from scratch every
+  // five sectors.
+  //
   // `hunt` (x1.18 speed) and `unbound` (x1.2 speed) used to sit in this list.
   // Both were deleted rather than retuned: a speed multiplier is not a mechanic,
   // it is the same fight with the numbers moved, and two of five entries being
@@ -999,8 +1002,8 @@ export const ENDLESS = {
   // something that already exists — darkness from the DARKNESS modifier, the
   // pickup from the weapon-choice drop, the clones from the enemy pool.
   //
-  // Rule-breaking is held to BRIEF, SURPRISING and RECOVERABLE. Deflection lasts
-  // 1.4s and is telegraphed first; a disarm puts the weapon on the floor with
+  // Rule-breaking is held to BRIEF, SURPRISING and RECOVERABLE. The stance lasts
+  // 2.4s and is telegraphed first; a disarm puts the weapon on the floor with
   // its ammo intact. Neither takes anything away for longer than it takes to
   // react — a lockout is not a surprise, it is a punishment.
   bossMechanics: [
@@ -1011,10 +1014,74 @@ export const ENDLESS = {
     { id: 'afterimages', name: 'AFTERIMAGES',    desc: 'which one is he?' },
     { id: 'disarm',      name: 'DISARM',         desc: 'he takes it from your hands' },
     { id: 'legion',      name: 'LEGION',         desc: 'the room fills as he falls' },
+    // Not a new attack — a COMPOSITION RULE over two he already has. From here
+    // the clones never arrive in the light: `boss-afterimages` also triggers the
+    // blackout, so "which one is he" and "you cannot see" become one question
+    // instead of two that occasionally coincided by clock luck.
+    { id: 'eclipse',     name: 'THE DARK',       desc: 'they come with the lights' },
   ],
+
+  // ── THE LADDER: what each Vader ARRIVES WITH ────────────────────────────
+  //
+  // This used to be `bossMechanics.slice(0, n)` — one mechanic per encounter,
+  // in registry order. The consequence, which nobody had written down until the
+  // progression audit: **encounter 1 Vader had exactly one mechanic and it fired
+  // ONCE**, three grunts at t=900ms, and then for the rest of the fight nothing
+  // recurred and nothing changed state. His whole first appearance was three
+  // rotating scripted moves on a 4.8s clock plus charge/slam/spawn — the same
+  // three questions over and over, which is precisely the "attack A -> reset ->
+  // attack B -> reset" the handset review named.
+  //
+  // The two mechanics that made the third fight feel different were both
+  // recurring and both changed what the player had to DO: SUNDERING SLAM makes
+  // standing next to him cost something on a 5.2s metronome (it is the single
+  // biggest filler of dead air in the fight), and DEFLECTION is the ONLY
+  // mechanic in the whole ladder that changes the player's verb — shoot, or
+  // close, or move. "Vader-3 brain, Vader-1 numbers" is exactly those two,
+  // pulled forward onto the hp and damage of the first.
+  //
+  // So the first Vader is now COMPLETE Vader: the full scripted move pool (which
+  // he always had — see `bossMovesFor`), the reactive VANISH (which he always
+  // had), his escort, the floor, and the guard. Later Vader is not the first one
+  // with more health; it is the first one plus rules that keep arriving.
+  //
+  // Entries are what encounter n ADDS. Encounter n carries the union of rows
+  // 1..n, so this stays cumulative and a player still learns the ladder in a
+  // fixed order. Past the last row he keeps everything (a run can reach sector
+  // 60+); nothing new arrives, which is honest — the escalation past here is the
+  // hp curve and the cadence table below.
+  bossLadder: [
+    ['guard', 'sunder', 'reflect'],   // 1 — COMPLETE VADER
+    ['blackout'],                     // 2 — the room stops being reliable
+    ['afterimages'],                  // 3 — the TARGET stops being reliable
+    ['disarm'],                       // 4 — your loadout stops being reliable
+    ['legion'],                       // 5 — every phase break costs you the room
+    ['eclipse'],                      // 6 — and now they come together
+  ],
+
+  // How hard each rung's mechanic CLOCKS run, as a multiplier on the intervals
+  // in `bossMech`. Lower is more often.
+  //
+  // This is the pressure axis, and it is deliberately small: ~18% by encounter 6.
+  // A late Vader is running five or six independent clocks at once, and past a
+  // point tightening them stops adding decisions and starts overlapping
+  // telegraphs — which is how a fight becomes unreadable rather than hard. The
+  // escalation that matters is the ROWS above; this is the seasoning.
+  //
+  // `reflect` is deliberately EXEMPT. Its 9s cadence is part of the frozen
+  // DEFLECTION contract, and at 0.82 it would be a 2.4s stance every 7.4s — 32%
+  // of the fight with ranged damage punished, which crosses from "a stance you
+  // answer" into "ranged play is switched off". Constant 9000ms at every rung.
+  bossMechScale: [1.00, 1.00, 0.94, 0.90, 0.86, 0.82],
 
   // Mechanic timings. Every window is short on purpose — see above.
   bossMech: {
+    // SUNDERING SLAM. Was a bare 5200 literal in `spawnBoss`; lifted here so the
+    // per-encounter cadence table has one place to scale it from. Its blast is
+    // centred on HIM (240px / 260), so it is a proximity tax rather than a
+    // ranged threat — which is exactly why it pairs with DEFLECTION instead of
+    // duplicating it. One pushes you off him, the other pushes you onto him.
+    sunderEveryMs: 5200,
     reflectEveryMs: 9000,
     // THE STANCE, not a window. At 1400ms this was a hidden reflection window:
     // the player's mag is 3 rounds at 120ms plus a 520ms reload, so one cycle
@@ -1161,6 +1228,28 @@ export const ENDLESS = {
     vanishLockMs: 14000,
   },
 };
+
+/** One mechanic definition by id, or null. */
+export function bossMechanicById(id) {
+  return ENDLESS.bossMechanics.find((m) => m.id === id) || null;
+}
+
+/**
+ * Every mechanic Vader #n arrives with — the union of `bossLadder` rows 1..n.
+ *
+ * ONE producer for the ladder, called by `spawnBoss` and by the tests, so a
+ * regression check cannot agree with a stale copy of the table. Past the last
+ * authored row he keeps everything (endless runs reach sector 60+); the order is
+ * the order the rows introduce them, so `_mechanics` still reads as the sequence
+ * the player was taught.
+ */
+export function bossMechanicsFor(n) {
+  const ids = [];
+  for (let i = 0; i < Math.min(n, ENDLESS.bossLadder.length); i++) {
+    for (const id of ENDLESS.bossLadder[i]) if (!ids.includes(id)) ids.push(id);
+  }
+  return ids.map(bossMechanicById).filter(Boolean);
+}
 
 export const MODIFIERS = {
   frenzy:     { id: 'frenzy',     name: 'FRENZY',      color: '#ff5030', speedMult: 1.28, spawnRateMult: 0.8 },

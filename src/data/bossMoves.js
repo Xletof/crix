@@ -680,15 +680,32 @@ const BY_ID = Object.fromEntries(BOSS_MOVES.map((m) => [m.id, m]));
 export const bossMoveById = (id) => BY_ID[id] || null;
 
 /**
- * Which moves Vader has, given his phase and encounter number.
+ * Which moves Vader has, given his phase.
  *
- * Phase-gated so the fight escalates in VERBS rather than in numbers — the
- * whole reason his old ladder was rebuilt. Encounter number widens the pool
- * too, so a later Vader opens with things the first one never had.
+ * ── THE ROTATION IS THE SAME AT EVERY ENCOUNTER, AND ALWAYS WAS ────────────
+ *
+ * This used to read `.filter((m) => m.minPhase <= phase || encounter >= 3)`,
+ * with a docstring claiming "a later Vader opens with things the first one never
+ * had". The progression audit measured it: **every** move in this file is
+ * `minPhase: 1`, and `phase` is never below 1, so the left side of that `||` was
+ * true unconditionally and the encounter clause could never change a single
+ * result. It was dead the day it was written.
+ *
+ * That is worth keeping written down rather than quietly deleting, because it
+ * inverts the obvious theory about why the first Vader felt thin: it was NOT
+ * missing moves. Encounter 1 has had the whole scripted pool — SABER THROW,
+ * FORCE PULL, FORCE PUSH, plus SABER COMBO off the close-range branch and the
+ * reactive VANISH — since the four-round rebuild. The gap was entirely in the
+ * MECHANIC ladder (see `ENDLESS.bossLadder`), and looking for it here would have
+ * cost a round.
+ *
+ * `encounter` is kept in the signature: every caller passes it, and this is
+ * still the right place for a future move that genuinely is late-ladder only.
+ * A phase gate remains live and honest — `minPhase` above 1 works today.
  */
-export function bossMovesFor(phase = 1, encounter = 1) {
+export function bossMovesFor(phase = 1, encounter = 1) {   // eslint-disable-line no-unused-vars
   return BOSS_MOVES
     .filter((m) => !m.reactive && !m.close)
-    .filter((m) => m.minPhase <= phase || encounter >= 3)
+    .filter((m) => m.minPhase <= phase)
     .map((m) => m.id);
 }

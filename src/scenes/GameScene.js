@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, ENDLESS, FONTS, HUDCFG, VIEW, DEPTH } from '../config.js';
+import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, ENDLESS, FONTS, HUDCFG, VIEW, DEPTH, bossMechanicsFor, bossMechanicById } from '../config.js';
 import { Player } from '../entities/Player.js';
 import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, EnemySniper, EnemySwarmling, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
@@ -1836,22 +1836,35 @@ export class GameScene extends Phaser.Scene {
       this.boss._retreats = true;
       this.boss._encounter = n;
 
-      // One more mechanic per encounter, in a fixed order so a player learns
-      // the ladder rather than being surprised at random. Every one of them is
-      // built from behaviour the Boss or the scene already has — that is what
-      // keeps "weirder every time" from meaning a new boss written from scratch.
-      const gained = ENDLESS.bossMechanics.slice(0, n);
+      // WHAT THIS VADER ARRIVES WITH — read off `ENDLESS.bossLadder`, which is
+      // the single place the progression is expressed. Cumulative: rung n is the
+      // union of rows 1..n, so a player still learns it in one fixed order.
+      //
+      // It used to be `bossMechanics.slice(0, n)`, i.e. one mechanic per
+      // encounter in registry order, and the cost of that was that the FIRST
+      // Vader had exactly one mechanic which fired exactly once. See the long
+      // note on `bossLadder` for why the first rung now carries three.
+      const gained = bossMechanicsFor(n);
       this.boss._mechanics = gained.map((m) => m.id);
 
       const MECH = ENDLESS.bossMech;
+      // The pressure seasoning. Clamped to the last row, so a sector-60 Vader
+      // runs at the deepest authored cadence rather than off the end of the
+      // table. `reflect` is deliberately not scaled — see the note in config.
+      const scale = ENDLESS.bossMechScale[
+        Math.min(n, ENDLESS.bossMechScale.length) - 1] ?? 1;
+      const every = (ms) => Math.round(ms * scale);
       for (const m of gained) {
         if (m.id === 'guard')       this._bossGuard = 3;
-        if (m.id === 'sunder')      this.boss._sunderMs = 5200;
+        if (m.id === 'sunder')      this.boss._sunderMs = every(MECH.sunderEveryMs);
         if (m.id === 'legion')      this.boss._legion = true;
         if (m.id === 'reflect')     this.boss._reflectEvery = MECH.reflectEveryMs;
-        if (m.id === 'blackout')    this.boss._blackoutEvery = MECH.blackoutEveryMs;
-        if (m.id === 'afterimages') this.boss._afterimageEvery = MECH.afterimageEveryMs;
-        if (m.id === 'disarm')      this.boss._disarmEvery = MECH.disarmEveryMs;
+        if (m.id === 'blackout')    this.boss._blackoutEvery = every(MECH.blackoutEveryMs);
+        if (m.id === 'afterimages') this.boss._afterimageEvery = every(MECH.afterimageEveryMs);
+        if (m.id === 'disarm')      this.boss._disarmEvery = every(MECH.disarmEveryMs);
+        // A composition rule, not a clock of its own: it makes AFTERIMAGES
+        // bring the blackout with it. Handled in the `boss-afterimages` path.
+        if (m.id === 'eclipse')     this.boss._eclipse = true;
       }
       // Each clock starts at a FULL interval rather than at zero, so nothing
       // fires on the first frame of the encounter. Being disarmed before the
@@ -1865,8 +1878,12 @@ export class GameScene extends Phaser.Scene {
 
       // Announce which Vader this is and what he brought. The newest mechanic
       // gets named on its own — being told exactly what changed is what makes
-      // the escalation legible rather than just "he feels harder now".
-      const newest = gained[gained.length - 1];
+      // the escalation legible rather than just "he feels harder now". Rung 1
+      // names nothing: everything it has IS Darth Vader, and a medal reading
+      // "SUNDERING SLAM" on the introduction would frame the baseline kit as an
+      // upgrade over some more basic Vader the player never met.
+      const newest = ENDLESS.bossLadder[n - 1]?.length === 1
+        ? bossMechanicById(ENDLESS.bossLadder[n - 1][0]) : null;
       this.events.emit('show-banner', n === 1 ? 'DARTH VADER' : `VADER — WOUND ${n - 1}`, '#ff2828');
       if (newest && n > 1) {
         this.time.delayedCall(1600, () =>
@@ -2349,7 +2366,16 @@ export class GameScene extends Phaser.Scene {
 
     // AFTERIMAGES. Copies that swing and die in one hit; the real one is the
     // one with the health bar.
-    this._on('boss-afterimages', (b, n) => this._spawnAfterimages(b, n));
+    this._on('boss-afterimages', (b, n) => {
+      this._spawnAfterimages(b, n);
+      // THE DARK (`eclipse`, encounter 6): the clones stop arriving in the
+      // light. Both halves already existed and both already fired on their own
+      // free-running clocks, so at encounter 5 they overlapped only by accident
+      // — sometimes the best moment in the fight, most of the time never. This
+      // makes the coincidence a rule. Nothing new is drawn or spawned: it is
+      // the same blackout handler, asked for at a chosen moment.
+      if (b?._eclipse) this.events.emit('boss-blackout', b, ENDLESS.bossMech.blackoutMs);
+    });
 
     // DISARM. The secondary lands on the floor with its ammo intact. Taking
     // something away permanently would be a punishment; making you go and get
@@ -5492,16 +5518,27 @@ export class GameScene extends Phaser.Scene {
       b._moveT -= delta;
       if (b._moveT <= 0) {
         const cast = this._castBossMove(b);
-        // A cast REFUSED BY THE GUARD must not burn the whole interval. The
-        // stance is 2400ms against a 4800ms move clock, so leaving this at
-        // `_moveEvery` would quietly cost him up to half his scripted moves
-        // every time he raised the saber — the fight getting emptier as a
-        // direct side effect of the fix that made it more readable.
+        // A REFUSED CAST MUST NOT BURN THE WHOLE INTERVAL — for any reason.
         //
-        // Narrowed to the guard on purpose: his OTHER refusal (another attack
-        // already owns him) keeps the cadence it has always had, because that
-        // one is not new and is not this pass's to retune.
-        b._moveT = (!cast && b.isGuarding?.()) ? 400 : b._moveEvery;
+        // This used to narrow the retry to the guard only, on the grounds that
+        // his other refusal (another attack already owns him) "is not new and is
+        // not this pass's to retune". The dead-air audit is what makes it this
+        // pass's: `_castBossMove` also returns null while his state machine is
+        // mid-charge, mid-slam or mid-spawn, and those occupy well over a second
+        // each. A move clock coming due 200ms into a charge windup therefore
+        // threw the cast away and waited a FULL 4800ms for the next one — so a
+        // scripted move was silently skipped every time the two systems happened
+        // to collide, at random, several times a fight. That is the purest form
+        // of the dead air the review named: not a designed punish window, just
+        // the scheduler losing a turn.
+        //
+        // 400ms retry for every refusal. It cannot make him spammier: the cast
+        // still only lands when he is genuinely free, `_moveT` is reset to the
+        // full interval from the CAST rather than from the due moment, and the
+        // move itself sets `cooldown` to its own full length. All this changes is
+        // that a move deferred by a collision arrives shortly after it, instead
+        // of not at all.
+        b._moveT = cast ? b._moveEvery : 400;
       }
     }
 
