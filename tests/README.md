@@ -30,13 +30,27 @@ deliberately moves 30px, and it measured 43px.
 
 **`smoke-deflect`'s throw section joined that list, measured 2026-08-20.** Its
 section 4c photographs a 260ms saber gesture frame by frame in a ~20fps harness,
-so the two checks that read the gesture's SIZE and the deferred stance's
-handover timing are sampling luck under load. Six consecutive standalone runs
-during the ladder pass: `PASS`, then a single fail, then a single fail on a
-different check, then `PASS` — and the pre-ladder baseline produced the SAME two
-failures on the same box, which is what proved it environmental. Both checks
-already say in their own failure text that they are reading whatever `u` the
-frame landed on. Do not retune them from one red run; run the baseline.
+so every check in it that reads the gesture's size, its peak speed, or the
+deferred stance's handover timing is sampling luck under load. Observed across
+one ladder pass, on this box:
+
+| run | result |
+|---|---|
+| standalone | 2 fails: gesture size + sweep carve-out |
+| standalone | PASS |
+| standalone | 1 fail: deferred-DEFLECTION handover |
+| standalone | 1 fail: gesture size |
+| full suite | 1 fail: gesture size |
+| full suite | 1 fail: blade travelling fastest at the power frame |
+| standalone | PASS |
+
+Four *different* checks, and the **pre-ladder baseline produced the same two
+failures on the same box** — which is what settles it. Every one of those checks
+already says in its own failure text that it is reading whatever `u` the frame
+happened to land on. Do not retune them from a red run; run the baseline.
+
+`smoke-readability`'s "he is PLANTED through his wind-up" belongs on the list
+too — it failed once in a full suite and passed standalone in the same session.
 
 **Do not conclude either way from a failing suite run.** Run the baseline:
 
