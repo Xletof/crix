@@ -27,7 +27,7 @@ the finding is already established earlier in the conversation.
 
 - **Deploys only happen from the `FRIX` branch.** `.github/workflows/deploy.yml`
   triggers on pushes to `FRIX` only. Work lands on the dev branch
-  (`claude/project-handover-ack-9ai0av`); GitHub Pages will serve a **stale build**
+  (`claude/vader-progression-hardness-uqn9o9`); GitHub Pages will serve a **stale build**
   until `FRIX` is fast-forwarded. If a session ever finds this name stale again,
   trust `git rev-parse --abbrev-ref HEAD` over this line and fix the line.
 - **Always deploy — don't ask.** The user tests on a phone against GitHub Pages,
@@ -284,6 +284,21 @@ the finding is already established earlier in the conversation.
   the pool moves.** Raising Vader's hp 6.5x pushed VANISH's trigger from 4,600
   damage in 2s to 30,000, which nothing produces — the mechanic would have retired
   itself with no test failing. Re-check the fractions on any hp change.
+- **THE ENCOUNTER LADDER IS ONE TABLE, AND `bossMovesFor` IS NOT PART OF IT.**
+  What each Vader arrives with is `ENDLESS.bossLadder`, resolved by
+  `bossMechanicsFor(n)` — one producer, called by `spawnBoss` and by the tests.
+  The *move* rotation is identical at every encounter and always was:
+  `bossMovesFor` used to filter `minPhase <= phase || encounter >= 3`, and every
+  move is `minPhase: 1`, so the encounter clause could never change a result. It
+  cost nothing only because nobody looked. Encounter 1 has always had the full
+  kit; the ladder is mechanics, hp, and mechanic cadence — nothing else. A
+  mechanic listed in `_mechanics` whose interval was never written **never
+  fires**, and a count-based test passes on exactly that bug.
+- **Vader's DAMAGE does not scale with the encounter, and that is a contract.**
+  Not contact, not slam, not any move — a later Vader is harder because he asks
+  more and harder questions, never because the same question costs more.
+  `smoke-vader` asserts the damage fields are identical at rungs 1 and 6, so
+  anything that adds a per-encounter multiplier has to argue with a check.
 - **An upgrade's `apply` can run more than once.** `pickThree` falls back to the
   FULL pool once fewer than three cards are untaken, so past ~sector 13 cards
   repeat. Effects take an `s` scale and must be written as magnitudes

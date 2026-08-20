@@ -1,0 +1,68 @@
+
+── Vader ladder (encounters 1-6, 180s cap, 2 run(s) each) ──
+   policy: patient   upgrades: on
+   target: 60-90s with all three phases reached
+
+  encounter 1  hp  60000  17.6s  [TOO SHORT]
+      runs: 21.6, 13.7s   spread 45%  ** NOISY **
+      build: 4 upgrades, dmg x1.7, player hp 700
+      phases: p2 9s, p3 14s   taken 510  deaths 0  supers 16 melee 3
+      mechanics: guard
+      cadence:   5 actions (13.9/min), 5 distinct
+      moves:     vanishslashx1 saberthrowx1 forcepullx1 forcepushx1 sabercombox1
+      stock:     —
+      fired:     —
+      dead air:  14.6s (67% of the fight), longest gap 5.4s
+  encounter 2  hp  69000  11.7s  [TOO SHORT]
+      runs: 13.0, 10.4s   spread 22%
+      build: 9 upgrades, dmg x2.62, player hp 525
+      phases: p2 9s, p3 10s   taken 820  deaths 1  supers 12 melee 0
+      mechanics: guard, sunder
+      cadence:   6 actions (27.6/min), 4 distinct
+      moves:     sabercombox2 vanishslashx1
+      stock:     slamx1
+      fired:     sunderx2
+      dead air:  6.0s (46% of the fight), longest gap 3.5s
+  encounter 3  hp  78000  36.3s  [TOO SHORT]
+      runs: 29.8, 42.9s   spread 36%  ** NOISY **
+      build: 14 upgrades, dmg x4.73, player hp 725
+      phases: p2 10s, p3 15s   taken 2773  deaths 3  supers 15 melee 4
+      mechanics: guard, sunder, reflect
+      cadence:   14 actions (28.2/min), 9 distinct
+      moves:     saberthrowx1 sabercombox1 vanishslashx1 forcepullx1
+      stock:     slamx2 chargex1
+      fired:     sunderx4 reflectx2 supercatchx1
+      dead air:  14.5s (49% of the fight), longest gap 5.5s
+  encounter 4  hp  87000  17.3s  [TOO SHORT]
+      runs: 13.7, 20.9s   spread 42%  ** NOISY **
+      build: 19 upgrades, dmg x9.34, player hp 665
+      phases: p2 7s, p3 12s   taken 58  deaths 0  supers 9 melee 2
+      mechanics: guard, sunder, reflect, blackout
+      cadence:   4 actions (17.5/min), 3 distinct
+      moves:     saberthrowx1
+      stock:     chargex2
+      fired:     sunderx1
+      dead air:  8.4s (62% of the fight), longest gap 6.8s
+  encounter 5  hp  96000  10.3s  [TOO SHORT]
+      runs: 8.3, 12.3s   spread 39%  ** NOISY **
+      build: 24 upgrades, dmg x13.38, player hp 618
+      phases: p2 4s, p3 NEVER   taken 138  deaths 0  supers 4 melee 0
+      mechanics: guard, sunder, reflect, blackout, afterimages
+      cadence:   2 actions (14.4/min), 2 distinct
+      moves:     sabercombox1
+      stock:     slamx1
+      fired:     —
+      dead air:  4.8s (57% of the fight), longest gap 4.4s
+  encounter 6  hp 105000  12.2s  [TOO SHORT]
+      runs: 13.3, 11.1s   spread 18%
+      build: 29 upgrades, dmg x14.5, player hp 619
+      phases: p2 13s, p3 NEVER   taken 138  deaths 0  supers 5 melee 1
+      mechanics: guard, sunder, reflect, blackout, afterimages, disarm
+      cadence:   4 actions (18/min), 4 distinct
+      moves:     vanishslashx1
+      stock:     chargex1 slamx1
+      fired:     sunderx1
+      dead air:  7.3s (55% of the fight), longest gap 4.2s
+
+Diagnostic only — no pass/fail. Absolutes stay a phone judgement.
+

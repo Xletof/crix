@@ -613,7 +613,13 @@ if (MODE === 'vader') {
     const band = !downedAll ? 'OVER CAP' : med < 60000 ? 'TOO SHORT' : med > 90000 ? 'TOO LONG' : 'in band';
     // Phase timings from the median run, so the row is internally consistent
     // rather than an average of fights that went differently.
-    const medRun = runs.find((x) => x.ms === med) || r;
+    // NEAREST to the median, not equal to it. With an even number of repeats
+    // `median` averages the middle two, so `find(x => x.ms === med)` matched
+    // nothing and silently fell back to runs[0] — the detail lines below then
+    // described a run the headline number was not from. Odd repeat counts hid
+    // it, which is why the default is 3.
+    const medRun = runs.reduce((a, b) =>
+      (Math.abs(b.ms - med) < Math.abs(a.ms - med) ? b : a), runs[0]) || r;
     const ph = [2, 3].map((p) => medRun.phaseAt[p] != null
       ? `p${p} ${(medRun.phaseAt[p] / 1000).toFixed(0)}s` : `p${p} NEVER`).join(', ');
 

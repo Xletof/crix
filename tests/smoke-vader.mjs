@@ -93,6 +93,25 @@ const enterBossRoom = async (encounter) => page.evaluate(async (n) => {
     // The scripted rotation he will actually cycle, at his opening phase.
     moveIds: (b._moveIds || []).slice(),
     moveEvery: b._moveEvery,
+    // ── WHAT HE HITS FOR ──────────────────────────────────────────────
+    // Vader's damage is FLAT across the whole ladder — a later Vader is
+    // harder because he asks more and harder questions, never because the
+    // same question costs more. That is a contract, not an accident, and
+    // the only way to keep it is to assert it: anything that later scales
+    // damage per encounter has to do it by writing one of these.
+    dmg: {
+      contact: b.cfg.contactDamage,
+      slam: b.cfg.slamDamage,
+      charge: b.cfg.chargeSpeed,
+      mult: b._dmgMult ?? null,
+      punish: b._punishMult ?? null,
+    },
+    // Phase thresholds are RATIOS, so scaling hp must leave both reachable
+    // and in order. `hp` is sampled too: scaling hpMax alone would spawn him
+    // already past a threshold.
+    phase: b.phase,
+    hp: b.hp,
+    phaseHp: { p2: Math.round(b.hpMax * 0.66), p3: Math.round(b.hpMax * 0.33) },
   };
 
   // ── PIN THE FREE-RUNNING CLOCKS, AFTER READING THEM ────────────────────
@@ -630,6 +649,15 @@ check(r.enc6.hpMax === Math.round(r.enc1.hpMax * (1 + 0.15 * 5)),
   'hp scaling is applied exactly once, linearly in the boss number',
   `${r.enc1.hpMax} -> ${r.enc6.hpMax}, expected ${Math.round(r.enc1.hpMax * 1.75)} — `
   + `a second multiplier anywhere shows up here`);
+check(JSON.stringify(r.enc1.dmg) === JSON.stringify(r.enc6.dmg),
+  'and DAMAGE does not scale with the encounter at all',
+  `enc1 ${JSON.stringify(r.enc1.dmg)} vs enc6 ${JSON.stringify(r.enc6.dmg)} — `
+  + `richer behaviour plus faster cadence plus bigger hits is unavoidable burst death`);
+check([r.enc1, r.enc3, r.enc6].every((e) => e.phase === 1 && e.hp === e.hpMax
+  && e.phaseHp.p3 < e.phaseHp.p2 && e.phaseHp.p2 < e.hpMax),
+  'every rung spawns at full hp in phase 1 with both thresholds still ahead of him',
+  [r.enc1, r.enc3, r.enc6].map((e) => `p${e.phase} ${e.hp}/${e.hpMax} `
+    + `(${e.phaseHp.p2}/${e.phaseHp.p3})`).join('  '));
 
 // ── Deflection ───────────────────────────────────────────────────────────
 check(r.reflect.normalDamage > 0, 'a shot with the saber DOWN lands (the control)',

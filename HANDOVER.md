@@ -16,7 +16,7 @@ Vite, vanilla JS ES modules, no TypeScript, no framework.
 
 - **Repo:** `Xletof/crix` — GitHub MCP tools are restricted to it
 - **Live:** https://xletof.github.io/crix/
-- **Dev branch:** `claude/project-handover-ack-9ai0av` — this name changes
+- **Dev branch:** `claude/vader-progression-hardness-uqn9o9` — this name changes
   between sessions; if it looks wrong, believe `git rev-parse --abbrev-ref HEAD`
   and correct this line
 - **Deploy branch:** `FRIX` — Pages builds **only** from this (see §8)
@@ -956,14 +956,165 @@ from Vader's hand rather than from the blade itself, 40-80px apart at the power
 frame, and the natural handset result beats theoretical perfection. Fix it only
 if real play ever shows it.
 
-**One thing that is NOT frozen.** DEFLECTION is still `bossMechanics[2]`, so it
-appears from Vader #3 onward. That is the CURRENT PROGRESSION STATE, not a
-design decision about the mechanic, and a separate pass will reconsider when it
-becomes available. Do not read the "not done, deliberately" notes above as
-permanent.
+**One thing that is NOT frozen.** DEFLECTION used to be `bossMechanics[2]`, so it
+appeared from Vader #3 onward. That was the CURRENT PROGRESSION STATE, not a
+design decision about the mechanic. **The progression pass below moved it to
+encounter 1** and changed nothing else about it.
 
-**The next development gate is a different subject:** Vader-3 brain, Vader-1
-numbers. It is not part of this work and was not started here.
+## 10g. The encounter ladder — Vader-3 brain, Vader-1 numbers
+
+The gate after DEFLECTION. Human verdict from repeated handset play: later Vader
+is substantially more fun — more behavioural richness, higher decision density,
+less psychological dead air — and the first one reads like a tutorial version of
+a boss the player only meets properly three encounters later. The target is
+*Vader → angrier Vader → increasingly insane Vader*, never *incomplete Vader →
+eventually the real boss*.
+
+**Nothing in the fight itself changed.** No attack was added or removed, no FX,
+no telegraph geometry, no hitbox, no animation, no DEFLECTION internals, no
+player mechanic. This pass is availability, scheduling, cadence and the ladder
+table.
+
+### What the audit actually found, and it was not what anyone expected
+
+| n | hp | mechanics carried | scripted rotation | cadence | damage |
+|---|---|---|---|---|---|
+| 1 | 60,000 | `guard` | throw / pull / push (+combo, +vanish) | 4800 / 1100·950·820 | flat |
+| 2 | 69,000 | +`sunder` | identical | identical | flat |
+| 3 | 78,000 | +`reflect` | identical | identical | flat |
+| 4 | 87,000 | +`blackout` | identical | identical | flat |
+| 5 | 96,000 | +`afterimages` | identical | identical | flat |
+| 6 | 105,000 | +`disarm` | identical | identical | flat |
+
+Three findings, all measured against the code rather than inferred from banners:
+
+- **The rotation never widened, and never had.** `bossMovesFor` filtered on
+  `m.minPhase <= phase || encounter >= 3`, and *every* move in `bossMoves.js` is
+  `minPhase: 1` while `phase` is never below 1 — so the left side was
+  unconditionally true and the encounter clause could not change a single
+  result. It was dead the day it was written, and its docstring
+  ("a later Vader opens with things the first one never had") was false.
+  **Encounter 1 has always had the whole kit.** Looking for the gap here would
+  have cost a round; the note is now in the function.
+- **Vader's damage does not scale with the encounter at all** — not contact, not
+  slam, not any move. That is *correct* and is now an asserted contract: a later
+  Vader is harder because he asks more and harder questions, never because the
+  same question costs more.
+- **So the entire behavioural difference between Vader #1 and Vader #6 was the
+  mechanic list** — and encounter 1's single mechanic, ELITE GUARD, fires
+  **exactly once**, three grunts at t=900ms. Measured over a full fight with the
+  encounter bot, encounter 1 produced **zero** mechanic firings; encounter 3
+  produced seven. That is the "attack A → reset → attack B → reset" report,
+  quantified.
+
+### The new ladder
+
+`ENDLESS.bossLadder` — an explicit table of what each rung ADDS, cumulative,
+resolved by `bossMechanicsFor(n)` in `config.js` (one producer, called by
+`spawnBoss` and by the tests, so a check cannot agree with a stale copy).
+
+| n | adds | the question it introduces |
+|---|---|---|
+| 1 | `guard`, `sunder`, `reflect` | **complete Vader**: an escort, the floor, and shoot-or-close |
+| 2 | `blackout` | the room stops being reliable |
+| 3 | `afterimages` | the target stops being reliable |
+| 4 | `disarm` | your loadout stops being reliable |
+| 5 | `legion` | every phase break costs you the room |
+| 6 | `eclipse` | and now they arrive together |
+
+- **Why those three at rung 1.** SUNDERING SLAM is the densest clock in the fight
+  (5.2s) and the single biggest filler of dead air; DEFLECTION is the *only*
+  mechanic in the whole ladder that changes the player's **verb** rather than
+  their positioning. Those two are "Vader-3 brain". They are pulled onto Vader-1
+  hp and Vader-1 damage, both untouched.
+- **`eclipse` is a composition rule, not an attack.** AFTERIMAGES now brings the
+  blackout with it, so "which one is he" and "you cannot see" become one
+  question instead of two that coincided by clock luck. Three lines, no new
+  pool, no new draw.
+- **`bossMechScale`** seasons the mechanic intervals ~18% by rung 6. Deliberately
+  small: a late Vader already runs five or six independent clocks, and past a
+  point tightening them overlaps telegraphs instead of adding decisions.
+  **`reflect` is exempt** — at 0.82 a 2.4s stance every 7.4s is a third of the
+  fight with ranged damage punished, which switches ranged play off rather than
+  taxing it, and its 9s cadence is part of the frozen contract.
+
+### Two scheduler bugs the dead-air audit turned up
+
+- **A refused scripted-move cast burned the whole 4800ms interval.**
+  `_castBossMove` returns null while his state machine is mid-charge, mid-slam or
+  mid-spawn; only the *guard* refusal retried early. So a move clock falling
+  inside a charge windup threw the cast away and waited a full interval — a
+  scripted move silently skipped, at random, several times a fight. Every
+  refusal now retries at 400ms. It cannot make him spammier: the cast still only
+  lands when he is free, and `_moveT` resets to the full interval from the cast.
+- **The exotic clocks opened a full interval in.** DISARM is a 15s clock, so the
+  mechanic that *is* encounter 4 could not appear before the fight's fifteenth
+  second — a rung a player can finish without ever meeting what defines it.
+  `blackout` / `afterimages` / `disarm` now open at 55% of their interval,
+  floored at 3s so nothing lands inside the arrival banner or the guard spawn.
+  Cadence unchanged; only the first fire moves. SUNDER (already early) and
+  DEFLECTION (frozen) keep full intervals.
+
+### Measured, matched, before vs after
+
+`tests/diag-encounter.mjs --mode vader` now records a **decision tape**: every
+scripted move, every state-machine commitment and every mechanic firing, all off
+events the game already emits. Dead air is the tape's own gaps minus a 1200ms
+grace that *is* the punish window — a proxy, and honest about it: it cannot tell
+a deliberate recovery from the scheduler losing a turn, only compare two builds
+of the same fight. SUNDER gained a `boss-sunder` event for this; it was the one
+mechanic that announced nothing, so it was the one nothing could count.
+
+Patient policy, upgrades on, 2 runs per rung, same instrument both sides:
+
+| | before | after |
+|---|---|---|
+| **enc 1** mechanics carried | `guard` | `guard, sunder, reflect` |
+| **enc 1** mechanic firings in a fight | **0** | sunder×4, reflect×2, super caught ×1 |
+| **enc 1** actions / min | 13.9 | 34.1 |
+| **enc 1** distinct behaviours seen | 5 | 10 |
+| **enc 1** dead air | **67%** | 44% |
+
+Encounter 1's profile after the change is encounter 3's profile before it, on
+encounter 1's hp and damage. That is the gate, stated as a measurement.
+
+### Hardness: deliberately NOT changed, and why
+
+`BOSS.hp` 60,000 and `ENDLESS.bossHpStep` 0.15 are untouched:
+`hp(n) = 60000 × (1 + 0.15 × (n−1))` → 60,000 · 69,000 · 78,000 · 87,000 ·
+96,000 · 105,000. Damage: flat at every rung, and now asserted.
+
+**The open hardness question, and it is a phone question.** The matched runs
+show late fights measuring *shorter* than early ones — encounter 6 at 12.2s
+against encounter 3 at 36.3s — because the player's `dmgMult` climbs 1.7 → 14.5
+across the ladder (8.5x) while hp climbs 1.75x. If that holds in the hand it
+starves the late rungs of the time their own 10-16s clocks need to appear, which
+would flatten exactly the escalation this pass built.
+
+It was left alone on purpose. The bot is a dps CEILING that never dies (see the
+long note above `BOSS.hp`), fight length here is documented at 93% spread on an
+identical build, and the one time an hp number was set from this harness it
+shipped a 300,000-hp Vader that came back from the phone as "cannot even dent
+it". **`ENDLESS.bossHpStep` is the lever if the handset agrees.** Nothing else
+should move first.
+
+### Traps this pass leaves behind
+
+- **`bossLadder` and `bossMechScale` must stay the same length.** A rung past
+  the end of the scale falls back to 1.0 silently; `smoke-vader` asserts the
+  lengths match.
+- **A mechanic in `_mechanics` with a zero interval never fires.** The flag list
+  and the clocks are two different things and the old count-based test passed on
+  a build where they disagreed. Assert the clock.
+- **Every rung must name an id that exists in the registry**, or the medal
+  prints `undefined` and the rung gains nothing. Asserted.
+- **`enterBossRoom` in `smoke-vader` pins the free-running clocks after reading
+  them.** Encounter 3 used to stop at DEFLECTION and now reaches AFTERIMAGES, so
+  a clock coming due inside a staged 500ms window adds clones to a count on some
+  runs and not others.
+- **The rung-1 banner names no mechanic on purpose.** A medal reading
+  "SUNDERING SLAM" on the introduction frames the baseline kit as an upgrade
+  over a more basic Vader the player never met.
 
 ### The endless "soft lock" that wasn't (investigated, no production defect)
 
@@ -1247,7 +1398,7 @@ There is deliberately **no general UI framework** — the problem did not need o
 ## 11. State as of this handover
 
 Everything is committed, pushed and deployed; `FRIX` is level with the dev
-branch `claude/project-handover-ack-9ai0av`. `origin/main` is unrelated and
+branch `claude/vader-progression-hardness-uqn9o9`. `origin/main` is unrelated and
 unused — Pages builds from `FRIX` only.
 
 **Recently completed** (most recent first):
