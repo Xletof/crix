@@ -754,8 +754,10 @@ remained. At a flat 405px/s the player could **walk alongside the orb and escort
 it** — base walk speed is 380 — and the orb's BODY still read as a bright circle
 whose coordinates changed, with only the wake saying anything about motion.
 
-- **Launch → settle → cruise.** `superReturnSpeed` is now the LAUNCH impulse
-  (600), `superReturnCruise` (470) is what it keeps, and the excess bleeds over
+- **Launch → settle → cruise.** *(SUPERSEDED — this model and its pass-5
+  successor were both rejected on a handset; the orb travels at one constant
+  1080 now. See "DEFLECTION IS FROZEN" below. Kept as the record of what was
+  tried.)* `superReturnSpeed` is now the LAUNCH impulse (600), `superReturnCruise` (470) is what it keeps, and the excess bleeds over
   `superReturnSettleMs` (350) as `cruise + excess * (1 - u)^3`. Measured in
   flight: 600 → ~525 at 90ms → ~486 at 175ms → 470 by 350ms → 470 forever. It
   is an impulse being shed, **not** a deceleration: after the window nothing
@@ -796,7 +798,9 @@ Handset review of the whole fight approved the system and returned exactly three
 findings. This pass is those three and nothing else; DEFLECTION is frozen after
 it.
 
-- **The speed transition was not perceptible.** 600 → 470 over 350ms as
+- **The speed transition was not perceptible.** *(SUPERSEDED — the replacement
+  curve below was itself rejected as a concept in pass 6. Kept as the record.)*
+  600 → 470 over 350ms as
   `(1-u)^3` measured 537 at 70ms and 478 at 210ms — two thirds of the excess
   gone before the eye had registered a launch, so it read as constant speed. It
   is now **650 → 500 over 550ms** with the excess shed as `1 - smoothstep(u)`,
@@ -886,7 +890,7 @@ Handset review approved everything from pass 5 and returned two last changes.
   mid-throw is still deflected for real, but its gesture defers. A blade already
   sweeping through the throw line is an honest contact motion for a bolt coming
   from the player, who is on that line.
-- `smoke-deflect` is **71 checks**. The curve bands are replaced by constant-speed
+- `smoke-deflect` is **73 checks**. The curve bands are replaced by constant-speed
   checks (every frame within 3px/s of `PLAYER.superSpeed`, and first third vs
   last third within 2px/s, so a curve sampled inside one band cannot pass), plus
   a new section 4c that runs the whole throw on two opposite bearings and
@@ -894,9 +898,72 @@ Handset review approved everything from pass 5 and returned two last changes.
   travelling fastest there, the two bearings mirror, the live blade equals
   `superSwingPose`, one saber only, nothing can seize it mid-gesture, and
   offense returns within a frame of the follow-through.
-  Evidence: `tests/evidence-superorb.mjs` case 5 (the nine beats, gesture in
-  4x slow motion, flight at full speed) and case 6 (the same throw at the real
-  clock, four consecutive frames).
+  Evidence: `tests/evidence-superorb.mjs` case 5 (beats 1-8, gesture in 4x slow
+  motion, flight at full speed), case 6 (the same throw at the real clock across
+  consecutive frames) and case 7 (beat 9 — off the guard with the orb still
+  flying, which needs the real clock because a slowed 800ms follow-through
+  outlives the flight).
+
+### DEFLECTION IS FROZEN — human handset verdict on `6b98bbc`
+
+**Read this before touching anything in the three passes above.** A human played
+a full natural Vader fight — not a staged diagnostic — and approved the whole
+mechanic. It is closed. `6b98bbc` is the approved gameplay checkpoint for it,
+and unless the repository has legitimately advanced past that commit, it is the
+build any future DEFLECTION question should be asked against.
+
+**The locked contract.**
+
+*Ordinary fire:* the temporary stance; visible directional parries; the returned
+shot keeps the player's own red identity and its true incoming speed; aimed back
+at the player at parry time; no homing; existing returned-bolt damage; melee
+still a valid answer through the guard.
+
+*The super:* pellets are absorbed rather than reflected individually; ONE
+accumulated projectile comes back; Vader visibly contains the energy first; a
+dedicated saber power sweep physically authors the launch; the orb leaves on the
+sweep's power frame; **speed is `PLAYER.superSpeed` = 1080px/s, constant** — no
+launch/cruise split, no acceleration, no deceleration, no falloff; snapshot aim;
+no homing; 455 damage for a full five-pellet absorption; 44px radius; the
+current 620ms anticipation; the current body, corona and rear deformation; the
+current three pooled wake ghosts; the lifetime contract of collision / wall /
+world exit with defensive cleanup; and Vader resumes offense after the
+follow-through rather than waiting for the orb to land.
+
+*Saber ownership:* one saber, one owner. SABER THROW can make DEFLECTION
+**pending**, but DEFLECTION may not begin until the blade physically returns.
+DEFLECTION claims the saber from its tell through the active guard, and SABER
+THROW cannot steal it during that ownership. The super-return sweep owns the
+saber only through its launch and follow-through; after that the projectile is
+independent and boss offense resumes.
+
+**The fairness rule, established by natural play rather than by argument.** In
+one fight a returned super left the player at critical hp and read clearly as
+the player's own mistake; a later one at similarly dangerous hp was avoided by
+reacting to the tell and leaving the trajectory. That is the intended contract:
+**too fast to race, fair enough to evade.** The player solves the attack before
+or at launch, never by outrunning the orb afterwards. Any future proposal to
+slow the orb down is a proposal to break this, and it has now been rejected
+twice on a handset — see the speed trap in `CLAUDE.md` for the four models that
+lost (a flat 300, a flat 405, 600->470 over 350ms, and 650->500 over 550ms).
+
+**Do not tune further.** Not the 1080 speed, the 455 damage, the 44px radius,
+the 620ms anticipation, the 2400ms stance, the 9s cadence at its current
+progression level, the parry families, the power sweep, the orb visuals, the
+wake, super absorption, ordinary reflections, or the ownership behaviour. Do
+not chase small theoretical seams either — the known one is that the orb detaches
+from Vader's hand rather than from the blade itself, 40-80px apart at the power
+frame, and the natural handset result beats theoretical perfection. Fix it only
+if real play ever shows it.
+
+**One thing that is NOT frozen.** DEFLECTION is still `bossMechanics[2]`, so it
+appears from Vader #3 onward. That is the CURRENT PROGRESSION STATE, not a
+design decision about the mechanic, and a separate pass will reconsider when it
+becomes available. Do not read the "not done, deliberately" notes above as
+permanent.
+
+**The next development gate is a different subject:** Vader-3 brain, Vader-1
+numbers. It is not part of this work and was not started here.
 
 ### The endless "soft lock" that wasn't (investigated, no production defect)
 

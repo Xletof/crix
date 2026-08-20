@@ -109,6 +109,14 @@ the finding is already established earlier in the conversation.
   is mid-attack. Without that gate the two fight over the same body and the
   move's wind-up is overwritten before it can draw. The gate deliberately writes
   NOTHING — a travelling move sets its own velocity and expects it to persist.
+- **VANISH leaves a tween writing the weapon sprite after it ends.** `spin()`
+  in `actorMotion.js` tweens `weaponSprite.rotation` for `actMs` and keeps
+  writing it once the move is over, which is a second author for a number the
+  weapon block in `Boss.preUpdate` owns. It cannot currently collide with
+  anything — `isGuarding()` stops VANISH starting during a stance or a throw —
+  so it is a NOTED LANDMINE and was deliberately left alone. It has already
+  cost one debugging round in the harness; `tests/README.md` has the write-up
+  and the `killTweensOf` rig fix.
 - **Relative scale mutations drift.** `raiseWeapon`/`dropWeapon` used to multiply
   and divide by 1.35, so any unmatched pair compounded — the boss's saber reached
   a ~1100px slab. Always set an ABSOLUTE multiple of a remembered rest scale.
@@ -147,6 +155,11 @@ the finding is already established earlier in the conversation.
   objects on the other. They sit at fixed DISTANCES behind it now (26/52/78px)
   along its real velocity. Anything trailing a fast body wants distance, not
   frames.
+- **DEFLECTION IS FROZEN.** The stance, the parries, the caught super, the throw
+  and the saber-ownership contract all passed human handset review on `6b98bbc`
+  and are closed — `HANDOVER.md` records the locked contract. The traps below
+  are how it works and how it breaks, not an invitation to tune it. Nothing in
+  it moves without a new handset verdict.
 - **The returned super has ONE speed, and it is not its own.**
   `superReturnSpeed` reads `PLAYER.superSpeed` (1080) directly — the claim is
   that this IS the player's captured super handed back at the speed it was
@@ -156,17 +169,27 @@ the finding is already established earlier in the conversation.
   from the live velocity and never from the player, because "no homing" has to
   mean no visual homing either. Its lifetime is player hit / wall hit /
   out-of-bounds, with range and an age cap as backstops only.
-  **Two speed designs have already been rejected here, so do not reopen it
-  without a handset verdict.** A flat 405 let the player walk alongside the orb
-  and escort it (base walk is 380). The fix for that — a 650 launch shedding to
-  a 500 cruise over 550ms on a smoothstep — was rejected as a CONCEPT: all the
-  fairness is spent before launch (the DEFLECTION warning, the visible stored
-  energy, 620ms of anticipation, the silhouette, the snapshot aim), so a
-  post-launch falloff only softens a punish the player already had every chance
-  to avoid. `orb._impulse` and `_settleT` are gone; the head's amplitude now
-  rides on `_ageMs` as a purely VISUAL launch-freshness driver, and it must
-  stay one.
-- **HE THROWS IT, and one clock says so.** The last `superSweepMs` (260) of the
+  **FOUR speed models have been rejected here on a handset, so do not reopen
+  it.** A flat 300 and a flat 405 both let the player walk alongside the orb and
+  escort it across the room (base walk is 380). The fix for that was an
+  overspeed launch shedding to a cruise — first 600 -> 470 over 350ms as
+  `(1-u)^3`, which shed two thirds of the excess inside 120ms and read as
+  constant speed; then 650 -> 500 over 550ms on a smoothstep, which was
+  perceptible and was still rejected, as a CONCEPT rather than a tuning. All of
+  the fairness is spent BEFORE launch (the DEFLECTION warning, the visible
+  stored energy, 620ms of anticipation, the silhouette, the snapshot aim, no
+  homing), so a post-launch falloff only softens a punish the player already had
+  every chance to avoid. The human rule, from a full natural fight: **too fast
+  to race, fair enough to evade** — one returned super landed and read as the
+  player's own mistake, a later one at the same danger was dodged off the tell.
+  Solving it after launch is not supposed to be possible. `orb._impulse` and
+  `_settleT` are gone; the head's amplitude now rides on `_ageMs` as a purely
+  VISUAL launch-freshness driver, and it must stay one.
+- **HE THROWS IT, and one clock says so.** This is REQUIRED CAUSAL
+  PRESENTATION, not polish: before the sweep existed the orb detached from a
+  motionless Vader and acquired velocity, and the handset verdict is that the
+  blade authoring the launch is what makes the attack read. The last
+  `superSweepMs` (260) of the
   unchanged 620ms anticipation is a dedicated saber power sweep; the orb leaves
   on its power frame; `superFollowMs` (200) of follow-through after that is the
   last of his saber ownership. `superSwingPose(dir, u)` in `Boss.js` is the pure
