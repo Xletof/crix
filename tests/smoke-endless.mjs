@@ -46,7 +46,7 @@ await page.waitForTimeout(1800);
 
 const r = await page.evaluate(async () => {
   const gs = window.game.scene.getScene('Game');
-  const { ENDLESS, BOSS } = await import('/src/config.js');
+  const { ENDLESS, BOSS, bossMechanicsFor } = await import('/src/config.js');
   const out = { bossEvery: ENDLESS.bossEvery, baseBossHp: BOSS.hp, path: [] };
 
   // Walk the climb through two full boss cycles using the real transition.
@@ -108,6 +108,11 @@ const r = await page.evaluate(async () => {
   await new Promise((res) => setTimeout(res, 400));
   const n = Math.max(1, Math.floor(gs.sector / ENDLESS.bossEvery));
   out.bossMechanics = (gs.boss?._mechanics || []).slice();
+  // What the LADDER says this rung should carry, from the same producer the
+  // game uses. Asserting a COUNT ("n mechanics at encounter n") only worked
+  // while the ladder was one row per rung; it would now pass on a boss carrying
+  // three of the wrong ones.
+  out.expectedMechanics = bossMechanicsFor(n).map((m) => m.id);
   out.boss = {
     n,
     retreats: !!gs.boss?._retreats,
@@ -164,6 +169,7 @@ const r = await page.evaluate(async () => {
     wounded,
     medal: medals.find((m) => m.name === 'VADER DRIVEN OFF') || null,
     mechanics: out.bossMechanics,
+    expectedMechanics: out.expectedMechanics,
     doorOpen: !!gs.doorZone,
     doorDelayMs: doorAt ? Math.round(doorAt - woundAt) : null,
     stillPlaying: gs.scene.isActive(),
@@ -237,8 +243,12 @@ check(!r.afterBoss.wentToGameOver, 'driving Vader off does NOT end an endless ru
 check(r.boss.retreats, 'Vader is flagged to withdraw rather than die in endless', '');
 check(r.afterBoss.wounded, 'and taking him to zero wounds him instead of killing him',
   'boss-wounded never fired — he died, so he can never come back');
-check(r.afterBoss.mechanics.length === r.boss.n,
-  `Vader #${r.boss.n} carries ${r.boss.n} mechanic(s)`,
+check(r.afterBoss.mechanics.join(',') === r.afterBoss.expectedMechanics.join(','),
+  `Vader #${r.boss.n} carries exactly what the ladder says he does`,
+  `got [${r.afterBoss.mechanics.join(', ')}], `
+  + `ladder says [${r.afterBoss.expectedMechanics.join(', ')}]`);
+check(r.afterBoss.mechanics.includes('reflect'),
+  'and DEFLECTION is among them — it is baseline Vader now, not a wound-2 reveal',
   `got [${r.afterBoss.mechanics.join(', ')}]`);
 check(r.boss.dmgCap == null,
   'he has NO damage intake cap at all',

@@ -74,7 +74,45 @@ const enterBossRoom = async (encounter) => page.evaluate(async (n) => {
   }
   gs.player.hp = gs.player.hpMax;
   gs.lives = 9999;   // trap 1
-  return { mechanics: (gs.boss._mechanics || []).slice(), hpMax: gs.boss.hpMax };
+  const b = gs.boss;
+  const snap = {
+    mechanics: (b._mechanics || []).slice(),
+    hpMax: b.hpMax,
+    // The CLOCKS, not just the flags. A mechanic listed in `_mechanics` whose
+    // interval was never written is a mechanic that never fires, and the flag
+    // check alone passes on exactly that bug.
+    clocks: {
+      sunder: b._sunderMs || 0,
+      reflect: b._reflectEvery || 0,
+      blackout: b._blackoutEvery || 0,
+      afterimage: b._afterimageEvery || 0,
+      disarm: b._disarmEvery || 0,
+    },
+    eclipse: !!b._eclipse,
+    legion: !!b._legion,
+    // The scripted rotation he will actually cycle, at his opening phase.
+    moveIds: (b._moveIds || []).slice(),
+    moveEvery: b._moveEvery,
+  };
+
+  // ── PIN THE FREE-RUNNING CLOCKS, AFTER READING THEM ────────────────────
+  //
+  // Every mechanic in this file is driven through its EVENT, deliberately (see
+  // the header): they are measured in seconds and this harness runs at ~20fps,
+  // so waiting on a real clock measures the machine. What that never had to
+  // handle before is a boss carrying mechanics it is not currently testing —
+  // encounter 3 used to stop at DEFLECTION, and now reaches AFTERIMAGES. An
+  // afterimage clock coming due inside the 500ms window of the afterimage test
+  // would add three clones to a count that has just been staged exactly, and it
+  // would do it on some runs and not others.
+  //
+  // The intervals above are read from the live boss FIRST, so the ladder
+  // assertions still test the real configuration; only the countdowns are
+  // pushed out of the way of the measurements.
+  const FAR = 1e9;
+  b._blackoutT = FAR; b._afterimageT = FAR; b._disarmT = FAR;
+  b._sunderT = FAR; b._reflectT = FAR;
+  return snap;
 }, encounter);
 
 const keepAlive = () => page.evaluate(() => {
@@ -87,14 +125,31 @@ const r = {};
 
 // ── The ladder has shed its stat-only entries ─────────────────────────────
 r.ladder = await page.evaluate(async () => {
-  const { ENDLESS } = await import('/src/config.js');
+  const { ENDLESS, bossMechanicsFor, bossMechanicById } = await import('/src/config.js');
+  const { bossMovesFor } = await import('/src/data/bossMoves.js');
   return {
     ids: ENDLESS.bossMechanics.map((m) => m.id),
     hasSpeedOnly: ENDLESS.bossMechanics.some((m) => m.id === 'hunt' || m.id === 'unbound'),
+    // The whole ladder, resolved through the game's own producer.
+    rungs: [1, 2, 3, 4, 5, 6].map((n) => bossMechanicsFor(n).map((m) => m.id)),
+    // Every id the table introduces must exist in the registry, or a rung
+    // silently gains nothing and the medal for it prints as `undefined`.
+    unknown: ENDLESS.bossLadder.flat().filter((id) => !bossMechanicById(id)),
+    scaleLen: ENDLESS.bossMechScale.length,
+    ladderLen: ENDLESS.bossLadder.length,
+    // Encounter must NOT widen the scripted rotation. It never did — the
+    // `encounter >= 3` clause was dead — and the ladder now says so out loud.
+    poolEnc1: bossMovesFor(1, 1),
+    poolEnc6: bossMovesFor(1, 6),
   };
 });
 
+// Rung 3 LAST on purpose: every section below this one runs against whichever
+// boss is left standing in the room, and that was encounter 3 before this block
+// grew. Probing 1 and 6 in between and returning to 3 keeps the rest of the file
+// measuring exactly the Vader it always measured.
 r.enc1 = await enterBossRoom(1);
+r.enc6 = await enterBossRoom(6);
 r.enc3 = await enterBossRoom(3);
 
 // ── DEFLECTION ────────────────────────────────────────────────────────────
@@ -511,10 +566,70 @@ await browser.close();
 check(!r.ladder.hasSpeedOnly, 'the ladder carries no stat-only entries',
   `still has ${r.ladder.ids.join(', ')} — a speed multiplier is the same fight with the numbers moved`);
 check(r.ladder.ids.length >= 6, 'and has a mechanic for each of the early encounters', r.ladder.ids.join(', '));
-check(r.enc1.mechanics.length === 1 && r.enc3.mechanics.length === 3,
-  'one more mechanic per encounter, deterministically',
-  `enc1 ${r.enc1.mechanics.join('+')} / enc3 ${r.enc3.mechanics.join('+')}`);
-check(r.enc3.hpMax > r.enc1.hpMax, 'and a bigger pool each time', `${r.enc1.hpMax} -> ${r.enc3.hpMax}`);
+check(r.ladder.unknown.length === 0,
+  'every id the ladder table names exists in the registry',
+  `unknown: ${r.ladder.unknown.join(', ')} — that rung gains nothing and its medal prints undefined`);
+check(r.ladder.scaleLen === r.ladder.ladderLen,
+  'the cadence table covers every rung of the ladder',
+  `${r.ladder.scaleLen} scales for ${r.ladder.ladderLen} rungs`);
+
+// ── ENCOUNTER 1 IS COMPLETE VADER ────────────────────────────────────────
+// The gate this pass exists for. Asserted by NAME rather than by count: the
+// old check was `enc1.mechanics.length === 1`, which passes on any single
+// mechanic and passed on the build where that mechanic fired exactly once and
+// then never again for the rest of the fight.
+check(r.enc1.mechanics.includes('reflect'),
+  'the FIRST Vader has DEFLECTION',
+  `enc1 carries [${r.enc1.mechanics.join(', ')}] — it was a wound-2 reveal before`);
+check(r.enc1.clocks.reflect > 0,
+  'and a live reflect clock, not just the flag',
+  `reflectEvery ${r.enc1.clocks.reflect} — a mechanic with no interval never fires`);
+check(r.enc1.mechanics.includes('sunder') && r.enc1.clocks.sunder > 0,
+  'and SUNDERING SLAM on a running clock — the recurring event that fills the dead air',
+  `[${r.enc1.mechanics.join(', ')}] sunder=${r.enc1.clocks.sunder}`);
+check(r.enc1.moveIds.length >= 3,
+  'and the full scripted rotation from the first fight',
+  `enc1 pool [${r.enc1.moveIds.join(', ')}]`);
+check(r.ladder.poolEnc1.join(',') === r.ladder.poolEnc6.join(','),
+  'the rotation does NOT widen with the encounter — it never did',
+  `enc1 [${r.ladder.poolEnc1.join(', ')}] vs enc6 [${r.ladder.poolEnc6.join(', ')}]`);
+
+// ── AND LATER VADER IS STILL DIFFERENT ───────────────────────────────────
+// The other half of the gate: pulling the brain forward must not have stolen
+// the late reveals. This fails on a ladder that gave encounter 1 everything.
+check(!r.enc1.mechanics.includes('blackout')
+  && !r.enc1.mechanics.includes('afterimages')
+  && !r.enc1.mechanics.includes('disarm')
+  && !r.enc1.mechanics.includes('legion')
+  && !r.enc1.eclipse,
+  'the first Vader still has none of the late mechanics',
+  `enc1 carries [${r.enc1.mechanics.join(', ')}]`);
+check(r.enc6.mechanics.length > r.enc3.mechanics.length
+  && r.enc3.mechanics.length > r.enc1.mechanics.length,
+  'and each rung strictly gains on the one before it',
+  `${r.enc1.mechanics.length} -> ${r.enc3.mechanics.length} -> ${r.enc6.mechanics.length}`);
+check(r.enc1.mechanics.every((id) => r.enc6.mechanics.includes(id)),
+  'the ladder is cumulative — nothing is taken back',
+  `enc1 [${r.enc1.mechanics.join(', ')}] not a subset of enc6 [${r.enc6.mechanics.join(', ')}]`);
+check(r.enc6.eclipse && r.enc6.legion,
+  'the last rung carries THE DARK and LEGION',
+  `eclipse ${r.enc6.eclipse} legion ${r.enc6.legion}`);
+
+// ── CADENCE SEASONING, AND THE ONE EXEMPTION ─────────────────────────────
+check(r.enc6.clocks.sunder < r.enc1.clocks.sunder,
+  'mechanic clocks tighten down the ladder',
+  `sunder ${r.enc1.clocks.sunder} -> ${r.enc6.clocks.sunder}`);
+check(r.enc6.clocks.reflect === r.enc1.clocks.reflect && r.enc1.clocks.reflect === 9000,
+  'but DEFLECTION keeps its frozen 9s cadence at every rung',
+  `${r.enc1.clocks.reflect} -> ${r.enc6.clocks.reflect} — `
+  + `scaling it turns a 2.4s stance into a third of the fight`);
+
+check(r.enc3.hpMax > r.enc1.hpMax && r.enc6.hpMax > r.enc3.hpMax,
+  'and a bigger pool each time', `${r.enc1.hpMax} -> ${r.enc3.hpMax} -> ${r.enc6.hpMax}`);
+check(r.enc6.hpMax === Math.round(r.enc1.hpMax * (1 + 0.15 * 5)),
+  'hp scaling is applied exactly once, linearly in the boss number',
+  `${r.enc1.hpMax} -> ${r.enc6.hpMax}, expected ${Math.round(r.enc1.hpMax * 1.75)} — `
+  + `a second multiplier anywhere shows up here`);
 
 // ── Deflection ───────────────────────────────────────────────────────────
 check(r.reflect.normalDamage > 0, 'a shot with the saber DOWN lands (the control)',
