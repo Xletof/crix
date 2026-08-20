@@ -469,6 +469,37 @@ async function fightVader(encounter, capMs, spam = false, upgrades = true, run =
     const onPhase = (phase) => { phaseAt[phase] = Math.round(performance.now() - t0); };
     gs.events.on('boss-phase', onPhase);
 
+    // ── THE DECISION TAPE ───────────────────────────────────────────────
+    //
+    // Attacks-per-minute is not the measurement the progression gate asked
+    // for. A boss can be busy and still produce psychological dead air, and it
+    // can be quiet during a punish window and be doing exactly the right thing.
+    // So this records WHEN he asked the player something, and of what kind:
+    // every scripted move, every state-machine commitment, and every mechanic
+    // firing. Everything on the tape is an event the game already emits, which
+    // is why this instrument cannot drift out of step with the fight.
+    //
+    // "Dead air" is then the tape's own gaps, minus a grace that IS the punish
+    // window. It is a PROXY and it is honest about that: it cannot tell a
+    // deliberate recovery from the scheduler losing a turn. What it can do is
+    // compare two builds of the same fight, which is the only thing anything in
+    // this file is for.
+    const tape = [];
+    const mark = (kind, id) => tape.push({ t: Math.round(performance.now() - t0), kind, id });
+    const taps = [
+      ['boss-move',           (b, m) => mark('move', m?.id || '?')],
+      ['boss-charge-windup',  () => mark('stock', 'charge')],
+      ['boss-slam-windup',    () => mark('stock', 'slam')],
+      ['boss-spawn',          () => mark('stock', 'spawn')],
+      ['boss-reflect-windup', () => mark('mech', 'reflect')],
+      ['boss-sunder',         () => mark('mech', 'sunder')],
+      ['boss-blackout',       () => mark('mech', 'blackout')],
+      ['boss-afterimages',    () => mark('mech', 'afterimages')],
+      ['boss-disarm',         () => mark('mech', 'disarm')],
+      ['boss-super-charged',  () => mark('mech', 'supercatch')],
+    ];
+    for (const [ev, fn] of taps) gs.events.on(ev, fn);
+
     window.__bot.target = boss;
     window.__bot.stats = { frames: 0, shots: 0, supers: 0, melees: 0, dashes: 0, revives: 0 };
     window.__bot.spam = !!spam;
@@ -484,6 +515,30 @@ async function fightVader(encounter, capMs, spam = false, upgrades = true, run =
     window.__bot.spam = false;
     gs.events.off('player-dead', onDead);
     gs.events.off('boss-phase', onPhase);
+    for (const [ev, fn] of taps) gs.events.off(ev, fn);
+
+    // GRACE = the punish window. A gap shorter than this is the fight
+    // breathing; only what is left over is waiting. 1200ms is one OVERHEAD
+    // SLAM recovery (900ms) plus a beat — deliberately generous, so this
+    // under-reports dead air rather than manufacturing it.
+    const GRACE = 1200;
+    let dead = 0, longest = 0, prev = 0;
+    for (const e of tape) {
+      const gap = e.t - prev;
+      if (gap > longest) longest = gap;
+      if (gap > GRACE) dead += gap - GRACE;
+      prev = e.t;
+    }
+    const tail = Math.round(elapsed) - prev;
+    if (tail > longest) longest = tail;
+    if (tail > GRACE) dead += tail - GRACE;
+
+    const countBy = (kind) => tape.filter((e) => e.kind === kind).length;
+    const idsOf = (kind) => {
+      const m = {};
+      for (const e of tape) if (e.kind === kind) m[e.id] = (m[e.id] || 0) + 1;
+      return m;
+    };
 
     return {
       encounter,
@@ -504,6 +559,17 @@ async function fightVader(encounter, capMs, spam = false, upgrades = true, run =
       supers: window.__bot.stats.supers,
       melees: window.__bot.stats.melees,
       mechanics: (boss._mechanics || []).slice(),
+
+      // ── Decision cadence ────────────────────────────────────────────
+      actions: tape.length,
+      actionsPerMin: Math.round((tape.length / (elapsed / 60000)) * 10) / 10,
+      moves: idsOf('move'),
+      stock: idsOf('stock'),
+      mechFired: idsOf('mech'),
+      families: new Set(tape.map((e) => e.id)).size,
+      deadMs: Math.round(dead),
+      deadFrac: Math.round((dead / elapsed) * 1000) / 1000,
+      longestGapMs: Math.round(longest),
     };
   }, { encounter, capMs, spam, upgrades, run });
 }
@@ -564,6 +630,17 @@ if (MODE === 'vader') {
       + `taken ${medRun.damageTaken}  deaths ${medRun.deaths}  `
       + `supers ${medRun.supers} melee ${medRun.melees}`);
     console.log(`      mechanics: ${r.mechanics.join(', ') || 'none'}`);
+    // Decision cadence, from the median run — the row has to be internally
+    // consistent with the phase timings above it.
+    const fmt = (o) => Object.entries(o).map(([k, v]) => `${k}x${v}`).join(' ') || '—';
+    console.log(`      cadence:   ${medRun.actions} actions `
+      + `(${medRun.actionsPerMin}/min), ${medRun.families} distinct`);
+    console.log(`      moves:     ${fmt(medRun.moves)}`);
+    console.log(`      stock:     ${fmt(medRun.stock)}`);
+    console.log(`      fired:     ${fmt(medRun.mechFired)}`);
+    console.log(`      dead air:  ${(medRun.deadMs / 1000).toFixed(1)}s `
+      + `(${(medRun.deadFrac * 100).toFixed(0)}% of the fight), `
+      + `longest gap ${(medRun.longestGapMs / 1000).toFixed(1)}s`);
     out.push({ ...medRun, ms: med, spread, runs: msList });
   }
 

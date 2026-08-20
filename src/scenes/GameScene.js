@@ -1866,13 +1866,29 @@ export class GameScene extends Phaser.Scene {
         // bring the blackout with it. Handled in the `boss-afterimages` path.
         if (m.id === 'eclipse')     this.boss._eclipse = true;
       }
-      // Each clock starts at a FULL interval rather than at zero, so nothing
-      // fires on the first frame of the encounter. Being disarmed before the
-      // fight has started is not a surprise, it is a bad spawn.
+      // ── THE FIRST FIRE ─────────────────────────────────────────────────
+      //
+      // No clock starts at zero: being disarmed before the fight has started is
+      // not a surprise, it is a bad spawn. But a FULL interval was too far the
+      // other way for the slow ones. DISARM is a 15s clock, so the mechanic
+      // that IS encounter 4 could not appear before the fight's fifteenth
+      // second — and a mechanic whose first appearance is that late is one a
+      // player can finish the fight without ever meeting, which makes the rung
+      // it defines indistinguishable from the rung below it.
+      //
+      // The three exotic clocks therefore open at 55% of their interval, floored
+      // at 3s so nothing lands inside the arrival banner, the ELITE GUARD spawn
+      // (900ms) or the dialogue card. Their CADENCE is unchanged — this only
+      // moves the first one.
+      //
+      // SUNDER and DEFLECTION keep a full interval. Sunder's is 5.2s and already
+      // early; DEFLECTION's 9s cadence is part of the frozen contract, and
+      // opening it early is the one change to it nobody has reviewed.
+      const firstFire = (ms) => (ms > 0 ? Math.max(3000, Math.round(ms * 0.55)) : 0);
       this.boss._reflectT    = this.boss._reflectEvery;
-      this.boss._blackoutT   = this.boss._blackoutEvery;
-      this.boss._afterimageT = this.boss._afterimageEvery;
-      this.boss._disarmT     = this.boss._disarmEvery;
+      this.boss._blackoutT   = firstFire(this.boss._blackoutEvery);
+      this.boss._afterimageT = firstFire(this.boss._afterimageEvery);
+      this.boss._disarmT     = firstFire(this.boss._disarmEvery);
       this.boss._sunderT = this.boss._sunderMs || 0;
       this._equipBossKit(this.boss, n);
 
@@ -5751,6 +5767,11 @@ export class GameScene extends Phaser.Scene {
       b._sunderT -= delta;
       if (b._sunderT <= 0) {
         b._sunderT = b._sunderMs;
+        // Announced like every other mechanic. It was the only one with no
+        // event, which made it the only one a harness could not count — and it
+        // is now a rung-1 mechanic and the densest clock in the fight, so
+        // "did it actually fire" is a question worth being able to ask.
+        this.events.emit('boss-sunder', b);
         this._spawnVaderGroundCrack(b.x, b.y, b.phase || 1);
         this.detonateGrenade(b.x, b.y, 240, 260);
         this.fx.shake(0.02, 300);
