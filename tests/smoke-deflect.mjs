@@ -82,10 +82,29 @@ const enterBossRoom = async (encounter) => page.evaluate(async (n) => {
   // Asserted, not assumed: `spawnBoss(bx, by, opts)` takes coordinates first,
   // and a rig that passed `{encounter: 3}` as `bx` once produced NaN positions
   // for a whole session, reading exactly like the feature not existing.
-  return {
+  const snap = {
     mechanics: (gs.boss._mechanics || []).slice(),
     finite: Number.isFinite(gs.boss?.x) && Number.isFinite(gs.boss?.y),
   };
+
+  // ── PIN THE MECHANICS THIS FILE IS NOT TESTING ─────────────────────────
+  //
+  // Encounter 3 used to stop at DEFLECTION. Since the ladder pass it also
+  // carries AFTERIMAGES and LIGHTS OUT, and both are free-running: three
+  // extra bodies appearing in the arena and the lights going out in the
+  // middle of a frame-by-frame measurement of a 260ms saber gesture is noise
+  // this rig has never had to survive. It caught it honestly — two checks
+  // failed here that pass on the pre-ladder build, and a DIFFERENT one failed
+  // in the suite run, which is this project's documented signature for an
+  // instrument problem rather than a code one.
+  //
+  // Safe to pin, because this file owns the DEFLECTION scheduler explicitly:
+  // every section sets `_reflectUntil` / `_reflectT` / `_reflectEvery` itself
+  // (there are ~20 such writes), so nothing here waits on a free clock. Only
+  // the mechanics it is NOT testing are stopped.
+  const b = gs.boss, FAR = 1e9;
+  b._blackoutT = FAR; b._afterimageT = FAR; b._disarmT = FAR; b._sunderT = FAR;
+  return snap;
 }, encounter);
 
 const keepAlive = () => page.evaluate(() => {

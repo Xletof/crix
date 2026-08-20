@@ -1115,6 +1115,14 @@ should move first.
 - **The rung-1 banner names no mechanic on purpose.** A medal reading
   "SUNDERING SLAM" on the introduction frames the baseline kit as an upgrade
   over a more basic Vader the player never met.
+- **A rig staged at encounter 3 now gets a busier Vader than it asked for.**
+  `smoke-deflect` and `smoke-vader` both stage there, and encounter 3 used to
+  stop at DEFLECTION — it now also carries AFTERIMAGES and LIGHTS OUT. Three
+  extra bodies and the lights going out inside a frame-by-frame measurement is
+  noise those rigs never had to survive, so both now pin the clocks they are not
+  testing. **`smoke-deflect`'s section 4c is separately load-sensitive and always
+  was**: its two gesture-size / handover-timing checks failed identically on the
+  pre-ladder baseline on the same box. See `tests/README.md`.
 
 ### The endless "soft lock" that wasn't (investigated, no production defect)
 

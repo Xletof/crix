@@ -182,9 +182,18 @@ await reopen();
 await page.evaluate(() => { window.game.scene.getScene('Debug')._vaderN = 3; });
 await tap('spawnVader');
 await page.waitForTimeout(900);
-const vaderSpawned = await page.evaluate(() => {
+const vaderSpawned = await page.evaluate(async () => {
   const gs = window.game.scene.getScene('Game');
-  return gs.boss ? { hpMax: gs.boss.hpMax, mechanics: (gs.boss._mechanics || []).length, sector: gs.sector } : null;
+  if (!gs.boss) return null;
+  // Compared against the LADDER, not against a count. `n mechanics at
+  // encounter n` was only ever true while the ladder was one row per rung, and
+  // it is the debug tool's whole job to reproduce a real encounter exactly.
+  const { bossMechanicsFor } = await import('/src/config.js');
+  return {
+    hpMax: gs.boss.hpMax, sector: gs.sector,
+    mechanics: (gs.boss._mechanics || []).join(','),
+    expected: bossMechanicsFor(3).map((m) => m.id).join(','),
+  };
 });
 
 await reopen();
@@ -230,8 +239,8 @@ if (!closed.hudRunning) fails.push('HUD did not resume after closing');
 if (!nemesisSpawned) fails.push('SPAWN NEMESIS produced no nemesis — the proving ground cannot reach a side boss');
 else if (!nemesisSpawned.closed) fails.push('SPAWN NEMESIS left the panel open over the thing it just spawned');
 if (!vaderSpawned) fails.push('SPAWN VADER produced no boss');
-else if (vaderSpawned.mechanics !== 3 || vaderSpawned.sector !== 15) {
-  fails.push(`VADER #3 should be sector 15 with 3 mechanics, got sector ${vaderSpawned.sector} / ${vaderSpawned.mechanics} — the encounter number is derived from the sector, so this is the whole feature`);
+else if (vaderSpawned.mechanics !== vaderSpawned.expected || vaderSpawned.sector !== 15) {
+  fails.push(`VADER #3 should be sector 15 carrying [${vaderSpawned.expected}], got sector ${vaderSpawned.sector} / [${vaderSpawned.mechanics}] — the encounter number is derived from the sector, so this is the whole feature`);
 }
 if (fieldCleared?.boss || fieldCleared?.nemesis) {
   fails.push(`CLEAR FIELD left ${fieldCleared.nemesis} nemesis / boss=${fieldCleared.boss}`);
