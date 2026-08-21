@@ -1,0 +1,234 @@
+{
+  "profile": {
+    "size": [
+      720,
+      1280
+    ],
+    "samples": [
+      {
+        "r": 0,
+        "a": 0
+      },
+      {
+        "r": 60,
+        "a": 0
+      },
+      {
+        "r": 120,
+        "a": 0
+      },
+      {
+        "r": 158,
+        "a": 0
+      },
+      {
+        "r": 200,
+        "a": 0.047
+      },
+      {
+        "r": 260,
+        "a": 0.11
+      },
+      {
+        "r": 320,
+        "a": 0.176
+      },
+      {
+        "r": 360,
+        "a": 0
+      },
+      {
+        "r": 440,
+        "a": 0
+      },
+      {
+        "r": 520,
+        "a": 0
+      },
+      {
+        "r": 600,
+        "a": 0
+      },
+      {
+        "r": 680,
+        "a": 0
+      },
+      {
+        "r": 734,
+        "a": 0
+      }
+    ],
+    "edgeMidX": 0,
+    "cornerR": 734
+  },
+  "before": {
+    "centre": 7.6791929199999895,
+    "midL": 7.974123139999989,
+    "midR": 7.703992599999973,
+    "upper": 8.993765360000001,
+    "lower": 1.96263988,
+    "cornTL": 10.920758019999996,
+    "cornBR": 0,
+    "whole": 7.133364833704938
+  },
+  "tape": [
+    {
+      "t": 100,
+      "alpha": 0,
+      "visible": true,
+      "depth": -1,
+      "sf": 0,
+      "x": 360,
+      "y": 640,
+      "w": 720,
+      "h": 1280
+    },
+    {
+      "t": 150,
+      "alpha": 0.403,
+      "visible": true,
+      "depth": -1,
+      "sf": 0,
+      "x": 360,
+      "y": 640,
+      "w": 720,
+      "h": 1280
+    },
+    {
+      "t": 250,
+      "alpha": 0.786,
+      "visible": true,
+      "depth": -1,
+      "sf": 0,
+      "x": 360,
+      "y": 640,
+      "w": 720,
+      "h": 1280
+    },
+    {
+      "t": 500,
+      "alpha": 1,
+      "visible": true,
+      "depth": -1,
+      "sf": 0,
+      "x": 360,
+      "y": 640,
+      "w": 720,
+      "h": 1280
+    },
+    {
+      "t": 1000,
+      "alpha": 1,
+      "visible": true,
+      "depth": -1,
+      "sf": 0,
+      "x": 360,
+      "y": 640,
+      "w": 720,
+      "h": 1280
+    }
+  ],
+  "during": {
+    "centre": 75.03839792000186,
+    "midL": 70.67557406000071,
+    "midR": 78.00205236000178,
+    "upper": 68.73705181999966,
+    "lower": 12.428014960000036,
+    "cornTL": 77.14504174000247,
+    "cornBR": 0,
+    "whole": 46.49933891303834
+  },
+  "mid": {
+    "alpha": 1,
+    "visible": true,
+    "depth": -1,
+    "sf": 0,
+    "x": 360,
+    "y": 640,
+    "w": 720,
+    "h": 1280
+  },
+  "after": {
+    "centre": 13.22407244000001,
+    "midL": 13.150311119999975,
+    "midR": 11.38634159999999,
+    "upper": 8.965303499999994,
+    "lower": 2.5807339000000007,
+    "cornTL": 10.583997759999953,
+    "cornBR": 0,
+    "whole": 8.603622063359362
+  },
+  "afterAlpha": {
+    "alpha": 0,
+    "visible": false,
+    "depth": -1,
+    "sf": 0,
+    "x": 360,
+    "y": 640,
+    "w": 720,
+    "h": 1280
+  },
+  "disarm": {
+    "armedCluster": {
+      "label": "ARMED (cluster)",
+      "secondary": "cluster",
+      "secondaryAmmo": 3,
+      "weaponTex": "wpn-pistol",
+      "primaryFire": true,
+      "bulletsSpawned": 0,
+      "fragsSpawned": 0,
+      "melee": false,
+      "super": true,
+      "superPellets": 0
+    },
+    "pickupsBefore": 0,
+    "disarmedCluster": {
+      "label": "DISARMED (had cluster)",
+      "secondary": null,
+      "secondaryAmmo": 0,
+      "weaponTex": "wpn-pistol",
+      "primaryFire": true,
+      "bulletsSpawned": 1,
+      "fragsSpawned": 0,
+      "melee": false,
+      "super": true,
+      "superPellets": 0
+    },
+    "pickupsAfter": 1,
+    "drop": {
+      "fromPlayer": 340,
+      "fromBoss": 326
+    },
+    "armedRifle": {
+      "label": "ARMED (rifle)",
+      "secondary": "rifle",
+      "secondaryAmmo": 27,
+      "weaponTex": "wpn-rifle",
+      "primaryFire": true,
+      "bulletsSpawned": 0,
+      "fragsSpawned": 0,
+      "melee": false,
+      "super": true,
+      "superPellets": 0
+    },
+    "disarmedRifle": {
+      "label": "DISARMED (had rifle)",
+      "secondary": null,
+      "secondaryAmmo": 0,
+      "weaponTex": "wpn-pistol",
+      "primaryFire": true,
+      "bulletsSpawned": 1,
+      "fragsSpawned": 0,
+      "melee": true,
+      "super": true,
+      "superPellets": 0
+    },
+    "emptyHanded": {
+      "pickupsAdded": 0,
+      "banners": [
+        "SLAM"
+      ]
+    },
+    "noDurationFlag": []
+  }
+}

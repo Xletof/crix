@@ -1,0 +1,56 @@
+[
+  {
+    "region": "centre 200px (the fight)",
+    "lit": 58.9,
+    "dark": 58.9,
+    "dropPct": 0
+  },
+  {
+    "region": "ring @300px radius",
+    "lit": 57.7,
+    "dark": 55,
+    "dropPct": 4.8
+  },
+  {
+    "region": "edge mid-left",
+    "lit": 59.2,
+    "dark": 51,
+    "dropPct": 13.7
+  },
+  {
+    "region": "edge mid-right",
+    "lit": 59,
+    "dark": 51,
+    "dropPct": 13.7
+  },
+  {
+    "region": "top of viewport",
+    "lit": 58.9,
+    "dark": 40.1,
+    "dropPct": 31.8
+  },
+  {
+    "region": "bottom of viewport",
+    "lit": 65.9,
+    "dark": 45.7,
+    "dropPct": 30.7
+  },
+  {
+    "region": "corner top-left",
+    "lit": 66.6,
+    "dark": 40.7,
+    "dropPct": 38.9
+  },
+  {
+    "region": "corner bottom-right",
+    "lit": 51.6,
+    "dark": 30.1,
+    "dropPct": 41.6
+  },
+  {
+    "region": "whole game viewport",
+    "lit": 59,
+    "dark": 46.3,
+    "dropPct": 21.6
+  }
+]
