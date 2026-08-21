@@ -341,7 +341,9 @@ export class GameScene extends Phaser.Scene {
       if (ev.repeat) return;
       const p = this.player;
       if (!p?.alive) return;
-      if ((p.superCharge ?? 0) >= PLAYER.superHitsToCharge) {
+      // Suppressed, SPACE is just the trigger. Opening a super-aim reticle
+      // that is guaranteed to refuse on release reads as a broken control.
+      if ((p.superCharge ?? 0) >= PLAYER.superHitsToCharge && !p.suppressed) {
         this._spaceDownAt = this.time.now;
         p.beginKeyboardSuperAim();
       } else {
@@ -2004,28 +2006,37 @@ export class GameScene extends Phaser.Scene {
    * makes the whole mechanic a no-op for anyone fighting him at close range —
    * which is most people.
    */
-  _disarmPlayer(boss) {
-    const id = this.player.secondary;
-    if (!id) return;                       // nothing to take
-    const ammo = this.player.secondaryAmmo;
-    this.player._equipNothing();
-
-    const MIN_AWAY = 190;                  // > the 90px magnet, with room to spare
-    let ang = Math.atan2(boss.y - this.player.y, boss.x - this.player.x);
-    if (!Number.isFinite(ang)) ang = 0;
-    const dist = Math.hypot(boss.x - this.player.x, boss.y - this.player.y);
-    const reach = Math.max(MIN_AWAY, dist + 70);
-    const b = this.physics.world.bounds;
-    const x = Phaser.Math.Clamp(this.player.x + Math.cos(ang) * reach, 90, b.width - 90);
-    const y = Phaser.Math.Clamp(this.player.y + Math.sin(ang) * reach, 90, b.height - 90);
-
-    const wp = new WeaponPickup(this, x, y, id);
-    wp._restoreAmmo = ammo;                // read by the pickup loop in update()
-    this.weaponPickups.push(wp);
-
-    this.events.emit('show-banner', 'DISARMED', '#ffd040');
-    this.fx.burst(this.player.x, this.player.y, 'yellow', 14);
+  // SUPPRESSED — Vader takes the power, not the weapon.
+  //
+  // The previous mechanic stripped `player.secondary` and dropped it on the
+  // floor. On handset that read as nothing happening: the default pistol is
+  // infinite and was never touched, so the player kept shooting normally and
+  // asked "did it even disarm me?". Measured, armed and disarmed both returned
+  // true for primary fire, super, melee and dash, the held sprite did not
+  // change at all in the cluster case, and with no secondary equipped the
+  // whole mechanic was a silent no-op that did not raise its own banner.
+  //
+  // PRIMARY FIRE IS DELIBERATELY UNTOUCHED. There is no baseline melee in this
+  // game to fall back on — Broken Wings is itself a Super — so taking the gun
+  // would leave the player nothing to do but run in circles until it came
+  // back. What goes offline is both Super activation paths, which is the one
+  // thing the player actually leans on and the one thing they will notice.
+  //
+  // No secondary is required and none is dropped: the mechanic behaves
+  // identically whatever the player is carrying.
+  _suppressPlayer() {
+    if (!this.player?.alive) return;
+    this.player.suppress(PLAYER.suppressMs);
+    this.events.emit('show-banner', 'SUPPRESSED', '#8ab0ff');
+    // Existing FX language only — no new pools. `superAbsorb` is the sound of
+    // this player's power being taken, which is exactly the claim.
+    // `burst` only special-cases 'red' and 'yellow'; anything else uses the
+    // neutral spark emitter, which is what this wants — the colour statement
+    // is the ring.
+    this.fx.burst(this.player.x, this.player.y, 'white', 16);
+    this.fx.impactRing(this.player.x, this.player.y, 0x6090ff);
     this.fx.shake(0.014, 220);
+    SFX.superAbsorb?.();
   }
 
   spawnHealthOrb(x, y) {
@@ -2371,12 +2382,18 @@ export class GameScene extends Phaser.Scene {
     // LIGHTS OUT. Reuses the DARKNESS modifier's overlay wholesale.
     this._on('boss-blackout', (b, ms) => {
       this.events.emit('show-banner', 'LIGHTS OUT', '#8090ff');
-      this.events.emit('set-darkness', true);
+      // MODE MATTERS. `'blackout'` is the boss event's own gradient — a tight
+      // pocket on the player and a genuinely dark midfield. Dropping the mode
+      // here falls back to `'ambient'`, which is the persistent room
+      // modifier's vignette and darkens the centre of the screen by 0%. That
+      // is the exact defect this replaced: the alpha reached 1, a test
+      // asserted it, and the playfield stayed lit.
+      this.events.emit('set-darkness', true, 'blackout');
       this.fx.shake(0.012, 260);
       // Guarded on the scene still being live: a blackout that outlived the
       // fight would leave the next sector dark.
       this.time.delayedCall(ms, () => {
-        if (this.scene.isActive()) this.events.emit('set-darkness', false);
+        if (this.scene.isActive()) this.events.emit('set-darkness', false, 'blackout');
       });
     });
 
@@ -2393,10 +2410,10 @@ export class GameScene extends Phaser.Scene {
       if (b?._eclipse) this.events.emit('boss-blackout', b, ENDLESS.bossMech.blackoutMs);
     });
 
-    // DISARM. The secondary lands on the floor with its ammo intact. Taking
-    // something away permanently would be a punishment; making you go and get
-    // it back is a decision.
-    this._on('boss-disarm', (b) => this._disarmPlayer(b));
+    // SUPPRESSION. Internal id and event name are still `disarm` — see the
+    // note on the mechanic in config.js. What it does is take the player's
+    // POWER SPIKES, not their gun.
+    this._on('boss-disarm', (b) => this._suppressPlayer(b));
     this._on('boss-charge',       ()      => this.fx.shake(0.015, 200));
     this._on('boss-hit', (boss, amount) => {
       this.fx.hitFlash(boss);
@@ -2850,6 +2867,9 @@ export class GameScene extends Phaser.Scene {
         this.player.ammo     = PLAYER.ammoMax;
         this.player.ammoTimers = [];
         this.player.superCharge = 0;
+        // A suppression that outlives the life that earned it would lock the
+        // Supers of a player who has already been punished for it.
+        this.player.clearSuppression();
         this.player.setAlpha(1);
         this.player.setScale(1);
         this.player.setActive(true).setVisible(true);

@@ -366,38 +366,94 @@ r.deflect = await page.evaluate(async () => {
 
 await keepAlive();
 
-// ── DISARM ────────────────────────────────────────────────────────────────
-r.disarm = await page.evaluate(async () => {
+// ── SUPPRESSION (internal id `disarm`) ────────────────────────────────────
+//
+// WHAT THIS USED TO CHECK, AND WHY IT PROVED NOTHING. The old block asserted
+// that `player.secondary` was removed, that a pickup landed outside the 90px
+// magnet, and that walking onto it restored the ammo — every one of them a
+// fact about THE ITEM. None asked whether the player could still do anything,
+// so nobody noticed that primary fire, super, melee and dash all still worked
+// and the mechanic was invisible in the hand. It also asserted that disarming
+// an unarmed player "drops nothing", which certified the silent no-op —  the
+// hole in the rung — as correct behaviour.
+//
+// The contract now is about the player's VERBS.
+r.suppress = await page.evaluate(async () => {
   const gs = window.game.scene.getScene('Game');
-  gs.player.equipSecondary('rifle');
-  gs.player.secondaryAmmo = 7;               // a distinctive, partial figure
-  const had = { id: gs.player.secondary, ammo: gs.player.secondaryAmmo };
-  const pickupsBefore = gs.weaponPickups.length;
-
-  gs.events.emit('boss-disarm', gs.boss);
-  await new Promise((res) => setTimeout(res, 250));
-  const wp = gs.weaponPickups[gs.weaponPickups.length - 1];
-  const during = {
-    id: gs.player.secondary,
-    pickups: gs.weaponPickups.length,
-    // It must land OUTSIDE the 90px pickup magnet, or a player fighting him at
-    // close range re-collects it instantly and the mechanic is a no-op.
-    dropDist: Math.round(Math.hypot(wp.x - gs.player.x, wp.y - gs.player.y)),
+  const hud = window.game.scene.getScene('HUD');
+  const { PLAYER } = await import('/src/config.js');
+  const p = gs.player;
+  const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+  const nB = () => gs.playerBullets.getChildren().filter((b) => b.active).length;
+  const arm = () => {
+    p.superCharge = PLAYER.superHitsToCharge;
+    p.meleeCharge = PLAYER.meleeHitsToCharge;
+    p._comboStage = 0; p._comboWindowMs = 0;
+    p.fireCooldown = 0; p.ammo = PLAYER.ammoMax;
+    p.dashCharges = 3; p.isDashing = false; p._hurtStaggerMs = 0;
+    gs.events.emit('player-super-changed'); gs.events.emit('player-melee-changed');
+  };
+  const probe = () => {
+    arm();
+    const o = {
+      hudSuperTex: hud.superButton?.image?.texture?.key,
+      hudMeleeTex: hud.meleeButton?.image?.texture?.key,
+      hudTinted: !!hud.superButton?.image?.isTinted && !!hud.meleeButton?.image?.isTinted,
+    };
+    const b0 = nB();
+    o.primary = p.tryFire(0);
+    o.bolts = nB() - b0;
+    p.fireCooldown = 0;
+    o.super = p.tryFireSuper(0);
+    o.superKept = p.superCharge === PLAYER.superHitsToCharge;
+    o.wings = p.tryMeleeCombo(0);
+    o.wingsKept = p.meleeCharge === PLAYER.meleeHitsToCharge;
+    o.wingsLink2 = p.tryMeleeCombo(0);       // a live chain must not slip through
+    p.isDashing = false; p.dashCharges = 3;
+    const d0 = p.dashCharges; p.tryDash();
+    o.dashSpent = d0 - p.dashCharges;
+    return o;
   };
 
-  // Recover it: walking onto it hands the weapon back.
-  gs.player.setPosition(wp.x, wp.y);
-  await new Promise((res) => setTimeout(res, 500));
-  const after = { id: gs.player.secondary, ammo: gs.player.secondaryAmmo };
-
-  // Disarming an unarmed player must not litter the floor.
-  gs.player._equipNothing();
-  const emptyBefore = gs.weaponPickups.length;
+  // NO SECONDARY. The old mechanic did nothing at all in this state.
+  p._equipNothing();
+  const before = probe();
+  const banners = [];
+  const spy = (t) => banners.push(t);
+  gs.events.on('show-banner', spy);
   gs.events.emit('boss-disarm', gs.boss);
-  await new Promise((res) => setTimeout(res, 200));
-  const emptyAfter = gs.weaponPickups.length;
+  await wait(120);
+  const armedMs = p._suppressedMs;
+  const pickupsAfter = gs.weaponPickups.length;
+  const during = probe();
+  // Switching aim mode must not be a way round it.
+  p.beginMeleeAim?.();
+  const bypass = { wings: p.tryMeleeCombo(0), super: p.tryFireSuper(0) };
+  // A second activation refreshes, it does not stack.
+  await wait(500);
+  const midMs = p._suppressedMs;
+  gs.events.emit('boss-disarm', gs.boss);
+  const repeatMs = p._suppressedMs;
+  await wait(PLAYER.suppressMs + 500);
+  gs.events.off('show-banner', spy);
+  const after = probe();
 
-  return { had, during, after, pickupsBefore, emptyBefore, emptyAfter };
+  // A rifle in hand changes nothing, and is not taken.
+  p.equipSecondary('rifle');
+  p.secondaryAmmo = 7;
+  await wait(120);
+  const pk0 = gs.weaponPickups.length;
+  gs.events.emit('boss-disarm', gs.boss);
+  await wait(150);
+  const withRifle = {
+    held: p.secondary, ammo: p.secondaryAmmo,
+    dropped: gs.weaponPickups.length - pk0, suppressed: !!p.suppressed,
+  };
+  // Death must not leave the lock on the next life.
+  p.clearSuppression();
+  const cleared = !!p.suppressed;
+  return { before, during, after, banners, armedMs, pickupsAfter,
+           bypass, midMs, repeatMs, withRifle, cleared, dur: PLAYER.suppressMs };
 });
 
 await keepAlive();
@@ -406,20 +462,73 @@ await keepAlive();
 r.blackout = await page.evaluate(async () => {
   const gs = window.game.scene.getScene('Game');
   const hud = window.game.scene.getScene('HUD');
-  const alpha = () => hud.darknessOverlay?.alpha ?? 0;
+  const { DARKNESS } = await import('/src/config.js');
+  const ov = () => hud._overlays?.blackout;
+  const alpha = () => ov()?.alpha ?? 0;
   // Force the lights ON first. The room can roll the DARKNESS modifier, which
-  // leaves the overlay already at alpha 1 — then "lights out raises it" has
-  // nothing to raise and fails on a build where the mechanic works perfectly.
-  // The check is about Vader's blackout, so the starting state has to be known
-  // rather than inherited from whatever modifier the arena picked.
+  // leaves the AMBIENT overlay already up — a different object now, but the
+  // starting state still has to be known rather than inherited.
   gs.events.emit('set-darkness', false);
-  await new Promise((res) => setTimeout(res, 400));
+  gs.events.emit('set-darkness', false, 'blackout');
+  await new Promise((res) => setTimeout(res, 500));
   const before = alpha();
-  gs.events.emit('boss-blackout', gs.boss, 700);
-  await new Promise((res) => setTimeout(res, 250));
+  // SAMPLED FROM A postupdate HOOK, NOT A POLL. The onset is a power-failure
+  // flicker (dark, stutter, dark), so it is deliberately NOT monotonic and a
+  // single probe can land in the stutter and read lower than the gentle ease
+  // it replaced — the peak inside the first 150ms is the claim. An in-page
+  // `await setTimeout(16)` loop is not good enough either: measured, it
+  // returned ONE sample for a 260ms window, because a sleep resolves on the
+  // next frame and this harness runs at ~20fps. The hook fires every frame the
+  // engine actually renders, which is the only clock that can see this.
+  const tape = [];
+  const t0 = performance.now();
+  const sample = () => tape.push([Math.round(performance.now() - t0), alpha()]);
+  hud.events.on('postupdate', sample);
+  gs.events.emit('boss-blackout', gs.boss, 1400);
+  sample();
+  await new Promise((res) => setTimeout(res, 400));
+  hud.events.off('postupdate', sample);
+  // ASSERTED IN FRAMES, NOT MILLISECONDS. Measured, this harness renders one
+  // frame every ~190ms under load — longer than the whole onset — so no
+  // wall-clock threshold can tell a hard cut from a soft ease here. What CAN
+  // be read at any frame rate is whether there is a visible RAMP: the first
+  // frame that shows any darkening at all is already near full for a cut, and
+  // is still climbing for an ease. The 420ms Sine this replaced scores 0.06 on
+  // the next frame at 60fps and 0.59 on the next frame at this harness's rate.
+  const firstLit = tape.find(([, a]) => a > 0.01);
+  const firstStep = firstLit ? firstLit[1] : -1;
+  await new Promise((res) => setTimeout(res, 300));
   const during = alpha();
-  await new Promise((res) => setTimeout(res, 1600));
-  return { before, during, after: alpha() };
+  const pocket = { x: Math.round(ov().x), y: Math.round(ov().y) };
+  const playerScreen = (() => {
+    const cam = gs.cameras.main;
+    return { x: Math.round((gs.player.x - cam.scrollX) * cam.zoom + cam.x),
+             y: Math.round((gs.player.y - cam.scrollY) * cam.zoom + cam.y) };
+  })();
+  await new Promise((res) => setTimeout(res, 2000));
+  return {
+    before, tape, firstStep, during, after: alpha(), pocket, playerScreen,
+    pad: DARKNESS.blackout.pad,
+    // THE THING THE OLD TEST COULD NOT SEE. An alpha of 1 on the ambient
+    // gradient darkens the middle of the screen by 0%, so "alpha rose" passed
+    // on a mechanic nobody could perceive. These are read off the gradient
+    // that actually draws, at radii the fight happens at.
+    profile: (() => {
+      const tex = window.game.textures.get('darkness-blackout');
+      const img = tex.getSourceImage();
+      const ctx = tex.getContext();
+      const cx = img.width / 2, cy = img.height / 2;
+      const a = (r) => ctx.getImageData(Math.round(cx + r), Math.round(cy), 1, 1).data[3] / 255;
+      return { r0: a(0), r80: a(80), r150: a(150), r200: a(200), r300: a(300), r420: a(420) };
+    })(),
+    ambientUntouched: {
+      inner: DARKNESS.ambient.inner, outer: DARKNESS.ambient.outer,
+      stops: JSON.stringify(DARKNESS.ambient.stops),
+      fadeInMs: DARKNESS.ambient.fadeInMs,
+    },
+    separateTextures: window.game.textures.exists('darkness-ambient')
+                   || window.game.textures.exists('darkness-blackout'),
+  };
 });
 
 await keepAlive();
@@ -712,26 +821,101 @@ check(r.deflect.heldFrames > 2 && r.deflect.heldDevDeg > 45,
 // prove, so there was nothing to salvage by loosening it.
 
 // ── Disarm ───────────────────────────────────────────────────────────────
-check(r.disarm.during.id === null, 'a disarm removes the secondary', `still ${r.disarm.during.id}`);
-check(r.disarm.during.pickups === r.disarm.pickupsBefore + 1,
-  'and puts it on the floor rather than deleting it',
-  `${r.disarm.pickupsBefore} -> ${r.disarm.during.pickups}`);
-check(r.disarm.during.dropDist > 90,
-  'clear of the 90px pickup magnet, so it cannot be re-collected on the spot',
-  `dropped ${r.disarm.during.dropDist}px away — inside the magnet makes the whole mechanic a no-op at close range`);
-check(r.disarm.after.id === r.disarm.had.id, 'walking over it gives the weapon back',
-  `got ${r.disarm.after.id}, had ${r.disarm.had.id}`);
-check(r.disarm.after.ammo === r.disarm.had.ammo,
-  'with the ammo it had — not a free reload, not an empty gun',
-  `${r.disarm.had.ammo} -> ${r.disarm.after.ammo}`);
-check(r.disarm.emptyAfter === r.disarm.emptyBefore, 'disarming an unarmed player drops nothing',
-  `${r.disarm.emptyBefore} -> ${r.disarm.emptyAfter}`);
+// ── SUPPRESSION ───────────────────────────────────────────────────────────
+// Every one of these is about a VERB. Not one reads a flag, and not one is
+// satisfied by an item moving.
+check(r.suppress.before.super === true && r.suppress.before.wings === true,
+  'both Supers are available before he takes them',
+  `super ${r.suppress.before.super}, wings ${r.suppress.before.wings} — a lockout test that starts locked proves nothing`);
+check(r.suppress.banners.includes('SUPPRESSED'),
+  'SUPPRESSED fires on a player carrying no secondary at all',
+  `banners ${JSON.stringify(r.suppress.banners)} — the old mechanic returned silently here, which is the hole in the rung`);
+check(r.suppress.pickupsAfter === 0, 'and it does not throw anything on the floor',
+  `${r.suppress.pickupsAfter} pickups — SUPPRESSION takes the power, not the gun`);
+check(r.suppress.during.primary === true && r.suppress.during.bolts === 1,
+  'PRIMARY FIRE KEEPS WORKING while suppressed',
+  `fire ${r.suppress.during.primary}, ${r.suppress.during.bolts} bolts — there is no baseline melee to fall back on, so taking the gun would leave nothing to do`);
+check(r.suppress.during.dashSpent === 1, 'and dash keeps working',
+  `spent ${r.suppress.during.dashSpent} charges`);
+check(r.suppress.during.super === false, 'the ranged Super is blocked',
+  `returned ${r.suppress.during.super}`);
+check(r.suppress.during.wings === false, 'Broken Wings is blocked too',
+  `returned ${r.suppress.during.wings} — suppressing one Super and not the other is the loophole`);
+check(r.suppress.during.wingsLink2 === false,
+  'and a live Broken Wings chain cannot be continued through it',
+  'casts 2 and 3 skip the meter check, so a gate on `meleeReady` would let a started chain run free');
+check(r.suppress.during.superKept === true && r.suppress.during.wingsKept === true,
+  'a blocked attempt spends NOTHING',
+  `super kept ${r.suppress.during.superKept}, melee kept ${r.suppress.during.wingsKept} — this is an activation lockout, not resource deletion`);
+check(r.suppress.bypass.wings === false && r.suppress.bypass.super === false,
+  'switching Super mode is not a way round it',
+  JSON.stringify(r.suppress.bypass));
+check(r.suppress.during.hudTinted === true
+  && r.suppress.during.hudSuperTex === 'super-btn-off'
+  && r.suppress.during.hudMeleeTex === 'melee-btn-off',
+  'both Super controls read as unavailable on the HUD',
+  `${r.suppress.during.hudSuperTex} / ${r.suppress.during.hudMeleeTex}, tinted ${r.suppress.during.hudTinted}`);
+check(r.suppress.armedMs > r.suppress.dur * 0.9,
+  `it lasts the configured ${r.suppress.dur}ms`, `armed at ${Math.round(r.suppress.armedMs)}ms`);
+check(r.suppress.repeatMs === r.suppress.dur && r.suppress.midMs < r.suppress.dur,
+  'a second activation REFRESHES rather than stacking or being ignored',
+  `${Math.round(r.suppress.midMs)} -> ${r.suppress.repeatMs}, full duration is ${r.suppress.dur}`);
+check(r.suppress.after.super === true && r.suppress.after.wings === true,
+  'both Supers come back when it expires', JSON.stringify(r.suppress.after));
+check(r.suppress.after.hudSuperTex === 'super-btn' && !r.suppress.after.hudTinted,
+  'and the HUD controls relight', `${r.suppress.after.hudSuperTex}, tinted ${r.suppress.after.hudTinted}`);
+check(r.suppress.withRifle.held === 'rifle' && r.suppress.withRifle.ammo === 7
+  && r.suppress.withRifle.dropped === 0,
+  'a secondary in hand is neither required nor taken',
+  `held ${r.suppress.withRifle.held} with ${r.suppress.withRifle.ammo} ammo, ${r.suppress.withRifle.dropped} dropped`);
+check(r.suppress.withRifle.suppressed === true,
+  'and the mechanic behaves identically whatever is equipped');
+check(r.suppress.cleared === false, 'a death clears the lock',
+  'a suppression that outlives the life that earned it locks a player who has already been punished');
 
-// ── Lights out ───────────────────────────────────────────────────────────
-check(r.blackout.during > r.blackout.before, 'lights out actually raises the darkness overlay',
+// ── LIGHTS OUT ────────────────────────────────────────────────────────────
+check(r.blackout.during > r.blackout.before, 'lights out raises the blackout overlay',
   `alpha ${r.blackout.before} -> ${r.blackout.during}`);
+check(r.blackout.firstStep > 0.8,
+  'and it gets there FAST — the room loses power, it does not dim',
+  `the first frame with any darkening is already at ${r.blackout.firstStep} (tape ${JSON.stringify(r.blackout.tape)}) — an ease would still be climbing`);
 check(r.blackout.after <= r.blackout.before + 0.01, 'and the lights come back',
   `alpha still ${r.blackout.after} — a blackout that outlives the fight darkens the next sector`);
+// THE CHECK THE OLD SUITE DID NOT HAVE. Alpha reaching 1 says nothing about
+// whether anything got darker: the ambient gradient at alpha 1 darkens the
+// centre of the screen by 0%, and that shipped.
+check(r.blackout.profile.r0 === 0 && r.blackout.profile.r80 < 0.02,
+  'the player keeps a readable pocket',
+  `alpha ${r.blackout.profile.r0} at the player, ${r.blackout.profile.r80} at 80px`);
+check(r.blackout.profile.r150 > 0.15 && r.blackout.profile.r200 > 0.30,
+  'darkening is unmistakable by 150-200px',
+  `${r.blackout.profile.r150} at 150px, ${r.blackout.profile.r200} at 200px — the gradient this replaced was 0.004 and 0.047 here`);
+check(r.blackout.profile.r300 > 0.60 && r.blackout.profile.r420 > 0.80,
+  'and the midfield is materially dark',
+  `${r.blackout.profile.r300} at 300px, ${r.blackout.profile.r420} at 420px`);
+// THE POCKET TRACKS THE PLAYER, WITHIN A CAP. Not "is exactly on them": the
+// drift is clamped to `pad` so the sight radius can never slide off the screen
+// it exists to light, and near an arena wall the game camera stops while the
+// player keeps walking. What has to hold is that the player stays inside the
+// readable part of their own pocket — the gradient is still under 0.05 at the
+// clamp distance — and that the pocket is not pinned to the middle of the
+// display, which is the bug this replaced.
+{
+  const d = Math.hypot(r.blackout.pocket.x - r.blackout.playerScreen.x,
+                       r.blackout.pocket.y - r.blackout.playerScreen.y);
+  const offCentre = Math.hypot(r.blackout.playerScreen.x - 360,
+                               r.blackout.playerScreen.y - 640);
+  check(d <= 200, 'the player stays inside their own pocket',
+    `${Math.round(d)}px from the pocket centre, where the gradient is still near zero`);
+  check(offCentre < 60 || d < offCentre - 20,
+    'and the pocket is on the PLAYER, not pinned to the middle of the display',
+    `player is ${Math.round(offCentre)}px off screen centre and ${Math.round(d)}px off the pocket — a screen-locked overlay would score those the same`);
+}
+check(r.blackout.ambientUntouched.inner === 158
+  && r.blackout.ambientUntouched.outer === 910
+  && r.blackout.ambientUntouched.fadeInMs === 420,
+  'the persistent DARKNESS room modifier is untouched',
+  `${JSON.stringify(r.blackout.ambientUntouched)} — the boss event got its own gradient rather than retuning a shared one`);
 
 // ── Afterimages ──────────────────────────────────────────────────────────
 check(r.afterimages.spawned === 3, 'afterimages spawn', `${r.afterimages.spawned} of 3`);

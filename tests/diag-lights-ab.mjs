@@ -89,22 +89,24 @@ await page.waitForTimeout(1400);
 // FULL PROFILE of the vignette, sampled along +x, +y and the diagonal.
 const profile = await page.evaluate(() => {
   const hud = window.game.scene.getScene('HUD');
-  hud.setDarkness(true);
-  const img = window.game.textures.get('darknessVignette').getSourceImage();
-  const ctx = img.getContext('2d'); const w = img.width, h = img.height;
+  hud.setDarkness(true, 'blackout');
+  const tex = window.game.textures.get('darkness-blackout');
+  const ctx = tex.getContext ? tex.getContext() : tex.getSourceImage().getContext('2d');
+  const w = tex.getSourceImage().width, h = tex.getSourceImage().height;
   const cx = w / 2, cy = h / 2;
   const a = (x, y) => ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data[3] / 255;
   const along = (dx, dy, max) => [];
   const line = (dx, dy, max, label) => {
     const rows = [];
-    for (let r = 0; r <= max; r += 40) rows.push([r, +a(cx + dx * r, cy + dy * r).toFixed(3)]);
+    for (const r of [0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 560, 620].filter((v) => v <= max))
+      rows.push([r, +a(cx + dx * r, cy + dy * r).toFixed(3)]);
     return { label, rows };
   };
   const s = Math.SQRT1_2;
   return {
-    horizontal: line(1, 0, 355, '+x, edge at 360'),
-    vertical:   line(0, 1, 635, '+y, edge at 640'),
-    diagonal:   line(s, s, 730, 'diagonal, corner at 734'),
+    horizontal: line(1, 0, 500, '+x'),
+    vertical:   line(0, 1, 620, '+y'),
+    diagonal:   line(s, s, 620, 'diagonal'),
   };
 });
 
@@ -113,31 +115,58 @@ await page.evaluate(() => {
   const g = window.game;
   g.scene.getScene('Game').scene.pause();
   const hud = g.scene.getScene('HUD');
-  hud.tweens.killTweensOf(hud.darknessOverlay);
-  hud.darknessOverlay.setAlpha(0).setVisible(false);
+  const ov = hud._overlays.blackout;
+  hud._darkTweens?.blackout?.stop?.();
+  hud.tweens.killTweensOf(ov);
+  ov.setAlpha(0).setVisible(false);
 });
 await page.waitForTimeout(500);
+const pocket = await page.evaluate(() => {
+  const hud = window.game.scene.getScene('HUD');
+  const ov = hud._overlays.blackout;
+  return { x: Math.round(ov.x), y: Math.round(ov.y) };
+});
 const shotA = await page.screenshot(); writeFileSync(`${OUT}/ab-1-lights-on.png`, shotA);
 await page.evaluate(() => {
   const hud = window.game.scene.getScene('HUD');
-  hud.darknessOverlay.setVisible(true).setAlpha(1);   // the maximum the mechanic ever reaches
+  hud._overlays.blackout.setVisible(true).setAlpha(1); // the maximum the mechanic reaches
 });
 await page.waitForTimeout(500);
 const shotB = await page.screenshot(); writeFileSync(`${OUT}/ab-2-lights-out.png`, shotB);
 
 const A = decodePNG(shotA), B = decodePNG(shotB);
+// SAMPLED AROUND THE POCKET, NOT THE SCREEN. The blackout's clear core tracks
+// the player, so a screen-fixed grid measures "how far is the player from the
+// middle of the display" rather than "how dark is it r px from the player".
+const VP = [0, 84, 720, 1280];
+const ring = (r) => {
+  const w = r < 60 ? 60 : 70;
+  return [[pocket.x - w / 2, pocket.y - r - w / 2, pocket.x + w / 2, pocket.y - r + w / 2],
+          [pocket.x - r - w / 2, pocket.y - w / 2, pocket.x - r + w / 2, pocket.y + w / 2],
+          [pocket.x + r - w / 2, pocket.y - w / 2, pocket.x + r + w / 2, pocket.y + w / 2]];
+};
+const clip = ([x0, y0, x1, y1]) => [Math.max(0, Math.round(x0)), Math.max(84, Math.round(y0)),
+                                    Math.min(720, Math.round(x1)), Math.min(1280, Math.round(y1))];
+const meanOf = (img, boxes) => {
+  const ok = boxes.map(clip).filter(([a, b, c, d]) => c - a > 8 && d - b > 8);
+  return ok.reduce((s2, b) => s2 + lum(img, ...b), 0) / ok.length;
+};
 const rows = [];
-for (const [name, r] of Object.entries(R)) {
-  const a = lum(A, ...r), b = lum(B, ...r);
-  rows.push({ region: name, lit: +a.toFixed(1), dark: +b.toFixed(1),
-              drop: +(100 * (1 - b / (a || 1))).toFixed(1) });
-}
+const push = (label, boxes) => {
+  const a = meanOf(A, boxes), b = meanOf(B, boxes);
+  rows.push({ region: label, lit: +a.toFixed(1), dark: +b.toFixed(1),
+              dropPct: +(100 * (1 - b / a)).toFixed(1) });
+};
+push('at the player (r=0)', [[pocket.x - 30, pocket.y - 30, pocket.x + 30, pocket.y + 30]]);
+for (const r of [100, 150, 200, 250, 300, 400]) push(`r = ${r}px`, ring(r));
+push('whole game viewport', [VP]);
+
 console.log('\n=== vignette alpha profile (alpha 1.0 = the mechanic at full strength) ===');
 for (const k of ['horizontal', 'vertical', 'diagonal']) {
   console.log(` ${profile[k].label.padEnd(24)} ${profile[k].rows.map(([r, v]) => `${r}:${v}`).join('  ')}`);
 }
-console.log('\n=== matched frame, same content, overlay 0 -> 1 ===');
-console.log(' region                    lit    dark   darkened');
-for (const r of rows) console.log(` ${r.region.padEnd(24)} ${String(r.lit).padStart(6)} ${String(r.dark).padStart(6)}   ${r.drop}%`);
-writeFileSync(`${OUT}/ab.json`, JSON.stringify({ profile, rows }, null, 2));
+console.log(`\n=== matched frame, same content, overlay 0 -> 1 (pocket at ${pocket.x},${pocket.y}) ===`);
+console.log(' distance from the player   lit    dark   darkened');
+for (const r of rows) console.log(` ${r.region.padEnd(24)} ${String(r.lit).padStart(6)} ${String(r.dark).padStart(6)}   ${r.dropPct}%`);
+writeFileSync(`${OUT}/ab.json`, JSON.stringify({ profile, pocket, rows }, null, 2));
 await browser.close();

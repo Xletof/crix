@@ -100,6 +100,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.recoilDur      = 110;
     this.recoilMag      = -0.12;
     this.revealTimer    = 0; // timer to reveal player when firing in bush
+    // ── SUPPRESSION (Vader's `disarm` mechanic) ────────────────────────────
+    // A COUNTDOWN, NOT A TIMER. `time.delayedCall` would be a callback holding
+    // a reference to whichever player was alive when it was scheduled, and
+    // this object is REUSED across lives — the revive path in GameScene puts
+    // the same Player back on its feet. A field ticked by `delta` in
+    // preUpdate cannot outlive a scene, cannot fire into a restarted run, and
+    // cannot stack: a second suppression just rewrites the number. Same shape
+    // as recoilT/_wKickT, which carry their own durations for the same reason.
+    this._suppressedMs  = 0;
+    this._denyFxT       = 0; // rate-limit on the "that is offline" response
     this.dashCharges    = (PLAYER.dashChargesMax || 3) + this.dashChargesBonus;
     this.dashRechargeTimer = 0;
     this.isDashing      = false;
@@ -419,6 +429,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   tryFireSuper(angleOverride) {
     if (!this.alive) return false;
+    // ABOVE the charge check and above the spend. Refusing after
+    // `superCharge = 0` would delete the meter every time the player pressed a
+    // suppressed button, which is the one thing SUPPRESSION must not do.
+    if (this._suppressedMs > 0) { this._denySuper(); return false; }
     if (this.superCharge < PLAYER.superHitsToCharge) return false;
     this.superCharge = 0;
     // Tell the HUD the meter was spent. refreshSuper is event-driven ONLY, so
@@ -660,6 +674,33 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     return this._meleeLungeMs > 0;
   }
 
+  // Both Super activation paths consult this. Primary fire, movement and dash
+  // deliberately do not.
+  get suppressed() { return this._suppressedMs > 0; }
+
+  suppress(ms) {
+    // ONE RULE FOR A REPEAT: refresh to the full duration from the newest
+    // activation. Not additive (a fast cadence would compound into a permanent
+    // lockout) and not ignored (a second hit that did nothing would read as
+    // the mechanic failing).
+    this._suppressedMs = ms;
+    this.scene.events.emit('player-suppressed', ms);
+  }
+
+  clearSuppression() {
+    if (this._suppressedMs <= 0) return;
+    this._suppressedMs = 0;
+    this.scene.events.emit('player-suppress-end');
+  }
+
+  // Called by both Super paths when they refuse. Charge is NOT touched here —
+  // the punishment is that power cannot be SPENT, not that it is deleted.
+  _denySuper() {
+    if (this._denyFxT > 0) return;   // no machine-gun clicking on a held button
+    this._denyFxT = 300;
+    this.scene.events.emit('player-super-denied');
+  }
+
   get meleeReady() {
     return this.meleeCharge >= PLAYER.meleeHitsToCharge;
   }
@@ -669,6 +710,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   // whole chain is one ability. Letting the window lapse resets to stage 0.
   tryMeleeCombo(angleOverride) {
     if (!this.alive) return false;
+    // ABOVE the `inCombo` branch on purpose. Casts 2 and 3 of a live chain
+    // skip the meter check, so a gate placed with the `meleeReady` test would
+    // leave a mid-chain loophole: get one cast off, stay suppressed, keep
+    // swinging for free. Blocked here the window simply lapses and the chain
+    // resets to stage 0, which is the existing behaviour for letting it drop.
+    if (this._suppressedMs > 0) { this._denySuper(); return false; }
     if (this.isDashing) return false;
     if (this._hurtStaggerMs > 0) return false;
 
@@ -1187,6 +1234,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // move envelope), so transitions read as weight shifts not snaps.
     // Decay reveal timer
     if (this.revealTimer > 0) this.revealTimer -= delta;
+    if (this._denyFxT > 0) this._denyFxT -= delta;
+    if (this._suppressedMs > 0) {
+      this._suppressedMs -= delta;
+      if (this._suppressedMs <= 0) {
+        this._suppressedMs = 0;
+        this.scene.events.emit('player-suppress-end');
+      }
+    }
 
     // ── Recoil punch + waddle / lean / bob walking animations ──────────
     if (this.isDashing) {

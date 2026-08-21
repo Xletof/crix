@@ -126,6 +126,13 @@ export const PLAYER = {
   // once. The meter is spent on the FIRST cast only; casts 2 and 3 are free
   // inside meleeComboWindowMs, so the three swings are one ability.
   meleeHitsToCharge: 3,     // cheaper than the ranged super (4)
+  // ── SUPPRESSION (Vader's `disarm` mechanic) ─────────────────────────────
+  // Both Super activation paths refuse for this long. Primary fire, movement
+  // and dash are deliberately untouched: the player has NO baseline melee to
+  // fall back on — Broken Wings is itself a Super — so taking the gun would
+  // leave nothing to do but run. Charge is never spent or cleared by a
+  // blocked attempt; this is an activation lockout, not resource deletion.
+  suppressMs: 4000,
   meleeComboWindowMs: 2000, // time to land the next cast before it resets
   // Casts 1-2 are real dashes: ~260px of travel, not the ~80px the first pass
   // shipped. Duration is what the gap-close solves for; speed is fixed.
@@ -1012,7 +1019,20 @@ export const ENDLESS = {
     { id: 'reflect',     name: 'DEFLECTION',     desc: 'the saber sends it back' },
     { id: 'blackout',    name: 'LIGHTS OUT',     desc: 'he fights better blind' },
     { id: 'afterimages', name: 'AFTERIMAGES',    desc: 'which one is he?' },
-    { id: 'disarm',      name: 'DISARM',         desc: 'he takes it from your hands' },
+    // INTERNAL ID `disarm` IS HISTORICAL. The mechanic no longer takes a
+    // weapon. It used to strip `player.secondary` and drop it on the floor —
+    // which on handset read as nothing happening at all, because the default
+    // pistol is infinite and untouched, so the player kept shooting normally
+    // and asked "did it even disarm me?". Measured: primary fire, super, melee
+    // and dash all still returned true, and in the cluster case the held
+    // weapon sprite did not change at all. On a player with no secondary it
+    // was a silent no-op that did not even raise its own banner.
+    //
+    // It is now SUPPRESSION: both Super activation paths go offline for
+    // `PLAYER.suppressMs` while ordinary gunplay, movement and dash continue.
+    // The id is kept only so `bossLadder` and every saved ladder reference
+    // stay valid. DO NOT re-derive the old behaviour from the id.
+    { id: 'disarm',      name: 'SUPPRESSED',     desc: 'he takes the power, not the gun' },
     { id: 'legion',      name: 'LEGION',         desc: 'the room fills as he falls' },
     // Not a new attack — a COMPOSITION RULE over two he already has. From here
     // the clones never arrive in the light: `boss-afterimages` also triggers the
@@ -1255,6 +1275,57 @@ export const MODIFIERS = {
   frenzy:     { id: 'frenzy',     name: 'FRENZY',      color: '#ff5030', speedMult: 1.28, spawnRateMult: 0.8 },
   eliteGuard: { id: 'eliteGuard', name: 'ELITE GUARD', color: '#ffd040', eliteChance: 0.35 },
   darkness:   { id: 'darkness',   name: 'DARKNESS',    color: '#8a70ff', darkness: true },
+};
+
+// ── Darkness overlays ───────────────────────────────────────────────────────
+//
+// TWO GRADIENTS, NOT ONE. Boss LIGHTS OUT used to reuse `ambient` wholesale,
+// and that is a defect that survived a whole progression pass because the
+// overlay's alpha genuinely did reach 1 and a test genuinely did assert it.
+// Measured on one frozen frame at full strength, `ambient` darkens the centre
+// 200px of the screen — where the fight is — by EXACTLY 0%, the 300px ring by
+// 5%, and only passes 30% past the top and bottom edges of the viewport. Its
+// clear core is 158px and its ramp does not reach 0.45 until radius 572, which
+// on a 720x1280 portrait screen exists only off-screen. That is correct for
+// what it was authored for: a PERSISTENT room modifier you have a whole room
+// to notice. As a 2.6s event it cannot announce itself, so the banner said
+// LIGHTS OUT while the playfield stayed lit.
+//
+// `ambient` is therefore FROZEN AS IT IS — the DARKNESS room modifier keeps
+// its established look. `blackout` is the boss event's own gradient: a tight
+// readable pocket on the player and a genuinely dark midfield.
+//
+// `stops` are [t, alpha] where t runs 0 at `inner` to 1 at `outer`. Radii are
+// in screen pixels from the centre of a VIEW-sized overlay. Beyond `outer` the
+// canvas keeps the last stop, so the corners sit at the final alpha.
+export const DARKNESS = {
+  ambient: {
+    color: '2,2,6',
+    inner: 158, outer: 910,
+    stops: [[0, 0], [0.55, 0.45], [1, 0.82]],
+    fadeInMs: 420, fadeOutMs: 420, flicker: false,
+  },
+  blackout: {
+    color: '1,1,5',
+    inner: 90, outer: 440,
+    stops: [[0, 0], [0.18, 0.21], [0.34, 0.41], [0.50, 0.58],
+            [0.68, 0.72], [0.85, 0.83], [1, 0.88]],
+    // A 420ms ease is how a room dims. A room that LOSES POWER stutters and
+    // goes. The flicker is three tween links on the one overlay image — no new
+    // object, no new texture — and the first darkening lands at 55ms.
+    fadeInMs: 110, fadeOutMs: 380, flicker: true,
+    // THE POCKET FOLLOWS THE PLAYER, so the overlay image has to be bigger
+    // than the screen or moving it would expose an undarkened strip down one
+    // side. `pad` is both the texture's margin per axis AND the cap on how far
+    // the pocket may drift, so the two can never disagree. Sized against the
+    // real worst case: the game camera clamps at the arena bounds, which puts
+    // a player pinned in a corner of a 1600px arena about 270px horizontally
+    // and 508px vertically off screen centre. The cap is deliberately short of
+    // that — at full drift the player sits ~90px / ~188px from the pocket
+    // centre, dimmer but well inside readable, and the pocket never slides off
+    // the screen it is meant to light.
+    pad: [180, 320],
+  },
 };
 
 // Wave-clear Arena Mode settings. Each room runs a sequence of `waves`; a wave

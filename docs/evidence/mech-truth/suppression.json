@@ -1,0 +1,141 @@
+{
+  "before": {
+    "label": "A/B  BEFORE — both Supers ready",
+    "suppressed": false,
+    "hudSuperTex": "super-btn",
+    "hudMeleeTex": "melee-btn",
+    "hudSuperTint": false,
+    "hudMeleeTint": false,
+    "hudSuperAlpha": 1,
+    "primaryFire": true,
+    "boltsSpawned": 1,
+    "rangedSuper": true,
+    "superPellets": 0,
+    "superChargeKept": false,
+    "brokenWings": true,
+    "meleeChargeKept": false,
+    "brokenWingsLink2": true,
+    "dashSpent": 1,
+    "canMove": true,
+    "secondary": null,
+    "pickups": 0
+  },
+  "pickupsBefore": 0,
+  "banners": [
+    "SUPPRESSED"
+  ],
+  "durationMs": 3845.0099999999998,
+  "during": {
+    "label": "A/B/C  DURING — SUPPRESSED",
+    "suppressed": true,
+    "hudSuperTex": "super-btn-off",
+    "hudMeleeTex": "melee-btn-off",
+    "hudSuperTint": true,
+    "hudMeleeTint": true,
+    "hudSuperAlpha": 0.5,
+    "primaryFire": true,
+    "boltsSpawned": 1,
+    "rangedSuper": false,
+    "superPellets": 0,
+    "superChargeKept": true,
+    "brokenWings": false,
+    "meleeChargeKept": true,
+    "brokenWingsLink2": false,
+    "dashSpent": 1,
+    "canMove": true,
+    "secondary": null,
+    "pickups": 0
+  },
+  "pickupsDuring": 0,
+  "duringAfterModeSwitch": {
+    "brokenWings": false,
+    "rangedSuper": false,
+    "superChargeKept": true
+  },
+  "caseD_noSecondary": {
+    "secondaryWas": null,
+    "bannerRaised": true,
+    "suppressed": true
+  },
+  "repeat": {
+    "beforeRepeatMs": 3208,
+    "afterRepeatMs": 4000
+  },
+  "after": {
+    "label": "A/B  AFTER — restored",
+    "suppressed": false,
+    "hudSuperTex": "super-btn",
+    "hudMeleeTex": "melee-btn",
+    "hudSuperTint": false,
+    "hudMeleeTint": false,
+    "hudSuperAlpha": 1,
+    "primaryFire": true,
+    "boltsSpawned": 1,
+    "rangedSuper": true,
+    "superPellets": 0,
+    "superChargeKept": false,
+    "brokenWings": true,
+    "meleeChargeKept": false,
+    "brokenWingsLink2": true,
+    "dashSpent": 1,
+    "canMove": true,
+    "secondary": null,
+    "pickups": 0
+  },
+  "caseE_withSecondary": {
+    "secondaryStillHeld": "rifle",
+    "ammo": 27,
+    "pickupsAdded": 0,
+    "suppressed": true
+  },
+  "caseE_probe": {
+    "label": "E  DURING — with a rifle equipped",
+    "suppressed": true,
+    "hudSuperTex": "super-btn-off",
+    "hudMeleeTex": "melee-btn-off",
+    "hudSuperTint": true,
+    "hudMeleeTint": true,
+    "hudSuperAlpha": 0.5,
+    "primaryFire": true,
+    "boltsSpawned": 0,
+    "rangedSuper": false,
+    "superPellets": 0,
+    "superChargeKept": true,
+    "brokenWings": false,
+    "meleeChargeKept": true,
+    "brokenWingsLink2": false,
+    "dashSpent": 1,
+    "canMove": true,
+    "secondary": "rifle",
+    "pickups": 0
+  },
+  "caseF_beforeDeath": {
+    "suppressed": true,
+    "ms": 3707
+  },
+  "caseF_afterRevive": {
+    "suppressed": false,
+    "ms": 0
+  },
+  "caseF_probe": {
+    "label": "F  AFTER REVIVE",
+    "suppressed": false,
+    "hudSuperTex": "super-btn",
+    "hudMeleeTex": "melee-btn",
+    "hudSuperTint": false,
+    "hudMeleeTint": false,
+    "hudSuperAlpha": 0.35,
+    "primaryFire": true,
+    "boltsSpawned": 0,
+    "rangedSuper": true,
+    "superPellets": 0,
+    "superChargeKept": false,
+    "brokenWings": true,
+    "meleeChargeKept": false,
+    "brokenWingsLink2": true,
+    "dashSpent": 1,
+    "canMove": true,
+    "secondary": "rifle",
+    "pickups": 0
+  }
+}

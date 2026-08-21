@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, PLAYER, WEAPONS, COLORS, HUDCFG, FONTS } from '../config.js';
+import { VIEW, PLAYER, WEAPONS, COLORS, HUDCFG, FONTS, DARKNESS } from '../config.js';
 import { Joystick } from './Joystick.js';
 import { SuperButton } from './SuperButton.js';
 import { DashButton } from './DashButton.js';
@@ -441,6 +441,12 @@ export class HUDScene extends Phaser.Scene {
     gbind('player-melee-changed', this.refreshMelee, this);
     gbind('player-melee-ready',   this.refreshMelee, this);
     gbind('player-melee-cast',    this.refreshMelee, this);
+    // SUPPRESSION. The HUD REFLECTS the rule; it does not create it — the gate
+    // lives in Player.tryFireSuper / Player.tryMeleeCombo, so a hidden or
+    // stale button cannot let a Super through.
+    gbind('player-suppressed',    this._onSuppressed, this);
+    gbind('player-suppress-end',  this._onSuppressEnd, this);
+    gbind('player-super-denied',  this._onSuperDenied, this);
     this._onMultChanged = (mult, streak) => {
       if (streak > 0) {
         // "CHARGE", not "COMBO". This badge shows Player.accuracyMult — a
@@ -499,7 +505,7 @@ export class HUDScene extends Phaser.Scene {
     gbind('score-medal',            (name, pts, col) => this.showMedal(name, pts, col));
     gbind('wave-remaining',         (k)            => this.refreshWaveRemaining(k));
     gbind('modifier-active',        (name, color)  => this.refreshModifier(name, color));
-    gbind('set-darkness',           (on)           => this.setDarkness(on));
+    gbind('set-darkness',           (on, mode)     => this.setDarkness(on, mode));
     gbind('hack-prompt',            (avail)        => this.setHackVisible(avail));
     gbind('show-combo',             (n)            => this.showCombo(n));
     gbind('hack-start',             (terminal)     => {
@@ -535,7 +541,9 @@ export class HUDScene extends Phaser.Scene {
       this._medalText = null;
       this._medalQueue = null;
       this._medalShowing = false;
-      this.darknessOverlay?.destroy();
+      for (const ov of Object.values(this._overlays || {})) ov.destroy();
+      this._overlays = null;
+      this._darkTweens = null;
       this.darknessOverlay = null;
       this.hackMinigame?.shutdown();
       this.hackMinigame = null;
@@ -749,19 +757,101 @@ export class HUDScene extends Phaser.Scene {
     this.scene.pause('HUD');
   }
 
+  // Both Super controls go to their not-ready texture and take a locked
+  // tint/alpha on top, so SUPPRESSED is distinguishable from merely uncharged:
+  // an uncharged button is dim with a filling gauge, a suppressed one is dim
+  // AND desaturated while its gauge still shows the charge it kept.
+  //
+  // TINT AND ALPHA ONLY, NEVER SCALE. A touch widget's `scale` is the player's
+  // own setting from Pause -> CONTROLS, and writing a bare value here would
+  // silently reset a resized button to 100%.
+  _applySuppressLook(on) {
+    for (const btn of [this.superButton, this.meleeButton]) {
+      const img = btn?.image;
+      if (!img) continue;
+      if (on) img.setTint(0x6a6a86).setAlpha(0.5);
+      else    { img.clearTint(); img.setAlpha(1); }
+    }
+  }
+
+  _onSuppressed() {
+    this._applySuppressLook(true);
+    this.refreshSuper();
+    this.refreshMelee();
+  }
+
+  _onSuppressEnd() {
+    this._applySuppressLook(false);
+    this.refreshSuper();
+    this.refreshMelee();
+    // Lightweight relight so "my Supers are back" needs no banner. Alpha only.
+    for (const btn of [this.superButton, this.meleeButton]) {
+      const img = btn?.image;
+      if (!img) continue;
+      this.tweens.killTweensOf(img);
+      img.setAlpha(0.35);
+      this.tweens.add({ targets: img, alpha: 1, duration: 260, ease: 'Sine.easeOut' });
+    }
+    // Not on a revive: `clearSuppression` fires this too, and a ready chime
+    // over a death fade belongs to nothing.
+    if (this.gameScene?.player?.alive) SFX.superReady?.();
+  }
+
+  // Pressed a Super while it is offline. Rate-limited upstream by
+  // Player._denyFxT, so a held button cannot machine-gun this.
+  _onSuperDenied() {
+    for (const btn of [this.superButton, this.meleeButton]) {
+      const img = btn?.image;
+      if (!img) continue;
+      this.tweens.killTweensOf(img);
+      img.setTint(0xff5060).setAlpha(0.85);
+      this.tweens.add({
+        targets: img, alpha: 0.5, duration: 180, ease: 'Sine.easeIn',
+        onComplete: () => { if (this.gameScene?.player?.suppressed) img.setTint(0x6a6a86); },
+      });
+    }
+    SFX.uiClick?.();
+  }
+
+  // THE POCKET FOLLOWS THE PLAYER, NOT THE SCREEN.
+  //
+  // The overlay is `scrollFactor(0)` in the HUD scene, so it is pinned to the
+  // middle of the display. That was harmless for the ambient vignette, whose
+  // clear core is 158px and whose ramp is gentle — but this one has a 90px
+  // core and is at 0.66 by 300px, and the game camera CLAMPS at the arena
+  // bounds. Push into a corner of a 1600px arena and the camera stops while
+  // the player keeps walking, up to ~360px horizontally and ~598px vertically
+  // off centre — which with a tight gradient puts the player in the dark part
+  // of their own sight radius. Recentring costs two subtractions a frame.
+  //
+  // `cam.y` is the HUD-top-bar inset (the game viewport starts below it), so
+  // it has to be added back or the pocket rides 84px high of the player.
+  _trackBlackout(p) {
+    const ov = this._overlays?.blackout;
+    if (!ov?.visible || !p) return;
+    const cam = this.gameScene.cameras.main;
+    const [px, py] = DARKNESS.blackout.pad;
+    const sx = (p.x - cam.scrollX) * cam.zoom + cam.x;
+    const sy = (p.y - cam.scrollY) * cam.zoom + cam.y;
+    ov.setPosition(
+      Phaser.Math.Clamp(sx, VIEW.width / 2 - px, VIEW.width / 2 + px),
+      Phaser.Math.Clamp(sy, VIEW.height / 2 - py, VIEW.height / 2 + py),
+    );
+  }
+
   refreshMelee() {
     const p = this.gameScene?.player;
     if (!p || !this.meleeButton) return;
     const max = PLAYER.meleeHitsToCharge;
     const inCombo = p._comboStage > 0 && p._comboWindowMs > 0;
-    this.meleeButton.setReady(p.meleeCharge >= max || inCombo);
+    this.meleeButton.setReady((p.meleeCharge >= max || inCombo) && !p.suppressed);
     this.meleeButton.drawGauge(p.meleeCharge, max, inCombo ? p._comboStage : 0);
   }
 
   refreshSuper() {
     const p = this.gameScene.player;
     if (!p) return;
-    const ready = p.superCharge >= PLAYER.superHitsToCharge;
+    const ready = p.superCharge >= PLAYER.superHitsToCharge && !p.suppressed;
     this.superButton.setReady(ready);
     this.superButton.drawGauge(p.superCharge, PLAYER.superHitsToCharge);
     // Brief scale pop on the super button each time the meter ticks up, so
@@ -856,6 +946,7 @@ export class HUDScene extends Phaser.Scene {
 
   update(time, delta) {
     const p = this.gameScene?.player;
+    this._trackBlackout(p);
     if (p && p.ammoTimers.length > 0) {
       this.refreshAmmo();
     }
@@ -1326,41 +1417,75 @@ export class HUDScene extends Phaser.Scene {
   // HUD scene without ever dimming the HUD chrome itself. The camera follows
   // the player near screen-center, so a screen-centered radial reads as a
   // "sight radius" without any per-frame player tracking.
-  _ensureDarknessOverlay() {
-    if (this.darknessOverlay) return this.darknessOverlay;
-    const w = VIEW.width, h = VIEW.height, key = 'darknessVignette';
+  // ONE OVERLAY PER MODE, each built from its own gradient in `DARKNESS`.
+  //
+  // They are separate objects rather than one image whose texture is swapped,
+  // because a swap mid-tween would pop and because the ambient modifier and a
+  // boss blackout are not guaranteed to be mutually exclusive forever — today
+  // `loadRoom`'s boss branch lowers ambient before Vader walks in, and that is
+  // a scene-side courtesy, not a contract this file may lean on. Two overlays
+  // simply composite.
+  _ensureOverlay(mode) {
+    if (this._overlays?.[mode]) return this._overlays[mode];
+    this._overlays = this._overlays || {};
+    const cfg = DARKNESS[mode];
+    const [px, py] = cfg.pad || [0, 0];
+    const w = VIEW.width + px * 2, h = VIEW.height + py * 2;
+    const key = `darkness-${mode}`;
     if (!this.textures.exists(key)) {
       const tex = this.textures.createCanvas(key, w, h);
       const ctx = tex.getContext();
       const cx = w / 2, cy = h / 2;
-      const inner = Math.min(w, h) * 0.22;   // bright sight-radius
-      const outer = Math.hypot(w, h) * 0.62; // fully dark by the corners
-      const grad = ctx.createRadialGradient(cx, cy, inner, cx, cy, outer);
-      grad.addColorStop(0,    'rgba(2,2,6,0)');
-      grad.addColorStop(0.55, 'rgba(2,2,6,0.45)');
-      grad.addColorStop(1,    'rgba(2,2,6,0.82)');
+      const grad = ctx.createRadialGradient(cx, cy, cfg.inner, cx, cy, cfg.outer);
+      for (const [t, a] of cfg.stops) grad.addColorStop(t, `rgba(${cfg.color},${a})`);
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
       tex.refresh();
     }
-    this.darknessOverlay = this.add.image(w / 2, h / 2, key)
+    const ov = this.add.image(VIEW.width / 2, VIEW.height / 2, key)
       .setScrollFactor(0)
-      .setDepth(-1)      // below all HUD chrome (≥0), above the game world
+      .setDepth(-1)      // below all HUD chrome (>=0), above the game world
       .setAlpha(0)
       .setVisible(false);
-    return this.darknessOverlay;
+    this._overlays[mode] = ov;
+    // Legacy alias. Several rigs and the shutdown path reach for this by name.
+    if (mode === 'ambient') this.darknessOverlay = ov;
+    return ov;
   }
 
-  setDarkness(on) {
-    if (!on && !this.darknessOverlay) return; // nothing to fade out
-    const ov = this._ensureDarknessOverlay();
+  // `mode` picks WHICH darkness. 'ambient' is the persistent DARKNESS room
+  // modifier and is frozen as it always looked; 'blackout' is Vader's LIGHTS
+  // OUT, which is a 2.6s EVENT and has to announce itself in a tenth of that.
+  setDarkness(on, mode = 'ambient') {
+    if (!on && !this._overlays?.[mode]) return;   // nothing to fade out
+    const cfg = DARKNESS[mode];
+    const ov = this._ensureOverlay(mode);
+    this._darkTweens = this._darkTweens || {};
+    // A chain is not a tween and `killTweensOf` does not reliably reach into
+    // one, so the handle is held and stopped explicitly. Both are done anyway.
+    this._darkTweens[mode]?.stop?.();
+    this._darkTweens[mode]?.destroy?.();
+    this._darkTweens[mode] = null;
     this.tweens.killTweensOf(ov);
     if (on) {
       ov.setVisible(true);
-      this.tweens.add({ targets: ov, alpha: 1, duration: 420, ease: 'Sine.easeOut' });
+      if (cfg.flicker) {
+        // The room loses power: a hard stutter, not a dim. First darkening
+        // lands at 55ms; settled by 190ms.
+        this._darkTweens[mode] = this.tweens.chain({
+          targets: ov,
+          tweens: [
+            { alpha: 0.88, duration: 55, ease: 'Quad.easeIn' },
+            { alpha: 0.30, duration: 45 },
+            { alpha: 1,    duration: cfg.fadeInMs - 100, ease: 'Quad.easeOut' },
+          ],
+        });
+      } else {
+        this.tweens.add({ targets: ov, alpha: 1, duration: cfg.fadeInMs, ease: 'Sine.easeOut' });
+      }
     } else {
       this.tweens.add({
-        targets: ov, alpha: 0, duration: 420, ease: 'Sine.easeIn',
+        targets: ov, alpha: 0, duration: cfg.fadeOutMs, ease: 'Sine.easeIn',
         onComplete: () => ov.setVisible(false),
       });
     }
