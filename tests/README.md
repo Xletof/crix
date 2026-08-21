@@ -611,3 +611,47 @@ standalone, the blade had already been caught by then and the displacement moved
 a saber that was back in his hand, so the check was vacuous in exactly the runs
 where it was green. The trigger now fires from the flight's own state — turned
 around and closing — sampled on the game's `postupdate`.
+
+## LIGHTS OUT / SUPPRESSION rigs (added with the experiential-truth pass)
+
+Three files, none of which assert "it looks good":
+
+- **`tests/diag-lights-ab.mjs`** — the only trustworthy way to measure a
+  darkness effect here. Pauses the Game scene, photographs ONE frame with the
+  blackout overlay at alpha 0 and then at 1.0, and reports mean luminance in
+  rings **around the player**, plus the gradient's own alpha read off the
+  texture. Two traps it exists because of:
+  - **Chromium screenshots are PNG colour type 2 (RGB, 3 bytes/px), not RGBA.**
+    A decoder assuming 4 shears every row and reports the darkened frame as
+    *brighter* than the lit one. That happened, and the numbers looked plausible.
+  - **Before/after shots of a LIVE fight photograph different rooms.** The camera
+    moves, so a 6x luminance swing between them means nothing. Freeze first.
+- **`tests/shot-lights-out.mjs`** — the sequence on the real event path.
+  Silences the boss's ATTACK clocks for the photographs (a boss mid-charge
+  answers "what does the room look like" with a full-screen red hurt flash),
+  snaps the camera after any teleport (it lerps at 0.22, and the pocket tracks
+  the PLAYER, so a mid-lerp shot catches them outside their own sight radius),
+  and **prints the live afterimage count before photographing ECLIPSE** — a
+  shot of "eclipse" with zero clones in it is the classic vacuous pass.
+- **`tests/diag-suppression.mjs`** — every player verb before/during/after, on
+  the real `boss-disarm` event. Reads the HUD state FIRST inside each probe:
+  every verb below it SPENDS something and emits a refresh, so a reading taken
+  afterwards photographs an emptied meter rather than the state under test.
+
+### A frame-rate lesson worth its own entry
+
+Measured during this pass, **this harness renders a frame every ~190ms under
+load** — not the ~50ms the rest of this file assumes. Consequences:
+
+- No wall-clock threshold can distinguish a 110ms hard cut from a 420ms ease,
+  because both complete inside one frame gap. The onset check in `smoke-vader`
+  is asserted in FRAMES instead: the first frame showing any darkening is
+  already near full for a cut and still climbing for an ease, which
+  discriminates at 60fps and at 5fps alike.
+- An in-page `await setTimeout(16)` loop is NOT a substitute for a `postupdate`
+  hook. Measured, it returned **one sample for a 260ms window**, because a sleep
+  resolves on the next rendered frame.
+- Phaser tween CHAINS advance one link per frame here, so a three-link 190ms
+  flicker takes ~600ms of harness time. That is an artifact, not a game bug.
+- A chain is not a tween: `killTweensOf` does not reliably reach into one, so
+  `HUD.setDarkness` holds the handle and stops it explicitly.

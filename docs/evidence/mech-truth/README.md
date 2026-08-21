@@ -1,4 +1,7 @@
-# LIGHTS OUT and DISARM — what the game actually does
+# LIGHTS OUT and DISARM — what the game used to do
+
+> **Superseded by the fix.** Everything below is the AUDIT that established the
+> root causes. The measured result of the correction is in `AFTER.md`.
 
 Diagnostic pass only. No production code was changed to produce any of this.
 

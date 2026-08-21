@@ -499,7 +499,10 @@ r.blackout = await page.evaluate(async () => {
   const firstStep = firstLit ? firstLit[1] : -1;
   await new Promise((res) => setTimeout(res, 300));
   const during = alpha();
-  const pocket = { x: Math.round(ov().x), y: Math.round(ov().y) };
+  // NULL-SAFE ON PURPOSE. A build where the boss event still routes through
+  // the ambient overlay has no `blackout` overlay at all, and a crash here
+  // would read as a broken harness instead of a failed contract.
+  const pocket = ov() ? { x: Math.round(ov().x), y: Math.round(ov().y) } : { x: -1, y: -1 };
   const playerScreen = (() => {
     const cam = gs.cameras.main;
     return { x: Math.round((gs.player.x - cam.scrollX) * cam.zoom + cam.x),
@@ -515,6 +518,7 @@ r.blackout = await page.evaluate(async () => {
     // that actually draws, at radii the fight happens at.
     profile: (() => {
       const tex = window.game.textures.get('darkness-blackout');
+      if (!tex.getContext) return { r0: -1, r80: -1, r150: -1, r200: -1, r300: -1, r420: -1 };
       const img = tex.getSourceImage();
       const ctx = tex.getContext();
       const cx = img.width / 2, cy = img.height / 2;

@@ -1155,6 +1155,152 @@ dropping `_enemiesCleared = true` from the `boss-wounded` handler, and latching
 the second was NOT caught before the staging was fixed. If you touch this
 contract, re-run that injection rather than trusting a green file.
 
+## 10h. LIGHTS OUT and SUPPRESSION — two mechanics that were not telling the truth
+
+The ladder in §10g passed handset review: Vader 1 reads as a complete fight,
+2 is a clean escalation, 4 adds real state complexity, 6 is the climax, and
+late fights survive long enough in a human's hands for their mechanics to
+appear. **Do not re-open the ladder, the hp, the damage or the cadence.** Two
+mechanics on it were separately found to be lying to the player.
+
+### LIGHTS OUT darkened everything except the fight
+
+The mechanic always worked: the clock fired, the banner went up, the overlay's
+alpha genuinely reached 1, and `smoke-vader` genuinely asserted it. What it did
+not do was make the room darker anywhere the player was looking.
+
+`boss-blackout` reused the vignette authored for the **persistent DARKNESS room
+modifier**. Measured on one frozen frame at full strength, that gradient:
+
+| distance from screen centre | darkening |
+|---|---|
+| centre 200px — where the fight is | **0%** |
+| 300px ring | 4.8% |
+| left/right screen edge | 13.7% |
+| top / bottom of viewport | ~31% |
+| corners | ~40% |
+
+Its clear core is 158px and its ramp does not reach 0.45 until radius 572,
+which on a 720x1280 portrait screen exists only off-screen. That is *correct*
+for what it was written for — an ambient state you have a whole room to notice.
+As a 2.6s event it cannot announce itself. The two bottom corners, its darkest
+region, are covered by the touch joysticks, which are HUD chrome above the
+overlay.
+
+**`DARKNESS.ambient` is frozen as it is** — the room modifier keeps its look.
+The boss event now has its own gradient, `DARKNESS.blackout`, and its own
+overlay object. Measured on the same frozen frame, by distance **from the
+player**:
+
+| r | 0 | 100 | 150 | 200 | 250 | 300 | 400 | whole viewport |
+|---|---|---|---|---|---|---|---|---|
+| darkening | 0% | 4.6% | 17.4% | 32.6% | 51.4% | 64.8% | 82.1% | **65%** |
+
+Three things about it that are not obvious:
+
+- **The pocket tracks the player, not the middle of the display.** The overlay
+  is `scrollFactor(0)` in the HUD scene, and the game camera **clamps at the
+  arena bounds** — push into a corner of a 1600px arena and the camera stops
+  while the player keeps walking, up to ~270px horizontally and ~508px
+  vertically off screen centre. Harmless under a 158px core and a gentle ramp;
+  fatal under a 90px core that is at 0.66 by 300px. Measured on the pre-change
+  build the player sat **410px off screen centre** in an ordinary probe.
+- **`pad` is one number doing two jobs, deliberately.** It is both the overlay
+  texture's margin per axis and the cap on how far the pocket may drift, so the
+  two cannot disagree — move a screen-sized image and you expose an undarkened
+  strip down one side. It is the pass's one new persistent allocation: a
+  1080x1920 canvas texture, created once.
+- **The onset is a flicker, not a fade.** A 420ms ease is how a room dims; a
+  room that loses power stutters and goes. Three tween links on the one image.
+
+### DISARM took something the player was not using
+
+Probed on the real event path, before and after `boss-disarm`: primary fire
+returned true and spawned a bolt, the super returned true, melee and dash were
+untouched, and in the cluster case the held weapon sprite **did not change at
+all**. It removed `player.secondary` — an optional, ammo-limited pickup — while
+the pistol the player actually fights with is infinite and was never touched.
+With no secondary equipped it returned on its first line: no pickup, and **not
+even its own banner**. Secondaries auto-unequip at zero ammo, so that was not a
+rare state. The handset reaction was "did it even disarm me?", which was the
+correct reading.
+
+### SUPPRESSION is what replaced it
+
+**The internal id is still `disarm`** — the event, the `bossLadder` entry and
+`_disarmEvery` all keep their names so the ladder's references stay valid. Do
+not re-derive the old behaviour from the id. The player-facing mechanic is
+`SUPPRESSED`: both Super activation paths refuse for `PLAYER.suppressMs`
+(4000) and **nothing else changes**.
+
+| | during SUPPRESSED |
+|---|---|
+| primary fire | **usable** |
+| movement, dash, aiming | **usable** |
+| ranged Super | blocked |
+| Broken Wings | blocked |
+| super / melee charge | **kept** — a blocked attempt spends nothing |
+| secondary weapon | not required, not taken, not dropped |
+
+Four things that are load-bearing:
+
+- **Primary fire is untouched on purpose.** There is no baseline melee in this
+  game — Broken Wings is itself a Super — so taking the gun would leave the
+  player nothing to do but run in circles until it came back.
+- **The gate sits above the charge check** in `tryFireSuper`. Refusing after
+  `superCharge = 0` would delete the meter every time a suppressed button was
+  pressed, which is the one thing the mechanic must not do.
+- **The gate sits above the `inCombo` branch** in `tryMeleeCombo`. Casts 2 and
+  3 of a Broken Wings chain skip the meter check, so a gate placed with the
+  `meleeReady` test leaves a mid-chain loophole: get one cast off, stay
+  suppressed, keep swinging free.
+- **It is a delta-ticked countdown on the Player, not a `delayedCall`.** The
+  Player object is REUSED across lives — the revive path in `GameScene` puts
+  the same one back on its feet — so a callback would be holding a reference to
+  a life that has already ended. A field cannot outlive a scene, cannot fire
+  into a restarted run, and cannot stack: a repeat activation just rewrites the
+  number, which is also the "refresh, never stack" rule.
+
+The HUD **reflects** the rule and does not create it: both buttons take their
+not-ready texture plus a locked tint and alpha, and a blocked press pulses
+them red. Tint and alpha only — **never scale** — because a touch widget's
+scale is the player's own setting from Pause → CONTROLS.
+
+### Why the tests did not catch either one
+
+Both were covered, and both tests asserted the system instead of the
+experience. `smoke-vader` checked that `overlay.alpha` rose — true on a
+vignette that darkens the playfield by 0% and on one that blacks out the room.
+The DISARM checks tested that the secondary was gone, that the pickup landed
+outside the 90px magnet, and that collecting it restored the ammo: every one a
+fact about **the item**, not one about the player's verbs. And one of them,
+"disarming an unarmed player drops nothing", **certified the silent no-op as
+correct behaviour** — the test that should have caught the hole signed it off.
+
+They now assert the gradient the fight happens in, and every player verb.
+Seventeen of the new checks fail against `3025efd`.
+
+### Traps this pass leaves behind
+
+- **A tween CHAIN is not a tween, and `killTweensOf` does not reliably reach
+  into one.** The blackout's flicker holds its handle and stops it explicitly.
+- **This harness renders a frame every ~190ms under load** — longer than the
+  whole onset — so no wall-clock threshold can tell a hard cut from a soft
+  ease. Measured, an in-page `await setTimeout(16)` loop returned ONE sample
+  for a 260ms window. The onset is sampled from a `postupdate` hook and
+  asserted in FRAMES: the first frame showing any darkening is already near
+  full for a cut and still climbing for an ease, which discriminates at any
+  frame rate.
+- **A photograph of a boss room needs his attack clocks silenced.** Half a
+  dozen shots of LIGHTS OUT came back as a full-screen red hurt-flash because
+  Vader was mid-charge. And the camera LERPS at 0.22, so a rig that teleports
+  the player must `centerOn` too — otherwise the shot catches the player
+  outside their own sight radius while the camera catches up.
+- **`refreshSuper` still writes `img.setScale(1.18)` and tweens `scale: 1`** on
+  the super button — the touch-widget scale trap from `CLAUDE.md`, pre-existing
+  and deliberately left alone by this pass. It silently resets a resized button
+  to 100%. Not reintroduced anywhere new; worth fixing under a HUD pass.
+
 ## 10c. The narrative system
 
 **The ledger has always remembered; nothing spoke.** `nemesisLedger.js` tracks

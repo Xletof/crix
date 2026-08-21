@@ -299,6 +299,30 @@ the finding is already established earlier in the conversation.
   more and harder questions, never because the same question costs more.
   `smoke-vader` asserts the damage fields are identical at rungs 1 and 6, so
   anything that adds a per-encounter multiplier has to argue with a check.
+- **`disarm` IS SUPPRESSION, and it does not touch a weapon.** The internal id,
+  the `boss-disarm` event and `_disarmEvery` are historical: the mechanic used to
+  strip `player.secondary` and drop it, which on handset read as nothing
+  happening — the pistol is infinite and untouched, so primary fire, super, melee
+  and dash all still worked, and with no secondary equipped it returned on its
+  first line without even raising its banner. It now blocks BOTH Super activation
+  paths for `PLAYER.suppressMs` and nothing else. Never re-derive the old
+  behaviour from the id.
+- **Both Super gates have a required POSITION, not just a condition.**
+  `tryFireSuper`'s sits ABOVE the charge check, or a blocked press deletes the
+  meter it is supposed to preserve. `tryMeleeCombo`'s sits ABOVE the `inCombo`
+  branch, because casts 2 and 3 of a Broken Wings chain skip the `meleeReady`
+  test — gate on readiness and a started chain swings free through the lockout.
+- **THERE IS NO BASELINE MELEE.** Broken Wings is itself a Super. Any mechanic
+  that takes the player's primary fire leaves them with nothing to do but run,
+  which is why SUPPRESSION deliberately never touches it.
+- **TWO DARKNESS GRADIENTS, AND THE MODE ARGUMENT PICKS ONE.**
+  `set-darkness true` with no mode is the persistent DARKNESS room modifier,
+  whose vignette darkens the centre 200px of the screen — where the fight is —
+  by EXACTLY 0%. Vader's LIGHTS OUT must pass `'blackout'`. Dropping the mode is
+  silent and puts the banner back over an unchanged playfield, which is what
+  shipped. The blackout pocket also TRACKS THE PLAYER, because the game camera
+  clamps at the arena bounds and a screen-locked pocket strands them up to ~270px
+  horizontally and ~508px vertically outside their own sight radius.
 - **An upgrade's `apply` can run more than once.** `pickThree` falls back to the
   FULL pool once fewer than three cards are untaken, so past ~sector 13 cards
   repeat. Effects take an `s` scale and must be written as magnitudes
