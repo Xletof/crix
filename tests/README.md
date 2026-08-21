@@ -655,3 +655,30 @@ load** — not the ~50ms the rest of this file assumes. Consequences:
   flicker takes ~600ms of harness time. That is an artifact, not a game bug.
 - A chain is not a tween: `killTweensOf` does not reliably reach into one, so
   `HUD.setDarkness` holds the handle and stops it explicitly.
+
+### Baseline comparisons for the three suites that failed the full run
+
+Recorded during the experiential-truth pass, so the next session does not
+re-investigate them. All three are pre-existing and none is a regression.
+
+| suite | full suite | standalone | verdict |
+|---|---|---|---|
+| `smoke-boss-moves` | FAIL 1/18 — "costs them a dash charge" | **PASS 18/18**, twice | load-sensitive; the diff under test touches no dash, push or boss-move code |
+| `smoke-deflect` | FAIL 13/73 | 73/73, then FAIL 1/73 on a **different** check | section 4c, see above — a **fifth** distinct check across this session's four runs |
+| `smoke-readability` | FAIL 2/19 | FAIL 1/19 — "he is PLANTED through his wind-up" | **reproduces on the pre-change build**, which failed the same check plus one more |
+
+Two of these are worth understanding rather than re-running:
+
+- **`smoke-deflect`'s 13-failure run is ONE failure, not thirteen.** The first
+  check in that block is its own occurrence guard, `sweepFrames > 3` — a FRAME
+  COUNT. Under full-suite load this harness renders one frame every ~190ms, so
+  a 260ms sweep yields one or two frames and the guard cannot pass. Every check
+  after it consumes samples that were never taken. DEFLECTION is frozen: do not
+  retune it because its photographic gesture test cannot be photographed on a
+  loaded box.
+- **`smoke-readability`'s "PLANTED" check reports `0px/s drift 93px`** — speed
+  zero, displacement 93px. Planted, but moved discontinuously between two
+  samples 190ms apart. The threshold is `drift > 40`. On the pre-change build
+  the same check reported `drift 50px` and also failed. The instrument mixes a
+  per-frame speed with a whole-window displacement, and at this frame rate the
+  second one measures the machine.
