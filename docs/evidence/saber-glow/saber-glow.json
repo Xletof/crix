@@ -1,0 +1,385 @@
+{
+  "shots": [
+    "seq-01-aim-stationary",
+    "seq-02-parry",
+    "seq-03-deflection-stance",
+    "seq-04-super-power-sweep",
+    "seq-05-saber-combo",
+    "seq-06-saber-throw-away",
+    "seq-07-vanish-spin",
+    "seq-08-silhouette-blade-across-body",
+    "seq-09-eclipse",
+    "seq-10-lights-returning",
+    "seq-11-normal-arena-again"
+  ],
+  "abToggle": {
+    "off": {
+      "halo": false,
+      "bloom": false
+    },
+    "on": {
+      "halo": true,
+      "bloom": true
+    }
+  },
+  "ab": {
+    "blade": {
+      "before": {
+        "lum": 29.6,
+        "red": 11.79
+      },
+      "after": {
+        "lum": 39,
+        "red": 32.45
+      },
+      "dLum": 9.4,
+      "dRed": 20.66
+    },
+    "near darkness": {
+      "before": {
+        "lum": 21.33,
+        "red": 14
+      },
+      "after": {
+        "lum": 25.36,
+        "red": 22.78
+      },
+      "dLum": 4.03,
+      "dRed": 8.78
+    },
+    "wide darkness": {
+      "before": {
+        "lum": 16.33,
+        "red": 7.77
+      },
+      "after": {
+        "lum": 17.66,
+        "red": 10.67
+      },
+      "dLum": 1.33,
+      "dRed": 2.9
+    },
+    "Vader's body": {
+      "before": {
+        "lum": 10.45,
+        "red": 4.11
+      },
+      "after": {
+        "lum": 10.74,
+        "red": 4.9
+      },
+      "dLum": 0.29,
+      "dRed": 0.79
+    },
+    "far corner": {
+      "before": {
+        "lum": 12.77,
+        "red": -6.48
+      },
+      "after": {
+        "lum": 12.77,
+        "red": -6.48
+      },
+      "dLum": 0,
+      "dRed": 0
+    },
+    "viewport": {
+      "before": {
+        "lum": 11.04,
+        "red": 0.67
+      },
+      "after": {
+        "lum": 11.32,
+        "red": 1.27
+      },
+      "dLum": 0.28,
+      "dRed": 0.6
+    }
+  },
+  "normalLight": {
+    "glow": {
+      "mix": 0,
+      "haloVisible": false,
+      "bloomVisible": false
+    },
+    "blade": {
+      "lum": 69.75,
+      "red": 18.38
+    },
+    "viewport": {
+      "lum": 56.45,
+      "red": 12.5
+    }
+  },
+  "bodyFrozen": {
+    "radius": 56,
+    "cfgRadius": 56,
+    "weaponHasBody": false,
+    "haloHasBody": false,
+    "bloomHasBody": false,
+    "texW": 88,
+    "texH": 24
+  },
+  "poses": [
+    {
+      "label": "aim",
+      "away": false,
+      "mix": 1,
+      "lights": "off",
+      "snap": true,
+      "endEv": false,
+      "cdEv": false,
+      "pend": null,
+      "w": {
+        "x": 800,
+        "y": 1047.75,
+        "rot": 1.5708,
+        "vis": true
+      },
+      "halo": {
+        "x": 800,
+        "y": 1047.75,
+        "rot": 1.5708,
+        "vis": true
+      },
+      "bloom": {
+        "x": 800,
+        "y": 1047.75,
+        "rot": 1.5708,
+        "vis": true
+      },
+      "matches": true
+    },
+    {
+      "label": "parry",
+      "away": false,
+      "mix": 1,
+      "lights": "off",
+      "snap": true,
+      "endEv": false,
+      "cdEv": false,
+      "pend": null,
+      "w": {
+        "x": 800,
+        "y": 1185.25,
+        "rot": 1.5708,
+        "vis": true
+      },
+      "halo": {
+        "x": 800,
+        "y": 1185.25,
+        "rot": 1.5708,
+        "vis": true
+      },
+      "bloom": {
+        "x": 800,
+        "y": 1185.25,
+        "rot": 1.5708,
+        "vis": true
+      },
+      "matches": true
+    },
+    {
+      "label": "deflection",
+      "away": false,
+      "mix": 1,
+      "lights": "off",
+      "snap": true,
+      "endEv": false,
+      "cdEv": false,
+      "pend": null,
+      "w": {
+        "x": 761.77,
+        "y": 1357.45,
+        "rot": 2.211,
+        "vis": true
+      },
+      "halo": {
+        "x": 761.77,
+        "y": 1357.45,
+        "rot": 2.211,
+        "vis": true
+      },
+      "bloom": {
+        "x": 761.77,
+        "y": 1357.45,
+        "rot": 2.211,
+        "vis": true
+      },
+      "matches": true
+    },
+    {
+      "label": "super-sweep",
+      "away": false,
+      "mix": 1,
+      "lights": "off",
+      "snap": true,
+      "endEv": false,
+      "cdEv": false,
+      "pend": null,
+      "w": {
+        "x": 800,
+        "y": 1534.87,
+        "rot": 1.5708,
+        "vis": true
+      },
+      "halo": {
+        "x": 800,
+        "y": 1534.87,
+        "rot": 1.5708,
+        "vis": true
+      },
+      "bloom": {
+        "x": 800,
+        "y": 1534.87,
+        "rot": 1.5708,
+        "vis": true
+      },
+      "matches": true
+    },
+    {
+      "label": "combo",
+      "away": false,
+      "mix": 1,
+      "lights": "off",
+      "snap": true,
+      "endEv": false,
+      "cdEv": false,
+      "pend": null,
+      "w": {
+        "x": 800,
+        "y": 1554,
+        "rot": 1.5708,
+        "vis": true
+      },
+      "halo": {
+        "x": 800,
+        "y": 1554,
+        "rot": 1.5708,
+        "vis": true
+      },
+      "bloom": {
+        "x": 800,
+        "y": 1554,
+        "rot": 1.5708,
+        "vis": true
+      },
+      "matches": true
+    },
+    {
+      "label": "throw-after-catch",
+      "away": true,
+      "mix": 1,
+      "lights": "off",
+      "snap": true,
+      "endEv": false,
+      "cdEv": false,
+      "pend": null,
+      "w": {
+        "x": 800,
+        "y": 966.43,
+        "rot": -2.4504,
+        "vis": true
+      },
+      "halo": {
+        "x": 800,
+        "y": 966.43,
+        "rot": -2.4504,
+        "vis": true
+      },
+      "bloom": {
+        "x": 800,
+        "y": 966.43,
+        "rot": -2.4504,
+        "vis": true
+      },
+      "matches": true
+    },
+    {
+      "label": "vanish-spin",
+      "away": false,
+      "mix": 1,
+      "lights": "off",
+      "snap": true,
+      "endEv": false,
+      "cdEv": false,
+      "pend": null,
+      "w": {
+        "x": 800,
+        "y": 1430,
+        "rot": -1.4439,
+        "vis": true
+      },
+      "halo": {
+        "x": 800,
+        "y": 1430,
+        "rot": -1.4439,
+        "vis": true
+      },
+      "bloom": {
+        "x": 800,
+        "y": 1430,
+        "rot": -1.4439,
+        "vis": true
+      },
+      "matches": true
+    },
+    {
+      "label": "silhouette",
+      "away": false,
+      "mix": 1,
+      "lights": "off",
+      "snap": true,
+      "endEv": false,
+      "cdEv": false,
+      "pend": null,
+      "w": {
+        "x": 800,
+        "y": 924.25,
+        "rot": 1.5708,
+        "vis": true
+      },
+      "halo": {
+        "x": 800,
+        "y": 924.25,
+        "rot": 1.5708,
+        "vis": true
+      },
+      "bloom": {
+        "x": 800,
+        "y": 924.25,
+        "rot": 1.5708,
+        "vis": true
+      },
+      "matches": true
+    }
+  ],
+  "castCombo": true,
+  "throwTruth": {
+    "saberAway": true,
+    "hasSaber": false,
+    "tries": 23,
+    "distFromHand": 242.5,
+    "haloDistFromHand": 242.5,
+    "haloOnBlade": true,
+    "glowObjects": 2
+  },
+  "castVanish": true,
+  "eclipse": {
+    "clones": 3,
+    "clonesWithVisibleWeapon": 0,
+    "clonesWithGlow": 0,
+    "consoleGlow": {
+      "visible": true,
+      "depth": 3,
+      "consoles": 4
+    }
+  },
+  "afterRestore": {
+    "mix": 0,
+    "haloVisible": false,
+    "bloomVisible": false,
+    "consoleGlowVisible": false,
+    "lightsState": "cooldown"
+  }
+}

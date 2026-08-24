@@ -884,6 +884,117 @@ r.punish = await page.evaluate(async () => {
   return { died, wounded, retreats, hp: b.hp };
 });
 
+
+// The punish probe above leaves the arena without a Vader in it. Stage a fresh
+// one: a probe that opens on `gs.boss` being null throws, and a thrown probe is
+// indistinguishable from a failed contract.
+await enterBossRoom(6);
+await keepAlive();
+
+// ══ THE SABER AS A LIGHT SOURCE, AND ONLY IN THE DARK ═══════════════════════
+//
+// Structural claims only. Whether it looks cinematic is a handset verdict and
+// no assertion here pretends otherwise. What IS checkable: it exists only
+// during LIGHTS OUT, it is derived from the pose the one writer produced rather
+// than computed a second time, it adds nothing collidable, it travels with the
+// real blade when SABER THROW takes it away, and it leaves no owner behind.
+r.saber = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game'), b = gs.boss;
+  const { LIGHTSOUT } = await import('/src/config.js');
+  const out = { cfg: LIGHTSOUT.saber ?? null, drawer: typeof b._drawSaberGlow };
+  const layers = () => [b._saberHalo, b._saberBloom];
+  const snap = () => {
+    const w = b.weaponSprite, [h, g] = layers();
+    return { mix: gs._darkMix?.v ?? 0,
+      halo: h ? { x: h.x, y: h.y, rot: h.rotation, vis: h.visible, blend: h.blendMode } : null,
+      bloom: g ? { x: g.x, y: g.y, rot: g.rotation, vis: g.visible, blend: g.blendMode } : null,
+      w: { x: w.x, y: w.y, rot: w.rotation, depth: w.depth } };
+  };
+  // Sampled on postupdate so the blade and its light are read from ONE frame.
+  // Two `evaluate` round trips compare poses 200-400ms apart, and on a walking
+  // boss they can never agree — which reads as a glow that does not follow.
+  const frame = () => new Promise((res) => {
+    const t = () => { gs.events.off('postupdate', t); res(snap()); };
+    gs.events.on('postupdate', t);
+  });
+
+  gs._clearLightsOut?.();
+  await new Promise((r) => setTimeout(r, 260));
+  out.lit = await frame();
+
+  gs._enterDarkArena?.();
+  gs._darkChain?.stop?.(); if (gs._darkMix) gs._darkMix.v = 1; gs._applyDarkMix?.();
+  await new Promise((r) => setTimeout(r, 260));
+  out.dark = await frame();
+  // Again a beat later: the pose must still be the blade's, not one it was
+  // parked at when the darkness started.
+  await new Promise((r) => setTimeout(r, 320));
+  out.dark2 = await frame();
+
+  // NOTHING THIS PASS ADDED CAN BE COLLIDED WITH.
+  out.bodies = { boss: b.body?.radius ?? null,
+                 weapon: !!b.weaponSprite.body,
+                 halo: !!b._saberHalo?.body, bloom: !!b._saberBloom?.body };
+  // ONE SABER, ONE OWNER. The light is anchored to the sprite, so a blade
+  // 500px away takes its glow with it and leaves no phantom at his hand.
+  out.throw = await new Promise((res) => {
+    let n = 0;
+    const t = () => {
+      const w = b.weaponSprite;
+      const d = Math.hypot(w.x - b.x, w.y - b.y);
+      if (b._saberAway && d > 200) {
+        gs.events.off('postupdate', t);
+        const [h, g] = layers();
+        return res({ fired: true, hasSaber: b.hasSaber(), dist: +d.toFixed(1),
+          haloOnBlade: !!h && h.x === w.x && h.y === w.y && h.rotation === w.rotation,
+          bloomOnBlade: !!g && g.x === w.x && g.y === w.y && g.rotation === w.rotation,
+          // there is exactly one glowing blade in the room
+          layers: layers().filter(Boolean).length });
+      }
+      if (++n % 12 === 0) {
+        b._activeMove = null; b._performing = null; b.state = 'idle'; b.cooldown = 0;
+        b._reflectUntil = 0; b._reflectClaimed = false;
+        gs._castBossMove?.(b, 'saberthrow');
+      }
+      if (n > 420) { gs.events.off('postupdate', t); res({ fired: false, n }); }
+    };
+    gs.events.on('postupdate', t);
+  });
+
+  // Restoration drops it, and a teardown removes the listener rather than
+  // leaving a postupdate handler closed over a dead boss in the next room.
+  gs._clearLightsOut?.();
+  await new Promise((r) => setTimeout(r, 400));
+  out.restored = await frame();
+  out.hookBefore = typeof b._glowDraw;
+  const before = gs.events.listenerCount('postupdate');
+  b.destroy();
+  out.hookAfter = typeof b._glowDraw;
+  out.listenersFreed = gs.events.listenerCount('postupdate') < before;
+  gs.boss = null;
+  return out;
+});
+
+// ══ FROZEN: everything this pass was told not to touch ══════════════════════
+r.frozen = await page.evaluate(async () => {
+  const { ENDLESS, LIGHTSOUT, DARKNESS, PLAYER, BOSS } = await import('/src/config.js');
+  const M = ENDLESS.bossMech;
+  return {
+    lightsReentryMs: M.lightsReentryMs, blackoutMs: M.blackoutMs,
+    lo: { floor: LIGHTSOUT.floor, wall: LIGHTSOUT.wall, prop: LIGHTSOUT.prop,
+          console: LIGHTSOUT.console, sectorTintAlpha: LIGHTSOUT.sectorTintAlpha,
+          onsetMs: LIGHTSOUT.onsetMs, restoreMs: LIGHTSOUT.restoreMs },
+    vignette: { inner: DARKNESS.blackout.inner, outer: DARKNESS.blackout.outer,
+                stops: JSON.stringify(DARKNESS.blackout.stops) },
+    suppressMs: PLAYER.suppressMs, superSpeed: PLAYER.superSpeed,
+    reflectMs: M.reflectMs, reflectEveryMs: M.reflectEveryMs, parryMs: M.parryMs,
+    superReleaseMs: M.superReleaseMs, superSweepMs: M.superSweepMs,
+    superReturnDamageMax: M.superReturnDamageMax,
+    afterimageEveryMs: M.afterimageEveryMs, afterimageCount: M.afterimageCount,
+    bossRadius: BOSS.radius, bossHp: BOSS.hp,
+  };
+});
+
 await browser.close();
 
 // ── Ladder ───────────────────────────────────────────────────────────────
@@ -1280,6 +1391,76 @@ check(r.cap.taken >= 3999, 'a big hit lands in FULL — there is no intake cap',
   + `which is what made encounter 6 take four minutes and punished super-spam hardest`);
 check(!r.cap.hasCapField, 'and no per-boss cap field survives to be re-enabled by accident',
   `_dmgCap = ${r.cap.hasCapField}`);
+
+
+check(!!r.saber.cfg && r.saber.drawer === 'function',
+  'the LIGHTS OUT saber treatment exists and is config-driven',
+  `drawer ${r.saber.drawer}, cfg ${r.saber.cfg ? 'present' : 'MISSING'}`);
+check(r.saber.lit.mix === 0 && !r.saber.lit.halo?.vis && !r.saber.lit.bloom?.vis,
+  'in normal light the approved saber is untouched — no glow layer is drawn',
+  `mix ${r.saber.lit.mix}, halo ${r.saber.lit.halo?.vis}, bloom ${r.saber.lit.bloom?.vis}`);
+check(!!r.saber.dark.halo?.vis && !!r.saber.dark.bloom?.vis,
+  'and in the dark arena BOTH emissive layers come up',
+  `halo ${r.saber.dark.halo?.vis}, bloom ${r.saber.dark.bloom?.vis}`);
+check(r.saber.dark.halo?.blend === 1 && r.saber.dark.bloom?.blend === 1,
+  'both are ADDITIVE — light added to darkness, not paint laid over it',
+  `blend modes ${r.saber.dark.halo?.blend}/${r.saber.dark.bloom?.blend} (1 = ADD)`);
+for (const [when, snap] of [['on the frame it appears', r.saber.dark],
+                            ['and still a beat later', r.saber.dark2]]) {
+  check(!!snap.halo && snap.halo.x === snap.w.x && snap.halo.y === snap.w.y
+        && snap.halo.rot === snap.w.rot,
+    `the glow IS the blade's pose ${when} — position and rotation, same frame`,
+    `blade (${snap.w.x?.toFixed?.(1)}, ${snap.w.y?.toFixed?.(1)}) @${snap.w.rot?.toFixed?.(3)} vs `
+    + `halo (${snap.halo?.x?.toFixed?.(1)}, ${snap.halo?.y?.toFixed?.(1)}) @${snap.halo?.rot?.toFixed?.(3)}`);
+}
+check(r.saber.dark.bloom.x === r.saber.dark.w.x && r.saber.dark.bloom.rot === r.saber.dark.w.rot,
+  'and so is the tight bloom — one pose, three layers, no second author',
+  `bloom @${r.saber.dark.bloom.rot} vs blade @${r.saber.dark.w.rot}`);
+check(r.saber.bodies.boss === 56 && !r.saber.bodies.weapon
+      && !r.saber.bodies.halo && !r.saber.bodies.bloom,
+  'the glow is VISUAL — nothing it added can be collided with',
+  JSON.stringify(r.saber.bodies));
+check(r.saber.throw.fired === true,
+  'the SABER THROW probe actually threw the blade',
+  `a refused cast reads exactly like a failed one — ${JSON.stringify(r.saber.throw)}`);
+check(r.saber.throw.fired && r.saber.throw.hasSaber === false && r.saber.throw.dist > 200,
+  'while it is away he is genuinely unarmed',
+  `hasSaber ${r.saber.throw.hasSaber}, blade ${r.saber.throw.dist}px from his hand`);
+check(r.saber.throw.haloOnBlade === true && r.saber.throw.bloomOnBlade === true
+      && r.saber.throw.layers === 2,
+  'and the light goes WITH the blade — no phantom glowing saber at his hand',
+  `${r.saber.throw.layers} layers, both on the thrown sprite`);
+check(r.saber.restored.mix === 0 && !r.saber.restored.halo?.vis && !r.saber.restored.bloom?.vis,
+  'restoration takes the LIGHTS OUT-only treatment away with the darkness',
+  `mix ${r.saber.restored.mix}, halo ${r.saber.restored.halo?.vis}`);
+check(r.saber.hookBefore === 'function' && r.saber.hookAfter !== 'function'
+      && r.saber.listenersFreed,
+  'and destroying him removes the postupdate reader — no handler outlives the room',
+  `hook ${r.saber.hookBefore} -> ${r.saber.hookAfter}, listeners freed ${r.saber.listenersFreed}`);
+
+const F = r.frozen;
+check(F.lightsReentryMs === 14000 && F.blackoutMs === 2600,
+  'FROZEN: the approved LIGHTS OUT cadence is untouched by this pass',
+  `re-entry ${F.lightsReentryMs}ms, duration ${F.blackoutMs}ms`);
+check(F.lo.floor === 0x12151f && F.lo.wall === 0x1a1f2b && F.lo.prop === 0x2e3446
+      && F.lo.console === 0x8892ac && F.lo.sectorTintAlpha === 0.03
+      && F.lo.onsetMs === 140 && F.lo.restoreMs === 420,
+  'FROZEN: the arena material values and transition timings are untouched',
+  JSON.stringify(F.lo));
+check(F.vignette.inner === 300 && F.vignette.outer === 820
+      && F.vignette.stops === '[[0,0],[0.45,0.1],[0.75,0.28],[1,0.46]]',
+  'FROZEN: the vignette geometry is untouched', JSON.stringify(F.vignette));
+check(F.suppressMs === 4000 && F.superSpeed === 1080,
+  'FROZEN: SUPPRESSION and the returned super are untouched',
+  `suppressMs ${F.suppressMs}, super speed ${F.superSpeed}`);
+check(F.reflectMs === 2400 && F.reflectEveryMs === 9000 && F.parryMs === 300
+      && F.superReleaseMs === 620 && F.superSweepMs === 260 && F.superReturnDamageMax === 620,
+  'FROZEN: every DEFLECTION timing and the returned super\'s damage are untouched',
+  `reflect ${F.reflectMs}/${F.reflectEveryMs}, parry ${F.parryMs}, release ${F.superReleaseMs}, `
+  + `sweep ${F.superSweepMs}, return dmg ${F.superReturnDamageMax}`);
+check(F.afterimageEveryMs === 13000 && F.afterimageCount === 3,
+  'FROZEN: Afterimages scheduling and clone count are untouched',
+  `every ${F.afterimageEveryMs}ms, ${F.afterimageCount} clones`);
 
 for (const c of checks) {
   console.log(`  ${c.ok ? 'ok  ' : 'FAIL'}  ${c.label}${c.ok || !c.detail ? '' : ' — ' + c.detail}`);

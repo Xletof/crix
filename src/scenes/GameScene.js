@@ -2078,6 +2078,10 @@ export class GameScene extends Phaser.Scene {
     this._darkChain = null;
     if (this._darkMix) this.tweens.killTweensOf(this._darkMix);
     this._restoreArenaTints();
+    // Not in `roomLayer`, so it would otherwise outlive the arena it was drawn
+    // for and reappear over the next one at the old consoles' coordinates.
+    this._consoleGlow?.destroy();
+    this._consoleGlow = null;
     this.events.emit('set-darkness', false, 'blackout');
   }
 
@@ -2171,6 +2175,7 @@ export class GameScene extends Phaser.Scene {
     if (st?.active && this._sectorTintWas != null) st.setFillStyle(st.fillColor, this._sectorTintWas);
     this._sectorTintWas = null;
     if (this._darkMix) this._darkMix.v = 0;
+    this._drawConsoleGlow(0);
   }
 
   // Lerp each object from its own resting tint toward its material's target.
@@ -2194,6 +2199,55 @@ export class GameScene extends Phaser.Scene {
     if (st?.active && this._sectorTintWas != null) {
       st.setFillStyle(st.fillColor,
         this._sectorTintWas + (LIGHTSOUT.sectorTintAlpha - this._sectorTintWas) * v);
+    }
+    this._drawConsoleGlow(v);
+  }
+
+  /**
+   * ISLANDS OF REMAINING POWER — the bounded half of the emissive brief.
+   *
+   * The consoles already survive the darkening at ~0.57 against a 0.083 floor,
+   * so they are the brightest static things left in the room. This is the small
+   * step from "less dark" to "still switched on": one ADD-blended Graphics for
+   * the whole room, a soft three-ring pool behind each console, alpha riding
+   * the same power-failure scalar as everything else.
+   *
+   * Deliberately BLUE. Crimson is the danger colour and it belongs to the
+   * saber, the SABER THROW lane and the telegraphs — a red pool on the floor
+   * next to cover is a zone the player has been trained to run out of.
+   *
+   * The redraw is not per-frame: `_applyDarkMix` only runs during the 140ms
+   * onset and the 420ms restore, and consoles do not move, so a held dark room
+   * costs nothing. This is a PROTOTYPE and it is one number from gone —
+   * `LIGHTSOUT.consoleGlowAlpha: 0`. Authoring real emergency-power arenas is
+   * the map overhaul's job and nothing here should be mistaken for it.
+   */
+  _drawConsoleGlow(v) {
+    const A = LIGHTSOUT.consoleGlowAlpha;
+    if (!A) return;
+    if (v <= 0.004) {
+      this._consoleGlow?.clear();
+      this._consoleGlow?.setVisible(false);
+      return;
+    }
+    if (!this._consoleGlow) {
+      this._consoleGlow = this.add.graphics()
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(3);   // over the floor decals, under every actor
+    }
+    const g = this._consoleGlow;
+    g.clear();
+    g.setVisible(true);
+    const R = LIGHTSOUT.consoleGlowRadius;
+    for (const o of this.roomLayer.getChildren()) {
+      if (o._loClass !== 'console' || !o.active) continue;
+      // Three rings rather than one disc: additively summed the edge is not
+      // findable, which is the same reason the saber's spill is four capsules.
+      for (let i = 0; i < 3; i++) {
+        const t = i / 2;
+        g.fillStyle(LIGHTSOUT.consoleGlowColor, A * v * (0.35 + 0.65 * t));
+        g.fillCircle(o.x, o.y, R * (1 - 0.32 * t));
+      }
     }
   }
 

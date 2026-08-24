@@ -1407,6 +1407,59 @@ export const LIGHTSOUT = {
   onsetMs:   140,
   // Restoration is softer — lights coming back up, not another cut.
   restoreMs: 420,
+
+  // ── THE ONE LIGHT SOURCE WE ACTUALLY HAVE ───────────────────────────────
+  // Handset verdict on the first dark arena: the room genuinely loses power,
+  // but nothing in it starts BEHAVING like a light. The arena cannot carry
+  // that yet — it has four consoles and a prop, and authoring emissive
+  // environments belongs to the map overhaul. Vader's saber does not depend
+  // on any of that, so it is the one thing that has to be right now.
+  //
+  // These numbers are MULTIPLES OF THE BLADE'S OWN MEASURED HALF-THICKNESS,
+  // never pixels: the sprite is 22x6 at scale 4 then 1.4, the origin is
+  // (0.1, 0.5), and every one of those can move. Deriving from
+  // `displayWidth/displayHeight` each frame means the glow cannot drift off a
+  // blade that was re-drawn or re-scaled, which is exactly the class of bug
+  // that put a 1100px saber across the room once already.
+  saber: {
+    // Layer 2 — tight bloom. Two passes: a hot near-white inner and a
+    // saturated crimson just outside it. This is what turns a red LINE into
+    // something incandescent; it is deliberately barely wider than the blade.
+    innerMul: 1.50, innerColor: 0xffb09c, innerAlpha: 0.40,
+    tightMul: 2.80, tightColor: 0xff2a18, tightAlpha: 0.36,
+    // Layer 3 — broad atmospheric spill. Stacked capsules rather than one fat
+    // shape: additively summed, the falloff never shows an edge, which is the
+    // whole difference between "light" and "a red sausage". The widest is
+    // `haloMul` half-thicknesses — and it is the FAINTEST. An even alpha across
+    // the stack puts the outermost capsule's whole rim on screen at full step
+    // strength, and that rim photographs as a legible crimson ellipse around
+    // the blade; ramping the alpha with tightness buries it.
+    haloMul: 9.2, haloSteps: 6, haloColor: 0x9c140a, haloAlpha: 0.225,
+    // How far the spill reaches BACK past the emitter, in half-thicknesses.
+    // This is the whole of the answer to "Vader is a black body holding a red
+    // line": light leaves an emitter in every direction, so it washes over the
+    // hand and the near shoulder, and his silhouette comes back from the
+    // saber's own light rather than from a rim light we drew on him. Not a
+    // separate effect — the same halo, extended the way a real one would be.
+    backMul: 2.9,
+    // And a little past the tip, so the blade does not end on a hard stop.
+    tipMul: 1.6,
+    // Ceiling on the whole stack. The room is dark; a saber at full strength
+    // must not be the brightest thing a phone has ever shown.
+    maxMix: 1,
+  },
+
+  // ── ISLANDS OF REMAINING POWER (bounded prototype) ───────────────────────
+  // The consoles already survive the darkening at ~0.57 — they are the
+  // brightest static things left. This adds a soft ADD-blended pool behind
+  // each one so they READ as still powered rather than merely less dark. One
+  // Graphics for the whole room, redrawn only when the mix changes. It is
+  // deliberately BLUE: crimson is the danger colour and belongs to the saber
+  // and the telegraphs alone. Set `consoleGlowAlpha` to 0 to remove it
+  // entirely — the saber does not depend on it.
+  consoleGlowAlpha: 0.16,
+  consoleGlowColor: 0x2a6fb0,
+  consoleGlowRadius: 46,
 };
 
 

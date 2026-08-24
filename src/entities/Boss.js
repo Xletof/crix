@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BOSS, ENDLESS, parryArcFor } from '../config.js';
+import { BOSS, ENDLESS, LIGHTSOUT, parryArcFor } from '../config.js';
 
 const BOSS_MECH = ENDLESS.bossMech;
 
@@ -132,6 +132,15 @@ export class Boss extends Enemy {
     this.weaponSprite?.destroy();
     this.weaponSprite = scene.add.image(x, y, 'wpn-saber')
       .setDepth(this.depth + 1).setOrigin(0.1, 0.5).setScale(1.4);
+    // THE GLOW READS THE POSE, IT DOES NOT COMPUTE ONE — and it has to read
+    // the FINAL one. `preUpdate` runs before the tween manager steps, so a
+    // pose that is TWEENED rather than set (SABER THROW's flight and spin,
+    // VANISH's) is still last frame's value there: at the throw's 8*PI over
+    // the act beat that is ~25 degrees of separation between a blade and its
+    // own light. Drawing on `postupdate` costs nothing and cannot be stale for
+    // either kind of pose. Removed in `destroy` — `smoke-restart` counts these.
+    this._glowDraw = () => this._drawSaberGlow();
+    scene.events.on('postupdate', this._glowDraw);
     this.threatRing?.destroy();
     this.threatRing = scene.add.graphics().setDepth(this.depth - 2);
     this.threatRing.fillStyle(0xff8020, 0.18);
@@ -526,6 +535,9 @@ export class Boss extends Enemy {
       const isFacingNorth = (degBoss < -45 && degBoss > -135);
       this.weaponSprite.setDepth(isFacingNorth ? this.y - 1 : this.y + 1);
     }
+
+    // The glow is NOT drawn here. It is a pure reader of the pose this block
+    // just wrote, and it runs on `postupdate` — see `_drawSaberGlow`.
 
     // ── THE ENERGY HE IS HOLDING ────────────────────────────────────────
     // ONE Graphics, cleared and redrawn, never accumulating — and drawn here
@@ -1171,6 +1183,123 @@ export class Boss extends Enemy {
   }
 
   /**
+   * THE SABER AS A LIGHT SOURCE — LIGHTS OUT ONLY.
+   *
+   * Handset verdict on the dark arena: the room loses power convincingly, but
+   * nothing in it starts behaving like a light, so Vader reads as a black body
+   * holding a bright red line. The arena itself cannot fix that yet — it has
+   * four consoles and a prop, and authoring emissive environments is the map
+   * overhaul's job. The saber is independent of all of it.
+   *
+   * ── WHY IT LIVES HERE, IN THIS CLASS, ON THIS FRAME ────────────────────
+   * The weapon block above is THE ONE WRITER of the blade's position, rotation
+   * and flip. This is called from the last line of that block, and it reads
+   * those four numbers back rather than re-deriving anything: no aim maths of
+   * its own, no parry state of its own, no tween of its own. That is the whole
+   * reason it survives contact with the parry gestures, the DEFLECTION stance,
+   * the super power-sweep and CHARGE without knowing that any of them exist —
+   * they all resolve to a pose, and a pose is all this consumes. A glow that
+   * recomputed the aim would be a second author for the same numbers, which is
+   * precisely the fight that got his moves rejected the first time round.
+   *
+   * ── AND WHY IT FOLLOWS THE SPRITE, NOT THE HAND ───────────────────────
+   * `weaponSprite` IS the saber: SABER THROW detaches it and flies the real
+   * object across the room. Anchoring to the sprite therefore makes the throw
+   * truthful for free — the light leaves with the blade and Vader is left dark
+   * and unarmed, which is the read the one-saber contract has always wanted.
+   * Anchoring to his hand would have manufactured exactly the phantom the
+   * contract forbids.
+   *
+   * ── GEOMETRY ──────────────────────────────────────────────────────────
+   * Everything is a multiple of the blade's measured half-thickness, taken
+   * from `displayWidth/displayHeight` every frame. Nothing here is a pixel
+   * literal, so a re-drawn or re-scaled saber cannot leave its own glow
+   * behind. Two ADD-blended Graphics, cleared and redrawn — the same technique
+   * the held-super orb already uses, and no new rendering dependency:
+   *
+   *   `_saberHalo`  broad spill, ABOVE his body, so the light lands on his
+   *                 cape and shoulder and his silhouette comes back from the
+   *                 weapon rather than from a rim light drawn on him;
+   *   `_saberBloom` tight incandescence, just UNDER the blade, so the core
+   *                 stays the sharp approved weapon.
+   *
+   * Purely visual. It touches no body, no radius and no timing.
+   */
+  _drawSaberGlow() {
+    // The arena's own power-failure scalar is the driver — 0 in normal light,
+    // 1 held dark, and it runs the onset stutter and the restoration swell on
+    // its way in and out. An independent timer here could drift out of phase
+    // with the event it is supposed to belong to; this one cannot.
+    const mix = Math.min(this.scene?._darkMix?.v ?? 0, LIGHTSOUT.saber.maxMix);
+    const w = this.weaponSprite;
+    const live = mix > 0.004 && w?.active && w.visible && w.alpha > 0.02;
+    if (!live) {
+      // Hidden rather than destroyed: this toggles many times per fight, and
+      // two Graphics are cheaper to keep than to churn.
+      if (this._saberHalo) { this._saberHalo.setVisible(false); this._saberHalo.clear(); }
+      if (this._saberBloom) { this._saberBloom.setVisible(false); this._saberBloom.clear(); }
+      return;
+    }
+    const C = LIGHTSOUT.saber;
+    if (!this._saberHalo) {
+      this._saberHalo = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+      this._saberBloom = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    }
+    // Blade extents in the SPRITE'S OWN local space. The texture is 22x6 with
+    // the lit blade running from column 5 to the right edge on rows 2-3; the
+    // origin is (0.1, 0.5), so a texture fraction f sits at
+    // displayWidth * (f - originX). Written as fractions for the same reason
+    // the rest is written as multiples: the numbers that matter are the ones
+    // in `paintSaberOverlay`, and this stays correct if they move.
+    const dw = w.displayWidth, dh = w.displayHeight;
+    const x0 = dw * (5 / 22 - w.originX);
+    const x1 = dw * (1 - w.originX);
+    const half = (dh * (2 / 6)) / 2;
+    const a = mix * w.alpha;
+
+    // Both layers share the blade's exact transform, so nothing can be a frame
+    // stale and nothing can be drawn at a rotation the blade is not at.
+    for (const g of [this._saberHalo, this._saberBloom]) {
+      g.clear();
+      g.setVisible(true).setPosition(w.x, w.y).setRotation(w.rotation);
+    }
+
+    // ── LAYER 3: the spill ────────────────────────────────────────────────
+    // Four capsules from widest to tightest. Summed additively the falloff is
+    // smooth enough that no single edge is findable, which is the difference
+    // between light and a red sausage; one fat shape at the same total alpha
+    // shows its outline immediately. Reaches BACK past the emitter over his
+    // hand and shoulder, and a little past the tip so the blade does not stop
+    // on a hard end.
+    const hg = this._saberHalo;
+    hg.setDepth(this.y + 0.5);
+    for (let i = 0; i < C.haloSteps; i++) {
+      const t = i / (C.haloSteps - 1 || 1);          // 0 widest -> 1 tightest
+      const hh = half * (C.haloMul - (C.haloMul - C.tightMul) * t);
+      const bx = x0 - half * C.backMul * (1 - t * 0.55);
+      const ex = x1 + half * C.tipMul * (1 - t * 0.55);
+      // Faintest at the widest, so the outermost rim never lands on screen as
+      // an edge of its own — the geometry has to be unfindable or this reads
+      // as a shape around the blade rather than as light off it.
+      hg.fillStyle(C.haloColor, C.haloAlpha * a * (0.16 + 0.84 * Math.pow(t, 1.6)));
+      hg.fillRoundedRect(bx, -hh, ex - bx, hh * 2, hh);
+    }
+
+    // ── LAYER 2: the incandescence ────────────────────────────────────────
+    // Just under the blade so Layer 1 — the approved weapon — stays the sharp
+    // thing on top of it. Barely wider than the blade on purpose: this is what
+    // makes it look hot, and anything fatter starts looking like an outline.
+    const bg = this._saberBloom;
+    bg.setDepth(w.depth - 0.01);
+    bg.fillStyle(C.tightColor, C.tightAlpha * a);
+    bg.fillRoundedRect(x0 - half * 0.8, -half * C.tightMul,
+                       (x1 - x0) + half * 1.9, half * C.tightMul * 2, half * C.tightMul);
+    bg.fillStyle(C.innerColor, C.innerAlpha * a);
+    bg.fillRoundedRect(x0 - half * 0.4, -half * C.innerMul,
+                       (x1 - x0) + half * 1.1, half * C.innerMul * 2, half * C.innerMul);
+  }
+
+  /**
    * May DEFLECTION begin its tell right now?
    *
    * The gate the scheduler asks. Requires the blade AND requires that nothing
@@ -1196,5 +1325,23 @@ export class Boss extends Enemy {
     this.threatRing?.destroy();
     this._absorbOrb?.destroy(); this._absorbOrb = null;
     this.destroy();
+  }
+
+  /**
+   * One teardown for both exits. `die()` comes straight here; `retreat()`
+   * tweens him out and arrives a moment later — and in between, the glow has
+   * already hidden itself, because `weaponSprite` is gone and it refuses to
+   * draw without a live blade. The listener matters more than the Graphics:
+   * a `postupdate` handler closing over a dead boss survives every room load
+   * after it, which is exactly the leak `smoke-restart` exists to catch.
+   */
+  destroy(fromScene) {
+    if (this._glowDraw) {
+      this.scene?.events?.off('postupdate', this._glowDraw);
+      this._glowDraw = null;
+    }
+    this._saberHalo?.destroy();  this._saberHalo = null;
+    this._saberBloom?.destroy(); this._saberBloom = null;
+    super.destroy(fromScene);
   }
 }
