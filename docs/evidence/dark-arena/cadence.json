@@ -1,0 +1,93 @@
+{
+  "sampleMs": 75438,
+  "rawTransitions": 25,
+  "activations": 13,
+  "events": [
+    {
+      "start": 5127,
+      "end": 6518,
+      "ms": 0,
+      "note": "RE-RAISED WHILE ALREADY ON"
+    },
+    {
+      "start": 5127,
+      "end": 7769,
+      "ms": 2642
+    },
+    {
+      "start": 15833,
+      "end": 18600,
+      "ms": 2767
+    },
+    {
+      "start": 19621,
+      "end": 22240,
+      "ms": 2619
+    },
+    {
+      "start": 26504,
+      "end": 29223,
+      "ms": 2719
+    },
+    {
+      "start": 32886,
+      "end": 35597,
+      "ms": 2711
+    },
+    {
+      "start": 37340,
+      "end": 40093,
+      "ms": 2753
+    },
+    {
+      "start": 46036,
+      "end": 48132,
+      "ms": 0,
+      "note": "RE-RAISED WHILE ALREADY ON"
+    },
+    {
+      "start": 46036,
+      "end": 48724,
+      "ms": 2688
+    },
+    {
+      "start": 58769,
+      "end": 59190,
+      "ms": 0,
+      "note": "RE-RAISED WHILE ALREADY ON"
+    },
+    {
+      "start": 58769,
+      "end": 61682,
+      "ms": 2913
+    },
+    {
+      "start": 69563,
+      "end": 72305,
+      "ms": 2742
+    },
+    {
+      "start": 72602,
+      "end": null,
+      "ms": null,
+      "note": "still dark at sample end"
+    }
+  ],
+  "gapsBetweenEventsMs": [
+    -1391,
+    8064,
+    1021,
+    4264,
+    3663,
+    1743,
+    5943,
+    -2096,
+    10045,
+    -421,
+    7881,
+    297
+  ],
+  "minGapMs": -2096,
+  "perMinute": 10.34,
+  "requestLog": null
+}

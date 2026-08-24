@@ -315,6 +315,53 @@ the finding is already established earlier in the conversation.
 - **THERE IS NO BASELINE MELEE.** Broken Wings is itself a Super. Any mechanic
   that takes the player's primary fire leaves them with nothing to do but run,
   which is why SUPPRESSION deliberately never touches it.
+- **LIGHTS OUT IS AN ARENA TINT, NOT A VIGNETTE — and the vignette is
+  seasoning.** The transformation is multiplicative tints on
+  `GameScene.roomLayer`, which holds the backdrop, the decal RenderTexture, the
+  walls, the cover consoles and the props and NOTHING ELSE. Combat is outside
+  that group, so the saber, both bullet pools, telegraphs, Force effects, the
+  returned orb and both silhouettes are exempt BY CONSTRUCTION rather than by a
+  list that could drift — `smoke-vader` asserts none of them is inside it.
+  Strength comes from `_loClass`, tagged at creation in `loadRoom`, resolved
+  against `LIGHTSOUT` in `config.js`. A new prop must be tagged or it silently
+  takes the generic strength. The previous 90px player-tracking pocket was
+  mechanically successful and REJECTED ON HANDSET as a flashlight radius; do
+  not put it back.
+- **A LIGHTER FLOOR TINT TURNS THE VADER CHAMBER RED.** Its floor base is
+  already `#0a0a0d` and the only coloured thing baked into it is the crimson
+  strip lights and the dais ring, so any tint gentle enough to spare them
+  leaves a maroon room — and crimson is the DANGER colour. The saber, the SABER
+  THROW lane and every telegraph are red and must be the only red in frame.
+  Measured and rejected at `floor: 0x191e2b`.
+- **`_sectorTint` IS AMBIENT LIGHT AND IT IS ADDITIVE.** The endless per-sector
+  wash is an ADD-blended screen-locked rectangle at depth 9000, up to 0.20
+  alpha. Additive light above every room object cannot be tinted away from
+  below, so a dark arena that leaves it running is a dark arena with the lights
+  on — at sector 30 that was a solid olive wash over a room meant to be black.
+  It drops with the room and is restored exactly.
+- **A `TweenChain`'s config has no `onUpdate` to hand down to its links.** Set
+  it on the chain and the scalar animates while nothing ever reads it. It
+  photographed as a fully lit room half a second into an ACCEPTED LIGHTS OUT.
+  Put the callback on every link.
+- **DARKNESS HAS ONE OWNER AND TWO PRODUCERS.** The standalone `blackout` clock
+  and ECLIPSE both used to emit `boss-blackout` and both were obeyed
+  unconditionally: measured on a real 75s Vader 6 fight that was 13 activations,
+  a 297ms shortest gap and three lights-re-raised-while-already-on. Everything
+  now goes through `GameScene.requestLightsOut(source)`; cooldown is measured
+  from the END of darkness (`lightsReentryMs`, NOT scaled by `bossMechScale`),
+  one pending request maximum, ECLIPSE outranks a standalone BLACKOUT and a
+  BLACKOUT can never displace a pending ECLIPSE. Nothing extends an active
+  darkness. Never toggle the visual state directly.
+- **ECLIPSE's clones go with the darkness, not with the clock.**
+  `boss-afterimages` on an `_eclipse` Vader asks the owner and spawns nothing
+  itself; `_beginLightsOut('eclipse')` spawns them. Firing the clones while the
+  darkness is refused is AFTERIMAGES wearing ECLIPSE's banner. Known price: at
+  rung 6 every activation is ECLIPSE and clone cadence drops ~10.7s -> ~16.7s.
+- **FORCE PULL + DEFLECTION IS AN APPROVED COMBINATION.** Handset-verified on
+  Vader 6: pull compromises repositioning, deflection punishes mindless ranged
+  aggression, lateral dash is the answer, and the death inside it was judged
+  fair. Do NOT add an exclusion rule, scheduler separation, or a softening of
+  either because they overlap.
 - **TWO DARKNESS GRADIENTS, AND THE MODE ARGUMENT PICKS ONE.**
   `set-darkness true` with no mode is the persistent DARKNESS room modifier,
   whose vignette darkens the centre 200px of the screen — where the fight is —

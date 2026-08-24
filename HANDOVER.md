@@ -1157,6 +1157,12 @@ contract, re-run that injection rather than trusting a green file.
 
 ## 10h. LIGHTS OUT and SUPPRESSION — two mechanics that were not telling the truth
 
+> **SUPPRESSION below is current and frozen. The LIGHTS OUT half is superseded
+> by §10i on AESTHETICS ONLY** — its diagnosis of the original bug and its
+> measurements are still the record of why the mechanic was invisible; its
+> player-tracking pocket was rejected on handset and replaced.
+
+
 The ladder in §10g passed handset review: Vader 1 reads as a complete fight,
 2 is a clean escalation, 4 adds real state complexity, 6 is the climax, and
 late fights survive long enough in a human's hands for their mechanics to
@@ -1300,6 +1306,149 @@ Seventeen of the new checks fail against `3025efd`.
   the super button — the touch-widget scale trap from `CLAUDE.md`, pre-existing
   and deliberately left alone by this pass. It silently resets a resized button
   to 100%. Not reintroduced anywhere new; worth fixing under a HUD pass.
+
+## 10i. LIGHTS OUT, again — the room loses power
+
+**§10h's version is superseded on aesthetics only.** It was mechanically
+correct — 65% of the viewport genuinely darkened, measured — and the handset
+review confirmed the original invisibility bug was solved. It was rejected for
+what it *looked like*:
+
+> obvious circular visibility mask / flashlight radius / videogame vignette
+
+rather than "the room lost power". A 90px clear core with a 0.88 rim following
+the player is a flashlight, and no amount of tuning that gradient changes what
+it is. The identity had to move off the player and onto the arena.
+
+### The state, and where it lives
+
+`LIGHTS OUT` is now a **temporary alternate art direction for the room**. The
+transformation is multiplicative tints on `GameScene.roomLayer` — the group
+that holds the backdrop image, the floor-decal RenderTexture, the walls, the
+cover consoles and the props, and holds nothing else.
+
+**That choice is the whole design.** Combat lives outside `roomLayer`, so the
+saber, both bullet pools, the telegraphs, the Force effects, the returned super
+orb and both silhouettes are exempt *by construction* rather than by an
+exemption list. An exemption list drifts when someone adds a sixth effect; a
+layer cannot. `smoke-vader` asserts exactly this — that none of those five
+objects is inside the tinted group.
+
+Strength comes from `_loClass`, tagged on each object at creation in
+`loadRoom`, and resolved against `LIGHTSOUT` in `config.js`:
+
+| class | what | why that strength |
+|---|---|---|
+| `floor` | backdrop + decal RT | ambient light dies hardest; the baked strip lights ARE the ceiling lighting |
+| `wall` | wall tiles | near-black silhouette, still navigable |
+| `prop` | shuttle, pod, gantry | machinery keeps a little of itself and its own glows |
+| `console` | cover terminals | **the islands of remaining power** — blue screen, LEDs, lit keyboard |
+
+The console is deliberately five times lighter than the floor. A uniform
+darkening would score them the same and the emissive hierarchy the whole mode
+depends on would be gone with nothing failing.
+
+### Three traps this cost a round each to find
+
+- **A LIGHTER FLOOR TINT TURNS THE ROOM RED.** The Vader chamber's base is
+  already `#0a0a0d`; the only *coloured* thing baked into its floor is the
+  crimson strip lights and the dais ring. Anything gentle enough to spare them
+  leaves a maroon room — and crimson is the danger colour. The saber, the SABER
+  THROW lane and every telegraph are red, and they have to be the only red in
+  the frame. Measured and rejected at `floor: 0x191e2b`.
+- **`_sectorTint` IS AMBIENT LIGHT, and it is additive.** The endless
+  per-sector colour wash is an ADD-blended screen-locked rectangle at depth
+  9000, up to 0.20 alpha. Additive light above every room object cannot be
+  tinted away from below, so a dark arena that leaves it running is a dark
+  arena with the lights still on — at sector 30 it was a solid olive wash over
+  a room that was supposed to be black. It drops to 0.03 with the room and is
+  restored exactly.
+- **A `TweenChain`'s config has no `onUpdate` to hand down to its links.** Set
+  it on the chain and the scalar animates while nothing ever reads it. It
+  photographed as a fully lit room half a second into an *accepted* LIGHTS OUT.
+  It goes on every link.
+
+### The vignette is seasoning now
+
+`DARKNESS.blackout` was rewritten from a 90px pocket to broad soft edge
+darkening: clear to 300px, 0.027 at 360, 0.33 at the corner. Because it is
+broad it **no longer tracks the player** — the pad, the clamp and the per-frame
+recentre in `HUD._trackBlackout` are gone. The tight pocket needed tracking
+because the game camera clamps at the arena bounds; a vignette that is 0.03 at
+the screen's mid-edges cannot strand anybody.
+
+Measured A/B on one frozen frame, sector 30, overlay at full:
+
+| | centre | 200px | 300px | mid-edge | corners | **viewport** |
+|---|---|---|---|---|---|---|
+| darker | 79% | 87% | 87% | 74–87% | 72–88% | **81%** |
+
+Near-uniform, which is the point: a bubble would show a large centre-to-corner
+spread. Compare §10h's version, whose whole identity was that spread.
+
+## 10j. LIGHTS OUT is ONE global arena state
+
+**There were two producers and no owner.** The standalone `blackout` mechanic
+runs a clock on `Boss` (`_blackoutEvery`); ECLIPSE rode `boss-afterimages` on a
+second, independent one. Both emitted `boss-blackout`, and that handler
+unconditionally raised the overlay and armed its own turn-off.
+
+At encounter 6, after `bossMechScale` 0.82, those clocks are 13.1s and 10.7s —
+a request roughly every 5.9 seconds against a 2.6s event. Measured on a real
+75-second Vader 6 fight on `577761e`:
+
+| | old | now |
+|---|---|---|
+| activations in 75s | **13** | 5 |
+| per minute | 10.3 | 4.0 |
+| shortest gap between events | **297ms** | 13,950ms |
+| lights re-raised while already on | **3** | 0 |
+
+The handset word for that was "spammed", and it was right.
+
+`GameScene.requestLightsOut(source)` is now the only way in:
+
+```
+off ──accepted──► active ──(blackoutMs)──► cooldown ──(lightsReentryMs)──► off
+                    ▲                                       │
+                    └───────────── pending request ─────────┘
+```
+
+- **Cooldown is measured from the END of darkness** (`lightsReentryMs`, 14000).
+  The guarantee is about the normal-fight gap, not a period the event eats.
+- **One pending request maximum.** ECLIPSE displaces a pending standalone
+  BLACKOUT; a standalone BLACKOUT can never displace a pending ECLIPSE, so it
+  cannot starve it.
+- **Nothing extends an active darkness.** One event, one bounded lifetime.
+- `lightsReentryMs` is deliberately NOT scaled by `bossMechScale` — it is the
+  floor that keeps the transformation dramatic, so tightening it at rung 6
+  would undo the thing it was added for. Same reasoning as `reflectEveryMs`.
+
+**ECLIPSE's clones go with the darkness, not with the clock.** Spawning them
+and then being refused the darkness fires the composition's body without its
+identity — three clones in a lit room, which is AFTERIMAGES wearing the wrong
+banner. `boss-afterimages` on an `_eclipse` Vader now asks the owner and spawns
+nothing itself; `_beginLightsOut('eclipse')` spawns them.
+
+**The consequence, stated plainly:** at encounter 6 *every* accepted activation
+in the measured run was ECLIPSE, and standalone LIGHTS OUT never won a slot.
+Clone cadence there drops from ~10.7s to ~16.7s. That is a real softening of
+AFTERIMAGES at rung 6 and it was the deliberate price of ECLIPSE always being
+truthful. Rungs 2–5 have no eclipse flag and are completely unchanged.
+
+## 10k. FORCE PULL + DEFLECTION is an APPROVED combination
+
+Recorded from a Vader 6 handset fight so no future pass "fixes" it:
+
+> DEFLECTION makes careless shooting dangerous because shots return; FORCE PULL
+> compromises normal repositioning; the player must actively dash laterally and
+> fight the pull geometry rather than hold movement or keep firing.
+
+The player's death inside this composition was judged **fair and readable**.
+**Do not add an exclusion rule between them**, do not add scheduler logic that
+keeps them apart, and do not soften either because they overlap. The combined
+question is intentionally difficult and it is now part of the high-tier combat
+language.
 
 ## 10c. The narrative system
 

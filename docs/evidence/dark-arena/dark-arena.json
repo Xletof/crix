@@ -1,0 +1,165 @@
+{
+  "ab": {
+    "centre (player)": {
+      "lit": 62.39,
+      "dark": 12.44,
+      "darker": 80.1
+    },
+    "ring 200px": {
+      "lit": 58.67,
+      "dark": 7.54,
+      "darker": 87.2
+    },
+    "ring 300px": {
+      "lit": 57.94,
+      "dark": 7.51,
+      "darker": 87
+    },
+    "edge mid-left": {
+      "lit": 58.14,
+      "dark": 7.57,
+      "darker": 87
+    },
+    "edge mid-right": {
+      "lit": 64.46,
+      "dark": 17.94,
+      "darker": 72.2
+    },
+    "top strip": {
+      "lit": 64.76,
+      "dark": 15.11,
+      "darker": 76.7
+    },
+    "bottom strip": {
+      "lit": 63.79,
+      "dark": 18.13,
+      "darker": 71.6
+    },
+    "corner top-left": {
+      "lit": 60.13,
+      "dark": 8.89,
+      "darker": 85.2
+    },
+    "corner bottom-right": {
+      "lit": 48.26,
+      "dark": 13.25,
+      "darker": 72.6
+    },
+    "game viewport (all)": {
+      "lit": 59.23,
+      "dark": 11.21,
+      "darker": 81.1
+    }
+  },
+  "vignette": {
+    "size": [
+      720,
+      1280
+    ],
+    "cfg": {
+      "color": "2,3,8",
+      "inner": 300,
+      "outer": 820,
+      "stops": [
+        [
+          0,
+          0
+        ],
+        [
+          0.45,
+          0.1
+        ],
+        [
+          0.75,
+          0.28
+        ],
+        [
+          1,
+          0.46
+        ]
+      ],
+      "fadeInMs": 140,
+      "fadeOutMs": 420,
+      "flicker": true
+    },
+    "samples": {
+      "0": 0,
+      "100": 0,
+      "200": 0,
+      "300": 0,
+      "360": 0.027,
+      "450": 0.067,
+      "550": 0.122,
+      "640": 0.224,
+      "730": 0.333
+    },
+    "tracked": false,
+    "padded": false
+  },
+  "shots": [
+    "seq-01-normal-arena",
+    "seq-02-power-failure",
+    "seq-03-dark-arena",
+    "seq-04-saber-throw-in-the-dark",
+    "seq-05-projectiles-in-the-dark",
+    "seq-06-consoles-still-powered",
+    "seq-06b-corner-top-left",
+    "seq-06c-corner-bottom-right",
+    "seq-06d-top-edge",
+    "seq-07-eclipse",
+    "seq-08-eclipse-hold",
+    "seq-09-lights-returning",
+    "seq-10-normal-arena-again"
+  ],
+  "verdicts": [
+    {
+      "v": "accepted",
+      "state": "active",
+      "bossAlive": true
+    }
+  ],
+  "eclipseClones": 3,
+  "restored": {
+    "snapCleared": true,
+    "tints": [
+      {
+        "cls": "floor",
+        "tinted": false,
+        "tint": null
+      },
+      {
+        "cls": "floor",
+        "tinted": false,
+        "tint": null
+      },
+      {
+        "cls": "console",
+        "tinted": false,
+        "tint": null
+      },
+      {
+        "cls": "console",
+        "tinted": false,
+        "tint": null
+      },
+      {
+        "cls": "console",
+        "tinted": false,
+        "tint": null
+      },
+      {
+        "cls": "console",
+        "tinted": false,
+        "tint": null
+      },
+      {
+        "cls": "prop",
+        "tinted": false,
+        "tint": null
+      }
+    ],
+    "sectorTintAlpha": 0.2,
+    "state": "cooldown",
+    "pending": null
+  }
+}

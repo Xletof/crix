@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, ENDLESS, FONTS, HUDCFG, VIEW, DEPTH, bossMechanicsFor, bossMechanicById } from '../config.js';
+import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, ENDLESS, FONTS, HUDCFG, VIEW, DEPTH, LIGHTSOUT, bossMechanicsFor, bossMechanicById } from '../config.js';
 import { Player } from '../entities/Player.js';
 import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, EnemySniper, EnemySwarmling, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
@@ -415,6 +415,10 @@ export class GameScene extends Phaser.Scene {
       // display objects are created once and reused, so the handle MUST go or
       // the next run would draw a wake through four destroyed objects.
       this._superOrbFx = null;
+      this._clearLightsOut();
+      this._darkSnap = null;
+      this._darkChain = null;
+      this._lightsLog = null;
     });
   }
 
@@ -457,6 +461,10 @@ export class GameScene extends Phaser.Scene {
     const bgImg = this.add.image(0, 0, bgKey)
       .setOrigin(0, 0)
       .setDepth(-10);
+    // `_loClass` names which LIGHTS OUT tint this object takes when the arena
+    // loses power. Tagged AT CREATION rather than sniffed from texture keys at
+    // activation, so a new prop cannot silently fall into the wrong material.
+    bgImg._loClass = 'floor';
     this.roomLayer.add(bgImg);
     this._bgKey = bgKey;
 
@@ -467,6 +475,7 @@ export class GameScene extends Phaser.Scene {
     // constant cost regardless of count. Destroyed with the room via the
     // generic roomLayer sweep in _clearRoomEntities.
     this.decalRT = this.add.renderTexture(0, 0, w, h).setOrigin(0, 0).setDepth(2);
+    this.decalRT._loClass = 'floor';   // scorch and blood are painted floor
     this.roomLayer.add(this.decalRT);
 
     // Walls — Y-sorted by bottom edge of the 112-px tile so entities standing
@@ -475,6 +484,7 @@ export class GameScene extends Phaser.Scene {
     for (const wp of spec.walls) {
       const wall = this.walls.create(wp.x, wp.y, 'wall');
       wall.setDepth(wp.y + 56).refreshBody();
+      wall._loClass = 'wall';
       this.roomLayer.add(wall);
     }
 
@@ -495,6 +505,10 @@ export class GameScene extends Phaser.Scene {
       con.body.setSize(70, 70);
       con.body.position.set(cp.x - 35, cp.y - 35);
       con.body.updateCenter();
+      // THE ISLANDS OF REMAINING POWER. A cover console is a lit terminal —
+      // blue screen, LED key lights — so it takes the lightest tint of the
+      // four and stays legible when the room around it does not.
+      con._loClass = 'console';
       this.roomLayer.add(con);
       this.bushSystem.add(con, 55);
     }
@@ -533,6 +547,7 @@ export class GameScene extends Phaser.Scene {
         img.body.position.set(pr.x - bw / 2, pr.y - bh);
         img.body.updateCenter();
       }
+      img._loClass = 'prop';
       this.roomLayer.add(img);
     }
 
@@ -770,6 +785,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   _clearRoomEntities() {
+    // The arena state goes with the arena. Its tint snapshot points at objects
+    // this method is about to destroy, and its timers would otherwise fire into
+    // the next room — which is how a sector inherits a blackout.
+    this._clearLightsOut();
     // Telegraphs first. They are owned by their caster, so destroying enemies
     // sweeps most of them — but a zone whose caster already died is held only
     // by the scene list, and one surviving a room change is a red circle
@@ -1953,6 +1972,231 @@ export class GameScene extends Phaser.Scene {
     e.body?.setCircle(r, e.width / 2 - r, e.height / 2 - r);
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  // LIGHTS OUT — ONE GLOBAL ARENA STATE
+  // ══════════════════════════════════════════════════════════════════════
+  //
+  // THERE ARE TWO PRODUCERS AND THERE WAS NO OWNER. The standalone `blackout`
+  // mechanic runs a clock on Boss (`_blackoutEvery`) and ECLIPSE rode
+  // `boss-afterimages` on a second, independent one. Both emitted
+  // `boss-blackout`, and that handler unconditionally turned the overlay on and
+  // scheduled its own 2.6s turn-off. At encounter 6, after `bossMechScale`
+  // 0.82, those clocks are 13.1s and 10.7s — so a darkness request arrived
+  // roughly every 5.9 seconds, each one restarting the fade and each one
+  // arming another independent turn-off that could kill a LATER event early.
+  // The handset review named it exactly: LIGHTS OUT was being spammed, and a
+  // dramatic arena transformation that recurs every few seconds is a screen
+  // filter.
+  //
+  // So darkness is now a STATE with an owner, and the producers only ask:
+  //
+  //   off ──accepted──► active ──(blackoutMs)──► cooldown ──(lightsReentryMs)──► off
+  //                       ▲                                       │
+  //                       └───────────── pending request ─────────┘
+  //
+  // The cooldown is measured from the END of darkness, so the guarantee is
+  // about the NORMAL-FIGHT GAP the brief asked for and not about a period that
+  // the event's own duration eats into.
+  //
+  // ONE PENDING REQUEST MAXIMUM, and ECLIPSE outranks a standalone BLACKOUT:
+  // ECLIPSE is the later, authored, high-tier composition and it is the one
+  // whose identity breaks if its darkness is dropped. A standalone BLACKOUT
+  // can never displace a pending ECLIPSE, so it cannot starve it.
+  requestLightsOut(source = 'blackout') {
+    const verdict = (v) => { this._logLights(source, v); return v; };
+    // A request from a dead Vader or a torn-down scene is not a mechanic, it is
+    // a stale timer. Refusing here is also what keeps darkness out of the next
+    // sector without needing a guard on every callback downstream.
+    if (!this.scene.isActive() || !this.boss?.alive || !this.player) return verdict('ignored');
+
+    if (this._lightsState !== 'off') {
+      if (source === 'eclipse') {
+        // Replaces a pending standalone BLACKOUT, coalesces with a pending
+        // ECLIPSE. Never two.
+        const had = this._lightsPending;
+        this._lightsPending = 'eclipse';
+        return verdict(had ? 'coalesced' : 'deferred');
+      }
+      // A repeat standalone request while something is already queued is
+      // redundant — the queued event is the darkness this one was asking for.
+      if (this._lightsPending) return verdict('coalesced');
+      this._lightsPending = 'blackout';
+      return verdict('deferred');
+    }
+
+    this._beginLightsOut(source);
+    return verdict('accepted');
+  }
+
+  _beginLightsOut(source) {
+    this._lightsState   = 'active';
+    this._lightsPending = null;
+    this._logLights(source, 'start');
+    this.events.emit('show-banner', 'LIGHTS OUT', '#8090ff');
+    this._enterDarkArena();
+    this.fx.shake(0.012, 260);
+    // The composition, arriving whole.
+    if (source === 'eclipse' && this.boss?.alive) {
+      this._spawnAfterimages(this.boss, ENDLESS.bossMech.afterimageCount);
+    }
+    this._lightsEndEv = this.time.delayedCall(
+      ENDLESS.bossMech.blackoutMs, () => this._endLightsOut(),
+    );
+  }
+
+  // ONE EVENT, ONE BOUNDED LIFETIME. Nothing extends an active darkness: a
+  // request arriving mid-event is coalesced or deferred by `requestLightsOut`
+  // and never reaches this timer, so the room cannot be held dark by pressure.
+  _endLightsOut() {
+    this._lightsEndEv = null;
+    this._exitDarkArena();
+    this._lightsState = 'cooldown';
+    this._logLights(null, 'end');
+    this._lightsCdEv = this.time.delayedCall(ENDLESS.bossMech.lightsReentryMs, () => {
+      this._lightsCdEv  = null;
+      this._lightsState = 'off';
+      const p = this._lightsPending;
+      this._lightsPending = null;
+      if (p) this._beginLightsOut(p);
+    });
+  }
+
+  // Room load, restart and shutdown. Timers removed rather than left to fire
+  // into a later arena, and the tints restored unconditionally — a run that
+  // ends mid-blackout must not hand the next one a permanently dark room.
+  _clearLightsOut() {
+    this._lightsEndEv?.remove?.();
+    this._lightsCdEv?.remove?.();
+    this._lightsEndEv = this._lightsCdEv = null;
+    this._lightsPending = null;
+    this._lightsState = 'off';
+    // HARD restore, not the 420ms swell _exitDarkArena uses. The objects in the
+    // snapshot are about to be destroyed with the room, and a lights-coming-back
+    // tween over a torn-down arena is at best wasted and at worst a handle to a
+    // dead sprite surviving into the next one.
+    this._darkChain?.stop?.();
+    this._darkChain = null;
+    if (this._darkMix) this.tweens.killTweensOf(this._darkMix);
+    this._restoreArenaTints();
+    this.events.emit('set-darkness', false, 'blackout');
+  }
+
+  // Request/transition ledger, for the cadence diagnostics. Capped: this is an
+  // instrument, not a leak.
+  _logLights(source, verdict) {
+    this._lightsLog = this._lightsLog || [];
+    if (this._lightsLog.length > 200) this._lightsLog.shift();
+    this._lightsLog.push({
+      t: Math.round(this.time.now),
+      source, verdict,
+      state: this._lightsState,
+      pending: this._lightsPending || null,
+      nextEligible: verdict === 'end'
+        ? Math.round(this.time.now) + ENDLESS.bossMech.lightsReentryMs : null,
+    });
+  }
+
+  // ── THE ARENA STATE ITSELF ────────────────────────────────────────────
+  //
+  // `roomLayer` holds the backdrop, the floor-decal RenderTexture, the walls,
+  // the cover consoles and the props — and nothing else. Combat is not in it,
+  // so the saber, both bullet pools, telegraphs, Force effects, the returned
+  // orb and both silhouettes are exempt BY CONSTRUCTION. That is the whole
+  // reason this is a tint on an existing layer and not a depth-inserted
+  // overlay: the separation the renderer already has is the exemption list,
+  // and an exemption list that is a layer cannot drift out of date.
+  //
+  // Strength comes from `_loClass`, tagged at creation in `loadRoom`. Six
+  // objects in the Vader chamber.
+  _enterDarkArena() {
+    if (this._darkSnap) return;           // already dark — never re-enter
+    const snap = [];
+    for (const o of this.roomLayer.getChildren()) {
+      if (!o.active || typeof o.setTint !== 'function') continue;
+      // The ORIGINAL is what gets restored, not white: something else may own
+      // a tint on this object and this state has no business editorialising.
+      snap.push({ o, was: o.isTinted ? o.tintTopLeft : null, to: LIGHTSOUT[o._loClass] ?? LIGHTSOUT.prop });
+    }
+    this._darkSnap = snap;
+    const st = this._sectorTint;
+    if (st?.active) this._sectorTintWas = st.fillAlpha;
+
+    // The transition is the only per-frame work this mechanic does, and it
+    // lasts `onsetMs`. Three links: the power drops, stutters back, and goes.
+    this._darkMix = this._darkMix || { v: 0 };
+    this.tweens.killTweensOf(this._darkMix);
+    this._darkChain?.stop?.();
+    // `onUpdate` GOES ON EVERY LINK, not on the chain. A TweenChain's own
+    // config has no per-frame callback to hand down — set it there and the
+    // scalar animates while nothing ever reads it, which photographs as a fully
+    // lit room half a second into an accepted LIGHTS OUT.
+    const step = { onUpdate: () => this._applyDarkMix() };
+    this._darkChain = this.tweens.chain({
+      targets: this._darkMix,
+      tweens: [
+        { ...step, v: 0.85, duration: 55, ease: 'Quad.easeIn' },
+        { ...step, v: 0.25, duration: 45 },
+        { ...step, v: 1,    duration: Math.max(40, LIGHTSOUT.onsetMs - 100), ease: 'Quad.easeOut' },
+      ],
+    });
+    this._applyDarkMix();
+    this.events.emit('set-darkness', true, 'blackout');
+  }
+
+  _exitDarkArena() {
+    this.events.emit('set-darkness', false, 'blackout');
+    if (!this._darkSnap) return;
+    this._darkChain?.stop?.();
+    this._darkChain = null;
+    this.tweens.killTweensOf(this._darkMix);
+    // Lights coming back up is a swell, not a second cut.
+    this.tweens.add({
+      targets: this._darkMix, v: 0,
+      duration: LIGHTSOUT.restoreMs, ease: 'Sine.easeIn',
+      onUpdate: () => this._applyDarkMix(),
+      onComplete: () => this._restoreArenaTints(),
+    });
+    // A scene torn down mid-fade would leave the tween dead and the tints
+    // applied, so the restore is idempotent and also runs from _clearLightsOut.
+    if (!this.scene.isActive()) this._restoreArenaTints();
+  }
+
+  _restoreArenaTints() {
+    for (const { o, was } of this._darkSnap || []) {
+      if (!o.active) continue;
+      if (was == null) o.clearTint(); else o.setTint(was);
+    }
+    this._darkSnap = null;
+    const st = this._sectorTint;
+    if (st?.active && this._sectorTintWas != null) st.setFillStyle(st.fillColor, this._sectorTintWas);
+    this._sectorTintWas = null;
+    if (this._darkMix) this._darkMix.v = 0;
+  }
+
+  // Lerp each object from its own resting tint toward its material's target.
+  // Multiplicative, so a pixel's brightness scales — which is why the console
+  // keeps its screen and its LEDs while the floor loses its strip lights.
+  _applyDarkMix() {
+    const v = this._darkMix?.v ?? 0;
+    for (const { o, was, to } of this._darkSnap || []) {
+      if (!o.active) continue;
+      const from = was == null ? 0xffffff : was;
+      o.setTint(
+        (Math.round(((from >> 16) & 255) + (((to >> 16) & 255) - ((from >> 16) & 255)) * v) << 16) |
+        (Math.round(((from >> 8)  & 255) + (((to >> 8)  & 255) - ((from >> 8)  & 255)) * v) << 8)  |
+         Math.round(( from        & 255) + (( to        & 255) - ( from        & 255)) * v),
+      );
+    }
+    // The endless sector wash is ADDITIVE and sits at depth 9000, above every
+    // room object — additive light cannot be tinted away from below, so a dark
+    // arena that leaves it running is a dark arena with the lights still on.
+    const st = this._sectorTint;
+    if (st?.active && this._sectorTintWas != null) {
+      st.setFillStyle(st.fillColor,
+        this._sectorTintWas + (LIGHTSOUT.sectorTintAlpha - this._sectorTintWas) * v);
+    }
+  }
+
   _spawnAfterimages(boss, n = 3) {
     this.events.emit('show-banner', 'AFTERIMAGES', '#c0c0ff');
     for (let i = 0; i < n; i++) {
@@ -2379,35 +2623,29 @@ export class GameScene extends Phaser.Scene {
       this.events.emit('boss-super-returned', b, n, dmg);
     });
 
-    // LIGHTS OUT. Reuses the DARKNESS modifier's overlay wholesale.
-    this._on('boss-blackout', (b, ms) => {
-      this.events.emit('show-banner', 'LIGHTS OUT', '#8090ff');
-      // MODE MATTERS. `'blackout'` is the boss event's own gradient — a tight
-      // pocket on the player and a genuinely dark midfield. Dropping the mode
-      // here falls back to `'ambient'`, which is the persistent room
-      // modifier's vignette and darkens the centre of the screen by 0%. That
-      // is the exact defect this replaced: the alpha reached 1, a test
-      // asserted it, and the playfield stayed lit.
-      this.events.emit('set-darkness', true, 'blackout');
-      this.fx.shake(0.012, 260);
-      // Guarded on the scene still being live: a blackout that outlived the
-      // fight would leave the next sector dark.
-      this.time.delayedCall(ms, () => {
-        if (this.scene.isActive()) this.events.emit('set-darkness', false, 'blackout');
-      });
-    });
+    // LIGHTS OUT. The event no longer DOES anything — it asks. There are two
+    // producers of darkness (this clock and ECLIPSE below) and exactly one
+    // arena state, so both go through the owner and the owner decides.
+    this._on('boss-blackout', () => this.requestLightsOut('blackout'));
 
     // AFTERIMAGES. Copies that swing and die in one hit; the real one is the
     // one with the health bar.
     this._on('boss-afterimages', (b, n) => {
-      this._spawnAfterimages(b, n);
       // THE DARK (`eclipse`, encounter 6): the clones stop arriving in the
       // light. Both halves already existed and both already fired on their own
       // free-running clocks, so at encounter 5 they overlapped only by accident
       // — sometimes the best moment in the fight, most of the time never. This
-      // makes the coincidence a rule. Nothing new is drawn or spawned: it is
-      // the same blackout handler, asked for at a chosen moment.
-      if (b?._eclipse) this.events.emit('boss-blackout', b, ENDLESS.bossMech.blackoutMs);
+      // makes the coincidence a rule.
+      //
+      // THE CLONES GO WITH THE DARKNESS, NOT WITH THE CLOCK. Spawning them here
+      // and then asking for darkness that the global owner refuses would fire
+      // ECLIPSE's body without its identity — three clones in a lit room, which
+      // is just AFTERIMAGES wearing the wrong banner. The composition is
+      // handed to the owner whole and it arrives whole, now or when the arena
+      // is eligible. Below encounter 6 nothing changes: no eclipse flag, no
+      // darkness, clones on their own clock exactly as before.
+      if (b?._eclipse) { this.requestLightsOut('eclipse'); return; }
+      this._spawnAfterimages(b, n);
     });
 
     // SUPPRESSION. Internal id and event name are still `disarm` — see the

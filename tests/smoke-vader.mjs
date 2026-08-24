@@ -458,81 +458,210 @@ r.suppress = await page.evaluate(async () => {
 
 await keepAlive();
 
-// ── LIGHTS OUT ────────────────────────────────────────────────────────────
+// ── LIGHTS OUT — the ARENA loses power ────────────────────────────────────
+//
+// The previous version of this block measured a radial gradient, because the
+// previous version of the mechanic WAS a radial gradient. It was mechanically
+// successful and aesthetically rejected on handset: an obvious flashlight
+// bubble following the player. The transformation now lives on the arena's own
+// sprites, so this measures the arena.
 r.blackout = await page.evaluate(async () => {
   const gs = window.game.scene.getScene('Game');
   const hud = window.game.scene.getScene('HUD');
-  const { DARKNESS } = await import('/src/config.js');
+  const cfgMod = await import('/src/config.js');
+  const { DARKNESS } = cfgMod;
+  const LIGHTSOUT = cfgMod.LIGHTSOUT ?? null;
   const ov = () => hud._overlays?.blackout;
   const alpha = () => ov()?.alpha ?? 0;
-  // Force the lights ON first. The room can roll the DARKNESS modifier, which
-  // leaves the AMBIENT overlay already up — a different object now, but the
-  // starting state still has to be known rather than inherited.
+  // A snapshot of what the room layer looks like right now, by material class.
+  const layer = () => gs.roomLayer.getChildren().map((o) => ({
+    cls: o._loClass ?? null,
+    tint: o.isTinted ? o.tintTopLeft : null,
+    // Perceived multiplier of this tint, 1 = untouched.
+    lum: o.isTinted
+      ? (0.2126 * ((o.tintTopLeft >> 16) & 255) + 0.7152 * ((o.tintTopLeft >> 8) & 255)
+         + 0.0722 * (o.tintTopLeft & 255)) / 255
+      : 1,
+  }));
+  // COMBAT PRESENTATION IS EXEMPT BY CONSTRUCTION, and this is the check that
+  // says so: nothing the player has to read in a fight may be in the group the
+  // darkness tints. An exemption list can drift; a layer cannot.
+  const inLayer = (o) => !!o && gs.roomLayer.getChildren().includes(o);
+
+  gs._clearLightsOut?.();
   gs.events.emit('set-darkness', false);
   gs.events.emit('set-darkness', false, 'blackout');
   await new Promise((res) => setTimeout(res, 500));
-  const before = alpha();
-  // SAMPLED FROM A postupdate HOOK, NOT A POLL. The onset is a power-failure
-  // flicker (dark, stutter, dark), so it is deliberately NOT monotonic and a
-  // single probe can land in the stutter and read lower than the gentle ease
-  // it replaced — the peak inside the first 150ms is the claim. An in-page
-  // `await setTimeout(16)` loop is not good enough either: measured, it
-  // returned ONE sample for a 260ms window, because a sleep resolves on the
-  // next frame and this harness runs at ~20fps. The hook fires every frame the
-  // engine actually renders, which is the only clock that can see this.
+  const before = { alpha: alpha(), layer: layer(), sectorTint: gs._sectorTint?.fillAlpha ?? null };
+
+  // SAMPLED FROM A postupdate HOOK, NOT A POLL, and asserted in FRAMES rather
+  // than milliseconds: this harness renders one frame every ~190ms under load,
+  // longer than the whole 140ms onset, so no wall-clock threshold can tell a
+  // power cut from a soft ease. What survives any frame rate is whether the
+  // FIRST frame showing any change is already most of the way there.
   const tape = [];
   const t0 = performance.now();
-  const sample = () => tape.push([Math.round(performance.now() - t0), alpha()]);
+  const sample = () => tape.push([Math.round(performance.now() - t0),
+                                  +(gs._darkMix?.v ?? 0).toFixed(3), alpha()]);
   hud.events.on('postupdate', sample);
   gs.events.emit('boss-blackout', gs.boss, 1400);
   sample();
   await new Promise((res) => setTimeout(res, 400));
   hud.events.off('postupdate', sample);
-  // ASSERTED IN FRAMES, NOT MILLISECONDS. Measured, this harness renders one
-  // frame every ~190ms under load — longer than the whole onset — so no
-  // wall-clock threshold can tell a hard cut from a soft ease here. What CAN
-  // be read at any frame rate is whether there is a visible RAMP: the first
-  // frame that shows any darkening at all is already near full for a cut, and
-  // is still climbing for an ease. The 420ms Sine this replaced scores 0.06 on
-  // the next frame at 60fps and 0.59 on the next frame at this harness's rate.
-  const firstLit = tape.find(([, a]) => a > 0.01);
-  const firstStep = firstLit ? firstLit[1] : -1;
-  await new Promise((res) => setTimeout(res, 300));
-  const during = alpha();
-  // NULL-SAFE ON PURPOSE. A build where the boss event still routes through
-  // the ambient overlay has no `blackout` overlay at all, and a crash here
-  // would read as a broken harness instead of a failed contract.
-  const pocket = ov() ? { x: Math.round(ov().x), y: Math.round(ov().y) } : { x: -1, y: -1 };
-  const playerScreen = (() => {
-    const cam = gs.cameras.main;
-    return { x: Math.round((gs.player.x - cam.scrollX) * cam.zoom + cam.x),
-             y: Math.round((gs.player.y - cam.scrollY) * cam.zoom + cam.y) };
-  })();
-  await new Promise((res) => setTimeout(res, 2000));
+  const firstMoved = tape.find(([, v]) => v > 0.01);
+  const firstStep = firstMoved ? firstMoved[1] : -1;
+
+  await new Promise((res) => setTimeout(res, 400));
+  const during = {
+    alpha: alpha(), layer: layer(), mix: gs._darkMix?.v ?? 0,
+    sectorTint: gs._sectorTint?.fillAlpha ?? null,
+    // Every one of these is a thing the player must read while the lights are
+    // out, and none of them may be in the tinted layer.
+    combatExempt: {
+      saber:     inLayer(gs.boss?.weaponSprite),
+      boss:      inLayer(gs.boss),
+      player:    inLayer(gs.player),
+      bullets:   gs.playerBullets.getChildren().some(inLayer),
+      telegraph: (gs.telegraphs ?? []).some((t) => inLayer(t.gfx ?? t)),
+    },
+  };
+  await new Promise((res) => setTimeout(res, 3200));
+  const after = { alpha: alpha(), layer: layer(), sectorTint: gs._sectorTint?.fillAlpha ?? null };
+
   return {
-    before, tape, firstStep, during, after: alpha(), pocket, playerScreen,
-    pad: DARKNESS.blackout.pad,
-    // THE THING THE OLD TEST COULD NOT SEE. An alpha of 1 on the ambient
-    // gradient darkens the middle of the screen by 0%, so "alpha rose" passed
-    // on a mechanic nobody could perceive. These are read off the gradient
-    // that actually draws, at radii the fight happens at.
-    profile: (() => {
+    before, during, after, tape, firstStep,
+    cfg: LIGHTSOUT,
+    // THE VIGNETTE IS SECONDARY NOW, and this is where that is enforced. It
+    // must be flat nothing across the whole area the fight happens in, and it
+    // must never reach the wall of black the rejected version put at 300px.
+    // SAMPLED ALONG THE DIAGONAL: the overlay is exactly VIEW-sized, so a
+    // horizontal walk runs out of canvas at 360px and every radius past it
+    // silently reads 0 — indistinguishable from a gradient never painted.
+    vignette: (() => {
+      hud._ensureOverlay('blackout');
       const tex = window.game.textures.get('darkness-blackout');
-      if (!tex.getContext) return { r0: -1, r80: -1, r150: -1, r200: -1, r300: -1, r420: -1 };
-      const img = tex.getSourceImage();
-      const ctx = tex.getContext();
-      const cx = img.width / 2, cy = img.height / 2;
-      const a = (r) => ctx.getImageData(Math.round(cx + r), Math.round(cy), 1, 1).data[3] / 255;
-      return { r0: a(0), r80: a(80), r150: a(150), r200: a(200), r300: a(300), r420: a(420) };
+      if (!tex.getContext) return null;
+      const img = tex.getSourceImage(), ctx = tex.getContext();
+      const cx = img.width / 2, cy = img.height / 2, k = 1 / Math.hypot(img.width, img.height);
+      const a = (r) => {
+        const x = Math.round(cx + r * img.width * k), y = Math.round(cy + r * img.height * k);
+        if (x < 0 || y < 0 || x >= img.width || y >= img.height) return null;
+        return +(ctx.getImageData(x, y, 1, 1).data[3] / 255).toFixed(3);
+      };
+      return { size: [img.width, img.height], inner: DARKNESS.blackout.inner,
+               r0: a(0), r150: a(150), r250: a(250), r300: a(300),
+               r450: a(450), r640: a(640), corner: a(Math.round(Math.hypot(cx, cy))),
+               tracked: typeof hud._trackBlackout === 'function',
+               padded: img.width !== 720 || img.height !== 1280 };
     })(),
     ambientUntouched: {
       inner: DARKNESS.ambient.inner, outer: DARKNESS.ambient.outer,
       stops: JSON.stringify(DARKNESS.ambient.stops),
       fadeInMs: DARKNESS.ambient.fadeInMs,
     },
-    separateTextures: window.game.textures.exists('darkness-ambient')
-                   || window.game.textures.exists('darkness-blackout'),
   };
+});
+
+await keepAlive();
+
+// ── LIGHTS OUT — ONE GLOBAL STATE, ONE OWNER ──────────────────────────────
+//
+// Two producers, one arena. Before the owner existed both emitted
+// `boss-blackout` and both were obeyed unconditionally, so at encounter 6 the
+// room lost power roughly every six seconds and a dramatic transformation read
+// as a screen filter.
+r.lights = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const { ENDLESS } = await import('/src/config.js');
+  const st = () => ({ state: gs._lightsState, pending: gs._lightsPending });
+  const out = { reentryMs: ENDLESS.bossMech.lightsReentryMs };
+
+  // A build with no owner has no verbs to call. Every one of them is optional
+  // here so the block reports 'missing' rather than throwing: a crashed probe
+  // is indistinguishable from a failed contract, and this block exists to be
+  // run against the build it replaces.
+  const req = (src) => gs.requestLightsOut ? gs.requestLightsOut(src) : 'missing';
+  gs._clearLightsOut?.();
+  gs.boss._eclipse = false;
+  out.cleared = st();
+
+  out.v1 = req('blackout');                            // accepted
+  out.afterV1 = st();
+  // ONE EVENT, ONE BOUNDED LIFETIME. Pressure may not hold the room dark.
+  const rem0 = gs._lightsEndEv?.getRemaining?.() ?? -1;
+  out.v2 = req('blackout');            // deferred
+  out.v3 = req('blackout');            // coalesced — never two
+  const rem1 = gs._lightsEndEv?.getRemaining?.() ?? -1;
+  out.extended = rem1 > rem0;                          // must be false
+  out.afterRepeat = st();
+
+  // ECLIPSE outranks a queued standalone BLACKOUT; BLACKOUT can never displace
+  // a queued ECLIPSE, so it cannot starve it.
+  out.v4 = req('eclipse');
+  out.afterEclipse = st();
+  out.v5 = req('blackout');
+  out.blackoutCannotStarve = st();
+
+  // Cooldown is measured from the END of darkness, not from its start.
+  gs._endLightsOut?.();
+  out.afterEnd = st();
+  out.cooldownDelay = gs._lightsCdEv?.delay ?? -1;
+  out.tintsRestored = gs.roomLayer.getChildren().every((o) => !o.isTinted);
+  out.v6 = req('blackout');            // still cooling down
+  out.duringCooldown = st();
+
+  // ── THE PRODUCER GRAPH. Both go through the owner and nothing else.
+  gs._clearLightsOut?.();
+  gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
+  gs.boss._eclipse = false;
+  gs.events.emit('boss-blackout', gs.boss, 1400);
+  out.blackoutProducer = { src: gs._lightsLog?.at(-1)?.source ?? null, ...st() };
+
+  // ECLIPSE, deferred: its clones must NOT arrive without its darkness. On the
+  // build this replaces, `boss-afterimages` spawned three clones into a lit
+  // room and asked for a darkness the fight was already having.
+  gs.boss._eclipse = true;
+  gs.events.emit('boss-afterimages', gs.boss, 3);
+  await new Promise((res) => setTimeout(res, 250));
+  out.eclipseDeferred = {
+    pending: gs._lightsPending,
+    clones: gs.enemies.getChildren().filter((e) => e.alive && e._afterimage).length,
+  };
+  // …and arrive WITH it when the arena is eligible.
+  gs._endLightsOut?.();
+  gs._lightsCdEv?.remove?.(); gs._lightsCdEv = null;
+  gs._lightsState = 'off';
+  const p = gs._lightsPending; gs._lightsPending = null;
+  gs._beginLightsOut?.(p);
+  await new Promise((res) => setTimeout(res, 350));
+  out.eclipseComposition = {
+    state: gs._lightsState,
+    clones: gs.enemies.getChildren().filter((e) => e.alive && e._afterimage).length,
+  };
+
+  // Below encounter 6 nothing about AFTERIMAGES changed: no eclipse flag, no
+  // darkness, clones on their own clock.
+  gs._clearLightsOut?.();
+  gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
+  gs.boss._eclipse = false;
+  gs.events.emit('boss-afterimages', gs.boss, 3);
+  await new Promise((res) => setTimeout(res, 250));
+  out.plainAfterimages = {
+    clones: gs.enemies.getChildren().filter((e) => e.alive && e._afterimage).length,
+    state: gs._lightsState,
+  };
+
+  // Lifecycle: nothing may survive to darken a later arena.
+  req('blackout');
+  req('eclipse');       // arm both an active state and a pending one
+  gs._clearLightsOut?.();
+  out.lifecycle = {
+    ...st(),
+    endEv: gs._lightsEndEv, cdEv: gs._lightsCdEv,
+    tinted: gs.roomLayer.getChildren().filter((o) => o.isTinted).length,
+    sectorTint: gs._sectorTint?.fillAlpha ?? null,
+  };
+  return out;
 });
 
 await keepAlive();
@@ -877,49 +1006,145 @@ check(r.suppress.withRifle.suppressed === true,
 check(r.suppress.cleared === false, 'a death clears the lock',
   'a suppression that outlives the life that earned it locks a player who has already been punished');
 
-// ── LIGHTS OUT ────────────────────────────────────────────────────────────
-check(r.blackout.during > r.blackout.before, 'lights out raises the blackout overlay',
-  `alpha ${r.blackout.before} -> ${r.blackout.during}`);
-check(r.blackout.firstStep > 0.8,
-  'and it gets there FAST — the room loses power, it does not dim',
-  `the first frame with any darkening is already at ${r.blackout.firstStep} (tape ${JSON.stringify(r.blackout.tape)}) — an ease would still be climbing`);
-check(r.blackout.after <= r.blackout.before + 0.01, 'and the lights come back',
-  `alpha still ${r.blackout.after} — a blackout that outlives the fight darkens the next sector`);
-// THE CHECK THE OLD SUITE DID NOT HAVE. Alpha reaching 1 says nothing about
-// whether anything got darker: the ambient gradient at alpha 1 darkens the
-// centre of the screen by 0%, and that shipped.
-check(r.blackout.profile.r0 === 0 && r.blackout.profile.r80 < 0.02,
-  'the player keeps a readable pocket',
-  `alpha ${r.blackout.profile.r0} at the player, ${r.blackout.profile.r80} at 80px`);
-check(r.blackout.profile.r150 > 0.15 && r.blackout.profile.r200 > 0.30,
-  'darkening is unmistakable by 150-200px',
-  `${r.blackout.profile.r150} at 150px, ${r.blackout.profile.r200} at 200px — the gradient this replaced was 0.004 and 0.047 here`);
-check(r.blackout.profile.r300 > 0.60 && r.blackout.profile.r420 > 0.80,
-  'and the midfield is materially dark',
-  `${r.blackout.profile.r300} at 300px, ${r.blackout.profile.r420} at 420px`);
-// THE POCKET TRACKS THE PLAYER, WITHIN A CAP. Not "is exactly on them": the
-// drift is clamped to `pad` so the sight radius can never slide off the screen
-// it exists to light, and near an arena wall the game camera stops while the
-// player keeps walking. What has to hold is that the player stays inside the
-// readable part of their own pocket — the gradient is still under 0.05 at the
-// clamp distance — and that the pocket is not pinned to the middle of the
-// display, which is the bug this replaced.
+// ── LIGHTS OUT — the arena, not a bubble ─────────────────────────────────
 {
-  const d = Math.hypot(r.blackout.pocket.x - r.blackout.playerScreen.x,
-                       r.blackout.pocket.y - r.blackout.playerScreen.y);
-  const offCentre = Math.hypot(r.blackout.playerScreen.x - 360,
-                               r.blackout.playerScreen.y - 640);
-  check(d <= 200, 'the player stays inside their own pocket',
-    `${Math.round(d)}px from the pocket centre, where the gradient is still near zero`);
-  check(offCentre < 60 || d < offCentre - 20,
-    'and the pocket is on the PLAYER, not pinned to the middle of the display',
-    `player is ${Math.round(offCentre)}px off screen centre and ${Math.round(d)}px off the pocket — a screen-locked overlay would score those the same`);
+  const byCls = (snap, cls) => snap.filter((o) => o.cls === cls);
+  // INFINITY, NOT -1, WHEN A CLASS IS EMPTY. A build with no material tags
+  // has no 'floor' objects at all, and a sentinel below the threshold makes
+  // every darkening check pass vacuously on the build they exist to fail —
+  // which is exactly what happened on the first A/B against 577761e.
+  const meanLum = (snap, cls) => {
+    const g = byCls(snap, cls);
+    return g.length ? g.reduce((a, o) => a + o.lum, 0) / g.length : Infinity;
+  };
+  check(r.blackout.before.layer.every((o) => o.tint === null),
+    'the arena carries no darkness tint with the lights on',
+    `${r.blackout.before.layer.filter((o) => o.tint !== null).length} objects already tinted`);
+  // EVERY ROOM OBJECT IS CLASSIFIED. An untagged one falls to the generic prop
+  // strength silently, which is how a new prop would quietly stop matching the
+  // art direction with nothing failing.
+  check(r.blackout.before.layer.length > 0
+     && r.blackout.before.layer.every((o) => o.cls !== null),
+    'every arena object declares which material it darkens as',
+    `${r.blackout.before.layer.filter((o) => o.cls === null).length} of ${r.blackout.before.layer.length} untagged`);
+  check(meanLum(r.blackout.during.layer, 'floor') < 0.20,
+    'LIGHTS OUT darkens the ARENA ITSELF — the floor loses its ambient light',
+    `floor at ${meanLum(r.blackout.during.layer, 'floor').toFixed(3)} of its lit value; ` +
+    'the version this replaced left every arena sprite untouched and painted a bubble over them');
+  // WALL STRENGTH COMES FROM THE REGISTRY, NOT THE ROOM. The Vader chamber has
+  // `walls: []` — its structure is the baked perimeter band and its props — so
+  // a measured wall assertion here would be asserting an empty set. Props are
+  // measured because there IS one; walls are pinned where the value lives.
+  const lumOf = (t) => t == null ? Infinity
+    : (0.2126 * ((t >> 16) & 255) + 0.7152 * ((t >> 8) & 255) + 0.0722 * (t & 255)) / 255;
+  check(lumOf(r.blackout.cfg?.wall) < 0.25
+     && meanLum(r.blackout.during.layer, 'prop') < 0.40,
+    'structure falls to silhouette without being erased',
+    `wall strength ${lumOf(r.blackout.cfg?.wall).toFixed(3)}, prop measured ${meanLum(r.blackout.during.layer, 'prop').toFixed(3)}`);
+  // THE ISLANDS OF REMAINING POWER. This is the check that separates an art
+  // direction from a black rectangle: a uniform darkening would score the
+  // console and the floor the same, and the emissive hierarchy the whole mode
+  // depends on would be gone with no assertion noticing.
+  check(meanLum(r.blackout.during.layer, 'console') > meanLum(r.blackout.during.layer, 'floor') * 2.5,
+    'terminals stay powered while the room around them does not',
+    `console ${meanLum(r.blackout.during.layer, 'console').toFixed(3)} vs floor ${meanLum(r.blackout.during.layer, 'floor').toFixed(3)}`);
+  check(r.blackout.during.sectorTint !== null
+     && r.blackout.during.sectorTint < (r.blackout.before.sectorTint ?? 1) * 0.5,
+    'the endless ambient colour wash goes out with the room',
+    `${r.blackout.before.sectorTint} -> ${r.blackout.during.sectorTint}; it is ADDITIVE and sits above every room ` +
+    'object, so a dark arena that leaves it running is a dark arena with the lights still on');
+  // RESTORATION MUST BE EXACT. Not "roughly back": a mode that leaks a tint
+  // makes every subsequent activation weaker than the last.
+  check(r.blackout.after.layer.every((o) => o.tint === null),
+    'and the arena comes back exactly as it was',
+    `${r.blackout.after.layer.filter((o) => o.tint !== null).length} objects still tinted — a leaked tint compounds across activations`);
+  check(Math.abs((r.blackout.after.sectorTint ?? 0) - (r.blackout.before.sectorTint ?? 0)) < 0.001,
+    'including the sector wash',
+    `${r.blackout.before.sectorTint} -> ${r.blackout.after.sectorTint}`);
 }
+check(Object.values(r.blackout.during.combatExempt).every((v) => v === false),
+  'combat presentation is exempt BY CONSTRUCTION, not by a list',
+  `${JSON.stringify(r.blackout.during.combatExempt)} — anything true here is a saber, a bolt or a telegraph inside the tinted layer`);
+check(r.blackout.firstStep > 0.6,
+  'the power CUTS — it does not dim',
+  `the first frame with any change is already at ${r.blackout.firstStep} (tape ${JSON.stringify(r.blackout.tape)}); an ease would still be climbing`);
+check(r.blackout.during.alpha > r.blackout.before.alpha
+   && r.blackout.after.alpha <= r.blackout.before.alpha + 0.01,
+  'and the secondary vignette rides with it, then leaves',
+  `alpha ${r.blackout.before.alpha} -> ${r.blackout.during.alpha} -> ${r.blackout.after.alpha}`);
+
+// THE VIGNETTE IS SEASONING. These are the checks that stop it creeping back
+// into being the mechanic: the rejected build scored 0.204 at 150px, 0.537 at
+// 250px and 0.659 at 300px, so each of these fails against it.
+check(r.blackout.vignette.r0 === 0 && r.blackout.vignette.r150 === 0
+   && r.blackout.vignette.r250 === 0,
+  'no circular geometry anywhere the fight happens',
+  `${r.blackout.vignette.r0} / ${r.blackout.vignette.r150} / ${r.blackout.vignette.r250} at 0/150/250px — ` +
+  'the version this replaced was already at 0.54 by 250px, which is what read as a flashlight radius');
+check(r.blackout.vignette.inner >= 280 && r.blackout.vignette.r450 < 0.15,
+  'and the falloff is broad and soft rather than a wall',
+  `clear to ${r.blackout.vignette.inner}px, ${r.blackout.vignette.r450} at 450px`);
+check(r.blackout.vignette.corner < 0.55,
+  'the vignette never gets to own the frame',
+  `${r.blackout.vignette.corner} at the corner — past ~0.6 the player perceives a mask again`);
+check(!r.blackout.vignette.tracked && !r.blackout.vignette.padded,
+  'the overlay is screen-locked and exactly VIEW-sized',
+  `tracked ${r.blackout.vignette.tracked}, padded ${r.blackout.vignette.padded} — ` +
+  'a broad vignette has nothing to track, and a stationary overlay cannot expose an undarkened strip');
 check(r.blackout.ambientUntouched.inner === 158
   && r.blackout.ambientUntouched.outer === 910
   && r.blackout.ambientUntouched.fadeInMs === 420,
   'the persistent DARKNESS room modifier is untouched',
-  `${JSON.stringify(r.blackout.ambientUntouched)} — the boss event got its own gradient rather than retuning a shared one`);
+  `${JSON.stringify(r.blackout.ambientUntouched)}`);
+
+// ── LIGHTS OUT — one global state ────────────────────────────────────────
+check(r.lights.v1 === 'accepted' && r.lights.afterV1.state === 'active',
+  'a request against an idle arena is accepted',
+  `${r.lights.v1} / ${r.lights.afterV1.state}`);
+check(r.lights.v2 === 'deferred' && r.lights.v3 === 'coalesced'
+   && r.lights.afterRepeat.pending === 'blackout',
+  'a request during darkness is deferred, and a second one coalesces — ONE pending maximum',
+  `${r.lights.v2} / ${r.lights.v3} / pending ${r.lights.afterRepeat.pending}`);
+check(r.lights.extended === false,
+  'and nothing extends an active darkness',
+  'a repeated request restarted the fade and armed a second turn-off on the build this replaces, ' +
+  'so pressure could hold the room dark and then cut a later event short');
+check(r.lights.v4 === 'coalesced' && r.lights.afterEclipse.pending === 'eclipse',
+  'ECLIPSE displaces a pending standalone BLACKOUT',
+  `pending ${r.lights.afterEclipse.pending}`);
+check(r.lights.blackoutCannotStarve.pending === 'eclipse',
+  'and a standalone BLACKOUT can never displace a pending ECLIPSE',
+  `pending ${r.lights.blackoutCannotStarve.pending} — the high-tier authored composition owns the slot`);
+check(r.lights.afterEnd.state === 'cooldown' && r.lights.cooldownDelay === r.lights.reentryMs,
+  'the re-entry interval is measured from the END of darkness',
+  `${r.lights.cooldownDelay}ms armed at the moment the lights came back, target ${r.lights.reentryMs}`);
+check(r.lights.tintsRestored === true,
+  'and the arena is already back when the cooldown starts');
+check(r.lights.v6 === 'coalesced' && r.lights.duringCooldown.state === 'cooldown',
+  'no activation before the minimum re-entry interval',
+  `${r.lights.v6} / ${r.lights.duringCooldown.state} — this is the check that stops the 4-5 second reactivation the handset called spam`);
+check(r.lights.blackoutProducer.src === 'blackout'
+   && r.lights.blackoutProducer.state === 'active',
+  'the standalone BLACKOUT mechanic goes through the owner',
+  JSON.stringify(r.lights.blackoutProducer));
+check(r.lights.eclipseDeferred.pending === 'eclipse'
+   && r.lights.eclipseDeferred.clones === 0,
+  'ECLIPSE does not fire its clones into a lit room',
+  `pending ${r.lights.eclipseDeferred.pending}, ${r.lights.eclipseDeferred.clones} clones — ` +
+  'the identity of the mechanic is darkness AND afterimages; half of it is just AFTERIMAGES wearing the wrong banner');
+check(r.lights.eclipseComposition.state === 'active'
+   && r.lights.eclipseComposition.clones === 3,
+  'and the composition arrives whole when the arena is eligible',
+  `${r.lights.eclipseComposition.clones} clones with the darkness`);
+check(r.lights.plainAfterimages.clones === 3 && r.lights.plainAfterimages.state === 'off',
+  'below encounter 6 AFTERIMAGES is exactly what it was — clones, no darkness',
+  `${r.lights.plainAfterimages.clones} clones, arena ${r.lights.plainAfterimages.state}`);
+check(r.lights.lifecycle.state === 'off' && r.lights.lifecycle.pending === null
+   && !r.lights.lifecycle.endEv && !r.lights.lifecycle.cdEv
+   && r.lights.lifecycle.tinted === 0,
+  'a teardown clears state, pending, both timers and every tint',
+  `${JSON.stringify({ ...r.lights.lifecycle, endEv: !!r.lights.lifecycle.endEv, cdEv: !!r.lights.lifecycle.cdEv })} — ` +
+  'a stale callback would start darkness in a later arena, and a leaked tint would leave it permanently dark');
 
 // ── Afterimages ──────────────────────────────────────────────────────────
 check(r.afterimages.spawned === 3, 'afterimages spawn', `${r.afterimages.spawned} of 3`);

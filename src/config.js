@@ -1141,6 +1141,20 @@ export const ENDLESS = {
     parryHoldEnd: 0.62,
     blackoutEveryMs: 16000,
     blackoutMs: 2600,
+    // MINIMUM RE-ENTRY, measured from the END of the previous darkness.
+    //
+    // The one configuration value this pass adds, and it is arbitration rather
+    // than cadence: the per-encounter clocks above are untouched. It exists
+    // because LIGHTS OUT has TWO producers — the standalone `blackout` clock
+    // and ECLIPSE riding `boss-afterimages` — which at encounter 6 run at
+    // 13.1s and 10.7s after `bossMechScale`, so between them a request arrives
+    // roughly every 5.9 seconds. A 2.6s event asked for every 5.9s is a screen
+    // filter, and the handset review said exactly that: "spammed".
+    //
+    // Deliberately NOT scaled by `bossMechScale`. It is the floor that keeps
+    // the transformation dramatic, so tightening it at rung 6 would undo the
+    // thing it was added for — same reasoning that exempts `reflectEveryMs`.
+    lightsReentryMs: 14000,
     afterimageEveryMs: 13000,
     afterimageCount: 3,
     disarmEveryMs: 15000,
@@ -1305,28 +1319,96 @@ export const DARKNESS = {
     stops: [[0, 0], [0.55, 0.45], [1, 0.82]],
     fadeInMs: 420, fadeOutMs: 420, flicker: false,
   },
+  // ── LIGHTS OUT's vignette — SECONDARY, and deliberately so ─────────────
+  // This used to be the whole mechanic: a 90px clear core over a 0.88 rim,
+  // which measured as a 65% darker viewport and was mechanically successful.
+  // The handset verdict was that it read as a FLASHLIGHT RADIUS — an obvious
+  // circular visibility mask following the player — rather than as a room that
+  // lost power, and that identity was rejected.
+  //
+  // The arena transformation now carries the effect (see `LIGHTSOUT` below).
+  // What is left here is seasoning: broad, soft, screen-locked edge darkening
+  // that adds pressure at the corners and nothing at all where the fight is.
+  // The clear core is 300px and the rim only reaches 0.46, so no circle is
+  // legible in a still frame — which is the test §11 set for it.
+  //
+  // BECAUSE IT IS BROAD, IT NO LONGER TRACKS THE PLAYER. The tight pocket had
+  // to, or the camera clamping at the arena bounds would strand a cornered
+  // player in the dark part of their own sight radius. A soft vignette that is
+  // ~0.03 at the left and right mid-edges cannot strand anybody, so the pad,
+  // the clamp and the per-frame recentre are all gone with it.
   blackout: {
-    color: '1,1,5',
-    inner: 90, outer: 440,
-    stops: [[0, 0], [0.18, 0.21], [0.34, 0.41], [0.50, 0.58],
-            [0.68, 0.72], [0.85, 0.83], [1, 0.88]],
+    color: '2,3,8',
+    inner: 300, outer: 820,
+    stops: [[0, 0], [0.45, 0.10], [0.75, 0.28], [1, 0.46]],
     // A 420ms ease is how a room dims. A room that LOSES POWER stutters and
     // goes. The flicker is three tween links on the one overlay image — no new
     // object, no new texture — and the first darkening lands at 55ms.
-    fadeInMs: 110, fadeOutMs: 380, flicker: true,
-    // THE POCKET FOLLOWS THE PLAYER, so the overlay image has to be bigger
-    // than the screen or moving it would expose an undarkened strip down one
-    // side. `pad` is both the texture's margin per axis AND the cap on how far
-    // the pocket may drift, so the two can never disagree. Sized against the
-    // real worst case: the game camera clamps at the arena bounds, which puts
-    // a player pinned in a corner of a 1600px arena about 270px horizontally
-    // and 508px vertically off screen centre. The cap is deliberately short of
-    // that — at full drift the player sits ~90px / ~188px from the pocket
-    // centre, dimmer but well inside readable, and the pocket never slides off
-    // the screen it is meant to light.
-    pad: [180, 320],
+    fadeInMs: 140, fadeOutMs: 420, flicker: true,
   },
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LIGHTS OUT — the ARENA loses power
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The mechanic's identity is a TEMPORARY ALTERNATE ART DIRECTION for the room,
+// not a mask over the player. The previous tight vignette solved visibility and
+// failed aesthetics; a handset review named it "obvious circular visibility
+// mask / flashlight radius" and rejected it as the mechanic's face.
+//
+// WHAT THIS IS: multiplicative tints applied to `GameScene.roomLayer` — the
+// group that holds the backdrop, the floor-decal RenderTexture, the walls, the
+// cover consoles and the props, and holds NOTHING ELSE. Combat lives outside
+// it, so the saber, both bullet colours, the telegraphs, the Force effects, the
+// returned orb and both silhouettes are untouched by construction rather than
+// by an exemption list that could drift. That is why this is Option A from the
+// brief's hierarchy and not a depth-inserted overlay: the layer separation the
+// renderer already has IS the exemption list.
+//
+// WHAT IT IS NOT: a lighting engine. No casting, no shadow maps, no visibility
+// polygons, no point lights, no shader. Six objects change tint at two state
+// boundaries and nothing loops per frame afterwards.
+//
+// THE STRENGTHS ARE NOT UNIFORM, and that is the whole art direction. Ambient
+// light dies hardest — the floor's baked strip lights ARE the room's ceiling
+// lighting, so they go with it. Structure falls to a silhouette. Terminals keep
+// most of themselves: their screens and LED key lights are baked into the same
+// texture as their grey casing, so a light tint is the only lever that leaves
+// them reading as powered, and a powered console in a dark room is exactly the
+// "island of remaining power" the art direction asks for.
+export const LIGHTSOUT = {
+  // Backdrop image + decal RenderTexture. The big warm mass and the majority of
+  // the screen; this number is most of what the player perceives.
+  // A LIGHTER FLOOR TINT TURNS THE ROOM RED, and that was measured, not
+  // guessed. The Vader chamber's base is already #0a0a0d; the only coloured
+  // thing baked into its floor is the crimson strip lights and the dais ring,
+  // so anything gentle enough to spare them leaves a maroon room — and crimson
+  // is the DANGER colour here. The saber, the SABER THROW lane and every
+  // telegraph are red, and they have to be the only red in the frame.
+  floor:   0x12151f,
+  // Walls. Near-black, but not black: geometry must still be readable enough to
+  // navigate, per the brief's "emergency-power Death Star, not black screen".
+  wall:    0x1a1f2b,
+  // Props — machinery keeps a little of itself and its own glows with it.
+  prop:    0x2e3446,
+  // Cover consoles. THE ISLANDS. Blue screen glass, a green and two red LEDs
+  // and a lit keyboard row, all baked in; at this strength they survive as the
+  // brightest static things in the room.
+  console: 0x8892ac,
+  // The endless per-sector colour wash (`GameScene._sectorTint`) is an ADDITIVE
+  // screen-locked rectangle at depth 9000, up to 0.20 alpha. Additive light
+  // sitting above everything cannot be tinted away from below, so a dark arena
+  // that leaves it running is a dark arena with the lights still on. It is the
+  // room's ambient wash, so it goes out with the room's ambient light.
+  sectorTintAlpha: 0.03,
+  // Power-failure transition. Three links: a hard drop, a stutter back, then
+  // gone. Matches the vignette's own chain so the two land as one event.
+  onsetMs:   140,
+  // Restoration is softer — lights coming back up, not another cut.
+  restoreMs: 420,
+};
+
 
 // Wave-clear Arena Mode settings. Each room runs a sequence of `waves`; a wave
 // spawns its budget of enemies, then the player must clear them all to advance

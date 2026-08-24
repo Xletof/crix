@@ -813,32 +813,6 @@ export class HUDScene extends Phaser.Scene {
     SFX.uiClick?.();
   }
 
-  // THE POCKET FOLLOWS THE PLAYER, NOT THE SCREEN.
-  //
-  // The overlay is `scrollFactor(0)` in the HUD scene, so it is pinned to the
-  // middle of the display. That was harmless for the ambient vignette, whose
-  // clear core is 158px and whose ramp is gentle — but this one has a 90px
-  // core and is at 0.66 by 300px, and the game camera CLAMPS at the arena
-  // bounds. Push into a corner of a 1600px arena and the camera stops while
-  // the player keeps walking, up to ~360px horizontally and ~598px vertically
-  // off centre — which with a tight gradient puts the player in the dark part
-  // of their own sight radius. Recentring costs two subtractions a frame.
-  //
-  // `cam.y` is the HUD-top-bar inset (the game viewport starts below it), so
-  // it has to be added back or the pocket rides 84px high of the player.
-  _trackBlackout(p) {
-    const ov = this._overlays?.blackout;
-    if (!ov?.visible || !p) return;
-    const cam = this.gameScene.cameras.main;
-    const [px, py] = DARKNESS.blackout.pad;
-    const sx = (p.x - cam.scrollX) * cam.zoom + cam.x;
-    const sy = (p.y - cam.scrollY) * cam.zoom + cam.y;
-    ov.setPosition(
-      Phaser.Math.Clamp(sx, VIEW.width / 2 - px, VIEW.width / 2 + px),
-      Phaser.Math.Clamp(sy, VIEW.height / 2 - py, VIEW.height / 2 + py),
-    );
-  }
-
   refreshMelee() {
     const p = this.gameScene?.player;
     if (!p || !this.meleeButton) return;
@@ -946,7 +920,6 @@ export class HUDScene extends Phaser.Scene {
 
   update(time, delta) {
     const p = this.gameScene?.player;
-    this._trackBlackout(p);
     if (p && p.ammoTimers.length > 0) {
       this.refreshAmmo();
     }
@@ -1412,11 +1385,14 @@ export class HUDScene extends Phaser.Scene {
     this.tweens.add({ targets: this.modifierText, scale: 1, duration: 200, ease: 'Back.easeOut' });
   }
 
-  // Lazily build the DARKNESS radial vignette. It's a screen-space image at a
+  // Lazily build a DARKNESS radial vignette. It's a screen-space image at a
   // depth BELOW every HUD element, so it dims the gameplay showing through the
-  // HUD scene without ever dimming the HUD chrome itself. The camera follows
-  // the player near screen-center, so a screen-centered radial reads as a
-  // "sight radius" without any per-frame player tracking.
+  // HUD scene without ever dimming the HUD chrome itself.
+  //
+  // NEITHER OVERLAY IS THE MECHANIC ANY MORE. `ambient` is the persistent
+  // DARKNESS room modifier's established look; `blackout` is now only the
+  // secondary edge emphasis riding on top of Vader's LIGHTS OUT, whose actual
+  // transformation happens in GameScene on the arena's own sprites.
   // ONE OVERLAY PER MODE, each built from its own gradient in `DARKNESS`.
   //
   // They are separate objects rather than one image whose texture is swapped,
@@ -1429,8 +1405,11 @@ export class HUDScene extends Phaser.Scene {
     if (this._overlays?.[mode]) return this._overlays[mode];
     this._overlays = this._overlays || {};
     const cfg = DARKNESS[mode];
-    const [px, py] = cfg.pad || [0, 0];
-    const w = VIEW.width + px * 2, h = VIEW.height + py * 2;
+    // Exactly VIEW-sized and screen-locked. Neither gradient moves any more:
+    // `ambient` never did, and `blackout` stopped when it stopped being a
+    // pocket. A stationary overlay cannot expose an undarkened strip, so the
+    // padded oversize texture the tracking pocket needed is gone with it.
+    const w = VIEW.width, h = VIEW.height;
     const key = `darkness-${mode}`;
     if (!this.textures.exists(key)) {
       const tex = this.textures.createCanvas(key, w, h);
@@ -1454,8 +1433,9 @@ export class HUDScene extends Phaser.Scene {
   }
 
   // `mode` picks WHICH darkness. 'ambient' is the persistent DARKNESS room
-  // modifier and is frozen as it always looked; 'blackout' is Vader's LIGHTS
-  // OUT, which is a 2.6s EVENT and has to announce itself in a tenth of that.
+  // modifier and is frozen as it always looked; 'blackout' is the soft edge
+  // emphasis on Vader's LIGHTS OUT, which is a 2.6s EVENT and so cuts in with
+  // a power-failure stutter rather than easing like a room dimming.
   setDarkness(on, mode = 'ambient') {
     if (!on && !this._overlays?.[mode]) return;   // nothing to fade out
     const cfg = DARKNESS[mode];
@@ -1477,7 +1457,7 @@ export class HUDScene extends Phaser.Scene {
           tweens: [
             { alpha: 0.88, duration: 55, ease: 'Quad.easeIn' },
             { alpha: 0.30, duration: 45 },
-            { alpha: 1,    duration: cfg.fadeInMs - 100, ease: 'Quad.easeOut' },
+            { alpha: 1,    duration: Math.max(40, cfg.fadeInMs - 100), ease: 'Quad.easeOut' },
           ],
         });
       } else {
