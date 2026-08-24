@@ -40,6 +40,24 @@ one ladder pass, on this box:
 | standalone | PASS |
 | standalone | 1 fail: deferred-DEFLECTION handover |
 | standalone | 1 fail: gesture size |
+
+**Re-measured 2026-08-24, during the saber-emissive pass.** DEFLECTION was not
+touched by that pass, and the saber glow is a pure reader that writes nothing
+the section samples — but the glow is drawn on `postupdate` and the honest thing
+to do was check. Three runs against the untouched `af3023d` source and two
+against the new one, alternating, on the same box:
+
+| source | result |
+|---|---|
+| `af3023d` (baseline) | 2 fails: blade peak speed + "no second saber was conjured" |
+| `af3023d` (baseline) | 1 fail: "no second saber was conjured" |
+| `af3023d` (baseline) | 1 fail: blade peak speed |
+| with the saber glow | 1 fail: blade peak speed |
+| with the saber glow | PASS |
+
+The baseline failed **three times out of three**, including the check whose name
+most invites blaming a new saber layer — on the build that has no saber layer.
+Same failure, same rate, pre-existing. Do not retune DEFLECTION for it.
 | full suite | 1 fail: gesture size |
 | full suite | 1 fail: blade travelling fastest at the power frame |
 | standalone | PASS |
@@ -686,6 +704,29 @@ Two of these are worth understanding rather than re-running:
 
 ## Dark-arena rigs (added with the art-direction + ownership pass)
 
+- **`tests/shot-saber-glow.mjs`** — Vader's saber across its whole combat
+  vocabulary in darkness, plus a matched A/B on one frozen frame. Writes
+  `docs/evidence/saber-glow/`. Five ways it lied before it told the truth, all
+  of which produce a *clean-looking* result:
+  - **A dropped `page.evaluate` argument.** `forceDark(on)` never passed `on`,
+    so the helper took its early return and every shot photographed a lit room
+    while every probe reported the glow missing. A dropped argument is
+    indistinguishable from an unimplemented feature. Two runs.
+  - **Banner text instead of registry ids.** `_castBossMove(b, 'SABER THROW')`
+    returns null — the id is `saberthrow`. A refused cast reads exactly like a
+    move that ran and did nothing. Assert the cast fired.
+  - **A comparison against a key that does not exist** (`p.w.rotation`, where
+    the sampled object names it `rot`) reported a mismatch on numbers that were
+    identical. `undefined === undefined` is the failure mode to fear here.
+  - **The rig's own forced darkness cancelled underneath it** by a real
+    activation's 2.6s turn-off. Silence his mechanic clocks at SETUP, not later,
+    and drop any `_lightsEndEv` the owner has already armed.
+  - **A hush that sweeps the enemies also sweeps ECLIPSE's clones**, so the
+    composition measured zero clones after spawning three. Count before hushing.
+  - And the standing one: a full-screen hurt flash photographs as a flat red
+    rectangle, and on a **paused** scene it never fades. Heal, let it run out,
+    then pause — in the SAME round trip as the telegraph sweep, or 50-200ms of
+    live game opens a fresh telegraph on top of the thing being measured.
 - **`tests/shot-dark-arena.mjs`** — the encounter-6 sequence, plus a matched A/B
   on **one frozen frame** (`scene.pause()`), plus the vignette's own alpha
   profile read off its texture. Writes `docs/evidence/dark-arena/`.
