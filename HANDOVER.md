@@ -1450,6 +1450,84 @@ keeps them apart, and do not soften either because they overlap. The combined
 question is intentionally difficult and it is now part of the high-tier combat
 language.
 
+## 10l. The saber is a light source — LIGHTS OUT only
+
+**Handset verdict on 10i/10j: the structure was approved and the art direction
+was not finished.** The room genuinely loses power; nothing in it starts
+*behaving* like a light. Vader reads as a black body holding a bright red line.
+The arena cannot carry the rest of that yet — it has four consoles and one prop
+— and that is the map overhaul's problem. The saber is independent of it.
+
+**Architecture.** Two ADD-blended `Graphics` owned by `Boss`, the same technique
+the held-super orb already uses. No shader, no post-processing, no light engine.
+
+| layer | object | depth | what it is |
+|---|---|---|---|
+| 1 core | `weaponSprite` | `y ± 1` | the approved blade. **Unchanged.** |
+| 2 tight bloom | `_saberBloom` | `blade − 0.01` | two capsules barely wider than the blade; makes it incandescent rather than outlined |
+| 3 broad spill | `_saberHalo` | `boss.y + 0.5` | six capsules, widest faintest; reaches 2.9 half-thicknesses BACK past the emitter |
+| 4 consoles | `_consoleGlow` | 3 | bounded prototype, blue, one Graphics for the room |
+
+Layer 3 sits **above his body on purpose**: light leaves an emitter in every
+direction, so it washes over his hand and near shoulder and his silhouette comes
+back from the weapon's own light. That is the whole answer to "black body
+holding a red line", and it is deliberately *not* a rim light drawn on him —
+the brief forbade one and a rim light would survive the blade being thrown away.
+
+**Driver.** `GameScene._darkMix.v`, the arena's own power-failure scalar. It
+enters on the 140ms onset stutter and leaves on the 420ms restoration swell and
+cannot drift out of phase with the event it belongs to. In normal light it is 0
+and neither layer is drawn — the approved saber is untouched.
+
+**Measured, one frozen frame at endless sector 30** (`docs/evidence/saber-glow/`,
+matched A/B by hiding the two layers):
+
+| region | Δ luminance | Δ red excess |
+|---|---|---|
+| the blade | +9.4 | +20.7 |
+| darkness immediately around it | +4.0 | +8.8 |
+| the wide neighbourhood | +1.3 | +2.9 |
+| Vader's own body | +0.3 | +0.8 |
+| far corner of the room | **0.00** | **0.00** |
+| whole viewport | +0.28 | +0.6 |
+
+The far corner reading exactly zero is the load-bearing one: it is a **local**
+light, not a global exposure change, and it does not blow the frame out.
+
+**Two things that cost a round each, both in `CLAUDE.md` as traps.** It runs on
+`postupdate`, not `preUpdate`, because a TWEENED pose is a frame stale before
+the tween manager steps and SABER THROW spins the blade ~25°/frame. And the
+spill's capsules are alpha-ramped rather than even, because an even stack puts
+the outermost rim on screen at full step strength and it photographs as a
+legible ellipse around the blade.
+
+**Afterimages are unchanged and were not touched.** Clones already carry
+`weaponSprite.setVisible(false)` — they have no saber, so they get no glow, by
+the contract that was already there. This does not create a new identification
+rule; it strengthens an existing one, and the approved signals (threat ring, hp
+bar, surviving a hit) are all still what they were.
+
+## 10m. Future arenas are authored in TWO states
+
+**Design doctrine for the environment/map overhaul. Not implemented here.**
+
+A polished arena should be authored as two compositions, not one composition
+plus a filter:
+
+1. **normal ambient power** — what the room looks like with the lights on;
+2. **emergency power** — what is still lit when ambient light dies.
+
+Future arena art should deliberately identify which elements stay alive in
+state 2: console screens, LEDs, machinery indicators, emergency strips, powered
+signage, door controls, reactor elements, alarm lamps. LIGHTS OUT should
+eventually *reveal that second composition* rather than merely darken the first.
+
+The current Vader chamber cannot demonstrate this — four cover consoles and one
+prop are the entire emissive vocabulary it owns, which is why the saber carries
+the whole read today. `LIGHTSOUT.consoleGlowAlpha` is a deliberately tiny
+prototype of the idea and is one value from removal. **Do not mark the
+emergency-power aesthetic complete because the saber improved.**
+
 ## 10c. The narrative system
 
 **The ledger has always remembered; nothing spoke.** `nemesisLedger.js` tracks

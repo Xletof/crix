@@ -25,75 +25,75 @@
   "ab": {
     "blade": {
       "before": {
-        "lum": 29.6,
-        "red": 11.79
+        "lum": 31.13,
+        "red": 16.85
       },
       "after": {
-        "lum": 39,
-        "red": 32.45
+        "lum": 41.28,
+        "red": 39.03
       },
-      "dLum": 9.4,
-      "dRed": 20.66
+      "dLum": 10.15,
+      "dRed": 22.18
     },
     "near darkness": {
       "before": {
-        "lum": 21.33,
-        "red": 14
+        "lum": 22.93,
+        "red": 15.65
       },
       "after": {
-        "lum": 25.36,
-        "red": 22.78
+        "lum": 26.62,
+        "red": 23.68
       },
-      "dLum": 4.03,
-      "dRed": 8.78
+      "dLum": 3.69,
+      "dRed": 8.03
     },
     "wide darkness": {
       "before": {
-        "lum": 16.33,
-        "red": 7.77
+        "lum": 17.16,
+        "red": 8.29
       },
       "after": {
-        "lum": 17.66,
-        "red": 10.67
+        "lum": 18.38,
+        "red": 10.94
       },
-      "dLum": 1.33,
-      "dRed": 2.9
+      "dLum": 1.22,
+      "dRed": 2.65
     },
     "Vader's body": {
       "before": {
-        "lum": 10.45,
-        "red": 4.11
+        "lum": 10.07,
+        "red": 4.19
       },
       "after": {
-        "lum": 10.74,
-        "red": 4.9
+        "lum": 10.47,
+        "red": 5.28
       },
-      "dLum": 0.29,
-      "dRed": 0.79
+      "dLum": 0.4,
+      "dRed": 1.09
     },
     "far corner": {
       "before": {
-        "lum": 12.77,
-        "red": -6.48
+        "lum": 12.62,
+        "red": -6.53
       },
       "after": {
-        "lum": 12.77,
-        "red": -6.48
+        "lum": 12.62,
+        "red": -6.53
       },
       "dLum": 0,
       "dRed": 0
     },
     "viewport": {
       "before": {
-        "lum": 11.04,
-        "red": 0.67
+        "lum": 11.07,
+        "red": 0.69
       },
       "after": {
-        "lum": 11.32,
-        "red": 1.27
+        "lum": 11.33,
+        "red": 1.24
       },
-      "dLum": 0.28,
-      "dRed": 0.6
+      "dLum": 0.26,
+      "dRed": 0.55
     }
   },
   "normalLight": {
@@ -103,12 +103,12 @@
       "bloomVisible": false
     },
     "blade": {
-      "lum": 69.75,
-      "red": 18.38
+      "lum": 72.5,
+      "red": 15.57
     },
     "viewport": {
-      "lum": 56.45,
-      "red": 12.5
+      "lum": 58.93,
+      "red": 12.56
     }
   },
   "bodyFrozen": {
@@ -132,19 +132,19 @@
       "pend": null,
       "w": {
         "x": 800,
-        "y": 1047.75,
+        "y": 1027.25,
         "rot": 1.5708,
         "vis": true
       },
       "halo": {
         "x": 800,
-        "y": 1047.75,
+        "y": 1027.25,
         "rot": 1.5708,
         "vis": true
       },
       "bloom": {
         "x": 800,
-        "y": 1047.75,
+        "y": 1027.25,
         "rot": 1.5708,
         "vis": true
       },
@@ -161,19 +161,19 @@
       "pend": null,
       "w": {
         "x": 800,
-        "y": 1185.25,
+        "y": 1167.5,
         "rot": 1.5708,
         "vis": true
       },
       "halo": {
         "x": 800,
-        "y": 1185.25,
+        "y": 1167.5,
         "rot": 1.5708,
         "vis": true
       },
       "bloom": {
         "x": 800,
-        "y": 1185.25,
+        "y": 1167.5,
         "rot": 1.5708,
         "vis": true
       },
@@ -189,21 +189,21 @@
       "cdEv": false,
       "pend": null,
       "w": {
-        "x": 761.77,
-        "y": 1357.45,
-        "rot": 2.211,
+        "x": 752.89,
+        "y": 1285.32,
+        "rot": 2.3982,
         "vis": true
       },
       "halo": {
-        "x": 761.77,
-        "y": 1357.45,
-        "rot": 2.211,
+        "x": 752.89,
+        "y": 1285.32,
+        "rot": 2.3982,
         "vis": true
       },
       "bloom": {
-        "x": 761.77,
-        "y": 1357.45,
-        "rot": 2.211,
+        "x": 752.89,
+        "y": 1285.32,
+        "rot": 2.3982,
         "vis": true
       },
       "matches": true
@@ -219,19 +219,19 @@
       "pend": null,
       "w": {
         "x": 800,
-        "y": 1534.87,
+        "y": 1525.75,
         "rot": 1.5708,
         "vis": true
       },
       "halo": {
         "x": 800,
-        "y": 1534.87,
+        "y": 1525.75,
         "rot": 1.5708,
         "vis": true
       },
       "bloom": {
         "x": 800,
-        "y": 1534.87,
+        "y": 1525.75,
         "rot": 1.5708,
         "vis": true
       },
@@ -277,20 +277,20 @@
       "pend": null,
       "w": {
         "x": 800,
-        "y": 966.43,
-        "rot": -2.4504,
+        "y": 945.83,
+        "rot": -1.7467,
         "vis": true
       },
       "halo": {
         "x": 800,
-        "y": 966.43,
-        "rot": -2.4504,
+        "y": 945.83,
+        "rot": -1.7467,
         "vis": true
       },
       "bloom": {
         "x": 800,
-        "y": 966.43,
-        "rot": -2.4504,
+        "y": 945.83,
+        "rot": -1.7467,
         "vis": true
       },
       "matches": true
@@ -306,20 +306,20 @@
       "pend": null,
       "w": {
         "x": 800,
-        "y": 1430,
-        "rot": -1.4439,
+        "y": 941.38,
+        "rot": -0.4274,
         "vis": true
       },
       "halo": {
         "x": 800,
-        "y": 1430,
-        "rot": -1.4439,
+        "y": 941.38,
+        "rot": -0.4274,
         "vis": true
       },
       "bloom": {
         "x": 800,
-        "y": 1430,
-        "rot": -1.4439,
+        "y": 941.38,
+        "rot": -0.4274,
         "vis": true
       },
       "matches": true
@@ -335,20 +335,20 @@
       "pend": null,
       "w": {
         "x": 800,
-        "y": 924.25,
-        "rot": 1.5708,
+        "y": 667.5,
+        "rot": -1.5708,
         "vis": true
       },
       "halo": {
         "x": 800,
-        "y": 924.25,
-        "rot": 1.5708,
+        "y": 667.5,
+        "rot": -1.5708,
         "vis": true
       },
       "bloom": {
         "x": 800,
-        "y": 924.25,
-        "rot": 1.5708,
+        "y": 667.5,
+        "rot": -1.5708,
         "vis": true
       },
       "matches": true
@@ -358,13 +358,21 @@
   "throwTruth": {
     "saberAway": true,
     "hasSaber": false,
-    "tries": 23,
-    "distFromHand": 242.5,
-    "haloDistFromHand": 242.5,
+    "tries": 22,
+    "distFromHand": 246.6,
+    "haloDistFromHand": 246.6,
     "haloOnBlade": true,
     "glowObjects": 2
   },
   "castVanish": true,
+  "silhouette": {
+    "bladeDepth": 716.5,
+    "bossDepth": 717.5,
+    "haloDepth": 718,
+    "bladeBehindBoss": true,
+    "haloOverBoss": true,
+    "aimDeg": -90
+  },
   "eclipse": {
     "clones": 3,
     "clonesWithVisibleWeapon": 0,

@@ -419,10 +419,35 @@ await page.waitForTimeout(320);
 await shot('seq-07-vanish-spin');          await poseCheck('vanish-spin');
 
 // The silhouette shot: blade across the body, room dark, nothing else running.
+// THE SILHOUETTE SHOT. `stage(aim)` cannot choose the bearing — the weapon
+// block re-derives it from the player's position every frame — so the pose is
+// chosen by where the PLAYER stands. Put them due north of him: he aims north,
+// the blade draws BEHIND his body by the facing-north depth rule, and the
+// spill lands across the front of a man who is otherwise nearly black.
 await relit();
-await stage(Math.PI * 0.86);
-await page.waitForTimeout(300); await hush();
+await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  gs.player.setPosition(800, 620); gs.player.setVelocity(0, 0);
+  gs.boss.setPosition(800, 800); gs.boss.setVelocity(0, 0);
+  gs.cameras.main.stopFollow(); gs.cameras.main.centerOn(800, 720);
+});
+await page.waitForTimeout(400); await hush();
+await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  gs.clearTelegraphs?.(); gs.cameras.main.centerOn(800, 720);
+});
 await shot('seq-08-silhouette-blade-across-body'); await poseCheck('silhouette');
+R.silhouette = await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game'), b = gs.boss;
+  const w = b.weaponSprite;
+  return { bladeDepth: w.depth, bossDepth: b.depth, haloDepth: b._saberHalo?.depth ?? null,
+           // Blade behind him, spill in front of him: the light lands ON the
+           // silhouette rather than being hidden by it.
+           bladeBehindBoss: w.depth < b.depth, haloOverBoss: (b._saberHalo?.depth ?? -1) > b.depth,
+           aimDeg: +(b._aim * 180 / Math.PI).toFixed(1) };
+});
+await page.evaluate(() => { const gs = window.game.scene.getScene('Game');
+  gs.cameras.main.startFollow(gs.player, false, 0.12, 0.12); });
 
 // ECLIPSE — three clones that carry NO saber, and the one man who does.
 await page.evaluate(() => {

@@ -362,6 +362,36 @@ the finding is already established earlier in the conversation.
   aggression, lateral dash is the answer, and the death inside it was judged
   fair. Do NOT add an exclusion rule, scheduler separation, or a softening of
   either because they overlap.
+- **THE SABER'S LIGHTS-OUT GLOW IS A READER, AND IT RUNS ON `postupdate`.**
+  Two ADD Graphics owned by `Boss` (`_saberHalo` above his body, `_saberBloom`
+  just under the blade), drawn by `_drawSaberGlow` from `weaponSprite`'s
+  finished x/y/rotation. It computes NO aim, NO parry state and owns NO tween —
+  that is why it survives the parries, the DEFLECTION stance, the power sweep,
+  VANISH and CHARGE without knowing they exist. It is NOT called from
+  `preUpdate`: `preUpdate` runs before the tween manager steps, so a TWEENED
+  pose (SABER THROW's flight and spin, VANISH's `spin()`) is still last frame's
+  value there — at 8π over the act beat that is ~25 degrees between a blade and
+  its own light. The listener is removed in `Boss.destroy`; a `postupdate`
+  handler closed over a dead boss outlives every room after it.
+- **THE GLOW IS ANCHORED TO THE SPRITE, WHICH IS WHAT MAKES THE THROW TRUE.**
+  `weaponSprite` IS the saber — SABER THROW detaches it and flies the real
+  object — so the light leaves with the blade and nothing is left glowing in
+  his hand. Anchoring to his hand would manufacture exactly the phantom the
+  one-saber contract forbids. Every dimension is a multiple of the blade's
+  measured half-thickness read from `displayWidth/displayHeight`, never a pixel
+  literal, so a re-drawn or re-scaled saber cannot leave its glow behind.
+- **AN EVEN ALPHA ACROSS A STACK OF GLOW SHAPES PUTS AN EDGE ON SCREEN.** The
+  broad spill is six capsules widest-to-tightest, and the widest is the
+  FAINTEST (`0.16 + 0.84·t^1.6`). At uniform alpha the outermost rim lands at
+  full step strength and photographs as a legible crimson ellipse around the
+  blade — a shape around a weapon rather than light off it. Measured and fixed.
+  The same reason the console pools are three rings, not one disc.
+- **THE ARENA'S EMISSIVE SECOND STATE IS NOT DONE.** `LIGHTSOUT.consoleGlowAlpha`
+  is a bounded prototype: one Graphics, a soft BLUE pool behind each console,
+  redrawn only on a state change. Blue because crimson is the danger colour and
+  belongs to the saber and the telegraphs. Set it to 0 and it is gone. Authoring
+  arenas with a real emergency-power composition is the map overhaul's job — do
+  not treat the saber pass as having finished it.
 - **TWO DARKNESS GRADIENTS, AND THE MODE ARGUMENT PICKS ONE.**
   `set-darkness true` with no mode is the persistent DARKNESS room modifier,
   whose vignette darkens the centre 200px of the screen — where the fight is —
