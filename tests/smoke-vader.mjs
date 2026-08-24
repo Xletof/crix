@@ -1413,9 +1413,13 @@ for (const [when, snap] of [['on the frame it appears', r.saber.dark],
     `blade (${snap.w.x?.toFixed?.(1)}, ${snap.w.y?.toFixed?.(1)}) @${snap.w.rot?.toFixed?.(3)} vs `
     + `halo (${snap.halo?.x?.toFixed?.(1)}, ${snap.halo?.y?.toFixed?.(1)}) @${snap.halo?.rot?.toFixed?.(3)}`);
 }
-check(r.saber.dark.bloom.x === r.saber.dark.w.x && r.saber.dark.bloom.rot === r.saber.dark.w.rot,
+// Null-safe on purpose: on the build this replaces there is no bloom layer at
+// all, and a probe that CRASHES is indistinguishable from a contract that
+// FAILS — which is the one thing an A/B against the old build must not be.
+check(!!r.saber.dark.bloom && r.saber.dark.bloom.x === r.saber.dark.w.x
+      && r.saber.dark.bloom.rot === r.saber.dark.w.rot,
   'and so is the tight bloom — one pose, three layers, no second author',
-  `bloom @${r.saber.dark.bloom.rot} vs blade @${r.saber.dark.w.rot}`);
+  `bloom @${r.saber.dark.bloom?.rot} vs blade @${r.saber.dark.w.rot}`);
 check(r.saber.bodies.boss === 56 && !r.saber.bodies.weapon
       && !r.saber.bodies.halo && !r.saber.bodies.bloom,
   'the glow is VISUAL — nothing it added can be collided with',
