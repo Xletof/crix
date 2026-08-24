@@ -682,3 +682,53 @@ Two of these are worth understanding rather than re-running:
   the same check reported `drift 50px` and also failed. The instrument mixes a
   per-frame speed with a whole-window displacement, and at this frame rate the
   second one measures the machine.
+
+
+## Dark-arena rigs (added with the art-direction + ownership pass)
+
+- **`tests/shot-dark-arena.mjs`** — the encounter-6 sequence, plus a matched A/B
+  on **one frozen frame** (`scene.pause()`), plus the vignette's own alpha
+  profile read off its texture. Writes `docs/evidence/dark-arena/`.
+- **`tests/diag-lights-cadence.mjs [seconds]`** — a real Vader 6 fight with
+  **nothing silenced**, hooking `set-darkness` and folding the raw on/off tape
+  into events, gaps and per-minute. It hooks the event rather than the new state
+  owner on purpose: that is the last thing this build and `577761e` have in
+  common, so the same rig measures both and the numbers are comparable instead
+  of asserted.
+
+### Five ways these lied before they told the truth
+
+- **A `TweenChain`'s config has no `onUpdate` to hand down to its links.** The
+  arena tint animated a scalar that nothing ever read, and the rig photographed
+  a fully lit room half a second into an *accepted* LIGHTS OUT. The callback
+  goes on every link. This is an engine fact, not a rig bug — it shipped into
+  `GameScene` first.
+- **A screen-sized overlay cannot be sampled horizontally past 360px.** The
+  vignette texture is exactly VIEW-sized, so `getImageData(cx + r, cy)` runs off
+  the canvas at r = 360 and returns 0 for every radius past it —
+  indistinguishable from a gradient that was never painted. Sample along the
+  diagonal.
+- **A missing class must fail, not pass.** `meanLum(layer, 'floor')` returned
+  `-1` when no object carried the tag, and `-1 < 0.20`, so every "the arena
+  darkens" check passed on the build with no arena darkening. Caught only by
+  running the A/B. Empty sets return `Infinity`. And a room can legitimately
+  have none of a class — the Vader chamber has `walls: []` — so pin those from
+  the registry rather than measuring an empty set.
+- **A wall-clock sleep does not deliver wall-clock delta.** Phaser clamps
+  `delta`, so at this harness's ~190ms frames a 4500ms sleep delivers well under
+  4000ms of accumulated game time — SUPPRESSION's 4000ms lock was still up when
+  the probe read it. Marginal since that block was written; it started tripping
+  when the suite got longer. **Wait on the condition, not the clock.**
+- **A refused cast reads exactly like a gated one, and it flakes.** A first
+  draft of the FORCE PULL + DEFLECTION contract cast the move and checked it
+  took. It flipped between pass and fail on consecutive runs: `_castBossMove`
+  legitimately refuses while his state machine is mid-attack and while
+  DEFLECTION's stance is up. Replaced with a deterministic claim — that LIGHTS
+  OUT writes nothing to his scheduler.
+
+### And one process lesson
+
+**Do not edit a `.mjs` under test while `npm run smoke` is running.** A full
+run was spent producing two bare `Node.js v22.22.2` crashes in `smoke-vader`
+and `smoke-score` because the file changed under the runner. `tests/README.md`
+already said not to modify source during capture; it applies to the suite too.

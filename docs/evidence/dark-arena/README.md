@@ -46,6 +46,22 @@ radius past it silently reads 0 — that cost a round).
 Flat nothing across the entire area the fight happens in. Not tracked, not
 padded, screen-locked.
 
+## Campaign, where there is no sector wash to remove
+
+The endless numbers above get a large free win from killing `_sectorTint`.
+Campaign has none, and the Vader chamber is near-black to begin with — so this
+is the honest floor of the effect, measured the same way:
+
+| region | lit | dark | darker |
+|---|---|---|---|
+| centre (player + Vader) | 19.2 | 10.6 | 44.5% |
+| top strip | 10.0 | 1.3 | 87.4% |
+| **whole game viewport** | **14.1** | **4.9** | **65.2%** |
+
+The centre darkens least because the two actors standing in it are exempt —
+which is the mode working, not failing. Compare the whole-viewport lit
+luminance: 14.1 here against 59.4 at endless sector 30.
+
 ## Cadence — the spam, quantified
 
 Real 75s Vader 6 fights, production scheduler, nothing silenced.
@@ -94,3 +110,16 @@ when the game camera clamps at the arena bounds and the player walks on? It
 does not — the darkening is uniform, no strip is uncovered, and the player is
 never inside a dark part of their own light. That was the failure mode of the
 tracked pocket this replaces.
+
+
+## What the shots answer
+
+| question (brief §28) | answer |
+|---|---|
+| Does the entire room look like it lost ambient power? | Yes — 81% of the viewport, near-uniform, and the sector-30 olive wash is gone |
+| Do existing emissive elements now dominate naturally? | Yes — the console screens and LEDs, the pod's key light and the crimson dais are the brightest static things left, without one new FX |
+| Is Vader's saber visually striking? | Yes — it is the only saturated red in the frame, which is why the floor tint had to stay dark |
+| Are dangerous telegraphs still readable? | Yes — `seq-04` and `seq-06c`: the lanes and cones gain contrast because everything around them lost it |
+| Can the player still navigate? | Structure survives as the consoles, the pod, the perimeter panel lines and the dais ring. The hex grid does not — it was only ever visible through the additive wash |
+| Do I see "dark arena" before "vignette"? | Yes — the vignette is flat zero out to 300px |
+| Does the state look aesthetically intentional? | This is the human's call. It is the one thing an automated rig cannot answer |
