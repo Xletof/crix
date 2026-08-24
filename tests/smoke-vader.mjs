@@ -434,7 +434,13 @@ r.suppress = await page.evaluate(async () => {
   const midMs = p._suppressedMs;
   gs.events.emit('boss-disarm', gs.boss);
   const repeatMs = p._suppressedMs;
-  await wait(PLAYER.suppressMs + 500);
+  // WAIT ON THE CONDITION, NOT THE CLOCK. `_suppressedMs` is decremented by
+  // Phaser's `delta`, which is CLAMPED — so at this harness's ~190ms frames a
+  // 4500ms wall-clock sleep delivers well under 4000ms of accumulated delta and
+  // the lock is still up when the probe reads it. Marginal for as long as this
+  // block has existed; it started tripping when the suite got longer, which is
+  // the load-sensitivity tests/README.md warns about, not a game bug.
+  for (let i = 0; i < 200 && p._suppressedMs > 0; i++) await wait(60);
   gs.events.off('show-banner', spy);
   const after = probe();
 
@@ -662,6 +668,63 @@ r.lights = await page.evaluate(async () => {
     sectorTint: gs._sectorTint?.fillAlpha ?? null,
   };
   return out;
+});
+
+await keepAlive();
+
+// ── FORCE PULL + DEFLECTION — an APPROVED combination ────────────────────
+//
+// Handset-verified on Vader 6 and now part of the high-tier combat language:
+// DEFLECTION punishes careless ranged aggression, FORCE PULL compromises
+// repositioning, and lateral dash is the answer. The player's death inside it
+// was judged fair. Nothing may quietly start excluding them.
+//
+// Deliberately NOT a choreography test. Waiting for the natural combination to
+// occur is a timing race that would flake and then get "fixed" by loosening
+// it. What is asserted is OWNERSHIP: this pass added an arena state, and the
+// regression it could plausibly cause is that state gating his moves.
+r.combo = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const b = gs.boss;
+  const snap = () => ({
+    cooldown: b.cooldown, moveT: b._moveT,
+    reflectEvery: b._reflectEvery ?? null, reflectUntil: b._reflectUntil ?? 0,
+    sunderEvery: b._sunderEvery ?? null, disarmEvery: b._disarmEvery ?? null,
+    performing: !!b._performing, state: b.state,
+  });
+  gs._clearLightsOut?.();
+  await new Promise((res) => setTimeout(res, 300));
+
+  // FREEZE HIS CLOCKS FOR THE COMPARISON ONLY, and say so: this measures
+  // whether the LIGHTS OUT owner WRITES to his scheduler, and a free-running
+  // reflect clock would move `_reflectUntil` on its own and drown the signal.
+  // The claim under test is a write that does not happen.
+  const FAR = 1e9;
+  b._reflectT = FAR; b._sunderT = FAR; b._blackoutT = FAR;
+  b._afterimageT = FAR; b._disarmT = FAR;
+  b.cooldown = 4321; b._moveT = 8765;
+  const before = snap();
+
+  gs.requestLightsOut?.('blackout');
+  const during = snap();
+  gs._endLightsOut?.();
+  const cooling = snap();
+  gs._clearLightsOut?.();
+  const after = snap();
+
+  return {
+    before, during, cooling, after,
+    // The frozen DEFLECTION cadence, read where it lives.
+    reflectEvery: b._reflectEvery ?? null,
+    reflectExists: typeof b.canOpenGuard === 'function',
+    // And the registry itself: no move in the pool may have acquired a
+    // condition naming another mechanic.
+    moveGates: await (async () => {
+      const { BOSS_MOVES } = await import('/src/data/bossMoves.js');
+      const src = BOSS_MOVES.map((m) => JSON.stringify(Object.keys(m))).join(' ');
+      return { count: BOSS_MOVES.length, hasExclusion: /exclude|notWith|blockedBy/i.test(src) };
+    })(),
+  };
 });
 
 await keepAlive();
@@ -1145,6 +1208,41 @@ check(r.lights.lifecycle.state === 'off' && r.lights.lifecycle.pending === null
   'a teardown clears state, pending, both timers and every tint',
   `${JSON.stringify({ ...r.lights.lifecycle, endEv: !!r.lights.lifecycle.endEv, cdEv: !!r.lights.lifecycle.cdEv })} — ` +
   'a stale callback would start darkness in a later arena, and a leaked tint would leave it permanently dark');
+
+// ── FORCE PULL + DEFLECTION — an APPROVED combination ────────────────────
+//
+// Handset-verified on Vader 6 and now part of the high-tier combat language:
+// DEFLECTION punishes careless ranged aggression, FORCE PULL compromises
+// repositioning, and lateral dash is the answer. The player's death inside it
+// was judged fair.
+//
+// DELIBERATELY NOT A CHOREOGRAPHY TEST. Waiting for the natural combination,
+// or even casting FORCE PULL and checking it took, is a race: `_castBossMove`
+// legitimately refuses while his own state machine is mid-attack and while
+// DEFLECTION's stance is up, and a refused cast reads exactly like a gated one.
+// A first draft of this check flipped between pass and fail on consecutive
+// runs for precisely that reason. What is asserted instead is deterministic
+// and is the regression this pass could actually cause: the arena state must
+// not WRITE to his scheduler at all.
+{
+  const same = (a, c) => a.cooldown === c.cooldown && a.moveT === c.moveT
+    && a.reflectEvery === c.reflectEvery && a.reflectUntil === c.reflectUntil
+    && a.sunderEvery === c.sunderEvery && a.disarmEvery === c.disarmEvery
+    && a.performing === c.performing && a.state === c.state;
+  check(same(r.combo.before, r.combo.during)
+     && same(r.combo.before, r.combo.cooling)
+     && same(r.combo.before, r.combo.after),
+    'LIGHTS OUT writes nothing to his attack scheduler',
+    `before ${JSON.stringify(r.combo.before)} / during ${JSON.stringify(r.combo.during)} — ` +
+    'the arena state is presentation; a mechanic that suppressed his moves would show here');
+}
+check(r.combo.reflectExists === true && r.combo.reflectEvery === 9000,
+  'DEFLECTION keeps its own frozen cadence, unconditional on any of it',
+  `${r.combo.reflectEvery}ms`);
+check(r.combo.moveGates.count > 0 && r.combo.moveGates.hasExclusion === false,
+  'and no move carries an exclusion rule against another mechanic',
+  `${r.combo.moveGates.count} moves — FORCE PULL + DEFLECTION is an APPROVED handset-verified ` +
+  'combination; do not add scheduler separation or soften either because they overlap');
 
 // ── Afterimages ──────────────────────────────────────────────────────────
 check(r.afterimages.spawned === 3, 'afterimages spawn', `${r.afterimages.spawned} of 3`);
