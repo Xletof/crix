@@ -478,6 +478,33 @@ either would silently switch itself off exactly when you least want it to.
 
 ---
 
+## 10a. VADER IS HUMAN-APPROVED AND FROZEN 🔒
+
+**Handset review closed him out on `83dee24`.** Everything in sections 10b–10m
+below is the record of how he was built; this section is the verdict on it.
+He is not the experiment any more — he is the benchmark. Do not reopen him
+because another polish opportunity exists.
+
+| system | state |
+|---|---|
+| encounter ladder, hp, damage, composition | **frozen** — Vader 1 now reads as a complete Vader, later rungs escalate through composition and decision density, Vader 6 is the strongest, as intended |
+| DEFLECTION, the parries, the stance, saber ownership | **frozen** |
+| the returned super | **frozen** — 1080px/s, constant, no homing, 44px body, 620ms anticipation, **455 damage** |
+| SUPPRESSION | **frozen** — 4000ms, blocks both Super paths and nothing else |
+| FORCE PULL + DEFLECTION | **approved combination** — see 10k, do not separate them |
+| VANISH | **approved** — the surprise and the reposition both work |
+| LIGHTS OUT gameplay, cadence, state ownership | **frozen** — one owner, 2600ms active, 14,000ms post-darkness re-entry, BLACKOUT/ECLIPSE arbitration |
+| the dark-arena material state and the secondary vignette | **frozen** |
+| Afterimages / ECLIPSE | **frozen** |
+| the saber emissive treatment | **approved** — reads as a local light source (10l) |
+| the console/environment glow | **PLACEHOLDER** — see 10m |
+
+**Do NOT tune his hp or his progression from bot fight duration.** The measuring
+bot never dies and its dps is an uninterrupted ceiling; sizing his pool off it
+once shipped a 300,000-hp boss that came back from the phone as "cannot even
+dent it". Absolutes are a playtest, and this playtest is done. New numbers need
+new human evidence.
+
 ## 10b. The Vader fight (as of the four-round rebuild)
 
 Read `docs/POST-MORTEM-vader-moves.md` before touching any of this.
@@ -680,7 +707,12 @@ What changed:
   release.
 - **The orb's damage is bounded and has nothing to do with the player's
   scaling**: `superReturnBase 180 + 55 × pellets`, ceiling `620`. Five pellets =
-  **455** against 1000 player hp. It is a stated ceiling on damage, not a hidden
+  **455** against 1000 player hp. **455 IS THE DAMAGE; 620 IS ONLY THE CEILING**
+  and it does not bind until eight pellets, which the game cannot produce.
+  Reading `superReturnDamageMax` and reporting it as the delivered number is a
+  mistake that has already been made once, off a frozen-values check whose label
+  invited it; `smoke-vader` now derives 455 from the real config and asserts the
+  ceiling is NOT reached, in two separately-named checks. It is a stated ceiling on damage, not a hidden
   cap on intake — every pellet is absorbed, counted, and the orb carries exactly
   what it deals. **This is the number to argue about on a handset.**
 - **Three hostile pools now.** `bossSuperOrbs` joins `enemyBullets` and

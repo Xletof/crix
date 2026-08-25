@@ -702,6 +702,37 @@ Two of these are worth understanding rather than re-running:
   second one measures the machine.
 
 
+## A dev server that has had `src/` swapped under it will lie to you
+
+**Measured 2026-08-24, six confident false failures in one run.** The baseline
+A/B procedure (`git checkout <old> -- src/`, run, `git checkout HEAD -- src/`)
+happens while `npm run dev` is live, and Vite's module graph does not always come
+back cleanly: a later run reported six arena-darkening and parry checks failing
+on source that passes 116/116 the moment the server is restarted. The failures
+were plausible, clustered, and entirely fictional.
+
+So: **after any baseline checkout, kill and restart the dev server before
+trusting the next measurement.** And if a run fails checks in a system you did
+not touch, restart the server and re-run *before* investigating the code. Note
+that a second `npm run dev` does not replace the first — it takes the next free
+port and the old server keeps serving 5173.
+
+## The returned super: 455 is the damage, 620 is the ceiling
+
+`smoke-vader`'s frozen-values block used to assert `superReturnDamageMax === 620`
+under a label that said it protected "the returned super's damage". Both halves
+were individually defensible and together they were misleading enough to produce
+a wrong report. The runtime is
+`min(superReturnBase 180 + superReturnPerPellet 55 × pellets, 620)` over
+`PLAYER.superPellets` = 5, so the delivered number is **455** and the ceiling
+does not bind until eight pellets.
+
+There are now four separately-named checks: the speed, the schedule, the derived
+455 ("THIS is the delivered damage"), and the ceiling ("it is not reached — never
+report it as the damage"). The 455 is computed from the live config rather than
+written as a literal, so the assertion and the game cannot drift apart. The same
+derivation already existed in `smoke-deflect` as `expectDmg`.
+
 ## Dark-arena rigs (added with the art-direction + ownership pass)
 
 - **`tests/shot-saber-glow.mjs`** — Vader's saber across its whole combat

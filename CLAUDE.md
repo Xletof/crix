@@ -23,6 +23,28 @@ approval, and never let it trigger a retry loop.
 **Don't repeat work already done in the session.** Before exploring, check whether
 the finding is already established earlier in the conversation.
 
+## VADER IS FROZEN 🔒
+
+**Handset review closed him out on `83dee24`.** The ladder, hp, damage, the move
+composition, DEFLECTION, the returned super, SUPPRESSION, VANISH, LIGHTS OUT's
+cadence and state ownership, the dark-arena material state, Afterimages/ECLIPSE
+and the saber emissive treatment are all human-approved and **not open**. The
+traps below describe how they work and how they break; none of them is an
+invitation to tune. FORCE PULL + DEFLECTION is a deliberate combination — do not
+add an exclusion rule. Do not re-derive his hp from bot fight duration.
+
+The one thing knowingly unfinished is the arena's emissive second state:
+`LIGHTSOUT.consoleGlowAlpha` is a placeholder and the real emergency-power
+composition belongs to the map/environment overhaul (`HANDOVER.md` 10m). Do not
+reopen Vader to chase it.
+
+**455 IS THE RETURNED SUPER'S DAMAGE. 620 IS ONLY THE CEILING.** The runtime is
+`min(superReturnBase 180 + superReturnPerPellet 55 × pellets, 620)` and the game
+fires five pellets: 180 + 275 = **455**. The ceiling does not bind until eight.
+Reading `superReturnDamageMax` and calling it the damage has already produced
+one wrong report; `smoke-vader` now derives the delivered number from config and
+asserts separately that the ceiling is not reached.
+
 ## Repo facts that are easy to get wrong
 
 - **Deploys only happen from the `FRIX` branch.** `.github/workflows/deploy.yml`

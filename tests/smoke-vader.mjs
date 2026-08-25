@@ -989,7 +989,23 @@ r.frozen = await page.evaluate(async () => {
     suppressMs: PLAYER.suppressMs, superSpeed: PLAYER.superSpeed,
     reflectMs: M.reflectMs, reflectEveryMs: M.reflectEveryMs, parryMs: M.parryMs,
     superReleaseMs: M.superReleaseMs, superSweepMs: M.superSweepMs,
+    // ── 455 IS THE DAMAGE. 620 IS THE CEILING. ──────────────────────────
+    // These are three separate numbers and only one of them ever reaches the
+    // player. `firePlayerSuper`'s return path computes
+    // `min(base + perPellet * n, max)`, and at the game's five pellets that is
+    // 180 + 275 = 455 — the ceiling does not bind until eight pellets, which
+    // nothing produces. Reading `superReturnDamageMax` and calling it "the
+    // returned super's damage" is a mistake that has already been made in a
+    // report, off a check whose label invited it. Derived here from the real
+    // config, never written as a literal, so the two can never drift apart.
+    superReturnBase: M.superReturnBase,
+    superReturnPerPellet: M.superReturnPerPellet,
     superReturnDamageMax: M.superReturnDamageMax,
+    superPellets: PLAYER.superPellets,
+    superReturnDealt: Math.min(
+      M.superReturnBase + M.superReturnPerPellet * PLAYER.superPellets,
+      M.superReturnDamageMax,
+    ),
     afterimageEveryMs: M.afterimageEveryMs, afterimageCount: M.afterimageCount,
     bossRadius: BOSS.radius, bossHp: BOSS.hp,
   };
@@ -1454,14 +1470,27 @@ check(F.lo.floor === 0x12151f && F.lo.wall === 0x1a1f2b && F.lo.prop === 0x2e344
 check(F.vignette.inner === 300 && F.vignette.outer === 820
       && F.vignette.stops === '[[0,0],[0.45,0.1],[0.75,0.28],[1,0.46]]',
   'FROZEN: the vignette geometry is untouched', JSON.stringify(F.vignette));
-check(F.suppressMs === 4000 && F.superSpeed === 1080,
-  'FROZEN: SUPPRESSION and the returned super are untouched',
-  `suppressMs ${F.suppressMs}, super speed ${F.superSpeed}`);
+check(F.suppressMs === 4000, 'FROZEN: SUPPRESSION lasts 4000ms', `${F.suppressMs}ms`);
 check(F.reflectMs === 2400 && F.reflectEveryMs === 9000 && F.parryMs === 300
-      && F.superReleaseMs === 620 && F.superSweepMs === 260 && F.superReturnDamageMax === 620,
-  'FROZEN: every DEFLECTION timing and the returned super\'s damage are untouched',
-  `reflect ${F.reflectMs}/${F.reflectEveryMs}, parry ${F.parryMs}, release ${F.superReleaseMs}, `
-  + `sweep ${F.superSweepMs}, return dmg ${F.superReturnDamageMax}`);
+      && F.superReleaseMs === 620 && F.superSweepMs === 260,
+  'FROZEN: every DEFLECTION timing is untouched',
+  `reflect ${F.reflectMs}/${F.reflectEveryMs}, parry ${F.parryMs}, `
+  + `release ${F.superReleaseMs}, sweep ${F.superSweepMs}`);
+// ── THE RETURNED SUPER: THREE NUMBERS, AND ONLY ONE IS THE DAMAGE ─────────
+check(F.superSpeed === 1080,
+  'FROZEN: the returned super travels at the player\'s own super speed, 1080',
+  `${F.superSpeed}px/s — a literal here would let the two drift apart silently`);
+check(F.superReturnBase === 180 && F.superReturnPerPellet === 55 && F.superPellets === 5,
+  'FROZEN: the return damage schedule is 180 + 55 per pellet, over 5 pellets',
+  `base ${F.superReturnBase}, per pellet ${F.superReturnPerPellet}, pellets ${F.superPellets}`);
+check(F.superReturnDealt === 455,
+  'FROZEN: a full five-pellet super comes back as 455 — THIS is the delivered damage',
+  `min(${F.superReturnBase} + ${F.superReturnPerPellet} x ${F.superPellets}, `
+  + `${F.superReturnDamageMax}) = ${F.superReturnDealt} against 1000 player hp`);
+check(F.superReturnDamageMax === 620 && F.superReturnDealt < F.superReturnDamageMax,
+  'FROZEN: 620 is the CEILING and it is not reached — never report it as the damage',
+  `ceiling ${F.superReturnDamageMax}, binds at ${Math.ceil((F.superReturnDamageMax - F.superReturnBase) / F.superReturnPerPellet)} `
+  + `pellets, the game fires ${F.superPellets}`);
 check(F.afterimageEveryMs === 13000 && F.afterimageCount === 3,
   'FROZEN: Afterimages scheduling and clone count are untouched',
   `every ${F.afterimageEveryMs}ms, ${F.afterimageCount} clones`);
