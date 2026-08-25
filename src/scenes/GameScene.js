@@ -579,9 +579,16 @@ export class GameScene extends Phaser.Scene {
     // Deliberately NOT in `roomLayer`. That group is the LIGHTS OUT tint's
     // subject, and a light that gets multiplied by the darkness is not a light.
     // It is destroyed explicitly in `_clearRoomEntities` for the same reason.
+    //
+    // ONE ARENA. `spec.emissives` is the opt-in: a room that has not been
+    // authored for two lighting states gets an EMPTY layer, not a default one.
+    // The derived console screens are gated with it — seeding them from every
+    // room's cover list would have quietly lit the other three arenas, which is
+    // the propagation this pilot is explicitly not allowed to do yet.
+    const authored = Array.isArray(spec.emissives) && spec.emissives.length > 0;
     this.envLight?.destroy();
-    this.envLight = new EnvLight(this, [
-      ...(spec.emissives || []),
+    this.envLight = new EnvLight(this, !authored ? [] : [
+      ...spec.emissives,
       // A cover console is a powered terminal — blue screen, lit key row. The
       // screen face sits just above the sprite's centre (rows 8-16 of 28), and
       // the spill is biased DOWN because the face is tilted at its operator.
