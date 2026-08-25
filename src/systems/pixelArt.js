@@ -135,6 +135,26 @@ export const PAL = {
   vadStripGlw:  '#e01818',
   vadAcc:       '#1a1a24',
   vadAccGlw:    '#303040',
+  // ── PILOT CHAMBER MATERIAL LADDER ───────────────────────────────────────
+  // The Vader chamber's environment pilot. Cool graphite rather than neutral
+  // black: every step is blue-shifted, so the room reads as gunmetal under
+  // dead fluorescents instead of as an unlit void, and nothing in it is warm
+  // enough to be mistaken for the crimson that belongs to the saber and the
+  // telegraphs.
+  //
+  // Read as a VALUE ladder, darkest to lightest. The gaps are deliberately
+  // uneven: recess -> deck is a small step (the floor should stay calm) and
+  // deck -> rib is a large one (structure should read first).
+  chSink:       '#080a0e',   // deepest recess — trench floors, wall bays
+  chRecess:     '#12151d',   // side aisles, inset regions
+  chDeck:       '#191d27',   // the nave — the floor the fight happens on
+  chDeckLit:    '#222734',   // dais top face, lit plate edges
+  chRib:        '#2e3542',   // structural ribs, plate seams, door frames
+  chRibLit:     '#3d4655',   // the lit sliver on a raised edge
+  chMach:       '#1d212b',   // machinery mass body
+  chMachLit:    '#2b313d',   // machinery top face
+  chSeam:       '#06080c',   // the dark line of a seam or a cast edge
+  chBolt:       '#4a5262',   // small hardware — bolts, vent slats
   // ── Per-room perimeter walls ─────────────────────────────────────────────
   // The band painted around each arena's edge (see drawPerimeter). Three tones
   // per room: the wall top, its lit outer sliver, and the recessed greebles.
@@ -1661,6 +1681,259 @@ function drawFloorMarks(ctx, marks, color, alpha) {
   ctx.restore();
 }
 
+// ── AUTHORED FLOOR ARCHITECTURE ────────────────────────────────────────────
+//
+// The third tier of backdrop art, between the base floor and the deck paint.
+// `drawFloorMarks` paints things that are PAINTED ON the deck; this paints
+// things the deck IS — regions, raised platforms, recessed channels, structural
+// ribs, plate seams.
+//
+// WHY IT IS BAKED. Every primitive here is one more canvas operation at room
+// load and zero objects and zero draw calls afterwards. A room's large forms do
+// not move, so nothing about them belongs in a live Graphics node.
+//
+// WHY IT CANNOT LIE ABOUT COLLISION. Like the floor marks and the perimeter
+// band, this paints into the backdrop canvas. A backdrop image never enters
+// `this.walls`, so neither the nav grid nor the LOS rects nor bullet collision
+// can see it. That is also the constraint on the vocabulary: everything here is
+// FLAT or RECESSED. There is no primitive that draws a tall solid mass on the
+// open floor, because the player would read it as cover and walk through it.
+// Machinery lives in the perimeter band, where the world bounds already are.
+//
+// Three tiers, and they are drawn in that order so the small never sits under
+// the large:
+//   LARGE   region, dais            — the chamber's shape
+//   MEDIUM  trench, rib, plate, bay — its identity
+//   SMALL   vent, bolts, hatch      — sparse, and never on the fighting floor
+//
+// A raised form is lit on its NORTH edge and casts south, because that is the
+// convention every prop and every actor shadow in this game already uses.
+function drawArchitecture(ctx, items, pal) {
+  const P = {
+    sink: pal.sink ?? PAL.chSink,
+    recess: pal.recess ?? PAL.chRecess,
+    deck: pal.deck ?? PAL.chDeck,
+    deckLit: pal.deckLit ?? PAL.chDeckLit,
+    rib: pal.rib ?? PAL.chRib,
+    ribLit: pal.ribLit ?? PAL.chRibLit,
+    seam: pal.seam ?? PAL.chSeam,
+    bolt: pal.bolt ?? PAL.chBolt,
+  };
+  // Named fills, so a spec says what a thing IS rather than what colour it is.
+  const tone = (n) => P[n] ?? n;
+
+  // A soft downward cast under a raised edge. One gradient, not a blur.
+  const cast = (x, y, w, h, a = 0.55) => {
+    const g = ctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, `rgba(0,0,0,${a})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, w, h);
+  };
+
+  ctx.save();
+  for (const it of items) {
+    ctx.globalAlpha = it.alpha ?? 1;
+    switch (it.kind) {
+      // ── LARGE ────────────────────────────────────────────────────────────
+      // A floor region. The chamber's biggest graphic decision: which parts of
+      // the deck are lighter and which recede. Partial alpha by default so the
+      // hex tiling still reads through and the region looks like a value of the
+      // floor rather than a rectangle painted over it.
+      case 'region': {
+        ctx.fillStyle = tone(it.tone);
+        ctx.globalAlpha = it.alpha ?? 0.85;
+        ctx.fillRect(it.x, it.y, it.w, it.h);
+        ctx.globalAlpha = 1;
+        // Its own boundary, drawn as a seam rather than an outline: a dark
+        // line on the far side, a lit sliver on the near side.
+        if (it.edge !== false) {
+          ctx.fillStyle = P.seam;
+          ctx.fillRect(it.x - 2, it.y, 3, it.h);
+          ctx.fillRect(it.x + it.w - 1, it.y, 3, it.h);
+        }
+        break;
+      }
+
+      // A raised platform. Octagonal rather than circular: a straight-edged
+      // form reads as built, and the chamber's one ceremonial object should
+      // not look like a decal. Top face, north light, south cast.
+      case 'dais': {
+        const { x, y, r } = it;
+        const oct = (rad) => {
+          ctx.beginPath();
+          for (let k = 0; k < 8; k++) {
+            const a = -Math.PI / 2 + k * Math.PI / 4 + (it.rot ?? Math.PI / 8);
+            const px = x + Math.cos(a) * rad, py = y + Math.sin(a) * rad * (it.squash ?? 1);
+            if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+        };
+        // The cast first, so the platform sits ON it.
+        ctx.save();
+        oct(r * 1.03);
+        ctx.clip();
+        cast(x - r * 1.1, y, r * 2.2, r * 1.15, 0.5);
+        ctx.restore();
+        // Riser band: the platform's thickness, seen from above as a rim.
+        ctx.fillStyle = P.seam;
+        oct(r); ctx.fill();
+        // Top face.
+        ctx.fillStyle = tone(it.tone ?? 'deckLit');
+        oct(r - (it.lip ?? 14)); ctx.fill();
+        // North light on the rim, south shade.
+        ctx.save();
+        oct(r); ctx.clip();
+        ctx.fillStyle = P.ribLit; ctx.globalAlpha = 0.55;
+        ctx.fillRect(x - r, y - r * (it.squash ?? 1), r * 2, 6);
+        ctx.globalAlpha = 1;
+        ctx.restore();
+        // Two step bands on the approach side, so the dais has a way up.
+        if (it.steps) {
+          for (let i = 0; i < 2; i++) {
+            const sy = y + r * (it.squash ?? 1) + 10 + i * 22;
+            ctx.fillStyle = i ? P.recess : P.deck;
+            ctx.fillRect(x - r * (0.62 - i * 0.1), sy, r * (1.24 - i * 0.2), 18);
+            ctx.fillStyle = P.seam;
+            ctx.fillRect(x - r * (0.62 - i * 0.1), sy + 18, r * (1.24 - i * 0.2), 2);
+          }
+        }
+        break;
+      }
+
+      // ── MEDIUM ───────────────────────────────────────────────────────────
+      // A recessed channel with a grate over it. `dir` is 'v' or 'h'.
+      case 'trench': {
+        const v = (it.dir ?? 'v') === 'v';
+        const w = v ? it.t : it.len, h = v ? it.len : it.t;
+        ctx.fillStyle = P.sink;
+        ctx.fillRect(it.x, it.y, w, h);
+        // The wall of the recess: dark on the near lip, lit on the far one.
+        ctx.fillStyle = P.seam;
+        if (v) ctx.fillRect(it.x, it.y, 3, h); else ctx.fillRect(it.x, it.y, w, 3);
+        ctx.fillStyle = P.ribLit;
+        ctx.globalAlpha = 0.35;
+        if (v) ctx.fillRect(it.x + w - 2, it.y, 2, h); else ctx.fillRect(it.x, it.y + h - 2, w, 2);
+        ctx.globalAlpha = it.alpha ?? 1;
+        // Grate slats. Kept LOW-CONTRAST on purpose: at full rib value a
+        // 900px trench photographed as a ladder painted down the aisle and
+        // pulled the eye off the fight.
+        ctx.globalAlpha = (it.alpha ?? 1) * 0.55;
+        ctx.fillStyle = P.rib;
+        const step = it.step ?? 26;
+        if (v) for (let k = 10; k < h - 6; k += step) ctx.fillRect(it.x + 2, it.y + k, w - 4, 5);
+        else   for (let k = 10; k < w - 6; k += step) ctx.fillRect(it.x + k, it.y + 2, 5, h - 4);
+        break;
+      }
+
+      // A structural rib crossing the floor. Two-tone: the raised band and the
+      // dark seam it sits in. This is the primitive that makes a large empty
+      // deck read as constructed rather than as a texture.
+      case 'rib': {
+        const v = (it.dir ?? 'h') === 'v';
+        const w = v ? (it.t ?? 22) : it.len, h = v ? it.len : (it.t ?? 22);
+        ctx.fillStyle = P.seam;
+        ctx.fillRect(it.x - 2, it.y - 2, w + 4, h + 4);
+        ctx.fillStyle = tone(it.tone ?? 'rib');
+        ctx.fillRect(it.x, it.y, w, h);
+        ctx.fillStyle = P.ribLit;
+        ctx.globalAlpha = (it.alpha ?? 1) * 0.6;
+        if (v) ctx.fillRect(it.x, it.y, 3, h); else ctx.fillRect(it.x, it.y, w, 3);
+        ctx.globalAlpha = it.alpha ?? 1;
+        break;
+      }
+
+      // A large deck plate: a seam outline and, optionally, four corner bolts.
+      // Big on purpose. Small repeated plates are floor noise; a 300px plate is
+      // architecture.
+      case 'plate': {
+        ctx.strokeStyle = P.seam;
+        ctx.lineWidth = it.lw ?? 3;
+        ctx.strokeRect(it.x, it.y, it.w, it.h);
+        ctx.strokeStyle = P.ribLit;
+        ctx.globalAlpha = (it.alpha ?? 1) * 0.30;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(it.x, it.y + it.h); ctx.lineTo(it.x, it.y); ctx.lineTo(it.x + it.w, it.y);
+        ctx.stroke();
+        ctx.globalAlpha = it.alpha ?? 1;
+        if (it.bolts !== false) {
+          ctx.fillStyle = P.bolt;
+          const m = it.inset ?? 14;
+          for (const [bx, by] of [[it.x + m, it.y + m], [it.x + it.w - m, it.y + m],
+                                  [it.x + m, it.y + it.h - m], [it.x + it.w - m, it.y + it.h - m]]) {
+            ctx.fillRect(bx - 2, by - 2, 4, 4);
+          }
+        }
+        break;
+      }
+
+      // A recessed bay in the floor — a dark inset with a lit far lip. Used
+      // where the room wants a hole rather than a mark.
+      case 'inset': {
+        ctx.fillStyle = tone(it.tone ?? 'recess');
+        ctx.fillRect(it.x, it.y, it.w, it.h);
+        ctx.fillStyle = P.seam;
+        ctx.fillRect(it.x, it.y, it.w, 4);
+        ctx.fillStyle = P.ribLit;
+        ctx.globalAlpha = (it.alpha ?? 1) * 0.30;
+        ctx.fillRect(it.x, it.y + it.h - 3, it.w, 3);
+        ctx.globalAlpha = it.alpha ?? 1;
+        break;
+      }
+
+      // A heavy frame around a doorway, standing on the deck side of the wall
+      // band. Gives a gate a threshold instead of a hole.
+      case 'doorframe': {
+        const { x, y, w, h } = it;
+        ctx.fillStyle = P.rib;
+        ctx.fillRect(x, y, w, h);
+        ctx.fillStyle = P.seam;
+        ctx.fillRect(x + 10, y + 10, w - 20, h - 20);
+        ctx.fillStyle = P.ribLit;
+        ctx.globalAlpha = (it.alpha ?? 1) * 0.5;
+        ctx.fillRect(x, y, w, 4);
+        ctx.globalAlpha = it.alpha ?? 1;
+        break;
+      }
+
+      // ── SMALL ────────────────────────────────────────────────────────────
+      // A grille. Deliberately the only repeated small element, and it is only
+      // ever placed at the perimeter.
+      case 'vent': {
+        ctx.fillStyle = P.seam;
+        ctx.fillRect(it.x, it.y, it.w, it.h);
+        ctx.fillStyle = P.bolt;
+        ctx.globalAlpha = (it.alpha ?? 1) * 0.7;
+        for (let k = 4; k < it.h - 3; k += 7) ctx.fillRect(it.x + 3, it.y + k, it.w - 6, 3);
+        ctx.globalAlpha = it.alpha ?? 1;
+        break;
+      }
+
+      // A grounding shadow. Not decoration — this is what stops a console or a
+      // prop from looking like a sticker on the deck. Ellipse, softened, and
+      // baked so it darkens with the floor when the room loses power (a shadow
+      // that survives a blackout is a shadow with no light to cast it).
+      case 'ground': {
+        const g = ctx.createRadialGradient(it.x, it.y, 0, it.x, it.y, it.r);
+        g.addColorStop(0, `rgba(0,0,0,${it.a ?? 0.55})`);
+        g.addColorStop(0.55, `rgba(0,0,0,${(it.a ?? 0.55) * 0.55})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.save();
+        ctx.translate(it.x, it.y);
+        ctx.scale(1, it.squash ?? 0.45);
+        ctx.translate(-it.x, -it.y);
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(it.x, it.y, it.r, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        break;
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+
 // ── PERIMETER DRESSING ─────────────────────────────────────────────────────
 // A wall band painted around the arena edge, so a room reads as a room rather
 // than as a floor texture that stops.
@@ -1769,6 +2042,60 @@ function drawPerimeter(ctx, worldW, worldH, opts) {
       // should feel severe, and greebles would make it look lived-in.
       ctx.globalAlpha = 0.6;
       for (let x = 60; x < e.len; x += 260) ctx.fillRect(x, 4, 16, thickness - 8);
+    } else if (style === 'chamber') {
+      // THE PILOT WALL. `bare` was severe by being empty, and empty photographs
+      // as unfinished: at the room's corners the band was a dark strip with one
+      // red line on it and nothing else in frame.
+      //
+      // This is severe by RHYTHM instead. A repeating bay — heavy pilaster,
+      // deep recess, machinery block — at a large 320px period, so the wall has
+      // structure without becoming greebles. Three values do the work: the band
+      // (wall), the recess (wallDark) and the pilaster face (wallLit).
+      //
+      // Relief is kept SHALLOW on purpose. The world bounds sit at the outside
+      // of this band, so the player can stand on it; a wall that reads as a
+      // tall solid mass here would be promising a collision the room does not
+      // have. Everything below is a surface treatment, not a silhouette.
+      const period = 320;
+      for (let x = 0; x < e.len + period; x += period) {
+        // The recessed bay between pilasters — the dark part of the rhythm.
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = wallDark;
+        ctx.fillRect(x + 54, 8, period - 108, thickness - 20);
+        // Its lit inner lip, so the recess has a depth read.
+        ctx.globalAlpha = 0.30;
+        ctx.fillStyle = wallLit;
+        ctx.fillRect(x + 54, thickness - 14, period - 108, 3);
+        // Machinery block seated in the bay: a denser mass with vertical ribs.
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = wall;
+        ctx.fillRect(x + 96, 14, period - 192, thickness - 34);
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = wallDark;
+        for (let k = 0; k < period - 192; k += 18) ctx.fillRect(x + 100 + k, 18, 7, thickness - 42);
+        // Its top face catches the corridor light.
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = wallLit;
+        ctx.fillRect(x + 96, 14, period - 192, 4);
+        // The pilasters themselves — the light part of the rhythm, and the
+        // only place the band reaches full thickness.
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = wall;
+        ctx.fillRect(x + 12, 0, 42, thickness);
+        ctx.fillStyle = wallLit;
+        ctx.fillRect(x + 12, 0, 42, Math.round(thickness * 0.30));
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = wallDark;
+        ctx.fillRect(x + 12, 0, 4, thickness);
+        ctx.fillRect(x + 50, 0, 4, thickness);
+        // One small hardware detail per bay and no more: a vent on the block.
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = wallDark;
+        ctx.fillRect(x + period / 2 - 22, thickness - 26, 44, 12);
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = wallLit;
+        for (let k = 0; k < 4; k++) ctx.fillRect(x + period / 2 - 19 + k * 11, thickness - 24, 6, 8);
+      }
     }
     ctx.globalAlpha = 1;
 
@@ -1863,6 +2190,12 @@ export function paintBackdrop(scene, key, worldW, worldH, opts = {}) {
     markAlpha  = 0.5,
     perimeter  = null,   // { style, thickness, wall, wallLit, wallDark, trim, glow }
     openings   = [],     // doorway cuts, derived from the room's gates + exit
+    // ── PILOT ADDITIONS. All three default to off, so a room that has not
+    // been authored paints exactly the texture it always did.
+    architecture = [],   // baked large/medium/small forms — see drawArchitecture
+    archPal    = {},     // per-room override of the material ladder
+    grounding  = [],     // contact shadows, derived from the room's own cover/props
+    hexAlpha   = 1,      // the tiling's contrast. An authored floor wants it low.
   } = opts;
 
   const tex = scene.textures.createCanvas(key, worldW, worldH);
@@ -1877,6 +2210,7 @@ export function paintBackdrop(scene, key, worldW, worldH, opts = {}) {
   const rx = hexW * 0.469, ry = hexH * 0.5;
   ctx.strokeStyle = line;
   ctx.lineWidth = 1.5;
+  ctx.globalAlpha = hexAlpha;
   for (let row = 0; row < worldH / hexH + 2; row++) {
     for (let col = 0; col < worldW / hexW + 2; col++) {
       const ox = (row % 2 === 0) ? 0 : hexW / 2;
@@ -1894,6 +2228,8 @@ export function paintBackdrop(scene, key, worldW, worldH, opts = {}) {
     }
   }
 
+  ctx.globalAlpha = 1;
+
   // Panel sections — subtle darker rectangles
   ctx.globalAlpha = 0.25;
   ctx.fillStyle = panel;
@@ -1905,10 +2241,25 @@ export function paintBackdrop(scene, key, worldW, worldH, opts = {}) {
     ctx.fillRect(Math.floor(x / 4) * 4, Math.floor(y / 4) * 4, w, h);
   }
 
-  // Primary strip lights (horizontal runs)
+  // ── AUTHORED ARCHITECTURE ────────────────────────────────────────────────
+  // After the random panel variation and before the deck paint: the large and
+  // medium forms are what the panels vary WITHIN, and the paint goes on top of
+  // the structure exactly as it would on a real deck.
+  ctx.globalAlpha = 1;
+  if (architecture.length) drawArchitecture(ctx, architecture, archPal);
+  // Contact shadows last on the structure, so a console grounds onto whatever
+  // plate it happens to stand on rather than under it.
+  if (grounding.length) drawArchitecture(ctx, grounding, archPal);
+
+  // Primary strip lights (horizontal runs).
+  //
+  // `stripEvery: 0` turns them off entirely. An authored room carries its light
+  // in the emissive layer instead — a full-width 3px line at every 520px is a
+  // ceiling fixture drawn on the floor, and in the Vader chamber it was also
+  // CRIMSON, which is the one colour the environment may not spend.
   ctx.globalAlpha = 1;
   ctx.fillStyle = strip;
-  for (let y = 0; y < worldH; y += stripEvery) {
+  for (let y = 0; stripEvery > 0 && y < worldH; y += stripEvery) {
     const yy = y + Math.random() * 80;
     ctx.fillRect(0, yy, worldW, 3);
     ctx.fillStyle = stripGlow;
@@ -1921,7 +2272,7 @@ export function paintBackdrop(scene, key, worldW, worldH, opts = {}) {
   // Accent strips (alternating, less frequent)
   ctx.globalAlpha = 0.7;
   ctx.fillStyle = accent;
-  for (let y = 100; y < worldH; y += accentEvery) {
+  for (let y = 100; accentEvery > 0 && y < worldH; y += accentEvery) {
     const yy = y + Math.random() * 40;
     ctx.fillRect(0, yy, worldW, 2);
     ctx.fillStyle = accentGlow;

@@ -1386,12 +1386,22 @@ export const LIGHTSOUT = {
   // so anything gentle enough to spare them leaves a maroon room — and crimson
   // is the DANGER colour here. The saber, the SABER THROW lane and every
   // telegraph are red, and they have to be the only red in the frame.
-  floor:   0x12151f,
+  //
+  // RAISED FOR THE ARENA PILOT, and the reason it can be is that the maroon
+  // trap is gone. The measurement that pinned this at 0x12151f was taken when
+  // the Vader chamber's floor had four full-width CRIMSON strip lights and two
+  // crimson rings baked into it: any tint gentle enough to leave architecture
+  // readable also left those legible, and the room came back maroon. The pilot
+  // floor has no red in it at all — the deck is cool graphite, the marks are
+  // steel, and `stripEvery: 0` turns the strip pass off — so a lighter tint now
+  // yields a blue-grey emergency room instead. Architecture stays readable
+  // enough to navigate and the authored emissives have something to fall on.
+  floor:   0x2e3648,
   // Walls. Near-black, but not black: geometry must still be readable enough to
   // navigate, per the brief's "emergency-power Death Star, not black screen".
-  wall:    0x1a1f2b,
+  wall:    0x3a4356,
   // Props — machinery keeps a little of itself and its own glows with it.
-  prop:    0x2e3446,
+  prop:    0x3e4658,
   // Cover consoles. THE ISLANDS. Blue screen glass, a green and two red LEDs
   // and a lit keyboard row, all baked in; at this strength they survive as the
   // brightest static things in the room.
@@ -1449,17 +1459,27 @@ export const LIGHTSOUT = {
     maxMix: 1,
   },
 
-  // ── ISLANDS OF REMAINING POWER (bounded prototype) ───────────────────────
-  // The consoles already survive the darkening at ~0.57 — they are the
-  // brightest static things left. This adds a soft ADD-blended pool behind
-  // each one so they READ as still powered rather than merely less dark. One
-  // Graphics for the whole room, redrawn only when the mix changes. It is
-  // deliberately BLUE: crimson is the danger colour and belongs to the saber
-  // and the telegraphs alone. Set `consoleGlowAlpha` to 0 to remove it
-  // entirely — the saber does not depend on it.
-  consoleGlowAlpha: 0.16,
-  consoleGlowColor: 0x2a6fb0,
-  consoleGlowRadius: 46,
+  // ── ISLANDS OF REMAINING POWER — REPLACED, NOT TUNED ─────────────────────
+  //
+  // `consoleGlowAlpha` / `consoleGlowColor` / `consoleGlowRadius` used to live
+  // here and drove `GameScene._drawConsoleGlow`: one blue disc behind each
+  // cover console, drawn only while the room was dark. It was labelled a
+  // bounded prototype and deferred to the environment pass, and this is that
+  // pass, so it is GONE rather than retained alongside its replacement.
+  //
+  // Three things were wrong with it and all three are structural:
+  //   - it existed only in the dark, so it was a blackout effect rather than a
+  //     property of a console. A powered object is powered when the lights are
+  //     on too.
+  //   - a radial pool is the wrong shape for a monitor. Every source in the
+  //     room got the same circle regardless of what it was.
+  //   - it could only ever light the four cover consoles, because those were
+  //     the only objects it knew how to find.
+  //
+  // Its replacement is `src/systems/EnvLight.js`, driven per room from
+  // `spec.emissives` and from the room's own cover list, with an emitter and a
+  // shaped spill per source and two independent intensities. It is fed the same
+  // scalar this file's tints ride on — see `GameScene._applyDarkMix`.
 };
 
 

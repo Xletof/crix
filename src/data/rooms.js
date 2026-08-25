@@ -276,30 +276,176 @@ export const ROOMS = [
     // overlapping pair. In the campaign this door is simply never opened:
     // `room-cleared` returns early for boss rooms, and boss-died ends the run.
     exit: { x: 1500, y: 1200, side: 'right' },
-    // Severe and empty: near-black, one deep red key, very few strips and a
-    // large sparse hex. The climax should feel bare, not busy.
+    // ══ THE ENVIRONMENT PILOT ═══════════════════════════════════════════
+    //
+    // This room is the proof of the arena visual language. Everything below is
+    // ART: it is painted into the backdrop canvas or into the emissive layer,
+    // and neither of those can reach `this.walls`, so nav, LOS, bullet
+    // collision, the arena bounds and the boss's movement space are exactly
+    // what they were. `cover`, `props`, `gates`, `bossSpawn` and `spawn` are
+    // untouched from the build this replaced.
+    //
+    // WHAT CHANGED AND WHY. The old chamber was severe by SUBTRACTION — a flat
+    // hex deck, two crimson rings, four full-width red strip lights and a bare
+    // wall band. Three problems, all visible in the baseline evidence:
+    //   - no large forms, so the room had no shape and the eye had nowhere
+    //     to go; it read as a texture that the fight happened on top of
+    //   - the strip lights were CRIMSON and ran the full width of the world,
+    //     which is the danger colour spent on décor and the one thing the
+    //     brief says the environment may not do
+    //   - the props and consoles sat on the deck with no contact, so they
+    //     floated
+    //
+    // The floor now carries a composition instead: a raised dais at the head of
+    // a lighter central nave, two recessed side aisles either side of it,
+    // flanking service trenches, and two structural ribs crossing the whole
+    // deck. Nothing is added to the middle of the fighting floor beyond those
+    // ribs — density is pushed outward to the aisles and the wall.
     floor: {
-      base: PAL.vadBase, line: PAL.vadLine, panel: PAL.vadPanel,
+      // The material ladder, cool graphite rather than neutral black.
+      base: PAL.chRecess, line: PAL.chSeam, panel: PAL.chSink,
+      // NO BAKED STRIP LIGHTS. `stripEvery: 0` turns the pass off; the room's
+      // light is authored in `emissives` below, where it can have a shape, a
+      // colour that is not crimson, and a second intensity for emergency power.
       strip: PAL.vadStrip, stripGlow: PAL.vadStripGlw,
       accent: PAL.vadAcc, accentGlow: PAL.vadAccGlw,
-      hexW: 120, hexH: 105, stripEvery: 520, accentEvery: 800,
-      panels: 24, scorch: 8,
-      markColor: PAL.vadStripGlw, markAlpha: 0.22,
+      stripEvery: 0, accentEvery: 0,
+      hexW: 120, hexH: 105,
+      // The tiling drops to a whisper. It is still there — it is the Death
+      // Star's floor and removing it would remove the room's family — but at
+      // full contrast it competed with the plate seams that are supposed to be
+      // the medium forms.
+      hexAlpha: 0.28,
+      panels: 18, scorch: 14,
+      // Contact shadows under this room's cover and props, derived in
+      // `loadRoom` from the lists below. Opt-in, because this is a pilot: the
+      // other three arenas paint exactly the backdrop they always did.
+      grounded: true,
+      // Deck paint is STEEL now, not crimson. Red in this room belongs to the
+      // saber, the SABER THROW lane and the telegraphs, and to nothing else.
+      markColor: PAL.chBolt, markAlpha: 0.55,
       marks: [
-        // A single dais under the boss spawn. Nothing else: the chamber should
-        // feel bare and severe, and one mark reads as ceremony where five
-        // would read as clutter.
-        { kind: 'ring', x: 800, y: 400, r: 260, lw: 14 },
-        { kind: 'ring', x: 800, y: 400, r: 300, lw: 5, alpha: 0.5 },
+        // NO PAINTED RING AROUND THE DAIS. The old chamber had two, and the
+        // pilot briefly kept one in steel — it photographed as a thin bright
+        // circle centred on the boss, which is the exact shape and placement of
+        // a circle telegraph. The raised octagon draws that boundary now, in
+        // geometry the player cannot confuse with a warning.
+        //
+        // Caution hatching at the four gate mouths: these are the places the
+        // room actually wants the player to read.
+        { kind: 'stripes', x: 700, y:   82, w: 200, h: 90, alpha: 0.42, gap: 40 },
+        { kind: 'stripes', x: 700, y: 1428, w: 200, h: 90, alpha: 0.42, gap: 40 },
+        { kind: 'stripes', x:  82, y:  700, w:  90, h: 200, alpha: 0.42, gap: 40 },
+        { kind: 'stripes', x: 1428, y: 700, w:  90, h: 200, alpha: 0.42, gap: 40 },
+      ],
+      // ── LARGE, then MEDIUM, then SMALL. Drawn in list order.
+      architecture: [
+        // LARGE — the chamber's shape.
+        // The nave: a lighter deck running the room's long axis, from the south
+        // door to the dais. This is the room's spine and the reason the eye
+        // travels toward the boss.
+        { kind: 'region', x: 560, y: 80, w: 480, h: 1440, tone: 'deck', alpha: 0.92 },
+        // The dais. Octagonal, raised, lit on its north rim and casting south,
+        // with two approach steps on the side the player comes from.
+        { kind: 'dais', x: 800, y: 400, r: 300, tone: 'deckLit', steps: true, lip: 16 },
+
+        // MEDIUM — the room's identity.
+        // Service trenches flanking the nave. Recessed and grated: they are
+        // holes in the deck, so they cannot be mistaken for cover.
+        { kind: 'trench', dir: 'v', x: 512, y: 640, len: 840, t: 40, step: 34 },
+        { kind: 'trench', dir: 'v', x: 1048, y: 640, len: 840, t: 40, step: 34 },
+        // Two structural ribs crossing the entire deck. Two, not six — the
+        // fighting floor has to stay parseable.
+        { kind: 'rib', dir: 'h', x: 80, y: 900, len: 1440, t: 22 },
+        { kind: 'rib', dir: 'h', x: 80, y: 1250, len: 1440, t: 18, alpha: 0.8 },
+        // Big aisle plates. 380x400 each — a plate this size is architecture; a
+        // grid of 60px ones would be floor noise.
+        { kind: 'plate', x: 110, y: 150, w: 380, h: 400, inset: 22 },
+        { kind: 'plate', x: 110, y: 600, w: 380, h: 400, inset: 22 },
+        { kind: 'plate', x: 110, y: 1060, w: 380, h: 400, inset: 22 },
+        { kind: 'plate', x: 1110, y: 150, w: 380, h: 400, inset: 22 },
+        { kind: 'plate', x: 1110, y: 600, w: 380, h: 400, inset: 22 },
+        { kind: 'plate', x: 1110, y: 1060, w: 380, h: 400, inset: 22 },
+        // Recessed bays against the side walls, under the wall machinery.
+        { kind: 'inset', x: 88, y: 300, w: 104, h: 300 },
+        { kind: 'inset', x: 88, y: 1000, w: 104, h: 300 },
+        { kind: 'inset', x: 1408, y: 300, w: 104, h: 300 },
+        { kind: 'inset', x: 1408, y: 1000, w: 104, h: 300 },
+        // Door surrounds, flush inboard of the wall band, so a gate is a
+        // threshold rather than a gap in a painted border.
+        { kind: 'doorframe', x: 690, y:   78, w: 220, h: 40 },
+        { kind: 'doorframe', x: 690, y: 1482, w: 220, h: 40 },
+        { kind: 'doorframe', x:  78, y:  690, w:  40, h: 220 },
+        { kind: 'doorframe', x: 1482, y: 690, w:  40, h: 220 },
+        { kind: 'doorframe', x: 1482, y: 1090, w: 40, h: 220 },
+
+        // SMALL — sparse, and never on the fighting floor.
+        { kind: 'vent', x: 128, y: 700, w: 34, h: 60 },
+        { kind: 'vent', x: 1438, y: 700, w: 34, h: 60 },
+        { kind: 'vent', x: 128, y: 1360, w: 34, h: 60 },
+        { kind: 'vent', x: 1438, y: 1360, w: 34, h: 60 },
       ],
     },
-    // Sheer black with widely spaced pilasters and one deep-red line. The other
-    // three rooms earn character by adding; this one earns it by withholding.
+    // The wall stops being a border and becomes a wall. `chamber` is a large
+    // 320px rhythm of pilaster / recessed bay / machinery block — severe by
+    // repetition rather than by emptiness, which is what `bare` was and what
+    // photographed as unfinished at the room's corners.
     perimeter: {
-      style: 'bare', thickness: 80,
+      style: 'chamber', thickness: 80,
       wall: PAL.vadWall, wallLit: PAL.vadWallLit, wallDark: PAL.vadWallDark,
-      trim: PAL.vadStrip, glow: PAL.vadStripGlw,
+      trim: PAL.chRib, glow: PAL.chRibLit,
     },
+    // ══ AUTHORED LIGHT ══════════════════════════════════════════════════
+    //
+    // Every source carries TWO intensities. `normal` is what it contributes
+    // while the chamber has power; `emergency` is what it contributes once
+    // LIGHTS OUT has collapsed the ambient. They are independent — the amber
+    // strips below are OFF at normal power and only come up when the main bus
+    // drops, which is what makes the second state read as emergency power
+    // rather than as the first state with the brightness turned down.
+    //
+    // TWO RULES HELD THE LIST DOWN. Nothing emissive stands on the fighting
+    // floor: every source is on the perimeter or on a cover console, so the
+    // centre of the room stays calm and no glow can be mistaken for a zone.
+    // And nothing here is crimson.
+    emissives: [
+      // ── Wall machinery screens. Cool cyan, seated in the bays of the
+      //    `chamber` wall rhythm, at the block centres (period 320).
+      { kind: 'screen', x: 480, y: 34, w: 62, h: 20, color: 0x1a5a96, hot: 0x8fd8ff, normal: 0.22, emergency: 0.62, reach: 46, drop: 0.75 },
+      { kind: 'screen', x: 1120, y: 34, w: 62, h: 20, color: 0x1a5a96, hot: 0x8fd8ff, normal: 0.22, emergency: 0.62, reach: 46, drop: 0.75 },
+      { kind: 'screen', x: 1120, y: 1566, w: 62, h: 20, color: 0x1a5a96, hot: 0x8fd8ff, normal: 0.20, emergency: 0.55, reach: 44, drop: -0.4 },
+      { kind: 'screen', x: 34, y: 1120, w: 20, h: 62, color: 0x1a5a96, hot: 0x8fd8ff, normal: 0.20, emergency: 0.55, reach: 44, drop: 0.1 },
+      { kind: 'screen', x: 1566, y: 480, w: 20, h: 62, color: 0x1a5a96, hot: 0x8fd8ff, normal: 0.20, emergency: 0.55, reach: 44, drop: 0.1 },
+      // ── Machinery cores. The one place a radial pool is the truth: something
+      //    hot inside a housing. Amber, so it cannot be read as a telegraph.
+      { kind: 'core', x: 40, y: 450, r: 12, color: 0x8a4a10, hot: 0xffb45a, normal: 0.16, emergency: 0.40, reach: 54 },
+      { kind: 'core', x: 1560, y: 1150, r: 12, color: 0x8a4a10, hot: 0xffb45a, normal: 0.16, emergency: 0.40, reach: 54 },
+      // ── Status lamps. Compact by definition. Sparse: four in the room.
+      { kind: 'led', x: 160, y: 40, r: 3, color: 0x1a7a3a, hot: 0x8fffb0, normal: 0.30, emergency: 0.70, reach: 10 },
+      { kind: 'led', x: 1440, y: 40, r: 3, color: 0x1a7a3a, hot: 0x8fffb0, normal: 0.30, emergency: 0.70, reach: 10 },
+      { kind: 'led', x: 480, y: 1560, r: 3, color: 0x8a5a10, hot: 0xffd08a, normal: 0.26, emergency: 0.62, reach: 10 },
+      { kind: 'led', x: 40, y: 800, r: 3, color: 0x8a5a10, hot: 0xffd08a, normal: 0.26, emergency: 0.62, reach: 10 },
+      // ── EMERGENCY STRIPS. Dead at normal power. These are the sources that
+      //    make the second state an authored composition instead of a dimmer:
+      //    when the chamber loses its bus, two long amber runs come up along
+      //    the side walls and the room is lit by different fixtures than it was
+      //    a second earlier.
+      // Segmented, not one continuous run. A single 780px bar photographed as
+      // a solid orange band down the edge of the screen — a graphic element
+      // rather than a fixture — and it was the loudest thing in an emergency
+      // frame that is supposed to belong to the saber.
+      { kind: 'strip', dir: 'v', x: 76, y: 420, len: 220, t: 5, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.20, reach: 22 },
+      { kind: 'strip', dir: 'v', x: 76, y: 1180, len: 220, t: 5, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.20, reach: 22 },
+      { kind: 'strip', dir: 'v', x: 1524, y: 420, len: 220, t: 5, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.20, reach: 22 },
+      { kind: 'strip', dir: 'v', x: 1524, y: 1180, len: 220, t: 5, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.20, reach: 22 },
+      // ── Door thresholds. Cool white, present in both states — a doorway is
+      //    the one thing that must stay findable when the lights go.
+      { kind: 'strip', dir: 'h', x: 800, y: 76, len: 180, t: 5, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.16, emergency: 0.40, reach: 18 },
+      { kind: 'strip', dir: 'h', x: 800, y: 1524, len: 180, t: 5, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.16, emergency: 0.40, reach: 18 },
+      { kind: 'strip', dir: 'v', x: 76, y: 800, len: 180, t: 5, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.16, emergency: 0.40, reach: 18 },
+      { kind: 'strip', dir: 'v', x: 1524, y: 800, len: 180, t: 5, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.16, emergency: 0.40, reach: 18 },
+      { kind: 'strip', dir: 'v', x: 1524, y: 1200, len: 220, t: 5, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.16, emergency: 0.40, reach: 18 },
+    ],
     walls: [],
     // One prop only. The chamber should feel bare and severe — the meditation
     // pod is the whole story, and a second object would dilute it. Placed

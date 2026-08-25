@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, ENDLESS, FONTS, HUDCFG, VIEW, DEPTH, LIGHTSOUT, bossMechanicsFor, bossMechanicById } from '../config.js';
+import { EnvLight } from '../systems/EnvLight.js';
 import { Player } from '../entities/Player.js';
 import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, EnemySniper, EnemySwarmling, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
@@ -456,6 +457,23 @@ export class GameScene extends Phaser.Scene {
         ...(spec.floor || {}),
         perimeter: spec.perimeter || null,
         openings: perimeterOpenings(spec),
+        // CONTACT SHADOWS, derived from the room's OWN cover and prop lists
+        // rather than authored a second time. A hand-placed shadow list is one
+        // edit away from sitting next to the object it belongs under, and the
+        // failure mode — a console floating on the deck — is the exact thing
+        // this is here to fix. Baked into the floor, so it darkens with the
+        // floor: a shadow that survives a blackout has no light casting it.
+        //
+        // OPT-IN PER ROOM. This is a pilot, and the other three arenas are not
+        // in it — they get exactly the backdrop they got before. `grounded` is
+        // set on the Vader chamber and nowhere else.
+        grounding: spec.floor?.grounded ? [
+          ...(spec.cover || []).map((c) => ({ kind: 'ground', x: c.x, y: c.y + 30, r: 76, a: 0.5, squash: 0.40 })),
+          ...(spec.props || []).map((pr) => ({
+            kind: 'ground', x: pr.x, y: pr.y - 6,
+            r: Math.max(70, (pr.bodyW ?? 160) * 0.75), a: 0.5, squash: 0.34,
+          })),
+        ] : [],
       });
     }
     const bgImg = this.add.image(0, 0, bgKey)
@@ -550,6 +568,33 @@ export class GameScene extends Phaser.Scene {
       img._loClass = 'prop';
       this.roomLayer.add(img);
     }
+
+    // ── THE ROOM'S AUTHORED LIGHT ──────────────────────────────────────────
+    //
+    // Built AFTER the cover consoles, because four of its sources are the
+    // consoles' own screens and they are derived from the live objects rather
+    // than re-authored in the spec — a hand-written screen coordinate is one
+    // edit away from glowing where a console used to be.
+    //
+    // Deliberately NOT in `roomLayer`. That group is the LIGHTS OUT tint's
+    // subject, and a light that gets multiplied by the darkness is not a light.
+    // It is destroyed explicitly in `_clearRoomEntities` for the same reason.
+    this.envLight?.destroy();
+    this.envLight = new EnvLight(this, [
+      ...(spec.emissives || []),
+      // A cover console is a powered terminal — blue screen, lit key row. The
+      // screen face sits just above the sprite's centre (rows 8-16 of 28), and
+      // the spill is biased DOWN because the face is tilted at its operator.
+      ...(spec.cover || []).map((cp) => ({
+        kind: 'screen', x: cp.x, y: cp.y - 10, w: 58, h: 20,
+        color: 0x1a5a96, hot: 0x9fe0ff,
+        // `reach` has to clear the console SPRITE. Environment light draws at
+        // depth 3 and the console Y-sorts at y+56, so a wash smaller than the
+        // 112px sprite is drawn entirely underneath the object it belongs to
+        // and the console reads as bright rather than as lighting anything.
+        normal: 0.20, emergency: 0.62, reach: 76, drop: 0.30,
+      })),
+    ]);
 
     // Rebuild pathfinding navigation grid
     this.navGrid.build(w, h, this.walls.getChildren());
@@ -803,6 +848,12 @@ export class GameScene extends Phaser.Scene {
       try { this.boss.shadow?.destroy(); this.boss.hpBar?.destroy(); this.boss.destroy(); } catch (_) {}
       this.boss = null;
     }
+
+    // The authored emissive layer. Outside `roomLayer` by design — see the
+    // comment where it is built — so the generic sweep below cannot reach it,
+    // and a room's lights would otherwise be left burning over the next one.
+    this.envLight?.destroy();
+    this.envLight = null;
 
     // Room-layer objects (backdrop, walls, cover)
     this.roomLayer.getChildren().forEach((o) => o.destroy());
@@ -2078,10 +2129,10 @@ export class GameScene extends Phaser.Scene {
     this._darkChain = null;
     if (this._darkMix) this.tweens.killTweensOf(this._darkMix);
     this._restoreArenaTints();
-    // Not in `roomLayer`, so it would otherwise outlive the arena it was drawn
-    // for and reappear over the next one at the old consoles' coordinates.
-    this._consoleGlow?.destroy();
-    this._consoleGlow = null;
+    // The emissive layer is NOT destroyed here — it belongs to the room, not to
+    // the mechanic, and it is what lights the room at normal power too.
+    // `_restoreArenaTints` has already returned it to its normal-power
+    // intensities. `_clearRoomEntities` destroys it with the arena.
     this.events.emit('set-darkness', false, 'blackout');
   }
 
@@ -2175,7 +2226,9 @@ export class GameScene extends Phaser.Scene {
     if (st?.active && this._sectorTintWas != null) st.setFillStyle(st.fillColor, this._sectorTintWas);
     this._sectorTintWas = null;
     if (this._darkMix) this._darkMix.v = 0;
-    this._drawConsoleGlow(0);
+    // Idempotent, and the reason there is no stale glow after an outage: the
+    // room's lights are driven from one scalar and this is where it lands.
+    this.envLight?.setPower(0);
   }
 
   // Lerp each object from its own resting tint toward its material's target.
@@ -2200,55 +2253,10 @@ export class GameScene extends Phaser.Scene {
       st.setFillStyle(st.fillColor,
         this._sectorTintWas + (LIGHTSOUT.sectorTintAlpha - this._sectorTintWas) * v);
     }
-    this._drawConsoleGlow(v);
-  }
-
-  /**
-   * ISLANDS OF REMAINING POWER — the bounded half of the emissive brief.
-   *
-   * The consoles already survive the darkening at ~0.57 against a 0.083 floor,
-   * so they are the brightest static things left in the room. This is the small
-   * step from "less dark" to "still switched on": one ADD-blended Graphics for
-   * the whole room, a soft three-ring pool behind each console, alpha riding
-   * the same power-failure scalar as everything else.
-   *
-   * Deliberately BLUE. Crimson is the danger colour and it belongs to the
-   * saber, the SABER THROW lane and the telegraphs — a red pool on the floor
-   * next to cover is a zone the player has been trained to run out of.
-   *
-   * The redraw is not per-frame: `_applyDarkMix` only runs during the 140ms
-   * onset and the 420ms restore, and consoles do not move, so a held dark room
-   * costs nothing. This is a PROTOTYPE and it is one number from gone —
-   * `LIGHTSOUT.consoleGlowAlpha: 0`. Authoring real emergency-power arenas is
-   * the map overhaul's job and nothing here should be mistaken for it.
-   */
-  _drawConsoleGlow(v) {
-    const A = LIGHTSOUT.consoleGlowAlpha;
-    if (!A) return;
-    if (v <= 0.004) {
-      this._consoleGlow?.clear();
-      this._consoleGlow?.setVisible(false);
-      return;
-    }
-    if (!this._consoleGlow) {
-      this._consoleGlow = this.add.graphics()
-        .setBlendMode(Phaser.BlendModes.ADD)
-        .setDepth(3);   // over the floor decals, under every actor
-    }
-    const g = this._consoleGlow;
-    g.clear();
-    g.setVisible(true);
-    const R = LIGHTSOUT.consoleGlowRadius;
-    for (const o of this.roomLayer.getChildren()) {
-      if (o._loClass !== 'console' || !o.active) continue;
-      // Three rings rather than one disc: additively summed the edge is not
-      // findable, which is the same reason the saber's spill is four capsules.
-      for (let i = 0; i < 3; i++) {
-        const t = i / 2;
-        g.fillStyle(LIGHTSOUT.consoleGlowColor, A * v * (0.35 + 0.65 * t));
-        g.fillCircle(o.x, o.y, R * (1 - 0.32 * t));
-      }
-    }
+    // THE ONE SCALAR. The ambient collapses and the authored sources come up on
+    // the same number, so emergency power is a crossfade between two lighting
+    // compositions rather than a dimmer over one.
+    this.envLight?.setPower(v);
   }
 
   _spawnAfterimages(boss, n = 3) {

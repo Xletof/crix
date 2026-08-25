@@ -462,9 +462,11 @@ R.eclipse = await page.evaluate(() => {
   return { clones: clones.length,
            clonesWithVisibleWeapon: clones.filter((c) => c.weaponSprite?.visible).length,
            clonesWithGlow: clones.filter((c) => c._saberHalo || c._saberBloom).length,
-           // The islands of remaining power, drawn once per state change.
-           consoleGlow: (() => { const g = gs._consoleGlow;
-             return g ? { visible: g.visible, depth: g.depth,
+           // The authored emissive layer, which replaced the one-disc-per-
+           // console placeholder this line used to read.
+           envLight: (() => { const e = gs.envLight;
+             return e ? { parts: e.parts.length, power: e._v,
+               lit: e.parts.filter((p) => p.visible).length,
                consoles: gs.roomLayer.getChildren().filter((o) => o._loClass === 'console').length } : null; })() };
 });
 
@@ -478,7 +480,7 @@ R.afterRestore = await page.evaluate(() => {
   const gs = window.game.scene.getScene('Game'), b = gs.boss;
   return { mix: gs._darkMix?.v ?? null,
            haloVisible: !!b._saberHalo?.visible, bloomVisible: !!b._saberBloom?.visible,
-           consoleGlowVisible: !!gs._consoleGlow?.visible,
+           envLightPower: gs.envLight?._v ?? null,
            lightsState: gs._lightsState };
 });
 
