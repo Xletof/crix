@@ -886,3 +886,20 @@ because a second Chrome from a concurrent evidence run was on the box.
 The tell that saves the time: before chasing five failures, check whether their
 numbers all reduce to one scalar. If they do, you have one measurement problem,
 not five regressions — and per the top of this file, check the load first.
+
+### `smoke-readability`'s FORCE PULL wind-up check fails on `1b837d0` too
+
+Measured 2026-08-25 during the arena pilot, standalone on an idle box, with the
+dev server restarted between the two source checkouts:
+
+| source | result |
+|---|---|
+| `1b837d0` (untouched) | FAIL — `forcepull 0px/s drift 88px` |
+| the pilot | FAIL — `forcepull 0px/s drift 111px` |
+
+Same check, same cause, and the pilot's diff touches **zero lines** of `Boss.js`,
+`bossMoves.js`, `MoveScript.js` or `Telegraph.js`. It is the case
+`docs/POST-MORTEM-vader-moves.md` already names — *a move legitimately
+displacing the thing being measured* — with a 40px allowance against a pull
+that drags. Pre-existing, not the pilot's, and not fixed here because Vader is
+frozen and this is an instrument problem rather than a game one.
