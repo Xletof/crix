@@ -438,7 +438,10 @@ asserts separately that the ceiling is not reached.
   §10n is the record. Three pieces: `drawArchitecture` (baked floor forms in
   `pixelArt.js`), the `'chamber'` perimeter style, and `src/systems/EnvLight.js`.
   It is a PILOT awaiting handset review — do not propagate it to the other three
-  arenas, and do not keep polishing it from screenshots.
+  arenas, and do not keep polishing it from screenshots. **To see it: DEBUG →
+  LOAD VADER CHAMBER → DEBUG → SPAWN VADER.** `SPAWN VADER` alone deliberately
+  does not change rooms, and a fresh endless run does not reach the chamber
+  until sector 5, so pressing it on its own shows Vader in the hangar.
 - **ENVIRONMENT LIGHT LIVES OUTSIDE `roomLayer`, OR IT IS NOT LIGHT.** LIGHTS
   OUT multiplicatively tints that group; anything inside it gets multiplied
   toward black. That is why a screen baked into a console texture cannot stay

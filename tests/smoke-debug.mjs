@@ -93,6 +93,7 @@ pos.clear = [cx - half, y]; pos.skip = [cx + half, y]; y += row;
 // moves CLOSE out from under the tap and reads as "the panel will not close".
 heading(); pos.loadout = [cx - half, y]; pos.spawnNemesis = [cx + half, y]; y += row;
 pos.vaderN = [cx - half, y]; pos.spawnVader = [cx + half, y]; y += row;
+pos.loadChamber = [cx, y]; y += row;          // full width
 pos.sector = [cx - half, y]; pos.clearField = [cx + half, y]; y += row;
 pos.forceMove = [cx, y]; y += row + 12;
 pos.close = [cx, y];
@@ -206,8 +207,40 @@ const fieldCleared = await page.evaluate(() => {
 await page.evaluate(() => window.game.scene.getScene('Debug')?._close?.());
 await page.waitForTimeout(400);
 
+// ── LOAD VADER CHAMBER ───────────────────────────────────────────────────
+// The way in to the environment pilot. SPAWN VADER deliberately does not
+// change rooms, so before this button the only route to the pilot arena was
+// four sectors of endless — and the obvious debug workflow showed Vader
+// standing in the hangar.
+//
+// Last, and after CLEAR FIELD, on purpose: `loadRoom` tears the arena down, so
+// running it earlier would satisfy the CLEAR FIELD assertions above for the
+// wrong reason.
+const roomBefore = await page.evaluate(() => window.game.scene.getScene('Game').roomSpec?.id);
+await reopen();
+await tap('loadChamber');
+await page.waitForTimeout(2200);
+const chamberLoaded = await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  const spec = gs.roomSpec;
+  return {
+    roomId: spec?.id,
+    isBossRoom: !!spec?.boss,
+    // The pilot's own markers, so this cannot pass on a room that merely has
+    // the right id.
+    archCount: (spec?.floor?.architecture || []).length,
+    perimeterStyle: spec?.perimeter?.style,
+    envLightParts: gs.envLight?.parts?.length ?? 0,
+    // It must NOT spawn a boss — that stays SPAWN VADER's job.
+    bossSpawned: !!gs.boss,
+    closed: !window.game.scene.getScene('Debug')?.sys?.isActive(),
+  };
+});
+await page.evaluate(() => window.game.scene.getScene('Debug')?._close?.());
+await page.waitForTimeout(300);
+
 console.log(JSON.stringify({ pauseOpen, before, after, hud, god, spawnBefore, spawnAfter, closed,
-  nemesisSpawned, vaderSpawned, fieldCleared }, null, 2));
+  nemesisSpawned, vaderSpawned, fieldCleared, roomBefore, chamberLoaded }, null, 2));
 console.log('page errors:', errors.length ? errors : 'none');
 
 const fails = [];
@@ -244,6 +277,22 @@ else if (vaderSpawned.mechanics !== vaderSpawned.expected || vaderSpawned.sector
 }
 if (fieldCleared?.boss || fieldCleared?.nemesis) {
   fails.push(`CLEAR FIELD left ${fieldCleared.nemesis} nemesis / boss=${fieldCleared.boss}`);
+}
+if (roomBefore === 'vader') {
+  fails.push('the run was already in the boss room before LOAD VADER CHAMBER — the check proves nothing');
+}
+if (!chamberLoaded) fails.push('LOAD VADER CHAMBER produced no readout');
+else {
+  if (chamberLoaded.roomId !== 'vader' || !chamberLoaded.isBossRoom) {
+    fails.push(`LOAD VADER CHAMBER left the run in '${chamberLoaded.roomId}' — the pilot arena is unreachable from debug again`);
+  }
+  if (!chamberLoaded.archCount || chamberLoaded.perimeterStyle !== 'chamber' || !chamberLoaded.envLightParts) {
+    fails.push(`the loaded room is not carrying the pilot: arch ${chamberLoaded.archCount}, perimeter ${chamberLoaded.perimeterStyle}, env parts ${chamberLoaded.envLightParts}`);
+  }
+  if (chamberLoaded.bossSpawned) {
+    fails.push('LOAD VADER CHAMBER spawned a boss — it loads the room and stops; SPAWN VADER keeps that job');
+  }
+  if (!chamberLoaded.closed) fails.push('LOAD VADER CHAMBER left the panel open over the room it just loaded');
 }
 if (errors.length) fails.push(`page errors: ${errors.join(' | ')}`);
 

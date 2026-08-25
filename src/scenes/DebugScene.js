@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { VIEW, FONTS, PLAYER, WEAPONS, ENDLESS } from '../config.js';
 import { SFX } from '../systems/FX.js';
 import { isGodMode, setGodMode } from '../systems/debug.js';
+import { ROOMS } from '../data/rooms.js';
 import { rollNemesis } from '../data/nemesis.js';
 import { makeRng } from '../systems/rng.js';
 
@@ -55,8 +56,11 @@ export class DebugScene extends Phaser.Scene {
     // Sized to the content: five groups + CLOSE. Grew from 740 when the BOSSES
     // group landed — the alternative was a second page, and a page you have to
     // navigate to is one more step between changing a boss and seeing it, which
-    // is the exact friction this group exists to remove.
-    const cardW = 620, cardH = 980;
+    // is the exact friction this group exists to remove. Grew by one `row` (62)
+    // again for LOAD VADER CHAMBER; CLOSE was already sitting within a few px
+    // of the old bottom edge, so a new row without this would push it outside
+    // the card's own border.
+    const cardW = 620, cardH = 1044;
     const cardX = cx - cardW / 2, cardY = VIEW.height * 0.03;
     g.fillStyle(0x0c101d, 0.9);
     g.fillRoundedRect(cardX, cardY, cardW, cardH, 16);
@@ -142,6 +146,16 @@ export class DebugScene extends Phaser.Scene {
       this.vaderBtn.label.setText(this._vaderLabel());
     }, 280);
     this._button(cx + half, y, 'SPAWN VADER', () => this._spawnVader(), 280);
+    y += row;
+
+    // SPAWN VADER above deliberately does NOT change rooms — its contract is
+    // "put Vader 340px from where I am standing", and that is the right tool
+    // for looking at his moves wherever you happen to be. The cost is that the
+    // obvious way to inspect VADER'S CHAMBER shows Vader standing in the
+    // hangar, because a fresh endless run starts there and the chamber is not
+    // reached until sector 5. This is the way in. It loads the room and stops:
+    // pairing them would take the other button's contract away.
+    this._button(cx, y, 'LOAD VADER CHAMBER', () => this._loadBossRoom(), 420);
     y += row;
 
     this.sectorBtn = this._button(cx - half, y, this._sectorLabel(), () => {
@@ -342,6 +356,28 @@ export class DebugScene extends Phaser.Scene {
     // base-hp Vader with no mechanics — a boss-testing tool that hands back the
     // wrong boss is worse than none.
     this.gs.spawnBoss(p.x + 340, p.y, { encounter: this._vaderN });
+    this._close();
+  }
+
+  /**
+   * Load the boss arena, and nothing else.
+   *
+   * The room is RESOLVED from `ROOMS` by its own `boss` flag rather than by
+   * index — `ROOMS[3]` is true today and is one reordering away from being a
+   * debug button that loads the detention block. `_transitionToNext` resolves
+   * it the same way for the real endless climb.
+   *
+   * Goes through `GameScene.loadRoom`, which is the authoritative entry point
+   * and the same one the exit door uses, so what lands is the production room:
+   * the player at its spawn, its arena survival round started, its banner. No
+   * boss is spawned here — that is SPAWN VADER's job and it stays SPAWN
+   * VADER's job. `_spawnVader` calls `_isolate()`, so pressing the two in
+   * sequence sweeps the survival wave on its own.
+   */
+  _loadBossRoom() {
+    const spec = ROOMS.find((r) => r.boss);
+    if (!this.gs?.loadRoom || !spec) return;
+    this.gs.loadRoom(spec);
     this._close();
   }
 

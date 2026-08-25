@@ -1702,6 +1702,21 @@ says the chamber goes too black, **this is the number to move**, and
 The backdrop texture itself is the same size it always was — the architecture is
 painted into the canvas that already existed.
 
+### How to actually look at it
+
+**DEBUG → LOAD VADER CHAMBER → DEBUG → SPAWN VADER.** (Pause → DEBUG each time;
+both buttons close the panel on purpose.)
+
+`SPAWN VADER` alone **deliberately does not change rooms** — its contract is
+"put Vader 340px from where I am standing", which is the right tool for looking
+at his moves wherever you are. But a fresh endless run starts in the hangar and
+the chamber is not reached until **sector 5**, so pressing it on its own shows
+Vader in the old hangar art. That cost a live verification round.
+`LOAD VADER CHAMBER` loads the room and stops; it never spawns a boss.
+
+Naturally: sector 1 hangar → 2 corridor → 3 detention → 4 hangar → **5 VADER'S
+CHAMBER**. That routing is unchanged by the debug button.
+
 ### Evidence
 
 - `docs/evidence/arena-pilot/before/` — baseline, 23 frames
