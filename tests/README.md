@@ -804,3 +804,85 @@ derivation already existed in `smoke-deflect` as `expectDmg`.
 run was spent producing two bare `Node.js v22.22.2` crashes in `smoke-vader`
 and `smoke-score` because the file changed under the runner. `tests/README.md`
 already said not to modify source during capture; it applies to the suite too.
+
+
+---
+
+## Arena-pilot rigs (added with the environment visual pilot)
+
+Three files, and only one of them is a test.
+
+| file | what it is |
+|---|---|
+| `smoke-arena.mjs` | **assertion test.** In `run-all`. Protects structure, never taste. |
+| `shot-arena-pilot.mjs` | **evidence.** `node tests/shot-arena-pilot.mjs <tag>` → `docs/evidence/arena-pilot/<tag>/`. Same camera stations every run, so before/after is the same room and not two prettiest-camera shots. |
+| `shot-arena-ambient-ab.mjs` | **evidence for one open decision.** One frozen frame at two `LIGHTSOUT.floor` settings. |
+
+### Four things these rigs learned the hard way
+
+**`_sectorTint` will silently ruin every arena photograph.** The endless
+per-sector wash is an ADD-blended screen-locked rectangle at depth 9000, up to
+0.20 alpha. At sector 30 — which is where a rung-6 Vader lives, which is where
+these rigs put you — it lays a solid olive film over every pixel, and the first
+baseline sheet photographed a green-brown swamp instead of a near-black chamber.
+It is a separate system from the room art. Turn it off for station shots and
+keep **one** frame with it on, or the sheet is lying in the other direction.
+
+**A `setDark(false)` before any `_enterDarkArena` throws.** `_darkMix` is
+created lazily inside `_enterDarkArena`, so the tidy-up path that sets
+`gs._darkMix.v = 0` explodes on the very first call. Guard it.
+
+**Freeze with `scene.pause()`, and re-hush after every resume.** `pause` is the
+only thing that stops `scene.update`, and the pause/resume round trip lets a
+cycle of the boss's clocks land — every station shot in `shot-arena-pilot`
+re-silences them after resuming or it photographs a stray SUNDER.
+
+**Freeze the room's gameplay geometry as LITERALS, post-`snapAll`.** The Vader
+chamber's cover is written as 400/1200 in `rooms.js` and `mapUtils.snapAll`
+moves it to 440/1240 at load. `smoke-arena` first froze the pre-snap numbers and
+failed against the untouched build. A check that derives its expectation from
+the file it is checking cannot fail; a check that freezes the wrong end of a
+transform fails on everything.
+
+### The A/B that made `smoke-arena` worth having
+
+Run against `1b837d0` (the pre-pilot build) it fails 13 checks — the emissive
+layer, the power-state composition, the lifecycle counts, the removed
+placeholder and the two "the pilot exists at all" guards. The geometry, saber,
+darkness-clock and material-class checks all **pass** on that build, which is
+what makes them regression detectors rather than decoration.
+
+### The `smoke-vader` failures during the pilot — one real, five load
+
+Raising `LIGHTSOUT.floor` / `.wall` / `.prop` so the pilot's architecture stayed
+legible in the dark broke SIX checks in `smoke-vader`. Untangling them took two
+different diagnoses, and both are worth keeping.
+
+**One was real.** `FROZEN: the arena material values and transition timings are
+untouched` is a frozen-constants check and it was doing exactly its job — those
+four numbers came out of a handset verdict on how dark LIGHTS OUT should be.
+The numbers went back; the pass shipped without them. The A/B is in
+`docs/evidence/arena-pilot/ambient-ab/` for the human to rule on. When a frozen
+check fails and it points at a constant you moved, the instrument is right.
+
+**Five were load, and they all told the same lie.** After the revert, five
+checks in the LIGHTS OUT section still failed: floor luminance, structure
+silhouette, console-vs-floor ratio, the sector wash, and the "power CUTS"
+first-step tape. They look like five findings. They are ONE number:
+
+| reported | implies |
+|---|---|
+| floor at **0.772** of lit | `1 - 0.25 × 0.917` → `v = 0.25` |
+| wash `0.2 -> 0.1575` | `0.2 + (0.03-0.2) × 0.25` → `v = 0.25` |
+| tape `[[26,0,0],[27,0,0],[212,0,0.88]]` | three frames in 400ms, and `v` still 0 at 212ms |
+
+`v = 0.25` is the low point of the onset's three-link stutter — link 2's end,
+exactly 100ms into a 140ms chain — and the `during` snapshot is taken 800ms
+after the request. So the chain had barely started when a sample 800ms later
+caught it 100ms in: the *scene* was running at a small fraction of real time,
+because a second Chrome from a concurrent evidence run was on the box.
+**Standalone on an idle machine the same build returns 116/116.**
+
+The tell that saves the time: before chasing five failures, check whether their
+numbers all reduce to one scalar. If they do, you have one measurement problem,
+not five regressions — and per the top of this file, check the load first.

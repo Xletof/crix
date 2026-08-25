@@ -23,6 +23,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // belongs here rather than with the print-only diagnostics.
 const TESTS = [
   'smoke-arc',
+  'smoke-arena',
   'smoke-boss',
   'smoke-boss-moves',
   'smoke-boost',

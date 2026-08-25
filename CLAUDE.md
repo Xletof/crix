@@ -434,6 +434,52 @@ asserts separately that the ceiling is not reached.
   and `_wKickT`/`_wKickDur`/`_wKickMag`. Never reintroduce a hardcoded divisor; that
   bug made the super shrink the player instead of popping it.
 
+- **THE ARENA PILOT IS THE VADER CHAMBER, AND IT IS NOT FROZEN.** `HANDOVER.md`
+  §10n is the record. Three pieces: `drawArchitecture` (baked floor forms in
+  `pixelArt.js`), the `'chamber'` perimeter style, and `src/systems/EnvLight.js`.
+  It is a PILOT awaiting handset review — do not propagate it to the other three
+  arenas, and do not keep polishing it from screenshots.
+- **ENVIRONMENT LIGHT LIVES OUTSIDE `roomLayer`, OR IT IS NOT LIGHT.** LIGHTS
+  OUT multiplicatively tints that group; anything inside it gets multiplied
+  toward black. That is why a screen baked into a console texture cannot stay
+  lit through a blackout and why the old `_drawConsoleGlow` placeholder only
+  existed in the dark. `EnvLight` is a separate set of ADD-blended Images at
+  `ENV_LIGHT_DEPTH` (3) — above the floor decals, below the whole actor band, so
+  it can never draw over a bullet, a telegraph or the saber. The readability
+  gate is that depth constant, not taste.
+- **AN EMISSIVE SOURCE HAS TWO INDEPENDENT INTENSITIES.** `normal` and
+  `emergency`, lerped by the same scalar `_applyDarkMix` rides. A source that is
+  `normal: 0` is DEAD while the room has power and only comes up when the bus
+  drops — that is the whole difference between an authored second state and a
+  dimmer, and `smoke-arena` fails if no source has the property.
+- **A STACK OF HARD-EDGED SHAPES HAS EDGES, AND AT ENVIRONMENT SCALE THEY SHOW.**
+  The saber's halo is six capsules with a ramped alpha and it works because the
+  blade is small. The same construction at 150px is five visible rectangular
+  bands, and a wall screen built that way photographed as a television in a box.
+  `EnvLight`'s falloff is baked into two 128px textures instead; the box one is
+  SEPARABLE (`alpha = f(x)·f(y)`) so it can stretch 8:1 without the corners going
+  wrong. Consequence: `setPower` is N alpha writes and re-rasterises nothing.
+- **BAKED FLOOR ART MAY NEVER DRAW A TALL SOLID MASS ON THE OPEN DECK.** The
+  backdrop is one image and can never reach `this.walls`, so nav, LOS and bullet
+  collision cannot see it — which is exactly why `drawArchitecture`'s vocabulary
+  is all flat or recessed. A painted machinery block on the fighting floor would
+  promise cover the room does not have. Machinery goes in the perimeter band,
+  where the world bounds already are.
+- **`LIGHTSOUT.floor`/`.wall`/`.prop`/`.console` ARE STILL THE HANDSET'S NUMBERS.**
+  The pilot raised them so its architecture stayed legible in the dark, broke six
+  `smoke-vader` checks doing it, and PUT THEM BACK. The maroon trap that
+  originally pinned them is gone (the pilot deck has no red in it), so they are
+  movable on a new verdict — but making architecture readable in the dark is
+  precisely how emergency power becomes "the normal room, dimmer".
+  `docs/evidence/arena-pilot/ambient-ab/` is the matched pair.
+- **NO RED IN THE ENVIRONMENT.** The Vader chamber's floor used to carry four
+  full-width CRIMSON strip lights at `stripEvery: 520`. Red belongs to the saber,
+  the SABER THROW lane and the telegraphs, and the pilot deck spends none of it:
+  screens cyan, cores and emergency strips amber, thresholds cool white, deck
+  paint steel. The same rule killed a steel ring painted around the dais — a thin
+  bright circle centred on the boss is the shape and placement of a circle
+  telegraph whatever colour it is.
+
 ## Testing
 
 **Read `docs/POST-MORTEM-vader-moves.md` before adding a boss or enemy attack, or

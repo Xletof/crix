@@ -1387,21 +1387,31 @@ export const LIGHTSOUT = {
   // is the DANGER colour here. The saber, the SABER THROW lane and every
   // telegraph are red, and they have to be the only red in the frame.
   //
-  // RAISED FOR THE ARENA PILOT, and the reason it can be is that the maroon
-  // trap is gone. The measurement that pinned this at 0x12151f was taken when
-  // the Vader chamber's floor had four full-width CRIMSON strip lights and two
-  // crimson rings baked into it: any tint gentle enough to leave architecture
-  // readable also left those legible, and the room came back maroon. The pilot
-  // floor has no red in it at all — the deck is cool graphite, the marks are
-  // steel, and `stripEvery: 0` turns the strip pass off — so a lighter tint now
-  // yields a blue-grey emergency room instead. Architecture stays readable
-  // enough to navigate and the authored emissives have something to fall on.
-  floor:   0x2e3648,
+  // THE ARENA PILOT LEFT THESE ALONE, AND THE REASON IS WORTH RECORDING.
+  //
+  // The pilot's floor has no red in it any more — the deck is cool graphite,
+  // the marks are steel and `stripEvery: 0` turns the crimson strip pass off —
+  // so the MAROON trap that originally pinned this value is genuinely gone, and
+  // a lighter tint would now yield a blue-grey emergency room rather than a red
+  // one. It was raised to 0x2e3648 during the pass and it does make the dais,
+  // the nave and the wall bays readable as silhouettes in the dark.
+  //
+  // It was PUT BACK because these four numbers came out of a handset verdict on
+  // how dark LIGHTS OUT should be, `smoke-vader` freezes them, and the pilot's
+  // own doctrine says the ambient is supposed to collapse and the authored
+  // emissives are supposed to carry the second state. Making the architecture
+  // legible in the dark is exactly the thing that would quietly turn emergency
+  // power back into "the normal room, dimmer".
+  //
+  // If the handset review of the pilot says the chamber goes too black, THIS is
+  // the number to move, and `docs/evidence/arena-pilot/ambient-ab/` is the A/B
+  // that was taken at both settings.
+  floor:   0x12151f,
   // Walls. Near-black, but not black: geometry must still be readable enough to
   // navigate, per the brief's "emergency-power Death Star, not black screen".
-  wall:    0x3a4356,
+  wall:    0x1a1f2b,
   // Props — machinery keeps a little of itself and its own glows with it.
-  prop:    0x3e4658,
+  prop:    0x2e3446,
   // Cover consoles. THE ISLANDS. Blue screen glass, a green and two red LEDs
   // and a lit keyboard row, all baked in; at this strength they survive as the
   // brightest static things in the room.

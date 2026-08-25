@@ -1541,7 +1541,8 @@ bar, surviving a hit) are all still what they were.
 
 ## 10m. Future arenas are authored in TWO states
 
-**Design doctrine for the environment/map overhaul. Not implemented here.**
+**Design doctrine for the environment/map overhaul. IMPLEMENTED for exactly one
+arena — see §10n. Everything below is the doctrine; §10n is the proof.**
 
 A polished arena should be authored as two compositions, not one composition
 plus a filter:
@@ -1549,17 +1550,188 @@ plus a filter:
 1. **normal ambient power** — what the room looks like with the lights on;
 2. **emergency power** — what is still lit when ambient light dies.
 
-Future arena art should deliberately identify which elements stay alive in
-state 2: console screens, LEDs, machinery indicators, emergency strips, powered
-signage, door controls, reactor elements, alarm lamps. LIGHTS OUT should
-eventually *reveal that second composition* rather than merely darken the first.
+Arena art identifies which elements stay alive in state 2: console screens,
+LEDs, machinery indicators, emergency strips, powered signage, door controls,
+reactor elements, alarm lamps. LIGHTS OUT should *reveal that second
+composition* rather than merely darken the first.
 
-The current Vader chamber cannot demonstrate this — four cover consoles and one
-prop are the entire emissive vocabulary it owns, which is why the saber carries
-the whole read today. `LIGHTSOUT.consoleGlowAlpha` is a deliberately tiny
-prototype of the idea and is one value from removal. **Do not mark the
-emergency-power aesthetic complete because the saber improved.**
+---
 
+## 10n. THE ARENA PILOT — the Vader chamber, in two lighting states
+
+**Status: SHIPPED AND AWAITING HANDSET REVIEW. Not frozen.** One arena only.
+Nothing here has been propagated to the other three rooms and nothing should be
+until the human has played it.
+
+### Which arena
+
+`ROOMS[3]`, `id: 'vader'`, VADER'S CHAMBER — 1600×1600, `src/data/rooms.js`.
+Chosen because it is the room that already had to carry two lighting states,
+and because the frozen Vader is the readability benchmark the new art has to
+sit underneath.
+
+### What was wrong with it — from the baseline evidence, not from memory
+
+`docs/evidence/arena-pilot/before/`:
+
+- **No large forms.** A flat hex deck edge to edge. The eye had nowhere to go
+  and the room read as a texture the fight happened on top of, not as a place.
+- **The strip lights were CRIMSON and full-width.** Four 1600px red lines
+  across the world at `stripEvery: 520`. That is the danger colour spent on
+  décor, in a room where the saber, the SABER THROW lane and every telegraph
+  are red and are supposed to be the only red in frame.
+- **Nothing was grounded.** The pod and the four consoles sat on the deck with
+  no contact shadow and floated.
+- **The perimeter was `bare`** — severe by emptiness, which photographs as
+  unfinished. At the corners the band was a dark strip with one red line on it.
+- **Emergency power had nothing to reveal.** The room went black and the saber
+  carried the entire read.
+
+### The three pieces
+
+**1. Baked architecture — `drawArchitecture` in `pixelArt.js`.**
+A vocabulary of floor forms painted into the backdrop canvas, driven by
+`spec.floor.architecture`:
+
+| tier | primitives |
+|---|---|
+| LARGE | `region`, `dais` |
+| MEDIUM | `trench`, `rib`, `plate`, `inset`, `doorframe` |
+| SMALL | `vent`, and `ground` (contact shadows) |
+
+Drawn in list order, so small never lands under large. **Everything in the
+vocabulary is FLAT or RECESSED and that is a hard constraint, not a style**: the
+backdrop is one image, it can never enter `this.walls`, so nav, LOS and bullet
+collision cannot see it — which means a primitive that drew a tall solid mass on
+the open floor would be promising cover the room does not have. Machinery lives
+in the perimeter band, where the world bounds already are.
+
+Costs one canvas pass at room load and **zero objects and zero draw calls
+afterwards**.
+
+**2. Perimeter style `'chamber'`.**
+A 320px rhythm of pilaster / recessed bay / machinery block, three values deep.
+`bare` was severe by being empty; this is severe by repetition. Relief is kept
+SHALLOW on purpose — the world bounds sit at the *outside* of this band, so the
+player can stand on it (pre-existing, unchanged), and a wall that read as a tall
+solid mass here would be lying about a collision.
+
+**3. `src/systems/EnvLight.js` — the authored emissive layer.**
+The real new system, and the answer to "emitters must feel like they emit".
+
+- **Outside `roomLayer`, by design.** That group is the LIGHTS OUT tint's
+  subject. A light inside it gets multiplied toward black, which is precisely
+  what makes a baked-in screen stop being a light when the power fails.
+- **Every source is EMITTER + SPILL, and the spill is shaped like the emitter.**
+  `screen` → soft box biased downward; `strip` → long thin halo on the short
+  axis only; `led` → compact dot and nothing more; `core` → the one kind where a
+  radial pool is the truth.
+- **Two independent intensities per source**, `normal` and `emergency`. The
+  amber wall strips are `normal: 0` — dead while the chamber has power, alive
+  only once the bus drops. **That is what makes state 2 a composition rather than
+  a dimmer**, and `smoke-arena` fails if no source has that property.
+- **Driven by one scalar**, `GameScene._applyDarkMix`'s `v`. The ambient
+  collapses and the authored sources come up on the same clock.
+
+**WHY TEXTURES, NOT GRAPHICS.** The first build drew each spill as a stack of
+expanding filled rects with a ramped alpha — the saber halo's own construction,
+which works at blade scale. At environment scale it failed: five concentric
+rectangles over a 150px wash are five visible bands, and a wall screen
+photographed as a television in a box. More steps would not have fixed it; a
+stack of hard-edged shapes has edges. The falloff is baked into two 128×128
+per-pixel textures instead. The box texture is **separable** (alpha = f(x)·f(y)),
+which is what lets one square stretch to a 40×300 strip without the corners
+going wrong. Consequence: `setPower` is N alpha writes and **nothing is
+re-rasterised**.
+
+### The placeholder
+
+`LIGHTSOUT.consoleGlowAlpha` / `consoleGlowColor` / `consoleGlowRadius` and
+`GameScene._drawConsoleGlow` are **GONE**, not retained beside their
+replacement. Three structural problems:
+
+- it existed *only in the dark*, so it was a blackout effect rather than a
+  property of a powered object — a console is powered when the lights are on too;
+- a radial pool is the wrong shape for a monitor, and every source got the same
+  circle regardless of what it was;
+- it could only ever find the four cover consoles.
+
+`smoke-arena` fails if any of the three config keys or the method come back.
+
+### What the pilot did NOT change, and one number it deliberately put back
+
+`LIGHTSOUT.floor` / `.wall` / `.prop` / `.console` are **unchanged**. They were
+raised during the pass (floor `0x12151f` → `0x2e3648`) and it does make the
+dais, the nave and the wall bays readable as silhouettes in the dark — the
+maroon trap that originally pinned them is genuinely gone, because the pilot
+deck has no red in it at all.
+
+They were **put back** because they came out of a handset verdict, `smoke-vader`
+freezes them, and making architecture legible in the dark is exactly how
+emergency power quietly becomes "the normal room, dimmer". If the handset review
+says the chamber goes too black, **this is the number to move**, and
+`docs/evidence/arena-pilot/ambient-ab/` is the matched pair at both settings.
+
+### The readability rules the pilot holds itself to
+
+- **Environment light draws at depth 3** (`ENV_LIGHT_DEPTH`), above the floor
+  decals and below the actor band. It therefore *cannot* draw over a bullet, a
+  telegraph, the saber or an actor. The gate is a depth constant, not taste.
+- **Nothing emissive stands on the fighting floor.** Every source is on the
+  perimeter or on a cover console.
+- **No red in the environment.** Screens are cyan, machinery cores and emergency
+  strips are amber, thresholds are cool white, deck paint is steel.
+- **No filled circle or ring on the deck.** The pilot briefly had a steel ring
+  painted around the dais; it photographed as a thin bright circle centred on
+  the boss, which is the shape and placement of a circle telegraph. The raised
+  octagon draws that boundary in geometry instead.
+- **The central floor stays calm.** Density is pushed to the aisles, the wall
+  and the perimeter. Two structural ribs cross the deck and that is all.
+
+### Performance
+
+| | |
+|---|---|
+| new persistent objects | 48 ADD-blended Images (24 sources × emitter + spill), one room |
+| new textures | 3, shared process-wide: two 128×128 RGBA falloffs + a 4×4 emitter face, ≈128KB total |
+| new Graphics objects | 0 (the placeholder's one Graphics was removed) |
+| per-frame work | **none** |
+| at room creation | one extra canvas pass over the backdrop (architecture + grounding), and 48 image constructions |
+| at LIGHTS OUT transitions | 48 alpha writes per changed scalar, guarded at 0.004; nothing is re-rasterised |
+
+The backdrop texture itself is the same size it always was — the architecture is
+painted into the canvas that already existed.
+
+### Evidence
+
+- `docs/evidence/arena-pilot/before/` — baseline, 23 frames
+- `docs/evidence/arena-pilot/after/` — matched, same camera stations
+- `docs/evidence/arena-pilot/ambient-ab/` — the one open question above
+
+The stations are `centre`, `dais-north`, `south-gate`, `corner-nw`,
+`corner-se`, `edge-west`, `console-ne` in both states, plus saber / bolt /
+telegraph combat frames in both states, the outage transition, ECLIPSE, and one
+frame with the endless sector wash left on. Re-shoot with
+`node tests/shot-arena-pilot.mjs <tag>`.
+
+**The endless `_sectorTint` is not the arena.** It is an ADD-blended
+screen-locked rectangle at depth 9000 up to 0.20 alpha, and at sector 30 it puts
+a solid olive film over every pixel. The station shots turn it off so they
+photograph the room; `normal-sector-wash` keeps it so the sheet is not lying.
+
+### What protects it
+
+`tests/smoke-arena.mjs`. Eight groups: gameplay geometry frozen as literals,
+nothing painted became a physics body, the emissive layer is outside `roomLayer`
+and has no bodies and is entirely ADD at one depth, the power state restores
+exactly (through `_restoreArenaTints` *and* `_clearLightsOut`), nothing leaks
+across three room loads, the placeholder is gone not duplicated, the darkness
+clocks and owner are untouched, and the frozen saber glow constants are
+untouched. **A/B'd against `1b837d0`: 13 checks fail on the old build and the
+geometry / saber / clock checks pass on it, which is what makes them worth
+having.**
+
+## 10c. The narrative system
 ## 10c. The narrative system
 
 **The ledger has always remembered; nothing spoke.** `nemesisLedger.js` tracks
