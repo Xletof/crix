@@ -544,6 +544,7 @@ export class GameScene extends Phaser.Scene {
     // rect now. Its body is sized from the spec and is smaller than the
     // sprite: a shuttle's footprint is its hull, not its wingspan, so you can
     // walk under the wing and the nav grid only loses the hull.
+    const propFaces = [];
     for (const pr of spec.props || []) {
       const img = pr.solid
         ? this.walls.create(pr.x, pr.y, pr.tex)
@@ -567,6 +568,20 @@ export class GameScene extends Phaser.Scene {
       }
       img._loClass = 'prop';
       this.roomLayer.add(img);
+      // A HERO PROP MAY CARRY ITS OWN LIGHT. `faces` are ADD textures painted
+      // in the prop's own space and registered on top of it; they are handed
+      // to the emissive layer below with their position and depth taken from
+      // THIS sprite, so neither can be stale. Depth is the prop's own plus
+      // one: the face covers the prop's pixels and nothing else, and at the
+      // environment-light depth it would be drawn underneath it instead.
+      for (const f of pr.faces || []) {
+        propFaces.push({
+          kind: 'face', tex: f.tex,
+          x: img.x, y: img.y, originX: 0.5, originY: 1,
+          depth: img.depth + 1,
+          normal: f.normal ?? 0, emergency: f.emergency ?? 0,
+        });
+      }
     }
 
     // ── THE ROOM'S AUTHORED LIGHT ──────────────────────────────────────────
@@ -589,6 +604,7 @@ export class GameScene extends Phaser.Scene {
     this.envLight?.destroy();
     this.envLight = new EnvLight(this, !authored ? [] : [
       ...spec.emissives,
+      ...propFaces,
       // A cover console is a powered terminal — blue screen, lit key row. The
       // screen face sits just above the sprite's centre (rows 8-16 of 28), and
       // the spill is biased DOWN because the face is tilted at its operator.

@@ -1677,8 +1677,9 @@ says the chamber goes too black, **this is the number to move**, and
 - **Environment light draws at depth 3** (`ENV_LIGHT_DEPTH`), above the floor
   decals and below the actor band. It therefore *cannot* draw over a bullet, a
   telegraph, the saber or an actor. The gate is a depth constant, not taste.
+  The polish pass added ONE exemption with its own proof — see §10o.
 - **Nothing emissive stands on the fighting floor.** Every source is on the
-  perimeter or on a cover console.
+  perimeter, on a cover console, or on the hero machine in the west aisle.
 - **No red in the environment.** Screens are cyan, machinery cores and emergency
   strips are amber, thresholds are cool white, deck paint is steel.
 - **No filled circle or ring on the deck.** The pilot briefly had a steel ring
@@ -1720,7 +1721,10 @@ CHAMBER**. That routing is unchanged by the debug button.
 ### Evidence
 
 - `docs/evidence/arena-pilot/before/` — baseline, 23 frames
-- `docs/evidence/arena-pilot/after/` — matched, same camera stations
+- `docs/evidence/arena-pilot/after/` — matched, same camera stations. **This is
+  now also the BEFORE of the polish pass** (§10o), because it is the build the
+  handset verdict was given on.
+- `docs/evidence/arena-pilot/polish-after/` — the same stations after §10o
 - `docs/evidence/arena-pilot/ambient-ab/` — the one open question above
 
 The stations are `centre`, `dais-north`, `south-gate`, `corner-nw`,
@@ -1745,6 +1749,236 @@ clocks and owner are untouched, and the frozen saber glow constants are
 untouched. **A/B'd against `1b837d0`: 13 checks fail on the old build and the
 geometry / saber / clock checks pass on it, which is what makes them worth
 having.**
+
+## 10o. THE ARENA PILOT, POLISH PASS — the hero machine
+
+**Handset review of §10n passed the pilot** and asked for one bounded polish
+pass before anyone decides whether this visual language scales. What passed:
+the large/medium/small hierarchy, combat readability, the calm centre, the
+trench frequency, LIGHTS OUT gameplay, the saber's integration, and the fact
+that the room now reads as an interior. What did not: the big round prop looked
+placeholder-like, some lights read as bright objects rather than as machinery,
+the room had no hero landmark, and the perimeter read as procedurally repeated.
+
+This section is the record of that pass. **It is still a pilot. Nothing here is
+frozen and none of it has been propagated to the other three arenas.**
+
+### The hero machine
+
+`paintMeditationPod` in `pixelArt.js` — the chamber's one prop, at (340, 740),
+bottom-centre origin, 352×328, so it occupies world x 164..516, y 412..740 with
+its housing centre at world (340, 572). **Position, footprint and the 220×120
+body are unchanged**; every number above is derived from the sprite at load, and
+the evidence rig's camera stations are derived from them too.
+
+Three decisions carry it:
+
+1. **The interior is rectilinear.** Concentric rings inside a circle with radial
+   spokes across them is a *dial*, which is where a large round object lands by
+   default and is a different flavour of the same "circular UI widget" problem.
+   So the circle is only the HOUSING. What sits in its well is a rectangular
+   plant block: two overlapping plates, a recessed maintenance hatch with catch
+   bolts on the west one, a control bank on the east one.
+2. **The seams are uneven.** Five radial seams across the housing ring at
+   irregular bearings, not six at 60°, and the widest unbroken plate is
+   deliberate — an unbroken face is what makes the broken ones read as joins.
+   Three mounting brackets straddle the rim onto the deck at bearings that are
+   also not evenly spaced.
+3. **Nothing bright is painted on.** The old lid carried one large illustrative
+   crescent, which could only ever be an illustration: it lived in a texture
+   that LIGHTS OUT multiplies toward black. Every emissive is in the two ADD
+   faces below instead.
+
+Material hierarchy: a new `PAL.chMachDark` (`#101319`) is the housing body, with
+`chMach` as a narrow twelve-row cap on its north face and one-pixel rims — a
+joint, not a highlight. The well is `chSink` with a **lit south inner wall**
+(light comes from the north in this game, so a recess catches it on the far
+side; inverted, a hole reads as a dome). The first build filled the whole
+northern half with the lit tone and the machine photographed as a pale grey
+donut, *lighter than the deck it stands on*, which is the opposite of a heavy
+object.
+
+**The control bank replaces the red mark.** The old centre was a red horizontal
+bar over a red vertical one — literally a lowercase "i", and it read as a HUD
+icon. It is now an inset panel with four pieces of believable machine
+information and nothing decorative: a dark-glass status display with three data
+lines, a recessed two-by-four button cluster, a six-tick segmented readout, and
+a lamp row. Two lamps are `chVeridian`; **one logical pixel is `chWarn`**, and
+that fault lamp is the only red anywhere in the environment.
+
+### Its light, and why it is allowed above depth 3
+
+Two textures, `prop-pod-glow` and `prop-pod-emer`, painted with the prop in
+`PreloadScene` so they can never drift out of registration with it. They reach
+the scene through a new `EnvLight` kind, `face`: an ADD Image of an authored
+texture, positioned and depth-derived from the live prop in `loadRoom` at
+`img.depth + 1`.
+
+**Why a face leaves `ENV_LIGHT_DEPTH`.** The rest of the layer sits at depth 3
+so environment light can never draw over combat. A 352×328 opaque prop breaks
+that arrangement in the other direction: at depth 3 a source on the prop's face
+is drawn entirely *underneath* the object it is lighting, which is the same trap
+that made the cover-console wash need a `reach` bigger than the console sprite.
+The escape is bounded rather than open: **a face's rectangle is its prop's
+rectangle, so the only pixels it can cover are pixels the prop is already
+covering opaquely.** Anything a face could hide, the prop hid first.
+`smoke-arena` measures that containment against the live prop's bounds rather
+than trusting the comment.
+
+The split is by **power state**, not by shape:
+
+| | `prop-pod-glow` | `prop-pod-emer` |
+|---|---|---|
+| normal power | 0.55 | **0** |
+| emergency | 1.00 | 0.95 |
+| carries | cyan status display + its wash, two nominal lamps, three cyan tube segments | two amber tube segments, the live readout, the fault lamp |
+
+That is the whole of §6 of the brief: at normal power the machine belongs to the
+room; when the bus drops, its material body recedes with everything else and a
+set of fixtures that **were not lit a second earlier** comes up.
+
+**Emitter and spill, in two places.** The bright part and its local wash are
+painted together in the face texture, in the prop's own space, because that is
+the only place a spill can follow this geometry. What goes in the room's own
+emissive list is the part of the light that lands on the **deck**: two `strip`
+sources at the two arcs' bearings, just outside the housing rim where the prop
+texture is transparent, rotated to each arc's tangent. Both carry
+**`emitter: false`** — a spill with no source of its own, which is a thing
+`EnvLight` did not previously allow and which has exactly one legitimate use.
+Left on, the strip's crisp `TEX_FLAT` bar photographed as a second bright object
+lying on the floor beside the machine.
+
+### Why none of it reads as a telegraph
+
+**The arcs are segmented.** Three short cyan tubes and two amber ones, cut as
+grooves in the material and lit from inside, spanning about 84° of cyan and 56°
+of amber on opposite rims — **under 40% of the circumference, in five pieces, at
+two colours neither of which is red.** A single continuous lit arc was tried
+first and is recorded here as rejected twice over: on the upper-left of a big
+circle it re-created the exact illustrative crescent this pass exists to remove,
+and a long unbroken arc on a large round object is where a ring starts reading
+as a capture zone. Broken segments read as fixtures.
+
+### Room asymmetry
+
+`drawPerimeter`'s `chamber` style now gives each side a **job**, using the same
+bay vocabulary at different densities plus a phase offset (0 / 124 / 208 / 62)
+so no two adjacent walls resolve their rhythm at the same distance from a
+corner:
+
+| side | job | what it does |
+|---|---|---|
+| north | ceremonial | plain heavy header, **no ribs and no vents** — this wall is behind Vader and should be the quietest thing in that frame |
+| west | service | densest: two pipe runs across each bay, a second vent stack, extra louvres |
+| east | control | machinery block on **alternate** bays only; the others are shallow terminal recesses with one trim line |
+| south | threshold | base rhythm plus a deep portal jamb on every second bay, so the entrance end reads as a row of doors |
+
+The hero machine is on the **west**, not the north, because §4 of the brief
+froze its position. So the room's landmark logic is: north is Vader's ground and
+the dais, west is the machine and the service language, east is the control
+side and is deliberately emptier, south is the way in.
+
+### Medium-form enrichment
+
+Seven baked items, all in the side aisles, all outboard of the service trenches
+at x=512 and x=1048, **none on the nave**: a service apron south of the hero
+machine (one plate, two recessed slots, a vent), one vertical brace in the
+north-west, and a sparser control bay opposite (one plate, one narrow cabinet).
+The asymmetry argument again — the west group is a machine being serviced, the
+east group is emptier on purpose.
+
+Two existing sources were promoted to LIGHTS OUT landmarks rather than new ones
+added: the north-west door-control screen (emergency 0.62 → **0.88**, wider,
+longer reach) and the south-east terminal core (0.40 → **0.72**). Their normal-
+power figures barely move — **a landmark is something the dark reveals, not
+something that shouts.**
+
+### Performance
+
+| | |
+|---|---|
+| new persistent objects | **+6** ADD Images (48 → 54): 2 prop faces, 2 spill-only strips, 1 new LED × 2 |
+| new shared glow textures | **0** — still the same three, ≈128KB process-wide |
+| new prop textures | 2 × 352×328 RGBA ≈ **924KB**, resident for the process |
+| new baked primitives | 7 architecture items, plus a few `fillRect`s per perimeter bay |
+| new Graphics objects | 0 |
+| per-frame work | **none** |
+| at LIGHTS OUT transitions | 54 alpha writes per changed scalar instead of 48; nothing re-rasterised |
+
+The 924KB is the pass's real cost and it buys one thing: the faces are painted
+on the prop's own 88×82 canvas, so their registration with it is structural
+rather than arithmetic. Cropping them to their lit region would recover most of
+it and would put a hand-computed origin offset between the light and the object
+it belongs to. That is the trade, and it is the obvious saving if a phone ever
+complains.
+
+### Known remaining limitations — what still looks cheap
+
+- **The cover consoles are still the old art.** Their emissive behaviour is
+  fixed; the 28×28 sprite underneath is not, and next to the hero machine it now
+  looks like what it is. A console redesign was explicitly out of scope.
+- **The housing's lower half is uniform.** The north cap, the well wall and the
+  brackets carry the volume read; below the equator the ring is one value.
+- **The circle's edge is chunky** at scale 4. Consistent with the game's idiom,
+  but it is the first thing you see at phone scale.
+- **The endless sector wash still lifts the room** at high sectors (measured at
+  sector 30: the graphite ladder compresses and the deck goes blue-grey). The
+  machine stays readable and its cyan/amber survive, so it was **not** treated
+  as a blocker — see §17 of the brief. It remains an open question for whoever
+  owns endless colour grading, not for this pass.
+- **`LIGHTSOUT.floor`/`.wall`/`.prop`/`.console` are still the handset's
+  numbers** — unchanged again in this pass, for the reasons in §10n.
+
+### Evidence
+
+- `docs/evidence/arena-pilot/hero-before/` and `hero-after/` — 22 matched frames
+  each, dedicated to the machine: `hero-close`, `hero-mid`, `room-wide`, a
+  three-frame camera pan past it, and Vader / SABER THROW / bolts / telegraph
+  beside it, all in both power states, plus both sector-wash frames.
+  Re-shoot with `node tests/shot-hero-machine.mjs <tag>`.
+- `docs/evidence/arena-pilot/polish-after/` — the §10n station sheet re-shot.
+- `docs/evidence/arena-pilot/after/` is the BEFORE for the wide stations.
+
+### What protects it
+
+`smoke-arena.mjs` gained four groups on top of §10n's eight:
+
+- **Face containment.** Two faces exist, each sits directly on top of a
+  `prop-pod` at that prop's depth + 1, is ADD-blended, and its bounds are inside
+  the prop's bounds. This is what makes the depth-3 exemption safe.
+- **The other three arenas opt out.** Each non-boss room is loaded for real and
+  must show zero emissive parts, zero additive environment objects, no
+  `emissives`, no `floor.grounded`, no `architecture`, no prop `faces`, and not
+  the `chamber` perimeter style. A shared painter that quietly defaults to on is
+  exactly how one arena's language becomes four.
+- **The machine has two states.** One face must be dead at normal power with a
+  real emergency figure, and one must be lit at normal power.
+- **No red in the environment.** Every authored source colour is channel-tested.
+  **Amber is not red** — the first version of this check failed the emergency
+  strips, which are the room's most deliberate colour. The separator is how far
+  green falls: amber holds it near two thirds of red, danger red drops it under
+  a third. The check self-tests against three known reds and three known
+  non-reds in the same run, so a threshold that stops discriminating fails
+  loudly instead of passing everything.
+
+**Not a test, deliberately: the other three rooms' backdrops were proved
+identical by PIXEL HASH, not by reading the diff.** `paintBackdrop`'s panel and
+scorch passes call `Math.random`, so the composite cannot be hashed as-is; with
+`Math.random` pinned to an LCG for the probe the hashes are stable across runs
+and the A/B against `e2f56b3` is exact:
+
+```
+hangar     e178a7ff -> e178a7ff   identical
+corridor   694185ac -> 694185ac   identical
+detention  5f617db1 -> 5f617db1   identical
+vader      a3df44ea -> 36b6b6b0   changed, intended
+prop-pod   ccad2935 -> 2f2611a5   changed, intended
+```
+
+That stayed out of the suite on purpose: baking those hashes in would freeze the
+other three arenas' art, and the point is that they are *unstyled*, not that
+they are finished. The spec-field opt-out check above catches propagation
+without holding anyone's future hangar pass hostage.
 
 ## 10c. The narrative system
 ## 10c. The narrative system

@@ -17,6 +17,8 @@ import {
   paintSecurityPost,
   paintBunk,
   paintMeditationPod,
+  paintPodGlow,
+  paintPodEmergency,
   paintBolt,
   paintSuperSlug,
   paintMissile,
@@ -99,6 +101,11 @@ export class PreloadScene extends Phaser.Scene {
     paintBunk(this, 'prop-bunk');
     paintBunk(this, 'prop-bunk-b', PAL.detStrip);
     paintMeditationPod(this, 'prop-pod');
+    // The hero machine's two ADD faces. Painted here with the prop so they can
+    // never drift out of registration with it, and used only by the Vader
+    // chamber's emissive list — no other room references them.
+    paintPodGlow(this, 'prop-pod-glow');
+    paintPodEmergency(this, 'prop-pod-emer');
 
     // ── Projectiles ──────────────────────────────────────────────────
     paintBolt(this, 'bullet',        PAL.boltRed,        PAL.boltRedGlow,   14);

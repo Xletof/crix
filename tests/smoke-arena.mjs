@@ -30,6 +30,23 @@
 //      change environment presentation and nothing else about the mechanic.
 //   8. THE SABER EMISSIVE IS UNTOUCHED. Frozen on 83dee24 and not this pass's
 //      business, but it lives in the same config block the pilot edited.
+//
+// Added with the polish pass (HANDOVER 10o):
+//
+//   9. A `face` IS CONTAINED BY ITS PROP. The hero machine's two ADD faces are
+//      the one part of the emissive layer allowed above depth 3, and the whole
+//      argument for that is that a face's rectangle is its prop's rectangle.
+//      Measured against the live sprite's bounds, not assumed.
+//  10. THE OTHER THREE ARENAS OPT OUT. Each non-boss room is loaded for real
+//      and must build an EMPTY emissive layer and carry none of the pilot's
+//      opt-in spec fields. A shared painter that defaults to on is how one
+//      arena's language quietly becomes four.
+//  11. THE MACHINE HAS TWO STATES, not one dimmer — one face dead at normal
+//      power with a real emergency figure, one lit at normal power.
+//  12. NO RED IN THE ENVIRONMENT, channel-tested on the spec's own colours.
+//      The check self-tests against three known reds and three known non-reds
+//      in the same run, because AMBER IS NOT RED and the first version of it
+//      failed the room's emergency strips.
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 
 const browser = await chromium.launch({
@@ -76,6 +93,13 @@ const R = await page.evaluate(async () => {
     wallsLen: spec.walls.length,
     hasEmissives: Array.isArray(spec.emissives) && spec.emissives.length > 0,
     hasArchitecture: Array.isArray(spec.floor?.architecture) && spec.floor.architecture.length > 0,
+    // Every colour the authored light spends, split into channels for the
+    // red-discipline check in Node.
+    emissiveColors: (spec.emissives || []).flatMap((e) => [e.color, e.hot].filter((v) => v != null).map((v) => ({
+      kind: e.kind, hex: '#' + v.toString(16).padStart(6, '0'),
+      r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255,
+    }))),
+    propFaces: (spec.props || []).flatMap((p) => (p.faces || []).map((f) => ({ tex: f.tex, normal: f.normal, emergency: f.emergency }))),
   };
 
   // ── The mechanic's clocks and owner. Presentation was in scope; none of this
@@ -137,8 +161,34 @@ const R = await page.evaluate(async () => {
     anyEnvInRoomLayer: envParts.some((p) => roomKids.includes(p)),
     // 2. no emissive object has a physics body
     anyEnvHasBody: envParts.some((p) => !!p.body),
-    // 3. every emissive object sits below the actor band
-    envDepths: [...new Set(envParts.map((p) => p.depth))],
+    // 3. every emissive object sits below the actor band — EXCEPT a `face`,
+    //    which is bolted to an opaque prop and takes that prop's depth + 1.
+    //    See `faces` below for the containment proof that keeps that honest.
+    envDepths: [...new Set(envParts.filter((p) => !p._face).map((p) => p.depth))],
+    faceCount: envParts.filter((p) => p._face).length,
+    // A face may only cover pixels its prop already covers opaquely. That is
+    // the entire argument for letting it out of depth 3, so it is measured
+    // rather than assumed: the face's rectangle against the prop's rectangle,
+    // and its depth against the prop's.
+    faces: envParts.filter((p) => p._face).map((p) => {
+      const fb = p.getBounds();
+      // The prop this face claims to be bolted to: the roomLayer object whose
+      // depth is exactly one below it.
+      const host = roomKids.find((o) => o._loClass === 'prop' && Math.abs(o.depth - (p.depth - 1)) < 1e-6);
+      const hb = host?.getBounds?.();
+      return {
+        tex: p.texture?.key,
+        depth: p.depth,
+        hostTex: host?.texture?.key ?? null,
+        hostDepth: host?.depth ?? null,
+        additive: p.blendMode === Phaser.BlendModes.ADD,
+        contained: !!hb && fb.x >= hb.x - 0.5 && fb.y >= hb.y - 0.5
+          && fb.right <= hb.right + 0.5 && fb.bottom <= hb.bottom + 0.5,
+        // And it must still be under the things it could otherwise hide: no
+        // face may reach the flat depths combat FX and the HUD live at.
+        belowCombatCeiling: p.depth < 2000,
+      };
+    }),
     // 4. every emissive object is ADD-blended — a NORMAL-blend one would be a
     //    grey rectangle on the deck rather than light
     allEnvAdditive: envParts.every((p) => p.blendMode === Phaser.BlendModes.ADD),
@@ -198,10 +248,37 @@ const R = await page.evaluate(async () => {
     displayBefore,
     displayAfter: gs.children.list.length,
     // A destroyed EnvLight must leave nothing behind that is still rendering.
+    // Counts the faces too — they are ADD objects the layer owns at a prop's
+    // depth, so a leaked one would otherwise slip past a depth-3 sweep.
     orphanAdditiveAtEnvDepth: gs.children.list.filter(
-      (o) => o.depth === ENV_LIGHT_DEPTH && o.blendMode === Phaser.BlendModes.ADD,
+      (o) => o.blendMode === Phaser.BlendModes.ADD && (o.depth === ENV_LIGHT_DEPTH || o._face),
     ).length,
   };
+
+  // ── THE OTHER THREE ARENAS ARE NOT IN THE PILOT. Every piece of this pass is
+  //    opt-in per room — `floor.grounded`, a non-empty `emissives`, and now a
+  //    prop's `faces`. Load each of them for real and assert the emissive layer
+  //    they get is EMPTY, because a shared painter that quietly defaults to on
+  //    is exactly how one arena's visual language becomes four.
+  out.others = [];
+  for (const r of ROOMS.filter((x) => !x.boss)) {
+    gs.loadRoom(r);
+    await sleep(700);
+    gs.arenaActive = false;
+    gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
+    out.others.push({
+      id: r.id,
+      specEmissives: (r.emissives || []).length,
+      specGrounded: !!r.floor?.grounded,
+      specArchitecture: (r.floor?.architecture || []).length,
+      specPropFaces: (r.props || []).reduce((n, pr) => n + (pr.faces || []).length, 0),
+      specPerimeter: r.perimeter?.style ?? null,
+      envParts: gs.envLight?.parts?.length ?? -1,
+      additiveAtEnvDepth: gs.children.list.filter(
+        (o) => o.blendMode === Phaser.BlendModes.ADD && (o.depth === ENV_LIGHT_DEPTH || o._face),
+      ).length,
+    });
+  }
   return out;
 });
 
@@ -258,7 +335,17 @@ if (R.layer.envPartCount < 20) fails.push(`emissive layer has only ${R.layer.env
 if (R.layer.anyEnvInRoomLayer) fails.push('an emissive object is inside roomLayer — LIGHTS OUT will tint the room light toward black');
 if (R.layer.anyEnvHasBody) fails.push('an emissive object has a physics body');
 if (!R.layer.allEnvAdditive) fails.push('an emissive object is not ADD-blended');
-if (!eq(R.layer.envDepths, [R.cfg.envLightDepth])) fails.push(`emissive objects are at depths ${JSON.stringify(R.layer.envDepths)}, expected only ${R.cfg.envLightDepth}`);
+if (!eq(R.layer.envDepths, [R.cfg.envLightDepth])) fails.push(`non-face emissive objects are at depths ${JSON.stringify(R.layer.envDepths)}, expected only ${R.cfg.envLightDepth}`);
+// The hero machine's two ADD faces. They are the one part of the emissive layer
+// allowed above depth 3, and only because a face's rectangle is its prop's
+// rectangle — anything it could hide, the prop hid first.
+if (R.layer.faceCount !== 2) fails.push(`the hero prop carries ${R.layer.faceCount} emissive faces, expected 2`);
+for (const f of R.layer.faces) {
+  if (f.hostTex !== 'prop-pod') fails.push(`face ${f.tex} is at depth ${f.depth} with no prop directly under it (found ${f.hostTex})`);
+  if (!f.contained) fails.push(`face ${f.tex} draws outside its prop's rectangle — it can cover pixels the prop does not`);
+  if (!f.additive) fails.push(`face ${f.tex} is not ADD-blended`);
+  if (!f.belowCombatCeiling) fails.push(`face ${f.tex} is at depth ${f.depth}, above the combat band`);
+}
 if (R.cfg.envLightDepth >= 90) fails.push(`environment light is at depth ${R.cfg.envLightDepth} — it must stay below the actor band`);
 // No 'wall' — the chamber's `walls: []` is deliberate and predates this pass.
 if (!eq(R.layer.loClasses, ['console', 'floor', 'prop'])) {
@@ -281,6 +368,38 @@ if (R.leak.orphanAdditiveAtEnvDepth !== R.leak.partsAfter) {
   fails.push(`${R.leak.orphanAdditiveAtEnvDepth} additive objects at the env-light depth but the layer owns ${R.leak.partsAfter} — a previous room's lights survived`);
 }
 
+// 5b — ONE ARENA. The other three rooms must still opt out of every part of it.
+for (const o of R.others) {
+  if (o.specEmissives || o.specGrounded || o.specArchitecture || o.specPropFaces) {
+    fails.push(`PROPAGATED: ${o.id} has picked up pilot spec fields ${JSON.stringify(o)}`);
+  }
+  if (o.specPerimeter === 'chamber') fails.push(`PROPAGATED: ${o.id} is using the pilot's perimeter style`);
+  if (o.envParts !== 0) fails.push(`${o.id} built ${o.envParts} emissive parts — the layer is meant to be empty there`);
+  if (o.additiveAtEnvDepth !== 0) fails.push(`${o.id} has ${o.additiveAtEnvDepth} additive environment objects left drawing`);
+}
+
+// 5c — NO RED IN THE ENVIRONMENT. Red is the saber, the SABER THROW lane and
+// the telegraphs, and the room spends none of it. Checked on the spec's own
+// numbers rather than on a screenshot: for every authored source, the red
+// channel may not be the dominant one. The hero machine's single fault lamp is
+// painted into a texture and is one logical pixel; it is deliberately not an
+// EnvLight source, so it cannot pass through here as a colour.
+// AMBER IS NOT RED, and a naive `r > g` test says it is — the first version of
+// this check failed the emergency strips, which are the room's warmest and most
+// deliberate colour. What separates them is how far the green channel falls:
+// amber holds green at roughly two thirds of red, danger red drops it under a
+// third. The threshold is 0.42 and the self-test below proves it discriminates.
+const isDangerRed = (c) => c.r > 60 && c.g < c.r * 0.42 && c.b < c.r * 0.42;
+for (const known of [{ r: 255, g: 42, b: 24 }, { r: 176, g: 48, b: 48 }, { r: 138, g: 26, b: 26 }]) {
+  if (!isDangerRed(known)) fails.push('the red-discipline check does not recognise red — it is decoration');
+}
+for (const known of [{ r: 255, g: 171, b: 82 }, { r: 106, g: 52, b: 6 }, { r: 143, g: 216, b: 255 }]) {
+  if (isDangerRed(known)) fails.push('the red-discipline check flags amber or cyan — it would fail every honest palette');
+}
+for (const src of R.spec.emissiveColors) {
+  if (isDangerRed(src)) fails.push(`RED IN THE ENVIRONMENT: a ${src.kind} source is ${src.hex}`);
+}
+
 // 6 — the placeholder is replaced, not duplicated
 if (R.cfg.hasDrawConsoleGlow) fails.push('_drawConsoleGlow still exists alongside its replacement');
 if (R.cfg.hasConsoleGlowObj) fails.push('the _consoleGlow Graphics still exists');
@@ -295,6 +414,18 @@ if (!R.cfg.hasRequestLightsOut) fails.push('GameScene.requestLightsOut is gone �
 // 8 — the saber emissive is not this pass's business
 for (const k of Object.keys(SABER)) {
   if (R.cfg.saber[k] !== SABER[k]) fails.push(`FROZEN SABER GLOW MOVED: ${k} = ${R.cfg.saber[k]}, was ${SABER[k]}`);
+}
+
+// 5d — THE HERO MACHINE'S SECOND STATE. Two faces, and one of them must be
+// DEAD at normal power and live under emergency. That pair is the whole reason
+// the machine becomes a landmark when the room goes out instead of just going
+// dark with everything else.
+if (R.spec.propFaces.length !== 2) fails.push(`the hero prop declares ${R.spec.propFaces.length} faces, expected 2`);
+if (!R.spec.propFaces.some((f) => f.normal === 0 && f.emergency > 0.2)) {
+  fails.push('no face on the hero machine is reserved for emergency power — its second state is a dimmer');
+}
+if (!R.spec.propFaces.some((f) => f.normal > 0.1)) {
+  fails.push('the hero machine shows no light at normal power');
 }
 
 // The pilot has to actually exist, or every check above passes vacuously.

@@ -76,6 +76,12 @@ import Phaser from 'phaser';
 // Y-sorts from ~90 up. Environment light therefore can never draw over the
 // player, an enemy, a bullet, a telegraph or the saber — the brief's
 // readability gate is enforced by a depth constant rather than by taste.
+//
+// THE ONE EXCEPTION IS THE `face` KIND, and it is exempt for the opposite
+// reason: a face is registered on top of a large opaque prop, so at depth 3 it
+// would be drawn underneath the object it is supposed to be lighting. It takes
+// that prop's depth + 1 instead, and its rectangle is the prop's rectangle, so
+// the pixels it can reach are pixels the prop already owns. See the case body.
 export const ENV_LIGHT_DEPTH = 3;
 
 const TEX_RADIAL = 'env-glow-radial';
@@ -157,12 +163,12 @@ export class EnvLight {
     this.setPower(0);
   }
 
-  _img(tex, x, y, w, h, color, mul, angle = 0) {
+  _img(tex, x, y, w, h, color, mul, angle = 0, depth = ENV_LIGHT_DEPTH) {
     const im = this.scene.add.image(x, y, tex)
       .setDisplaySize(w, h)
       .setTint(color)
       .setBlendMode(Phaser.BlendModes.ADD)
-      .setDepth(ENV_LIGHT_DEPTH);
+      .setDepth(depth);
     if (angle) im.setRotation(angle);
     im._mul = mul;   // this part's share of the source's intensity
     return im;
@@ -196,8 +202,21 @@ export class EnvLight {
         const len = s.len ?? 200, t = s.t ?? 5, reach = s.reach ?? 22;
         const sw = horiz ? len + reach : t + reach * 2.6;
         const sh = horiz ? t + reach * 2.6 : len + reach;
-        parts.push(this._img(TEX_BOX, s.x, s.y, sw, sh, col, s.spill ?? 0.8));
-        parts.push(this._img(TEX_FLAT, s.x, s.y, horiz ? len : t, horiz ? t : len, hot, 1.4));
+        // `angle` lets a strip lie along something that is not an axis — the
+        // tangent of the hero machine's rim, for instance. The box texture is
+        // separable, so rotating an already-stretched instance is a plain
+        // image rotation and costs nothing.
+        const rot = s.angle ?? 0;
+        parts.push(this._img(TEX_BOX, s.x, s.y, sw, sh, col, s.spill ?? 0.8, rot));
+        // `emitter: false` is a SPILL WITHOUT A SOURCE, and there is exactly
+        // one legitimate reason to ask for it: the source is somewhere this
+        // layer cannot draw — painted into a prop's own face — and what is
+        // wanted here is only the light it throws onto the deck. Left on, the
+        // crisp `TEX_FLAT` bar photographs as a second bright object lying on
+        // the floor beside the machine rather than as its light.
+        if (s.emitter !== false) {
+          parts.push(this._img(TEX_FLAT, s.x, s.y, horiz ? len : t, horiz ? t : len, hot, 1.4, rot));
+        }
         break;
       }
 
@@ -216,6 +235,39 @@ export class EnvLight {
         const r = s.r ?? 14, reach = s.reach ?? 60;
         parts.push(this._img(TEX_RADIAL, s.x, s.y, (r + reach) * 2, (r + reach) * 2, col, s.spill ?? 0.85));
         parts.push(this._img(TEX_RADIAL, s.x, s.y, r * 2.2, r * 2.2, hot, 1.4));
+        break;
+      }
+
+      // ── AN EMISSIVE FACE BOLTED TO A PROP.
+      //
+      //    Every other kind here is a shape this file draws. A `face` is an
+      //    AUTHORED texture — emitter and its local spill painted together, in
+      //    the prop's own space — registered exactly on top of the object it
+      //    belongs to and given that object's depth plus one.
+      //
+      //    WHY IT MAY LEAVE DEPTH 3. The rest of the layer sits below the
+      //    actor band precisely so environment light can never draw over
+      //    combat. A large opaque prop breaks that arrangement in the other
+      //    direction: at depth 3 a source on the prop's face is drawn entirely
+      //    UNDERNEATH the prop and is simply not visible. The escape is sound
+      //    because it is bounded — a face's rectangle is the prop's own
+      //    rectangle, so the only pixels it can cover are pixels the prop is
+      //    already covering opaquely. Anything the face could hide, the prop
+      //    hid first. `smoke-arena` asserts that containment rather than
+      //    trusting it.
+      //
+      //    A face carries no tint by default: the colour decisions were made
+      //    in the texture, where a control bank can be cyan and its fault lamp
+      //    can be one pixel of red at the same time.
+      case 'face': {
+        const im = this.scene.add.image(s.x, s.y, s.tex)
+          .setOrigin(s.originX ?? 0.5, s.originY ?? 1)
+          .setTint(s.color ?? 0xffffff)
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setDepth(s.depth ?? ENV_LIGHT_DEPTH);
+        im._mul = s.spill ?? 1;
+        im._face = true;
+        parts.push(im);
         break;
       }
     }

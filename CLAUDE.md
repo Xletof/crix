@@ -481,7 +481,58 @@ asserts separately that the ceiling is not reached.
   screens cyan, cores and emergency strips amber, thresholds cool white, deck
   paint steel. The same rule killed a steel ring painted around the dais — a thin
   bright circle centred on the boss is the shape and placement of a circle
-  telegraph whatever colour it is.
+  telegraph whatever colour it is. `smoke-arena` channel-tests every authored
+  source colour, and **AMBER IS NOT RED**: the first version of that check failed
+  the emergency strips. The separator is how far green falls — amber holds it
+  near two thirds of red, danger red drops it under a third.
+- **A BIG ROUND PROP DEFAULTS TO A DIAL, AND A DIAL IS A UI WIDGET.** Concentric
+  rings plus radial spokes is what a large circle becomes if you let it. The hero
+  machine's circle is only the HOUSING; what sits in its well is a RECTILINEAR
+  plant block. Its seams are five at irregular bearings, not six at 60° — an
+  unbroken plate is what makes the broken ones read as joins. The same instinct
+  produced the thing that was replaced: one big illustrative crescent across the
+  lid, and a red bar over a red bar in the middle that read as a lowercase "i".
+- **AN ARC ON A LARGE ROUND PROP MUST BE SEGMENTED.** One continuous lit arc
+  fails twice: on the upper-left of a circle it IS the illustrative crescent, and
+  a long unbroken arc on a big round object starts reading as a capture zone or a
+  boss AoE. The hero machine is five short tubes over <40% of its circumference,
+  at two colours, on opposite rims. Broken segments read as fixtures.
+- **A LIGHT AT `ENV_LIGHT_DEPTH` IS INVISIBLE UNDER A LARGE OPAQUE PROP.** Depth
+  3 is below the whole actor band, which is the readability gate — and it means a
+  source on a 352x328 prop's face is drawn entirely underneath it. The `face`
+  kind is the ONE exemption: an ADD texture painted in the prop's own space, at
+  the prop's depth + 1, whose rectangle IS the prop's rectangle, so anything it
+  could hide the prop hid first. `smoke-arena` measures that containment against
+  the live sprite's bounds. Do not widen the exemption to a source that is not
+  bolted to an opaque object.
+- **`emitter: false` IS A SPILL WITH NO SOURCE, and it has exactly one honest
+  use:** the source is somewhere this layer cannot draw — painted into a prop's
+  face — and what belongs on the deck is only the light it throws. Left on, the
+  strip's crisp `TEX_FLAT` bar photographs as a second bright OBJECT lying on the
+  floor beside the machine rather than as its light.
+- **A HERO PROP'S DARK STATE IS TWO TEXTURES, NOT ONE DIMMER.** `prop-pod-glow`
+  runs at 0.55 normal / 1.0 emergency; `prop-pod-emer` is **0 at normal power**
+  and 0.95 under emergency. That second texture is the whole difference between
+  "the machine is still there, dimmer" and "fixtures that were not lit a second
+  ago have come up". `smoke-arena` fails if no face is reserved for emergency.
+- **A HOUSING LIT OVER HALF ITS AREA IS LIGHTER THAN THE DECK IT STANDS ON.** The
+  first hero build filled the whole northern half with `chMachLit` and
+  photographed as a pale grey donut — the opposite of a heavy object. The lit
+  band is a CAP: twelve rows out of seventy. Related: a recess catches light on
+  its SOUTH inner wall, because light comes from the north here; inverted, a hole
+  reads as a dome.
+- **THE HERO MACHINE'S FACES ARE PAINTED ON THE PROP'S OWN CANVAS** (88x82 at
+  scale 4, same as `prop-pod`), so registration with it is structural rather than
+  arithmetic. That costs ~924KB of mostly-transparent texture and it is the
+  deliberate trade. Cropping them puts a hand-computed origin offset between a
+  light and the object it belongs to.
+- **THE `chamber` PERIMETER HAS FOUR JOBS, ONE PER SIDE.** north ceremonial (no
+  ribs, no vents — that wall is behind Vader), west service (densest, the hero
+  machine's side), east control (machinery block on alternate bays only), south
+  threshold. Plus a phase offset per side (0/124/208/62) so no two adjacent walls
+  resolve their rhythm at the same distance from a corner. It is ONE bay
+  vocabulary at four densities, not four hand-built walls — four hand-built walls
+  is four rooms inside one room.
 
 ## Testing
 

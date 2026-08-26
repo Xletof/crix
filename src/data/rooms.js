@@ -379,7 +379,30 @@ export const ROOMS = [
         { kind: 'doorframe', x: 1482, y: 690, w:  40, h: 220 },
         { kind: 'doorframe', x: 1482, y: 1090, w: 40, h: 220 },
 
+        // ── MEDIUM, SECOND PASS. Handset review asked for a little more
+        // construction at medium scale and none at all in the centre, so
+        // every item below is in a side aisle, outboard of the service
+        // trenches at x=512 and x=1048, and none of it is on the nave.
+        //
+        // They are also not scattered evenly: the WEST group is a service
+        // apron built around the hero machine, and the EAST group is a
+        // sparser control bay. That is the floor half of the same
+        // different-sides-different-jobs argument the perimeter makes.
+        //
+        // WEST — the machine's apron. The prop stands at (340, 740) with its
+        // plinth ending at y=732, so this sits directly south of it and reads
+        // as the deck it is serviced from.
+        { kind: 'plate', x: 140, y: 790, w: 250, h: 190, inset: 18 },
+        { kind: 'inset', x: 170, y: 828, w: 52, h: 112 },
+        { kind: 'inset', x: 240, y: 828, w: 52, h: 112 },
+        { kind: 'rib', dir: 'v', x: 306, y: 250, len: 190, t: 14, alpha: 0.7 },
+        // EAST — the control bay. One plate, one narrow cabinet, and nothing
+        // else; the point of this side is that it is emptier.
+        { kind: 'plate', x: 1210, y: 790, w: 250, h: 190, inset: 18 },
+        { kind: 'inset', x: 1372, y: 828, w: 44, h: 112 },
+
         // SMALL — sparse, and never on the fighting floor.
+        { kind: 'vent', x: 310, y: 856, w: 30, h: 54 },
         { kind: 'vent', x: 128, y: 700, w: 34, h: 60 },
         { kind: 'vent', x: 1438, y: 700, w: 34, h: 60 },
         { kind: 'vent', x: 128, y: 1360, w: 34, h: 60 },
@@ -411,7 +434,13 @@ export const ROOMS = [
     emissives: [
       // ── Wall machinery screens. Cool cyan, seated in the bays of the
       //    `chamber` wall rhythm, at the block centres (period 320).
-      { kind: 'screen', x: 480, y: 34, w: 62, h: 20, color: 0x1a5a96, hot: 0x8fd8ff, normal: 0.22, emergency: 0.62, reach: 46, drop: 0.75 },
+      // NORTH-WEST DOOR CONTROL. One of the two features promoted to a
+      // LIGHTS OUT landmark: wider than the other screens and much stronger
+      // under emergency power, so the north end of the west aisle stays
+      // findable when the ambient has gone. Not brighter at normal power —
+      // a landmark is something the dark reveals, not something that shouts.
+      { kind: 'screen', x: 480, y: 34, w: 78, h: 22, color: 0x1a5a96, hot: 0x8fd8ff, normal: 0.24, emergency: 0.88, reach: 62, drop: 0.80 },
+      { kind: 'led', x: 536, y: 44, r: 3, color: 0x8a5a10, hot: 0xffd08a, normal: 0.24, emergency: 0.70, reach: 11 },
       { kind: 'screen', x: 1120, y: 34, w: 62, h: 20, color: 0x1a5a96, hot: 0x8fd8ff, normal: 0.22, emergency: 0.62, reach: 46, drop: 0.75 },
       { kind: 'screen', x: 1120, y: 1566, w: 62, h: 20, color: 0x1a5a96, hot: 0x8fd8ff, normal: 0.20, emergency: 0.55, reach: 44, drop: -0.4 },
       { kind: 'screen', x: 34, y: 1120, w: 20, h: 62, color: 0x1a5a96, hot: 0x8fd8ff, normal: 0.20, emergency: 0.55, reach: 44, drop: 0.1 },
@@ -419,7 +448,11 @@ export const ROOMS = [
       // ── Machinery cores. The one place a radial pool is the truth: something
       //    hot inside a housing. Amber, so it cannot be read as a telegraph.
       { kind: 'core', x: 40, y: 450, r: 12, color: 0x8a4a10, hot: 0xffb45a, normal: 0.16, emergency: 0.40, reach: 54 },
-      { kind: 'core', x: 1560, y: 1150, r: 12, color: 0x8a4a10, hot: 0xffb45a, normal: 0.16, emergency: 0.40, reach: 54 },
+      // SOUTH-EAST TERMINAL CLUSTER. The second promoted landmark, and the
+      // only one on the control side of the room. Same fixture, longer reach
+      // and a much higher emergency figure — the east wall keeps one warm
+      // anchor so the dark room still has two ends.
+      { kind: 'core', x: 1560, y: 1150, r: 12, color: 0x8a4a10, hot: 0xffb45a, normal: 0.16, emergency: 0.72, reach: 78 },
       // ── Status lamps. Compact by definition. Sparse: four in the room.
       { kind: 'led', x: 160, y: 40, r: 3, color: 0x1a7a3a, hot: 0x8fffb0, normal: 0.30, emergency: 0.70, reach: 10 },
       { kind: 'led', x: 1440, y: 40, r: 3, color: 0x1a7a3a, hot: 0x8fffb0, normal: 0.30, emergency: 0.70, reach: 10 },
@@ -438,6 +471,23 @@ export const ROOMS = [
       { kind: 'strip', dir: 'v', x: 76, y: 1180, len: 220, t: 5, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.20, reach: 22 },
       { kind: 'strip', dir: 'v', x: 1524, y: 420, len: 220, t: 5, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.20, reach: 22 },
       { kind: 'strip', dir: 'v', x: 1524, y: 1180, len: 220, t: 5, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.20, reach: 22 },
+      // ── THE HERO MACHINE'S DECK SPILL. The arcs themselves are painted into
+      //    the prop's own ADD faces, because a source at this layer's depth
+      //    would be drawn under a 352x328 opaque sprite. What belongs HERE is
+      //    the part of their light that lands on the floor beside it: two
+      //    angled halos, sitting just outside the housing rim at the bearings
+      //    of the two arcs, where the prop texture is transparent.
+      //
+      //    Housing centre is world (340, 572) with an outer radius of 144.
+      //    These sit at ~160-180 out, on the two opposite bearings, and their
+      //    rotation is each arc's tangent — light off a curved fixture lies
+      //    ALONG the fixture. The amber one is dead at normal power, exactly
+      //    like the arc that casts it.
+      //    SPILL ONLY. `emitter: false` — the bright part of these two sources
+      //    is painted on the machine, and leaving the strip's own emitter on
+      //    put a crisp bar of light on the deck that read as a second object.
+      { kind: 'strip', dir: 'h', x: 215, y: 470, len: 96, t: 5, angle: -0.82, emitter: false, color: 0x1a5a96, normal: 0.10, emergency: 0.30, reach: 40, spill: 0.9 },
+      { kind: 'strip', dir: 'h', x: 468, y: 678, len: 78, t: 5, angle: 2.27, emitter: false, color: 0x6a3406, normal: 0, emergency: 0.34, reach: 34, spill: 0.9 },
       // ── Door thresholds. Cool white, present in both states — a doorway is
       //    the one thing that must stay findable when the lights go.
       { kind: 'strip', dir: 'h', x: 800, y: 76, len: 180, t: 5, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.16, emergency: 0.40, reach: 18 },
@@ -451,7 +501,25 @@ export const ROOMS = [
     // pod is the whole story, and a second object would dilute it. Placed
     // off-axis so neither the north gate nor the approach to Vader is touched.
     props: [
-      { x: 340, y: 740, tex: 'prop-pod', solid: true, bodyW: 220, bodyH: 120 },
+      // THE HERO MACHINE. Position, footprint and body are frozen — this is
+      // the object the room is landmarked on and the only prop in it. `faces`
+      // are its two ADD emissive layers; `loadRoom` derives their position and
+      // their depth from the live sprite rather than from repeated literals,
+      // so the light cannot end up registered where the machine used to be.
+      //
+      // The pair is the machine's two power states. `glow` is the plant
+      // running: cyan status display, its lamps, the cyan arc channel. `emer`
+      // is DEAD until the bus drops and then carries the amber arc, the
+      // segmented readout and the single fault lamp — which is what lets the
+      // player find the machine in the dark by light that was not there a
+      // second earlier.
+      {
+        x: 340, y: 740, tex: 'prop-pod', solid: true, bodyW: 220, bodyH: 120,
+        faces: [
+          { tex: 'prop-pod-glow', normal: 0.55, emergency: 1.00 },
+          { tex: 'prop-pod-emer', normal: 0,    emergency: 0.95 },
+        ],
+      },
     ],
     cover: snapAll([
       // 4 corner cover pillars

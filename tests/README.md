@@ -810,15 +810,16 @@ already said not to modify source during capture; it applies to the suite too.
 
 ## Arena-pilot rigs (added with the environment visual pilot)
 
-Three files, and only one of them is a test.
+Four files, and only one of them is a test.
 
 | file | what it is |
 |---|---|
 | `smoke-arena.mjs` | **assertion test.** In `run-all`. Protects structure, never taste. |
 | `shot-arena-pilot.mjs` | **evidence.** `node tests/shot-arena-pilot.mjs <tag>` → `docs/evidence/arena-pilot/<tag>/`. Same camera stations every run, so before/after is the same room and not two prettiest-camera shots. |
+| `shot-hero-machine.mjs` | **evidence, polish pass.** Same contract, stations derived from the hero prop's world footprint rather than from the room. |
 | `shot-arena-ambient-ab.mjs` | **evidence for one open decision.** One frozen frame at two `LIGHTSOUT.floor` settings. |
 
-### Four things these rigs learned the hard way
+### Five things these rigs learned the hard way
 
 **`_sectorTint` will silently ruin every arena photograph.** The endless
 per-sector wash is an ADD-blended screen-locked rectangle at depth 9000, up to
@@ -837,6 +838,12 @@ only thing that stops `scene.update`, and the pause/resume round trip lets a
 cycle of the boss's clocks land — every station shot in `shot-arena-pilot`
 re-silences them after resuming or it photographs a stray SUNDER.
 
+**`hush()` has to sweep the wave, not just silence the boss.** The survival
+round keeps spawning underneath the boss fight, and both shot rigs originally
+cleared the enemies once at the top of the run — so half the environment frames
+came back with six troopers standing in them. The sweep belongs in `hush`, which
+runs before every shutter.
+
 **Freeze the room's gameplay geometry as LITERALS, post-`snapAll`.** The Vader
 chamber's cover is written as 400/1200 in `rooms.js` and `mapUtils.snapAll`
 moves it to 440/1240 at load. `smoke-arena` first froze the pre-snap numbers and
@@ -851,6 +858,35 @@ layer, the power-state composition, the lifecycle counts, the removed
 placeholder and the two "the pilot exists at all" guards. The geometry, saber,
 darkness-clock and material-class checks all **pass** on that build, which is
 what makes them regression detectors rather than decoration.
+
+### Proving the OTHER rooms are untouched — by pixels, and why it is not a test
+
+The polish pass needed to show that a change to shared painters (`PAL`,
+`paintBackdrop`, `drawPerimeter`) did not reach the hangar, the corridor or the
+detention block. Reading the diff is not proof; hashing the painted backdrop is.
+
+**`paintBackdrop` calls `Math.random` for its panel and scorch passes**, so the
+composite is different on every load and cannot be hashed as it stands. Pin
+`Math.random` to an LCG inside the probe, remove the cached `backdrop-<id>`
+texture, reseed, and reload each room: everything else in the painter is
+deterministic, so the hash IS the authored structure and it is stable across
+runs. A/B against `e2f56b3`:
+
+```
+hangar     e178a7ff -> e178a7ff   identical
+corridor   694185ac -> 694185ac   identical
+detention  5f617db1 -> 5f617db1   identical
+vader      a3df44ea -> 36b6b6b0   changed, intended
+prop-pod   ccad2935 -> 2f2611a5   changed, intended
+```
+
+**It stayed out of `run-all` on purpose.** Baking those four hashes in would
+freeze three arenas that are deliberately unstyled — the next person to give the
+hangar a pass would have to update a hash to do legitimate work, which is how a
+check becomes a tax. `smoke-arena` asserts the thing that actually matters
+instead: each non-boss room is loaded for real and must have zero emissive
+parts, zero additive environment objects, and none of the pilot's opt-in spec
+fields. That catches propagation without holding anyone's future work hostage.
 
 ### The `smoke-vader` failures during the pilot — one real, five load
 
