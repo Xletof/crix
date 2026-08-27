@@ -20,6 +20,13 @@ export class Terminal {
     this.hologramTime = 0;
 
     this.sprite = scene.add.image(x, y, 'terminal').setDepth(19).setScale(1.1);
+    // TAGGED FOR LIGHTS OUT. An objective terminal joins `roomLayer`, so the
+    // darkness tints it — and it was reaching that tint with no `_loClass` at
+    // all, which silently drops an object into the generic strength. It is a
+    // powered, screen-lit thing, so it takes the console material like the
+    // cover consoles do. The Vader chamber has no terminals, which is why this
+    // never showed up in the pilot.
+    this.sprite._loClass = 'console';
     scene.roomLayer.add(this.sprite);
 
     this.gfx = scene.add.graphics().setDepth(20);

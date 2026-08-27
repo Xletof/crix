@@ -588,6 +588,66 @@ asserts separately that the ceiling is not reached.
   camera that never moved. Solve for the player instead, and remember the camera
   CLAMPS at the arena bounds: anything at y=1240 in a 1600px arena lands at
   screen y 920, under the touch controls, whatever you ask for.
+- **THERE ARE TWO STYLED ARENAS NOW, AND THE HANGAR IS THE PROOF THE FIRST ONE
+  GENERALIZES.** `HANDOVER.md` §10q is the record. It reuses the RULES (large
+  before medium before small, a calm centre, per-side perimeter jobs, emitter
+  plus a spill shaped like its source, two independent intensities, contact
+  shadows, no red) and reuses NONE of the composition. Corridor and Detention
+  are still untouched and both smoke tests assert it. Do not propagate.
+- **THE HANGAR'S LANDMARK IS PART OF THE WALL, ON PURPOSE.** A second
+  freestanding hero machine would have proved the PROP generalizes, which
+  nobody asked. The blast door is declared by the room
+  (`perimeter.features: [{ side, at, width, kind }]`) and painted by
+  `drawWallFeature` in the band's local space, inside the doorway clip. If the
+  language only knows how to make one kind of landmark it is not a language.
+- **THE HUD'S TOP BAR EATS THE FIRST ~20 WORLD PIXELS OF A NORTH WALL.** The
+  game camera is inset by `HUDCFG.topBarHeight`, so world y 0 lands at screen 84
+  only while the camera is at its northern clamp; one step south and the
+  outermost edge of the band is under the bar. Anything a north-wall feature
+  needs the player to SEE goes below its header, never on it.
+- **A WALL-MOUNTED PROP MUST NOT SORT BY ITS Y.** Props Y-sort at plain `y`
+  because y is their ground contact, and a control panel bolted to a wall has
+  none — sorted that way it occludes actors hundreds of pixels away at the far
+  edge of the room. `prop.depth` exists for exactly this; the wall panels use 6,
+  above the floor decals and below every actor. And `emitter`/`reach` on a
+  mounted panel has to clear the 112px SPRITE, or the light is drawn underneath
+  the object and the panel reads as bright rather than as lighting anything.
+- **A COVER OBJECT THAT DECLARES NO LIGHT IS NOT A CONSOLE.** Cover used to be
+  tagged `_loClass = 'console'` unconditionally — the lightest LIGHTS OUT
+  material — and the hangar's cargo crates survived a blackout as pale boxes
+  brighter than the machinery. The tint is derived from `CONSOLE_KIT` now, not
+  from a name list. `bush` carries no `tex` and stays a console, which is what
+  keeps the unstyled arenas where they are. The objective terminal was in
+  `roomLayer` with NO `_loClass` at all for its whole life; a null class falls
+  into the generic strength silently.
+- **A TRENCH AND A TRACK ARE DIFFERENT CLAIMS.** A trench is a hole with a grate
+  over it; a track is two rails set flush into the deck with sleepers between.
+  Both recessed, so neither lies about collision — but reusing the chamber's
+  trench in the hangar would have been reusing its composition, which is the
+  one thing the second arena was not allowed to do. Same for `region`: it seams
+  its VERTICAL sides by default because the chamber's regions are all tall, and
+  a wide region needs `edge: 'h'` or its boundary is drawn where nobody looks.
+- **BASE THE FLOOR ON THE DECK VALUE, NOT ON A RECESS.** The hangar's first
+  build used `hgRecess` as the base and every authored region read as a pale
+  rectangle painted onto a dark one. With the deck as the ground value the
+  apron lifts off it and the staging bay drops into it, which is what a region
+  is supposed to do.
+- **CARGO IS NOT ALLOWED TO OUT-SHOUT HARDWARE.** The first crate palette was
+  '#39352b' / '#4a4436' and photographed as the brightest object in the room —
+  warm enough to read as timber, louder than the lit terminals beside it.
+  Freight sits ONE step above the deck. It also carries no emissive source at
+  all, and that is deliberate: five of the hangar's eight cover objects going
+  out is what keeps its dark state dark.
+- **`prop-crane` AND `prop-drum` USED TO SPEND SATURATED RED ON DECORATION** —
+  seven crimson hazard bars across the gantry beam and a 24x12 red label panel
+  on each of three drums. Both are amber now. Both textures are hangar-only.
+  The exit's `[ SEALED ]` bar stays red because it is gameplay UI.
+- **RESEED THE RNG BEFORE EVERY BACKDROP WHEN HASHING TEXTURES.**
+  `paintBackdrop` consumes `Math.random` for its panel and scorch scatter, so
+  changing ONE room's `panels`/`scorch` counts shifts the stream for every
+  backdrop painted after it. Seeding the LCG once per page made all four rooms'
+  hashes move and read exactly like a visual pass leaking into three arenas it
+  had never touched. Reseed per paint.
 - **THE `chamber` PERIMETER HAS FOUR JOBS, ONE PER SIDE.** north ceremonial (no
   ribs, no vents — that wall is behind Vader), west service (densest, the hero
   machine's side), east control (machinery block on alternate bays only), south

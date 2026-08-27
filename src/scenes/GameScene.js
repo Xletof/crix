@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, ENDLESS, FONTS, HUDCFG, VIEW, DEPTH, LIGHTSOUT, bossMechanicsFor, bossMechanicById } from '../config.js';
 import { EnvLight } from '../systems/EnvLight.js';
-import { consoleEmissives } from '../data/consoleKit.js';
+import { consoleEmissives, CONSOLE_KIT } from '../data/consoleKit.js';
 import { Player } from '../entities/Player.js';
 import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, EnemySniper, EnemySwarmling, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
@@ -532,7 +532,15 @@ export class GameScene extends Phaser.Scene {
       // THE ISLANDS OF REMAINING POWER. A cover console is a lit terminal —
       // blue screen, LED key lights — so it takes the lightest tint of the
       // four and stays legible when the room around it does not.
-      con._loClass = 'console';
+      //
+      // A CRATE IS NOT A TERMINAL. The hangar's cover includes cargo modules,
+      // which have no power going to them; on the console tint they survived a
+      // blackout as pale boxes, brighter than the machinery around them. The
+      // test is the KIT itself rather than a name list: a cover texture that
+      // declares no light is unpowered mass and takes the prop tint. `bush`
+      // has no texture key at all and stays a console, which is what keeps the
+      // three unstyled arenas exactly where they were.
+      con._loClass = (cp.tex && !CONSOLE_KIT[cp.tex]) ? 'prop' : 'console';
       this.roomLayer.add(con);
       this.bushSystem.add(con, 55);
     }
@@ -551,11 +559,17 @@ export class GameScene extends Phaser.Scene {
     // sprite: a shuttle's footprint is its hull, not its wingspan, so you can
     // walk under the wing and the nav grid only loses the hull.
     const propFaces = [];
+    const propLights = [];
     for (const pr of spec.props || []) {
       const img = pr.solid
         ? this.walls.create(pr.x, pr.y, pr.tex)
         : this.add.image(pr.x, pr.y, pr.tex);
-      img.setOrigin(0.5, 1).setDepth(pr.y);
+      // Depth is the prop's own y — it IS the ground contact point — UNLESS
+      // the prop declares one. A wall-mounted panel is not standing on the
+      // deck at all: it is part of the wall band, and sorting it by its y
+      // would let it occlude a player standing several hundred pixels away on
+      // the other side of the room's edge.
+      img.setOrigin(0.5, 1).setDepth(pr.depth ?? pr.y);
       if (pr.scale) img.setScale(pr.scale);
       if (pr.flip) img.setFlipX(true);
       if (pr.solid) {
@@ -588,6 +602,17 @@ export class GameScene extends Phaser.Scene {
           normal: f.normal ?? 0, emergency: f.emergency ?? 0,
         });
       }
+      // A PROP MAY BE A PIECE OF THE COVER KIT. `kit` names an archetype in
+      // `consoleKit.js` and takes its light from there — the same declaration
+      // a cover console uses, so a wall control panel mounted as decoration
+      // and one standing as cover are lit by one contract rather than two.
+      //
+      // The offset is the whole reason this is derived from the LIVE sprite:
+      // cover is drawn at origin (0.5, 0.5) and a prop at (0.5, 1.0), so a
+      // prop's kit coordinates are measured from `y - displayHeight / 2`, and
+      // a hand-written constant there is a light half a sprite away from the
+      // object it belongs to.
+      if (pr.kit) propLights.push(...consoleEmissives(pr.kit, img.x, img.y - img.displayHeight / 2));
     }
 
     // ── THE ROOM'S AUTHORED LIGHT ──────────────────────────────────────────
@@ -611,6 +636,7 @@ export class GameScene extends Phaser.Scene {
     this.envLight = new EnvLight(this, !authored ? [] : [
       ...spec.emissives,
       ...propFaces,
+      ...propLights,
       // A cover console is a powered terminal. WHERE its light is, and how
       // much of it comes up on emergency power, is declared once per archetype
       // in `consoleKit.js` in the sprite's own logical pixels — the same

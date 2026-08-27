@@ -22,77 +22,254 @@ export const ROOMS = [
     bounds: { w: 1600, h: 1400 },
     spawn: { x: 200, y: 700 },
     exit: { x: 1500, y: 700, side: 'right' },
-    // Big open working deck: wide hex so the floor reads as large plates,
-    // amber guide lights instead of the red alert strips, and heavy scorch.
+    // ══ THE HANGAR, SECOND ARENA ═══════════════════════════════════════════
+    //
+    // THIS IS THE GENERALIZATION TEST, and the thing it is testing is whether
+    // the chamber left behind an ART DIRECTION or one good room. So the RULES
+    // are reused verbatim — large before medium before small, a calm centre,
+    // per-side perimeter jobs, emitter plus a spill shaped like its source, two
+    // independent lighting intensities, contact shadows, no red — and the
+    // COMPOSITION is not reused at all.
+    //
+    //   VADER CHAMBER   enclosed technical containment. A nave to a dais, a
+    //                   freestanding hero machine, cool graphite, severe.
+    //   HANGAR          an operational deployment deck. A launch axis to a
+    //                   blast door, a hero landmark that is PART OF THE WALL,
+    //                   neutral gunmetal, working and scuffed.
+    //
+    // Everything below is painted art or emissive layer. `bounds`, `spawn`,
+    // `exit`, `gates`, `walls`, `terminals`, `enemies`, `pickups`, the eight
+    // cover positions and the five prop bodies are exactly what they were.
     floor: {
-      base: PAL.hangBase, line: PAL.hangLine, panel: PAL.hangPanel,
+      // NEUTRAL GUNMETAL, and the base value IS the deck rather than a recess.
+      // The first build based the floor on `hgRecess` and every authored region
+      // then read as a pale rectangle painted onto a dark one; with the deck as
+      // the ground value the apron lifts off it and the staging bay drops into
+      // it, which is what a region is supposed to do. The old deck was
+      // olive-brown (`hangBase`) and came back from the baseline evidence as
+      // mud — warm, low contrast, and with nothing in it a plate seam could be
+      // drawn against.
+      base: PAL.hgDeck, line: PAL.hgSeam, panel: PAL.hgRecess,
       strip: PAL.hangStrip, stripGlow: PAL.hangStripGlw,
       accent: PAL.hangAcc, accentGlow: PAL.hangAccGlw,
-      hexW: 96, hexH: 84, stripEvery: 260, accentEvery: 520,
-      panels: 70, scorch: 70,
-      markColor: PAL.hangStripGlw, markAlpha: 0.30,
+      // NO BAKED STRIP LIGHTS, exactly as in the chamber and for exactly the
+      // same reason: four full-width amber bars every 260px were the loudest
+      // thing in every baseline frame, and a ceiling fixture drawn flat on the
+      // floor is not light. The room's light is authored in `emissives`.
+      stripEvery: 0, accentEvery: 0,
+      // BIGGER TILING THAN THE CHAMBER. 160x140 against its 120x105: a hangar's
+      // deck plates are larger, and the tile size is the cheapest place to say
+      // so. Kept to a whisper for the same reason the chamber does.
+      hexW: 160, hexH: 140, hexAlpha: 0.30,
+      panels: 40, scorch: 50,
+      grounded: true,
+      // Deck paint is AMBER here, where the chamber's is steel. It is the one
+      // warm graphic in the room and it is the honest colour for hangar floor
+      // markings; at 0.30 it is a stain rather than a signal.
+      markColor: PAL.hangStrip, markAlpha: 0.30,
       marks: [
-        // Two landing pads flanking the terminal — the deck's reason to exist.
-        { kind: 'pad', x: 420, y: 360, r: 150 },
-        { kind: 'pad', x: 420, y: 1040, r: 150 },
-        // Hazard chevrons pointing at the exit, so the room reads directional.
+        // NO LANDING-PAD RINGS. The old deck had two 150px painted circles on
+        // it, which is the shape and placement of a circle telegraph. The
+        // shuttle's ground is marked by CORNER BRACKETS instead — the same
+        // claim about the same area, in a shape no attack uses.
+        { kind: 'bay', x: 250, y: 300, w: 340, h: 300, alpha: 0.75 },
+        { kind: 'bay', x: 790, y: 1010, w: 400, h: 280, alpha: 0.7 },
+        // Hazard chevrons pointing at the exit — the room reads directional,
+        // and this was already the best thing on the old deck.
         { kind: 'chevrons', x: 1180, y: 640, w: 260, h: 120, step: 60, dir: 1 },
-        // Caution hatching under the gate mouths.
-        { kind: 'stripes', x: 1400, y: 120, w: 200, h: 160, alpha: 0.7 },
-        { kind: 'stripes', x: 1400, y: 1120, w: 200, h: 160, alpha: 0.7 },
-        { kind: 'bay', x: 640, y: 540, w: 320, h: 320, alpha: 0.8 },
+        // Caution hatching at the three gate mouths.
+        { kind: 'stripes', x: 1296, y: 120, w: 180, h: 160, alpha: 0.7 },
+        { kind: 'stripes', x: 1296, y: 1120, w: 180, h: 160, alpha: 0.7 },
+        { kind: 'stripes', x: 700, y: 124, w: 200, h: 90, alpha: 0.55, gap: 40 },
+      ],
+      // The gunmetal ladder. Supplied per room so the chamber's graphite and
+      // this deck can diverge through one painter rather than two.
+      archPal: {
+        sink: PAL.hgSink, recess: PAL.hgRecess, deck: PAL.hgDeck,
+        deckLit: PAL.hgDeckLit, rib: PAL.hgRib, ribLit: PAL.hgRibLit,
+        seam: PAL.hgSeam, bolt: PAL.hgBolt,
+      },
+      // ── LARGE, then MEDIUM, then SMALL. Drawn in list order.
+      architecture: [
+        // LARGE — three operational zones, and they are the whole room.
+        // THE LAUNCH APRON. The lighter deck in front of the blast door, where
+        // the shuttle is parked. Wide rather than tall: this is the opposite
+        // axis to the chamber's nave, which is the point.
+        { kind: 'region', x: 150, y: 116, w: 540, h: 442, tone: 'deckLit', alpha: 0.40, edge: 'h' },
+        // THE DEPLOYMENT LANE. A broad band running the room's long axis from
+        // the spawn wall to the exit — the room's direction, stated once at
+        // full width instead of thirty times in small markings.
+        { kind: 'region', x: 116, y: 570, w: 1368, h: 240, tone: 'deckLit', alpha: 0.22, edge: 'h' },
+        // THE STAGING BAY. Recessed rather than raised: the south-east corner
+        // is where freight sits, and it should read as lower than the lane.
+        { kind: 'region', x: 700, y: 950, w: 750, h: 380, tone: 'recess', alpha: 0.75, edge: 'h' },
+
+        // MEDIUM — a loading system, in three lengths on two axes.
+        // The long east-west track IS the deployment axis. One 1320px recessed
+        // rail pair does more for the room's identity than any number of
+        // markings, and it is flat, so it cannot promise cover.
+        { kind: 'track', dir: 'h', x: 140, y: 596, len: 1320, t: 46, step: 58 },
+        // The door-to-apron spur: shorter, perpendicular, and the shuttle is
+        // parked across it.
+        { kind: 'track', dir: 'v', x: 396, y: 128, len: 356, t: 46, step: 54 },
+        // The gantry rail. The crane's feet land on it, which is the cheapest
+        // possible way to stop a 300px prop looking parked on nothing.
+        { kind: 'track', dir: 'h', x: 190, y: 1104, len: 460, t: 40, step: 48 },
+        // Deck plates. LARGER AND FEWER than the chamber's 380x400 — a hangar
+        // is built out of bigger pieces, and three plates is the whole budget.
+        { kind: 'plate', x: 1000, y: 130, w: 460, h: 400, inset: 26 },
+        { kind: 'plate', x: 130, y: 880, w: 440, h: 420, inset: 26 },
+        { kind: 'plate', x: 760, y: 985, w: 460, h: 320, inset: 26 },
+        // Recessed maintenance bays against the side walls, under the racking.
+        { kind: 'inset', x: 124, y: 300, w: 110, h: 260 },
+        { kind: 'inset', x: 124, y: 960, w: 110, h: 260 },
+        { kind: 'inset', x: 1366, y: 900, w: 110, h: 260 },
+        // Thresholds, flush inboard of the wall band.
+        { kind: 'doorframe', x: 700, y: 114, w: 200, h: 40 },
+        { kind: 'doorframe', x: 1446, y: 110, w: 40, h: 200 },
+        { kind: 'doorframe', x: 1446, y: 1110, w: 40, h: 200 },
+        { kind: 'doorframe', x: 1446, y: 600, w: 40, h: 220 },
+
+        // SMALL — sparse, and off the fighting centre.
+        { kind: 'hatch', x: 250, y: 640, w: 56, h: 44 },
+        { kind: 'hatch', x: 1300, y: 500, w: 52, h: 44 },
+        { kind: 'hatch', x: 640, y: 1240, w: 56, h: 44 },
+        { kind: 'vent', x: 136, y: 660, w: 34, h: 60 },
+        { kind: 'vent', x: 1428, y: 700, w: 34, h: 60 },
+        { kind: 'vent', x: 900, y: 1238, w: 60, h: 34 },
       ],
     },
-    // Heavy structural ribs — a working hangar's bulkheads. Thickest band of
-    // the four, because this is the room that should feel biggest.
+    // THE HANGAR WALL. `ribbed` was 26px of the same comb repeated 4 x 60
+    // times, which is the "procedurally repeated" verdict the chamber already
+    // took once. `hangar` is the chamber's RULE — one bay vocabulary, four
+    // densities, a phase offset per side — applied to a different vocabulary:
+    // truss columns with bracket feet at a 400px period, panelling between
+    // them instead of machinery cabinets.
+    //
+    // THE HERO LANDMARK IS DECLARED HERE. A blast door on the north wall, west
+    // of the north gate and directly in front of the shuttle: the room's
+    // biggest object is a piece of its architecture rather than a second
+    // freestanding machine, which is the strongest evidence available that the
+    // language generalizes rather than repeats.
     perimeter: {
-      style: 'ribbed', thickness: 72,
-      wall: PAL.hangWall, wallLit: PAL.hangWallLit, wallDark: PAL.hangWallDark,
-      trim: PAL.hangStrip, glow: PAL.hangStripGlw,
+      style: 'hangar', thickness: 116,
+      wall: PAL.hgMach, wallLit: PAL.hgMachLit, wallDark: PAL.hgMachDark,
+      trim: PAL.hgRib, glow: PAL.hgRibLit,
+      features: [
+        { side: 'top', at: 420, width: 460, kind: 'blastdoor', segments: 8, stationSide: 'left' },
+        { side: 'right', at: 900, width: 96, kind: 'panelmount' },
+      ],
     },
-    // Deliberately EMPTY. Walls were emptied out of every room in commit
-    // 1b08e94, the pivot from stealth-infiltration to swarm survival, and
-    // that decision was correct — I re-added geometry here in 7ac7ad7 and it
-    // failed on the phone for exactly the reasons the pivot implies:
+    // ══ AUTHORED LIGHT ══════════════════════════════════════════════════
     //
-    //   - There is ONE wall texture in the game (paintBlastDoor). Any wall is
-    //     N stamps of the same 104px blast door, so a run of tiles reads as a
-    //     repeated texture, not as architecture.
-    //   - A long unbroken wall gives the whole horde one gap to path through,
-    //     so they funnel and conga-line around it. The older history says the
-    //     same thing: d634410 is the last of a run of "cover was still
-    //     blocking the shooter path -> ADVANCE oscillation" fixes.
+    // Same architecture as the chamber's, same two independent intensities,
+    // and a deliberately DIFFERENT composition — because the sources are
+    // different systems. The chamber's dark state is containment machinery and
+    // technical consoles; the hangar's is DEPLOYMENT AND ACCESS: door status,
+    // thresholds, one service bay, the racking lamps.
     //
-    // Room identity comes from ART instead — floor palette, decorative props
-    // with no physics body, perimeter dressing. None of it enters `this.walls`,
-    // so NavGrid and losRects never see it. Geometry only comes back once
-    // there is a tile vocabulary that does not visibly repeat, and then as
-    // compact clusters rather than straight runs. `wallsFromMap` in
-    // mapUtils.js is kept ready for that.
+    // The same two rules held the list down. Nothing emissive stands on the
+    // fighting floor — every source is on the perimeter or on a cover console —
+    // and nothing here is crimson.
+    emissives: [
+      // ── THE BLAST DOOR. Its MASS STAYS DARK. Three short header fixtures in
+      //    the housings painted for them, and nothing outlining the structure:
+      //    a lit perimeter on a door that size is an objective marker.
+      { kind: 'strip', dir: 'h', x: 273, y: 29, len: 66, t: 6, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.20, emergency: 0.34, reach: 20 },
+      { kind: 'strip', dir: 'h', x: 420, y: 29, len: 66, t: 6, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.20, emergency: 0.34, reach: 20 },
+      { kind: 'strip', dir: 'h', x: 567, y: 29, len: 66, t: 6, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.20, emergency: 0.34, reach: 20 },
+      // DOOR STATUS, on the jambs. Dead at normal power: these are the fixtures
+      // that say the door is on the emergency bus and is not going to open.
+      { kind: 'strip', dir: 'v', x: 209, y: 60, len: 52, t: 4, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.34, reach: 16 },
+      { kind: 'strip', dir: 'v', x: 631, y: 60, len: 52, t: 4, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.34, reach: 16 },
+      // THE DOOR'S POWER HEAD, in the control station beside the west jamb.
+      // The room's northern LIGHTS OUT landmark: ordinary at normal power,
+      // and much the strongest thing on this wall once the ambient has gone.
+      { kind: 'core', x: 148, y: 88, r: 10, color: 0x8a4a10, hot: 0xffb45a, normal: 0.14, emergency: 0.74, reach: 72 },
+
+      // ── WEST, STOWAGE. Rack lamps: nominal, and they do not get louder in
+      //    the dark. Two, because a working wall has a couple of lamps on it
+      //    and not a row.
+      { kind: 'led', x: 74, y: 420, r: 3, color: 0x1a7a3a, hot: 0x8fffb0, normal: 0.28, emergency: 0.28, reach: 10 },
+      { kind: 'led', x: 74, y: 980, r: 3, color: 0x1a7a3a, hot: 0x8fffb0, normal: 0.28, emergency: 0.28, reach: 10 },
+      // One segmented emergency run on the racking. Segmented and short: an
+      // unbroken bar down the edge of the screen is a graphic, not a fixture.
+      { kind: 'strip', dir: 'v', x: 98, y: 640, len: 200, t: 5, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.20, reach: 22 },
+
+      // ── SOUTH, SERVICE. The technical wall, and the only place in the room
+      //    with a machinery core in it.
+      { kind: 'screen', x: 520, y: 1356, w: 56, h: 18, color: 0x1a5a96, hot: 0x8fd8ff, normal: 0.22, emergency: 0.58, reach: 48, drop: -0.55 },
+      { kind: 'core', x: 900, y: 1360, r: 12, color: 0x8a4a10, hot: 0xffb45a, normal: 0.16, emergency: 0.44, reach: 58 },
+      { kind: 'strip', dir: 'h', x: 1180, y: 1330, len: 200, t: 5, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.22, reach: 22 },
+      { kind: 'led', x: 300, y: 1360, r: 3, color: 0x8a5a10, hot: 0xffd08a, normal: 0.26, emergency: 0.26, reach: 10 },
+
+      // ── EAST, DEPARTURE. THE EXIT IS THE ROOM'S SECOND LANDMARK. A doorway
+      //    is the one thing that must stay findable when the lights go, and in
+      //    a room whose whole subject is deployment it is also the answer to
+      //    the question the player is asking.
+      { kind: 'strip', dir: 'v', x: 1526, y: 700, len: 210, t: 5, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.20, emergency: 0.62, reach: 22 },
+      { kind: 'strip', dir: 'v', x: 1526, y: 200, len: 150, t: 5, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.16, emergency: 0.40, reach: 18 },
+      { kind: 'strip', dir: 'v', x: 1526, y: 1200, len: 150, t: 5, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.16, emergency: 0.40, reach: 18 },
+      { kind: 'led', x: 1560, y: 500, r: 3, color: 0x8a5a10, hot: 0xffd08a, normal: 0.24, emergency: 0.24, reach: 10 },
+      // ── The north gate's threshold.
+      { kind: 'strip', dir: 'h', x: 800, y: 104, len: 160, t: 5, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.16, emergency: 0.40, reach: 18 },
+    ],
     walls: [],
     // Snapped onto the nav lattice. Every obstacle in the game used to be
     // off-lattice, so each blocked up to four 80px cells instead of one — see
     // the note in mapUtils.js.
+    //
+    // THE COVER KIT, INSTANCED. Positions, count, bodies and cover semantics
+    // are untouched; what changed is which texture stands on each spot, and it
+    // is assigned by FUNCTION rather than scattered:
+    //
+    //   the launch apron  cargo, because that is what comes off a shuttle
+    //   the lane          the two terminals the player fights around
+    //   the gantry        the heavy console — the room's technical authority,
+    //                     on the service side, beside the crane
+    //   the staging bay   cargo again, in the recessed south-east corner
+    //
+    // Five of the eight are CRATES, which carry no light at all. That is what
+    // keeps the dark state dark: most of this room's cover simply goes out.
     cover: snapAll([
-      { x: 500, y: 350 }, { x: 500, y: 1050 },
-      { x: 800, y: 350 }, { x: 800, y: 1050 },
-      { x: 1100, y: 350 }, { x: 1100, y: 1050 },
-      { x: 650, y: 500 }, { x: 950, y: 900 },
+      { x: 500, y: 350, tex: 'ch-crate-a' },
+      { x: 800, y: 350, tex: 'ch-con-ped-c' },
+      { x: 1100, y: 350, tex: 'ch-crate-b' },
+      { x: 500, y: 1050, tex: 'ch-con-heavy' },
+      { x: 800, y: 1050, tex: 'ch-crate-a' },
+      { x: 1100, y: 1050, tex: 'ch-crate-b' },
+      { x: 650, y: 500, tex: 'ch-con-ped-c' },
+      { x: 950, y: 900, tex: 'ch-crate-b' },
     ]),
-    // Props — the landmarks. Placed on the landing pads and against the
-    // perimeter, where the player has least reason to walk, and deliberately
-    // NOT in a row: repetition of one silhouette is the exact failure this
-    // whole art pass exists to correct.
+    // Props — the landmarks. Placed on the apron and against the perimeter,
+    // where the player has least reason to walk, and deliberately NOT in a row:
+    // repetition of one silhouette is the exact failure this whole art pass
+    // exists to correct.
     props: [
-      // The shuttle IS the hangar. Parked on the north landing pad.
+      // The shuttle IS the hangar. Parked on the launch apron, in front of the
+      // blast door, across the spur track. Position and body frozen.
       { x: 420, y: 470, tex: 'prop-shuttle', solid: true, bodyW: 150, bodyH: 190 },
-      // Loading gantry over the south pad, mirrored so it does not echo the
-      // shuttle's symmetry.
+      // Loading gantry, mirrored so it does not echo the shuttle's symmetry.
+      // Its feet land on the gantry rail.
       { x: 420, y: 1140, tex: 'prop-crane', solid: true, bodyW: 300, bodyH: 70, flip: true },
       // Drums: two colourways, scattered in a two and a one, never aligned.
       { x: 1310, y: 250, tex: 'prop-drum',   solid: true, bodyW: 60, bodyH: 50 },
       { x: 1380, y: 300, tex: 'prop-drum-b', solid: true, bodyW: 60, bodyH: 50 },
       { x: 1250, y: 1130, tex: 'prop-drum-b', solid: true, bodyW: 60, bodyH: 50, flip: true },
+      // ── THE WALL CONTROL PANEL, VALIDATED IN CONTEXT. The archetype existed
+      // and had never been mounted on anything. Two of them here, each bolted
+      // to a mounting the perimeter painter put there for it: one in the blast
+      // door's control station, one on the departure wall by the exit.
+      //
+      // NOT SOLID — no body, no nav cell, no LOS rect; it is wall-integrated
+      // art, which is the one place this pass is allowed to add visual mass in
+      // playable space. And it carries an explicit DEPTH rather than sorting by
+      // its y, because it is part of the wall rather than something standing on
+      // the deck: 6 is above the floor decals and below every actor, so it can
+      // never occlude a fight. Its light comes from `kit`, the same declaration
+      // a cover console uses.
+      { x: 148, y: 106, tex: 'ch-con-wall', kit: 'ch-con-wall', depth: 6 },
+      { x: 1556, y: 956, tex: 'ch-con-wall', kit: 'ch-con-wall', depth: 6 },
     ],
     enemies: [
       // The north/south pair moved off (800,300)/(800,1100): snapping the

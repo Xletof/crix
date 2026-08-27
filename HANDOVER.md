@@ -2238,6 +2238,341 @@ on the room's composition held. The only shared texture that moved is the hero
 prop. `bush` is untouched, which is what the three unstyled arenas still stand
 on.
 
+## 10q. THE SECOND ARENA — the Hangar, and whether any of this generalizes
+
+The Vader chamber passed handset review. That answered "is this room good?" and
+left the only question that actually matters unanswered: **is there an art
+direction here, or one good room?** This section is the second proof point.
+
+**The test was deliberately set up to be failable in two directions.** Build the
+hangar out of the chamber's composition and it passes by copying — same floor
+architecture, same freestanding hero machine, same wall rhythm, same cyan/amber
+placement — and proves nothing. Build it far enough away and it stops belonging
+to CRIX. What had to be reused is the RULES; what had to change is the SENTENCE.
+
+### The two rooms, in one line each
+
+| | VADER CHAMBER | HANGAR |
+|---|---|---|
+| what it is | enclosed technical containment | operational deployment deck |
+| its axis | a NAVE running north to a dais | a LANE running west to an exit |
+| its landmark | a freestanding 12-facet hero machine | a BLAST DOOR that is part of the wall |
+| its deck | nave, aisles, trenches, 380x400 plates | apron, lane, staging bay, recessed TRACKS, 460x430 plates |
+| its wall | pilaster / recess / machinery cabinet, 320px | truss column with a bracket foot / panelling, 400px |
+| its palette | blue-shifted graphite, dark | neutral gunmetal, two steps lighter |
+| its cover | four consoles | three consoles and five cargo modules |
+| its dark state | containment machinery + technical consoles | door status, thresholds, one service bay, racking |
+| its floor tiling | 120x105 | 160x140 |
+
+`docs/evidence/arena-pilot/hangar-after/compare-arenas.png` is that table as one
+photograph, and `compare-arenas-dark.png` is the same pair under LIGHTS OUT.
+
+### What the baseline was
+
+The old hangar was the last unstyled room in its worst light. Four **full-width
+amber strip lights** every 260px — a ceiling fixture painted flat on the floor,
+and the loudest thing in every frame. An olive-brown deck (`hangBase`) that
+photographed as mud, with nothing in it a plate seam could be drawn against. Two
+**150px painted circles** on the combat floor, which is the shape and placement
+of a circle telegraph. Eight identical `bush` consoles. A `ribbed` perimeter that
+is 26px of the same comb stamped 4 x 60 times — the "procedurally repeated"
+verdict the chamber already took once. And in LIGHTS OUT: nothing at all, because
+every light in the room was baked into a texture the darkness tints toward black.
+
+### THE HERO LANDMARK IS PART OF THE WALL, AND THAT IS THE POINT
+
+The single strongest piece of evidence that the language generalizes is that the
+hangar's landmark is **not another hero machine**. It is a segmented blast door
+set into the north wall: heavy jambs that out-mass the truss columns, eight
+leaves with their own stiffener ribs, an interlocking meeting line, a header, a
+hatched sill, and a control station bolted to the west jamb.
+
+It is declared by the ROOM, not hardcoded in the painter —
+`perimeter.features: [{ side, at, width, kind: 'blastdoor' }]` — and painted by
+`drawWallFeature` in the band's own local space, inside the same clip the
+doorway cuts use. A gate cut through the same stretch of wall still opens
+through it.
+
+**ITS MASS STAYS DARK.** Three short cool-white fixtures in housings painted for
+them, two amber jamb status strips that are dead at normal power, and the door's
+amber power head in the control station. Nothing outlines the structure: a lit
+perimeter on an object that size is objective-marker language, and this room
+already has a real objective marker in it.
+
+The door is on the north wall, west of the north gate, directly in front of the
+parked shuttle and at the head of the spur track. That is a sentence: things
+come off the door, cross the apron, and get moved down the lane to the exit.
+
+### THE WALL CONTROL PANEL IS VALIDATED IN CONTEXT
+
+Archetype B existed, was photographed on a deck, and had never been mounted on
+anything. Two are placed here — one in the blast door's control station, one on
+the departure wall beside the exit — and three things had to be built for that
+to be honest rather than a sprite parked near a wall:
+
+- **`panelmount`**, the smallest wall feature there is: a bolted plate the room
+  declares at the same `at` the panel stands on, so hardware and mounting cannot
+  end up in different places.
+- **`prop.depth`.** A wall-mounted object is not standing on the deck, so
+  sorting it by its y lets it occlude a player hundreds of pixels away at the
+  other edge of the room. These carry `depth: 6` — above the floor decals,
+  below every actor.
+- **`reach` 44 -> 58 on `ch-con-wall`.** The wash has to clear the 112px SPRITE
+  or it is drawn entirely underneath the panel and the object reads as bright
+  rather than as lighting the wall it is bolted to. The same arithmetic sizes
+  every other screen in the kit; this was the one entry never tested against it.
+
+They are **not solid**: no body, no nav cell, no LOS rect. That is the entire
+licence for putting art in playable space, and `smoke-hangar` asserts it.
+
+### THE COVER KIT GREW ONE FAMILY, AND IT IS NOT A CONSOLE
+
+Eight terminals in a hangar is a control room with a shuttle in it. So the kit
+gained **`paintCoverCrate`** — cargo modules, two variants (one tall, one
+stacked and pushed off-centre) — built to the same contract as the consoles:
+
+- **Identical 28x28 canvas.** Bodies are frozen at 70x70; a visually wider crate
+  would be art promising cover the room does not have.
+- **The same three-plane read** the console chassis uses, so a crate and a
+  console side by side are lit by the same sun.
+- **NO LIGHT AT ALL.** Crates are not in `CONSOLE_KIT`, so they contribute no
+  emissive source. Five of the hangar's eight cover objects simply go out when
+  the power does, and that is what keeps the dark state dark.
+
+The one thing they do not share is the palette: hardware is gunmetal, freight is
+PAINTED, and paint is how a hangar gets a warm note without spending any of the
+emissive budget on one.
+
+The console kit also gained **one bounded FACE variation**, `ch-con-ped-c`, the
+deck / manifest terminal: same chassis, same footprint, a wide short display with
+five list rows and a scan slot instead of a key block. You read this console; you
+do not operate it.
+
+**`ch-` is now the KIT's namespace, not the chamber's.** It is historical — the
+kit was born there. Renaming it would touch a frozen room spec for no pixels, so
+it stays, and this line is the note that says why.
+
+### A CRATE IS NOT A TERMINAL — and the tint is derived, not listed
+
+All cover used to be tagged `_loClass = 'console'`, the lightest LIGHTS OUT
+material. On that tint the crates survived a blackout as pale boxes, brighter
+than the machinery around them. The fix asks the KIT rather than a name list:
+
+```js
+con._loClass = (cp.tex && !CONSOLE_KIT[cp.tex]) ? 'prop' : 'console';
+```
+
+A cover texture that declares no light is unpowered mass. `bush` has no texture
+key at all and stays a console, which is what keeps Corridor and Detention
+exactly where they were.
+
+Found in the same sweep: **the objective terminal was joining `roomLayer` with
+no `_loClass` at all**, which silently drops an object into the generic
+darkness strength. It is a powered, screen-lit thing and now takes the console
+material. The chamber has no terminals, which is why the pilot never saw it.
+
+### New shared vocabulary — and it is small on purpose
+
+Four additions to shared painters, and every one of them is a PRIMITIVE another
+room can use rather than a piece of this room:
+
+- **`track`** (medium). The hangar's answer to the chamber's trench, and
+  deliberately not the same object: a trench is a HOLE with a grate over it, a
+  track is a pair of rails set FLUSH into the deck with sleepers between them.
+  Both recessed, so neither can be mistaken for cover; different claims about
+  what the room does. Its LENGTH is what makes it architecture — the 1320px
+  east-west run IS the deployment axis.
+- **`hatch`** (small). A bolted access plate let into the deck.
+- **`region` gained `edge: 'h'`.** It seamed its vertical sides because the
+  chamber's regions are all tall. A hangar's are WIDE, and a wide region seamed
+  on its short sides draws its boundary where nobody looks.
+- **`drawWallFeature`** — `blastdoor` and `panelmount`, above.
+
+Plus a fifth thing that is not a primitive: **`hangar`, the perimeter style.**
+Four sides, four jobs, phase offsets of 0 / 150 / 260 / 88 so no two adjacent
+walls resolve their rhythm at the same distance from a corner. That is the
+chamber's RULE with a different vocabulary — north LAUNCH (a deep header over
+plain heavy panelling), west STOWAGE (racking, the densest side, and the side
+the cargo faces), south SERVICE (pipe runs and an access-panel cluster), east
+DEPARTURE (cleanest; alternate bays are a shallow threshold recess).
+
+Band thickness is **116**, against the chamber's 80. It is art — the world
+bounds are unchanged — and it buys the blast door a third more height. Note the
+constraint it revealed: **the HUD's top bar covers the first ~20 world pixels of
+a north wall as soon as the camera scrolls south**, so the door's fixture
+housings sit UNDER the header rather than on it.
+
+### The floor, and what it is allowed to say
+
+`base` is now `hgDeck`, the DECK value, not a recess. The first build based the
+floor on `hgRecess` and every authored region then read as a pale rectangle
+painted onto a dark one; with the deck as the ground value the apron lifts off
+it and the staging bay drops into it, which is what a region is for.
+
+Three large forms and no more: the **launch apron** (lighter, wide, in front of
+the door), the **deployment lane** (a broad band on the room's long axis — the
+direction stated once at full width instead of thirty times in small markings),
+and the **staging bay** (recessed, south-east). Three tracks at three lengths on
+two axes. Three plates, LARGER and FEWER than the chamber's. Three hatches.
+
+No landing-pad rings. No baked strip lights (`stripEvery: 0`). Deck paint is
+AMBER here where the chamber's is steel, at 0.30 — a stain rather than a signal.
+
+### Red discipline: two prop textures moved
+
+The room's loudest non-combat reds were both in prop art that predates all of
+this, and both are hangar-only:
+
+- `paintCraneGantry`'s hazard banding was `PAL.stripRed` — seven crimson bars
+  across the beam.
+- `paintFuelDrum`'s label block was `PAL.stripRedGlow` — a 24x12 world-pixel
+  panel of bright red, three times over.
+
+Both are amber now. The exit door's `[ SEALED ]` bar is still red and stays
+red: it is gameplay UI, not environment.
+
+### LIGHTS OUT
+
+**Nothing about the mechanic moved** — not the tint values, the vignette, the
+timings, the 14s re-entry, the owner, or the state architecture. What the hangar
+adds is a DIFFERENT COMPOSITION out of the same machinery, because its sources
+are different systems: the two door status strips and the door's power head, the
+exit threshold (much the strongest thing on the east wall once the ambient goes),
+the two gate thresholds, one service screen and one machinery core on the south
+wall, one segmented run on the west racking, and the two wall panels. Nominal
+lamps do not get louder at all. Five of eight cover objects go dark.
+
+### Performance — the number that actually moved
+
+Measured back to back with `tests/diag-arena-perf.mjs` on an idle room, two runs
+of the styled build against one of the baseline:
+
+| | hangar BEFORE | hangar AFTER | AFTER run 2 | chamber (for scale) |
+|---|---|---|---|---|
+| room load | 45.6 ms | 47.9 | 49.0 | 54.8 |
+| outage entry | 15.9 ms | 15.3 | 13.7 | 12.4 |
+| EnvLight objects | 0 | 58 | 58 | 66 |
+| display list | 52 | 115 | 115 | 102 |
+| roomLayer | 16 | 18 | 18 | 7 |
+| physics bodies | 13 | 13 | 13 | 5 |
+| frame median, normal | 77.3 ms | 82.6 | 81.0 | 75.2 |
+| frame p95, normal | 88.6 | 92.6 | 88.5 | 86.4 |
+| frame median, dark | 88.6 | 90.2 | 91.5 | 89.6 |
+| frame p95, dark | 113.0 | 105.0 | 107.8 | 107.3 |
+
+**BE HONEST ABOUT THIS ONE.** The chamber's polish pass came out flat within
+noise; this one does not quite. The normal-power median is consistently ~4-5%
+higher across both runs, and the reason is not mysterious: the display list went
+from 52 to 115 because an unlit room acquired 58 ADD-blended light objects and
+two wall panels. That is the SAME cost the chamber already pays — 66 parts, and
+it sits at 75.2ms with a far emptier `roomLayer` — so the architecture is not
+degrading as it scales; the hangar simply had further to travel, because it
+started with no authored light at all. The p95 figures overlap in both
+directions and the dark state is unchanged.
+
+**Steady-state per-frame environment work is still ZERO.** Nothing here ticks.
+The backdrop is one baked 1600x1400 canvas (8.54MB, unchanged in size — the
+whole floor composition and the entire `hangar` perimeter with its blast door
+are painted into a texture that already existed), an outage is N alpha writes,
+and `setPower` re-rasterises nothing. The texture cost added is three more
+28x28-at-scale-4 kit sprites (`ch-con-ped-c`, `ch-crate-a`, `ch-crate-b`): the
+cover kit went 196KB -> 343KB, shared by every room for the life of the process.
+No new shared glow textures — still a constant 3.
+
+### The test record, stated plainly
+
+The full suite is **30/31**. The one failure is `smoke-deflect`'s "the blade is
+travelling FASTEST as it arrives there", and it is NOT this pass: run four times
+against `a639ea6` with `src/` stashed, it failed **three of the four**, at
+u=0.314 / 0.333 / 1.392 against a `> 0.5` threshold. `peakStepU` is the phase of
+the largest PER-FRAME angular step in a 260ms sweep, and at ~20fps that sweep is
+about five frames — so which sample carries the biggest step measures the
+harness's pacing, not the blade. `tests/README.md` has recorded it as a
+suite-load flake since the DEFLECTION pass; this is the first time it has been
+A/B'd against a stashed baseline, and the baseline loses too. `smoke-hangar`,
+`smoke-arena`, `smoke-vader` (116) and `smoke-readability` (19) all pass.
+
+### What protects it
+
+`tests/smoke-hangar.mjs`, ten groups. Frozen geometry (bounds, the eight
+post-`snapAll` cover positions, five prop bodies, spawn/exit/gates/terminals/
+pickups/enemies); exactly 13 physics bodies and none of them a wall panel;
+layer separation and no `face` exemption in this room; deterministic power
+restore through an outage and through a room torn down mid-outage; no leak
+across four room loads INCLUDING a round trip through the chamber; the footprint
+contract on every kit texture; crates tagged `prop` and consoles tagged
+`console`, derived from the kit; the amber-is-not-red channel test with its
+self-test; `stripEvery === 0`; and a group that asserts the hangar is NOT the
+chamber (different perimeter style, no hero-machine faces, no `dais` or
+`trench`, and it must use `track` and `hatch`). Plus the chamber read back and
+compared against frozen literals from the other side.
+
+`smoke-arena` now knows there are TWO styled arenas. The hangar is allowed to
+have authored light; Corridor and Detention must still build an EMPTY layer and
+stand on `bush`.
+
+### Other rooms — proved by pixels, not by reading the diff
+
+Deterministic texture hash, `Math.random` pinned to an LCG, A/B against
+`a639ea6` with `src/` stashed:
+
+```
+backdrop-hangar      1e7ef30c -> 896d83f6   CHANGED, intended
+backdrop-corridor    fae9854a -> fae9854a   identical
+backdrop-detention   d8bc6c25 -> d8bc6c25   identical
+backdrop-vader       b43d73f1 -> b43d73f1   IDENTICAL
+bush                 e8a7342d -> e8a7342d   identical
+wall                 7fc0522d -> 7fc0522d   identical
+terminal             cff28408 -> cff28408   identical
+prop-pod             6fc1b4fb -> 6fc1b4fb   identical
+prop-shuttle         429b7c45 -> 429b7c45   identical
+prop-core            e0910f56 -> e0910f56   identical
+prop-bunk            16c26154 -> 16c26154   identical
+ch-con-ped-a         11428d65 -> 11428d65   identical
+ch-con-ped-b         cdf55ce5 -> cdf55ce5   identical
+ch-con-heavy         7cc99295 -> 7cc99295   identical
+ch-con-wall          d3a22895 -> d3a22895   identical
+prop-crane           edfafe1d -> 7f72be5d   CHANGED, intended (red -> amber)
+prop-drum            351c7a6f -> 7039e8ef   CHANGED, intended (red -> amber)
+```
+
+The Vader chamber's backdrop coming back byte-identical is the load-bearing
+line: its floor architecture and its entire `chamber` perimeter are baked into
+that one texture, so an unchanged hash is proof the freeze held. The three
+console archetypes it stands on are unchanged too.
+
+**RESEED THE LCG BEFORE EVERY BACKDROP, NOT ONCE PER PAGE.** `paintBackdrop`
+consumes `Math.random` for its panel and scorch scatter, and this pass changed
+the hangar's `panels` and `scorch` COUNTS — so on the first attempt every
+backdrop painted after the hangar drew from a different point in the stream and
+all four rooms' hashes moved. It looked exactly like the pass had leaked into
+three arenas it never touched.
+
+Frozen-system diff (`git diff --stat` over `src/entities/`, `bossMoves.js`,
+`config.js`, `MoveScript.js`, `Telegraph.js`, `actorMotion.js`, `EnvLight.js`)
+is one file and seven lines: the `_loClass` tag on the objective terminal. Vader,
+the player, the darkness owner and the light layer itself are untouched.
+
+### Remaining weaknesses — be candid
+
+- **A north-wall landmark is 116px at the top of the screen.** The blast door
+  reads well when the player is in the north half and is off-screen entirely
+  when they are south of y≈800. That is inherent to a wall landmark in this
+  camera, and it is the price of not building a second hero prop.
+- **Archetype B still has only one silhouette.** Two are placed, both on
+  mountings, both on different walls — but the family has three chassis and
+  four faces, and the wall panel has none.
+- **The crates read a little like pallets** at close range, because of the
+  strapping bands over the pallet foot. At combat distance they read as freight.
+- **The east wall is the emptiest thing in the room.** "Cleanest side" was the
+  brief and the chamber's control wall made the same trade, but this one has a
+  gate at each end and a door in the middle and not much between them.
+- **`hgCrate` and the deck ladder are unreviewed numbers.** The crate palette
+  was already darkened once from measurement; the rest has never been on a
+  phone.
+- **The environment language is NOT frozen.** This is the second proof point,
+  not the last one. Corridor and Detention are untouched and stay that way.
+
 ## 10c. The narrative system
 ## 10c. The narrative system
 

@@ -72,6 +72,16 @@ export const CONSOLE_KIT = {
       color: 0x6a3406, hot: 0xffab52, normal: 0.14, emergency: 0.42, reach: 20 },
     { kind: 'led', ...P(6, 19), r: 2, ...NOMINAL, normal: 0.26, emergency: 0.26, reach: 9 },
   ],
+  // ── A / PEDESTAL TERMINAL, variant C — THE DECK / MANIFEST TERMINAL. The
+  //    hangar's one bounded addition, and it is a FACE: same chassis, same
+  //    footprint, a wider and shorter display because a manifest is a LIST.
+  //    Its scan slot is hardware, not light — the one amber pixel in it is a
+  //    painted lamp on a strip you swipe a docket through, and declaring it as
+  //    a source would put a second glow on a console that already has one.
+  'ch-con-ped-c': [
+    { kind: 'screen', ...L(5, 8, 18, 6), ...SCREEN, normal: 0.20, emergency: 0.58, reach: 78, drop: 0.30 },
+    { kind: 'led', ...P(21, 18), r: 2, ...NOMINAL, normal: 0.24, emergency: 0.24, reach: 9 },
+  ],
   // ── C / HEAVY SYSTEMS CONSOLE. Dual display. The SECONDARY is dead at
   //    normal power and comes up on the emergency bus — the one region in the
   //    kit that does, so the heavy console is the one whose face visibly
@@ -81,11 +91,18 @@ export const CONSOLE_KIT = {
     { kind: 'screen', ...L(8, 17, 7, 3), color: 0x8a4a10, hot: 0xffcf8a, normal: 0, emergency: 0.55, reach: 46, drop: 0.35 },
     { kind: 'led', ...P(17, 21), r: 2, ...NOMINAL, normal: 0.26, emergency: 0.26, reach: 9 },
   ],
-  // ── B / WALL CONTROL PANEL. Declared so the archetype is complete and can
-  //    be photographed, and deliberately not placed in the pilot arena this
-  //    round — see the painter's note.
+  // ── B / WALL CONTROL PANEL. VALIDATED IN CONTEXT in the hangar, bolted to
+  //    the control station beside the launch door and to the exit threshold.
+  //    Its `drop` is small and its `reach` short on purpose: a panel fixed to
+  //    a wall throws its light onto the wall around it and a little onto the
+  //    deck below, which is not what a pedestal standing in the open does.
   'ch-con-wall': [
-    { kind: 'screen', ...L(8, 11, 9, 5), ...SCREEN, normal: 0.18, emergency: 0.52, reach: 44, drop: 0.20 },
+    // `reach` had to grow from 44 to 58 the moment the archetype was actually
+    // mounted: the wash has to clear the 112px SPRITE or it is drawn entirely
+    // underneath the panel and the object reads as bright rather than as
+    // lighting the wall it is bolted to. The same arithmetic sizes every
+    // console screen in the kit; this was the one entry never tested against it.
+    { kind: 'screen', ...L(8, 11, 9, 5), ...SCREEN, normal: 0.18, emergency: 0.56, reach: 58, drop: 0.20 },
     { kind: 'led', ...P(18, 12), r: 2, ...NOMINAL, normal: 0.24, emergency: 0.24, reach: 8 },
   ],
 };
@@ -97,7 +114,8 @@ export const CONSOLE_KIT = {
  * @param {number} x,y   where it stands
  * @returns {Array} EnvLight source descriptors, or `[]` for a texture that is
  *                  not in the kit — the old `bush` among them, which is how
- *                  the three unstyled arenas stay out of this entirely.
+ *                  the unstyled arenas stay out of this entirely, and the cargo
+ *                  crates, which are cover art with no power going to them.
  */
 export function consoleEmissives(tex, x, y) {
   const kit = CONSOLE_KIT[tex];

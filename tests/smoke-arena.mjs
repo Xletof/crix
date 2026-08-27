@@ -238,7 +238,7 @@ const R = await page.evaluate(async () => {
     heroTex: ['prop-pod', 'prop-pod-glow', 'prop-pod-emer']
       .filter((k) => window.game.textures.exists(k))
       .map((k) => { const t = window.game.textures.get(k).getSourceImage(); return { k, w: t.width, h: t.height }; }),
-    texSizes: Object.keys(CONSOLE_KIT).concat('bush')
+    texSizes: Object.keys(CONSOLE_KIT).concat('bush', 'ch-crate-a', 'ch-crate-b')
       .filter((k) => window.game.textures.exists(k))
       .map((k) => { const t = window.game.textures.get(k).getSourceImage(); return { k, w: t.width, h: t.height }; }),
   };
@@ -418,8 +418,27 @@ if (R.leak.orphanAdditiveAtEnvDepth !== R.leak.partsAfter) {
   fails.push(`${R.leak.orphanAdditiveAtEnvDepth} additive objects at the env-light depth but the layer owns ${R.leak.partsAfter} — a previous room's lights survived`);
 }
 
-// 5b — ONE ARENA. The other three rooms must still opt out of every part of it.
+// 5b — TWO ARENAS, NOT FOUR. The hangar has since opted in as the second proof
+// point (`smoke-hangar` owns its own truths); Corridor and Detention have not,
+// and every part of the environment language is still opt-in per room.
+//
+// The hangar's presence here is not a free pass. What it must prove is that it
+// took the RULES and not the composition: it may not be using the chamber's
+// perimeter style, and it may not be carrying the hero machine's emissive
+// faces, which are the one exemption from the depth-3 readability gate and
+// belong to one prop in one room.
+const STYLED = ['hangar'];
 for (const o of R.others) {
+  if (STYLED.includes(o.id)) {
+    if (!o.specEmissives || !o.specArchitecture) fails.push(`${o.id} claims to be a styled arena but authored nothing`);
+    if (o.envParts < 20) fails.push(`${o.id} built only ${o.envParts} emissive parts`);
+    if (o.additiveAtEnvDepth !== o.envParts) {
+      fails.push(`${o.id} has ${o.additiveAtEnvDepth} additive environment objects but its layer owns ${o.envParts}`);
+    }
+    if (o.specPerimeter === 'chamber') fails.push(`COPIED: ${o.id} is using the pilot's perimeter style`);
+    if (o.specPropFaces) fails.push(`COPIED: ${o.id} carries ${o.specPropFaces} hero-machine emissive faces`);
+    continue;
+  }
   if (o.specEmissives || o.specGrounded || o.specArchitecture || o.specPropFaces) {
     fails.push(`PROPAGATED: ${o.id} has picked up pilot spec fields ${JSON.stringify(o)}`);
   }
@@ -482,7 +501,7 @@ if (!R.spec.propFaces.some((f) => f.normal > 0.1)) {
 //
 // The kit exists to make consoles reusable, and everything below is a way for
 // "reusable" to stay honest under a later edit.
-const KIT_TEX = ['ch-con-heavy', 'ch-con-ped-a', 'ch-con-ped-b', 'ch-con-wall'];
+const KIT_TEX = ['ch-con-heavy', 'ch-con-ped-a', 'ch-con-ped-b', 'ch-con-ped-c', 'ch-con-wall'];
 if (!eq(R.kit.archetypes, KIT_TEX)) {
   fails.push(`console kit is ${JSON.stringify(R.kit.archetypes)}, expected ${JSON.stringify(KIT_TEX)}`);
 }
@@ -542,11 +561,15 @@ for (const t of R.kit.heroTex) {
   if (!want || t.w !== want[0] || t.h !== want[1]) fails.push(`${t.k} is ${t.w}x${t.h}, expected ${want?.join('x')}`);
 }
 
-// ── 10 — THE OTHER THREE ARENAS ARE STILL ON THE PROTOTYPE CONSOLE. The kit is
+// ── 10 — CORRIDOR AND DETENTION ARE STILL ON THE PROTOTYPE CONSOLE. The kit is
 // shared code and its textures are painted for every room; opting in is by
-// name, per room, and stays that way until a human has seen this one.
+// name, per room, and stays that way until a human has seen the two that have.
 for (const o of R.others) {
-  if (!eq(o.coverTex, ['bush'])) fails.push(`${o.id} is using kit consoles (${o.coverTex.join(', ')}) — the pilot leaked`);
+  if (STYLED.includes(o.id)) {
+    if (o.coverTex.includes('bush')) fails.push(`${o.id} opted in but still has prototype cover art on it`);
+    continue;
+  }
+  if (!eq(o.coverTex, ['bush'])) fails.push(`${o.id} is using kit cover art (${o.coverTex.join(', ')}) — the kit leaked`);
 }
 
 // The pilot has to actually exist, or every check above passes vacuously.

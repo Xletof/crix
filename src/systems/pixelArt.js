@@ -169,6 +169,40 @@ export const PAL = {
   chAmberHot:   '#ffcf8a',
   chVeridian:   '#2f7a4a',   // "nominal" lamps
   chWarn:       '#8a2420',   // ONE fault lamp, 1 logical pixel
+  // ── THE HANGAR DECK. The second arena's material ladder, and the whole
+  // point of it is that it is a DIFFERENT BALANCE OF THE SAME FAMILY rather
+  // than a different family. The chamber's graphite is blue-shifted and dark
+  // because it is a containment room with the lights half off; a working
+  // hangar has its bus up, so this ladder is NEUTRAL gunmetal and it sits two
+  // steps lighter overall. Same construction, same gaps, different sentence.
+  //
+  // It replaces the room's old olive-brown deck (`hangBase` and friends, which
+  // survive because a fuel drum is tinted from one of them). That deck came
+  // back from the pilot's baseline evidence as mud: warm, low-contrast, and
+  // with nothing in it a plate seam could be drawn against.
+  hgSink:       '#0a0b0d',   // deepest recess — service tracks, wall bays
+  hgRecess:     '#16171b',   // recessed bays, staging aprons
+  hgDeck:       '#212328',   // the operational deck — the floor of the fight
+  hgDeckLit:    '#2b2e34',   // raised plate faces, the launch apron
+  hgRib:        '#3a3e46',   // structural ribs, plate seams, door frames
+  hgRibLit:     '#4c515b',   // the lit sliver on a raised edge
+  hgSeam:       '#08090b',   // the dark line of a seam or a cast edge
+  hgBolt:       '#565c67',   // small hardware — bolts, grate slats
+  hgMachDark:   '#131518',   // perimeter machinery in shadow
+  hgMach:       '#23262c',   // perimeter machinery mass
+  hgMachLit:    '#31353d',   // its top face
+  // Cargo. The one warm note in the deck palette, and it is a MATERIAL rather
+  // than a light: shipping containers are painted, and paint is how a hangar
+  // gets colour without spending any of the emissive budget.
+  // Measured and darkened once: the first build was '#39352b' / '#4a4436' and
+  // the crates came back as the BRIGHTEST objects in the room — paler than the
+  // consoles, warm enough to read as timber pallets, and louder than the lit
+  // terminals they were standing beside. Freight is not supposed to out-shout
+  // hardware. This ladder sits one step above the deck and no further.
+  hgCrate:      '#2b2922',
+  hgCrateLit:   '#383429',
+  hgCrateDark:  '#16150f',
+  hgCrateBand:  '#4a4022',   // the strapping band
   // ── Per-room perimeter walls ─────────────────────────────────────────────
   // The band painted around each arena's edge (see drawPerimeter). Three tones
   // per room: the wall top, its lit outer sliver, and the recessed greebles.
@@ -1761,10 +1795,21 @@ function drawArchitecture(ctx, items, pal) {
         ctx.globalAlpha = 1;
         // Its own boundary, drawn as a seam rather than an outline: a dark
         // line on the far side, a lit sliver on the near side.
+        //
+        // `edge` names WHICH pair of sides gets the seam. It defaulted to the
+        // vertical pair because the chamber's regions are all tall — a nave and
+        // its aisles. A hangar's are WIDE (an apron, a deployment lane), and a
+        // wide region seamed on its short sides has its boundary drawn where
+        // nobody can see it and none drawn where the eye actually meets it.
         if (it.edge !== false) {
           ctx.fillStyle = P.seam;
-          ctx.fillRect(it.x - 2, it.y, 3, it.h);
-          ctx.fillRect(it.x + it.w - 1, it.y, 3, it.h);
+          if (it.edge === 'h') {
+            ctx.fillRect(it.x, it.y - 2, it.w, 3);
+            ctx.fillRect(it.x, it.y + it.h - 1, it.w, 3);
+          } else {
+            ctx.fillRect(it.x - 2, it.y, 3, it.h);
+            ctx.fillRect(it.x + it.w - 1, it.y, 3, it.h);
+          }
         }
         break;
       }
@@ -1840,6 +1885,51 @@ function drawArchitecture(ctx, items, pal) {
         break;
       }
 
+      // A RECESSED SERVICE TRACK. The hangar's answer to the chamber's trench,
+      // and deliberately not the same object: a trench is a HOLE with a grate
+      // over it, a track is a pair of rails set FLUSH into the deck with
+      // sleepers between them. Both are recessed, so neither can be mistaken
+      // for cover, but they say different things about what the room does —
+      // one is a place services run under the floor, the other is a line
+      // something heavy is dragged along.
+      //
+      // Its length is what makes it architecture. A short track is a detail; a
+      // 900px one is a loading axis and gives the deck a direction.
+      case 'track': {
+        const v = (it.dir ?? 'h') === 'v';
+        const w = v ? (it.t ?? 46) : it.len, h = v ? it.len : (it.t ?? 46);
+        // The recessed bed.
+        ctx.fillStyle = P.sink;
+        ctx.fillRect(it.x, it.y, w, h);
+        // Sleepers, low contrast — the rails are the thing that should read.
+        ctx.globalAlpha = (it.alpha ?? 1) * 0.5;
+        ctx.fillStyle = P.rib;
+        const st = it.step ?? 54;
+        if (v) for (let k = 8; k < h - 6; k += st) ctx.fillRect(it.x + 2, it.y + k, w - 4, 6);
+        else   for (let k = 8; k < w - 6; k += st) ctx.fillRect(it.x + k, it.y + 2, 6, h - 4);
+        // The two rails. Raised: a dark seam under a light face.
+        ctx.globalAlpha = it.alpha ?? 1;
+        const railT = it.rail ?? 7, gap = it.gauge ?? 0.24;
+        const off = [gap, 1 - gap];
+        for (const f of off) {
+          if (v) {
+            const rx = it.x + Math.round(w * f) - railT / 2;
+            ctx.fillStyle = P.seam; ctx.fillRect(rx - 1, it.y, railT + 2, h);
+            ctx.fillStyle = P.rib;  ctx.fillRect(rx, it.y, railT, h);
+            ctx.fillStyle = P.ribLit; ctx.globalAlpha = (it.alpha ?? 1) * 0.55;
+            ctx.fillRect(rx, it.y, 2, h);
+          } else {
+            const ry = it.y + Math.round(h * f) - railT / 2;
+            ctx.fillStyle = P.seam; ctx.fillRect(it.x, ry - 1, w, railT + 2);
+            ctx.fillStyle = P.rib;  ctx.fillRect(it.x, ry, w, railT);
+            ctx.fillStyle = P.ribLit; ctx.globalAlpha = (it.alpha ?? 1) * 0.55;
+            ctx.fillRect(it.x, ry, w, 2);
+          }
+          ctx.globalAlpha = it.alpha ?? 1;
+        }
+        break;
+      }
+
       // A structural rib crossing the floor. Two-tone: the raised band and the
       // dark seam it sits in. This is the primitive that makes a large empty
       // deck read as constructed rather than as a texture.
@@ -1912,6 +2002,32 @@ function drawArchitecture(ctx, items, pal) {
       }
 
       // ── SMALL ────────────────────────────────────────────────────────────
+      // A UTILITY COVER. A bolted access plate let into the deck — the small
+      // form a working floor gets instead of a decorative marking. Flat and
+      // slightly recessed, so it is unambiguously part of the floor.
+      case 'hatch': {
+        const { x, y, w, h } = it;
+        ctx.fillStyle = P.seam;
+        ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+        ctx.fillStyle = tone(it.tone ?? 'recess');
+        ctx.fillRect(x, y, w, h);
+        // A lit far lip and one centre seam, so it reads as a lid rather than
+        // as a dark rectangle.
+        ctx.fillStyle = P.ribLit;
+        ctx.globalAlpha = (it.alpha ?? 1) * 0.28;
+        ctx.fillRect(x, y + h - 2, w, 2);
+        ctx.globalAlpha = it.alpha ?? 1;
+        ctx.fillStyle = P.seam;
+        if (w >= h) ctx.fillRect(x, y + Math.round(h / 2) - 1, w, 2);
+        else ctx.fillRect(x + Math.round(w / 2) - 1, y, 2, h);
+        ctx.fillStyle = P.bolt;
+        for (const [bx, by] of [[x + 4, y + 4], [x + w - 6, y + 4],
+                                [x + 4, y + h - 6], [x + w - 6, y + h - 6]]) {
+          ctx.fillRect(bx, by, 3, 3);
+        }
+        break;
+      }
+
       // A grille. Deliberately the only repeated small element, and it is only
       // ever placed at the perimeter.
       case 'vent': {
@@ -1966,6 +2082,181 @@ function drawArchitecture(ctx, items, pal) {
 // Gates and the exit are cut OUT of the band as doorways. That is the part that
 // earns its keep: enemies surge in at the gates, and without openings they walk
 // out of a painted wall.
+// ── HERO WALL STRUCTURES ───────────────────────────────────────────────────
+//
+// One large authored structure set INTO the perimeter band, declared by the
+// room and painted here. The chamber's landmark is a freestanding hero machine;
+// the hangar's is a piece of the wall, and that difference is the point — if
+// the environment language only knows how to make one kind of landmark then it
+// is a prop, not a language.
+//
+// Drawn in the band's LOCAL space: x runs along the edge, y runs inward from
+// the outside (0..thickness), and the caller has already converted the world
+// `at` onto that axis. It is inside the caller's clip, so a gate cut through
+// the same stretch of wall still opens through the feature.
+//
+// IT IS FLAT, LIKE EVERYTHING ELSE THIS FILE PAINTS. The world bounds already
+// sit at the outside of the band, so a wall structure promises exactly the
+// collision the room already has. Nothing here may lean out onto the deck.
+function drawWallFeature(ctx, f, cx, thickness, pal) {
+  const { wall, wallLit, wallDark, trim } = pal;
+  const T = thickness;
+
+  if (f.kind === 'blastdoor') {
+    const W = f.width ?? 460, x0 = Math.round(cx - W / 2);
+    const JAMB = 34;
+
+    // A RECESS FIRST. The feature has to interrupt the bay rhythm, not sit on
+    // top of it, or it reads as a decal applied to a finished wall.
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = wallDark;
+    ctx.fillRect(x0 - 10, 0, W + 20, T);
+
+    // THE LEAVES. Segmented on purpose: a door this size is not one plate, and
+    // the segmentation is what makes it read as machinery rather than as a
+    // painted rectangle. Alternating panel values give it its own material,
+    // one step darker than the wall it is set into.
+    // Header, leaf field and sill are PROPORTIONS of the band, not literals:
+    // the hangar's wall is 116px where the chamber's is 80, and a door drawn
+    // to fixed offsets would have spent the extra height on nothing.
+    const HDR = Math.round(T * 0.15), SILL = Math.round(T * 0.13);
+    const ly0 = HDR, lh = T - HDR - SILL;
+    const inner = W - JAMB * 2, ix = x0 + JAMB;
+    const seg = f.segments ?? 8, sw = inner / seg;
+    for (let k = 0; k < seg; k++) {
+      const px = Math.round(ix + k * sw);
+      ctx.globalAlpha = k % 2 ? 0.5 : 0.78;
+      ctx.fillStyle = wallDark;
+      ctx.fillRect(px, ly0, Math.ceil(sw) - 2, lh);
+      // Each panel's own lit left edge and dark right seam: eight small light
+      // directions instead of one big one.
+      ctx.globalAlpha = 0.26;
+      ctx.fillStyle = wallLit;
+      ctx.fillRect(px, ly0, 2, lh);
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(px + Math.ceil(sw) - 2, ly0, 2, lh);
+      // Two stiffener ribs across each panel — the thing that makes a leaf
+      // read as pressed steel rather than as a dark rectangle.
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = wall;
+      ctx.fillRect(px + 3, ly0 + Math.round(lh * 0.30), Math.ceil(sw) - 8, 5);
+      ctx.fillRect(px + 3, ly0 + Math.round(lh * 0.74), Math.ceil(sw) - 8, 5);
+    }
+
+    // THE MEETING LINE. Two leaves that interlock — the single strongest cue
+    // that this thing opens, and the reason it can stay unlit and still read.
+    const mid = Math.round(x0 + W / 2);
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(mid - 5, ly0, 10, lh);
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = wall;
+    const th = Math.round((lh - 12) / 5);
+    for (let k = 0; k < 5; k++) {
+      ctx.fillRect(k % 2 ? mid - 13 : mid + 3, ly0 + 6 + k * th, 10, th - 4);
+    }
+
+    // HEADER AND SILL. The header carries the fixture housings; the sill is a
+    // threshold band on the deck side, hatched in the WALL's own light tone —
+    // hazard colour in this room comes from the light layer, never from paint.
+    ctx.globalAlpha = 0.95;
+    ctx.fillStyle = wall;
+    ctx.fillRect(x0, 0, W, HDR);
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = wallLit;
+    ctx.fillRect(x0, 0, W, 4);
+    // Recessed fixture housings — the slots the room's authored light sits in.
+    // Painted whether or not anything is lit in them, because a lamp with no
+    // housing is a glow with nothing making it.
+    //
+    // They sit UNDER the header rather than on it. The HUD's top bar covers the
+    // first ~20 world pixels of a north wall as soon as the camera scrolls a
+    // little south, and a fixture at the outermost edge of the band is the one
+    // that disappears first.
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = '#000000';
+    for (const t of f.housings ?? [-0.32, 0, 0.32]) {
+      ctx.fillRect(Math.round(mid + t * W) - 34, HDR + 8, 68, 9);
+    }
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = wallDark;
+    ctx.fillRect(x0, T - SILL, W, SILL - 4);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x0, T - SILL, W, SILL - 4); ctx.clip();
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = wallLit;
+    ctx.lineWidth = 7;
+    for (let i = -14; i < W + 14; i += 26) {
+      ctx.beginPath(); ctx.moveTo(x0 + i, T - SILL); ctx.lineTo(x0 + i + 14, T - 4); ctx.stroke();
+    }
+    ctx.restore();
+
+    // THE JAMBS. The heaviest structure on this wall — they have to out-mass
+    // the truss columns or the door looks like it was cut into the panelling.
+    ctx.globalAlpha = 1;
+    for (const jx of [x0, x0 + W - JAMB]) {
+      ctx.fillStyle = wall;
+      ctx.fillRect(jx, 0, JAMB, T);
+      ctx.fillStyle = wallLit;
+      ctx.fillRect(jx, 0, JAMB, Math.round(T * 0.30));
+      ctx.globalAlpha = 0.75;
+      ctx.fillStyle = wallDark;
+      ctx.fillRect(jx, 0, 4, T);
+      ctx.fillRect(jx + JAMB - 4, 0, 4, T);
+      // Bolted mounting plate at the foot.
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = wallDark;
+      ctx.fillRect(jx + 5, T - 26, JAMB - 10, 18);
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = wallLit;
+      ctx.fillRect(jx + 8, T - 22, 4, 4);
+      ctx.fillRect(jx + JAMB - 12, T - 22, 4, 4);
+      ctx.globalAlpha = 1;
+    }
+
+    // THE CONTROL STATION. A shallow recess bolted to the outboard face of one
+    // jamb — the mounting the wall control panel is fixed to, so the panel is
+    // hardware attached to a door rather than a sprite parked near one.
+    const sx = f.stationSide === 'left' ? x0 - 74 : x0 + W + 10;
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = wallDark;
+    ctx.fillRect(sx, 10, 64, T - 26);
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = wall;
+    ctx.fillRect(sx + 4, 14, 56, T - 34);
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = trim;
+    ctx.fillRect(sx + 4, T - 22, 56, 2);
+    ctx.globalAlpha = 1;
+    return;
+  }
+
+  // A BOLTED MOUNTING PLATE. The smallest feature there is, and it exists for
+  // one reason: the wall control panel archetype only reads as fixed to
+  // something if there is something painted for it to be fixed to. Declared by
+  // the room at the same `at` the panel prop stands on, so the hardware and its
+  // mounting cannot end up in different places.
+  if (f.kind === 'panelmount') {
+    const W = f.width ?? 96, x0 = Math.round(cx - W / 2);
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = wallDark;
+    ctx.fillRect(x0, 6, W, T - 16);
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = wall;
+    ctx.fillRect(x0 + 4, 10, W - 8, T - 24);
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = wallLit;
+    ctx.fillRect(x0 + 4, 10, W - 8, 3);
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = wallLit;
+    for (const [bx, by] of [[x0 + 7, 13], [x0 + W - 10, 13], [x0 + 7, T - 18], [x0 + W - 10, T - 18]]) {
+      ctx.fillRect(bx, by, 3, 3);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
 function drawPerimeter(ctx, worldW, worldH, opts) {
   const {
     style     = 'ribbed',
@@ -1976,6 +2267,7 @@ function drawPerimeter(ctx, worldW, worldH, opts) {
     trim      = PAL.stripBlue,
     glow      = PAL.stripBluGlow,
     openings  = [],
+    features  = [],     // hero wall structures — see `drawWallFeature`
     shadow    = 30,
   } = opts;
 
@@ -2184,8 +2476,142 @@ function drawPerimeter(ctx, worldW, worldH, opts) {
           for (let k = 0; k < 3; k++) ctx.fillRect(x + 70, thickness - 24 + k * 4, 26, 2);
         }
       }
+    } else if (style === 'hangar') {
+      // THE SECOND ARENA'S WALL. The chamber proved that a band with a
+      // per-side job beats a band with one repeated greeble; this is that RULE
+      // applied again, and deliberately not that WALL copied.
+      //
+      // The chamber's bay is a pilaster / recess / machinery-block cabinet at a
+      // 320px period — control-room language, read at arm's length. A hangar is
+      // a shed: its wall is STRUCTURE first, at a bigger 400px period, and its
+      // signature is the truss column with a flared bracket foot where it lands
+      // on the deck. Between the columns is panelling, not cabinetry.
+      //
+      // ── FOUR SIDES, FOUR JOBS ────────────────────────────────────────────
+      //   north  LAUNCH    — the way out of the facility. Mass: a deep header
+      //                      over plain heavy panelling, so the blast door
+      //                      feature has something to be set into rather than
+      //                      to compete with.
+      //   west   STOWAGE   — racking. A grid of shallow shelf recesses; the
+      //                      densest side and the one the cargo staging faces.
+      //   south  SERVICE   — maintenance. Pipe runs across the bay and an
+      //                      access-panel cluster.
+      //   east   DEPARTURE — the player's exit. Cleanest: alternate bays are a
+      //                      shallow threshold recess and nothing else.
+      const period = 400;
+      const job = { top: 'launch', left: 'stowage', bottom: 'service', right: 'departure' }[e.side];
+      const phase = { top: 0, right: 150, bottom: 260, left: 88 }[e.side] || 0;
+      const T = thickness;
+      for (let x = -phase, i = 0; x < e.len + period; x += period, i++) {
+        // BAY PANELLING. A large flat plate with a mid rail and a kick plate —
+        // the inside of a hangar wall, which is mostly nothing.
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = wallDark;
+        ctx.fillRect(x + 66, 6, period - 132, T - 16);
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = wall;
+        ctx.fillRect(x + 66, Math.round(T * 0.46), period - 132, 5);   // mid rail
+        ctx.globalAlpha = 0.30;
+        ctx.fillStyle = wallLit;
+        ctx.fillRect(x + 66, T - 12, period - 132, 3);                 // kick plate lip
+
+        if (job === 'launch') {
+          // A DEEP HEADER. One heavy band across the top of the bay, and
+          // nothing else: this wall's job is to be big and quiet.
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = wall;
+          ctx.fillRect(x + 66, 6, period - 132, Math.round(T * 0.30));
+          ctx.globalAlpha = 0.45;
+          ctx.fillStyle = wallLit;
+          ctx.fillRect(x + 66, 6, period - 132, 4);
+        } else if (job === 'stowage') {
+          // RACKING. Three shelf bays, each a shallow recess with a lit lower
+          // lip — the reason the west side is where cargo lives.
+          for (let k = 0; k < 3; k++) {
+            const rx = x + 78 + k * Math.round((period - 156) / 3);
+            const rw = Math.round((period - 156) / 3) - 14;
+            ctx.globalAlpha = 0.85;
+            ctx.fillStyle = wallDark;
+            ctx.fillRect(rx, 14, rw, T - 34);
+            for (let sh = 0; sh < 2; sh++) {
+              ctx.globalAlpha = 0.55;
+              ctx.fillStyle = wall;
+              ctx.fillRect(rx, 14 + Math.round((T - 34) * (sh + 1) / 3), rw, 4);
+            }
+            ctx.globalAlpha = 0.25;
+            ctx.fillStyle = wallLit;
+            ctx.fillRect(rx, T - 22, rw, 2);
+          }
+        } else if (job === 'service') {
+          // PIPE RUNS and an access-panel cluster. The same primitives the
+          // other sides use, more of them — density is the identity, not new
+          // vocabulary.
+          ctx.globalAlpha = 0.5;
+          ctx.fillStyle = wallDark;
+          for (const f of [0.30, 0.66]) ctx.fillRect(x + 70, Math.round(T * f), period - 140, 6);
+          ctx.globalAlpha = 0.6;
+          for (let k = 0; k < 4; k++) ctx.fillRect(x + 88 + k * 72, Math.round(T * 0.24), 9, Math.round(T * 0.44));
+          ctx.globalAlpha = 0.45;
+          ctx.fillStyle = wall;
+          for (let k = 0; k < 3; k++) ctx.fillRect(x + period / 2 - 46 + k * 32, T - 30, 24, 16);
+        } else if (i % 2 === 1) {
+          // DEPARTURE, alternate bay: a shallow threshold recess with one trim
+          // line. Cleaner costs a shape, not an absence — the chamber's
+          // control wall learned that and it holds here.
+          ctx.globalAlpha = 0.6;
+          ctx.fillStyle = wallDark;
+          ctx.fillRect(x + 108, 20, period - 216, T - 44);
+          ctx.globalAlpha = 0.30;
+          ctx.fillStyle = trim;
+          ctx.fillRect(x + 108, T - 26, period - 216, 2);
+        }
+
+        // THE TRUSS COLUMN — this wall's signature, and the reason a hangar
+        // reads as a shed rather than a control room. Wider than a chamber
+        // pilaster, with a bracket foot that flares where it lands on the
+        // deck: a structural member carrying something out of frame.
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = wall;
+        ctx.fillRect(x + 10, 0, 56, T);
+        ctx.fillStyle = wallLit;
+        ctx.fillRect(x + 10, 0, 56, Math.round(T * 0.26));
+        ctx.globalAlpha = 0.75;
+        ctx.fillStyle = wallDark;
+        ctx.fillRect(x + 10, 0, 5, T);
+        ctx.fillRect(x + 61, 0, 5, T);
+        // Lattice: two diagonal braces inside the column, drawn as steps so
+        // they stay in the game's 45-degree vocabulary.
+        ctx.globalAlpha = 0.45;
+        for (let k = 0; k < 6; k++) {
+          const yy = 14 + k * Math.round((T - 30) / 6);
+          ctx.fillRect(x + 18 + k * 6, yy, 12, 5);
+          ctx.fillRect(x + 52 - k * 6, yy, 12, 5);
+        }
+        // The bracket foot. Flared, and the only part of the column that is
+        // brighter than the band — the eye should land where it meets the deck.
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = wall;
+        ctx.fillRect(x + 2, T - 20, 72, 14);
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = wallLit;
+        ctx.fillRect(x + 2, T - 20, 72, 3);
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = wallDark;
+        ctx.fillRect(x + 6, T - 14, 6, 6);
+        ctx.fillRect(x + 64, T - 14, 6, 6);
+      }
     }
     ctx.globalAlpha = 1;
+
+    // ── HERO WALL STRUCTURES. A room may declare one or two large features on
+    // a named side; they are painted here, inside the same clip, so a doorway
+    // still cuts through them. This is the mechanism that lets the hangar's
+    // landmark be PART OF THE WALL instead of a freestanding prop, without
+    // the wall painter growing a second hand-built copy of itself.
+    for (const f of features) {
+      if (f.side !== e.side) continue;
+      drawWallFeature(ctx, f, localAt(e, f.at), thickness, { wall, wallLit, wallDark, trim, glow });
+    }
 
     // Inner lip: a lit trim line where the wall meets the deck.
     ctx.fillStyle = glow;
@@ -2480,7 +2906,12 @@ export function paintShuttle(scene, key = 'prop-shuttle') {
 export function paintCraneGantry(scene, key = 'prop-crane') {
   const c = new PixelCanvas(scene, key, 80, 54, 4);
   const FRAME = PAL.impSilver, FRAME_DK = PAL.impMid, EDGE = PAL.black;
-  const WARN = PAL.stripRed;
+  // HAZARD BANDING IS AMBER, NOT RED. This used to be `PAL.stripRed` and it is
+  // the only object in the hangar that spent saturated red on decoration — a
+  // row of seven crimson bars across the beam, in the room's south-west
+  // corner, competing with the one thing red is for. The gantry is used by
+  // this arena and no other, so the change is local to it.
+  const WARN = PAL.hangStrip;
 
   // Two legs
   for (const lx of [8, 66]) {
@@ -2525,8 +2956,11 @@ export function paintFuelDrum(scene, key = 'prop-drum', tint = null) {
   c.rect(4, 6, 2, 15, LIGHT);          // vertical highlight
   c.hline(10, 3, 14, PAL.impDark);     // hoop rings
   c.hline(15, 3, 14, PAL.impDark);
-  // Hazard chevron label
-  c.rect(6, 12, 6, 3, PAL.stripRedGlow);
+  // Hazard label. AMBER, NOT RED — this was `PAL.stripRedGlow`, a 24x12
+  // world-pixel panel of bright crimson, three times over in the one room that
+  // uses drums. In the dark it was the loudest thing on screen after the
+  // saber. Environment hazard signage is amber here; red is combat's.
+  c.rect(6, 12, 6, 3, PAL.hangStripGlw);
   c.px(8, 13, PAL.black);
   // Base + outline
   c.hline(21, 4, 13, PAL.impDark);
@@ -3312,6 +3746,25 @@ export function paintConsolePedestal(scene, key, variant = 'a') {
     c.rect(18, 16, 6, 5, CON.dark);
     c.hline(16, 18, 23, CON.rib);
     c.px(19, 18, PAL.chVeridian); c.px(22, 18, PAL.chAmber);
+  } else if (variant === 'c') {
+    // Variant C — THE DECK / MANIFEST TERMINAL. The hangar's one bounded
+    // addition to the kit, and it is a FACE, not a chassis: same silhouette,
+    // same footprint, same manufacturer. What changes is what it is for. A
+    // manifest station shows a LIST, so its display is wide and short with
+    // five short rows in it rather than the pedestal's four long ones, and its
+    // controls are a single scan strip instead of a key block — you read this
+    // console, you do not operate it.
+    conScreen(c, 5, 8, 18, 6);
+    conLines(c, 6, 8, [[1, 14], [1, 3], [2, 9], [3, 12, true], [4, 6]]);
+    // The scan strip: one long recessed slot with a lit lip.
+    c.rect(5, 17, 14, 3, CON.sink);
+    c.hline(16, 5, 18, CON.rib);
+    c.hline(20, 5, 18, CON.seam);
+    for (let k = 0; k < 4; k++) c.px(6 + k * 4, 18, k === 3 ? PAL.chAmber : CON.bolt);
+    // A docket plate on the free corner — hardware, not another light.
+    c.rect(20, 16, 4, 5, CON.dark);
+    c.hline(16, 20, 23, CON.rib);
+    c.px(21, 18, PAL.chVeridian);
   } else {
     // Variant B: a taller narrow display beside a slim readout column, and the
     // keys shifted to the other side. Same product, different order code.
@@ -3393,6 +3846,91 @@ export function paintConsoleHeavy(scene, key = 'ch-con-heavy') {
   for (let k = 0; k < 5; k++) c.px(9 + k * 2, 21, k < 3 ? PAL.chAmber : CON.sink);
   c.px(17, 21, PAL.chVeridian);
   c.px(20, 21, PAL.chWarn);
+  c.finish();
+}
+
+// ── CARGO MODULE — THE COVER KIT'S ONE NON-CONSOLE PIECE ──────────────────
+//
+// A hangar full of terminals is a control room with a shuttle in it. The eight
+// cover objects in that arena needed to be able to say "staged freight" as
+// well as "service station", so the kit grew ONE more family — deliberately
+// one, and deliberately built to the same contract as the consoles:
+//
+//   - IDENTICAL 28x28 CANVAS. Cover bodies are frozen at 70x70 under a 112px
+//     sprite and feed the nav grid, the LOS rects and bullet collision. A
+//     crate that was visually wider would be art promising cover the room does
+//     not have.
+//   - THE SAME THREE-PLANE READ the console chassis uses — lit top, working
+//     front, dark base — so a crate and a console standing side by side are
+//     lit by the same sun.
+//   - NO LIGHT AT ALL. Cargo is not powered. It is not in `CONSOLE_KIT`, so it
+//     contributes no emissive source, and that is what keeps the hangar's dark
+//     state dark: five of its eight cover objects simply go out.
+//
+// The one thing it does NOT share is the palette. Hardware is gunmetal; freight
+// is PAINTED, and paint is how a hangar gets a warm note without spending any
+// of the emissive budget on one.
+export function paintCoverCrate(scene, key, variant = 'a') {
+  const c = new PixelCanvas(scene, key, 28, 28, 4);
+  const BODY = PAL.hgCrate, LIT = PAL.hgCrateLit, DK = PAL.hgCrateDark;
+  const BAND = PAL.hgCrateBand, SEAM = PAL.hgSeam, BOLT = PAL.hgBolt;
+
+  // One module: lit lid, painted front with corrugation, dark foot.
+  const module = (x0, x1, ty, by, corr) => {
+    // LID. Tapering inward with depth, the same trick the console chassis
+    // uses to stop a top face reading as a flat card.
+    for (let y = ty; y <= ty + 3; y++) {
+      const k = Math.floor((y - ty) * 0.6);
+      c.hline(y, x0 + k, x1 - k, y === ty ? LIT : BODY);
+    }
+    c.hline(ty + 4, x0, x1, SEAM);
+    // FRONT. Corrugated: vertical ribs, because a shipping module is pressed
+    // steel and the ribs are what stop a 60px-wide block reading as a slab.
+    c.rect(x0, ty + 5, x1 - x0 + 1, by - ty - 5, BODY);
+    for (let x = x0 + 2; x < x1 - 1 && corr; x += 3) c.vline(x, ty + 6, by - 2, DK);
+    c.vline(x0, ty + 5, by, LIT);
+    c.vline(x1, ty + 5, by, DK);
+    c.hline(by, x0, x1, SEAM);
+    // CORNER CASTINGS. The detail that makes it freight rather than a box.
+    for (const [cx0, cy0] of [[x0, ty + 5], [x1 - 2, ty + 5], [x0, by - 3], [x1 - 2, by - 3]]) {
+      c.rect(cx0, cy0, 3, 3, DK);
+      c.px(cx0 + 1, cy0 + 1, BOLT);
+    }
+  };
+
+  if (variant === 'a') {
+    // ONE TALL MODULE. Two strapping bands and a stencil block.
+    module(2, 25, 1, 22, true);
+    c.rect(2, 9, 24, 2, BAND);
+    c.rect(2, 16, 24, 2, BAND);
+    c.hline(11, 2, 25, DK);
+    c.hline(18, 2, 25, DK);
+    // Stencil: a painted block of code, never legible and never meant to be.
+    for (const [sx, sw] of [[6, 7], [15, 4], [6, 4], [12, 6]].slice(0, 4)) c.px(sx, 13, LIT);
+    c.hline(13, 6, 12, LIT);
+    c.hline(13, 15, 18, LIT);
+    // The foot: a pallet, not a plinth.
+    c.rect(1, 23, 26, 3, DK);
+    c.hline(23, 1, 26, PAL.hgRib);
+    for (let x = 3; x < 26; x += 6) c.vline(x, 24, 25, SEAM);
+  } else {
+    // STACKED, AND OFF-CENTRE. A smaller module set on a larger one, pushed to
+    // one side — staged freight is never squared up, and the offset is what
+    // keeps a row of these from reading as a repeated tile.
+    module(6, 22, 1, 10, false);
+    c.rect(7, 5, 14, 2, BAND);
+    c.hline(7, 7, 20, DK);
+    module(2, 25, 11, 22, true);
+    c.rect(2, 17, 24, 2, BAND);
+    c.hline(19, 2, 25, DK);
+    c.hline(15, 5, 13, LIT);
+    // A tie-down strap running over the upper module's shoulder.
+    c.vline(9, 2, 12, PAL.hgRib);
+    c.vline(19, 2, 12, PAL.hgRib);
+    c.rect(1, 23, 26, 3, DK);
+    c.hline(23, 1, 26, PAL.hgRib);
+    for (let x = 3; x < 26; x += 6) c.vline(x, 24, 25, SEAM);
+  }
   c.finish();
 }
 

@@ -154,6 +154,7 @@ does NOT, because hitstop is its subject — same split as `smoke-dialogue` and
 | `diag-flight.mjs` | A munition is missing: per-munition flight time, closest approach, end altitude |
 | `diag-combat-text.mjs` | **What is the combat text covering?** Concurrent labels, how many overlap an actor's body, how many sit on a live danger telegraph, and the allocation rate — across six real fights. `--shots` also captures frozen frames of the Broken Wings casts and a Vader exchange. Run it with `--label baseline` on the old build and `--label after` on the new one; it prints an A/B you can read side by side. `--only-frozen` re-shoots just the stills (40s instead of 6min) |
 | `diag-encounter.mjs` | Fight length and dps across the endless ladder. **Its bot never dies** (`lives = 9999`, revived in-frame), so its dps is an uninterrupted CEILING and `hp / dps` is not fight length — read it for RELATIVE comparison only. Sizing Vader's pool off it once shipped a 300,000-hp boss |
+| `diag-arena-perf.mjs` | **What does an authored arena cost?** `node tests/diag-arena-perf.mjs <roomId> [label]`. Room-load time, EnvLight object count, display list, an outage entry, and frame medians/p95 in both power states. READ THE OBJECT COUNTS, NOT THE FRAME TIMES — this container's spread across two runs of an identical build is wider than anything an environment pass produces. A/B it by stashing `src/` only (`git stash push -u -- src/`), and copy the rig OUT of the tree first or the stash takes it with it |
 | `diag-vader-perf.mjs` | **Did an effects pass cost anything?** Frame delta, display-list size and live tween count across a 30s boss stress fight. Run `--label before` on the baseline (`git checkout <sha> -- src/`) and `--label after` on the branch. Read the DISPLAY LIST, not the frame delta: two runs of an identical build measured 131.9ms and 140.6ms, a 6.5% spread that swallows any effect this instrument could detect. It also fails outright if fewer than 5 casts landed, because a benchmark of an idle arena is the "a refused call reads like a failed one" trap wearing a stopwatch |
 | `smoke-audio.mjs` | Comparing SFX levels across the mix |
 | `smoke-fragsfx.mjs` | Judging impact-sound *timbre* (low band vs crack band), not just loudness |
@@ -211,6 +212,17 @@ as 560px away. Use `b.groundY` (set every frame in the fragment's `draw()`), and
 recover altitude as `groundY - y` when you need it. This bug has now been fixed
 twice, in `smoke-flight` and `smoke-arc` — in the second case it made the test
 pass standalone and fail in the suite on an identical build.
+
+**`smoke-deflect`'s "blade travelling FASTEST" check is a frame-rate
+measurement wearing a physics claim.** `peakStepU` is the phase of the largest
+PER-FRAME angular step across a 260ms sweep. At ~20fps that sweep is about five
+frames, so which sample carries the biggest step depends on where the frames
+happen to land — and the threshold is `> 0.5`. A/B'd properly for the first time
+during the hangar pass: run four times against an untouched `a639ea6` with
+`src/` stashed, it failed **three of the four** (u=0.314 / 0.333 / 1.392). It is
+not a regression detector for anything; treat a failure here as noise unless the
+same run also breaks a check that is not frame-sampled, and fix the instrument
+before believing it.
 
 **Fractional sampling of short sounds reports silence as "quiet".** Sampling an
 envelope at a fraction of its expected length lands past the end of a sound that
@@ -810,7 +822,7 @@ already said not to modify source during capture; it applies to the suite too.
 
 ## Arena-pilot rigs (added with the environment visual pilot)
 
-Six files, and only one of them is a test.
+Nine files, and two of them are tests.
 
 | file | what it is |
 |---|---|
@@ -820,8 +832,11 @@ Six files, and only one of them is a test.
 | `shot-hero-shape.mjs` | **evidence for one open decision, shape pass.** The same thirteen frames for each candidate silhouette. `node tests/shot-hero-shape.mjs shape-12` then `shape-16`, flipping `POD_SHELL` between runs — the loser is deleted, so this rig cannot be re-run without rebuilding it. |
 | `shot-console-kit.mjs` | **evidence, console kit.** Each archetype at its own frozen cover coordinate, in both power states, then the same consoles in live combat. |
 | `shot-arena-ambient-ab.mjs` | **evidence for one open decision.** One frozen frame at two `LIGHTSOUT.floor` settings. |
+| `smoke-hangar.mjs` | **assertion test, second arena.** In `run-all`. The hangar's own structural truths, plus a group that asserts the hangar is NOT the chamber — different perimeter style, no hero-machine emissive faces, no `dais` or `trench`, and it must use `track` and `hatch`. A second room that passed by copying the first would prove nothing. |
+| `shot-hangar.mjs` | **evidence, second arena.** `node tests/shot-hangar.mjs hangar-before` then `hangar-after`. Eight quiet stations, wave combat, and then late Vader in both power states — spawned INTO the hangar rather than by loading the chamber, because "SPAWN VADER keeps the current room" is the contract the whole pass depends on. |
+| `sheet.mjs` | **not a rig — a layout tool.** `node tests/sheet.mjs OUT.png LABEL:a.png LABEL:b.png` lays screenshots side by side with captions and photographs the result, so a matched pair is one file rather than two to alt-tab between. Playwright renders it because it is already a dependency. Two traps, both cost a rebuild: `setContent` with no DOCTYPE is QUIRKS MODE, where `body`'s height is the viewport's; and a flex row without `align-items: flex-start` makes every figure STRETCH and report the viewport height back as its own. Either one silently pads the sheet with half a screen of background. |
 
-### Seven things these rigs learned the hard way
+### Eight things these rigs learned the hard way
 
 **`_sectorTint` will silently ruin every arena photograph.** The endless
 per-sector wash is an ADD-blended screen-locked rectangle at depth 9000, up to
@@ -870,6 +885,15 @@ transform fails on everything. The shape pass split it further: cover
 POSITIONS stay frozen literals, cover TEXTURES are a separate and deliberately
 un-frozen question, because which console art stands on a frozen spot is
 exactly the thing that pass was allowed to change.
+
+**THE HUD'S TOP BAR EATS THE FIRST ~20 WORLD PIXELS OF A NORTH WALL.** The
+game camera is inset by `HUDCFG.topBarHeight`, so world y 0 lands at screen 84
+only while the camera sits at its northern clamp. One step south and the
+outermost edge of the band is under the bar — which is where the hangar's blast
+door had its fixture housings on the first build, and why they photographed as a
+door with no lights on it from half the stations in the rig. A north-wall
+feature is legible only when the player is in the north half; that is a real
+constraint on where a landmark can live, not a rig artifact.
 
 ### The A/B that made `smoke-arena` worth having
 
