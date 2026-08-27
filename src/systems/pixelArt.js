@@ -153,6 +153,7 @@ export const PAL = {
   chRibLit:     '#3d4655',   // the lit sliver on a raised edge
   chMachDark:   '#101319',   // machinery in shadow — the hero housing's body
   chMach:       '#1d212b',   // machinery mass body
+  chMachMid:    '#242934',   // a plane angled toward the light, not facing it
   chMachLit:    '#2b313d',   // machinery top face
   chSeam:       '#06080c',   // the dark line of a seam or a cast edge
   chBolt:       '#4a5262',   // small hardware — bolts, vent slats
@@ -2647,114 +2648,273 @@ export function paintBunk(scene, key = 'prop-bunk', sheet = null) {
 // they all have to be re-derived.
 //
 // WHAT THIS IS. The chamber's one large prop and the room's only landmark.
-// Handset review passed its silhouette and its position and rejected its
-// interior: a large uninterrupted circular mass, one bright illustrative
-// crescent across the lid, and a red mark in the middle that read as a HUD
-// icon. Three specific things fix that here.
+// Two rounds of handset review have now passed its position, its footprint,
+// its interior, its control bank and its cyan/amber identity, and rejected one
+// thing each time. The first rejected the interior: a dial. The second
+// rejected the OUTER SILHOUETTE — a large smooth circle, which at this pixel
+// cadence read chunkier, softer and blurrier in motion than the walls, the
+// trenches, the consoles and Vader beside it.
 //
+// THE FIX IS SHAPE LANGUAGE, NOT FILTERING. The rest of CRIX is hard-surface:
+// crisp horizontals, crisp verticals, exact 45-degree cuts, layered plates.
+// A big mathematical circle is the one form that cannot be said in that
+// vocabulary — every bearing lands somewhere different against the grid, so
+// its edge is a stair pattern with no period and it reads as a low-resolution
+// approximation of something else. Smoothing it would have made ONE unusually
+// soft asset inside a deliberately pixelated game. So the shell is FACETED
+// instead: an armoured polygon whose every edge is a direction the grid can
+// state exactly — H, V, 1:1, 2:1 or 1:2 — and whose runs are all different
+// lengths. It still reads as round machinery from across the room; up close it
+// is built out of plates.
+//
+// THE SMALL CURVE SURVIVES. Only the huge circumference was the problem: the
+// well inside the shell is still a circle, because a 25px radius renders
+// cleanly and because angular-housing-around-round-cavity-around-rectangular-
+// equipment is a better object than any one of those three alone.
+//
+// Three interior decisions carried over from the previous round and are not
+// reopened here:
 //   1. THE INTERIOR IS RECTILINEAR. Concentric rings inside a circle with
 //      radial spokes across them is a DIAL, which is the failure mode a big
-//      round object falls into by default. So the circle is only the HOUSING;
-//      what sits in the well is a rectangular plant block with a maintenance
-//      hatch on one face and a control bank on the other. Round outside,
-//      built inside.
-//   2. THE SEAMS ARE UNEVEN. Five radial seams across the housing ring at
-//      irregular bearings, not six at 60 degrees. Even division reads as a
-//      graphic; uneven division reads as a thing that was assembled.
-//   3. NOTHING BRIGHT IS PAINTED ON. The old crescent was a light source
-//      baked into a material that LIGHTS OUT multiplies toward black — it
-//      could only ever be an illustration. Every emissive on this machine
-//      lives in the two ADD faces below instead, so it survives the darkness
-//      and can have a second intensity.
+//      round object falls into by default. What sits in the well is a
+//      rectangular plant block with a maintenance hatch on one face and a
+//      control bank on the other.
+//   2. THE SEAMS ARE UNEVEN, and they now terminate ON facet corners, which
+//      is what a plate join actually does.
+//   3. NOTHING BRIGHT IS PAINTED ON. Every emissive on this machine lives in
+//      the two ADD faces below, so it survives LIGHTS OUT and can have a
+//      second intensity.
 //
 // The body stays entirely within the graphite ladder. Its brightest value is
 // `chBolt` on hardware; there is no highlight brighter than the deck's own
 // lit edges anywhere on it.
+
+// THE SHELL. Twelve vertices, clockwise from the west end of the north flat,
+// in logical pixels on the 88x82 canvas. Every edge is one of H / V / 1:1 /
+// 2:1 / 1:2, so every edge has an exact, periodic stair cadence; and no two
+// runs are the same length, so the result is an assembly rather than a
+// polygon icon. Four flats of four different widths (north 26, east 26,
+// south 42, west 34), four unequal diagonals, one deliberately tiny bevel at
+// the lower-left corner, and one long 45-degree cut up the north-west.
+//
+// A SIXTEEN-FACET VERSION WAS BUILT AND PHOTOGRAPHED AGAINST THIS ONE and is
+// not here, per the pass's own rule about leaving prototypes in production.
+// See `docs/evidence/arena-pilot/hero-shape/` and HANDOVER 10p: at handset
+// scale the extra four planes are each roughly six pixels long, which is
+// below the size at which a plane reads as a plane — the silhouette went back
+// toward a circle and took the crispness with it.
+const POD_SHELL = [
+  [32,  4], [58,  4],   // north flat, 26 wide
+  [72, 11],             // 2:1
+  [80, 19],             // 1:1
+  [80, 45],             // east flat, 26 tall
+  [72, 61],             // 1:2
+  [61, 72],             // 1:1
+  [19, 72],             // south flat, 42 wide — the longest run, mostly plinth
+  [10, 63],             // 1:1
+  [ 8, 59],             // 1:2, two steps: the interruption
+  [ 8, 25],             // west flat, 34 tall
+  [26,  7],             // 1:1, the long north-west cut
+];
+
+/**
+ * Walks a closed clockwise polygon of integer vertices and returns everything
+ * the painters need from it: the per-edge frame (direction, length, INWARD
+ * normal) and a scanline table of the filled interior.
+ *
+ * The inward normal of a clockwise edge (ax, ay) is (-ay, ax) — check it on
+ * the north flat, whose direction is east and whose inside is south.
+ */
+function facetPoly(verts) {
+  const edges = [];
+  const rows = new Map();
+  const mark = (x, y) => {
+    const r = rows.get(y);
+    if (!r) rows.set(y, [x, x]);
+    else { if (x < r[0]) r[0] = x; if (x > r[1]) r[1] = x; }
+  };
+  for (let i = 0; i < verts.length; i++) {
+    const [x0, y0] = verts[i];
+    const [x1, y1] = verts[(i + 1) % verts.length];
+    const ax = x1 - x0, ay = y1 - y0;
+    const n = Math.max(Math.abs(ax), Math.abs(ay));
+    const L = Math.hypot(ax, ay);
+    // WALK AT 3x THE PIXEL RATE, not once per dominant-axis pixel. A 2:1 facet
+    // advances half a pixel per step on its minor axis, so a one-per-pixel walk
+    // rounds two steps onto the same pixel and leaves the one between them
+    // empty — every diagonal fixture and every diagonal bracket came out as a
+    // checkerboard before this line, which is a thing that looks like a broken
+    // texture rather than like a machine.
+    const steps = Math.max(1, Math.ceil(L * 3));
+    edges.push({ x0, y0, x1, y1, ax, ay, n, L, steps, nx: -ay / L, ny: ax / L });
+    for (let k = 0; k <= steps; k++) mark(Math.round(x0 + (ax * k) / steps), Math.round(y0 + (ay * k) / steps));
+  }
+  const at = (e, t) => [e.x0 + e.ax * t, e.y0 + e.ay * t];
+  const inside = (x, y) => { const r = rows.get(y); return !!r && x >= r[0] && x <= r[1]; };
+  /**
+   * Which facet does this pixel belong to? Perpendicular distance to each edge
+   * SEGMENT, nearest wins. This is what paints the planes: filling by walking
+   * each edge inward leaves holes on every diagonal, and a per-pixel query
+   * also gives clean straight mitres where two planes meet.
+   */
+  const nearest = (x, y) => {
+    let best = null, bd = 1e9;
+    for (const e of edges) {
+      const t = Math.max(0, Math.min(1, ((x - e.x0) * e.ax + (y - e.y0) * e.ay) / (e.L * e.L)));
+      const d = Math.hypot(x - (e.x0 + e.ax * t), y - (e.y0 + e.ay * t));
+      if (d < bd) { bd = d; best = e; }
+    }
+    return [best, bd];
+  };
+  return { edges, rows, at, inside, nearest };
+}
+
+// THE ILLUMINATED FIXTURES, as facet coordinates rather than as bearings.
+// Each is [edge index, t start, t end]. They are read by the material painter
+// (which cuts the groove) and by both emissive faces (which light it), so a
+// tube and its light cannot drift apart.
+//
+// Three cyan on the upper-left planes, two amber on the lower-right ones,
+// different lengths, with gaps. NOT a lit circumference: together they cover
+// well under half the shell's perimeter, on two opposite arcs, in two
+// colours. A continuous lit ring on a large round object is gameplay
+// language — capture zone, boss radius, objective marker — and the whole
+// reason these are broken up.
+const POD_CYAN = [[9, 0.63, 0.80], [10, 0.14, 0.36], [10, 0.54, 0.78]];
+const POD_AMBER = [[4, 0.22, 0.70], [5, 0.10, 0.40]];
+
 export function paintMeditationPod(scene, key = 'prop-pod') {
   const c = new PixelCanvas(scene, key, 88, 82, 4);
-  const CX = 44, CY = 40, R = 36;
+  const CX = 44, CY = 40;
   const SEAM = PAL.chSeam, MACH = PAL.chMach, MACHL = PAL.chMachLit;
   const RIB = PAL.chRib, RIBL = PAL.chRibLit, SINK = PAL.chSink, BOLT = PAL.chBolt;
+  const DARK = PAL.chMachDark;
+  const { edges, rows, at, inside, nearest } = facetPoly(POD_SHELL);
 
-  const inR = (x, y, r) => (x - CX) * (x - CX) + (y - CY) * (y - CY) <= r * r;
-  // A filled annular wedge. Used for the ring seams and for the two recessed
-  // arc channels the emissive faces sit in.
-  const wedge = (a0, a1, r0, r1, col) => {
-    const steps = Math.ceil(Math.abs(a1 - a0) * r1 * 2) + 4;
-    for (let i = 0; i <= steps; i++) {
-      const a = a0 + (a1 - a0) * (i / steps);
-      const ca = Math.cos(a), sa = Math.sin(a);
-      for (let r = r0; r <= r1; r += 0.5) c.px(Math.round(CX + ca * r), Math.round(CY + sa * r), col);
+  // ── THE ARMOURED SHELL, PLANE BY PLANE. This is the whole payoff of the
+  //    faceted silhouette and the thing a circle cannot do: a facet has ONE
+  //    orientation, so it catches ONE amount of light, so it gets ONE value.
+  //    A curved housing has to smear a gradient around itself and at this
+  //    pixel cadence that gradient is what read as soft and blurry. Three
+  //    tones, north-lit as everything else in this game is: planes facing the
+  //    light, planes facing sideways, planes facing away.
+  //
+  //    The lit tone is spent CAREFULLY. A housing lit over half its area comes
+  //    out lighter than the deck it stands on, which is the opposite of a
+  //    heavy object — so only the genuinely north-facing planes take it, and
+  //    the shell is a thin annulus to begin with.
+  // FOUR VALUES, AND THE BRIGHTEST ONE IS RATIONED. A plane square to the
+  // light gets the lit tone; a plane angled toward it gets the step below;
+  // sides get the body tone; planes facing away get the dark one. Only the
+  // 26px north flat is ever square to the light, which is what keeps the
+  // housing from going pale — a shell lit over half its area comes out
+  // lighter than the deck it stands on.
+  const tone = (e) => (e.ny > 0.85 ? MACHL : e.ny > 0.35 ? PAL.chMachMid : e.ny < -0.35 ? DARK : MACH);
+  for (const [y, [x0, x1]] of rows) {
+    for (let x = x0; x <= x1; x++) {
+      const [e, d] = nearest(x, y);
+      // Past the shell's own thickness a pixel is not on any plate any more;
+      // it is inside the machine, and the well is about to be cut there.
+      c.px(x, y, d > 13 ? DARK : tone(e));
     }
-  };
-  const D = Math.PI / 180;
-
-  // ── HOUSING. Dark edge, body, then the north-facing third catching the
-  //    room's light — the same north-lit / south-cast convention every raised
-  //    form in this game uses.
-  //    DARK BODY, NARROW CAP. The first build of this filled the whole
-  //    northern half with the lit tone and the machine came out a pale grey
-  //    ring — lighter than the deck it stands on, which is the opposite of a
-  //    heavy object. The lit band is a CAP now: twelve rows out of seventy.
-  c.circle(CX, CY, R + 1, SEAM);
-  c.circle(CX, CY, R, PAL.chMachDark);
-  for (let y = CY - R; y <= CY - 24; y++) {
-    for (let x = CX - R; x <= CX + R; x++) if (inR(x, y, R)) c.px(x, y, MACH);
   }
-  // The housing's own thickness, read as a lit rim on the north and a dark
-  // one on the south. One pixel each — this is a joint, not a highlight.
-  wedge(205 * D, 335 * D, R - 1, R, RIB);
-  wedge(20 * D, 160 * D, R - 1, R, SEAM);
 
-  // ── THE WELL. A recess inside the housing ring; everything structural sits
-  //    down in it, which is what gives the object a thickness read at all.
-  c.circle(CX, CY, 25, SEAM);
-  c.circle(CX, CY, 24, SINK);
+  // ── PLATE EDGES. One pixel of rim per facet, and one pixel of the plate's
+  //    own shadow behind a lit rim — which is what stops a rim reading as an
+  //    outline drawn around the shape.
+  for (const e of edges) {
+    const rim = e.ny > 0.35 ? RIBL : e.ny < -0.35 ? SEAM : RIB;
+    for (let k = 0; k <= e.steps; k++) {
+      const bx = e.x0 + (e.ax * k) / e.steps, by = e.y0 + (e.ay * k) / e.steps;
+      c.px(Math.round(bx), Math.round(by), rim);
+      if (rim === RIBL) c.px(Math.round(bx + e.nx), Math.round(by + e.ny), SEAM);
+    }
+  }
+
+  // ── ONE STRUCTURAL DETAIL IN THE WEAK LOWER HALF, and it is deliberately
+  //    silhouette rather than surface. The shell's lower-west quadrant is the
+  //    flattest part of the object — no fixture, no join worth seeing — so it
+  //    gets a bolted service plate standing PROUD of the west flat, breaking
+  //    the outline on the side that had nothing to say. Structural depth, not
+  //    another lamp.
+  c.rect(2, 45, 10, 17, SEAM);
+  c.rect(3, 46, 9, 15, DARK);
+  c.hline(46, 3, 11, RIB);
+  c.hline(61, 3, 11, SEAM);
+  c.vline(3, 47, 60, RIB);
+  c.px(5, 48, BOLT); c.px(5, 58, BOLT);
+
+  // ── THE WELL. A recess inside the shell; everything structural sits down in
+  //    it, which is what gives the object a thickness read at all. This is the
+  //    small curve the pass deliberately KEPT: at r=25 a circle renders
+  //    cleanly, and a round cavity inside an angular housing is a better
+  //    object than either alone.
+  //    ITS RADIUS IS WHAT THE PLATES ARE MADE OF. At r=25 the armour ring was
+  //    ~13px wide and the facets only really read at close range; at mid
+  //    distance the object went back to being a thick circle. r=21 is four more
+  //    pixels of plate on every plane, which is the difference between "the
+  //    edges are straight in places" and a polygonal silhouette. The plant
+  //    block (x27..61, y23..54) still clears it.
+  const WELL = 21;
+  c.circle(CX, CY, WELL + 1, SEAM);
+  c.circle(CX, CY, WELL, SINK);
   //    Its wall. Light comes from the north in this game, so the wall a recess
   //    catches it on is the SOUTH one — inverted, a hole reads as a dome.
-  wedge(18 * D, 162 * D, 23, 24.5, RIB);
-  wedge(200 * D, 340 * D, 23.5, 24.5, SEAM);
-
-  // ── RING SEAMS. Five, at irregular bearings. The gap between 250 and 340
-  //    is the widest plate on the machine and it is deliberate: an unbroken
-  //    face is what makes the broken ones read as joins.
-  for (const a of [8, 62, 128, 176, 248]) wedge(a * D, (a + 0.6) * D, 25, R, SEAM);
-  for (const a of [8, 62, 128, 176, 248]) wedge((a + 0.7) * D, (a + 1.4) * D, 25, R, MACH);
-
-  // ── RECESSED ARC CHANNELS. Two, on opposite sides, each a shallow groove
-  //    that the emissive faces below light from inside. They are cut here in
-  //    the MATERIAL so that at normal power, and in any frame where the light
-  //    is off, there is still something physical in that place.
-  //    Kept DIM and desaturated. At the channel's own colour these read as two
-  //    painted stripes on a circle, which is decoration; what belongs in the
-  //    material is a dark groove with a faint tube in it, and the brightness
-  //    belongs to the ADD faces.
-  //    SEGMENTED, not continuous. A single smooth lit arc across the top-left
-  //    of a big circle is the illustrative crescent this pass exists to remove,
-  //    repainted in a different colour — and a long unbroken arc on a large
-  //    round object is also the thing that starts reading as a gameplay ring.
-  //    Three short cyan tubes and two amber ones read as FIXTURES.
-  const CYAN_SEGS = [[200, 213], [217, 229], [233, 246]];
-  const AMBER_SEGS = [[34, 50], [55, 72]];
-  for (const [a0, a1] of CYAN_SEGS) {
-    wedge(a0 * D, a1 * D, 30, 34, SEAM);
-    wedge(a0 * D, a1 * D, 31.5, 32.5, '#1b3846');
-  }
-  for (const [a0, a1] of AMBER_SEGS) {
-    wedge(a0 * D, a1 * D, 30, 34, SEAM);
-    wedge(a0 * D, a1 * D, 31.5, 32.5, '#3c2a14');
+  for (let a = 0; a < 360; a++) {
+    const r = a * (Math.PI / 180), ca = Math.cos(r), sa = Math.sin(r);
+    if (sa > 0.31) { c.px(Math.round(CX + ca * (WELL - 1.5)), Math.round(CY + sa * (WELL - 1.5)), RIB); c.px(Math.round(CX + ca * (WELL - 0.6)), Math.round(CY + sa * (WELL - 0.6)), RIB); }
+    else if (sa < -0.34) c.px(Math.round(CX + ca * (WELL - 1)), Math.round(CY + sa * (WELL - 1)), SEAM);
   }
 
-  // ── MOUNTING BRACKETS. Three, straddling the rim onto the deck, at
-  //    bearings that are not 120 degrees apart. This is the detail that stops
-  //    the housing floating: it is bolted to something.
-  for (const [a, len] of [[112, 5], [214, 4], [340, 5]]) {
-    wedge((a - 4) * D, (a + 4) * D, R - 3, R + len, MACH);
-    wedge((a - 4) * D, (a - 3) * D, R - 3, R + len, SEAM);
-    wedge((a + 3) * D, (a + 4) * D, R - 3, R + len, SEAM);
-    wedge((a - 3) * D, (a + 3) * D, R + len - 2, R + len - 1, RIB);
-    const [bx, by] = [Math.round(CX + Math.cos(a * D) * (R + len - 2)), Math.round(CY + Math.sin(a * D) * (R + len - 2))];
-    c.px(bx, by, BOLT);
+  // ── PLATE JOINS. Five, at irregular bearings, each running from the well
+  //    out to wherever the shell happens to be on that bearing. The widest gap
+  //    is deliberate: an unbroken face is what makes the broken ones read as
+  //    joins.
+  for (const a of [8, 62, 128, 176, 248]) {
+    const r = a * (Math.PI / 180), ca = Math.cos(r), sa = Math.sin(r);
+    for (let d = WELL + 4; d < 52; d += 0.5) {
+      const x = Math.round(CX + ca * d), y = Math.round(CY + sa * d);
+      if (!inside(x, y)) break;
+      c.px(x, y, SEAM);
+    }
+  }
+
+  // ── THE FIXTURE GROOVES. Cut in the MATERIAL, along the facet they belong
+  //    to, so that at normal power — and in any frame where the light is off —
+  //    there is still something physical in that place. Kept dark and
+  //    desaturated: what belongs in the material is a recess with a dull tube
+  //    in it, and all of the brightness belongs to the ADD faces.
+  const groove = (list, tube) => {
+    for (const [ei, t0, t1] of list) {
+      const e = edges[ei];
+      for (let k = Math.round(e.steps * t0); k <= Math.round(e.steps * t1); k++) {
+        const bx = e.x0 + (e.ax * k) / e.steps, by = e.y0 + (e.ay * k) / e.steps;
+        for (let d = 2; d <= 5; d += 0.5) c.px(Math.round(bx + e.nx * d), Math.round(by + e.ny * d), SEAM);
+        for (let d = 3; d <= 4; d += 0.5) c.px(Math.round(bx + e.nx * d), Math.round(by + e.ny * d), tube);
+      }
+    }
+  };
+  groove(POD_CYAN, '#1b3846');
+  groove(POD_AMBER, '#3c2a14');
+
+  // ── MOUNTING BRACKETS. Three, straddling a facet out onto the deck, on
+  //    three differently-oriented planes. This is the detail that stops the
+  //    housing floating: it is bolted to something.
+  for (const [ei, t, hl, out] of [[2, 0.5, 3, 4], [11, 0.5, 3, 4], [4, 0.86, 3, 4]]) {
+    const e = edges[ei], sp = e.steps / e.L;
+    const k0 = Math.round(e.steps * t - hl * sp), k1 = Math.round(e.steps * t + hl * sp);
+    for (let k = k0; k <= k1; k++) {
+      const bx = e.x0 + (e.ax * k) / e.steps, by = e.y0 + (e.ay * k) / e.steps;
+      const rimK = k === k0 || k === k1;
+      // Step OUTWARD along the facet's own normal in half-pixels; a whole-pixel
+      // walk down a 2:1 facet rounds into a checkerboard.
+      for (let d = 0; d <= out; d += 0.5) {
+        c.px(Math.round(bx - e.nx * d), Math.round(by - e.ny * d), rimK ? SEAM : MACH);
+      }
+      c.px(Math.round(bx - e.nx * out), Math.round(by - e.ny * out), rimK ? SEAM : RIB);
+    }
+    const [mx, my] = at(e, t);
+    c.px(Math.round(mx - e.nx * (out - 1)), Math.round(my - e.ny * (out - 1)), BOLT);
   }
 
   // ── THE PLANT BLOCK. Rectilinear, seated in the round well, slightly north
@@ -2769,7 +2929,7 @@ export function paintMeditationPod(scene, key = 'prop-pod') {
   // maintenance hatch and sits a step BACK; the east plate carries the control
   // bank and steps forward. A single flat rectangle at this size reads as a
   // panel stuck to the machine.
-  c.rect(28, 29, 17, 24, PAL.chMachDark);
+  c.rect(28, 29, 17, 24, DARK);
   c.vline(45, 29, 52, SEAM);
   c.hline(29, 46, 59, RIB);
   c.px(29, 30, BOLT); c.px(43, 30, BOLT);
@@ -2782,11 +2942,12 @@ export function paintMeditationPod(scene, key = 'prop-pod') {
   c.px(32, 33, BOLT); c.px(41, 33, BOLT);
   c.px(32, 46, BOLT); c.px(41, 46, BOLT);
 
-  // ── THE CONTROL BANK. This replaces the red mark. It is an inset panel with
-  //    four pieces of believable machine information and nothing decorative:
-  //    a status display, a button cluster, a segmented readout, and a lamp row.
-  //    Everything on it is cyan, amber or green; the single red pixel is a
-  //    fault lamp and is the only red the environment spends anywhere.
+  // ── THE CONTROL BANK. Human review named this the strongest part of the
+  //    prop, so it is unchanged: an inset panel with four pieces of believable
+  //    machine information and nothing decorative — a status display, a button
+  //    cluster, a segmented readout, and a lamp row. Everything on it is cyan,
+  //    amber or green; the single red pixel is a fault lamp and is the only
+  //    red the environment spends anywhere.
   c.rect(45, 30, 15, 19, SEAM);
   c.rect(46, 31, 13, 17, RIB);
   c.hline(31, 46, 58, RIBL);
@@ -2807,12 +2968,12 @@ export function paintMeditationPod(scene, key = 'prop-pod') {
   c.px(54, 47, PAL.chWarn);
 
   // ── PLINTH. Overlapping plates, the widest at the bottom, so the machine
-  //    steps down onto the deck instead of ending at a circle.
+  //    steps down onto the deck instead of ending at its own silhouette.
   c.rect(22, 70, 44, 6, SEAM);
   c.rect(23, 70, 42, 5, MACH);
   c.hline(70, 23, 64, RIB);
   c.rect(16, 75, 56, 5, SEAM);
-  c.rect(17, 75, 54, 4, PAL.chMachDark);
+  c.rect(17, 75, 54, 4, DARK);
   c.hline(75, 17, 70, MACH);
   for (let k = 20; k < 70; k += 12) c.px(k, 77, BOLT);
   c.hline(80, 16, 72, SEAM);
@@ -2835,33 +2996,60 @@ export function paintMeditationPod(scene, key = 'prop-pod') {
 // doctrine EnvLight applies to the room, drawn in the object's own space
 // because that is the only place a spill can follow this geometry.
 //
+// LOCAL CONTAMINATION IS A SEPARATE, WIDER, MUCH FAINTER PASS. Handset review
+// found the tubes read and the deck spill read, but the armour immediately
+// around a fixture caught almost nothing — so each fixture is drawn twice: a
+// tight bright core along the facet, and a broad dim wash pushed INWARD along
+// that facet's normal, onto the plate behind it. The second one is what makes
+// the light look embedded in the machine rather than pasted onto it. It is
+// deliberately spent on the machine's own surface and NOT on a bigger floor
+// halo, which is the cheap way to fake the same thing.
+//
 // SPLIT BY POWER STATE, not by shape:
 //   `prop-pod-glow` — the machine running. Cyan status display, its lamps,
-//                     and the cyan arc channel. Dim at normal power, brighter
-//                     under emergency because the room around it collapses.
-//   `prop-pod-emer` — DEAD at normal power. The amber arc, the readout, and
-//                     the fault lamp. This is the half that makes the second
-//                     state an authored composition instead of a dimmer.
+//                     and the three cyan facet fixtures. Dim at normal power,
+//                     brighter under emergency because the room collapses.
+//   `prop-pod-emer` — DEAD at normal power. The two amber facet fixtures, the
+//                     readout, and the fault lamp. This is the half that makes
+//                     the second state an authored composition, not a dimmer.
 function podFace(scene, key, paint) {
   const c = new PixelCanvas(scene, key, 88, 82, 4);
   const S = c.scale, ctx = c.ctx;
   ctx.clearRect(0, 0, 88 * S, 82 * S);
-  const CX = 44 * S, CY = 40 * S;
+  const { edges } = facetPoly(POD_SHELL);
 
-  // A soft arc. Ten strokes, widest FAINTEST — an even alpha across a stack of
-  // shapes puts a legible edge on screen, which is the thing that made the
-  // first environment glow photograph as a television in a box.
-  const arc = (a0, a1, r, col, peak) => {
+  // A soft straight beam. Ten strokes, widest FAINTEST — an even alpha across
+  // a stack of shapes puts a legible edge on screen, which is the thing that
+  // made the first environment glow photograph as a television in a box. Round
+  // caps, so the ends taper instead of stopping square: a fixture recessed in
+  // a groove does not light its own end plate.
+  const beam = (x0, y0, x1, y1, col, peak, wide) => {
+    ctx.lineCap = 'round';
     for (let i = 0; i < 10; i++) {
       const t = i / 9;
       ctx.strokeStyle = col;
       ctx.globalAlpha = peak * (0.05 + 0.95 * Math.pow(t, 1.7));
-      ctx.lineWidth = (4.6 - 3.9 * t) * S;
+      ctx.lineWidth = (wide - (wide - 0.7) * t) * S;
       ctx.beginPath();
-      ctx.arc(CX, CY, r * S, a0, a1);
-      ctx.stroke();
+      ctx.moveTo(x0 * S, y0 * S); ctx.lineTo(x1 * S, y1 * S); ctx.stroke();
     }
     ctx.globalAlpha = 1;
+  };
+  // A FIXTURE, in facet coordinates. Two beams from one description: the tube
+  // itself sitting in its groove, and the contamination it throws onto the
+  // armour plate inboard of it.
+  const fixture = (list, col, peak) => {
+    for (const [ei, t0, t1] of list) {
+      const e = edges[ei];
+      const ax0 = e.x0 + e.ax * t0, ay0 = e.y0 + e.ay * t0;
+      const ax1 = e.x0 + e.ax * t1, ay1 = e.y0 + e.ay * t1;
+      // Contamination first, so the core draws over its middle. Pushed 5px in
+      // along the facet's own normal and drawn 4x as wide at a fifth of the
+      // strength — a plate catching light, not a second lamp.
+      beam(ax0 + e.nx * 5, ay0 + e.ny * 5, ax1 + e.nx * 5, ay1 + e.ny * 5, col, peak * 0.28, 8);
+      // The tube, in the groove at inset 3.5.
+      beam(ax0 + e.nx * 3.5, ay0 + e.ny * 3.5, ax1 + e.nx * 3.5, ay1 + e.ny * 3.5, col, peak, 3.0);
+    }
   };
   // A soft box wash, elliptical along the emitter's own aspect. Screens do not
   // make circular pools.
@@ -2880,23 +3068,23 @@ function podFace(scene, key, paint) {
   const dot = (x, y, r, col, peak) => wash(x, y, r, r, col, peak);
   const bar = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x * S, y * S, w * S, h * S); };
 
-  paint({ ctx, S, arc, wash, dot, bar, D: Math.PI / 180 });
+  paint({ ctx, S, beam, fixture, wash, dot, bar });
   c.finish();
 }
 
 export function paintPodGlow(scene, key = 'prop-pod-glow') {
-  podFace(scene, key, ({ arc, wash, dot, bar, D }) => {
+  podFace(scene, key, ({ fixture, wash, dot, bar }) => {
     // The status display: its wash first, then the emitter, then the data
     // lines that are the actual bright thing on it.
     wash(52.5, 34.5, 13, 8, 'rgba(120,205,255,0.85)', 0.34);
     bar(47, 32, 11, 5, 'rgba(90,170,220,0.34)');
     bar(48, 33, 8, 1, PAL.chCyanHot);
     bar(48, 34, 5, 1, PAL.chCyanHot);
-    // The cyan tubes, lit from inside their grooves. Three segments, matching
-    // the channels cut in the material, and QUIET: as one continuous arc at
-    // full strength this photographed as a glowing crescent across the
-    // housing — the same illustrative highlight the old lid had, recoloured.
-    for (const [a0, a1] of [[200, 213], [217, 229], [233, 246]]) arc(a0 * D, a1 * D, 32, '#8fd8ff', 0.30);
+    // The three cyan facet fixtures, lit in their grooves, with their plate
+    // contamination. QUIET: at full strength across a whole facet run this
+    // photographed as a glowing edge on the silhouette, which is a shape
+    // around the machine rather than light off it.
+    fixture(POD_CYAN, '#8fd8ff', 0.24);
     // Nominal lamps on the control bank.
     dot(48, 47, 3, 'rgba(150,255,190,0.9)', 0.55);
     dot(51, 47, 3, 'rgba(150,255,190,0.9)', 0.55);
@@ -2907,11 +3095,11 @@ export function paintPodGlow(scene, key = 'prop-pod-glow') {
 }
 
 export function paintPodEmergency(scene, key = 'prop-pod-emer') {
-  podFace(scene, key, ({ arc, wash, dot, bar, D }) => {
-    // The emergency arc — on the opposite rim from the cyan one and a
-    // different length, because two matched arcs on a circle are a ring with
+  podFace(scene, key, ({ fixture, wash, dot, bar }) => {
+    // The emergency fixtures — on the opposite planes from the cyan ones and
+    // different lengths, because two matched runs on a shell are a ring with
     // two gaps in it.
-    for (const [a0, a1] of [[34, 50], [55, 72]]) arc(a0 * D, a1 * D, 32, '#ffb45a', 0.44);
+    fixture(POD_AMBER, '#ffb45a', 0.34);
     // The segmented readout goes live.
     for (let k = 0; k < 6; k++) bar(48 + k * 2, 45, 1, 1, PAL.chAmberHot);
     wash(52, 45, 9, 4, 'rgba(255,180,90,0.8)', 0.38);
@@ -3003,6 +3191,208 @@ export function paintConsole(scene, key = 'bush') {
   c.px(3,  26, PAL.impGrey);
   c.px(24, 26, PAL.impGrey);
 
+  c.finish();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THE CONSOLE KIT — three archetypes, one vocabulary
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// WHY A KIT. The arena pilot raised the floor, the walls and the hero prop,
+// and the effect was to expose the cover consoles as the prototype art they
+// always were: a mid-grey isometric block with a blue screen, a red LED and an
+// Imperial cog, drawn before the chamber had a material ladder at all. The
+// wrong fix is four bespoke Vader-chamber consoles. These objects recur in
+// every room in the game, so what is needed is a VOCABULARY that can be
+// instanced and lightly varied — a kit of related industrial hardware, not
+// sci-fi furniture.
+//
+// THREE ARCHETYPES AND NO MORE:
+//   A  PEDESTAL TERMINAL      freestanding room console; the common case
+//   B  WALL CONTROL PANEL     doors, access points, wall status
+//   C  HEAVY SYSTEMS CONSOLE  machinery rooms, boss chambers, technical zones
+//
+// VARIATION COMES FROM THE FACE, NOT THE SILHOUETTE. Screen layout, button
+// arrangement, status lamps, one panel insert. Two consoles of the same
+// archetype must be recognisably the same product; that is the difference
+// between a kit and a pile.
+//
+// EVERY ARCHETYPE IS 28x28 LOGICAL AT SCALE 4, exactly like the `bush` texture
+// it replaces. This is not laziness, it is the collision contract: cover
+// bodies are 70x70 and frozen, the nav grid and LOS are built from them, and a
+// heavier console that was also PHYSICALLY wider would be art promising cover
+// the room does not have — the same trap as painting a solid mass into the
+// floor backdrop. Archetype C reads heavier through mass, value and density
+// inside the same footprint.
+//
+// COLOUR. The chamber ladder, and the same discipline as everything else in
+// this pass: cyan for information, amber for hazard and emergency, restrained
+// green for nominal, and red confined to single-pixel fault lamps. No neon
+// outlines, no holograms, no floating screens.
+
+// One shared palette handle, so an archetype cannot quietly drift off the
+// ladder the room is built on.
+const CON = {
+  seam: PAL.chSeam, dark: PAL.chMachDark, body: PAL.chMach, lit: PAL.chMachLit,
+  rib: PAL.chRib, ribLit: PAL.chRibLit, sink: PAL.chSink, bolt: PAL.chBolt,
+  glass: PAL.chGlass,
+};
+
+/**
+ * THE SHARED CHASSIS. Top face, front face, base slab — the three-part read
+ * that makes a console an OBJECT STANDING IN THE ROOM rather than a flat card,
+ * built once so all three archetypes are visibly the same manufacturer.
+ *
+ * @param o.top   [y0, y1, inset]  the lit upper surface
+ * @param o.front [y0, y1, inset]  the working face
+ * @param o.base  [y0, y1, inset]  the foot
+ */
+function conChassis(c, o) {
+  const [ty0, ty1, ti] = o.top, [fy0, fy1, fi] = o.front, [by0, by1, bi] = o.base;
+  // TOP FACE — the brightest plane, tapering slightly with depth.
+  for (let y = ty0; y <= ty1; y++) {
+    const k = ti + Math.floor((y - ty0) * 0.4);
+    c.hline(y, k, 27 - k, y === ty0 ? CON.ribLit : CON.lit);
+  }
+  // Vent slots cut into the lid. INSET WELL AWAY FROM ITS EDGES: run one the
+  // full width of the top face and the lid stops being a lid and becomes two
+  // plates with a gap, which is what the first build looked like.
+  for (const y of o.vents || []) { c.hline(y, ti + 6, 21 - ti, CON.seam); c.hline(y + 1, ti + 6, 21 - ti, CON.rib); }
+  c.hline(ty1 + 1, ti, 27 - ti, CON.seam);          // the top face's cast edge
+
+  // FRONT FACE — the working plane. Darker than the top, with its own lit
+  // near edge and a dark far column, so the object has a light direction.
+  c.rect(fi, fy0, 28 - fi * 2, fy1 - fy0 + 1, CON.body);
+  c.vline(fi, fy0, fy1, CON.rib);
+  c.vline(27 - fi, fy0, fy1, CON.dark);
+  c.vline(26 - fi, fy0, fy1, CON.seam);
+
+  // BASE — the darkest slab, always the widest run, so the object sits down.
+  c.rect(bi, by0, 28 - bi * 2, by1 - by0 + 1, CON.dark);
+  c.hline(by0, bi, 27 - bi, CON.rib);
+  c.hline(by1, bi, 27 - bi, CON.seam);
+  c.px(bi + 1, by0 + 1, CON.bolt); c.px(26 - bi, by0 + 1, CON.bolt);
+}
+
+/** A RECESSED DISPLAY. Bezel, cast shadow inside the top lip, dark glass. */
+function conScreen(c, x, y, w, h) {
+  c.rect(x - 1, y - 1, w + 2, h + 2, CON.seam);
+  c.rect(x, y, w, h, CON.glass);
+  c.hline(y, x, x + w - 1, '#0d1c28');
+  c.hline(y + h, x - 1, x + w, CON.rib);
+}
+
+/** DATA LINES. Cyan information with one amber row; never a full block. */
+function conLines(c, x, y, rows) {
+  rows.forEach(([dy, len, warm], i) => c.hline(y + dy, x, x + len - 1, warm ? PAL.chAmber : PAL.chCyan));
+}
+
+/** A RECESSED BUTTON CLUSTER. */
+function conKeys(c, x, y, cols, rows) {
+  c.rect(x - 1, y - 1, cols * 2 + 1, rows * 2 + 1, CON.seam);
+  for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) c.px(x + k * 2, y + r * 2, CON.bolt);
+}
+
+// ── ARCHETYPE A — PEDESTAL TERMINAL ───────────────────────────────────────
+// The common freestanding console: a substantial dark chassis on a believable
+// foot, one screen housing, one compact control strip. The direct replacement
+// for the old `bush`, and the shape the player will see most often.
+//
+// `variant` changes the FACE only — screen layout, key strip, and one panel
+// insert. The silhouette is identical across variants on purpose.
+export function paintConsolePedestal(scene, key, variant = 'a') {
+  const c = new PixelCanvas(scene, key, 28, 28, 4);
+  conChassis(c, { top: [0, 5, 4], front: [6, 20, 3], base: [21, 26, 2], vents: [2] });
+
+  if (variant === 'a') {
+    conScreen(c, 6, 8, 16, 7);
+    conLines(c, 7, 8, [[1, 12], [2, 7], [3, 10, true], [4, 5]]);
+    conKeys(c, 7, 17, 5, 2);
+    // Panel insert on the free half of the control strip.
+    c.rect(18, 16, 6, 5, CON.dark);
+    c.hline(16, 18, 23, CON.rib);
+    c.px(19, 18, PAL.chVeridian); c.px(22, 18, PAL.chAmber);
+  } else {
+    // Variant B: a taller narrow display beside a slim readout column, and the
+    // keys shifted to the other side. Same product, different order code.
+    conScreen(c, 5, 8, 11, 8);
+    conLines(c, 6, 8, [[1, 8], [2, 5], [4, 9, true], [5, 4]]);
+    c.rect(18, 8, 5, 8, CON.dark);
+    c.vline(17, 8, 15, CON.seam);
+    for (let k = 0; k < 4; k++) c.hline(9 + k * 2, 19, k < 2 ? 21 : 20, k < 2 ? PAL.chAmber : CON.sink);
+    conKeys(c, 15, 17, 4, 2);
+    c.rect(5, 17, 7, 4, CON.dark);
+    c.hline(17, 5, 11, CON.rib);
+    c.px(6, 19, PAL.chVeridian);
+  }
+  // Fault lamp: one pixel, dark until the light layer says otherwise.
+  c.px(24, 19, PAL.chWarn);
+  c.finish();
+}
+
+// ── ARCHETYPE B — WALL CONTROL PANEL ──────────────────────────────────────
+// Doors, access points, corridor machinery, wall status. Much less visual mass
+// than a pedestal: an inset body bolted to a surface, a small display, a
+// compact key block, and a strong mounting relationship — the frame is part of
+// the object, because the whole claim is that it is fixed to a wall.
+//
+// NOT PLACED IN THE PILOT ARENA. The chamber's wall bays are painted by the
+// perimeter pass and its composition is frozen this round; adding wall panel
+// sprites would be adding environment decoration, which this pass is
+// explicitly not allowed to do. The archetype exists and is photographed so
+// the vocabulary can be judged as a whole.
+export function paintConsoleWall(scene, key = 'ch-con-wall') {
+  const c = new PixelCanvas(scene, key, 28, 28, 4);
+  // MOUNTING FRAME. Drawn first and left proud on all four sides — this is the
+  // read that says "fixed to something" and it is the archetype's whole job.
+  c.rect(4, 6, 20, 16, CON.seam);
+  c.rect(5, 7, 18, 14, CON.rib);
+  c.hline(7, 5, 22, CON.ribLit);
+  c.rect(6, 9, 16, 11, CON.body);
+  c.hline(20, 6, 21, CON.dark);
+  // Bolted at the corners.
+  c.px(5, 8, CON.bolt); c.px(22, 8, CON.bolt);
+  c.px(5, 20, CON.bolt); c.px(22, 20, CON.bolt);
+  // Display and keys, scaled down to the panel's authority.
+  conScreen(c, 8, 11, 9, 5);
+  conLines(c, 9, 11, [[1, 6], [2, 4], [3, 7, true]]);
+  conKeys(c, 8, 18, 3, 1);
+  c.px(18, 12, PAL.chVeridian);
+  c.px(18, 14, PAL.chAmber);
+  c.px(20, 18, PAL.chWarn);
+  c.finish();
+}
+
+// ── ARCHETYPE C — HEAVY SYSTEMS CONSOLE ───────────────────────────────────
+// Machinery rooms, boss chambers, the technical end of a space. More authority
+// than a pedestal — a deeper chassis, a dual display arrangement, denser but
+// still readable control information, a heavier foot.
+//
+// IT IS NOT A SECOND HERO PROP, and the discipline that keeps it reusable is
+// the same one that keeps it honest: identical 28x28 footprint, identical
+// 70x70 body. The weight is in the mass and the value, not the outline.
+export function paintConsoleHeavy(scene, key = 'ch-con-heavy') {
+  const c = new PixelCanvas(scene, key, 28, 28, 4);
+  conChassis(c, { top: [0, 6, 2], front: [7, 21, 2], base: [22, 27, 1], vents: [2, 4] });
+  // A shoulder either side of the display block — the plate that makes this
+  // chassis read as deeper than a pedestal's.
+  c.rect(2, 7, 4, 14, CON.dark);
+  c.rect(22, 7, 4, 14, CON.dark);
+  c.vline(6, 7, 20, CON.seam); c.vline(21, 7, 20, CON.seam);
+  c.hline(7, 2, 5, CON.rib); c.hline(7, 22, 25, CON.rib);
+  c.px(3, 9, CON.bolt); c.px(24, 9, CON.bolt);
+  c.px(3, 19, CON.bolt); c.px(24, 19, CON.bolt);
+  // DUAL DISPLAY. A wide primary over a narrow secondary — two screens of the
+  // same size is a pair of eyes, which is the thing to avoid.
+  conScreen(c, 8, 9, 12, 6);
+  conLines(c, 9, 9, [[1, 9], [2, 5], [3, 8, true], [4, 3]]);
+  conScreen(c, 8, 17, 7, 3);
+  conLines(c, 9, 17, [[1, 5], [2, 3, true]]);
+  // Denser control information, still parseable at phone scale.
+  conKeys(c, 17, 17, 3, 2);
+  for (let k = 0; k < 5; k++) c.px(9 + k * 2, 21, k < 3 ? PAL.chAmber : CON.sink);
+  c.px(17, 21, PAL.chVeridian);
+  c.px(20, 21, PAL.chWarn);
   c.finish();
 }
 

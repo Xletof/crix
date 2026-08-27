@@ -1980,6 +1980,264 @@ other three arenas' art, and the point is that they are *unstyled*, not that
 they are finished. The spec-field opt-out check above catches propagation
 without holding anyone's future hangar pass hostage.
 
+## 10p. THE ARENA PILOT, SHAPE PASS — facets, and a reusable console kit
+
+**The pilot itself is settled.** Two handset reviews have now passed the
+composition, the large/medium/small hierarchy, the room asymmetry, the calm
+central floor, the trenches, the palette, the LIGHTS OUT darkness, the
+emergency-power architecture, the saber emissive and combat readability. This
+pass answers the last two things review named, and nothing else: the hero
+machine's outer silhouette, and the console art the upgraded room exposed.
+
+### The diagnosis, and why it is NOT a filtering problem
+
+The hero prop read chunkier, softer and blurrier in motion than the walls, the
+trenches, the consoles and Vader standing beside it. The tempting fix — a
+smoother, higher-resolution, antialiased circle — is the wrong one twice over:
+it would produce one unusually soft asset inside a deliberately pixelated game,
+and it would not address the actual cause.
+
+**The cause is that a large mathematical circle is the one form CRIX's
+vocabulary cannot say.** Everything else in this game is hard surface: crisp
+horizontals, crisp verticals, exact 45-degree cuts, layered plates. A circle's
+edge lands somewhere different against the grid at every bearing, so its stair
+pattern has no period, and a big one reads as a low-resolution approximation of
+something else. Worse, a curved housing has to smear a light gradient around
+itself, and a smeared gradient at this cadence is exactly what "blurry" meant.
+
+The renderer was checked and left alone: `main.js` is already
+`pixelArt: true, antialias: false, roundPixels: false`, which is correct — the
+last of those is why camera motion glides instead of juddering. Nothing about
+the prop was being softened by the engine.
+
+### THE MACHINERY SHAPE DOCTRINE
+
+> A large "round" industrial object should be built as a FACETED ANGULAR OUTER
+> HOUSING containing SMALLER ROUNDED FORMS, whenever a big smooth pixel curve
+> would clash with the rest of the game's hard-surface language.
+
+This is not a ban on circles. Small circles and rings still render cleanly and
+stay valid — the hero machine's own well is still a circle at r=25, and keeping
+it is the point: angular housing → round cavity → rectangular equipment is a
+better object than any one of those three alone.
+
+### Twelve facets, not sixteen — and that was measured
+
+`POD_SHELL` is twelve vertices, clockwise, in the 88x82 canvas. Every edge is
+H, V, 1:1, 2:1 or 1:2, so every edge has an exact periodic stair cadence. No two
+runs are the same length: four flats at four different widths (north 26, east
+26, south 42, west 34), four unequal diagonals, one deliberately tiny two-step
+bevel at the lower-left, and one long 45-degree cut up the north-west.
+
+A SIXTEEN-FACET CANDIDATE WAS BUILT AND PHOTOGRAPHED at identical camera
+stations, and is not in the tree. At handset scale its extra four planes are
+about six pixels each, which is below the size at which a plane reads as a
+plane: the silhouette drifted back toward a circle and took the crispness with
+it, and its fixtures went back to reading as curved arcs.
+`docs/evidence/arena-pilot/hero-shape/` is the matched pair.
+
+### Three things the faceted shell cost a round each
+
+- **A FACET NEEDS ITS OWN VALUE, NOT ITS OWN RIM.** The first build varied only
+  the one-pixel edge treatment per plane and photographed as the same mushy
+  ring. The read comes from filling each plane at a different tone: four
+  values, north-lit, `ny > 0.85` lit / `> 0.35` mid / sides body / `< -0.35`
+  dark. The mid tone (`PAL.chMachMid`) exists for this and nothing else. The
+  lit tone stays rationed to the one 26px north flat, because a shell lit over
+  half its area comes out lighter than the deck it stands on.
+- **FILL BY NEAREST FACET, NOT BY WALKING EACH EDGE INWARD.** Walking an edge
+  and stepping along its normal leaves holes on every diagonal — the plane
+  bands, the fixture grooves and the brackets all came out as CHECKERBOARDS.
+  `facetPoly().nearest(x, y)` answers "which plane owns this pixel" by
+  perpendicular distance to each segment; it also gives clean straight mitres
+  where two planes meet.
+- **WALK A FACET AT 3x THE PIXEL RATE.** A 2:1 edge advances half a pixel per
+  step on its minor axis, so a one-step-per-dominant-axis-pixel walk rounds two
+  steps onto one pixel and skips the one between. `edge.steps` is
+  `ceil(length * 3)` and every walk uses it. This is the same bug as the point
+  above wearing different clothes, and it appeared three separate times.
+
+### The fixtures follow the facets
+
+`POD_CYAN` and `POD_AMBER` are `[edge index, t start, t end]` — facet
+coordinates, read by the material painter (which cuts the groove) and by both
+emissive faces (which light it), so a tube and its light cannot drift apart.
+Three cyan on the upper-left planes, two amber on the lower-right ones,
+different lengths, with gaps: together well under half the perimeter, on two
+opposite arcs, in two colours. A continuous lit circumference on a large round
+object is gameplay language — capture zone, boss radius, objective ring — and
+that is the whole reason these are broken up and were broken up before.
+
+**LOCAL CONTAMINATION IS A SECOND, WIDER, MUCH FAINTER BEAM.** Review found the
+tubes read and the deck spill read, and the armour immediately around a fixture
+caught almost nothing. Each fixture is now drawn twice: a tight core in the
+groove at inset 3.5, and a beam four times as wide at 28% of the strength
+pushed 5px INWARD along that facet's own normal, onto the plate behind it. That
+second pass is what makes the light look embedded in the machine. It is
+deliberately spent on the machine's own surface and NOT on a bigger floor halo,
+which is the cheap way to fake the same thing and the thing that would start
+competing with combat.
+
+### The console kit
+
+Three archetypes, one vocabulary, in `pixelArt.js`, with their emitter contract
+in `src/data/consoleKit.js`:
+
+| | archetype | for | in the pilot |
+|---|---|---|---|
+| A | `ch-con-ped-a` / `-b` | freestanding room console | 3 of the 4 cover pillars |
+| B | `ch-con-wall` | doors, access points, wall status | **not placed** |
+| C | `ch-con-heavy` | machinery rooms, boss chambers | the south-west pillar |
+
+**VARIATION COMES FROM THE FACE, NOT THE SILHOUETTE.** Screen layout, button
+arrangement, status lamps, one panel insert. Two consoles of the same archetype
+must be recognisably the same product; that is the difference between a kit and
+a pile. `conChassis`, `conScreen`, `conLines` and `conKeys` are shared by all
+three, so the family resemblance is structural.
+
+**EVERY ARCHETYPE IS 28x28 LOGICAL AT SCALE 4, exactly like the `bush` it
+replaces, and that is a collision contract rather than a style rule.** Cover
+bodies are frozen at 70x70 and feed the nav grid, the LOS rects and bullet
+collision. A heavier console that was also physically wider would be art
+promising cover the room does not have — the same trap as painting a solid mass
+into the floor backdrop. Archetype C reads heavier through mass, value and
+density inside the same footprint.
+
+**ARCHETYPE B IS NOT PLACED.** The chamber's wall bays are painted by the
+perimeter pass and its composition is frozen this round; adding wall panel
+sprites would be adding environment decoration, which this pass is explicitly
+not allowed to do. The archetype exists and `shot-console-kit.mjs` drops one in
+FOR THE PHOTOGRAPH ONLY so the vocabulary can be judged whole.
+
+**OPT-IN BY NAME, exactly like `emissives`.** A cover entry may carry a `tex`
+and a spec may carry a `coverTex`; a spec that says neither gets `bush`. The kit
+textures are painted for every room because textures are global and cheap, and
+only a room that asks for an archetype receives one. That is what keeps this
+one arena.
+
+**THE CONSOLE'S LIGHT IS DERIVED FROM ITS ART.** `CONSOLE_KIT` declares each
+luminous region in the sprite's own logical pixels — the same numbers the
+painter used — and `loadRoom` converts them against the console's real
+placement. A hand-written screen coordinate is one edit away from glowing where
+a console used to be.
+
+**NO RED SOURCES.** Each archetype paints a single-pixel fault lamp into its
+texture; none is declared as light. Red is combat language, and a red LIGHT in
+the environment is a different claim from a red pixel of hardware.
+
+**RESTRAINT IN THE DARK.** Exactly one region in the kit — the heavy console's
+secondary display — is dead at normal power and comes up on the emergency bus.
+Nominal lamps do not get louder in the dark at all: a lamp that says "fine" has
+no reason to shout, and every LED coming on is what makes a blackout read as a
+light show.
+
+### Placement, and one thing the room taught
+
+The heavy console started on the NORTH-WEST pillar, because that is the one
+standing with the hero machine. Photographed, it is half covered by the pod's
+sprite: the prop sorts at depth 740 and the console at y+56 = 496. It moved to
+the south-west pillar — still the room's technical side, and somewhere the
+player can see it. **Positions, count and collision did not change**; only which
+texture stands on each.
+
+### Performance
+
+| | |
+|---|---|
+| new persistent objects | +12 ADD Images (envParts 54 -> 66) |
+| new shared glow textures | 0 |
+| new console textures | 4 x 112x112 RGBA ~= 196KB |
+| hero texture memory | unchanged — same 88x82 canvas, same three textures |
+| new baked primitives | 0 (the shell replaced the circle in place) |
+| per-frame work | none |
+| LIGHTS OUT transition | 66 alpha writes per changed scalar instead of 54 |
+
+The faceted shell costs slightly MORE work at paint time than `c.circle` — the
+nearest-facet fill is O(pixels x facets) — and exactly nothing at runtime. It is
+one canvas pass at preload.
+
+Measured back-to-back on an idle container with the same probe, this build
+against `09c485e` (headless, so the absolutes are the container, not a phone —
+only the deltas mean anything):
+
+| ms | before | after | after, 2nd run |
+|---|---|---|---|
+| frame median, normal | 65.2 | 66.9 | 67.3 |
+| frame p95, normal | 90.2 | 76.5 | 80.7 |
+| frame median, dark | 75.7 | 76.8 | 77.3 |
+| frame p95, dark | 100.0 | 102.4 | 99.6 |
+| room load | 62.3 | 57.5 | 50.8 |
+| `setPower` | 0.1 | 0.1 | 0.2 |
+| display list | 88 | 100 | 100 |
+
+Flat within run-to-run noise. The normal p95 came out BETTER after, twice, which
+is how you know the spread is the container and not the change.
+
+### Known remaining limitations — what still looks cheap
+
+- **The pedestal's top face is nearly featureless.** Two vent slots and a lit
+  near edge; from directly above it is a grey lid.
+- **Archetype B is unproven in situ.** It has been photographed standing on the
+  deck, which is not where a wall panel goes.
+- **The shell's south half is still the quiet half.** The service plate breaks
+  the west side; below the well it is one plane and one plinth.
+- **Only one console variant axis is used.** The kit supports screen, keys,
+  lamps and a panel insert; the pilot spends two variants and stops.
+- **The hero's three emissive textures are still ~924KB of mostly-transparent
+  canvas.** Unchanged from 10o, and still the deliberate trade for structural
+  registration.
+- **`LIGHTSOUT.floor/.wall/.prop/.console` are still the handset's numbers.**
+  Untouched again.
+
+### Evidence
+
+| | |
+|---|---|
+| shape candidates | `hero-shape/shape-12/` vs `hero-shape/shape-16/`, plus `compare-close.png` and `compare-lightsout.png` |
+| hero machine, final | `shape-after/` (22 frames, matched station-for-station with `hero-after/`, which is now this pass's BEFORE) |
+| console kit | `console-before/` vs `console-after/` (14 frames each, same stations) |
+| room-wide | `shape-room-after/`, matched with `polish-after/` |
+
+### What protects it
+
+`smoke-arena.mjs` gained two more groups on top of 10n's eight and 10o's four:
+
+- **The console kit.** Four archetypes exist; the chamber uses 2-3 distinct
+  ones across its four frozen positions and none of them is off-kit; every
+  archetype texture is the same size as `bush`; every placed console renders at
+  that size, has a 70x70 body and is still tagged `console`. The derived light
+  is checked too: at least eight sources, every one within 60px of a console,
+  none of them danger red, at least one dead at normal power, and no `led`
+  louder in the dark than at normal power.
+- **The hero canvas and its faces are the same size.** 352x328 for all three.
+  This is the check that catches a silhouette edit that changed the canvas and
+  left the light behind.
+
+Plus the cover FROZEN check was split: positions stay frozen literals,
+textures are a separate and deliberately un-frozen question, and the other three
+arenas are asserted to still be standing on `bush`.
+
+**And again, not a test: the pixel-hash A/B against `09c485e`.** Same LCG-pinned
+probe as 10o, run twice for stability first:
+
+```
+hangar     a5aace45 -> a5aace45   identical
+corridor   22662abd -> 22662abd   identical
+detention  2bf7fbce -> 2bf7fbce   identical
+vader      223f86cc -> 223f86cc   IDENTICAL
+bush       45afbba5 -> 45afbba5   identical
+wall       ac1b5e85 -> ac1b5e85   identical
+terminal   56a282e5 -> 56a282e5   identical
+prop-pod   1f97aac5 -> 812894a5   changed, intended
+```
+
+The Vader backdrop coming back byte-identical is the strongest single piece of
+evidence in this pass: the floor architecture AND the whole `chamber` perimeter
+are baked into that one texture, so an unchanged hash is proof that the freeze
+on the room's composition held. The only shared texture that moved is the hero
+prop. `bush` is untouched, which is what the three unstyled arenas still stand
+on.
+
 ## 10c. The narrative system
 ## 10c. The narrative system
 

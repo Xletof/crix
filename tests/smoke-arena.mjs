@@ -76,6 +76,7 @@ const R = await page.evaluate(async () => {
   const { ROOMS } = await import('/src/data/rooms.js');
   const { LIGHTSOUT, ENDLESS } = await import('/src/config.js');
   const { ENV_LIGHT_DEPTH } = await import('/src/systems/EnvLight.js');
+  const { CONSOLE_KIT, consoleEmissives } = await import('/src/data/consoleKit.js');
   const spec = ROOMS.find((r) => r.boss);
 
   const out = { spec: {}, cfg: {}, geom: {}, layer: {}, power: {}, leak: {} };
@@ -88,7 +89,10 @@ const R = await page.evaluate(async () => {
     bossSpawn: spec.bossSpawn,
     exit: spec.exit,
     gates: spec.gates,
-    cover: spec.cover,
+    // POSITION only. Which console texture stands on each of these spots is a
+    // separate, deliberately un-frozen question — see `coverKit` below.
+    cover: spec.cover.map((c) => ({ x: c.x, y: c.y })),
+    coverTex: spec.cover.map((c) => c.tex ?? spec.coverTex ?? 'bush'),
     props: (spec.props || []).map((p) => ({ x: p.x, y: p.y, solid: !!p.solid, bodyW: p.bodyW, bodyH: p.bodyH })),
     wallsLen: spec.walls.length,
     hasEmissives: Array.isArray(spec.emissives) && spec.emissives.length > 0,
@@ -197,6 +201,48 @@ const R = await page.evaluate(async () => {
     roomLayerCount: roomKids.length,
   };
 
+  // ── THE CONSOLE KIT. The pilot swapped four prototype cover sprites for
+  //    three reusable archetypes, and the whole risk of doing that is that a
+  //    console's ART and its COLLISION stop agreeing. Measured from the live
+  //    objects: what texture each one wears, how big its sprite actually is,
+  //    and how big its body is.
+  out.kit = {
+    archetypes: Object.keys(CONSOLE_KIT).sort(),
+    consoles: wallKids.filter((w) => w.texture?.key !== 'prop-pod').map((w) => ({
+      x: Math.round(w.x), y: Math.round(w.y),
+      tex: w.texture.key,
+      dw: Math.round(w.displayWidth), dh: Math.round(w.displayHeight),
+      bw: Math.round(w.body.width), bh: Math.round(w.body.height),
+      loClass: w._loClass,
+    })).sort((a, b) => a.x - b.x || a.y - b.y),
+    // Every emissive source the kit DERIVED for this room, with its colour, so
+    // the red-discipline check can see them too. A console's light is
+    // generated rather than authored in the spec; it has to be colour-tested
+    // like anything a human wrote by hand.
+    derived: (spec.cover || []).flatMap((cp) => consoleEmissives(cp.tex ?? spec.coverTex ?? 'bush', cp.x, cp.y))
+      .map((e) => ({
+        kind: e.kind, x: Math.round(e.x), y: Math.round(e.y),
+        normal: e.normal, emergency: e.emergency,
+        colors: [e.color, e.hot].filter((v) => v != null).map((v) => ({
+          hex: '#' + v.toString(16).padStart(6, '0'),
+          r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255,
+        })),
+      })),
+    // The archetypes are all one footprint on purpose: cover bodies are frozen
+    // at 70x70, so a heavier console that was also physically wider would be
+    // art promising cover the room does not have.
+    // The hero machine's canvas and its two emissive faces. The faces are
+    // painted in the PROP'S OWN SPACE and registered on top of it, so a change
+    // to the shell's canvas that did not reach them would silently offset every
+    // light on the machine — a mismatch here is that bug, before it ships.
+    heroTex: ['prop-pod', 'prop-pod-glow', 'prop-pod-emer']
+      .filter((k) => window.game.textures.exists(k))
+      .map((k) => { const t = window.game.textures.get(k).getSourceImage(); return { k, w: t.width, h: t.height }; }),
+    texSizes: Object.keys(CONSOLE_KIT).concat('bush')
+      .filter((k) => window.game.textures.exists(k))
+      .map((k) => { const t = window.game.textures.get(k).getSourceImage(); return { k, w: t.width, h: t.height }; }),
+  };
+
   // ── POWER STATE. Sample one emissive's alpha through a full cycle.
   const sample = () => envParts.map((p) => +(p.alpha ?? 0).toFixed(4));
   const normalAlphas = sample();
@@ -273,6 +319,10 @@ const R = await page.evaluate(async () => {
       specArchitecture: (r.floor?.architecture || []).length,
       specPropFaces: (r.props || []).reduce((n, pr) => n + (pr.faces || []).length, 0),
       specPerimeter: r.perimeter?.style ?? null,
+      // The console kit is SHARED code and its textures are painted for every
+      // room. Opting in is per-room and by name, so an arena that has not been
+      // reviewed must still be standing on `bush`.
+      coverTex: [...new Set((r.cover || []).map((c) => c.tex ?? r.coverTex ?? 'bush'))],
       envParts: gs.envLight?.parts?.length ?? -1,
       additiveAtEnvDepth: gs.children.list.filter(
         (o) => o.blendMode === Phaser.BlendModes.ADD && (o.depth === ENV_LIGHT_DEPTH || o._face),
@@ -322,7 +372,7 @@ if (R.geom.cameraBounds.w !== 1600 || R.geom.cameraBounds.h !== 1600) fails.push
 // 2 — nothing painted became collision. 4 cover + 1 solid prop + 0 walls.
 if (R.geom.wallBodies !== 5) fails.push(`walls group holds ${R.geom.wallBodies} bodies, expected 5 (4 cover + 1 solid prop)`);
 if (R.geom.losRects !== 5) fails.push(`losRects is ${R.geom.losRects}, expected 5`);
-const covBodies = R.geom.bodies.filter((b) => b.tex === 'bush');
+const covBodies = R.geom.bodies.filter((b) => b.tex !== 'prop-pod');
 if (covBodies.length !== 4 || covBodies.some((b) => b.bw !== 70 || b.bh !== 70)) {
   fails.push(`cover bodies wrong: ${JSON.stringify(covBodies)}`);
 }
@@ -426,6 +476,77 @@ if (!R.spec.propFaces.some((f) => f.normal === 0 && f.emergency > 0.2)) {
 }
 if (!R.spec.propFaces.some((f) => f.normal > 0.1)) {
   fails.push('the hero machine shows no light at normal power');
+}
+
+// ── 9 — THE CONSOLE KIT.
+//
+// The kit exists to make consoles reusable, and everything below is a way for
+// "reusable" to stay honest under a later edit.
+const KIT_TEX = ['ch-con-heavy', 'ch-con-ped-a', 'ch-con-ped-b', 'ch-con-wall'];
+if (!eq(R.kit.archetypes, KIT_TEX)) {
+  fails.push(`console kit is ${JSON.stringify(R.kit.archetypes)}, expected ${JSON.stringify(KIT_TEX)}`);
+}
+// A KIT, NOT A PILE. Four consoles from at most three distinct textures, and
+// at least two distinct ones so the room is not four clones either.
+const usedTex = [...new Set(R.spec.coverTex)];
+if (R.spec.coverTex.length !== 4) fails.push(`the chamber has ${R.spec.coverTex.length} consoles, expected 4`);
+if (usedTex.length < 2 || usedTex.length > 3) {
+  fails.push(`the chamber uses ${usedTex.length} console textures (${usedTex.join(', ')}); a kit wants 2-3`);
+}
+if (usedTex.some((t) => !KIT_TEX.includes(t))) fails.push(`the pilot is standing on non-kit console art: ${usedTex.join(', ')}`);
+// EVERY ARCHETYPE IS ONE FOOTPRINT. This is the collision contract, not a
+// style rule: bodies are frozen at 70x70 and a physically wider console would
+// promise cover the room does not have.
+const bushSize = R.kit.texSizes.find((t) => t.k === 'bush');
+for (const t of R.kit.texSizes) {
+  if (t.w !== bushSize.w || t.h !== bushSize.h) {
+    fails.push(`console texture ${t.k} is ${t.w}x${t.h}, but the footprint contract is ${bushSize.w}x${bushSize.h}`);
+  }
+}
+// The placed consoles: right sprite size, right body, still tagged as the
+// lightest LIGHTS OUT material class.
+for (const c of R.kit.consoles) {
+  if (c.dw !== bushSize.w || c.dh !== bushSize.h) fails.push(`console at ${c.x},${c.y} renders ${c.dw}x${c.dh}`);
+  if (c.bw !== 70 || c.bh !== 70) fails.push(`console at ${c.x},${c.y} has a ${c.bw}x${c.bh} body, expected 70x70`);
+  if (c.loClass !== 'console') fails.push(`console at ${c.x},${c.y} is tagged '${c.loClass}'`);
+}
+// EMITTER + SPILL, DERIVED FROM THE ART. Every console contributes light, that
+// light is near the console it belongs to, and none of it is a danger-red
+// source — the fault lamps are painted pixels, deliberately not light.
+if (R.kit.derived.length < 8) fails.push(`the kit derived only ${R.kit.derived.length} sources for four consoles`);
+for (const e of R.kit.derived) {
+  const near = R.kit.consoles.some((c) => Math.abs(c.x - e.x) <= 60 && Math.abs(c.y - e.y) <= 60);
+  if (!near) fails.push(`a derived ${e.kind} source at ${e.x},${e.y} is not on any console`);
+  for (const col of e.colors) {
+    if (isDangerRed(col)) fails.push(`RED CONSOLE LIGHT: a ${e.kind} source is ${col.hex}`);
+  }
+}
+// RESTRAINT IN THE DARK. At least one region comes up on emergency power only,
+// and the nominal lamps do NOT get louder — a console must stay identifiable
+// without becoming bright scenery.
+if (!R.kit.derived.some((e) => e.normal === 0 && e.emergency > 0.2)) {
+  fails.push('no console region is reserved for emergency power');
+}
+if (R.kit.derived.some((e) => e.kind === 'led' && e.emergency > e.normal + 1e-6)) {
+  fails.push('a nominal status lamp gets louder in the dark — every LED coming on is the thing to avoid');
+}
+
+// The hero machine's canvas is frozen at 352x328 and both faces must match it
+// exactly. That is what makes the emissives register STRUCTURALLY rather than
+// by a hand-computed offset — and it is the check that catches a silhouette
+// edit that changed the canvas and left the light behind.
+const HERO = { 'prop-pod': [352, 328], 'prop-pod-glow': [352, 328], 'prop-pod-emer': [352, 328] };
+if (R.kit.heroTex.length !== 3) fails.push(`the hero machine has ${R.kit.heroTex.length} textures, expected 3`);
+for (const t of R.kit.heroTex) {
+  const want = HERO[t.k];
+  if (!want || t.w !== want[0] || t.h !== want[1]) fails.push(`${t.k} is ${t.w}x${t.h}, expected ${want?.join('x')}`);
+}
+
+// ── 10 — THE OTHER THREE ARENAS ARE STILL ON THE PROTOTYPE CONSOLE. The kit is
+// shared code and its textures are painted for every room; opting in is by
+// name, per room, and stays that way until a human has seen this one.
+for (const o of R.others) {
+  if (!eq(o.coverTex, ['bush'])) fails.push(`${o.id} is using kit consoles (${o.coverTex.join(', ')}) — the pilot leaked`);
 }
 
 // The pilot has to actually exist, or every check above passes vacuously.

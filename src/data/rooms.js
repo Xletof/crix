@@ -521,10 +521,22 @@ export const ROOMS = [
         ],
       },
     ],
+    // THE CONSOLE KIT, INSTANCED. Positions, count and collision are frozen —
+    // these are the same four cover pillars they have always been, at the same
+    // snapped coordinates, with the same 70x70 bodies under the same 112px
+    // sprites. What changed is which texture each one wears.
+    //
+    // The assignment is not decoration. The HEAVY archetype goes to the
+    // SOUTH-WEST pillar: the west aisle is the room's technical side, so that
+    // is where the console with authority belongs — and unlike the north-west
+    // pillar, which the hero machine's sprite half covers at this camera, it is
+    // somewhere the player can actually see it. The other three are pedestals,
+    // with the two variants arranged so no two ADJACENT consoles are identical
+    // while the room still reads as having one KIND of terminal in it rather
+    // than four unique objects.
     cover: snapAll([
-      // 4 corner cover pillars
-      { x: 400, y: 400 }, { x: 1200, y: 400 },
-      { x: 400, y: 1200 }, { x: 1200, y: 1200 },
+      { x: 400, y: 400, tex: 'ch-con-ped-a' }, { x: 1200, y: 400, tex: 'ch-con-ped-b' },
+      { x: 400, y: 1200, tex: 'ch-con-heavy' }, { x: 1200, y: 1200, tex: 'ch-con-ped-a' },
     ]),
     enemies: [],
     boss: true,

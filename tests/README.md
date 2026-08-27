@@ -810,16 +810,18 @@ already said not to modify source during capture; it applies to the suite too.
 
 ## Arena-pilot rigs (added with the environment visual pilot)
 
-Four files, and only one of them is a test.
+Six files, and only one of them is a test.
 
 | file | what it is |
 |---|---|
 | `smoke-arena.mjs` | **assertion test.** In `run-all`. Protects structure, never taste. |
 | `shot-arena-pilot.mjs` | **evidence.** `node tests/shot-arena-pilot.mjs <tag>` → `docs/evidence/arena-pilot/<tag>/`. Same camera stations every run, so before/after is the same room and not two prettiest-camera shots. |
 | `shot-hero-machine.mjs` | **evidence, polish pass.** Same contract, stations derived from the hero prop's world footprint rather than from the room. |
+| `shot-hero-shape.mjs` | **evidence for one open decision, shape pass.** The same thirteen frames for each candidate silhouette. `node tests/shot-hero-shape.mjs shape-12` then `shape-16`, flipping `POD_SHELL` between runs — the loser is deleted, so this rig cannot be re-run without rebuilding it. |
+| `shot-console-kit.mjs` | **evidence, console kit.** Each archetype at its own frozen cover coordinate, in both power states, then the same consoles in live combat. |
 | `shot-arena-ambient-ab.mjs` | **evidence for one open decision.** One frozen frame at two `LIGHTSOUT.floor` settings. |
 
-### Five things these rigs learned the hard way
+### Seven things these rigs learned the hard way
 
 **`_sectorTint` will silently ruin every arena photograph.** The endless
 per-sector wash is an ADD-blended screen-locked rectangle at depth 9000, up to
@@ -844,12 +846,30 @@ cleared the enemies once at the top of the run — so half the environment frame
 came back with six troopers standing in them. The sweep belongs in `hush`, which
 runs before every shutter.
 
+**A STATION IS A PLAYER POSITION.** The game camera follows the player, so a
+`centerOn(somethingElse)` is overwritten by the follow on the very next update.
+The console rig spent a full run photographing a camera that had not moved.
+Solve for the player instead — and remember the camera CLAMPS at the arena
+bounds, so a console at y=1240 in a 1600px arena lands at screen y 920 whatever
+you ask for, which in this game is underneath the touch controls. That station
+is framed off-centre in x for exactly that reason.
+
+**A/B a SILHOUETTE at runtime scale, never on the source canvas.** The whole
+complaint that started the shape pass was about motion and about how the object
+sits beside the rest of the room; a 4x view of the texture answers neither. The
+sixteen-facet candidate looks better zoomed and worse in the game, which is the
+only place it matters. `hero-pan-a/b/c` — three frames of a camera travelling
+past the prop — is the closest a still sheet gets to the real question.
+
 **Freeze the room's gameplay geometry as LITERALS, post-`snapAll`.** The Vader
 chamber's cover is written as 400/1200 in `rooms.js` and `mapUtils.snapAll`
 moves it to 440/1240 at load. `smoke-arena` first froze the pre-snap numbers and
 failed against the untouched build. A check that derives its expectation from
 the file it is checking cannot fail; a check that freezes the wrong end of a
-transform fails on everything.
+transform fails on everything. The shape pass split it further: cover
+POSITIONS stay frozen literals, cover TEXTURES are a separate and deliberately
+un-frozen question, because which console art stands on a frozen spot is
+exactly the thing that pass was allowed to change.
 
 ### The A/B that made `smoke-arena` worth having
 

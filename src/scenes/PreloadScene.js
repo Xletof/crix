@@ -7,6 +7,9 @@ import {
   paintShooter,
   paintBoss,
   paintConsole,
+  paintConsolePedestal,
+  paintConsoleWall,
+  paintConsoleHeavy,
   paintTerminal,
   paintBlastDoor,
   paintShuttle,
@@ -85,6 +88,14 @@ export class PreloadScene extends Phaser.Scene {
     // (~10MB) on every cold start for a texture nothing reads was pure cost on
     // a load screen that already shows no progress.
     paintConsole(this, 'bush');       // Imperial console replaces tumbleweed
+    // THE CONSOLE KIT. Three reusable archetypes in the chamber's hard-surface
+    // vocabulary — see the block comment in pixelArt.js. Painted for every
+    // room because textures are global and cheap; USED only by a room that
+    // asks for them by name, which this round is the Vader chamber alone.
+    paintConsolePedestal(this, 'ch-con-ped-a', 'a');
+    paintConsolePedestal(this, 'ch-con-ped-b', 'b');
+    paintConsoleHeavy(this, 'ch-con-heavy');
+    paintConsoleWall(this, 'ch-con-wall');
     paintBlastDoor(this, 'wall');     // Blast door replaces wooden crate
     paintTerminal(this, 'terminal');  // hackable objective terminal
 

@@ -526,6 +526,68 @@ asserts separately that the ceiling is not reached.
   arithmetic. That costs ~924KB of mostly-transparent texture and it is the
   deliberate trade. Cropping them puts a hand-computed origin offset between a
   light and the object it belongs to.
+- **A BIG SMOOTH PIXEL CIRCLE CANNOT BE SAID IN THIS GAME'S VOCABULARY.** CRIX
+  is crisp horizontals, verticals, 45-degree cuts and layered plates; a large
+  circle's edge lands somewhere different against the grid at every bearing, so
+  its stair pattern has no period and it reads as a low-resolution
+  approximation. The hero machine came back from handset review as "chunkier,
+  softer, blurrier than the rest of the room" for exactly that reason. THE FIX
+  IS SHAPE LANGUAGE, NOT FILTERING — a smoother or antialiased circle makes one
+  unusually soft asset inside a deliberately pixelated game. Large round
+  industrial objects get a FACETED ANGULAR HOUSING with SMALLER ROUNDED FORMS
+  INSIDE. This is not a ban on circles: the hero's well is still a circle at
+  r=25 and renders cleanly.
+- **A FACET NEEDS ITS OWN VALUE, NOT ITS OWN RIM.** Varying only the one-pixel
+  edge treatment per plane photographs as the same mushy ring it replaced. Fill
+  each plane at a different tone — `PAL.chMachMid` exists for exactly this — and
+  keep the LIT tone rationed to the one plane square to the light, or the
+  housing comes out lighter than the deck it stands on.
+- **FILL A FACETED SHAPE BY NEAREST FACET, AND WALK ANY FACET AT 3x THE PIXEL
+  RATE.** Walking an edge and stepping inward along its normal leaves holes on
+  every diagonal, and a one-step-per-pixel walk on a 2:1 edge rounds two steps
+  onto one pixel — the plane bands, the fixture grooves and the mounting
+  brackets each came out as a CHECKERBOARD, three separate times, from the same
+  two mistakes. `facetPoly().nearest()` and `edge.steps` are the fix.
+- **TWELVE MEANINGFUL PLANES BEAT SIXTEEN SMALL ONES.** A sixteen-facet hero
+  housing was built, photographed at matched stations and rejected: at handset
+  scale its extra planes are ~6px each, which is below the size at which a plane
+  reads as a plane, so the silhouette drifts back toward the circle and takes
+  the crispness with it. `docs/evidence/arena-pilot/hero-shape/`.
+- **A CONSOLE ARCHETYPE MAY NOT CHANGE ITS FOOTPRINT.** Cover bodies are frozen
+  at 70x70 under a 112x112 sprite and feed the nav grid, the LOS rects and
+  bullet collision. The HEAVY console reads heavier through mass, value and
+  density inside the same 28x28 canvas; a physically wider one would be art
+  promising cover the room does not have. `smoke-arena` measures every kit
+  texture against `bush`.
+- **THE CONSOLE KIT IS OPT-IN BY NAME.** A cover entry may carry `tex` and a
+  spec may carry `coverTex`; anything that says neither gets `bush`. The kit's
+  textures are painted for every room — textures are global and cheap — and only
+  a room that ASKS receives one. Same shape as the `emissives` opt-in, and the
+  same reason: a shared painter that defaults to on is how one arena's language
+  becomes four.
+- **A CONSOLE'S LIGHT IS DERIVED FROM ITS ART, IN THE SPRITE'S OWN PIXELS.**
+  `CONSOLE_KIT` in `src/data/consoleKit.js` declares each luminous region using
+  the same numbers the painter used, and `loadRoom` converts them against the
+  real placement. A hand-written screen coordinate is one edit away from glowing
+  where a console used to be. Fault lamps are PAINTED PIXELS and never declared
+  as light — a red LIGHT in the environment is a different claim from a red
+  pixel of hardware.
+- **NOT EVERY LAMP COMES ON IN A BLACKOUT.** Exactly one region in the console
+  kit is dead at normal power and lit under emergency; nominal lamps do not get
+  louder in the dark at all. A console must stay spatially identifiable without
+  becoming bright scenery, and `smoke-arena` fails an `led` whose emergency
+  figure exceeds its normal one.
+- **A LARGE PROP OCCLUDES A COVER CONSOLE STANDING BEHIND IT.** Props sort at
+  plain `y`, cover sorts at `y + 56`, so the hero machine at (340, 740) draws
+  over the console at (440, 440). The heaviest console was moved to the
+  south-west pillar for that reason. Positions are frozen — the thing that moves
+  is WHICH TEXTURE stands on which frozen spot.
+- **A CAMERA STATION IS A PLAYER POSITION AND NOTHING ELSE.** The game camera
+  follows the player, so a `centerOn` in an evidence rig is overwritten by the
+  follow on the very next update — a whole run can be spent photographing a
+  camera that never moved. Solve for the player instead, and remember the camera
+  CLAMPS at the arena bounds: anything at y=1240 in a 1600px arena lands at
+  screen y 920, under the touch controls, whatever you ask for.
 - **THE `chamber` PERIMETER HAS FOUR JOBS, ONE PER SIDE.** north ceremonial (no
   ribs, no vents — that wall is behind Vader), west service (densest, the hero
   machine's side), east control (machinery block on alternate bays only), south

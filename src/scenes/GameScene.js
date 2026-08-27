@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, ENDLESS, FONTS, HUDCFG, VIEW, DEPTH, LIGHTSOUT, bossMechanicsFor, bossMechanicById } from '../config.js';
 import { EnvLight } from '../systems/EnvLight.js';
+import { consoleEmissives } from '../data/consoleKit.js';
 import { Player } from '../entities/Player.js';
 import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, EnemySniper, EnemySwarmling, ST, VISION_RANGE, VISION_HALF_ANGLE } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
@@ -513,7 +514,12 @@ export class GameScene extends Phaser.Scene {
     this.bushSystem.clear();
     this.coverRegistry = new CoverRegistry(spec.cover);
     for (const cp of spec.cover) {
-      const con = this.walls.create(cp.x, cp.y, 'bush');
+      // WHICH CONSOLE. Opt-in by name, exactly like `emissives`: a spec that
+      // says nothing gets `bush`, the art every room has always had. The
+      // console kit is shared code and its textures exist for every room, but
+      // only a room that asks for an archetype receives one — which is what
+      // keeps this pilot one arena.
+      const con = this.walls.create(cp.x, cp.y, cp.tex ?? spec.coverTex ?? 'bush');
       con.setDepth(cp.y + 56);
       // ORDER MATTERS — refreshBody() recomputes a STATIC body from the
       // sprite's display size, so calling it AFTER setSize silently throws the
@@ -605,18 +611,14 @@ export class GameScene extends Phaser.Scene {
     this.envLight = new EnvLight(this, !authored ? [] : [
       ...spec.emissives,
       ...propFaces,
-      // A cover console is a powered terminal — blue screen, lit key row. The
-      // screen face sits just above the sprite's centre (rows 8-16 of 28), and
-      // the spill is biased DOWN because the face is tilted at its operator.
-      ...(spec.cover || []).map((cp) => ({
-        kind: 'screen', x: cp.x, y: cp.y - 10, w: 58, h: 20,
-        color: 0x1a5a96, hot: 0x9fe0ff,
-        // `reach` has to clear the console SPRITE. Environment light draws at
-        // depth 3 and the console Y-sorts at y+56, so a wash smaller than the
-        // 112px sprite is drawn entirely underneath the object it belongs to
-        // and the console reads as bright rather than as lighting anything.
-        normal: 0.20, emergency: 0.62, reach: 76, drop: 0.30,
-      })),
+      // A cover console is a powered terminal. WHERE its light is, and how
+      // much of it comes up on emergency power, is declared once per archetype
+      // in `consoleKit.js` in the sprite's own logical pixels — the same
+      // numbers the painter used — and converted here against the console's
+      // real placement. A texture that is not in the kit (`bush`) contributes
+      // nothing, so this cannot leak into an arena that has not opted in.
+      ...(spec.cover || []).flatMap((cp) =>
+        consoleEmissives(cp.tex ?? spec.coverTex ?? 'bush', cp.x, cp.y)),
     ]);
 
     // Rebuild pathfinding navigation grid
