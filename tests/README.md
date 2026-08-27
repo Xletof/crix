@@ -307,6 +307,25 @@ would have passed a "no leak" assertion for entirely the wrong reason. Sample
 throughout and assert on max, or on early-vs-late means if the claim is about
 growth.
 
+**A SCREENSHOT OF A CORRECT GAME CAN COME BACK BLACK.** Roughly one station
+frame in twenty during the shuttle pass photographed a correct HUD over a black
+or half-faded playfield, and every one of them looked exactly like a rendering
+bug in the asset being photographed. Three separate causes, all in the rig:
+
+- the arena carries the DARKNESS modifier at late sectors and blacks out **on
+  its own clock**, so a run that sets the power state once catches later frames
+  mid-outage;
+- `hud.setDarkness(false, …)` starts a **fade**, and the shutter beats it —
+  the overlay alpha has to be forced to 0, not merely asked to go there;
+- a paused scene still renders, but the screenshot can beat its first paused
+  frame to the canvas.
+
+`shot-shuttle.mjs` re-asserts the power state before every shutter AND measures
+the frame it just took (`meanLuma`, a small PNG decoder over `zlib`), retrying
+up to four times if the playfield is under the floor for its state — ~28 lit,
+~5 in the dark. If you are photographing a room in two power states, copy that
+guard; a dark frame you did not expect is the instrument, not the game.
+
 ## Rules that keep these honest
 
 1. **A/B any measurement against the pre-change build** (`git stash`) before
@@ -834,6 +853,9 @@ Nine files, and two of them are tests.
 | `shot-arena-ambient-ab.mjs` | **evidence for one open decision.** One frozen frame at two `LIGHTSOUT.floor` settings. |
 | `smoke-hangar.mjs` | **assertion test, second arena.** In `run-all`. The hangar's own structural truths, plus a group that asserts the hangar is NOT the chamber — different perimeter style, no hero-machine emissive faces, no `dais` or `trench`, and it must use `track` and `hatch`. A second room that passed by copying the first would prove nothing. |
 | `shot-hangar.mjs` | **evidence, second arena.** `node tests/shot-hangar.mjs hangar-before` then `hangar-after`. Eight quiet stations, wave combat, and then late Vader in both power states — spawned INTO the hangar rather than by loading the chamber, because "SPAWN VADER keeps the current room" is the contract the whole pass depends on. |
+| `smoke-hangar.mjs` — shuttle group | added with the shuttle pass. Measures the craft's silhouette **off its own texture**: per-row edge deltas, folded back to logical pixels, counted for SPIKES (one row disagreeing with both neighbours while they agree with each other) and slope changes. The shipped asset scored 11 spikes / 29 breaks / 32 saturated-red pixels a side; the rebuilt one scores 0 / 13 / 0. Every one of those checks was A/B'd against `6b600e4` and fails there. |
+| `shot-shuttle.mjs` | **evidence, one asset.** `node tests/shot-shuttle.mjs shuttle-before` then `shuttle-after`. Five stations in both power states, a ten-frame PAN (the complaint was temporal, and a still cannot show crawl), late Vader beside the craft, and the dark composition with the blast door on and off screen. It also writes `edge-cadence.json` — the silhouette measurement as data, so the claim is a number and not a screenshot. |
+| `diag-texture-hash.mjs` | **the pixel proof that a visual pass changed only what it said.** Hashes all 85 generated textures plus one backdrop per room. `node tests/diag-texture-hash.mjs > tests/out/tex-after.txt`, `git stash push -- src/`, again into `tex-before.txt`, `git stash pop`, `diff`. It reseeds an LCG before every backdrop, because `paintBackdrop` consumes `Math.random` and changing ONE room's panel counts shifts the stream for every backdrop after it — which photographs as three innocent rooms changing. It also skips Phaser's UUID-keyed BitmapText/Graphics textures and the live `backdrop-*` ones; neither is stable between runs. |
 | `sheet.mjs` | **not a rig — a layout tool.** `node tests/sheet.mjs OUT.png LABEL:a.png LABEL:b.png` lays screenshots side by side with captions and photographs the result, so a matched pair is one file rather than two to alt-tab between. Playwright renders it because it is already a dependency. Two traps, both cost a rebuild: `setContent` with no DOCTYPE is QUIRKS MODE, where `body`'s height is the viewport's; and a flex row without `align-items: flex-start` makes every figure STRETCH and report the viewport height back as its own. Either one silently pads the sheet with half a screen of background. |
 
 ### Eight things these rigs learned the hard way

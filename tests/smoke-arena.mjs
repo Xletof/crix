@@ -318,6 +318,7 @@ const R = await page.evaluate(async () => {
       specGrounded: !!r.floor?.grounded,
       specArchitecture: (r.floor?.architecture || []).length,
       specPropFaces: (r.props || []).reduce((n, pr) => n + (pr.faces || []).length, 0),
+      specPropFaceTex: (r.props || []).flatMap((pr) => (pr.faces || []).map((f) => f.tex)),
       specPerimeter: r.perimeter?.style ?? null,
       // The console kit is SHARED code and its textures are painted for every
       // room. Opting in is per-room and by name, so an arena that has not been
@@ -436,7 +437,12 @@ for (const o of R.others) {
       fails.push(`${o.id} has ${o.additiveAtEnvDepth} additive environment objects but its layer owns ${o.envParts}`);
     }
     if (o.specPerimeter === 'chamber') fails.push(`COPIED: ${o.id} is using the pilot's perimeter style`);
-    if (o.specPropFaces) fails.push(`COPIED: ${o.id} carries ${o.specPropFaces} hero-machine emissive faces`);
+    // A STYLED ARENA MAY AUTHOR ITS OWN PROP FACES. What it may not do is wear
+    // the pilot's: the exemption is a technique, `prop-pod-glow` is an asset,
+    // and one of those is allowed to travel.
+    if (o.specPropFaceTex.some((t) => /^prop-pod/.test(t))) {
+      fails.push(`COPIED: ${o.id} carries the hero machine's faces ${JSON.stringify(o.specPropFaceTex)}`);
+    }
     continue;
   }
   if (o.specEmissives || o.specGrounded || o.specArchitecture || o.specPropFaces) {

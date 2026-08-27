@@ -648,6 +648,48 @@ asserts separately that the ceiling is not reached.
   backdrop painted after it. Seeding the LCG once per page made all four rooms'
   hashes move and read exactly like a visual pass leaking into three arenas it
   had never touched. Reseed per paint.
+- **A LONG SHALLOW DIAGONAL NEEDS A CHOSEN CADENCE, OR IT CRAWLS.** The
+  shuttle's wing edges were `outer = 10 + t * 1.15` rounded to a pixel, which
+  steps one per row except at intervals that never repeat — measured off the
+  shipped texture, the doubles fell on the 4th row, then the 7th, 7th, 6th,
+  5th. A staircase whose rhythm changes every few pixels has no stable read and
+  the edge appears to wobble as the camera pans. THE FIX IS SHAPE LANGUAGE, NOT
+  FILTERING: antialiasing, `roundPixels` or a higher-resolution asset would put
+  one unusually smooth object inside a deliberately pixelated game. Every edge
+  is a section at a constant integer cadence (1:1, 2:1, 3:1 or vertical), and
+  `smoke-hangar` counts SPIKES — a row that disagrees with both its neighbours
+  while they agree with each other — which was 11 on the shipped craft and must
+  be 0. This did not matter until the room around it was rebuilt out of
+  horizontals, verticals and 45-degree cuts.
+- **MORE FACETS IS NOT MORE CRISPNESS, ON ANY SHAPE.** A six-facet shuttle wing
+  was built and rejected against a four-facet one: splitting the leading sweep
+  puts a kink halfway along the longest edge on the craft, and at handset scale
+  the pieces re-read as one bowed line. Same verdict as the sixteen-facet hero
+  housing. `docs/evidence/arena-pilot/shuttle-candB/`.
+- **A ONE-PIXEL-PER-ROW OUTLINE ON A 2:1 EDGE IS A DOTTED LINE.** The outer x
+  jumps two pixels a row, so a single `px(span + 1, y)` leaves gaps — and a
+  dotted diagonal is the single most pixel-crawly thing that can be put on
+  screen. Dilate the outline from the silhouette instead: every empty pixel
+  touching the shape is edge, and no facet has to know which one it is on.
+- **A LARGE IDENTITY PROP NEEDS A SECOND STATE WHEN LOSING IT ERASES THE ROOM.**
+  The shuttle was a flat black hole during LIGHTS OUT and the hangar's other
+  landmark, the blast door, is off screen from half the room. It carries two ADD
+  faces now on the hero machine's contract — but for the opposite reason, and
+  this is a rule about AUTHORED STATE, not a template: not every prop, and
+  certainly not every spacecraft, gets running lights. **Do NOT outline the
+  craft.** Four running lights at the corners plus a canopy is the whole set; a
+  lit wing perimeter flattens it into a gameplay marker and deletes the dark.
+- **A PROP'S EMISSIVE FACE MUST BE CLIPPED TO THE PROP'S SILHOUETTE.** The face
+  rectangle is the prop rectangle, which is what `smoke-arena` measures — but
+  the honest claim is tighter: hull contamination has to stop at the hull, or it
+  is a halo on the deck. `destination-in` composites the WHOLE canvas against
+  the source of a SINGLE operation, so a mask drawn as one `fillRect` per row
+  erases everything except the last row. One `beginPath`, N `rect`s, one `fill`.
+- **AN ASSET BORROWING A PALETTE FAMILY BORROWS ITS TOP END.** The shuttle used
+  `imp*`, which reaches `#7a7c80`; a 400x360 object painted from it is lighter
+  than the `#212328` deck it stands on. Its ladder is placed relative to the
+  deck now — fuselage one step above, wings one step below, trim rationed to a
+  few pixels. Same family as the hero housing's pale-donut round.
 - **THE `chamber` PERIMETER HAS FOUR JOBS, ONE PER SIDE.** north ceremonial (no
   ribs, no vents — that wall is behind Vader), west service (densest, the hero
   machine's side), east control (machinery block on alternate bays only), south

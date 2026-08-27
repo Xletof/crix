@@ -2553,6 +2553,26 @@ Frozen-system diff (`git diff --stat` over `src/entities/`, `bossMoves.js`,
 is one file and seven lines: the `_loClass` tag on the objective terminal. Vader,
 the player, the darkness owner and the light layer itself are untouched.
 
+### Evidence
+
+| | |
+|---|---|
+| `docs/evidence/arena-pilot/shuttle-before/` | 37 frames on `6b600e4` — five stations in both power states, a ten-frame pan in each, Vader beside the craft, the dark composition, plus `edge-cadence.json` |
+| `docs/evidence/arena-pilot/shuttle-after/` | the same 37 on this build |
+| `docs/evidence/arena-pilot/shuttle-candB/` | the rejected six-facet wing — three frames and its cadence measurement, kept as the record for the decision |
+| `shuttle-normal-ab.png` | the strongest normal-power pair |
+| `shuttle-dark-ab.png` | **the strongest LIGHTS OUT frame** — a shapeless dark triangle with one dim blue box, against a craft reconstructible from a canopy, four running lights and two amber docking indicators |
+| `shuttle-pan-before.png` / `shuttle-pan-after.png` | **the moving-camera proof.** Three consecutive 14px steps, side by side |
+| `shuttle-cand-compare.png` | old / A / B at the same station. **Compare the WING only** — B was photographed before a later nose-cone refinement, so its fuselage is a revision behind and only the facet count is the subject. |
+| `shuttle-vader-ab.png` | **the combat-readability frame.** Saber, lane and telegraph over the craft |
+| `shuttle-dark-composition.png` | **the Hangar-identity frame.** The same darkness with the blast door in shot and off screen |
+| the texture-hash diff | `tests/out/` is gitignored; regenerate with `diag-texture-hash.mjs` per the recipe in its header. The result on this build is quoted above. |
+
+The most concerning frame is `shuttle-after/normal-close.png`: at normal power
+the canopy is two cyan bars on a dark box and reads more like a small screen
+than like glass. It is restrained, which is what §11 asked for, but it is the
+one fixture that has not found its shape.
+
 ### Remaining weaknesses — be candid
 
 - **A north-wall landmark is 116px at the top of the screen.** The blast door
@@ -2572,6 +2592,159 @@ the player, the darkness owner and the light layer itself are untouched.
   phone.
 - **The environment language is NOT frozen.** This is the second proof point,
   not the last one. Corridor and Detention are untouched and stay that way.
+
+## 10r. THE SHUTTLE — one legacy asset migrated into the language
+
+Handset review passed the Hangar and named the one thing in it that had not
+been rebuilt: the shuttle. Two complaints, and this pass is only those two.
+
+**The craft looked wiggly, and that was measurable.** The old asset drew its
+wing edges by advancing a float and rounding it — `outer = 10 + t * 1.15`,
+`inner = 10 + t * 0.35`. Rounding 1.15 produces a staircase that steps one
+pixel per row except at intervals where it steps two, and the intervals have no
+period. Measured off the shipped texture: the doubles landed on the 4th row,
+then the 7th, then the 7th, then the 6th, then the 5th. `smoke-hangar` counts
+those lone deviations now — a SPIKE is one row that disagrees with both its
+neighbours while they agree with each other — and the shipped craft had
+**eleven** of them and changed slope **29** times per side. It read as crawl
+because it was crawl, and it only started to matter once the room around it had
+been rebuilt out of horizontals, verticals and 45-degree cuts.
+
+**THE FIX IS SHAPE LANGUAGE, NOT FILTERING.** No antialiasing, no
+`roundPixels`, no texture-filter change, no higher-resolution asset: the rest of
+the game renders correctly, and one unusually smooth object inside a
+deliberately pixelated game is a worse outcome than the crawl. Every edge on the
+craft now comes from a section with a constant integer cadence:
+
+| section | cadence | rows |
+|---|---|---|
+| nose cone | 1:1 | 4–10 |
+| hull chamfers (×3) | 1:1 | 11–14, 25–28, 47–50 |
+| hull plates (×4) | vertical | 15–24, 29–46, 51–76, 81–84 |
+| stern chamfer | 1:1 | 77–80 |
+| wing leading sweep | 2:1 | 25–40 |
+| wing tip fillet | 1:1 | 41–42 |
+| wing outboard rail | vertical | 43–58 |
+| wing trailing cut | 3:1 | 59–68 |
+
+Result: **0 spikes, 13 slope changes** per side, and every one of the 13 is a
+facet boundary rather than a rounding artefact. The silhouette is preserved —
+same 100x90 canvas at scale 4, same orientation, wingspan within a few logical
+pixels, and the collision body (150x190 on the hull) untouched, so you still
+walk under the wing.
+
+**TWO CANDIDATES, AND THE MORE FACETED ONE LOST.** A six-facet wing was built
+and photographed at matched stations (`docs/evidence/arena-pilot/shuttle-candB/`,
+and `shuttle-cand-compare.png`). Breaking the leading sweep into 2:1 / 1:1 / 2:1
+puts a kink halfway along the longest edge on the craft, and at handset scale
+those planes are short enough that the eye re-reads them as one bowed line. It
+also measured worse: 96 texture-row breaks against 88. This is the sixteen-facet
+hero housing's lesson on a different shape — **more planes is not more
+crispness**.
+
+**THE VALUE LADDER WAS THE OTHER HALF OF THE PROBLEM.** The first rebuild
+inherited the `imp*` family the old asset used, which tops out at `#7a7c80`, and
+a 400x360 object painted from it photographed as a pale grey moth — lighter than
+the deck it is parked on, which is the hero machine's trap exactly. The shuttle
+has its own compressed ladder now, placed RELATIVE TO THE DECK (`hgDeck`
+`#212328`): fuselage one step above it (`shHull` `#272a31`), wings one step
+below it (`shWing` `#1c1e24`), and one trim value (`shTrim` `#454a54`) rationed
+to a few pixels of fixture housing. A body carrying two dark planes, not one
+pale mass.
+
+Related, and it cost a round: **a one-pixel-per-row outline on a 2:1 edge is a
+DOTTED line**, because the outer x jumps two pixels a row. The outline is
+dilated from the silhouette itself now — every empty pixel touching the craft is
+edge, and no facet has to know which one it is on.
+
+**THE SECOND STATE.** During LIGHTS OUT the craft used to be a flat black hole
+where the hangar's identity had been, and the hangar's other landmark — the
+blast door — is bolted to one wall and off screen from half the room. It carries
+two ADD faces now, the same contract as the hero machine's and for the opposite
+reason (the machine got one because it IS the chamber's landmark; the shuttle
+got one because losing it erases the room):
+
+- `prop-shuttle-glow` — 0.42 normal, 0.92 emergency. The canopy at the nose, and
+  **four running lights and that is the whole set**: two wingtips and two stern
+  shoulders. Those are the four corners of the craft, which is both where a
+  running light belongs and the minimum set that reconstructs a silhouette from
+  nothing.
+- `prop-shuttle-emer` — **0 at normal power**, 0.85 under emergency. The docking
+  collar and the port service hatch, in amber. That texture is the whole
+  difference between "the shuttle is still there, dimmer" and "the umbilical bus
+  came up".
+
+**NO OUTLINE, AND THE FACE IS CLIPPED TO THE HULL TO GUARANTEE IT.** A glowing
+wing perimeter would flatten the craft into a gameplay marker and delete the
+darkness it is standing in. Each fixture is a tight core plus a much wider, much
+fainter wash — the plate catching the light — and the whole face is then punched
+through the craft's own silhouette, so contamination reads as light ON the hull
+and stops at its edge instead of throwing a halo onto the deck. That clip cost a
+round on its own: **`destination-in` composites the WHOLE canvas against the
+source of that single operation**, so a mask drawn as one `fillRect` per row
+erases everything except the last row, and the first build of the face came back
+with no lights on it at all. One `beginPath`, N `rect`s, one `fill`.
+
+**Red is gone from the craft.** The old wingtips carried a `ledRed` pixel each —
+32 saturated-red texture pixels in a room where red is the saber, the SABER
+THROW lane and the telegraphs. `smoke-hangar` scans the texture now.
+
+### What this proves, and what it does not
+
+The generalizable rule is **not** "spacecraft get running lights". It is two
+things, both stated in `CLAUDE.md`:
+
+- a long shallow diagonal on a large pixel-art silhouette needs an intentional
+  repeated slope cadence, because camera movement exposes an arbitrary one;
+- a large identity prop should participate in the room's two-state composition
+  when its disappearance would erase the arena's identity.
+
+### The numbers
+
+| | before | after |
+|---|---|---|
+| silhouette spikes / side | 11 | **0** |
+| slope changes / side | 29 | **13** |
+| saturated-red pixels | 32 | **0** |
+| physics bodies in the room | 13 | 13 |
+| emissive parts | 58 | 60 |
+| display list | 113 | 116 |
+| textures | 1 (400x360) | 3 (400x360) |
+| texture memory | 0.55 MB | 1.65 MB |
+| room load | 92.7 ms | 62.6 / 61.9 ms |
+| frame median, normal | 98.4 | 99.3 / 98.5 |
+| frame median, dark | 108.8 | 115.9 / 115.6 |
+
+The frame numbers are two samples on a shared headless machine whose spread
+across identical builds has been measured at 20ms on this same room, so the
+honest reading is **no measurable cost**; the load figure moving the wrong way
+by 30ms is that same noise. What is real is +2 emissive parts, +3 display-list
+objects, +1.10MB of texture, and **zero** new physics bodies.
+
+### Frozen, and proved by pixels
+
+`tests/diag-texture-hash.mjs` hashes all 85 generated textures plus one
+deterministically-seeded backdrop per room. Between `6b600e4` and this build the
+diff is three lines: `prop-shuttle` changed, `prop-shuttle-glow` and
+`prop-shuttle-emer` are new. **Every** other texture — every console, every
+prop, the crates, the crane, the drums, and all four room backdrops including
+`vader` — is byte-identical. The Vader chamber, Corridor and Detention are
+untouched, and so is every Vader system: the diff does not reach `Boss.js`,
+`config.js` or any darkness owner.
+
+### Remaining weaknesses
+
+- **The lights are unreviewed numbers.** 0.42/0.92 and 0/0.85 were chosen
+  against screenshots on a desktop monitor. The one thing screenshots cannot
+  settle is whether the cyan wingtips compete with a saber at handset
+  brightness.
+- **The canopy is the least resolved fixture.** Two cyan bars on a dark box
+  reads as a small screen rather than as glass, and at this size the difference
+  may not be recoverable.
+- **The craft is still symmetrical apart from two hatches.** That was the
+  deliberate bound; whether it needs more is a handset question.
+- **Nothing else in the hangar was touched**, and the crane and the drums are
+  the next-oldest assets in it.
 
 ## 10c. The narrative system
 ## 10c. The narrative system

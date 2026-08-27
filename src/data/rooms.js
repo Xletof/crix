@@ -248,7 +248,17 @@ export const ROOMS = [
     props: [
       // The shuttle IS the hangar. Parked on the launch apron, in front of the
       // blast door, across the spur track. Position and body frozen.
-      { x: 420, y: 470, tex: 'prop-shuttle', solid: true, bodyW: 150, bodyH: 190 },
+      // A LARGE IDENTITY PROP SHOULD SURVIVE THE EMERGENCY BUS. The craft used
+      // to be a flat black hole during LIGHTS OUT, and the hangar's other
+      // landmark — the blast door — is bolted to one wall and off screen from
+      // half the room. Two faces, and the second is DEAD at normal power: a
+      // parked shuttle running four navigation lights is not supposed to be a
+      // centrepiece, and the docking bus coming up is the moment it changes.
+      { x: 420, y: 470, tex: 'prop-shuttle', solid: true, bodyW: 150, bodyH: 190,
+        faces: [
+          { tex: 'prop-shuttle-glow', normal: 0.42, emergency: 0.92 },
+          { tex: 'prop-shuttle-emer', normal: 0,    emergency: 0.85 },
+        ] },
       // Loading gantry, mirrored so it does not echo the shuttle's symmetry.
       // Its feet land on the gantry rail.
       { x: 420, y: 1140, tex: 'prop-crane', solid: true, bodyW: 300, bodyH: 70, flip: true },

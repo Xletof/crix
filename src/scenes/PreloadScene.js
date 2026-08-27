@@ -14,6 +14,8 @@ import {
   paintTerminal,
   paintBlastDoor,
   paintShuttle,
+  paintShuttleGlow,
+  paintShuttleEmergency,
   paintCraneGantry,
   paintFuelDrum,
   paintReactorCore,
@@ -110,6 +112,11 @@ export class PreloadScene extends Phaser.Scene {
     // Large single objects that give a room its identity. Two drum
     // colourways because it is the only prop that appears more than once.
     paintShuttle(this, 'prop-shuttle');
+    // The shuttle's two ADD faces, painted here with the craft for the same
+    // reason the hero machine's are: registration with the object they are
+    // bolted to is structural rather than arithmetic. Used only by the hangar.
+    paintShuttleGlow(this, 'prop-shuttle-glow');
+    paintShuttleEmergency(this, 'prop-shuttle-emer');
     paintCraneGantry(this, 'prop-crane');
     paintFuelDrum(this, 'prop-drum');
     paintFuelDrum(this, 'prop-drum-b', PAL.hangStrip);

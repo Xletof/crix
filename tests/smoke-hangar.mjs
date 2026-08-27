@@ -95,6 +95,8 @@ const R = await page.evaluate(async () => {
     perimeterStyle: spec.perimeter?.style ?? null,
     perimeterFeatures: (spec.perimeter?.features || []).map((f) => ({ kind: f.kind, side: f.side, at: f.at })),
     propFaces: (spec.props || []).reduce((n, p) => n + (p.faces || []).length, 0),
+    shuttleFaces: ((spec.props || []).find((p) => p.tex === 'prop-shuttle')?.faces || [])
+      .map((f) => ({ tex: f.tex, normal: f.normal ?? 0, emergency: f.emergency ?? 0 })),
     architectureKinds: [...new Set((spec.floor?.architecture || []).map((a) => a.kind))].sort(),
     architectureLen: (spec.floor?.architecture || []).length,
     stripEvery: spec.floor?.stripEvery,
@@ -153,8 +155,25 @@ const R = await page.evaluate(async () => {
     anyEnvInRoomLayer: envParts.some((p) => roomKids.includes(p)),
     anyEnvHasBody: envParts.some((p) => !!p.body),
     allEnvAdditive: envParts.every((p) => p.blendMode === Phaser.BlendModes.ADD),
-    envDepths: [...new Set(envParts.map((p) => p.depth))],
+    // A face is bolted to an opaque prop and takes that prop's depth + 1, so
+    // it is the one exemption from the depth-3 readability gate — measured
+    // below rather than trusted.
+    envDepths: [...new Set(envParts.filter((p) => !p._face).map((p) => p.depth))],
     faceCount: envParts.filter((p) => p._face).length,
+    faces: envParts.filter((p) => p._face).map((p) => {
+      const fb = p.getBounds();
+      const host = roomKids.find((o) => o._loClass === 'prop' && Math.abs(o.depth - (p.depth - 1)) < 1e-6);
+      const hb = host?.getBounds?.();
+      return {
+        tex: p.texture?.key,
+        depth: p.depth,
+        hostTex: host?.texture?.key ?? null,
+        additive: p.blendMode === Phaser.BlendModes.ADD,
+        contained: !!hb && fb.x >= hb.x - 0.5 && fb.y >= hb.y - 0.5
+          && fb.right <= hb.right + 0.5 && fb.bottom <= hb.bottom + 0.5,
+        belowCombatCeiling: p.depth < 2000,
+      };
+    }),
     loClasses: [...new Set(roomKids.map((o) => o._loClass))].sort(),
     // The two wall panels: in the room layer, drawing, and carrying NO body.
     wallPanels: roomKids.filter((o) => o.texture?.key === 'ch-con-wall')
@@ -173,6 +192,58 @@ const R = await page.evaluate(async () => {
       .filter((k) => window.game.textures.exists(k))
       .map((k) => { const t = window.game.textures.get(k).getSourceImage(); return { k, w: t.width, h: t.height }; }),
   };
+
+  // ── THE SHUTTLE, MEASURED OFF ITS OWN TEXTURE.
+  //
+  //    The complaint this pass answers is TEMPORAL — the craft's long
+  //    diagonals crawled as the camera moved — and the cause is measurable
+  //    without a camera at all. Walk the silhouette row by row and look at how
+  //    far the outer edge moves each row. A hard-surface edge with a chosen
+  //    cadence produces LONG RUNS of one delta; a float-and-round edge produces
+  //    a run of 1s with a 2 dropped in at intervals that never repeat, and it
+  //    is those lone deviations that shimmer.
+  const shuttle = (() => {
+    const src = window.game.textures.get('prop-shuttle').getSourceImage();
+    const cv = document.createElement('canvas');
+    cv.width = src.width; cv.height = src.height;
+    const cx2 = cv.getContext('2d');
+    cx2.drawImage(src, 0, 0);
+    const d = cx2.getImageData(0, 0, cv.width, cv.height).data;
+    const S = 4;                                   // the sprite's pixel scale
+    const rows = [];
+    let red = 0;
+    for (let y = 0; y < cv.height; y++) {
+      let lo = -1, hi = -1;
+      for (let x = 0; x < cv.width; x++) {
+        const o = (y * cv.width + x) * 4;
+        if (d[o + 3] > 8) {
+          if (lo < 0) lo = x;
+          hi = x;
+          if (d[o] > 60 && d[o + 1] < d[o] * 0.42 && d[o + 2] < d[o] * 0.42) red++;
+        }
+      }
+      if (hi >= 0) rows.push({ lo, hi });
+    }
+    // Fold the scale out: one logical row is S texture rows.
+    const log = [];
+    for (let i = S; i < rows.length; i += S) log.push((rows[i].hi - rows[i - S].hi) / S);
+    const breaks = log.reduce((n, v, i) => n + (i && v !== log[i - 1] ? 1 : 0), 0);
+    // A SPIKE is a single row that disagrees with both its neighbours while
+    // they agree with each other — the lone 2 inside a run of 1s. This is the
+    // crawl, isolated, and on the shipped asset there were six of them a side.
+    let spikes = 0;
+    for (let i = 1; i < log.length - 1; i++) {
+      if (log[i] !== log[i - 1] && log[i] !== log[i + 1] && log[i - 1] === log[i + 1]) spikes++;
+    }
+    return {
+      w: cv.width, h: cv.height, rows: rows.length, breaks, spikes, red,
+      slopes: [...new Set(log)].sort((a, b) => a - b),
+      faceSizes: ['prop-shuttle-glow', 'prop-shuttle-emer']
+        .filter((k) => window.game.textures.exists(k))
+        .map((k) => { const t = window.game.textures.get(k).getSourceImage(); return { k, w: t.width, h: t.height }; }),
+    };
+  })();
+  out.shuttle = shuttle;
 
   // ── POWER.
   const sample = () => envParts.map((p) => +(p.alpha ?? 0).toFixed(4));
@@ -306,9 +377,27 @@ if (R.layer.anyEnvInRoomLayer) fails.push('an emissive object is inside roomLaye
 if (R.layer.anyEnvHasBody) fails.push('an emissive object has a physics body');
 if (!R.layer.allEnvAdditive) fails.push('an emissive object is not ADD-blended');
 if (!eq(R.layer.envDepths, [R.cfg.envLightDepth])) fails.push(`hangar emissive depths are ${JSON.stringify(R.layer.envDepths)}`);
-// NO HERO-PROP FACES HERE. The face exemption exists for one large opaque
-// prop in one room; the hangar's landmark is part of the wall and needs none.
-if (R.layer.faceCount !== 0) fails.push(`the hangar built ${R.layer.faceCount} emissive faces — the face exemption is the chamber's`);
+// THE SHUTTLE'S TWO POWER STATES. The face exemption is now used by a second
+// room, and the thing that has to stay true is that it is used for the same
+// REASON rather than by copying the chamber's prop: these faces belong to the
+// hangar's own landmark craft, they are contained by it, and one of them is
+// dead at normal power. A face wearing `prop-pod-*` here would be the hero
+// machine parked in the hangar.
+if (R.layer.faceCount !== 2) fails.push(`the shuttle carries ${R.layer.faceCount} emissive faces, expected 2`);
+for (const f of R.layer.faces) {
+  if (f.hostTex !== 'prop-shuttle') fails.push(`face ${f.tex} is at depth ${f.depth} with no shuttle under it (found ${f.hostTex})`);
+  if (/^prop-pod/.test(f.tex)) fails.push(`COPIED: ${f.tex} is the chamber hero machine's face`);
+  if (!f.contained) fails.push(`face ${f.tex} draws outside the shuttle's rectangle`);
+  if (!f.additive) fails.push(`face ${f.tex} is not ADD-blended`);
+  if (!f.belowCombatCeiling) fails.push(`face ${f.tex} is at depth ${f.depth}, above the combat band`);
+}
+if (R.spec.shuttleFaces.length !== 2) fails.push(`the shuttle declares ${R.spec.shuttleFaces.length} faces, expected 2`);
+if (!R.spec.shuttleFaces.some((f) => f.normal === 0 && f.emergency > 0.2)) {
+  fails.push('no shuttle face is reserved for emergency power — its second state is a dimmer');
+}
+if (!R.spec.shuttleFaces.some((f) => f.normal > 0.1 && f.normal < 0.6)) {
+  fails.push('the shuttle has no restrained normal-power state — a parked craft is not a centrepiece');
+}
 if (!eq(R.layer.loClasses, ['console', 'floor', 'prop'])) fails.push(`hangar material classes are ${JSON.stringify(R.layer.loClasses)}`);
 
 // 4 — power
@@ -378,6 +467,30 @@ for (const e of [...R.kit.derived, ...R.kit.propKit]) {
   for (const c of e.colors) if (isDangerRed(c)) fails.push(`RED COVER LIGHT: a ${e.kind} source is ${c.hex}`);
 }
 
+// 7b — THE SHUTTLE'S SHAPE LANGUAGE. The one asset in this room that was left
+// on the old vocabulary, and the two things handset review asked for.
+if (R.shuttle.w !== 400 || R.shuttle.h !== 360) {
+  fails.push(`the shuttle texture is ${R.shuttle.w}x${R.shuttle.h}, expected 400x360 — its footprint moved`);
+}
+for (const f of R.shuttle.faceSizes) {
+  if (f.w !== R.shuttle.w || f.h !== R.shuttle.h) {
+    fails.push(`${f.k} is ${f.w}x${f.h} and the craft is ${R.shuttle.w}x${R.shuttle.h} — the light is out of registration with the object`);
+  }
+}
+if (R.shuttle.faceSizes.length !== 2) fails.push(`the shuttle has ${R.shuttle.faceSizes.length} face textures painted, expected 2`);
+// THE MEASUREMENT THE PASS EXISTS FOR. On the shipped asset this was 6 spikes
+// and 29 breaks a side; every edge is a chosen cadence now, so a spike means a
+// facet has been written as a float again.
+if (R.shuttle.spikes !== 0) fails.push(`the shuttle silhouette has ${R.shuttle.spikes} single-row deviations — an edge is crawling`);
+if (R.shuttle.breaks > 18) fails.push(`the shuttle silhouette changes slope ${R.shuttle.breaks} times — its edges have no cadence`);
+if (R.shuttle.slopes.some((v) => !Number.isInteger(v))) {
+  fails.push(`the shuttle has non-integer slopes ${JSON.stringify(R.shuttle.slopes)} — an edge is being rounded rather than stepped`);
+}
+// NO RED ON THE CRAFT. The old wing tips carried a `ledRed` pixel each; red is
+// the saber, the throw lane and the telegraphs, and an environment landmark
+// spends none of it.
+if (R.shuttle.red) fails.push(`the shuttle texture has ${R.shuttle.red} saturated-red pixels`);
+
 // 8 — NO BAKED STRIP LIGHTS. The single loudest thing in every baseline frame.
 if (R.spec.stripEvery !== 0) fails.push(`the hangar still bakes strip lights every ${R.spec.stripEvery}px into its floor`);
 
@@ -385,7 +498,9 @@ if (R.spec.stripEvery !== 0) fails.push(`the hangar still bakes strip lights eve
 if (R.spec.perimeterStyle !== 'hangar') fails.push(`the hangar's perimeter style is '${R.spec.perimeterStyle}'`);
 if (R.spec.perimeterStyle === R.chamber.perimeterStyle) fails.push('both styled arenas are using the same wall');
 if (!R.spec.perimeterFeatures.some((f) => f.kind === 'blastdoor')) fails.push('the hangar declares no hero wall feature');
-if (R.spec.propFaces !== 0) fails.push(`the hangar carries ${R.spec.propFaces} hero-machine emissive faces`);
+// Faces yes, the chamber's faces no. The technique is shared; the asset is not.
+if (R.spec.propFaces !== 2) fails.push(`the hangar declares ${R.spec.propFaces} prop faces, expected the shuttle's 2`);
+if (R.spec.shuttleFaces.some((f) => /^prop-pod/.test(f.tex))) fails.push('the hero machine\'s faces have been copied onto the shuttle');
 if (R.spec.solidProps.some((p) => p.tex.startsWith('prop-pod'))) fails.push('the hero machine has been copied into the hangar');
 if (R.spec.architectureLen < 15) fails.push(`the hangar has only ${R.spec.architectureLen} authored floor forms`);
 // Its floor vocabulary must include primitives the chamber does not use, or the

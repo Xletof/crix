@@ -188,6 +188,17 @@ export const PAL = {
   hgRibLit:     '#4c515b',   // the lit sliver on a raised edge
   hgSeam:       '#08090b',   // the dark line of a seam or a cast edge
   hgBolt:       '#565c67',   // small hardware — bolts, grate slats
+  // ── THE SHUTTLE. Its own compressed value ladder, because the `imp*` family
+  // it used to borrow tops out at #7a7c80 and a 400x360 object painted from it
+  // is the brightest thing in a room whose deck is #212328. Every tone here is
+  // placed RELATIVE TO THE DECK: the fuselage a step above it, the wings a step
+  // below it, and one trim value rationed to a few pixels of hardware.
+  shWing:       '#1c1e24',   // wing planes — under the deck
+  shWingLead:   '#2a2d34',   // the leading bevel, catching the north light
+  shHull:       '#272a31',   // fuselage armour — just over the deck
+  shHullLit:    '#343841',   // the raised spine and the north-facing risers
+  shTrim:       '#454a54',   // fixture housings, step lips. A few pixels only.
+  shRecess:     '#101216',   // seams, hatches, nozzle mouths
   hgMachDark:   '#131518',   // perimeter machinery in shadow
   hgMach:       '#23262c',   // perimeter machinery mass
   hgMachLit:    '#31353d',   // its top face
@@ -2845,60 +2856,328 @@ export function paintBackdrop(scene, key, worldW, worldH, opts = {}) {
 // wing and the nav grid only loses the hull.
 
 // ── LAMBDA SHUTTLE (hangar landmark) ──────────────────────────────────────
-// 100x90 logical at scale 4 = 400x360. Nose down-screen, wings swept up.
+//
+// 100x90 logical at scale 4 = 400x360. Nose NORTH, at the blast door it is
+// parked in front of; wings sweeping aft and outboard; engine deck south.
+//
+// WHY THIS WAS REBUILT. The first shuttle drew its wing edges by advancing a
+// float and rounding it — `outer = 10 + t * 1.15`, `inner = 10 + t * 0.35`.
+// Rounding 1.15 gives a staircase that steps one pixel per row except at
+// irregular intervals where it steps two, and those intervals have no period:
+// measured off the shipped texture, the doubles landed every 4th row, then the
+// 7th, then the 7th, then the 6th, then the 5th. A staircase whose rhythm
+// changes every few pixels has no stable read, so as the camera pans the edge
+// appears to crawl and wobble — which is exactly what handset review reported,
+// and it stood out precisely because the room around it had been rebuilt out
+// of horizontals, verticals and 45-degree cuts.
+//
+// THE FIX IS SHAPE LANGUAGE, NOT FILTERING. Every edge on this craft now comes
+// from a section with a CONSTANT INTEGER CADENCE — 1:1, 2:1, 3:1 or a pure
+// vertical — so each run of the staircase is the same length as the one before
+// it and the pattern is periodic. `shot-shuttle.mjs` measures that off the
+// texture rather than trusting it.
+//
+// The silhouette is preserved: same canvas, same orientation, same wingspan to
+// within a few logical pixels, and the collision body (150x190 on the hull) is
+// untouched — you still walk under the wing.
+const SHUTTLE_W = 100, SHUTTLE_H = 90, SHUTTLE_CX = 50;
+
+/**
+ * The fuselage half-width at row `y`, or -1 above the nose / below the stern.
+ *
+ * A STEPPED STRUCTURAL SPINE, not a taper. The old hull widened by 0.125px a
+ * row, which is a lone one-pixel jog every eighth row down a nearly vertical
+ * edge — the same crawl as the wings in miniature. This is four constant-width
+ * plate sections joined by 45-degree chamfers, so every diagonal on the hull is
+ * exactly 1:1 and every straight is exactly straight.
+ */
+export function shuttleHull(y) {
+  if (y < 4 || y > 84) return -1;
+  if (y <= 10) return y - 4;       // 1:1  nose cone       0..6
+  if (y <= 24) return 6;           //      forward section
+  if (y <= 28) return y - 18;      // 1:1  chamfer         7..10
+  if (y <= 46) return 10;          //      mid section
+  if (y <= 50) return y - 36;      // 1:1  chamfer        11..14
+  if (y <= 76) return 14;          //      main body
+  if (y <= 80) return 90 - y;      // 1:1  stern chamfer  13..10
+  return 10;                       //      engine deck
+}
+
+/**
+ * The wing half-span at row `y`, or -1 outside the wing.
+ *
+ * FOUR FACETS, AND THE COUNT WAS CHOSEN AGAINST EVIDENCE. A six-facet version
+ * of the same envelope was built and photographed at matched stations
+ * (`docs/evidence/arena-pilot/shuttle-candB/`): breaking the leading sweep into
+ * 2:1, 1:1, 2:1 puts a kink halfway along the longest edge on the craft, and at
+ * handset scale those planes are short enough that the eye re-reads them as one
+ * bowed line — the same failure the sixteen-facet hero housing had, on a
+ * different shape. One straight 2:1 sweep is the whole leading edge.
+ */
+export function shuttleWing(y) {
+  if (y < 25 || y > 68) return -1;
+  if (y <= 40) return 13 + 2 * (y - 25);   // 2:1  leading sweep   13..43
+  if (y <= 42) return 43 + (y - 40);       // 1:1  tip fillet      44,45
+  if (y <= 58) return 45;                  //  |   outboard rail
+  return 45 - 3 * (y - 58);                // 3:1  trailing cut    42..15
+}
+
+/** the craft's half-width at row `y` — hull or wing, whichever is wider */
+function shuttleSpan(y) { return Math.max(shuttleHull(y), shuttleWing(y)); }
+
 export function paintShuttle(scene, key = 'prop-shuttle') {
-  const c = new PixelCanvas(scene, key, 100, 90, 4);
-  const HULL = PAL.impGrey, HULL_LT = PAL.impLight, HULL_DK = PAL.impDark;
-  const EDGE = PAL.black, SHEEN = PAL.impSheen, GLASS = PAL.stripBluGlow;
+  const c = new PixelCanvas(scene, key, SHUTTLE_W, SHUTTLE_H, 4);
+  const CX = SHUTTLE_CX;
+  // VALUE HIERARCHY, AND IT IS THE WHOLE OF THE SHADING. The deck this craft
+  // is parked on is `hgDeck` (#212328), so the fuselage sits a step ABOVE it
+  // and the wings sit a step BELOW: a body carrying a pair of dark planes,
+  // rather than one pale mass. The first build of this asset put the light
+  // tone across the whole spine and both wing bevels and photographed as a
+  // grey moth — the same trap the hero machine's housing fell into.
+  const HULL = PAL.shHull, SPINE = PAL.shHullLit, LIP = PAL.shTrim,
+        WING = PAL.shWing, WING_LEAD = PAL.shWingLead, WING_TRAIL = PAL.shRecess,
+        RECESS = PAL.shRecess, EDGE = PAL.black, RAIL = PAL.shTrim;
 
-  // ── Wings: two swept trapezoids either side, drawn first so the hull
-  // overlaps them at the root.
-  for (let side = 0; side < 2; side++) {
-    const dir = side ? 1 : -1;
-    for (let t = 0; t < 34; t++) {
-      const y = 18 + t;                     // wing runs down the body
-      const inner = 50 + dir * (10 + t * 0.35);
-      const outer = 50 + dir * (10 + t * 1.15);
-      const x1 = Math.round(Math.min(inner, outer));
-      const x2 = Math.round(Math.max(inner, outer));
-      c.hline(y, x1, x2, t < 6 ? HULL_LT : HULL);
-      c.px(dir < 0 ? x1 : x2, y, EDGE);     // outboard edge
+  // ── THE WINGS, drawn first so the fuselage closes over the root.
+  //
+  //    Three planes per side and each gets its OWN VALUE, which is the hero
+  //    machine's lesson applied to a much simpler shape: varying only the
+  //    one-pixel rim between planes photographs as a mush. Light in this room
+  //    comes from the north, so the leading bevel is the lit one, the trailing
+  //    cut faces away and is the dark one, and the broad middle is armour.
+  for (let y = 25; y <= 68; y++) {
+    const ww = shuttleWing(y), hw = Math.max(shuttleHull(y), 0);
+    const root = Math.max(hw - 2, 0);
+    // A BAND IS ONLY A BAND IF THERE IS PLATE BEHIND IT. At the wing root the
+    // chord is a few pixels wide, and a fixed-width bevel there covers the
+    // whole of it — which paints a bright bar straight across the wing root.
+    const chord = ww - root;
+    for (let s = 0; s < 2; s++) {
+      const dir = s ? 1 : -1;
+      for (let d = root; d <= ww; d++) {
+        const fromEdge = ww - d;
+        let col = WING;
+        if (y <= 58) {
+          // The leading bevel. Three pixels across the swept section and two
+          // along the vertical outboard rail: measured along x, a band on a
+          // 2:1 edge is about half as thick as it looks, and the same band on
+          // a vertical edge is exactly as thick as it looks.
+          const band = Math.min(y <= 42 ? 3 : 2, Math.max(1, chord - 3));
+          if (fromEdge < band) col = WING_LEAD;
+        } else if (fromEdge <= 3) col = WING_TRAIL;
+        c.px(CX + dir * d, y, col);
+      }
     }
-    // Wing-tip cannon
-    const tipX = side ? 89 : 11;
-    c.vline(tipX, 46, 58, HULL_DK);
-    c.px(tipX, 59, PAL.ledRed);
   }
 
-  // ── Hull: a tapered fuselage down the centre.
-  for (let y = 6; y < 78; y++) {
-    const t = (y - 6) / 72;
-    const halfW = Math.round(6 + t * 9);
-    c.hline(y, 50 - halfW, 50 + halfW, HULL);
-    c.px(50 - halfW - 1, y, EDGE);
-    c.px(50 + halfW + 1, y, EDGE);
-    if (y % 11 === 0) c.hline(y, 50 - halfW, 50 + halfW, HULL_DK); // panel seam
+  // ── THE FUSELAGE. A step that WIDENS is a north-facing riser and catches
+  //    the light; a step that narrows faces away and is a recess. That is the
+  //    whole shading model and it costs one comparison per row.
+  for (let y = 4; y <= 84; y++) {
+    const hw = shuttleHull(y);
+    if (hw < 0) continue;
+    const prev = shuttleHull(y - 1);
+    c.hline(y, CX - hw, CX + hw, HULL);
+    if (y >= 12 && y <= 80) {
+      const sp = Math.min(3, hw);
+      c.hline(y, CX - sp, CX + sp, SPINE);
+    }
+    if (prev >= 0 && hw > prev) {
+      c.hline(y, CX - hw, CX - prev - 1, SPINE);
+      c.hline(y, CX + prev + 1, CX + hw, SPINE);
+    } else if (prev > hw) {
+      c.hline(y, CX - hw, CX + hw, RECESS);
+    }
+    c.px(CX - hw, y, WING_LEAD);             // the hull's rolled flank
+    c.px(CX + hw, y, WING_LEAD);
   }
-  // Spine highlight — the light side of the fuselage
-  c.rect(46, 8, 3, 68, HULL_LT);
-  c.rect(49, 8, 2, 68, SHEEN);
+  // Two step lips, and they are CORNER TICKS rather than bars across the hull.
+  // A trim-value line spanning the full width of a plate is a bright stripe on
+  // the biggest object in the room; four pixels at the corner of a riser says
+  // the same thing about the same step and says nothing anywhere else.
+  for (const [y, hw] of [[28, 10], [50, 14]]) {
+    c.hline(y, CX - hw, CX - hw + 3, LIP);
+    c.hline(y, CX + hw - 3, CX + hw, LIP);
+  }
 
-  // ── Cockpit glass, near the nose (bottom of the sprite).
-  c.rect(45, 64, 10, 8, PAL.impDark);
-  c.rect(46, 65, 8, 6, GLASS);
-  c.rect(47, 66, 6, 2, PAL.white);
+  // ── STRUCTURAL SEAMS, on the rows the hull changes width. The seam and the
+  //    plate boundary are the same line, so the construction the silhouette
+  //    implies is the construction the surface shows.
+  for (const y of [15, 29, 51, 68, 77]) {
+    const hw = shuttleHull(y);
+    c.hline(y, CX - hw + 1, CX + hw - 1, RECESS);
+  }
 
-  // ── Dorsal fin at the tail (top of the sprite).
-  for (let t = 0; t < 10; t++) c.hline(6 + t, 50 - t, 50 + t, t < 3 ? HULL_LT : HULL);
+  // ── THE CANOPY, at the nose where it belongs. The old asset put its
+  //    "cockpit glass" two thirds of the way aft, next to the engines.
+  c.rect(CX - 4, 16, 9, 8, RECESS);
+  c.rect(CX - 3, 17, 7, 6, '#0e1c2e');      // unlit glass; the face lights it
+  c.vline(CX, 17, 22, RECESS);
+  c.hline(20, CX - 3, CX + 3, RECESS);
 
-  // ── Landing gear + engine glow at the base.
-  c.rect(42, 78, 4, 6, HULL_DK);
-  c.rect(54, 78, 4, 6, HULL_DK);
-  c.rect(44, 84, 12, 2, EDGE);
-  c.rect(46, 76, 3, 3, PAL.stripBluGlow);
-  c.rect(51, 76, 3, 3, PAL.stripBluGlow);
+  // ── ENGINE DECK. Two nozzles, recessed, cold — this shuttle is parked.
+  for (const ox of [-8, 2]) {
+    c.rect(CX + ox, 78, 6, 6, RECESS);
+    c.rect(CX + ox + 1, 79, 4, 4, '#0b1016');
+    c.rect(CX + ox + 2, 80, 2, 2, '#16202c');
+  }
+
+  // ── GEAR. Two mains under the stern, and the contact shadow.
+  c.rect(CX - 9, 85, 4, 3, RECESS);
+  c.rect(CX + 6, 85, 4, 3, RECESS);
+  c.rect(CX - 10, 88, 21, 1, EDGE);
+
+  // ── NAV-LIGHT HOUSINGS. Hardware only: the lamps are on the emissive face,
+  //    so the craft is not lit by its own diffuse texture.
+  for (const dir of [-1, 1]) {
+    c.rect(CX + dir * 45 - (dir > 0 ? 1 : 0), 45, 2, 5, RAIL);
+    c.px(CX + dir * 45, 47, RECESS);
+  }
+  c.rect(CX - 13, 72, 3, 3, RAIL); c.px(CX - 12, 73, RECESS);
+  c.rect(CX + 11, 72, 3, 3, RAIL); c.px(CX + 12, 73, RECESS);
+
+  // ── TWO FUNCTIONAL ASYMMETRIES, and no more. A craft that is a perfect
+  //    mirror of itself reads as an icon; a craft with random asymmetry reads
+  //    as a mistake. These are both things a parked shuttle has on one side.
+  //
+  //    Starboard: the docking collar the umbilical mates to.
+  c.rect(CX + 9, 53, 6, 9, RECESS);
+  c.rect(CX + 10, 55, 4, 5, '#0b1016');
+  c.px(CX + 9, 53, LIP); c.px(CX + 14, 61, LIP);
+  //    Port: a service hatch, bolted.
+  c.rect(CX - 14, 60, 6, 6, RECESS);
+  c.rect(CX - 13, 61, 4, 4, WING);
+  for (const [bx, by] of [[-14, 60], [-9, 60], [-14, 65], [-9, 65]]) c.px(CX + bx, by, LIP);
+  //    Port wing: a registration dash. Three pixels of identity.
+  c.rect(CX - 30, 47, 5, 1, RECESS);
+
+  // ── THE OUTLINE, DILATED FROM THE SILHOUETTE ITSELF. Drawing one pixel per
+  //    row at `span + 1` is what the first build did, and on a 2:1 edge the
+  //    outer x jumps two pixels a row — so the outline came out as a DOTTED
+  //    diagonal, which is both wrong and the single most pixel-crawly thing
+  //    that can be put on screen. Every empty pixel touching the craft is
+  //    edge; nothing has to know which facet it is on.
+  for (let y = 3; y <= 89; y++) {
+    const here = shuttleSpan(y), up = shuttleSpan(y - 1), dn = shuttleSpan(y + 1);
+    const reach = Math.max(here, up, dn);
+    for (let d = 0; d <= reach + 1; d++) {
+      if (here >= 0 && d <= here) continue;
+      const near = (here >= 0 && d === here + 1) ||
+                   (up >= 0 && d <= up) || (dn >= 0 && d <= dn);
+      if (!near) continue;
+      c.px(CX - d, y, EDGE); c.px(CX + d, y, EDGE);
+    }
+  }
 
   c.finish();
+}
+
+// ── THE SHUTTLE'S TWO POWER STATES ────────────────────────────────────────
+//
+// The same contract as the hero machine's faces, for the opposite reason. The
+// hero machine got an authored second state because it is the chamber's
+// landmark; the shuttle needs one because during LIGHTS OUT it was a flat
+// black hole where the hangar's identity used to be — and the hangar's other
+// landmark, the blast door, is on one wall and off screen half the time.
+//
+//   `prop-shuttle-glow` — running lights and the canopy. Present at normal
+//                         power and BARELY: a parked shuttle is not supposed
+//                         to be the brightest thing on the deck.
+//   `prop-shuttle-emer` — dead at normal power. The docking collar and the
+//                         service bay come up on the emergency bus, in amber,
+//                         which is how the craft changes rather than dims.
+//
+// NO OUTLINE. Not the wing perimeter, not the nose, not a silhouette pass:
+// that would flatten the craft into a gameplay marker and delete the darkness
+// it is standing in. Isolated functional fixtures, each with a small patch of
+// the plate it is bolted to, and black in between.
+function shuttleFace(scene, key, paint) {
+  const c = new PixelCanvas(scene, key, SHUTTLE_W, SHUTTLE_H, 4);
+  const S = 4, ctx = c.ctx;
+  ctx.clearRect(0, 0, SHUTTLE_W * S, SHUTTLE_H * S);
+
+  /** a soft elliptical wash — the light landing on the plate around a fixture */
+  const wash = (x, y, w, h, col, peak) => {
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.save();
+    ctx.globalAlpha = peak;
+    ctx.translate(x * S, y * S);
+    ctx.scale(w * S, h * S);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  };
+  /** the emitter itself */
+  const bar = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x * S, y * S, w * S, h * S); };
+  /**
+   * A LAMP AND WHAT IT LANDS ON. Two washes, not one: a tight one that is the
+   * bulb and a much wider, much fainter one that is the hull plate catching
+   * it. The wide one is clipped by the craft's own silhouette below, so a
+   * light near the wingtip contaminates the wing and stops at its edge instead
+   * of throwing a halo into the room.
+   */
+  const lamp = (x, y, col, peak, w = 1, h = 1) => {
+    wash(x, y, 9 * w, 9 * h, col, peak * 0.16);
+    wash(x, y, 3.4 * w, 3.4 * h, col, peak * 0.52);
+    bar(x - 0.5 * w, y - 0.5 * h, w, h, col);
+  };
+
+  paint({ wash, bar, lamp });
+
+  // THE CRAFT'S SILHOUETTE IS THE CLIP. A face's rectangle is its prop's
+  // rectangle and `smoke-arena` measures that, but the honest version of the
+  // claim is tighter: nothing this layer draws may land where the shuttle is
+  // not. Punching the negative space out here is what keeps hull contamination
+  // reading as light ON the hull rather than as a glow around the craft.
+  //
+  // ONE PATH, ONE FILL. `destination-in` composites the WHOLE canvas against
+  // whatever the source of that single operation is, so a row-per-fillRect
+  // mask erases everything except the last row — which is how the first build
+  // of this face came back with no lights on it at all.
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  for (let y = 0; y < SHUTTLE_H; y++) {
+    const w = shuttleSpan(y);
+    if (w < 0) continue;
+    ctx.rect((SHUTTLE_CX - w) * S, y * S, (w * 2 + 1) * S, S);
+  }
+  ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  c.finish();
+}
+
+export function paintShuttleGlow(scene, key = 'prop-shuttle-glow') {
+  shuttleFace(scene, key, ({ wash, bar, lamp }) => {
+    // The canopy: a rectangular emitter and a rectangular contamination biased
+    // aft over the nose plates, because that is the shape of the thing.
+    wash(SHUTTLE_CX, 22, 11, 9, 'rgba(120,205,255,0.75)', 0.26);
+    bar(SHUTTLE_CX - 4, 17, 9, 7, 'rgba(80,150,200,0.30)');
+    bar(SHUTTLE_CX - 3, 18, 7, 1, PAL.chCyanHot);
+    bar(SHUTTLE_CX - 3, 21, 4, 1, PAL.chCyanHot);
+    // FOUR RUNNING LIGHTS AND THAT IS THE WHOLE SET. Two at the wingtips, two
+    // on the stern shoulders — the corners of the craft, which is where a
+    // running light is for and also the four points that reconstruct its
+    // silhouette from nothing.
+    lamp(SHUTTLE_CX - 45, 47, 'rgba(200,240,255,0.95)', 0.85, 1, 3);
+    lamp(SHUTTLE_CX + 45, 47, 'rgba(200,240,255,0.95)', 0.85, 1, 3);
+    lamp(SHUTTLE_CX - 13, 73, 'rgba(170,225,255,0.9)', 0.62, 1, 1);
+    lamp(SHUTTLE_CX + 13, 73, 'rgba(170,225,255,0.9)', 0.62, 1, 1);
+  });
+}
+
+export function paintShuttleEmergency(scene, key = 'prop-shuttle-emer') {
+  shuttleFace(scene, key, ({ wash, lamp }) => {
+    // The docking collar, live: the umbilical bus is the one thing on a parked
+    // craft that has a reason to come up when the hangar's does not.
+    lamp(SHUTTLE_CX + 13, 56, 'rgba(255,180,90,0.95)', 0.8, 2, 2);
+    wash(SHUTTLE_CX + 10, 56, 15, 11, 'rgba(255,170,80,0.7)', 0.17);
+    // The service hatch on the port flank, and its bay light on the wing.
+    lamp(SHUTTLE_CX - 12, 63, 'rgba(255,180,90,0.9)', 0.62, 2, 1);
+    wash(SHUTTLE_CX - 17, 63, 13, 9, 'rgba(255,170,80,0.7)', 0.15);
+  });
 }
 
 // ── CRANE GANTRY (hangar) ─────────────────────────────────────────────────
