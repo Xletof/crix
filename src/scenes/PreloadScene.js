@@ -11,6 +11,7 @@ import {
   paintConsoleWall,
   paintConsoleHeavy,
   paintCoverCrate,
+  paintServiceCabinet,
   paintTerminal,
   paintBlastDoor,
   paintShuttle,
@@ -105,6 +106,11 @@ export class PreloadScene extends Phaser.Scene {
     paintConsoleWall(this, 'ch-con-wall');
     paintCoverCrate(this, 'ch-crate-a', 'a');
     paintCoverCrate(this, 'ch-crate-b', 'b');
+    // The junction's contribution to the shared kit: UNPOWERED cover. It
+    // declares nothing in `CONSOLE_KIT`, so a room that stands on it gets
+    // cover that goes out with the machinery instead of eight lit screens.
+    paintServiceCabinet(this, 'rj-cab-a', 'a');
+    paintServiceCabinet(this, 'rj-cab-b', 'b');
     paintBlastDoor(this, 'wall');     // Blast door replaces wooden crate
     paintTerminal(this, 'terminal');  // hackable objective terminal
 

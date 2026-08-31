@@ -214,6 +214,61 @@ export const PAL = {
   hgCrateLit:   '#383429',
   hgCrateDark:  '#16150f',
   hgCrateBand:  '#4a4022',   // the strapping band
+  // ── THE REACTOR JUNCTION. The third ladder, and the first one that INVERTS
+  // the relationship the other two share. In the chamber and the hangar the
+  // perimeter machinery sits a step LIGHTER than the deck; here the walls are
+  // the darkest thing in the room and the floor you move on is the brightest.
+  // That is the whole material claim of a service passage — you are in a lit
+  // way between dark technical banks — and §20 of the brief asks the third
+  // room to develop its own value relationship rather than clone either
+  // approved one.
+  //
+  // The cast is a cool STEEL-BLUE: the chamber's graphite runs blue-violet and
+  // the hangar's gunmetal is neutral, so the third room is placed on the other
+  // side of neutral and lifted about two steps overall.
+  rjSink:       '#090d10',   // deepest recess — conduit beds, wall bays
+  rjRecess:     '#131a20',   // the four approach ways, dropped below the deck
+  rjDeck:       '#242b31',   // the deck — lighter than either approved room
+  rjDeckLit:    '#323a42',   // THE CROSSING. The one raised region in the room.
+  rjRib:        '#414b55',   // structural cross-members, plate seams, frames
+  rjRibLit:     '#59646f',   // the lit sliver on a raised edge
+  rjSeam:       '#070a0d',   // the dark line of a seam or a cast edge
+  rjBolt:       '#68737f',   // small hardware — bolts, grate slats, flanges
+  // Perimeter machinery, DARKER than the deck. See above: this is the
+  // inversion, and it is the reason the room reads as a passage.
+  rjMachDark:   '#0c0f13',
+  rjMach:       '#171c22',
+  rjMachLit:    '#252c34',
+  // Pipe. The room is named for its plumbing and the conduit is its signature
+  // object, so it gets its own three tones: a dark underside, the body, and
+  // the crown catching the light from the north.
+  // MEASURED AND DARKENED ONCE. The first build ran the crown at '#454f5a'
+  // against a '#242b31' deck and the runs photographed as raised girders lying
+  // ON the floor rather than pipes lying in a recess BELOW it — which in the
+  // smallest room in the game is environmental mass promising a collision that
+  // is not there. The body now sits UNDER the deck value and only the narrow
+  // crown reaches just above it, which is the whole of what a cylinder is
+  // allowed to claim from this angle.
+  rjPipe:       '#20262d',
+  rjPipeLit:    '#333b45',
+  rjPipeDark:   '#0e1116',
+  // The service cabinet — unpowered cover mass. One step above the deck and no
+  // further, for exactly the reason the hangar's crates were darkened: freight
+  // and furniture may not out-shout hardware.
+  rjCab:        '#2b323a',
+  rjCabLit:     '#3a434d',
+  rjCabDark:    '#141a1f',
+  // The second colourway. COOLER, not warmer: the first attempt was olive
+  // ('#33342f') and photographed as the hangar's cargo, which is the one
+  // vocabulary this room may not borrow. Two cabinets from the same works,
+  // one a shade greyer.
+  rjCabWarm:    '#252c34',
+  rjCabWarmLit: '#343d47',
+  // Deck paint. WORN SAFETY WHITE, and neither of the other two rooms' —
+  // the chamber's markings are steel and the hangar's are amber. At 0.22 it is
+  // a stain rather than a signal, which is the only way floor paint is allowed
+  // to exist in a room this narrow.
+  rjPaint:      '#7b8794',
   // ── Per-room perimeter walls ─────────────────────────────────────────────
   // The band painted around each arena's edge (see drawPerimeter). Three tones
   // per room: the wall top, its lit outer sliver, and the recessed greebles.
@@ -225,6 +280,9 @@ export const PAL = {
   reacWall:     '#3a2014',
   reacWallLit:  '#54301c',
   reacWallDark: '#1e0f08',
+  rjWall:       '#171c22',
+  rjWallLit:    '#252c34',
+  rjWallDark:   '#0c0f13',
   detWall:      '#20272f',
   detWallLit:   '#2e3742',
   detWallDark:  '#11161c',
@@ -1777,6 +1835,11 @@ function drawArchitecture(ctx, items, pal) {
     ribLit: pal.ribLit ?? PAL.chRibLit,
     seam: pal.seam ?? PAL.chSeam,
     bolt: pal.bolt ?? PAL.chBolt,
+    // The conduit's three tones. Defaulted off the rib family so a room that
+    // never draws one does not have to declare them.
+    pipe: pal.pipe ?? pal.rib ?? PAL.chRib,
+    pipeLit: pal.pipeLit ?? pal.ribLit ?? PAL.chRibLit,
+    pipeDark: pal.pipeDark ?? pal.seam ?? PAL.chSeam,
   };
   // Named fills, so a spec says what a thing IS rather than what colour it is.
   const tone = (n) => P[n] ?? n;
@@ -1937,6 +2000,94 @@ function drawArchitecture(ctx, items, pal) {
             ctx.fillRect(it.x, ry, w, 2);
           }
           ctx.globalAlpha = it.alpha ?? 1;
+        }
+        break;
+      }
+
+      // A CONDUIT RUN. The reactor junction's answer to the chamber's trench and
+      // the hangar's track, and deliberately a third object rather than either
+      // of them: a trench is a HOLE with a grate over it, a track is RAILS set
+      // flush in the deck, a conduit is a large-bore PIPE lying in a shallow
+      // bed with flanged collars at intervals. All three are recessed, so none
+      // of them can be mistaken for cover — but they say different things about
+      // what the room is for, and a corridor is the place pipes run ALONG.
+      //
+      // ITS CROSS-SECTION IS FOUR HARD BANDS, NOT A GRADIENT. A cylinder seen
+      // from above is a smooth ramp of value, and a smooth ramp is the one
+      // thing this game's surface vocabulary does not contain. Four discrete
+      // bands — dark underside, body, lit crown, body — read as round at
+      // handset scale and stay inside the hard-surface language. This is the
+      // same verdict the hero housing's facets and the shuttle's wing planes
+      // reached from the other direction.
+      case 'conduit': {
+        const v = (it.dir ?? 'h') === 'v';
+        const bedT = it.t ?? 74;
+        const w = v ? bedT : it.len, h = v ? it.len : bedT;
+        // The bed, dropped below the deck.
+        ctx.fillStyle = P.sink;
+        ctx.fillRect(it.x, it.y, w, h);
+        // Its lips: the dark near wall of the recess, the lit far one.
+        ctx.fillStyle = P.seam;
+        if (v) ctx.fillRect(it.x, it.y, 3, h); else ctx.fillRect(it.x, it.y, w, 3);
+        ctx.globalAlpha = (it.alpha ?? 1) * 0.32;
+        ctx.fillStyle = P.ribLit;
+        if (v) ctx.fillRect(it.x + w - 2, it.y, 2, h); else ctx.fillRect(it.x, it.y + h - 2, w, 2);
+        ctx.globalAlpha = it.alpha ?? 1;
+
+        // The runs themselves. `bore` is the pipe diameter; one or two of them
+        // lie in the bed, and two is what makes a bank read as plumbing rather
+        // than as one fat line down the deck.
+        const bore = it.bore ?? 26;
+        const n = it.runs ?? 2;
+        const span = v ? w : h;
+        const centres = [];
+        for (let k = 0; k < n; k++) {
+          centres.push(Math.round(span * (k + 1) / (n + 1)));
+        }
+        for (const c0 of centres) {
+          const top = c0 - Math.round(bore / 2);
+          // Four bands across the bore. Their proportions are fixed fractions
+          // of it, so a 20px service line and a 40px main are the same object
+          // at two sizes rather than two drawings.
+          const bands = [
+            [0, Math.round(bore * 0.20), P.pipeDark],
+            [Math.round(bore * 0.20), Math.round(bore * 0.30), P.pipe],
+            [Math.round(bore * 0.30), Math.round(bore * 0.38), P.pipeLit],
+            [Math.round(bore * 0.38), bore, P.pipe],
+          ];
+          for (const [b0, b1, col] of bands) {
+            ctx.fillStyle = col;
+            if (v) ctx.fillRect(it.x + top + b0, it.y, b1 - b0, h);
+            else   ctx.fillRect(it.x, it.y + top + b0, w, b1 - b0);
+          }
+          // The underside seam, so the pipe sits IN the bed rather than on it.
+          ctx.fillStyle = P.seam;
+          if (v) ctx.fillRect(it.x + top + bore, it.y, 2, h);
+          else   ctx.fillRect(it.x, it.y + top + bore, w, 2);
+
+          // FLANGED COLLARS. A pipe with no joints is a stripe; the collars are
+          // what make it hardware, and they are the only repeated small element
+          // in the run. Wider than the bore and one value up.
+          const st = it.step ?? 190;
+          const cw = it.collar ?? 10;
+          for (let k = (it.phase ?? 46); k < (v ? h : w) - 8; k += st) {
+            // The collar is one step over the pipe, NOT over the deck. Drawn in
+            // the rib tone it was the brightest thing in the bed and every
+            // joint photographed as a bracket sitting on top of the run.
+            ctx.globalAlpha = (it.alpha ?? 1) * 0.7;
+            ctx.fillStyle = P.pipeLit;
+            if (v) ctx.fillRect(it.x + top - 4, it.y + k, bore + 8, cw);
+            else   ctx.fillRect(it.x + k, it.y + top - 4, cw, bore + 8);
+            ctx.globalAlpha = (it.alpha ?? 1) * 0.4;
+            ctx.fillStyle = P.ribLit;
+            if (v) ctx.fillRect(it.x + top - 4, it.y + k, bore + 8, 2);
+            else   ctx.fillRect(it.x + k, it.y + top - 4, 2, bore + 8);
+            ctx.globalAlpha = (it.alpha ?? 1) * 0.7;
+            ctx.fillStyle = P.seam;
+            if (v) ctx.fillRect(it.x + top - 4, it.y + k + cw - 2, bore + 8, 2);
+            else   ctx.fillRect(it.x + k + cw - 2, it.y + top - 4, 2, bore + 8);
+            ctx.globalAlpha = it.alpha ?? 1;
+          }
         }
         break;
       }
@@ -2239,6 +2390,144 @@ function drawWallFeature(ctx, f, cx, thickness, pal) {
     ctx.globalAlpha = 0.3;
     ctx.fillStyle = trim;
     ctx.fillRect(sx + 4, T - 22, 56, 2);
+    ctx.globalAlpha = 1;
+    return;
+  }
+
+  // ── THE CONDUIT INTERCHANGE. The reactor junction's landmark, and the
+  // second piece of evidence that a landmark is a JOB rather than an asset.
+  //
+  // The chamber's is a freestanding hero machine. The hangar's is a blast door
+  // — a piece of the wall, which proved the language could make a landmark out
+  // of architecture. This one is a piece of the wall too, and it is deliberately
+  // NOT a door: a door is a promise about leaving, and this wall is the one the
+  // room has sealed. It is the place every pipe in the room converges, which is
+  // what the room is named for and the one question its plan actually raises —
+  // four ways in, and where does the plumbing go?
+  //
+  // WHY THE SOUTH WALL. The camera's centre is pinned inside y [598, 802] in a
+  // 1400-tall room, so the north and south bands are the two the player sees
+  // from almost anywhere. North carries the exit and the north gate; giving the
+  // landmark to the south sets the room's two poles on the axis that is always
+  // in frame — where you are going, and the machine you have your back to —
+  // without either of them competing for the same wall. The hangar's poles are
+  // north and east, so this is not that composition either.
+  if (f.kind === 'interchange') {
+    const W = f.width ?? 520, x0 = Math.round(cx - W / 2);
+    const BUT = 40;   // the end buttresses
+
+    // A RECESS FIRST, exactly as the blast door does it: the feature has to
+    // interrupt the bay rhythm rather than sit on top of a finished wall, or
+    // it reads as a decal.
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = wallDark;
+    ctx.fillRect(x0 - 8, 0, W + 16, T);
+
+    // THE ENTERING BANKS. Four runs a side at four heights, straight and
+    // horizontal, terminating on the manifold's flanges. Straight because
+    // converging them would put four shallow diagonals side by side, which is
+    // the exact class of edge the shuttle pass was spent removing.
+    const MW = f.manifold ?? 196;
+    const mx = Math.round(cx - MW / 2);
+    const runs = [[0.22, 12], [0.38, 16], [0.56, 14], [0.74, 10]];
+    for (const [side, sx, sw] of [['l', x0 + BUT, mx - (x0 + BUT)], ['r', mx + MW, x0 + W - BUT - (mx + MW)]]) {
+      for (const [rf, bore] of runs) {
+        const top = Math.round(T * rf);
+        ctx.globalAlpha = 0.92;
+        ctx.fillStyle = wallDark;
+        ctx.fillRect(sx, top, sw, bore);
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = wall;
+        ctx.fillRect(sx, top + Math.round(bore * 0.22), sw, Math.round(bore * 0.44));
+        ctx.globalAlpha = 0.38;
+        ctx.fillStyle = wallLit;
+        ctx.fillRect(sx, top + Math.round(bore * 0.28), sw, 2);
+        // Collars, phased differently on the two sides so the interchange is
+        // not a mirror of itself. Symmetry is the shape; the hardware is where
+        // the asymmetry §7 asks for lives.
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = wall;
+        for (const cf of (side === 'l' ? [0.3, 0.68] : [0.22, 0.6, 0.86])) {
+          ctx.fillRect(Math.round(sx + sw * cf), top - 3, 10, bore + 6);
+        }
+      }
+    }
+
+    // THE MANIFOLD. The heaviest mass on any wall in the room, and the thing
+    // that has to out-weigh both the piers and the entering banks or the
+    // feature reads as plumbing that happens to bulge.
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = wall;
+    ctx.fillRect(mx, 6, MW, T - 14);
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = wallLit;
+    ctx.fillRect(mx, 6, MW, 5);
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = wallDark;
+    ctx.fillRect(mx, 6, 5, T - 14);
+    ctx.fillRect(mx + MW - 5, 6, 5, T - 14);
+
+    // Its face: a deep inset plate carrying the valve bodies. RECTILINEAR
+    // valves rather than wheels — a big round thing on a big flat thing is how
+    // the hero housing became a dial, and the same instinct would put four
+    // handwheels on this in a heartbeat.
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = wallDark;
+    ctx.fillRect(mx + 14, 18, MW - 28, T - 38);
+    for (let k = 0; k < 3; k++) {
+      const vx = mx + 26 + k * Math.round((MW - 52) / 3);
+      const vw = Math.round((MW - 52) / 3) - 12;
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = wall;
+      ctx.fillRect(vx, 26, vw, T - 54);
+      ctx.globalAlpha = 0.45;
+      ctx.fillStyle = wallLit;
+      ctx.fillRect(vx, 26, vw, 3);
+      // The stem — a short bar standing off the valve body, which is the whole
+      // of what makes it read as something that turns.
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = wallLit;
+      ctx.fillRect(vx + Math.round(vw / 2) - 3, 20, 6, 9);
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = wallDark;
+      ctx.fillRect(vx + 3, T - 34, vw - 6, 5);
+    }
+
+    // RECESSED FIXTURE HOUSINGS. Painted whether or not anything is lit in
+    // them, because a lamp with no housing is a glow with nothing making it —
+    // and this is the wall the room's emergency identity hangs on.
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#000000';
+    for (const t of f.housings ?? [-0.34, 0.34]) {
+      ctx.fillRect(Math.round(cx + t * W) - 30, T - 30, 60, 10);
+    }
+    // The manifold's own core housing, dead centre and deeper than the rest.
+    ctx.fillRect(Math.round(cx) - 13, T - 32, 26, 14);
+
+    // THE BUTTRESSES. Heavier than the bay piers by half again, so the
+    // interchange is bolted into the wall rather than laid against it.
+    ctx.globalAlpha = 1;
+    for (const bx of [x0, x0 + W - BUT]) {
+      ctx.fillStyle = wall;
+      ctx.fillRect(bx, 0, BUT, T);
+      ctx.fillStyle = wallLit;
+      ctx.fillRect(bx, 0, BUT, Math.round(T * 0.26));
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = wallDark;
+      ctx.fillRect(bx, 0, 5, T);
+      ctx.fillRect(bx + BUT - 5, 0, 5, T);
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = wallDark;
+      ctx.fillRect(bx + 6, T - 26, BUT - 12, 18);
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = wallLit;
+      ctx.fillRect(bx + 9, T - 22, 4, 4);
+      ctx.fillRect(bx + BUT - 14, T - 22, 4, 4);
+      ctx.globalAlpha = 1;
+    }
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = trim;
+    ctx.fillRect(x0 + BUT, T - 8, W - BUT * 2, 2);
     ctx.globalAlpha = 1;
     return;
   }
@@ -2610,6 +2899,203 @@ function drawPerimeter(ctx, worldW, worldH, opts) {
         ctx.fillStyle = wallDark;
         ctx.fillRect(x + 6, T - 14, 6, 6);
         ctx.fillRect(x + 64, T - 14, 6, 6);
+      }
+    } else if (style === 'junction') {
+      // THE THIRD ARENA'S WALL, and the first one asked to carry a room's
+      // whole identity. The chamber's landmark is a freestanding machine and
+      // the hangar's is a door set into one wall; the junction has neither a
+      // hero prop nor a long axis, so its ARCHITECTURE is the hero and most of
+      // that architecture is this band.
+      //
+      // Same RULE as both approved walls — one bay vocabulary, a job per side,
+      // a phase offset so no two adjacent walls resolve at the same distance
+      // from a corner — and, again, none of their composition.
+      //
+      //   chamber   pilaster / recess / machinery cabinet   period 320
+      //   hangar    truss column / panelling / bracket foot period 400
+      //   junction  PIER AND LINTEL / conduit bank          period 260
+      //
+      // THE PERIOD IS THE SPATIAL ARGUMENT. A passage's structure repeats at a
+      // shorter interval than a hall's, so the bays are TIGHTER here than in
+      // either open arena — that rhythm is what a corridor feels like from the
+      // inside, and it is available in a square room because the band is where
+      // the corridor language lives.
+      //
+      // THE SIGNATURE IS THE LINTEL. Every bay is spanned by a capping beam
+      // between two narrow piers: a structural frame implied overhead, which is
+      // the one thing a top-down passage can say about being enclosed without
+      // drawing a ceiling. The chamber's signature is a pilaster and the
+      // hangar's is a bracket foot; both are things that land on the deck. This
+      // one is a thing that crosses above it.
+      //
+      // ── THREE BAYS, AND NO MORE ──────────────────────────────────────────
+      //   A  STRUCTURAL  armour plate, deep recess, two vertical stiffeners
+      //   B  SERVICE     a conduit bank crossing the bay, with collars
+      //   C  CONTROL     a shallow panel recess with information rows
+      // and ONE interruption — a JUNCTION BOX, a heavier square block on the
+      // third bay of the busy sides. `bay -> bay -> junction -> bay` is what
+      // makes the repetition read as a system rather than as a stamped tile;
+      // an identical module copied five times is the failure this replaces.
+      //
+      // ── FOUR SIDES, FOUR JOBS ────────────────────────────────────────────
+      //   north  TRANSIT — the wall the exit and the north gate are cut
+      //                    through. Structural and QUIET: two real openings
+      //                    are already the most interesting thing on it, and
+      //                    hardware here would compete with the way out.
+      //   west   SUPPLY  — the densest. A conduit bank on every bay, running
+      //                    the whole wall into the interchange at the corner.
+      //   east   CONTROL — alternating control recesses and structural bays.
+      //   south  SEALED  — no opening at all. The heaviest armour, the fewest
+      //                    events, and the wall the landmark is set into.
+      //
+      // EVERYTHING HERE IS SHALLOW. The world bounds sit at the OUTSIDE of the
+      // band, so the player can stand on it — in the narrowest room in the game
+      // a wall that read as a tall solid mass would be the one lie §17 forbids,
+      // promising collision the room does not have.
+      const period = 260;
+      const job = { top: 'transit', left: 'supply', right: 'control', bottom: 'sealed' }[e.side];
+      const phase = { top: 0, right: 97, bottom: 171, left: 44 }[e.side] || 0;
+      const T = thickness;
+      // A conduit bank drawn along the band, in the band's local space. Shared
+      // by the supply wall and by whatever else asks for plumbing, so the wall
+      // and the deck's `conduit` primitive stay one object at two scales.
+      const bank = (x0, w0, runs) => {
+        for (const [f, bore] of runs) {
+          const top = Math.round(T * f);
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = wallDark;
+          ctx.fillRect(x0, top, w0, bore);
+          ctx.globalAlpha = 0.55;
+          ctx.fillStyle = wall;
+          ctx.fillRect(x0, top + Math.round(bore * 0.22), w0, Math.round(bore * 0.42));
+          ctx.globalAlpha = 0.35;
+          ctx.fillStyle = wallLit;
+          ctx.fillRect(x0, top + Math.round(bore * 0.28), w0, 2);
+          // Collars. Two per bay, off-centre, so the joints do not line up
+          // with the piers and give the wall a second grid.
+          ctx.globalAlpha = 0.85;
+          ctx.fillStyle = wall;
+          for (const cf of [0.28, 0.71]) {
+            ctx.fillRect(Math.round(x0 + w0 * cf), top - 3, 9, bore + 6);
+          }
+          ctx.globalAlpha = 1;
+        }
+      };
+      for (let x = -phase, i = 0; x < e.len + period; x += period, i++) {
+        const inner = period - 76;
+        const ix = x + 38;
+        // THE BAY FIELD. A recessed armour plate — the dark part of the rhythm.
+        ctx.globalAlpha = 0.88;
+        ctx.fillStyle = wallDark;
+        ctx.fillRect(ix, 18, inner, T - 30);
+        ctx.globalAlpha = 0.26;
+        ctx.fillStyle = wallLit;
+        ctx.fillRect(ix, T - 16, inner, 3);
+
+        // WHICH BAY THIS IS. The interruption is third-of-three on the two
+        // busy walls and never on the quiet ones — an interruption on a wall
+        // with nothing to interrupt is just a fourth bay type.
+        const busy = job === 'supply' || job === 'control';
+        const boxHere = busy && i % 3 === 2;
+
+        if (boxHere) {
+          // THE JUNCTION BOX. Heavier, squarer, and it breaks the bay's
+          // horizontal proportion — that change of aspect is what the eye
+          // actually reads as "something different happens here".
+          const bw = Math.min(inner - 20, 118), bx = Math.round(ix + (inner - bw) / 2);
+          ctx.globalAlpha = 0.95;
+          ctx.fillStyle = wall;
+          ctx.fillRect(bx, 12, bw, T - 22);
+          ctx.globalAlpha = 0.45;
+          ctx.fillStyle = wallLit;
+          ctx.fillRect(bx, 12, bw, 4);
+          ctx.globalAlpha = 0.8;
+          ctx.fillStyle = wallDark;
+          ctx.fillRect(bx + 10, 24, bw - 20, T - 46);
+          // Its access hatch: four fasteners and one seam. Small hardware, and
+          // the only place on this wall that gets any.
+          ctx.globalAlpha = 0.5;
+          ctx.fillStyle = wallLit;
+          ctx.fillRect(bx + 10, Math.round(T / 2) - 1, bw - 20, 2);
+          for (const [fx, fy] of [[14, 28], [bw - 18, 28], [14, T - 34], [bw - 18, T - 34]]) {
+            ctx.fillRect(bx + fx, fy, 3, 3);
+          }
+          ctx.globalAlpha = 1;
+        } else if (job === 'supply') {
+          // BAY B — SERVICE. Three runs across the bay. This is the densest
+          // wall in the room and the one the reactor core stands against.
+          bank(ix, inner, [[0.26, 13], [0.46, 17], [0.68, 11]]);
+        } else if (job === 'control' && i % 2 === 1) {
+          // BAY C — CONTROL. A shallow panel recess with information rows.
+          // Cleaner costs a SHAPE, not an absence — the same lesson the
+          // chamber's control wall and the hangar's departure wall both took.
+          const px0 = ix + 16, pw = inner - 32;
+          ctx.globalAlpha = 0.6;
+          ctx.fillStyle = wall;
+          ctx.fillRect(px0, 28, pw, T - 52);
+          ctx.globalAlpha = 0.42;
+          ctx.fillStyle = wallLit;
+          for (let k = 0; k < 4; k++) ctx.fillRect(px0 + 8, 36 + k * 9, pw - 16 - (k % 2) * 22, 3);
+          ctx.globalAlpha = 0.3;
+          ctx.fillStyle = trim;
+          ctx.fillRect(px0, T - 26, pw, 2);
+          ctx.globalAlpha = 1;
+        } else {
+          // BAY A — STRUCTURAL. Two vertical stiffeners inside the recess and
+          // a plate face between them. The base rhythm, and the whole of the
+          // north and south walls.
+          ctx.globalAlpha = 0.55;
+          ctx.fillStyle = wall;
+          ctx.fillRect(ix + 20, 26, inner - 40, T - 46);
+          ctx.globalAlpha = 0.7;
+          ctx.fillStyle = wallDark;
+          for (const f of [0.30, 0.70]) {
+            ctx.fillRect(Math.round(ix + inner * f) - 4, 26, 8, T - 46);
+          }
+          ctx.globalAlpha = 0.3;
+          ctx.fillStyle = wallLit;
+          ctx.fillRect(ix + 20, 26, inner - 40, 3);
+          ctx.globalAlpha = 1;
+        }
+
+        // ── THE PIERS AND THE LINTEL. Drawn last, over everything, because
+        // they are the frame the bay sits inside.
+        //
+        // The lintel spans between the piers at the OUTER edge of the band: the
+        // capping beam of a structural frame, seen from underneath. It is the
+        // one thing in the room that says "this is enclosed".
+        ctx.globalAlpha = 0.95;
+        ctx.fillStyle = wall;
+        ctx.fillRect(x + 4, 0, period, 16);
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = wallLit;
+        ctx.fillRect(x + 4, 0, period, 3);
+        ctx.globalAlpha = 0.75;
+        ctx.fillStyle = wallDark;
+        ctx.fillRect(x + 4, 16, period, 3);
+
+        // The piers. NARROW — a passage's frame is a lot of slim members, not
+        // a few heavy ones, and that is the other half of the shorter period.
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = wall;
+        ctx.fillRect(x + 8, 0, 30, T);
+        ctx.fillStyle = wallLit;
+        ctx.fillRect(x + 8, 0, 30, Math.round(T * 0.22));
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = wallDark;
+        ctx.fillRect(x + 8, 0, 4, T);
+        ctx.fillRect(x + 34, 0, 4, T);
+        // Its foot: a plain bolted pad, and no flare. The hangar's column
+        // flares because a shed's structure lands visibly on the deck; a
+        // service passage's is bolted flush and that difference is on purpose.
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = wallDark;
+        ctx.fillRect(x + 10, T - 22, 26, 15);
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = wallLit;
+        ctx.fillRect(x + 13, T - 18, 3, 3);
+        ctx.fillRect(x + 30, T - 18, 3, 3);
+        ctx.globalAlpha = 1;
       }
     }
     ctx.globalAlpha = 1;
@@ -4217,6 +4703,97 @@ export function paintCoverCrate(scene, key, variant = 'a') {
 // 24×24 logical @ scale 4 = 96×96. A floor-standing Imperial data terminal
 // with a glowing amber screen — visually distinct from the grey cover console.
 // The entity tints it green once hacked.
+// ── SERVICE CABINET (reactor junction cover) ───────────────────────────────
+//
+// THE THIRD KIND OF COVER, and it exists because the junction may not use the
+// other two. A cover object in this room is neither a control terminal — eight
+// of those in a ring is the failure the baseline already shipped, and it would
+// leave the whole ring lit through a blackout — nor a cargo module, which is
+// the hangar's vocabulary and says nothing about a reactor service junction.
+//
+// It is UNPOWERED, and that is its job. It declares nothing in `CONSOLE_KIT`,
+// so `loadRoom` tags it `prop` rather than `console` and it goes out with the
+// rest of the machinery when the room does. Five of the junction's eight cover
+// spots wear one, which is what keeps the dark state dark — the same ratio and
+// the same reasoning as the hangar's five crates.
+//
+// 28x28 logical at scale 4, exactly like every other cover archetype: the
+// bodies are frozen at 70x70 under a 112x112 sprite and feed the nav grid, the
+// LOS rects and bullet collision. A wider silhouette would be art promising
+// cover the room does not have.
+export function paintServiceCabinet(scene, key, variant = 'a') {
+  const c = new PixelCanvas(scene, key, 28, 28, 4);
+  const warm = variant === 'b';
+  const BODY = warm ? PAL.rjCabWarm : PAL.rjCab;
+  const LIT  = warm ? PAL.rjCabWarmLit : PAL.rjCabLit;
+  const DK   = PAL.rjCabDark, SEAM = PAL.rjSeam, BOLT = PAL.rjBolt, RIB = PAL.rjRib;
+
+  // THE LID. Tapering inward with depth, the same trick the console chassis
+  // and the cargo module both use to stop a top face reading as a flat card.
+  for (let y = 1; y <= 5; y++) {
+    const k = Math.floor((y - 1) * 0.5);
+    c.hline(y, 2 + k, 25 - k, y === 1 ? RIB : LIT);
+  }
+  c.hline(6, 2, 25, SEAM);
+
+  // THE DOOR FIELD. The working face, one step below the lid.
+  c.rect(3, 7, 22, 15, BODY);
+  c.vline(3, 7, 21, LIT);
+  c.vline(24, 7, 21, DK);
+  c.vline(23, 7, 21, SEAM);
+  c.hline(22, 3, 24, SEAM);
+
+  // LOUVRES. Horizontal slots, and they are the whole identity: a cabinet is
+  // a box you cannot see into that still has to breathe. Two-pixel slots — a
+  // dark cut with a lit lower lip — so each one reads as pressed rather than
+  // as a painted line.
+  const louvre = (x0, x1, y0, n, step) => {
+    for (let k = 0; k < n; k++) {
+      const y = y0 + k * step;
+      c.hline(y, x0, x1, SEAM);
+      c.hline(y + 1, x0, x1, LIT);
+    }
+  };
+
+  if (!warm) {
+    // A — DOUBLE DOOR. Two leaves, a centre seam, louvres across both.
+    louvre(5, 22, 9, 4, 3);
+    c.vline(14, 7, 21, SEAM);
+    c.vline(15, 7, 21, LIT);
+    // The latch: a short bar across the meeting line, the one piece of
+    // hardware that says the thing opens.
+    c.rect(12, 15, 5, 3, RIB);
+    c.px(13, 16, BOLT); c.px(15, 16, BOLT);
+    // A blank label plate. Painted, never legible — a stencil, not a screen.
+    c.rect(5, 19, 7, 2, DK);
+    c.hline(19, 5, 11, BOLT);
+  } else {
+    // B — SINGLE DOOR AND AN OPEN RACK. Same chassis, a different arrangement:
+    // the equipment bay on one side breaks the symmetry and is what stops a
+    // pair of these standing near each other from reading as one repeated
+    // tile. §7's small functional asymmetry, not decoration.
+    louvre(5, 15, 9, 4, 3);
+    c.vline(17, 7, 21, SEAM);
+    c.vline(18, 7, 21, LIT);
+    // The rack: a recessed bay with three shelved modules in it.
+    c.rect(19, 8, 5, 13, DK);
+    for (let k = 0; k < 3; k++) {
+      c.rect(20, 9 + k * 4, 3, 2, RIB);
+      c.px(20, 9 + k * 4, BOLT);
+    }
+    c.rect(6, 15, 5, 3, RIB);
+    c.px(7, 16, BOLT); c.px(9, 16, BOLT);
+  }
+
+  // THE PLINTH. The darkest slab and the widest run, so the object sits down
+  // on the deck rather than floating over it.
+  c.rect(2, 23, 24, 3, DK);
+  c.hline(23, 2, 25, RIB);
+  c.px(3, 24, BOLT); c.px(24, 24, BOLT);
+  c.hline(26, 3, 24, SEAM);
+  c.finish();
+}
+
 export function paintTerminal(scene, key = 'terminal') {
   const c = new PixelCanvas(scene, key, 24, 24, 4);
   const C = PAL;

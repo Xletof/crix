@@ -304,55 +304,350 @@ export const ROOMS = [
   },
 
   // ── 2. Reactor Junction ────────────────────────────────────────────────
-  // Symmetrical square arena: a diamond ring of cover orbits the central
-  // terminal so hacking mid-horde always has a vault-out escape.
   {
     id: 'corridor',
     name: 'REACTOR JUNCTION',
     bounds: { w: 1400, h: 1400 },
     spawn: { x: 200, y: 1200 }, // bottom-left spawn
     exit: { x: 1200, y: 200, side: 'top' }, // top-right exit
-    // Hot and busy: rust base, close-packed orange strips.
+    // ══ THE REACTOR JUNCTION, THIRD ARENA ══════════════════════════════════
+    //
+    // THE ROOM IS NOT A CORRIDOR. Its id is `corridor` and its name has always
+    // been REACTOR JUNCTION, and the second of those is the true one: 1400x1400,
+    // perfectly square, the only square room in the game, with the objective
+    // dead centre and three feeder gates on three different walls. It is not
+    // narrower than either approved arena — it is the SMALLEST, and it is the
+    // only one with no long axis at all.
+    //
+    // That is the spatial test, and it is a harder one than "narrow". Both
+    // approved rooms are AXIAL: the chamber is a nave to a dais running south
+    // to north, the hangar is a deployment deck running west to east, and in
+    // both of them composition and direction are the same decision. A square
+    // room with a held centre offers neither. The player arrives in the
+    // south-west, must reach the north-east, and is attacked from three
+    // bearings while standing on the one thing they cannot leave.
+    //
+    //   VADER CHAMBER   enclosed technical containment. A nave to a dais, a
+    //                   freestanding hero machine, cool graphite, severe.
+    //   HANGAR          an operational deployment deck. A launch axis to a
+    //                   blast door, a landmark that is PART OF THE WALL,
+    //                   neutral gunmetal, working and scuffed.
+    //   REACTOR JUNCTION  THE CROSSING WHERE FOUR SERVICE WAYS MEET AROUND A
+    //                   LIVE CONTAINMENT DECK. No hero object at all: the
+    //                   architecture is the landmark, the corridor grammar
+    //                   lives in the walls and the approaches, and the middle
+    //                   is deliberately the calmest floor in the game.
+    //
+    // HOW A SQUARE ROOM GETS DIRECTION WITHOUT ARROWS. Four broad ways run in
+    // from the wall band and stop at a threshold cross-member; the crossing
+    // they meet on is the one RAISED region in the room and the ways are all
+    // RECESSED. Approaches drop, the junction lifts. Three of the four ways
+    // are dark service recesses with the room's plumbing lying in them; the
+    // fourth — the departure spur under the exit — is the only LIGHTER one,
+    // and it is the only place on the floor carrying a painted marking. That
+    // is four architectural statements about the way out and zero arrows,
+    // which is what §19 is protecting against.
+    //
+    // Everything below is painted art or emissive layer. `bounds`, `spawn`,
+    // `exit`, `gates`, `walls`, `terminals`, `enemies`, `pickups`, the eight
+    // cover positions and the three prop bodies are exactly what they were.
     floor: {
-      base: PAL.reacBase, line: PAL.reacLine, panel: PAL.reacPanel,
-      strip: PAL.reacStrip, stripGlow: PAL.reacStripGlw,
-      accent: PAL.reacAcc, accentGlow: PAL.reacAccGlw,
-      hexW: 64, hexH: 56, stripEvery: 150, accentEvery: 300,
-      panels: 80, scorch: 45,
-      markColor: PAL.reacAccGlw, markAlpha: 0.26,
+      // COOL STEEL, AND THE LADDER IS INVERTED. In both approved rooms the
+      // perimeter machinery sits a step LIGHTER than the deck; here the walls
+      // are the darkest thing in the room and the floor is the brightest. See
+      // the `rj*` block in pixelArt.js — that inversion is the material claim
+      // of a service passage and it is what stops this reading as the hangar
+      // in a smaller box.
+      base: PAL.rjDeck, line: PAL.rjSeam, panel: PAL.rjRecess,
+      strip: PAL.rjRib, stripGlow: PAL.rjRibLit,
+      accent: PAL.rjRib, accentGlow: PAL.rjRibLit,
+      // NO BAKED STRIP LIGHTS. The baseline carried NINE full-width saturated
+      // orange-red bars across a 1400px room at `stripEvery: 150`, plus four
+      // more accents — the loudest thing in every single frame, running edge to
+      // edge over the props, the cover and the fight. Red is the saber, the
+      // SABER THROW lane and the telegraphs; this room was spending it on
+      // wallpaper. The room's light is authored in `emissives`.
+      stripEvery: 0, accentEvery: 0,
+      // 132x116 against the chamber's 120x105 and the hangar's 160x140 — the
+      // deck plates of a service level, between a control room's and a shed's.
+      // Kept to a whisper for the same reason both of them do.
+      hexW: 132, hexH: 116, hexAlpha: 0.24,
+      panels: 34, scorch: 30,
+      grounded: true,
+      // WORN SAFETY WHITE, and there is almost none of it. The baseline painted
+      // TWO CONCENTRIC AMBER RINGS at r=250 and r=300 centred exactly on the
+      // objective — which is the shape, the size and the placement of a circle
+      // telegraph, sitting on the one square metre of floor where the boss
+      // fight resolves. The chamber pass already killed a ring painted round
+      // its dais for precisely this reason. Both are gone.
+      markColor: PAL.rjPaint, markAlpha: 0.22,
       marks: [
-        // Core containment ring around the terminal.
-        { kind: 'ring', x: 700, y: 700, r: 250, lw: 12 },
-        { kind: 'ring', x: 700, y: 700, r: 300, lw: 4, alpha: 0.6 },
-        // Coolant channels running to the three gates.
-        { kind: 'stripes', x: 560, y: 60,  w: 280, h: 150, gap: 26 },
-        { kind: 'stripes', x: 60,  y: 560, w: 150, h: 280, gap: 26 },
-        { kind: 'stripes', x: 1190, y: 560, w: 150, h: 280, gap: 26 },
+        // Caution hatching at the three gate mouths, and nothing at the
+        // fourth: the exit is marked as a PLACE rather than as a hazard.
+        { kind: 'stripes', x: 606, y: 100, w: 188, h: 74, alpha: 0.55, gap: 38 },
+        { kind: 'stripes', x: 100, y: 606, w: 74, h: 188, alpha: 0.55, gap: 38 },
+        { kind: 'stripes', x: 1226, y: 606, w: 74, h: 188, alpha: 0.55, gap: 38 },
+        // THE DEPARTURE SPUR, bracketed. Corner brackets rather than chevrons:
+        // a repeated arrow down a corridor turns the environment into UI, and
+        // one marked-out threshold says the same thing once.
+        { kind: 'bay', x: 1112, y: 116, w: 176, h: 200, alpha: 0.8, lw: 5 },
+      ],
+      // The steel ladder, plus the three pipe tones the conduit needs.
+      archPal: {
+        sink: PAL.rjSink, recess: PAL.rjRecess, deck: PAL.rjDeck,
+        deckLit: PAL.rjDeckLit, rib: PAL.rjRib, ribLit: PAL.rjRibLit,
+        seam: PAL.rjSeam, bolt: PAL.rjBolt,
+        pipe: PAL.rjPipe, pipeLit: PAL.rjPipeLit, pipeDark: PAL.rjPipeDark,
+      },
+      // ── LARGE, then MEDIUM, then SMALL. Drawn in list order.
+      architecture: [
+        // ══ LARGE — the crossing and the four ways that meet on it.
+        //
+        // THE CROSSING. The one raised region in the room, and the calmest
+        // floor in the game: no marking, no seam, no hardware inside it. The
+        // objective stands in the middle of it and every cover object in the
+        // room stands on it. §18 asks a narrow room's central lane to be
+        // quieter than an open arena's, and in a square room the whole centre
+        // IS the lane.
+        // `edge: false` — a region's seam pair drawn round the objective is two
+        // hard lines flanking the one place the boss fight resolves, which is
+        // the same mistake as the amber rings it replaced. The value change on
+        // its own is what a raised floor looks like from above.
+        { kind: 'region', x: 400, y: 400, w: 600, h: 600, tone: 'deckLit', alpha: 0.34, edge: false },
+        // THE FOUR WAYS. Recessed, so the crossing lifts out of them, and all
+        // four at DIFFERENT WIDTHS — 260 / 208 / 160 / 160. A square room
+        // composed of four identical arms is a compass rose; the widths are
+        // what make it a place with a busy side and a quiet one.
+        //
+        //
+        // AT 0.8 THEY PHOTOGRAPHED AS HOLES. `recess` laid that thickly over
+        // this deck lands near '#151b22', and a near-black rectangle in a
+        // top-down game does not read as a floor one step down — it reads as a
+        // pit, which is precisely the lie §17 forbids in the room with the
+        // least space to spare. 0.62 is a step, not a void.
+        //
+        // WEST — the main artery, and the widest. It runs into the supply wall.
+        { kind: 'region', x: 96, y: 570, w: 304, h: 260, tone: 'recess', alpha: 0.62, edge: 'h' },
+        // NORTH — the service way, under the north gate.
+        { kind: 'region', x: 596, y: 96, w: 208, h: 304, tone: 'recess', alpha: 0.62, edge: 'v' },
+        // EAST — the narrowest, off the control wall.
+        { kind: 'region', x: 1000, y: 620, w: 304, h: 160, tone: 'recess', alpha: 0.62, edge: 'h' },
+        // THE DEPARTURE SPUR. The ONE way that is lighter rather than deeper,
+        // because it is not a service run — it is the way out, and it should
+        // read as the destination from anywhere in the room.
+        { kind: 'region', x: 1120, y: 96, w: 160, h: 334, tone: 'deckLit', alpha: 0.5, edge: 'v' },
+        // THE MUSTER FLOOR. Where the player actually arrives. Barely a value
+        // at all — the south-west quarter is the quiet corner of the room and
+        // its job is to not be interesting.
+        { kind: 'region', x: 110, y: 940, w: 420, h: 364, tone: 'deckLit', alpha: 0.16, edge: 'h' },
+
+        // ══ MEDIUM — the plumbing. This is the room's signature object and
+        // the reason it is called a junction.
+        //
+        // THE SPINE. 1070px of twin conduit running the room's full height down
+        // the west side and into the interchange — the longest single form in
+        // the arena, and the reason the north-west is the room's technical
+        // corner.
+        //
+        // WHY IT IS NOT ALONG THE SOUTH WALL, WHERE IT WAS FIRST DRAWN. The
+        // camera's centre is pinned inside y [598, 802] and the touch controls
+        // cover the bottom ~200px of the viewport, so world y beyond about 1100
+        // is behind the joysticks from EVERY camera position this room allows.
+        // A form that long belongs where the player can see it; the side walls
+        // have no such obstruction, because the controls sit low rather than
+        // wide.
+        { kind: 'conduit', dir: 'v', x: 148, y: 170, len: 1070, t: 80, runs: 2, bore: 28, step: 210, phase: 64 },
+        // The north way's run, HELD AGAINST THE WESTERN EDGE of the way rather
+        // than laid up its middle. Centred, it was a bright vertical mast
+        // pointing straight down at the objective from the top of the frame —
+        // an axis where §18 asks for calm. Along one edge it is what plumbing
+        // in a passage actually looks like, and the way itself stays open.
+        { kind: 'conduit', dir: 'v', x: 600, y: 100, len: 300, t: 62, runs: 2, bore: 20, step: 170, phase: 52 },
+        // The east stub: ONE run, not two. The narrow way gets the small pipe,
+        // which is the cheapest way to say the two sides do different work.
+        { kind: 'conduit', dir: 'h', x: 1004, y: 672, len: 296, t: 56, runs: 1, bore: 22, step: 150, phase: 34 },
+
+        // THRESHOLD CROSS-MEMBERS. One structural rib across the mouth of each
+        // way, where it meets the crossing. These are the room's direction:
+        // four gates you can see the frame of, from the middle of the floor.
+        // Drawn in the DECK'S OWN lit tone rather than the rib tone. At full
+        // rib value these photographed as four bright bars standing across the
+        // approaches — posts, in a room whose whole discipline is that visual
+        // and collision width must agree. A threshold is a raised lip.
+        // `alpha` fades the rib's near-black surround along with its face. A
+        // rib at full strength is an OBJECT — outlined, and therefore something
+        // standing on the deck; at half it is a change in the floor, which is
+        // all a threshold is entitled to be.
+        { kind: 'rib', dir: 'v', x: 392, y: 556, len: 288, t: 14, tone: 'deckLit', alpha: 0.5 },
+        { kind: 'rib', dir: 'h', x: 580, y: 392, len: 240, t: 14, tone: 'deckLit', alpha: 0.5 },
+        { kind: 'rib', dir: 'v', x: 992, y: 606, len: 188, t: 14, tone: 'deckLit', alpha: 0.5 },
+        { kind: 'rib', dir: 'h', x: 1108, y: 426, len: 184, t: 14, tone: 'deckLit', alpha: 0.5 },
+
+        // Deck plates, in the three quiet quarters and never on the crossing.
+        { kind: 'plate', x: 276, y: 180, w: 254, h: 300, inset: 24 },
+        { kind: 'plate', x: 150, y: 950, w: 340, h: 300, inset: 24 },
+        { kind: 'plate', x: 1010, y: 930, w: 290, h: 320, inset: 24 },
+        // Thresholds, flush inboard of the wall band.
+        { kind: 'doorframe', x: 600, y: 90, w: 200, h: 38 },
+        { kind: 'doorframe', x: 1112, y: 90, w: 176, h: 38 },
+        { kind: 'doorframe', x: 90, y: 600, w: 38, h: 200 },
+        { kind: 'doorframe', x: 1272, y: 600, w: 38, h: 200 },
+        // Recessed maintenance bays against the side walls.
+        { kind: 'inset', x: 1192, y: 210, w: 96, h: 170 },
+        { kind: 'inset', x: 1192, y: 900, w: 96, h: 180 },
+
+        // ══ SMALL — sparse, and never on the crossing.
+        { kind: 'hatch', x: 250, y: 862, w: 54, h: 42 },
+        { kind: 'hatch', x: 1078, y: 320, w: 50, h: 42 },
+        { kind: 'hatch', x: 616, y: 1244, w: 54, h: 42 },
+        { kind: 'vent', x: 1264, y: 300, w: 30, h: 56 },
+        { kind: 'vent', x: 1244, y: 906, w: 30, h: 56 },
+        { kind: 'vent', x: 856, y: 1276, w: 56, h: 30 },
       ],
     },
-    // Coolant runs with collars — the walls carry the same plumbing the floor
-    // channels feed into.
+    // THE JUNCTION WALL. `pipes` was three horizontal bars and a collar every
+    // 96px, identical on all four sides with no phase offset — the same
+    // "procedurally repeated" verdict the chamber's `bare` and the hangar's
+    // `ribbed` both took, and here it mattered more, because this room has no
+    // hero prop and the wall is most of what it has.
+    //
+    // `junction` is the RULE both approved walls share — one bay vocabulary, a
+    // job per side, a phase offset per side — at a SHORTER 260px period with a
+    // pier-and-lintel frame and a conduit bank. See drawPerimeter.
+    //
+    // THE LANDMARK IS DECLARED HERE, and it is deliberately not a door: the
+    // conduit interchange on the west supply wall is where every pipe in the
+    // room converges. North is where you are going — the exit and the north
+    // gate are cut through that band — and west is the machinery. Those are the
+    // room's two poles, and neither of them is the middle.
     perimeter: {
-      style: 'pipes', thickness: 64,
-      wall: PAL.reacWall, wallLit: PAL.reacWallLit, wallDark: PAL.reacWallDark,
-      trim: PAL.reacStrip, glow: PAL.reacStripGlw,
+      style: 'junction', thickness: 96,
+      wall: PAL.rjWall, wallLit: PAL.rjWallLit, wallDark: PAL.rjWallDark,
+      trim: PAL.rjRib, glow: PAL.rjRibLit,
+      features: [
+        // ON THE WEST WALL, NOT THE SOUTH, and the reason is the viewport
+        // rather than taste. The game camera is inset below the HUD top bar and
+        // the touch controls cover the bottom of the screen, so in a 1400-tall
+        // room with the camera pinned inside y [598, 802] the south band is
+        // behind the joysticks from every position the player can reach. A
+        // landmark nobody can look at is not a landmark. The side walls have no
+        // such obstruction, and the supply wall is where a manifold belongs
+        // anyway: it is the plumbing side, the spine runs into it, and the
+        // reactor core prop stands directly in front of its centre.
+        //
+        // `at: 400, width: 420` puts its southern buttress exactly on the west
+        // gate's doorway cut at y 610, so the opening never eats the feature.
+        { side: 'left', at: 400, width: 420, kind: 'interchange', manifold: 176 },
+        // Two mountings for the wall control panel, in two different functional
+        // contexts — a control bay on the east wall and a service station on
+        // the supply wall. The archetype was validated once in the hangar;
+        // validating it twice, on two walls with different jobs, is what turns
+        // "it worked" into "it generalizes".
+        { side: 'right', at: 420, width: 96, kind: 'panelmount' },
+        { side: 'left', at: 900, width: 96, kind: 'panelmount' },
+      ],
     },
+    // ══ AUTHORED LIGHT ══════════════════════════════════════════════════
+    //
+    // Same architecture as both approved rooms, same two independent
+    // intensities, and a third composition — because a third room's dark state
+    // has to be a different SENTENCE, not the same one in a different place.
+    //
+    //   chamber   containment machinery and technical consoles
+    //   hangar    a shuttle and the deployment systems around it
+    //   junction  FOUR LIT THRESHOLDS AND ONE MANIFOLD. You orient by the
+    //             DOORS. That is the honest answer for a square room with no
+    //             long axis and no hero object: in the dark the player cannot
+    //             navigate by shape, so the room tells them where its openings
+    //             are and which one is the way out.
+    //
+    // The same two rules held the list down. Nothing emissive stands on the
+    // crossing — every source is on the perimeter, on the reactor core, or on
+    // one of the three powered cover consoles — and nothing here is crimson.
+    emissives: [
+      // ── THE FOUR THRESHOLDS. The room's whole directional argument, and the
+      //    only part of it that survives a blackout.
+      { kind: 'strip', dir: 'h', x: 700, y: 104, len: 170, t: 5, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.16, emergency: 0.44, reach: 20 },
+      { kind: 'strip', dir: 'v', x: 104, y: 700, len: 170, t: 5, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.16, emergency: 0.44, reach: 20 },
+      { kind: 'strip', dir: 'v', x: 1296, y: 700, len: 170, t: 5, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.16, emergency: 0.44, reach: 20 },
+      // THE EXIT. The brightest fixture in the room in both states, because in
+      // a room you orient by doorways it is the answer to the actual question.
+      { kind: 'strip', dir: 'h', x: 1200, y: 104, len: 152, t: 6, color: 0x2a4a6a, hot: 0xd6e8ff, normal: 0.22, emergency: 0.70, reach: 24 },
+
+      // ── THE INTERCHANGE, west wall. The room's dark-state landmark, seated
+      //    in the housings the wall painter cut for it. The two flank fixtures
+      //    are DEAD at normal power: the moment the bus drops, hardware that
+      //    was not lit a second ago comes up, which is the whole difference
+      //    between an authored second state and a dimmer.
+      { kind: 'core', x: 71, y: 400, r: 12, color: 0x8a4a10, hot: 0xffb45a, normal: 0.15, emergency: 0.78, reach: 78 },
+      { kind: 'strip', dir: 'v', x: 71, y: 257, len: 56, t: 6, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.30, reach: 20 },
+      { kind: 'strip', dir: 'v', x: 71, y: 543, len: 56, t: 6, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.30, reach: 20 },
+
+      // ── WEST, SUPPLY. The densest wall, and its lamps are NOMINAL: they do
+      //    not get louder in the dark. A working wall has a couple of lamps on
+      //    it and not a row.
+      { kind: 'led', x: 74, y: 148, r: 3, color: 0x1a7a3a, hot: 0x8fffb0, normal: 0.26, emergency: 0.26, reach: 10 },
+      { kind: 'led', x: 74, y: 1010, r: 3, color: 0x1a7a3a, hot: 0x8fffb0, normal: 0.26, emergency: 0.26, reach: 10 },
+      // One segmented emergency run on the supply bank. Short, because an
+      // unbroken bar down the edge of the screen is a graphic, not a fixture.
+      { kind: 'strip', dir: 'v', x: 98, y: 1200, len: 150, t: 5, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.20, reach: 22 },
+
+      // ── EAST, CONTROL. Cleaner than the supply side, and its light says so.
+      { kind: 'strip', dir: 'v', x: 1302, y: 980, len: 150, t: 5, color: 0x2a4a6a, hot: 0xbfd8ff, normal: 0.14, emergency: 0.38, reach: 20 },
+      { kind: 'led', x: 1340, y: 1140, r: 3, color: 0x8a5a10, hot: 0xffd08a, normal: 0.22, emergency: 0.22, reach: 10 },
+
+      // ── NORTH, TRANSIT. One lamp. Its job is to stay quiet so that the two
+      //    thresholds cut through it are the only events on that wall.
+      { kind: 'led', x: 960, y: 104, r: 3, color: 0x8a5a10, hot: 0xffd08a, normal: 0.20, emergency: 0.20, reach: 10 },
+
+      // ── THE REACTOR CORE. One source, and it is NOT a pair of authored
+      //    faces: the shuttle got those because losing it erased the hangar's
+      //    identity, and that rule is about authored STATE, not a template
+      //    every large prop inherits. This room's identity in the dark is its
+      //    architecture, so the core stays a lit column and nothing more.
+      { kind: 'core', x: 260, y: 352, r: 11, color: 0x8a4a10, hot: 0xffb45a, normal: 0.16, emergency: 0.42, reach: 62 },
+    ],
     walls: [],
+    // THE COVER RING, REINSTANCED. Positions, count, bodies and cover
+    // semantics are untouched — what changed is which texture stands on each
+    // frozen spot. The baseline stood EIGHT IDENTICAL `bush` consoles in a
+    // perfect circle around the objective: one silhouette repeated eight times
+    // in the most geometric arrangement available, and, because `bush` takes
+    // the `console` LIGHTS OUT tint, eight equally pale boxes in a ring were
+    // the only thing visible in the dark.
+    //
+    // Assigned by FUNCTION. The three spots that sit at the mouths of the
+    // three feeder ways are POWERED hardware — that is where a service
+    // junction would put its terminals. The five that do not are SERVICE
+    // CABINETS, a new unpowered archetype that declares nothing in the console
+    // kit, takes the `prop` tint, and simply goes out. Five of eight, the same
+    // ratio the hangar's crates hold, and the same reason: most of this room's
+    // cover has to leave when the lights do.
+    cover: snapAll([
+      { x: 700, y: 420, tex: 'ch-con-heavy' },
+      { x: 700, y: 980, tex: 'rj-cab-a' },
+      { x: 420, y: 700, tex: 'ch-con-ped-b' },
+      { x: 980, y: 700, tex: 'ch-con-ped-a' },
+      { x: 500, y: 500, tex: 'rj-cab-b' },
+      { x: 900, y: 500, tex: 'rj-cab-a' },
+      { x: 500, y: 900, tex: 'rj-cab-b' },
+      { x: 900, y: 900, tex: 'rj-cab-a' },
+    ]),
     // Props: the core is the landmark, the struts are supporting cast. All
     // three sit off the diagonal between spawn (200,1200) and exit (1200,200)
-    // so the through-route stays clean.
+    // so the through-route stays clean. Positions and bodies are frozen.
     props: [
       { x: 260, y: 400, tex: 'prop-core',  solid: true, bodyW: 200, bodyH: 120 },
       { x: 1150, y: 1180, tex: 'prop-strut', solid: true, bodyW: 190, bodyH: 60 },
       { x: 1230, y: 480, tex: 'prop-strut', solid: true, bodyW: 190, bodyH: 60, flip: true },
+      // THE WALL CONTROL PANEL, SECOND USE-CASE. Each bolted to a mounting the
+      // perimeter painter put there for it. NOT SOLID — no body, no nav cell,
+      // no LOS rect — and each carries an explicit DEPTH rather than sorting by
+      // its y, because a panel fixed to a wall has no ground contact and would
+      // otherwise occlude actors hundreds of pixels away.
+      { x: 1360, y: 476, tex: 'ch-con-wall', kit: 'ch-con-wall', depth: 6 },
+      { x: 40, y: 956, tex: 'ch-con-wall', kit: 'ch-con-wall', depth: 6 },
     ],
-    cover: snapAll([
-      // Diamond ring around the terminal at (700,700), ~280px spacing
-      { x: 700, y: 420 }, { x: 700, y: 980 },
-      { x: 420, y: 700 }, { x: 980, y: 700 },
-      { x: 500, y: 500 }, { x: 900, y: 500 },
-      { x: 500, y: 900 }, { x: 900, y: 900 },
-    ]),
     enemies: [
       { type: 'grunt', x: 450, y: 450 },
       // Nudged off (950,950): snapping the ring put a console 42px away.
