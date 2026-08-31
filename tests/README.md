@@ -326,6 +326,24 @@ up to four times if the playfield is under the floor for its state — ~28 lit,
 ~5 in the dark. If you are photographing a room in two power states, copy that
 guard; a dark frame you did not expect is the instrument, not the game.
 
+**`smoke-deflect` IS INTERMITTENT, AND IT IS INTERMITTENT ON THE BASELINE
+TOO.** Measured during the junction pass: two runs on the untouched `0af4cf9`
+gave one PASS and one `1 of 73 failed: the blade is travelling FASTEST as it
+arrives there`; two runs on the pass's own build gave one PASS and one
+`1 of 73 failed: the deferred DEFLECTION starts as soon as the blade is back in
+his hand`. A DIFFERENT check each time, which is the signature of a sampling
+race rather than a behaviour change — both are single-frame velocity/timing
+reads in a ~20fps harness. DEFLECTION is frozen; do not tune Vader to make this
+green. Re-run it, and A/B against the baseline before believing a failure.
+
+**RUNNING ANYTHING ELSE ON THE MACHINE POISONS THE TIMING TESTS.** A
+`vite build` and two `sheet.mjs` Chromium launches were run alongside a
+`npm run smoke` during this pass; `smoke-boss-moves` failed with
+`VANISH relocates him — moved 58px` against a `> 100` threshold and
+`smoke-deflect` failed 2 of 73. On an idle machine `smoke-boss-moves` passed
+immediately and `smoke-deflect` dropped to its usual single flake. The suite
+takes ~17 minutes and the correct thing to do during it is NOTHING.
+
 ## Rules that keep these honest
 
 1. **A/B any measurement against the pre-change build** (`git stash`) before
