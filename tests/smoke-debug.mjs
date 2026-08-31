@@ -94,6 +94,7 @@ pos.clear = [cx - half, y]; pos.skip = [cx + half, y]; y += row;
 heading(); pos.loadout = [cx - half, y]; pos.spawnNemesis = [cx + half, y]; y += row;
 pos.vaderN = [cx - half, y]; pos.spawnVader = [cx + half, y]; y += row;
 pos.loadChamber = [cx, y]; y += row;          // full width
+pos.loadJunction = [cx, y]; y += row;         // full width
 pos.sector = [cx - half, y]; pos.clearField = [cx + half, y]; y += row;
 pos.forceMove = [cx, y]; y += row + 12;
 pos.close = [cx, y];
@@ -239,8 +240,35 @@ const chamberLoaded = await page.evaluate(() => {
 await page.evaluate(() => window.game.scene.getScene('Debug')?._close?.());
 await page.waitForTimeout(300);
 
+// ── LOAD REACTOR JUNCTION ────────────────────────────────────────────────
+// The third styled arena's way in, and it has the same justification as the
+// chamber's: the junction is the SECOND room of an endless run, so reaching it
+// costs a full hangar clear and re-entering it after leaving costs three more
+// rooms. Asserted from the chamber, which is where the previous block left the
+// run — so a button that silently did nothing would read as "still in vader".
+await reopen();
+await tap('loadJunction');
+await page.waitForTimeout(2200);
+const junctionLoaded = await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  const spec = gs.roomSpec;
+  return {
+    roomId: spec?.id,
+    isBossRoom: !!spec?.boss,
+    // The junction's own markers, so this cannot pass on a room that merely
+    // has the right id.
+    archCount: (spec?.floor?.architecture || []).length,
+    perimeterStyle: spec?.perimeter?.style,
+    envLightParts: gs.envLight?.parts?.length ?? 0,
+    bossSpawned: !!gs.boss,
+    closed: !window.game.scene.getScene('Debug')?.sys?.isActive(),
+  };
+});
+await page.evaluate(() => window.game.scene.getScene('Debug')?._close?.());
+await page.waitForTimeout(300);
+
 console.log(JSON.stringify({ pauseOpen, before, after, hud, god, spawnBefore, spawnAfter, closed,
-  nemesisSpawned, vaderSpawned, fieldCleared, roomBefore, chamberLoaded }, null, 2));
+  nemesisSpawned, vaderSpawned, fieldCleared, roomBefore, chamberLoaded, junctionLoaded }, null, 2));
 console.log('page errors:', errors.length ? errors : 'none');
 
 const fails = [];
@@ -293,6 +321,19 @@ else {
     fails.push('LOAD VADER CHAMBER spawned a boss — it loads the room and stops; SPAWN VADER keeps that job');
   }
   if (!chamberLoaded.closed) fails.push('LOAD VADER CHAMBER left the panel open over the room it just loaded');
+}
+if (!junctionLoaded) fails.push('LOAD REACTOR JUNCTION produced no readout');
+else {
+  if (junctionLoaded.roomId !== 'corridor' || junctionLoaded.isBossRoom) {
+    fails.push(`LOAD REACTOR JUNCTION left the run in '${junctionLoaded.roomId}' — the third arena is unreachable from debug`);
+  }
+  if (!junctionLoaded.archCount || junctionLoaded.perimeterStyle !== 'junction' || !junctionLoaded.envLightParts) {
+    fails.push(`the loaded room is not carrying the junction: arch ${junctionLoaded.archCount}, perimeter ${junctionLoaded.perimeterStyle}, env parts ${junctionLoaded.envLightParts}`);
+  }
+  if (junctionLoaded.bossSpawned) {
+    fails.push('LOAD REACTOR JUNCTION spawned a boss — it loads the room and stops');
+  }
+  if (!junctionLoaded.closed) fails.push('LOAD REACTOR JUNCTION left the panel open over the room it just loaded');
 }
 if (errors.length) fails.push(`page errors: ${errors.join(' | ')}`);
 

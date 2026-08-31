@@ -59,8 +59,8 @@ export class DebugScene extends Phaser.Scene {
     // is the exact friction this group exists to remove. Grew by one `row` (62)
     // again for LOAD VADER CHAMBER; CLOSE was already sitting within a few px
     // of the old bottom edge, so a new row without this would push it outside
-    // the card's own border.
-    const cardW = 620, cardH = 1044;
+    // the card's own border. And once more for LOAD REACTOR JUNCTION.
+    const cardW = 620, cardH = 1106;
     const cardX = cx - cardW / 2, cardY = VIEW.height * 0.03;
     g.fillStyle(0x0c101d, 0.9);
     g.fillRoundedRect(cardX, cardY, cardW, cardH, 16);
@@ -156,6 +156,15 @@ export class DebugScene extends Phaser.Scene {
     // reached until sector 5. This is the way in. It loads the room and stops:
     // pairing them would take the other button's contract away.
     this._button(cx, y, 'LOAD VADER CHAMBER', () => this._loadBossRoom(), 420);
+    y += row;
+
+    // THE SAME PROBLEM, ONE ROOM ALONG. The reactor junction is the SECOND
+    // room of an endless run (`_arenaCycle` starts at 1, so the rotation goes
+    // hangar -> junction -> detention), which sounds cheap until you are
+    // reviewing it: reaching it costs a full hangar clear, and re-entering it
+    // after you leave costs three more rooms. Every other styled arena has a
+    // way in from here; this is the junction's.
+    this._button(cx, y, 'LOAD REACTOR JUNCTION', () => this._loadJunction(), 420);
     y += row;
 
     this.sectorBtn = this._button(cx - half, y, this._sectorLabel(), () => {
@@ -374,8 +383,17 @@ export class DebugScene extends Phaser.Scene {
    * VADER's job. `_spawnVader` calls `_isolate()`, so pressing the two in
    * sequence sweeps the survival wave on its own.
    */
-  _loadBossRoom() {
-    const spec = ROOMS.find((r) => r.boss);
+  _loadBossRoom() { this._loadArena((r) => r.boss); }
+
+  /** The third styled arena — REACTOR JUNCTION, `ROOMS[1]`, id `corridor`. */
+  _loadJunction() { this._loadArena((r) => r.id === 'corridor'); }
+
+  /**
+   * One loader behind both buttons, so a third arena costs a predicate rather
+   * than a copy of this method.
+   */
+  _loadArena(find) {
+    const spec = ROOMS.find(find);
     if (!this.gs?.loadRoom || !spec) return;
     this.gs.loadRoom(spec);
     this._close();

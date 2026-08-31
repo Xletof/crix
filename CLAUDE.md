@@ -698,7 +698,11 @@ asserts separately that the ceiling is not reached.
   decision; a square room with a held centre offers neither. A brief written
   for a narrow hallway cannot be executed here without lying about the space,
   and `bounds`/`spawn`/`exit`/`gates`/cover are frozen. The corridor grammar
-  goes in the WALLS and the four approaches instead.
+  goes in the WALLS and the four approaches instead. **To see it: DEBUG → LOAD
+  REACTOR JUNCTION**, then DEBUG → SPAWN VADER (which deliberately keeps the
+  current room). Without that button it is the SECOND room of an endless run —
+  `_arenaCycle` starts at 1, so the rotation is hangar → junction → detention —
+  which costs a full hangar clear to reach and three more rooms to re-enter.
 - **A LANDMARK'S PLACEMENT IS A VIEWPORT PROBLEM BEFORE IT IS A COMPOSITION
   PROBLEM.** The game camera is inset by `HUDCFG.topBarHeight` and the touch
   controls cover the bottom ~200px, so the unobstructed band is roughly
