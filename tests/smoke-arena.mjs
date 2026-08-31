@@ -428,7 +428,11 @@ if (R.leak.orphanAdditiveAtEnvDepth !== R.leak.partsAfter) {
 // perimeter style, and it may not be carrying the hero machine's emissive
 // faces, which are the one exemption from the depth-3 readability gate and
 // belong to one prop in one room.
-const STYLED = ['hangar'];
+// The third arena joins the list. `corridor` is the id; REACTOR JUNCTION is
+// the room — 1400x1400 and square, which is why it is the SPATIAL test rather
+// than a second generalization test. Detention is still untouched and the
+// `else` branch below still proves it.
+const STYLED = ['hangar', 'corridor'];
 for (const o of R.others) {
   if (STYLED.includes(o.id)) {
     if (!o.specEmissives || !o.specArchitecture) fails.push(`${o.id} claims to be a styled arena but authored nothing`);
@@ -442,6 +446,11 @@ for (const o of R.others) {
     // and one of those is allowed to travel.
     if (o.specPropFaceTex.some((t) => /^prop-pod/.test(t))) {
       fails.push(`COPIED: ${o.id} carries the hero machine's faces ${JSON.stringify(o.specPropFaceTex)}`);
+    }
+    // Nor the second room's. The junction authors NO faces at all, which is
+    // the honest answer for a room whose landmark is a piece of its wall.
+    if (o.id !== 'hangar' && o.specPropFaceTex.some((t) => /^prop-shuttle/.test(t))) {
+      fails.push(`COPIED: ${o.id} carries the shuttle's faces ${JSON.stringify(o.specPropFaceTex)}`);
     }
     continue;
   }

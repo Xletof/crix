@@ -690,6 +690,68 @@ asserts separately that the ceiling is not reached.
   than the `#212328` deck it stands on. Its ladder is placed relative to the
   deck now — fuselage one step above, wings one step below, trim rationed to a
   few pixels. Same family as the hero housing's pale-donut round.
+- **THE ROOM WHOSE ID IS `corridor` IS NOT A CORRIDOR.** It is REACTOR
+  JUNCTION, 1400x1400, the only SQUARE arena in the game and the smallest —
+  not narrower than either approved room. The objective is dead centre, three
+  gates feed it from three different walls and the exit is on a fourth. Both
+  approved arenas are AXIAL, where composition and direction are the same
+  decision; a square room with a held centre offers neither. A brief written
+  for a narrow hallway cannot be executed here without lying about the space,
+  and `bounds`/`spawn`/`exit`/`gates`/cover are frozen. The corridor grammar
+  goes in the WALLS and the four approaches instead.
+- **A LANDMARK'S PLACEMENT IS A VIEWPORT PROBLEM BEFORE IT IS A COMPOSITION
+  PROBLEM.** The game camera is inset by `HUDCFG.topBarHeight` and the touch
+  controls cover the bottom ~200px, so the unobstructed band is roughly
+  `camTop .. camTop + 896`. In the 1400-tall junction the camera's centre is
+  pinned inside y [598, 802], which puts **world y beyond about 1100 behind the
+  joysticks from every position the player can reach.** The interchange and a
+  1040px conduit spine were both built on the south wall first and were
+  invisible in play — they only photographed because an evidence rig can park
+  the player at the clamp. Side walls have no such problem: the controls sit
+  LOW, not WIDE.
+- **APPROACHES DROP, THE JUNCTION LIFTS — but a recess laid on too thickly is a
+  HOLE.** `recess` at alpha 0.8 over the junction deck lands near `#151b22`,
+  and a near-black rectangle in a top-down game does not read as a floor one
+  step down. It reads as a pit, which is the one lie a room may not tell about
+  where the player can walk. 0.62 is a step; 0.8 was a void.
+- **A PIPE LYING IN A RECESS MAY NOT BE LIGHTER THAN THE DECK ABOVE IT.** The
+  `conduit`'s first crown was `#454f5a` against a `#242b31` deck and every run
+  photographed as a raised girder lying ON the floor. Body under the deck
+  value, only the narrow crown just above it — and the collars go one step over
+  the PIPE, not over the deck, or every joint reads as a bracket bolted on top.
+  Same family as the shuttle borrowing the `imp*` top end.
+- **A `rib` AT FULL STRENGTH IS AN OBJECT.** It draws a near-black surround
+  under its face, and that outline is what makes it read as something standing
+  on the deck rather than as a change in the floor. Four threshold ribs at full
+  value photographed as four bright posts across the approaches. `alpha` fades
+  the surround along with the face; 0.5 turned them back into lips.
+- **A CONDUIT UP THE MIDDLE OF AN APPROACH IS A MAST POINTING AT THE FIGHT.**
+  Centred in the north way it was a bright vertical axis aimed straight down at
+  the objective from the top of the frame. Held against one edge of the way it
+  is what plumbing in a passage actually looks like and the way stays open.
+- **THREE RECESSED FLOOR PRIMITIVES, AND THEY ARE DIFFERENT CLAIMS.** A
+  `trench` is a hole with a grate (chamber), a `track` is rails with sleepers
+  (hangar), a `conduit` is a large-bore pipe in a bed with flanged collars
+  (junction). Reusing one is reusing a room's composition, which is the single
+  thing each arena pass is not allowed to do. A conduit's cross-section is FOUR
+  HARD BANDS, never a gradient — a smooth ramp of value is the one thing this
+  game's surface vocabulary does not contain.
+- **A COVER OBJECT'S POWER IS A COMPOSITION DECISION, NOT A NAMING ONE.** The
+  junction's eight frozen cover spots used to be eight identical `bush`
+  consoles in a perfect ring, all of which took the `console` tint and survived
+  a blackout as eight equally pale boxes. `rj-cab-*` is a third archetype that
+  declares nothing in `CONSOLE_KIT` and therefore takes the `prop` tint and
+  goes out. Five of eight unpowered is what keeps the dark state dark — the
+  same ratio as the hangar's crates.
+- **THE FACE EXEMPTION IS NOT A TEMPLATE.** The shuttle carries two ADD faces
+  because losing it erased the hangar's identity. The junction's reactor core
+  gets ONE `core` source and no faces at all, because this room's identity in
+  the dark is its architecture. `smoke-junction` fails if a face appears.
+- **`stripEvery` AND A `ring` FLOOR MARK ARE BOTH LOADED GUNS.** The junction
+  shipped with NINE full-width saturated orange-red bars at `stripEvery: 150`
+  and TWO concentric amber rings at r=250/300 centred exactly on the objective
+  — a circle telegraph's shape, size and placement, on the square metre where
+  the boss fight resolves. `smoke-junction` fails on either coming back.
 - **THE `chamber` PERIMETER HAS FOUR JOBS, ONE PER SIDE.** north ceremonial (no
   ribs, no vents — that wall is behind Vader), west service (densest, the hero
   machine's side), east control (machinery block on alternate bays only), south

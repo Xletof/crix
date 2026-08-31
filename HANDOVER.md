@@ -2746,6 +2746,307 @@ untouched, and so is every Vader system: the diff does not reach `Boss.js`,
 - **Nothing else in the hangar was touched**, and the crane and the drums are
   the next-oldest assets in it.
 
+## 10s. THE THIRD ARENA — the Reactor Junction, and a room with no long axis
+
+Handset review passed the Hangar, the shuttle and the Vader Chamber and froze
+all three. Two open arenas proved the language COMPOSES. The third room asks
+whether it ADAPTS.
+
+### THE ROOM IS NOT A CORRIDOR. Read this first.
+
+The brief for this pass was written for a narrow, directional room. The room
+whose id is `corridor` is not one. Its name has always been REACTOR JUNCTION and
+that is the true one:
+
+| | chamber | hangar | junction |
+|---|---|---|---|
+| bounds | 1600x1600 | 1600x1400 | **1400x1400** |
+| shape | axial, S→N | axial, W→E | **square, no axis** |
+| objective | a dais at one end | a terminal off the lane | **dead centre** |
+| entrances | one | three gates + exit | **three gates + exit, on three walls** |
+| travel | along the nave | along the deck | **corner to opposite corner** |
+
+It is not narrower than either approved arena. It is the SMALLEST and the only
+SQUARE one. Since `bounds`, `spawn`, `exit`, `gates`, the eight cover positions
+and the three prop bodies are frozen — and since the whole discipline of this
+pass is that visual width and collision width must agree — a narrow hallway
+could not be authored here without lying about the space.
+
+**So the spatial test that was actually available is a harder one than
+"narrow".** Both approved rooms are axial, and in an axial room composition and
+direction are the same decision: put the landmark at one end and the room reads.
+A square room with a held centre offers neither. The player arrives in the
+south-west, must reach the north-east, and is attacked from three bearings while
+standing on the one thing they cannot leave.
+
+The corridor grammar the brief asked for is real and it is all here — bay
+rhythm, structural repetition with interruptions, per-side wall jobs, thresholds,
+direction without arrows. It just lives in **the walls and the four approaches**
+rather than in the room's proportions. The one-sentence definition:
+
+> **THE REACTOR JUNCTION is the crossing where four service ways meet around a
+> live containment deck: the architecture is the landmark, the corridor language
+> lives in the perimeter and the approaches, and the middle is deliberately the
+> calmest floor in the game.**
+
+### What was wrong with the baseline
+
+`docs/evidence/arena-pilot/junction-before/` is the shipped room. It was the
+weakest of the four and it failed on rules the other two passes had already
+established:
+
+- **NINE FULL-WIDTH SATURATED ORANGE-RED BARS.** `stripEvery: 150` across a
+  1400px room, plus four more accents at `accentEvery: 300`. They ran edge to
+  edge over the props, the cover, the consoles and the fight, and they were the
+  loudest thing in every single frame. Red is the saber, the SABER THROW lane
+  and the telegraphs; this room was spending it on wallpaper.
+- **TWO CONCENTRIC AMBER RINGS AT r=250 AND r=300, CENTRED ON THE OBJECTIVE.**
+  That is the shape, the size and the placement of a circle telegraph, sitting
+  on the exact square metre where the boss fight resolves. The chamber pass had
+  already killed a ring painted round its dais for this reason; this one was
+  bigger and had two of them.
+- **EIGHT IDENTICAL CONSOLES IN A PERFECT CIRCLE.** One silhouette repeated
+  eight times in the most geometric arrangement available. And because `bush`
+  takes the `console` LIGHTS OUT tint, all eight survived a blackout as equally
+  pale boxes — the only thing visible in the dark was a ring of identical
+  furniture.
+- **`perimeter: 'pipes'`** — three horizontal bars and a collar every 96px,
+  identical on all four sides with no phase offset. The same "procedurally
+  repeated" verdict `bare` and `ribbed` had already taken, and it mattered more
+  here, because this room has no hero prop and the wall is most of what it has.
+- Rust-brown base at full hex contrast, no architecture, no grounding, no
+  emissive layer, no authored dark state at all.
+
+### Spatial hierarchy
+
+**LARGE — the crossing, and the four ways that meet on it.** The one raised
+region in the room is a 600x600 plate in the middle, and it is the calmest floor
+in the game: no marking, no seam (`edge: false`), no hardware inside it. Every
+cover object stands on it and the objective is at its centre. The four
+approaches are RECESSED. **Approaches drop, the junction lifts** — that is the
+whole directional claim, and it is architecture rather than paint.
+
+The four ways are at four DIFFERENT widths — 304 west, 208 north, 160 east, 160
+for the departure spur. A square room composed of four identical arms is a
+compass rose; the widths are what make it a place with a busy side and a quiet
+one. Three of them are dark service recesses; the fourth, under the exit, is the
+only LIGHTER one, because it is not a service run.
+
+**MEDIUM — the plumbing.** A new baked primitive, `conduit`, and it is
+deliberately a THIRD object rather than either room's:
+
+| | what it is | whose |
+|---|---|---|
+| `trench` | a hole with a grate over it | chamber |
+| `track` | rails set flush in the deck with sleepers | hangar |
+| `conduit` | a large-bore pipe lying in a bed, with flanged collars | junction |
+
+All three are recessed, so none of them can be mistaken for cover — but they say
+different things about what the room does, and a passage is the place pipes run
+ALONG. **Its cross-section is four hard bands, not a gradient**: a cylinder seen
+from above is a smooth ramp of value, and a smooth ramp is the one thing this
+game's surface vocabulary does not contain. Four discrete bands read as round at
+handset scale and stay in the hard-surface language — the same verdict the hero
+housing's facets and the shuttle's wing planes reached from the other direction.
+
+Plus four threshold cross-members, one at the mouth of each way; three deck
+plates in the quiet quarters; four doorframes; two recessed maintenance bays.
+
+**SMALL** — three hatches, three vents, sparse and never on the crossing.
+
+### The wall — `junction`, and the corridor grammar
+
+Same RULE as both approved walls, none of their composition:
+
+| | signature | period |
+|---|---|---|
+| chamber | pilaster / recess / machinery cabinet | 320 |
+| hangar | truss column / panelling / bracket foot | 400 |
+| **junction** | **PIER AND LINTEL / conduit bank** | **260** |
+
+**THE PERIOD IS THE SPATIAL ARGUMENT.** A passage's structure repeats at a
+shorter interval than a hall's, so the bays are tighter here than in either open
+arena. That rhythm is what a corridor feels like from the inside, and it is
+available in a square room because the band is where the corridor language lives.
+
+**THE SIGNATURE IS THE LINTEL.** Every bay is spanned by a capping beam between
+two narrow piers — a structural frame implied overhead, which is the one thing a
+top-down passage can say about being enclosed without drawing a ceiling. The
+chamber's signature is a pilaster and the hangar's is a bracket foot; both are
+things that land on the deck. This one crosses above it.
+
+**THREE BAYS AND ONE INTERRUPTION** (§13's "2–3 are enough"):
+
+- **A STRUCTURAL** — armour plate, deep recess, two vertical stiffeners.
+- **B SERVICE** — a conduit bank crossing the bay, with collars.
+- **C CONTROL** — a shallow panel recess with information rows.
+- **JUNCTION BOX** — on the third bay of the two busy sides only. Heavier,
+  squarer, and it breaks the bay's horizontal proportion; that change of aspect
+  is what the eye reads as "something different happens here". `bay → bay →
+  junction → bay` is what makes repetition read as a system rather than a tile.
+  An interruption on a wall with nothing to interrupt is just a fourth bay type,
+  so the quiet walls do not get one.
+
+**FOUR SIDES, FOUR JOBS**, with phase offsets 0 / 97 / 171 / 44 so no two
+adjacent walls resolve their rhythm at the same distance from a corner:
+
+- **north TRANSIT** — the wall the exit and the north gate are cut through.
+  Structural and quiet: two real openings are already the most interesting thing
+  on it.
+- **west SUPPLY** — the densest. A conduit bank on every bay.
+- **east CONTROL** — alternating control recesses and structural bays.
+- **south SEALED** — no opening at all. Heaviest armour, fewest events.
+
+### The landmark, and why it is on the WEST wall
+
+`drawWallFeature` grew a second kind: **`interchange`**, where every pipe in the
+room converges — entering banks, a heavy manifold with rectilinear valve bodies,
+recessed fixture housings, buttresses that out-mass the piers. It is a piece of
+the wall, like the hangar's blast door, and deliberately NOT a door: a door is a
+promise about leaving, and this is not the wall the player leaves by.
+
+**IT WAS BUILT ON THE SOUTH WALL FIRST AND MOVED, AND THE REASON IS THE
+VIEWPORT.** The game camera is inset by `HUDCFG.topBarHeight` and the touch
+controls cover the bottom ~200px of the screen. In a 1400-tall room the camera's
+centre is pinned inside y [598, 802], so the unobstructed band is roughly
+`camTop .. camTop + 896` — which means **world y beyond about 1100 is behind the
+joysticks from every position the player can reach.** The south band is never
+clear. The first build put the room's landmark and 1040px of its best medium
+form down there; both were invisible in play and only showed up in evidence
+frames because the rig can put the player at the clamp.
+
+The side walls have no such obstruction, because the controls sit LOW rather
+than WIDE. The interchange is now on the west supply wall at `at: 400`, which
+puts its southern buttress exactly on the west gate's doorway cut at y 610 so
+the opening never eats it — and its core housing lands at world y 400, which is
+exactly where the reactor core prop stands. The room's two poles are now north
+(where you are going) and west (the machinery), and neither of them is the
+middle.
+
+> **A LANDMARK'S PLACEMENT IS A VIEWPORT PROBLEM BEFORE IT IS A COMPOSITION
+> PROBLEM.** Solve for what the camera clamp and the touch controls actually
+> leave visible, then compose inside that.
+
+### Cover — the third kind, and why five of eight go out
+
+`paintServiceCabinet` (`rj-cab-a` / `rj-cab-b`): louvred doors, a latch, a rack
+bay on the B variant, a plinth. 28x28 logical at scale 4, exactly `bush`'s
+footprint over the frozen 70x70 body.
+
+**IT IS UNPOWERED, AND THAT IS ITS JOB.** It declares nothing in `CONSOLE_KIT`,
+so `loadRoom` tags it `prop` rather than `console` and it simply goes out with
+the machinery. Positions, count and bodies are untouched; what changed is which
+texture stands on each frozen spot, assigned by FUNCTION:
+
+- the three spots at the mouths of the three feeder ways — **powered hardware**,
+  which is where a service junction would put its terminals
+- the five that are not — **service cabinets**
+
+Five of eight, the same ratio as the hangar's crates and for the same reason:
+most of this room's cover has to leave when the lights do. A room that cannot
+use cargo (hangar vocabulary) and must not use eight terminals needed a third
+answer, and this is it.
+
+### Authored light — you orient by the DOORS
+
+| room | what its dark state says |
+|---|---|
+| chamber | containment machinery and technical consoles |
+| hangar | a shuttle and the deployment systems around it |
+| **junction** | **four lit thresholds and one manifold** |
+
+That is the honest answer for a square room with no long axis and no hero
+object: in the dark the player cannot navigate by shape, so the room tells them
+where its openings are and which one is the way out. The exit's threshold is the
+brightest fixture in the room in both states.
+
+The interchange's two flank fixtures are DEAD at normal power and come up at
+0.30 on the emergency bus — hardware that was not lit a second ago, which is the
+whole difference between an authored second state and a dimmer. Nominal lamps do
+not get louder in the dark at all.
+
+**NO FACES.** The junction authors none, and that is deliberate. The shuttle got
+a pair because losing it erased the hangar's identity; §10r says explicitly that
+this is a rule about authored STATE, not a template every large prop inherits.
+This room's identity in the dark is its architecture, so the reactor core gets
+ONE `core` source and nothing more. `smoke-junction` fails if a face appears.
+
+### Direction, without arrows
+
+Five architectural statements about the way out and zero arrows:
+
+1. the departure spur is the only LIGHTER way in a room whose other three are
+   recessed
+2. it has its own threshold cross-member
+3. it is the only place on the floor carrying a painted marking — corner
+   brackets, not chevrons
+4. its threshold light is the brightest fixture in the room, in both states
+5. it is cut through the quietest wall, so nothing on that band competes
+
+A repeated arrow down a passage turns the environment into UI. One marked
+threshold says the same thing once.
+
+### Frozen elsewhere, and proved by pixels
+
+`tests/diag-texture-hash.mjs` over 87 generated textures plus a
+deterministically-seeded backdrop per room:
+
+```
+> tex rj-cab-a 112x112 ...        (new)
+> tex rj-cab-b 112x112 ...        (new)
+backdrop corridor                  changed
+```
+
+Nothing else. `backdrop-hangar`, `backdrop-vader`, `backdrop-detention`, the
+shuttle, the hero machine, every console and every prop are byte-identical.
+`smoke-junction` re-reads the other three rooms' specs and freezes them as
+literals; `smoke-arena` and `smoke-hangar` both still pass unchanged.
+
+### Performance
+
+Measured with `diag-arena-perf.mjs`, before/after on the same container.
+
+| | before | after |
+|---|---|---|
+| room load | 51.6 ms | 51.9 / 52.0 ms |
+| emissive parts | 0 | 52 |
+| display list | 52 | 108 / 107 |
+| roomLayer objects | 14 | 16 |
+| wall bodies | 11 | 11 |
+| backdrop | 1400x1400, 7.48 MB | 1400x1400, 7.48 MB |
+| new texture memory | — | +98 KB (two 112x112) |
+| `setPower` | 14.8 ms | 14.1 ms |
+| frame median, normal | 88.4 ms | 94.0 / 95.1 ms |
+| frame median, dark | 99.7 ms | 104.7 / 106.3 ms |
+
+The architecture is baked, so it costs canvas operations at load and zero
+objects afterwards; the room-load figure is unmoved. The display-list growth is
+the emissive layer and the two wall panels. The frame figures rise ~6%, which is
+inside this container's documented run-to-run spread (`diag-vader-perf` measured
+131.9 and 140.6 ms for identical code) but is reported rather than explained
+away — 52 additive images is real work, and the hangar carries 60 at the same
+cost.
+
+### Candid limitations
+
+- **The dark state is very dark from the middle of the room.** At the centre the
+  camera shows neither the north nor the south band and neither side wall, so
+  the only lit things in frame are the three powered consoles. That is
+  defensible — §28 asks for exactly that, and the lit consoles do mark the three
+  feeder ways — but "orient by the doors" only pays off once the player moves
+  toward one.
+- **The 260px bay period is unverified in motion on a handset.** The pan
+  evidence is 10 frames at ~20fps in a headless browser. Nothing in the wall is
+  a shallow diagonal, so the shuttle's failure class is structurally absent, but
+  a tighter period is more edges per screen than either approved room has.
+- **The reactor core prop and the two struts are legacy assets.** They were not
+  in scope and they are now the oldest things in the room, exactly as the crane
+  and the drums are in the hangar.
+- **The interchange is symmetrical apart from its collar phasing.** Whether that
+  is enough asymmetry for a 420px wall feature is a handset question.
+- **The emissive numbers are unreviewed.** Every intensity was chosen against
+  screenshots on a desktop monitor.
+
 ## 10c. The narrative system
 ## 10c. The narrative system
 

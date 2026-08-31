@@ -38,6 +38,7 @@ const TESTS = [
   'smoke-flight',
   'smoke-hangar',
   'smoke-hum',
+  'smoke-junction',
   'smoke-leak',
   'smoke-march',
   'smoke-moves',
