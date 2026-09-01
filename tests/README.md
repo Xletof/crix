@@ -1056,3 +1056,39 @@ Same check, same cause, and the pilot's diff touches **zero lines** of `Boss.js`
 displacing the thing being measured* — with a 40px allowance against a pull
 that drags. Pre-existing, not the pilot's, and not fixed here because Vader is
 frozen and this is an instrument problem rather than a game one.
+
+### THREE WAYS A "DID THE PIXELS CHANGE?" DIFF LIES
+
+All three cost a round each during the junction's emergency-guidance pass
+(`HANDOVER.md` §10u), on a change that is invisible at normal power **by
+construction** — every source is `normal: 0`, so `EnvLight.setPower(0)` sets the
+parts `visible = false` and the renderer draws nothing at all.
+
+**1. TWO PAGE LOADS OF THE SAME BUILD DO NOT MATCH.** `paintBackdrop` consumes
+`Math.random` for its panel and scorch scatter and nothing seeds it in a live
+run. Diffing a before-run's screenshots against an after-run's measured
+**62,000-94,000 changed pixels per frame**, spanning the whole viewport, and
+every one of them was floor grime. `diag-texture-hash.mjs` seeds an LCG per
+paint for exactly this reason; a screenshot rig does not. **If you need a
+pixel-exact comparison, make it inside ONE page load**: shoot, mutate, shoot.
+
+**2. TIME PASSES BETWEEN TWO SHUTTERS.** The naive version of that in-page diff
+still reported up to 5,126 changed pixels — the player's idle animation, the
+objective's SLICE prompt and the HUD's own tweens all advanced between the two
+screenshots. `scene.pause()` on Game is not enough: **the HUD is a separate
+scene with its own tweens** and has to be paused as well.
+
+**3. A PAUSED SCENE STILL PAINTS, BUT NOT ON YOUR TIMETABLE.** With both scenes
+paused you can still scroll the camera by hand (`cam.setScroll` — `centerOn`
+plus the follow needs `update`), but a fixed `waitForTimeout` after the scroll
+photographs the PREVIOUS station. The signature is unmistakable once you have
+seen it: **two stations reporting hundreds of thousands of changed pixels while
+the three between them report exactly zero.** Shoot until two consecutive frames
+are byte-identical and take that one — a frame that has stopped changing is the
+frame the renderer has finished with.
+
+And the rule that catches all three: **a probe that reports zero has to be shown
+capable of reporting something else.** `diag-junction-normal-delta.mjs` runs the
+identical measurement a second time under EMERGENCY power, where the guidance is
+the whole point, and fails if that also comes back zero — otherwise "no delta"
+only proves the camera never moved.

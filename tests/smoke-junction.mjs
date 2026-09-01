@@ -145,6 +145,95 @@ const R = await page.evaluate(async () => {
     unpoweredCover: spec.cover.filter((c) => c.tex && !CONSOLE_KIT[c.tex]).length,
   };
 
+  // ── EMERGENCY LANE GUIDANCE. The junction's answer to losing its identity in
+  //    a blackout, and everything about it that is a STRUCTURAL claim rather
+  //    than an intensity. Intensities are a handset question and are
+  //    deliberately not frozen here; what is frozen is that the guidance stays
+  //    off the crossing, stays inside the four authored approaches, stays dead
+  //    at normal power, and never becomes a continuous line.
+  //
+  //    THE APPROACH RECTS ARE THE FLOOR ART'S OWN REGIONS, transcribed. A guide
+  //    that drifts out of the architecture it is supposed to be revealing is
+  //    decoration painted on the deck.
+  const APPROACH = {
+    west:  { x0:   96, y0: 570, x1:  400, y1: 830, axis: 'h' },
+    north: { x0:  596, y0:  96, x1:  804, y1: 400, axis: 'v' },
+    east:  { x0: 1000, y0: 620, x1: 1304, y1: 780, axis: 'h' },
+    spur:  { x0: 1120, y0:  96, x1: 1280, y1: 430, axis: 'v' },
+  };
+  const CROSS_R = { x0: 400, y0: 400, x1: 1000, y1: 1000 };
+  const guides = (spec.emissives || []).filter((e) => e.guide);
+  // THE SPILL BOX, NOT THE EMITTER. `EnvLight` sizes a strip's halo as
+  // len + reach along its axis and t + reach * 2.6 across it, and the spill is
+  // what actually reaches the floor — a containment check on the emitter alone
+  // would pass a fixture whose glow lies on the crossing.
+  const boxOf = (e) => {
+    const horiz = (e.dir ?? 'h') === 'h';
+    const len = e.len ?? 200, t = e.t ?? 5, reach = e.reach ?? 22;
+    const sw = horiz ? len + reach : t + reach * 2.6;
+    const sh = horiz ? t + reach * 2.6 : len + reach;
+    return { x0: e.x - sw / 2, y0: e.y - sh / 2, x1: e.x + sw / 2, y1: e.y + sh / 2 };
+  };
+  const owner = (e) => Object.keys(APPROACH).find((k) => {
+    const a = APPROACH[k];
+    return e.x >= a.x0 && e.x <= a.x1 && e.y >= a.y0 && e.y <= a.y1;
+  }) ?? null;
+  const byApproach = {};
+  for (const k of Object.keys(APPROACH)) byApproach[k] = [];
+  for (const e of guides) { const k = owner(e); if (k) byApproach[k].push(e); }
+
+  out.guide = {
+    count: guides.length,
+    // Every one of them must be dead at normal power: that is what makes the
+    // approved normal-power composition a zero-pixel delta rather than a claim.
+    litAtNormal: guides.filter((e) => (e.normal ?? 0) > 0)
+      .map((e) => `${e.x},${e.y} normal ${e.normal}`),
+    maxEmergency: guides.length ? Math.max(...guides.map((e) => e.emergency ?? 0)) : 0,
+    // The exit threshold is the room's brightest fixture in both states and it
+    // is supposed to stay that way — a floor guide outshining a doorway is the
+    // guidance becoming the landmark.
+    brightestThreshold: Math.max(...(spec.emissives || [])
+      .filter((e) => !e.guide).map((e) => e.emergency ?? 0)),
+    orphans: guides.filter((e) => !owner(e)).map((e) => `${e.x},${e.y}`),
+    onCrossing: guides.filter((e) => {
+      const b = boxOf(e);
+      return b.x0 < CROSS_R.x1 && b.x1 > CROSS_R.x0 && b.y0 < CROSS_R.y1 && b.y1 > CROSS_R.y0;
+    }).map((e) => `${e.x},${e.y}`),
+    outOfApproach: guides.filter((e) => {
+      const k = owner(e); if (!k) return false;
+      const a = APPROACH[k], b = boxOf(e);
+      return b.x0 < a.x0 - 1 || b.x1 > a.x1 + 1 || b.y0 < a.y0 - 1 || b.y1 > a.y1 + 1;
+    }).map((e) => `${e.x},${e.y}`),
+    // SEGMENTS, NOT A LANE — per approach: how many fixtures, how much of the
+    // run they cover between them, and the narrowest gap between two of them.
+    perApproach: Object.entries(byApproach).map(([k, list]) => {
+      const a = APPROACH[k];
+      const run = a.axis === 'h' ? a.x1 - a.x0 : a.y1 - a.y0;
+      const seg = list.map((e) => {
+        const c = a.axis === 'h' ? e.x : e.y, L = e.len ?? 0;
+        return { lo: c - L / 2, hi: c + L / 2, L };
+      }).sort((p, q) => p.lo - q.lo);
+      const lit = seg.reduce((n, g) => n + g.L, 0);
+      const gaps = seg.slice(1).map((g, i) => g.lo - seg[i].hi);
+      return {
+        k, n: list.length, run, lit: Math.round(lit),
+        litFrac: +(lit / run).toFixed(3),
+        // The SPAN is the first fixture's start to the last one's end: a
+        // fixture set that spans the whole approach is a lane however many
+        // gaps are cut into it.
+        spanFrac: seg.length ? +((seg[seg.length - 1].hi - seg[0].lo) / run).toFixed(3) : 0,
+        minGap: gaps.length ? Math.round(Math.min(...gaps)) : null,
+        shortest: seg.length ? Math.min(...seg.map((g) => g.L)) : null,
+      };
+    }),
+  };
+  // GUIDES BELONG TO THIS ROOM ONLY. The chamber and the hangar are frozen and
+  // this is a room-specific answer to a room-specific problem, not a doctrine
+  // that spreads on its own — the same opt-in shape as `emissives` itself.
+  out.guideElsewhere = [hangar, chamber, detention]
+    .map((r) => ({ id: r.id ?? 'boss', n: (r.emissives || []).filter((e) => e.guide).length }))
+    .filter((r) => r.n > 0);
+
   // ── THE OTHER THREE ROOMS, READ FROM THE SAME PLACE. This pass may not have
   //    moved any of them.
   const shape = (r) => ({
@@ -305,6 +394,20 @@ const R = await page.evaluate(async () => {
   gs._darkMix.v = 1; gs._applyDarkMix();
   gs._clearLightsOut();
   const clearedAlphas = sample();
+  // THE GUIDES, MEASURED ON THE LIVE OBJECTS. `_guide` is a descriptive tag
+  // EnvLight copies off the spec; reading the parts rather than re-deriving
+  // them from the spec is what makes this a test of the room and not of the
+  // arithmetic above.
+  const guideIdx = envParts.map((p, i) => (p._guide ? i : -1)).filter((i) => i >= 0);
+  out.guideRuntime = {
+    parts: guideIdx.length,
+    visibleAtNormal: guideIdx.filter((i) => normalAlphas[i] > 0.002).length,
+    litInDark: guideIdx.filter((i) => darkAlphas[i] > 0.02).length,
+    // Nothing in the guidance may out-glow the brightest non-guide fixture.
+    maxDarkAlpha: guideIdx.length ? Math.max(...guideIdx.map((i) => darkAlphas[i])) : 0,
+    maxOtherDarkAlpha: Math.max(...envParts.map((p, i) => (p._guide ? 0 : darkAlphas[i]))),
+    depths: [...new Set(guideIdx.map((i) => envParts[i].depth))],
+  };
   out.power = {
     anyOffAtNormal: normalAlphas.some((a, i) => a <= 0.002 && darkAlphas[i] > 0.02),
     anyBrighterInDark: darkAlphas.some((a, i) => a > normalAlphas[i] + 0.02),
@@ -493,6 +596,63 @@ for (const known of [{ r: 255, g: 180, b: 90 }, { r: 255, g: 171, b: 82 }, { r: 
 }
 for (const c of [...R.spec.emissiveColors, ...R.kit.derived.flatMap((d) => d.colors), ...R.kit.propKit.flatMap((d) => d.colors)]) {
   if (isDangerRed(c)) fails.push(`RED IN THE ENVIRONMENT: ${c.hex} on a ${c.kind ?? 'derived'} source`);
+}
+
+// 13 — EMERGENCY LANE GUIDANCE. The topology pass opened the crossing, which
+//      handset play approved — and in doing so removed the last thing in the
+//      middle of the room with a shape, so LIGHTS OUT from the objective became
+//      a black rectangle rather than a four-way junction. This is the fix, and
+//      what is asserted is its STRUCTURE, not its brightness: intensities are a
+//      handset question and freezing them here would be this pass repeating the
+//      cover ring's mistake of protecting a number nobody had reviewed.
+//
+//      Every one of these A/B's against a naive implementation: a guide run
+//      through the objective fails ON CROSSING, a continuous strip down an
+//      approach fails LANE, a fixture lit at normal power fails the normal
+//      delta, and a fourth-room copy fails ELSEWHERE.
+if (R.guide.count < 6) fails.push(`the junction declares ${R.guide.count} emergency guides — the room needs its four approaches to read in the dark`);
+if (R.guide.litAtNormal.length) {
+  fails.push(`a guide is lit at NORMAL power (${R.guide.litAtNormal.join(', ')}) — the approved normal-power composition is frozen and this pass owes it a zero-pixel delta`);
+}
+// THE CROSSING STAYS DARK. This is the whole composition: lit approach
+// fragments around an empty middle that combat owns. The check is on the SPILL
+// box, because the spill is what reaches the floor.
+if (R.guide.onCrossing.length) {
+  fails.push(`${R.guide.onCrossing.length} guide(s) spill onto the 600x600 crossing (${R.guide.onCrossing.join(', ')}) — the empty centre is a proven gameplay and visual asset`);
+}
+if (R.guide.orphans.length) fails.push(`guide(s) at ${R.guide.orphans.join(', ')} stand in none of the four authored approaches — guidance reveals architecture that exists, it does not paint new lanes`);
+if (R.guide.outOfApproach.length) fails.push(`guide(s) at ${R.guide.outOfApproach.join(', ')} spill outside their own approach region`);
+// NOT THE BRIGHTEST THING IN THE ROOM. The exit threshold is, in both states.
+if (R.guide.maxEmergency >= R.guide.brightestThreshold) {
+  fails.push(`a floor guide reaches ${R.guide.maxEmergency} on the emergency bus against the brightest fixture's ${R.guide.brightestThreshold} — the doorways are what this room orients by`);
+}
+// SEGMENTS, NOT A LANE, and the span half is the one that discriminates: three
+// fixtures with gaps cut into them still fail if between them they run the
+// length of the approach.
+for (const a of R.guide.perApproach) {
+  if (a.n < 2) fails.push(`the ${a.k} approach carries ${a.n} guide(s) — one fixture is a lamp, not a direction`);
+  if (a.n > 4) fails.push(`the ${a.k} approach carries ${a.n} guides — this is wayfinding, not a runway`);
+  if (a.litFrac > 0.35) fails.push(`the ${a.k} approach is lit over ${Math.round(a.litFrac * 100)}% of its run — a continuous illuminated lane, and SABER THROW owns line language in this game`);
+  if (a.spanFrac > 0.75) fails.push(`the ${a.k} approach's guides span ${Math.round(a.spanFrac * 100)}% of it end to end — broken or not, that is a lane`);
+  if (a.minGap != null && a.minGap < a.shortest) {
+    fails.push(`the ${a.k} approach's tightest gap is ${a.minGap}px against its shortest fixture's ${a.shortest}px — the gaps have to beat the segments or it reads as a dashed line`);
+  }
+}
+// ROOM-SPECIFIC, AND IT STAYS THAT WAY.
+if (R.guideElsewhere.length) {
+  fails.push(`emergency guides have spread to ${R.guideElsewhere.map((r) => `${r.id} (${r.n})`).join(', ')} — the chamber and the hangar are FROZEN and detention has not been started`);
+}
+// The live objects, not the spec's arithmetic.
+if (R.guideRuntime.parts !== R.guide.count * 2) {
+  fails.push(`${R.guide.count} guide sources built ${R.guideRuntime.parts} parts, expected ${R.guide.count * 2} (emitter + spill each)`);
+}
+if (R.guideRuntime.visibleAtNormal) fails.push(`${R.guideRuntime.visibleAtNormal} guide parts are drawing at normal power`);
+if (R.guideRuntime.litInDark !== R.guideRuntime.parts) fails.push(`only ${R.guideRuntime.litInDark} of ${R.guideRuntime.parts} guide parts come up on the emergency bus`);
+if (R.guideRuntime.maxDarkAlpha >= R.guideRuntime.maxOtherDarkAlpha) {
+  fails.push(`a guide part renders at ${R.guideRuntime.maxDarkAlpha} alpha in the dark against the room's brightest other fixture at ${R.guideRuntime.maxOtherDarkAlpha}`);
+}
+if (!eq(R.guideRuntime.depths, [R.cfg.envLightDepth])) {
+  fails.push(`guide parts sit at ${JSON.stringify(R.guideRuntime.depths)} — the readability gate is the light depth, so a guide can never draw over a bullet, a telegraph or the saber`);
 }
 
 // 9 — the baseline's two loudest mistakes cannot come back.
