@@ -10,39 +10,51 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-09-01 against `da6546a`, which is `HEAD` and `origin/FRIX` both.
-Pages run 207 is green, so the live build IS this commit.*
+*Updated 2026-09-01 against `HEAD`, which is `origin/FRIX`. Pages builds only
+from `FRIX`, so the live build IS this commit whenever the two agree — check
+`git rev-parse HEAD origin/FRIX` rather than trusting a hash written here.*
 
 ### Waiting on a human, not on work
 
-The **Reactor Junction cover-topology pass is finished, deployed, and stopped
-for handset review.** Nothing should be started on it until a human has played
-it. What they are testing: natural waves, multi-direction crowd flow, crossing
-the centre under pressure, late Vader, FORCE PULL, FORCE PUSH, SABER THROW,
-Afterimages, and LIGHTS OUT.
+The **Reactor Junction emergency lane guidance pass is finished, deployed, and
+stopped for handset review.** Nothing should be started on it until a human has
+played it.
+
+The topology pass (`§10t`) was **APPROVED** on handset — the open centre, the
+four-cover layout, the feeder flow, Vader's room to move, FORCE PULL / PUSH /
+SABER THROW, the south-west cover and the normal-power composition are all
+frozen. The one thing that came back was that **LIGHTS OUT lost the room's
+four-way identity**: not a readability problem, a spatial one. `§10u` is that
+fix — eight recessed emergency fixtures in the four authored approaches, dead at
+normal power, and the crossing deliberately left dark.
 
 **To see it: DEBUG -> LOAD REACTOR JUNCTION, then DEBUG -> SPAWN VADER.**
 `SPAWN VADER` deliberately does not change rooms, and a fresh endless run only
 reaches the junction as its SECOND room.
 
-Read `§10t` for what that pass did and `§10s` for the art pass under it.
+What the human is testing: normal waves on the approved topology, LIGHTS OUT
+from the exact centre, moving between approaches, Vader, SABER THROW against the
+new floor fragments, FORCE PULL / PUSH, and ECLIPSE.
+
+Read `§10u` for this pass, `§10t` for the topology under it, `§10s` for the art.
 
 ### The arena ladder, and what each rung's verdict is
 
-| room | art | topology | state |
-|---|---|---|---|
-| Vader Chamber (`boss`) | PASS | — | **FROZEN.** `§10n`, `§10p` |
-| Hangar (`hangar`) | PASS | — | **FROZEN.** `§10q` |
-| Reactor Junction (`corridor`) | PASS | **awaiting verdict** | `§10s`, `§10t` |
-| Detention (`detention`) | untouched | untouched | not started, and not to be started |
+| room | art | topology | dark state | state |
+|---|---|---|---|---|
+| Vader Chamber (`boss`) | PASS | — | PASS | **FROZEN.** `§10n`, `§10p` |
+| Hangar (`hangar`) | PASS | — | PASS | **FROZEN.** `§10q` |
+| Reactor Junction (`corridor`) | PASS | **PASS** | **awaiting verdict** | `§10s`, `§10t`, `§10u` |
+| Detention (`detention`) | untouched | untouched | untouched | not started, and not to be started |
 
-Vader himself is frozen — see `CLAUDE.md`. So is DEFLECTION, so is LIGHTS OUT.
+Vader himself is frozen — see `CLAUDE.md`. So is DEFLECTION, so is LIGHTS OUT
+globally: this pass changed only the junction's own authored sources.
 
 ### The decision that comes after the verdict
 
 Two candidates, and the human picks:
 
-1. **Junction topology freezes**, and the reactor core prop + two struts get a
+1. **Junction lighting freezes**, and the reactor core prop + two struts get a
    bounded visual migration — they are the oldest assets in the room and three
    fewer cover objects around them made them more prominent, not less.
 2. **Detention becomes the fourth-room validation**, on the same rules the
@@ -52,27 +64,31 @@ Do not start either without being told which.
 
 ### Open questions this pass deliberately did not answer
 
-- The junction's dark state lost seven console lights when three powered cover
-  objects went. That was the intent — one lit terminal instead of a ring — but
-  whether the centre now reads as too EMPTY in a blackout is a handset
-  question, and the brief forbade answering it by adding light.
-- The south-west cover piece is the weakest-justified of the four. It exists
-  for the player's route out of spawn rather than for the room's function.
+- **Whether eight fixtures is too many or too few**, and whether the emergency
+  intensities are right. They were chosen against a desktop monitor and are
+  deliberately NOT frozen by a test.
+- **The exact centre is a partial answer and the limit is the viewport.** The
+  crossing is 600px wide inside a 720px viewport, so a fixture that obeys the
+  no-crossing rule is at most ~60px into frame from the objective. From dead
+  centre the north way reads and the west way clips the edge; east and the spur
+  are off screen. Fixing that means lighting the crossing, which is forbidden.
+- **The south-west cover piece** is still the weakest-justified of the four.
 
 ### Two suite failures that are NOT regressions
 
-The suite returns **31 of 33**, and both failures were re-run against
-`a980157` with `src/` swapped out:
+Both were re-run against the pre-pass build and fail identically there:
 
-- `smoke-readability` fails its wind-up check with the IDENTICAL measurement on
-  the baseline — `forcepull 0px/s drift 45px` against a 40px bar. The speed is
-  ZERO, so he is in fact planted; the drift allowance is simply tight. It runs
-  in the Vader Chamber, which this pass never touched.
+- `smoke-readability` fails its wind-up check with the IDENTICAL measurement —
+  `forcepull 0px/s drift 45px` against a 40px bar. The speed is ZERO, so he is
+  in fact planted; the drift allowance is simply tight. It runs in the Vader
+  Chamber, which neither this pass nor the last one touched.
 - `smoke-deflect` fails a different check on almost every run, on the baseline
   too. `tests/README.md` has the write-up.
 
-`smoke-moves` failed once and passed on re-run and on baseline. Do not chase
-any of these, and above all do not modify Vader because of them.
+`smoke-moves` and `smoke-arc` have each failed once and passed on re-run; the
+suite wants an idle machine and will time out if anything else is driving a
+browser. Do not chase any of these, and above all do not modify Vader because
+of them.
 
 ---
 
@@ -3261,6 +3277,150 @@ from the same place as everything else.
 - **The south-west piece is the weakest-justified of the four.** It exists for
   the player's route out of spawn rather than for the room's function, and it is
   the one to question first if the layout is revisited.
+
+## 10u. THE JUNCTION'S EMERGENCY LANE GUIDANCE — the dark state gets its plan back
+
+`§10s` is the junction's art pass and `§10t` is its cover topology. Handset play
+**approved the topology outright** — the centre feels open, enemies spill in
+naturally, the furniture-ring problem is solved, Vader has room for his movement
+vocabulary, FORCE PULL / PUSH / SABER THROW breathe, the south-west cover stays,
+and the normal-power composition is good. All of it is frozen.
+
+One thing came back: **LIGHTS OUT loses too much of the room's junction
+identity.** Not a readability complaint — combat was explicitly fine, and the
+verdict was not "I cannot see Vader". It was that the room becomes such a black
+void that its four-way infrastructure stops reading.
+
+### The problem is the topology pass's own success
+
+The ring was bad level design and it had to go. It was also, accidentally, the
+only thing standing in the middle of the room with a shape. Remove it and a
+blackout at the objective leaves: the north and south wall bands both outside a
+viewport whose camera centre is pinned inside y [598, 802], neither side wall in
+frame, and exactly one lit object — the east control terminal, off at the edge.
+`docs/evidence/arena-pilot/junction-lanes-before/dark-centre.png` is that frame.
+Three of the four powered cover objects went with the ring, which was the intent;
+what nobody could see until it was played is that the room's PLAN went with them.
+
+### What was added
+
+Eight `strip` sources on the junction's `emissives` list, tagged `guide: true`.
+No new code path, no new texture, no new kind, no baked art. Two fixtures in each
+of the four authored floor approaches, **dead at normal power** and modest under
+emergency.
+
+| approach | fixtures | colour | emergency | why that voice |
+|---|---|---|---|---|
+| west / reactor | 60px + 32px | cyan-biased `#a6e0ec` | 0.30 / 0.22 | the service artery; every pipe in the room runs into the interchange at its end |
+| north / service | 52px + 32px | cool white `#bcd2ea` | 0.26 / 0.20 | the feeder way under the north gate |
+| east / control | 52px + 32px | cool white, one step cleaner `#c6dcf2` | 0.26 / 0.20 | the control side has been the cleaner wall since the art pass |
+| departure spur | **72px** + 36px | warm neutral `#f0e6cc` | **0.32** / 0.24 | the way out stays the easiest structure to rediscover |
+
+The exit distinction is a longer segment and a warmer neutral, not a colour that
+means "exit" — no green, no arrow. Warm-neutral is not amber: green sits at 96%
+of red here, where the danger red the saber and the telegraphs own drops it under
+a third, and `smoke-junction`'s existing channel test covers these automatically.
+
+### Four rules held the list down
+
+- **NOTHING ON THE CROSSING.** Not one emitter and not one pixel of spill enters
+  `x[400,1000] y[400,1000]`. The composition is lit approach fragments around a
+  DARK OPEN CROSSING that combat owns. The check is on the SPILL box, because the
+  spill is what reaches the floor — a containment test on the emitter alone
+  passes a fixture whose glow lies on the objective.
+- **SEGMENTS, NEVER A LANE.** Two fixtures per approach, unequal in length, with
+  a gap wider than the shorter one, covering 28-32% of each run and spanning at
+  most 70% of it. **This is a SABER THROW problem before it is a taste problem:**
+  the throw is a long saturated crimson corridor and it owns line language in
+  this game by entitlement.
+- **HELD TO ONE EDGE**, never up the middle — the same verdict the north conduit
+  already took when it was drawn up the centre of its way. Each set sits on the
+  edge its approach's own plumbing is not on.
+- **NO BAKED SOCKET.** A recessed housing cut into the backdrop would be visible
+  at NORMAL power, in a composition the human just approved, to buy believability
+  for something only ever seen against a near-black floor. The recessed read is
+  carried by the construction instead.
+
+### The candidate that lost
+
+**A (shipped)** — two fixtures per approach, one long one short.
+**B** — three shorter, dimmer fixtures per approach, same edges, same colours,
+same containment. B was built as a spec clone in `tests/shot-junction-lanes.mjs`
+(`loadRoom` takes a spec object, so a lighting candidate needs no source edit —
+the same trick the topology pass used for cover) and photographed at the same
+stations minutes apart. **B's three even ticks read as a dash pattern**, which is
+the runway language the brief forbids, and each fixture was individually too weak
+to read as installed hardware. A's long/short pair reads as two different
+fixtures. `docs/evidence/arena-pilot/junction-lanes-cand-*.png` is the sheet.
+
+### Normal power is pixel-identical, and that is measured
+
+Every guide is `normal: 0`, so `setPower(0)` sets all 16 parts `visible = false`
+and the renderer draws nothing. `tests/diag-junction-normal-delta.mjs` proves it
+in pixels: **0 changed pixels at all five stations**, against a control — the
+identical measurement under emergency power — that reports ~5,800.
+
+> **TWO HARNESS LIES COST A ROUND EACH HERE, AND BOTH ARE WRITTEN INTO THAT
+> FILE.** A naive before-run/after-run screenshot diff reported 62,000-94,000
+> changed pixels on a change that is invisible by construction: `paintBackdrop`
+> consumes `Math.random` and nothing seeds it in a live run, so two page loads of
+> the SAME build return different floor grime. And inside one page load, a fixed
+> `waitForTimeout` after a camera scroll photographs the PREVIOUS station — which
+> showed up as two stations reporting hundreds of thousands of changed pixels
+> while the three between them reported exactly zero. Shoot until two consecutive
+> frames are byte-identical instead. Pausing the Game scene is also not enough:
+> the HUD is a separate scene with its own tweens.
+
+`tests/diag-texture-hash.mjs` is byte-identical across all 87 generated textures
+and all four backdrops. No baked art changed at all.
+
+### Performance
+
+Same-session A/B with `src/` stashed, on a container measurably slower than the
+one `§10t` was measured on — so read the deltas, not the absolutes.
+
+| | before | after |
+|---|---|---|
+| emissive parts | 42 | 58 |
+| display list | 90 | 106 |
+| roomLayer objects | 12 | 12 |
+| wall bodies / LOS rects | 7 | 7 |
+| new textures | — | **none** (the shared box and flat glows are reused) |
+| backdrop | 7.48 MB | 7.48 MB |
+| kit textures | 343 KB | 343 KB |
+| room load | 82.3 ms | 71.4 ms |
+| `setPower` | 30.3 ms | 24.4 ms |
+| frame median, normal | 158.4 ms | 163.4 ms |
+| frame median, dark | 184.6 ms | 180.5 ms |
+
+Sixteen more ADD images, zero new memory, zero per-frame work — `setPower` is
+still N alpha writes. The frame figures move by ±3% in both directions, which is
+inside this container's spread.
+
+### What `smoke-junction` now asserts, and all of it A/B's
+
+Ten new checks, every one of them run against a deliberately broken build first:
+a guide through the objective, a continuous lane down an approach, a fixture lit
+at normal power, a guide brighter than the exit threshold, a dashed-line gap
+rhythm, and guidance propagated into the frozen hangar. Each produced its own
+finding. Intensities are **deliberately not frozen** — they are the handset's to
+judge, and freezing an unreviewed number is exactly the mistake the cover ring
+was.
+
+### Open, and honest
+
+- **The exact centre is a partial answer, and the limit is the viewport.** The
+  crossing is 600px wide inside a 720px viewport, so a fixture that obeys the
+  no-crossing rule can be at most ~60px into frame from the objective. From dead
+  centre the north way's guidance reads and the west way's inboard fragment
+  clips the edge; the east way and the spur are off screen. The four-way read
+  arrives as soon as the player moves, and it cannot be improved without either
+  lighting the crossing or widening the camera.
+- **The intensities were chosen against a desktop monitor**, as `§10s`'s were.
+- **The exit is in the NORTH-east.** The brief called the departure spur the
+  "south/exit route"; in this room the exit is at (1200, 200) on the top wall and
+  the guidance was placed against the room, not against the brief.
+- **The reactor core and struts are still legacy assets** and still deferred.
 
 ## 10c. The narrative system
 ## 10c. The narrative system
