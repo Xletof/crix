@@ -85,10 +85,16 @@ Both were re-run against the pre-pass build and fail identically there:
 - `smoke-deflect` fails a different check on almost every run, on the baseline
   too. `tests/README.md` has the write-up.
 
-`smoke-moves` and `smoke-arc` have each failed once and passed on re-run; the
-suite wants an idle machine and will time out if anything else is driving a
-browser. Do not chase any of these, and above all do not modify Vader because
-of them.
+`smoke-arc` and `smoke-vader` also failed in the suite run for this pass and
+both PASS standalone on an idle box — `smoke-vader` twice, on this build and on
+the one before it. The suite wants an idle machine, and the second browser can
+be your own verification run; `tests/README.md` has that write-up. Do not chase
+any of these, and above all do not modify Vader because of them.
+
+Measured on an idle box, this build and `c49c835` behave identically: 116/116 on
+`smoke-vader`, `smoke-readability` failing ONE of 19 (a different check each run,
+on both builds) and `smoke-deflect` failing 11 of 73 here against 13 of 73 on the
+baseline.
 
 ---
 
