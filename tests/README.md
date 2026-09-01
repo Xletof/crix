@@ -1092,3 +1092,21 @@ capable of reporting something else.** `diag-junction-normal-delta.mjs` runs the
 identical measurement a second time under EMERGENCY power, where the guidance is
 the whole point, and fails if that also comes back zero — otherwise "no delta"
 only proves the camera never moved.
+
+### DO NOT RUN A TEST STANDALONE WHILE THE SUITE IS RUNNING ITS OWN COPY
+
+`smoke-vader` came back from a suite run with **5 of 116 failed** — all five
+about LIGHTS OUT tinting the arena — and reproduced on the very next standalone
+run. It looked exactly like a real regression in a frozen system.
+
+It was not. The "confirming" run was fired while the suite was still executing
+its own `smoke-vader`, so two Chromes were driving the same dev server. On an
+idle box the same build passes 116/116, twice, and so does the build before it.
+
+This is the concurrency artifact already documented above, wearing a new face:
+the tell used to be five failures reducing to one scalar, and it still is — but
+the second Chrome can be **your own verification run**. Check `pgrep -f
+run-all.mjs` before believing a standalone result, and A/B against the previous
+build's `src/` with `git checkout <sha> -- src/` rather than `git stash`, which
+silently stashes nothing when the work is already committed and hands you two
+runs of the same build to compare.
