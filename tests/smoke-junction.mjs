@@ -13,12 +13,12 @@
 //
 // What it protects, and why each one is here rather than assumed:
 //
-//   1. GAMEPLAY GEOMETRY IS UNCHANGED. Bounds, the eight cover positions and
-//      their 70x70 bodies, the three solid prop bodies, spawn, exit, gates,
-//      terminals, pickups, the enemy list. The whole pass is painted art, so
-//      the only way it can regress the game is by becoming collision.
-//   2. NO ENVIRONMENT ART BECAME A PHYSICS BODY. `walls` must hold exactly 11
-//      — 8 cover + 3 solid props. The two wall control panels are decoration
+//   1. GAMEPLAY GEOMETRY IS UNCHANGED. Bounds, the three solid prop bodies,
+//      spawn, exit, gates, terminals, pickups, the enemy list. The art pass is
+//      painted art, so the only way it can regress the game is by becoming
+//      collision. COVER POSITIONS ARE NOT IN THAT LIST ANY MORE — see 12.
+//   2. NO ENVIRONMENT ART BECAME A PHYSICS BODY. `walls` must hold exactly 8
+//      — 5 cover + 3 solid props. The two wall control panels are decoration
 //      and must NOT be in it.
 //   3. THE EMISSIVE LAYER IS OUTSIDE `roomLayer`, ADD-blended, at the light
 //      depth, and owns no physics body. AND IT CARRIES NO FACES AT ALL: the
@@ -46,6 +46,28 @@
 //      track.
 //  11. THE HANGAR, THE CHAMBER AND DETENTION ARE UNCHANGED, read from the same
 //      place as everything else.
+//  12. THE RING IS GONE AND CANNOT COME BACK. Handset play rejected the eight
+//      -cover circle this room inherited, so its positions are no longer
+//      frozen literals — freezing coordinates is what protected the bad
+//      topology in the first place. What is asserted instead are the four
+//      RELATIONAL truths the new layout is actually built on:
+//
+//        OPEN CENTRE   no solid body may intersect the crossing, the 600x600
+//                      raised region the floor art already declares as the
+//                      junction. All eight ring pieces sat inside it.
+//        LANE          every pair of interior bodies is at least 160px apart.
+//                      That is Ø112 (BOSS.radius doubled — the largest body in
+//                      the game) plus NavGrid's own 23px agent clearance on
+//                      each side, rounded to two nav cells. The ring's tightest
+//                      gaps were 90px: the nav grid routed small actors through
+//                      slots Vader could not physically enter, which is what
+//                      "the boss fights the furniture" looks like from inside.
+//        NOT A RING    the pieces may not be equidistant from the objective and
+//                      may not be evenly spread around it. Deleting four of
+//                      eight and keeping a tidy square would pass every other
+//                      check here.
+//        ACCESS        every feeder gate reaches the objective, and the spawn
+//                      reaches the exit, at a near-straight nav path ratio.
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 
 const browser = await chromium.launch({
@@ -174,6 +196,70 @@ const R = await page.evaluate(async () => {
 
   const roomKids = gs.roomLayer.getChildren();
   const envParts = gs.envLight?.parts || [];
+  // ── TOPOLOGY. Measured off the LIVE bodies, not off the spec, so a sprite
+  //    that drifted from its collider cannot hide here.
+  {
+    const OBJ = spec.terminals[0];
+    const CROSS = { x0: 400, y0: 400, x1: 1000, y1: 1000 };
+    const rects = gs.walls.getChildren().filter((o) => o.active && o.body).map((o) => ({
+      x: o.body.x, y: o.body.y, w: o.body.width, h: o.body.height,
+      cx: o.body.x + o.body.width / 2, cy: o.body.y + o.body.height / 2,
+      sx: o.x, sy: o.y, tex: o.texture?.key,
+    }));
+    const inner = rects.filter((r) => r.cx > 60 && r.cx < spec.bounds.w - 60
+                                   && r.cy > 60 && r.cy < spec.bounds.h - 60);
+    const gap = (a, b) => Math.max(Math.abs(a.cx - b.cx) - (a.w + b.w) / 2,
+                                   Math.abs(a.cy - b.cy) - (a.h + b.h) / 2);
+    const pairs = [];
+    for (let i = 0; i < inner.length; i++)
+      for (let j = i + 1; j < inner.length; j++)
+        pairs.push({ a: inner[i].tex, b: inner[j].tex, g: Math.round(gap(inner[i], inner[j])) });
+    const distToRect = (px, py, r) => Math.hypot(
+      Math.max(r.x - px, 0, px - (r.x + r.w)), Math.max(r.y - py, 0, py - (r.y + r.h)));
+
+    // Bearings and radii of the COVER only — the props are room furniture the
+    // ring test has no opinion about.
+    const cov = inner.filter((r) => r.w === 70 && r.h === 70);
+    const rad = cov.map((r) => Math.hypot(r.cx - OBJ.x, r.cy - OBJ.y));
+    const ang = cov.map((r) => (Math.atan2(r.cy - OBJ.y, r.cx - OBJ.x) * 180 / Math.PI + 360) % 360)
+      .sort((a, b) => a - b);
+    const angGaps = ang.map((a, i) => ((ang[(i + 1) % ang.length] - a) + 360) % 360);
+
+    const route = (a, b) => {
+      const p = gs.navGrid.findPath(a.x, a.y, b.x, b.y);
+      let L = 0, prev = a;
+      for (const n of p) { L += Math.hypot(n.x - prev.x, n.y - prev.y); prev = n; }
+      return +(L / Math.hypot(a.x - b.x, a.y - b.y)).toFixed(3);
+    };
+
+    // How much of the crossing the LARGEST actor can stand in, sampled at 20px.
+    let admit = 0, total = 0;
+    for (let px = CROSS.x0; px <= CROSS.x1; px += 20)
+      for (let py = CROSS.y0; py <= CROSS.y1; py += 20) {
+        total++;
+        if (rects.every((r) => distToRect(px, py, r) >= 56)) admit++;
+      }
+
+    out.topo = {
+      coverBodies: cov.length,
+      inCrossing: inner.filter((r) => r.x < CROSS.x1 && r.x + r.w > CROSS.x0
+                                   && r.y < CROSS.y1 && r.y + r.h > CROSS.y0)
+        .map((r) => `${r.tex}@${Math.round(r.cx)},${Math.round(r.cy)}`),
+      minGap: Math.min(...pairs.map((p) => p.g)),
+      chokes: pairs.filter((p) => p.g > 0 && p.g < 160).map((p) => `${p.a}|${p.b} ${p.g}px`),
+      clearR: Math.round(Math.min(...inner.map((r) => distToRect(OBJ.x, OBJ.y, r)))),
+      radSpread: +((Math.max(...rad) - Math.min(...rad)) / (rad.reduce((s, v) => s + v, 0) / rad.length)).toFixed(3),
+      maxAngGap: Math.round(Math.max(...angGaps)),
+      vaderCrossing: +(100 * admit / total).toFixed(1),
+      gateRoutes: spec.gates.map((g) => route(g, OBJ)),
+      spawnToExit: route(spec.spawn, spec.exit),
+      // Sprite and body must agree — a moved cover object may not leave its
+      // collider behind.
+      misaligned: cov.filter((r) => Math.abs(r.sx - r.cx) > 0.6 || Math.abs(r.sy - r.cy) > 0.6)
+        .map((r) => `${r.tex} sprite ${r.sx},${r.sy} body ${r.cx},${r.cy}`),
+    };
+  }
+
   out.layer = {
     envPartCount: envParts.length,
     anyEnvInRoomLayer: envParts.some((p) => roomKids.includes(p)),
@@ -288,10 +374,6 @@ const FROZEN = {
     { type: 'bomber', x: 1150, y: 350 }, { type: 'sniper', x: 700, y: 350 },
     { type: 'shooter', x: 350, y: 1050 },
   ],
-  cover: [
-    { x: 680, y: 440 }, { x: 680, y: 1000 }, { x: 440, y: 680 }, { x: 1000, y: 680 },
-    { x: 520, y: 520 }, { x: 920, y: 520 }, { x: 520, y: 920 }, { x: 920, y: 920 },
-  ],
   solidProps: [
     { x: 260, y: 400, tex: 'prop-core', bodyW: 200, bodyH: 120 },
     { x: 1150, y: 1180, tex: 'prop-strut', bodyW: 190, bodyH: 60 },
@@ -305,11 +387,11 @@ for (const k of Object.keys(FROZEN)) {
 if (R.geom.worldBounds.w !== 1400 || R.geom.worldBounds.h !== 1400) fails.push(`arena bounds are ${R.geom.worldBounds.w}x${R.geom.worldBounds.h}`);
 if (R.geom.cameraBounds.w !== 1400 || R.geom.cameraBounds.h !== 1400) fails.push('camera bounds no longer match the arena');
 
-// 2 — nothing painted became collision. 8 cover + 3 solid props.
-if (R.geom.wallBodies !== 11) fails.push(`walls group holds ${R.geom.wallBodies} bodies, expected 11 (8 cover + 3 solid props)`);
-if (R.geom.losRects !== 11) fails.push(`losRects is ${R.geom.losRects}, expected 11`);
-if (R.geom.bodies.filter((b) => b.bw === 70 && b.bh === 70).length !== 8) {
-  fails.push(`expected 8 cover bodies at 70x70, found ${R.geom.bodies.filter((b) => b.bw === 70 && b.bh === 70).length}`);
+// 2 — nothing painted became collision. 5 cover + 3 solid props.
+if (R.geom.wallBodies !== 7) fails.push(`walls group holds ${R.geom.wallBodies} bodies, expected 7 (4 cover + 3 solid props)`);
+if (R.geom.losRects !== 7) fails.push(`losRects is ${R.geom.losRects}, expected 7`);
+if (R.geom.bodies.filter((b) => b.bw === 70 && b.bh === 70).length !== 4) {
+  fails.push(`expected 4 cover bodies at 70x70, found ${R.geom.bodies.filter((b) => b.bw === 70 && b.bh === 70).length}`);
 }
 for (const b of R.geom.bodies) {
   if (b.tex === 'ch-con-wall') fails.push(`a wall control panel became a physics body at ${b.x},${b.y}`);
@@ -345,14 +427,17 @@ if (R.spec.ledsLouderInDark) fails.push('a nominal lamp gets louder in the dark 
 if (R.leak.partsAfter !== R.leak.partsBefore) fails.push(`emissive parts drifted across room loads: ${R.leak.partsBefore} -> ${R.leak.partsAfter}`);
 if (R.leak.glowTexAfter !== R.leak.glowTexBefore) fails.push('the shared glow textures were re-created on a room load');
 if (R.leak.orphanAdditive !== R.leak.partsAfter) fails.push(`${R.leak.orphanAdditive} additive environment objects are drawing but the layer owns ${R.leak.partsAfter}`);
-if (R.leak.wallBodiesAfter !== 11) fails.push(`after five room loads the walls group holds ${R.leak.wallBodiesAfter} bodies`);
+if (R.leak.wallBodiesAfter !== 7) fails.push(`after five room loads the walls group holds ${R.leak.wallBodiesAfter} bodies`);
 if (R.leak.detentionParts !== 0) fails.push(`detention built ${R.leak.detentionParts} emissive parts — it is not in any of this`);
 if (R.leak.hangarParts < 20 || R.leak.chamberParts < 20) fails.push('an approved arena came back from a junction round trip with an empty light layer');
 
-// 6 — MOST OF THIS ROOM'S COVER GOES OUT.
-if (R.spec.unpoweredCover !== 5) fails.push(`${R.spec.unpoweredCover} of 8 cover objects are unpowered, expected 5 — the dark state depends on that ratio`);
-if (R.layer.unpoweredPlaced !== 5) fails.push(`${R.layer.unpoweredPlaced} placed cover objects took the unpowered tint, expected 5`);
-if (R.layer.consolePlaced !== 3) fails.push(`${R.layer.consolePlaced} placed cover objects took the console tint, expected 3`);
+// 6 — MOST OF THIS ROOM'S COVER GOES OUT. Three of five now rather than five
+//     of four now rather than five of eight, and ONE lit cover object in the
+//     whole room instead of three standing in a circle. A larger majority than
+//     before, through a topology change that removed half the objects.
+if (R.spec.unpoweredCover !== 3) fails.push(`${R.spec.unpoweredCover} of 4 cover objects are unpowered, expected 3 — the dark state depends on that ratio`);
+if (R.layer.unpoweredPlaced !== 3) fails.push(`${R.layer.unpoweredPlaced} placed cover objects took the unpowered tint, expected 3`);
+if (R.layer.consolePlaced !== 1) fails.push(`${R.layer.consolePlaced} placed cover objects took the console tint, expected 1`);
 if (R.kit.cabinetsInKit.length) fails.push(`the service cabinets are IN the console kit (${R.kit.cabinetsInKit}) — that is what makes them stay lit in a blackout`);
 
 // 7 — the cover kit's footprint contract
@@ -364,6 +449,37 @@ else for (const t of R.kit.texSizes) {
 for (const b of R.geom.bodies.filter((x) => x.bw === 70)) {
   if (b.dw !== bush.w || b.dh !== bush.h) fails.push(`the cover at ${b.x},${b.y} draws at ${b.dw}x${b.dh} over a 70x70 body`);
 }
+
+// 12 — THE RING IS GONE. Four relational truths, no frozen coordinates.
+//
+//      Every one of them A/B's: run this against the eight-cover ring and it
+//      reports 8 bodies in the crossing, a 90px minimum gap, five sub-lane
+//      chokes, a 205px clear radius, a 0.202 radius spread, a 60-degree widest
+//      bearing gap and 53% of the crossing closed to Vader.
+//
+//      THE RADIUS BAR IS 0.25 BECAUSE THE RING SCORES 0.202. The first version
+//      of this check asked for 0.2 and the eight-cover ring PASSED it — its
+//      pieces sit between 254 and 311px out, which is spread enough to clear a
+//      lazy threshold. A check that passes on the bug is decoration.
+if (R.topo.coverBodies !== 4) fails.push(`the room stands ${R.topo.coverBodies} cover objects, the selected topology is 4`);
+if (R.topo.inCrossing.length) {
+  fails.push(`${R.topo.inCrossing.length} solid bodies sit inside the 600x600 crossing — it is the clear combat envelope: ${R.topo.inCrossing.join(', ')}`);
+}
+if (R.topo.minGap < 160) fails.push(`the tightest gap between two solid bodies is ${R.topo.minGap}px — Vader is 112px wide and the nav grid assumes 23px of clearance, so 160px is the lane`);
+if (R.topo.chokes.length) fails.push(`sub-lane chokes: ${R.topo.chokes.join(', ')}`);
+if (R.topo.clearR < 300) fails.push(`the nearest solid face is ${R.topo.clearR}px from the objective, wanted 300+`);
+if (R.topo.vaderCrossing < 95) fails.push(`only ${R.topo.vaderCrossing}% of the crossing admits a Ø112 body`);
+// NOT A RING: a ring is uniform in both radius and bearing. Five evenly spread
+// pieces would leave a 72-degree widest gap and a radius spread near zero.
+if (R.topo.radSpread < 0.25) fails.push(`the cover sits at a ${R.topo.radSpread} radius spread from the objective — the rejected ring scored 0.202, so this is no less uniform than the thing it replaced`);
+if (R.topo.maxAngGap < 110) fails.push(`the widest bearing gap between cover pieces is ${R.topo.maxAngGap} degrees — the pieces are evenly spread around the objective, which is a ring`);
+// ACCESS: 4-connected BFS cannot do better than 1.414 on a pure diagonal, so
+// the spawn->exit run is judged against that floor and not against 1.0.
+R.topo.gateRoutes.forEach((r, i) => {
+  if (r > 1.15) fails.push(`feeder gate ${i} routes to the objective at ${r}x straight line — the approach is not clean`);
+});
+if (R.topo.spawnToExit > 1.5) fails.push(`spawn routes to the exit at ${R.topo.spawnToExit}x straight line (4-connected floor is 1.414)`);
+if (R.topo.misaligned.length) fails.push(`cover sprite and body disagree: ${R.topo.misaligned.join('; ')}`);
 
 // 8 — NO RED IN THE ENVIRONMENT. Amber is not red; the separator is how far
 //     the green channel falls. Self-tested so the check cannot be decoration.

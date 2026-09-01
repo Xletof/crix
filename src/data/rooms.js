@@ -348,9 +348,10 @@ export const ROOMS = [
     // is four architectural statements about the way out and zero arrows,
     // which is what §19 is protecting against.
     //
-    // Everything below is painted art or emissive layer. `bounds`, `spawn`,
-    // `exit`, `gates`, `walls`, `terminals`, `enemies`, `pickups`, the eight
-    // cover positions and the three prop bodies are exactly what they were.
+    // Everything below is painted art or emissive layer, EXCEPT the cover
+    // list — see the topology block above it. `bounds`, `spawn`, `exit`,
+    // `gates`, `walls`, `terminals`, `enemies`, `pickups` and the three prop
+    // bodies are exactly what they were.
     floor: {
       // COOL STEEL, AND THE LADDER IS INVERTED. In both approved rooms the
       // perimeter machinery sits a step LIGHTER than the deck; here the walls
@@ -608,30 +609,81 @@ export const ROOMS = [
       { kind: 'core', x: 260, y: 352, r: 11, color: 0x8a4a10, hot: 0xffb45a, normal: 0.16, emergency: 0.42, reach: 62 },
     ],
     walls: [],
-    // THE COVER RING, REINSTANCED. Positions, count, bodies and cover
-    // semantics are untouched — what changed is which texture stands on each
-    // frozen spot. The baseline stood EIGHT IDENTICAL `bush` consoles in a
-    // perfect circle around the objective: one silhouette repeated eight times
-    // in the most geometric arrangement available, and, because `bush` takes
-    // the `console` LIGHTS OUT tint, eight equally pale boxes in a ring were
-    // the only thing visible in the dark.
+    // ══ THE COVER, AFTER HANDSET PLAY ══════════════════════════════════════
     //
-    // Assigned by FUNCTION. The three spots that sit at the mouths of the
-    // three feeder ways are POWERED hardware — that is where a service
-    // junction would put its terminals. The five that do not are SERVICE
-    // CABINETS, a new unpowered archetype that declares nothing in the console
-    // kit, takes the `prop` tint, and simply goes out. Five of eight, the same
-    // ratio the hangar's crates hold, and the same reason: most of this room's
-    // cover has to leave when the lights do.
+    // THE RING IS GONE, AND ITS POSITIONS ARE NO LONGER FROZEN. This room
+    // inherited EIGHT cover objects arranged in a near-perfect circle around
+    // the objective, and the art pass preserved that arrangement on purpose —
+    // it was gameplay geometry and the pass was allowed to repaint it, not to
+    // move it. Handset play then rejected the topology outright: a furniture
+    // carousel around the one thing the player cannot leave, with the boss
+    // fighting the desks. The freeze was revoked; this is the correction.
+    //
+    // WHAT ACTUALLY FAILED, MEASURED (`tests/diag-junction-*.mjs`):
+    //
+    //   ALL EIGHT SAT INSIDE THE CROSSING. The floor art already declares a
+    //   600x600 raised region as the junction — the calmest floor in the game
+    //   and the room's whole spatial idea — and every single cover body was
+    //   parked in it. The nearest solid face was 205px from the objective.
+    //
+    //   THE GAPS WERE VADER-PROOF. The ring's tightest neighbour gaps measured
+    //   90px. Vader is Ø112 (BOSS.radius 56, doubled) and cannot enter one.
+    //   The nav grid, which tests a cell CENTRE against a body rect inflated by
+    //   23px, routed ordinary actors straight through them — so the pathing
+    //   said yes and the physics said no. Only 47% of the crossing admitted a
+    //   Ø112 body at all.
+    //
+    //   SO THE BOSS JAMMED. Driven from eight stations by his own AI with the
+    //   move scheduler silenced, Vader closed on the player on 2 of 8 legs. On
+    //   all three feeder approaches he spent 43-46% of frames in bodily contact
+    //   with geometry and never arrived; north-to-south he travelled 62px in
+    //   six seconds. That is the handset verdict, in numbers.
+    //
+    // THE RULE THAT REPLACES THE RING, and the one the tests assert:
+    //
+    //   THE CROSSING IS THE CLEAR COMBAT ENVELOPE. No solid body may intersect
+    //   x[400,1000] y[400,1000]. Cover lives in the peripheral bands, where the
+    //   room's functions already are. Clear radius at the objective goes 205 ->
+    //   391px, and 99% of the crossing opens to Vader.
+    //
+    //   EVERY GAP IS A LANE. 160px minimum between any two solid bodies:
+    //   Ø112 plus the nav grid's own 23px agent clearance on each side, which
+    //   is two nav cells, so a qualifying gap always contains a fully walkable
+    //   cell. Measured minimum is 165px, and there are zero sub-lane gaps.
+    //
+    //   FOUR PIECES, NOT A TIDIER RING. Deleting four and leaving a tidy
+    //   square would pass both rules above and fail the room, so the layout is
+    //   deliberately uneven in BOTH radius and bearing. The pieces stand 405,
+    //   439, 474 and 528px out — a 0.27 spread against the ring's 0.20 — the
+    //   widest gap between two cover bearings is 146 degrees against the ring's
+    //   60, and the north-west quadrant carries no cover at all, because the
+    //   reactor core prop is already the mass on that side. A five-piece
+    //   candidate was built and measured against this one; it opened the centre
+    //   just as well but left ordinary enemies in contact with geometry nearly
+    //   twice as often across two runs at two densities, so it lost.
+    //
+    // ASSIGNED BY FUNCTION, AND ONLY ONE OF THEM IS LIT. The east control
+    // station is the room's single powered cover object; the other three are
+    // service cabinets that declare nothing in the console kit, take the `prop`
+    // tint and go out. Three of four rather than the old five of eight — and
+    // in the dark that is one lit terminal off to the east instead of a ring of
+    // pale boxes orbiting the objective.
     cover: snapAll([
-      { x: 700, y: 420, tex: 'ch-con-heavy' },
-      { x: 700, y: 980, tex: 'rj-cab-a' },
-      { x: 420, y: 700, tex: 'ch-con-ped-b' },
-      { x: 980, y: 700, tex: 'ch-con-ped-a' },
-      { x: 500, y: 500, tex: 'rj-cab-b' },
-      { x: 900, y: 500, tex: 'rj-cab-a' },
-      { x: 500, y: 900, tex: 'rj-cab-b' },
-      { x: 900, y: 900, tex: 'rj-cab-a' },
+      // NORTH — offset EAST of the feeder way (x 596-804), so the way itself
+      // stays the full width the architecture promises, and pulled IN to the
+      // crossing's north-east corner rather than parked on the wall: the four
+      // pieces have to sit at four different distances from the objective or
+      // they are a ring however their bearings fall.
+      { x: 920, y: 360, tex: 'rj-cab-b' },
+      // EAST — the control side, and the one powered terminal. South of the
+      // east way rather than in it.
+      { x: 1080, y: 920, tex: 'ch-con-heavy' },
+      // WEST — service band, south of the west way. North of it belongs to the
+      // reactor core prop, whose 200x120 body owns that whole pocket.
+      { x: 280, y: 920, tex: 'rj-cab-a' },
+      // SOUTH-WEST — the staging region, on the player's route out of spawn.
+      // The one piece that exists for the player rather than for the room.
+      { x: 440, y: 1160, tex: 'rj-cab-b' },
     ]),
     // Props: the core is the landmark, the struts are supporting cast. All
     // three sit off the diagonal between spawn (200,1200) and exit (1200,200)
@@ -650,7 +702,9 @@ export const ROOMS = [
     ],
     enemies: [
       { type: 'grunt', x: 450, y: 450 },
-      // Nudged off (950,950): snapping the ring put a console 42px away.
+      // Was nudged off (950,950) because snapping the ring put a console 42px
+      // away. The ring is gone; the position stays, because moving a spawn to
+      // celebrate that would be changing gameplay geometry for no reason.
       { type: 'grunt', x: 1080, y: 1080 },
       { type: 'bomber', x: 1150, y: 350 }, // introduce the kamikaze here
       { type: 'sniper', x: 700, y: 350 },  // and the long-range zoner

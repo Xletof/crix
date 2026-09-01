@@ -1,0 +1,98 @@
+[
+  {
+    "name": "baseline",
+    "density": 4,
+    "tracked": 12,
+    "detour": 1.976,
+    "worstDetour": 3.288,
+    "stalled": 1.5,
+    "contacts": 3,
+    "arrived": 75,
+    "arriveMs": 692,
+    "byGate": [
+      2.004,
+      2.052,
+      1.873
+    ]
+  },
+  {
+    "name": "A",
+    "density": 4,
+    "tracked": 12,
+    "detour": 2.488,
+    "worstDetour": 5.165,
+    "stalled": 0,
+    "contacts": 2.9,
+    "arrived": 75,
+    "arriveMs": 440,
+    "byGate": [
+      2.5,
+      2.599,
+      2.365
+    ]
+  },
+  {
+    "name": "B",
+    "density": 4,
+    "tracked": 12,
+    "detour": 2.142,
+    "worstDetour": 4.05,
+    "stalled": 0,
+    "contacts": 3,
+    "arrived": 75,
+    "arriveMs": 372,
+    "byGate": [
+      2.156,
+      2.216,
+      2.054
+    ]
+  },
+  {
+    "name": "baseline",
+    "density": 8,
+    "tracked": 24,
+    "detour": 2.08,
+    "worstDetour": 3.606,
+    "stalled": 2.2,
+    "contacts": 7.4,
+    "arrived": 79,
+    "arriveMs": 330,
+    "byGate": [
+      2.116,
+      2.079,
+      2.045
+    ]
+  },
+  {
+    "name": "A",
+    "density": 8,
+    "tracked": 24,
+    "detour": 2.094,
+    "worstDetour": 3.868,
+    "stalled": 0,
+    "contacts": 4.4,
+    "arrived": 75,
+    "arriveMs": 337,
+    "byGate": [
+      2.088,
+      2.037,
+      2.155
+    ]
+  },
+  {
+    "name": "B",
+    "density": 8,
+    "tracked": 18,
+    "detour": 2.595,
+    "worstDetour": 4.58,
+    "stalled": 0,
+    "contacts": 7.1,
+    "arrived": 67,
+    "arriveMs": 348,
+    "byGate": [
+      2.43,
+      2.564,
+      2.836
+    ]
+  }
+]

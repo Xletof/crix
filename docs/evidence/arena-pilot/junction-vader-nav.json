@@ -1,0 +1,221 @@
+[
+  {
+    "name": "baseline",
+    "detour": 1.114,
+    "stalled": 63.8,
+    "contacts": 30.6,
+    "closed": 2,
+    "legs": [
+      {
+        "name": "N->S",
+        "detour": 0.103,
+        "stalled": 88,
+        "contacts": 50,
+        "closed": false,
+        "ms": 835
+      },
+      {
+        "name": "W->E",
+        "detour": 1.886,
+        "stalled": 37.5,
+        "contacts": 14.6,
+        "closed": false,
+        "ms": 802
+      },
+      {
+        "name": "NW->SE",
+        "detour": 1.359,
+        "stalled": 42.9,
+        "contacts": 10.2,
+        "closed": false,
+        "ms": 818
+      },
+      {
+        "name": "NE->SW",
+        "detour": 2.57,
+        "stalled": 33.3,
+        "contacts": 20,
+        "closed": true,
+        "ms": 752
+      },
+      {
+        "name": "gateW->obj",
+        "detour": 0.541,
+        "stalled": 85.4,
+        "contacts": 43.8,
+        "closed": false,
+        "ms": 802
+      },
+      {
+        "name": "gateN->obj",
+        "detour": 0.547,
+        "stalled": 87,
+        "contacts": 45.7,
+        "closed": false,
+        "ms": 768
+      },
+      {
+        "name": "gateE->obj",
+        "detour": 0.415,
+        "stalled": 90.9,
+        "contacts": 43.2,
+        "closed": false,
+        "ms": 735
+      },
+      {
+        "name": "obj->spawn",
+        "detour": 1.493,
+        "stalled": 45.7,
+        "contacts": 17.1,
+        "closed": true,
+        "ms": 585
+      }
+    ]
+  },
+  {
+    "name": "A",
+    "detour": 1.093,
+    "stalled": 45.3,
+    "contacts": 0.7,
+    "closed": 7,
+    "legs": [
+      {
+        "name": "N->S",
+        "detour": 0.871,
+        "stalled": 48.8,
+        "contacts": 0,
+        "closed": false,
+        "ms": 685
+      },
+      {
+        "name": "W->E",
+        "detour": 1.442,
+        "stalled": 36.8,
+        "contacts": 5.3,
+        "closed": true,
+        "ms": 317
+      },
+      {
+        "name": "NW->SE",
+        "detour": 1.109,
+        "stalled": 38.9,
+        "contacts": 0,
+        "closed": true,
+        "ms": 601
+      },
+      {
+        "name": "NE->SW",
+        "detour": 1.121,
+        "stalled": 44,
+        "contacts": 0,
+        "closed": true,
+        "ms": 417
+      },
+      {
+        "name": "gateW->obj",
+        "detour": 1.018,
+        "stalled": 48,
+        "contacts": 0,
+        "closed": true,
+        "ms": 417
+      },
+      {
+        "name": "gateN->obj",
+        "detour": 1.017,
+        "stalled": 50,
+        "contacts": 0,
+        "closed": true,
+        "ms": 367
+      },
+      {
+        "name": "gateE->obj",
+        "detour": 1.144,
+        "stalled": 55,
+        "contacts": 0,
+        "closed": true,
+        "ms": 334
+      },
+      {
+        "name": "obj->spawn",
+        "detour": 1.021,
+        "stalled": 41.2,
+        "contacts": 0,
+        "closed": true,
+        "ms": 568
+      }
+    ]
+  },
+  {
+    "name": "B",
+    "detour": 1.145,
+    "stalled": 47,
+    "contacts": 0.5,
+    "closed": 8,
+    "legs": [
+      {
+        "name": "N->S",
+        "detour": 1.497,
+        "stalled": 43.5,
+        "contacts": 4.3,
+        "closed": true,
+        "ms": 384
+      },
+      {
+        "name": "W->E",
+        "detour": 1.071,
+        "stalled": 42.4,
+        "contacts": 0,
+        "closed": true,
+        "ms": 551
+      },
+      {
+        "name": "NW->SE",
+        "detour": 1.203,
+        "stalled": 35.7,
+        "contacts": 0,
+        "closed": true,
+        "ms": 234
+      },
+      {
+        "name": "NE->SW",
+        "detour": 1.21,
+        "stalled": 29.4,
+        "contacts": 0,
+        "closed": true,
+        "ms": 284
+      },
+      {
+        "name": "gateW->obj",
+        "detour": 1.04,
+        "stalled": 47.4,
+        "contacts": 0,
+        "closed": true,
+        "ms": 317
+      },
+      {
+        "name": "gateN->obj",
+        "detour": 1.056,
+        "stalled": 71.4,
+        "contacts": 0,
+        "closed": true,
+        "ms": 117
+      },
+      {
+        "name": "gateE->obj",
+        "detour": 1.039,
+        "stalled": 59.1,
+        "contacts": 0,
+        "closed": true,
+        "ms": 367
+      },
+      {
+        "name": "obj->spawn",
+        "detour": 1.044,
+        "stalled": 47.1,
+        "contacts": 0,
+        "closed": true,
+        "ms": 568
+      }
+    ]
+  }
+]

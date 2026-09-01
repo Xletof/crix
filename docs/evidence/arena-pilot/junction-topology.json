@@ -1,0 +1,176 @@
+[
+  {
+    "name": "baseline",
+    "covers": 8,
+    "bodies": 11,
+    "innerBodies": 11,
+    "display": 133,
+    "envParts": 52,
+    "loadMs": 65.5,
+    "clearR": 205,
+    "inCrossing": 8,
+    "minGap": 90,
+    "chokes": [
+      "ch-con-heavy|rj-cab-b 90px",
+      "rj-cab-a|rj-cab-b 90px",
+      "ch-con-ped-b|rj-cab-b 90px",
+      "ch-con-ped-a|rj-cab-a 90px",
+      "rj-cab-b|prop-core 125px"
+    ],
+    "vaderArea": 72.3,
+    "vaderCentre": 47.3,
+    "routes": [
+      {
+        "from": "gate0",
+        "toObj": 1.219,
+        "toFar": 1.143
+      },
+      {
+        "from": "gate1",
+        "toObj": 1.284,
+        "toFar": 1.143
+      },
+      {
+        "from": "gate2",
+        "toObj": 1.353,
+        "toFar": 1.175
+      },
+      {
+        "from": "spawn",
+        "toObj": 1.558,
+        "toFar": 1.471
+      },
+      {
+        "from": "spawn->exit",
+        "toObj": 1.471,
+        "toFar": 0
+      }
+    ]
+  },
+  {
+    "name": "A",
+    "covers": 4,
+    "bodies": 7,
+    "innerBodies": 7,
+    "display": 125,
+    "envParts": 46,
+    "loadMs": 48.5,
+    "clearR": 391,
+    "inCrossing": 0,
+    "minGap": 165,
+    "chokes": [],
+    "vaderArea": 80.8,
+    "vaderCentre": 99.1,
+    "routes": [
+      {
+        "from": "gate0",
+        "toObj": 1.017,
+        "toFar": 1.01
+      },
+      {
+        "from": "gate1",
+        "toObj": 1.017,
+        "toFar": 1.01
+      },
+      {
+        "from": "gate2",
+        "toObj": 1.086,
+        "toFar": 1.042
+      },
+      {
+        "from": "spawn",
+        "toObj": 1.558,
+        "toFar": 1.471
+      },
+      {
+        "from": "spawn->exit",
+        "toObj": 1.471,
+        "toFar": 0
+      }
+    ]
+  },
+  {
+    "name": "B",
+    "covers": 5,
+    "bodies": 8,
+    "innerBodies": 8,
+    "display": 137,
+    "envParts": 46,
+    "loadMs": 47,
+    "clearR": 346,
+    "inCrossing": 0,
+    "minGap": 165,
+    "chokes": [],
+    "vaderArea": 78.6,
+    "vaderCentre": 98.3,
+    "routes": [
+      {
+        "from": "gate0",
+        "toObj": 1.017,
+        "toFar": 1.01
+      },
+      {
+        "from": "gate1",
+        "toObj": 1.017,
+        "toFar": 1.01
+      },
+      {
+        "from": "gate2",
+        "toObj": 1.086,
+        "toFar": 1.042
+      },
+      {
+        "from": "spawn",
+        "toObj": 1.558,
+        "toFar": 1.471
+      },
+      {
+        "from": "spawn->exit",
+        "toObj": 1.471,
+        "toFar": 0
+      }
+    ]
+  },
+  {
+    "name": "final",
+    "covers": 4,
+    "bodies": 7,
+    "innerBodies": 7,
+    "display": 162,
+    "envParts": 42,
+    "loadMs": 53.7,
+    "clearR": 357,
+    "inCrossing": 0,
+    "minGap": 165,
+    "chokes": [],
+    "vaderArea": 80.8,
+    "vaderCentre": 96.5,
+    "routes": [
+      {
+        "from": "gate0",
+        "toObj": 1.017,
+        "toFar": 1.01
+      },
+      {
+        "from": "gate1",
+        "toObj": 1.017,
+        "toFar": 1.01
+      },
+      {
+        "from": "gate2",
+        "toObj": 1.086,
+        "toFar": 1.042
+      },
+      {
+        "from": "spawn",
+        "toObj": 1.558,
+        "toFar": 1.471
+      },
+      {
+        "from": "spawn->exit",
+        "toObj": 1.471,
+        "toFar": 0
+      }
+    ]
+  }
+]
