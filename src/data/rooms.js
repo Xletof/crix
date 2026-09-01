@@ -607,6 +607,98 @@ export const ROOMS = [
       //    every large prop inherits. This room's identity in the dark is its
       //    architecture, so the core stays a lit column and nothing more.
       { kind: 'core', x: 260, y: 352, r: 11, color: 0x8a4a10, hot: 0xffb45a, normal: 0.16, emergency: 0.42, reach: 62 },
+
+      // ══ EMERGENCY LANE GUIDANCE ════════════════════════════════════════
+      //
+      // THE PROBLEM THIS SOLVES IS THE TOPOLOGY PASS'S OWN SUCCESS. Breaking
+      // the eight-cover ring opened the crossing, which is what handset play
+      // asked for and approved — but the ring was also, accidentally, the only
+      // thing standing in the middle of the room with a shape. With it gone,
+      // LIGHTS OUT from the objective is a black void: the north and south
+      // bands are both outside the viewport from a camera pinned inside
+      // y [598, 802], neither side wall is in frame, and the only lit object
+      // left is one powered terminal off to the east. Combat stayed perfectly
+      // fair — the complaint was never "I cannot see Vader" — but the room
+      // stopped being a FOUR-WAY JUNCTION and became a dark rectangle.
+      //
+      // WHAT IT IS: recessed emergency wayfinding set into the four service
+      // approaches, DEAD at normal power and modest under emergency. It is
+      // deliberately not a lighting change. `normal: 0` means `setPower(0)`
+      // sets every one of these parts invisible, so the approved normal-power
+      // composition is not dimmed, warmed or touched — its delta is zero
+      // pixels, which is the only honest way to add to a frozen room.
+      //
+      // FOUR RULES HELD THE LIST DOWN, and each of them is a way this could
+      // have gone wrong:
+      //
+      //   NOTHING ON THE CROSSING. Not one emitter and not one pixel of spill
+      //   enters x[400,1000] y[400,1000]. The empty middle is a proven
+      //   gameplay AND visual asset — the composition is lit approach
+      //   fragments around a DARK OPEN CROSSING that combat owns, and a guide
+      //   run through the objective would be the cover ring's mistake in
+      //   light. `smoke-junction` asserts the containment on the spill box,
+      //   not on the emitter, because the spill is what actually reaches.
+      //
+      //   SEGMENTS, NEVER A LANE. Two fixtures per approach with a gap
+      //   between them wider than either one is long, and both of them stop
+      //   short of the crossing. THIS IS A SABER THROW PROBLEM before it is a
+      //   taste problem: the throw is a long saturated crimson corridor out of
+      //   the boss, and it is the room's strongest line language by
+      //   entitlement. An environmental run of light down an approach competes
+      //   with it directly, so these are short, broken, cool and dim, and the
+      //   test asserts that no approach's fixtures span more than half its run.
+      //
+      //   HELD TO ONE EDGE OF EACH WAY, never up its middle. Centred, a lit
+      //   run down an approach is an axis aimed at the objective — the same
+      //   verdict the north conduit already took when it was drawn up the
+      //   centre of its way. Against an edge it is what recessed wayfinding
+      //   in a service passage actually looks like, and the way stays open.
+      //   Each one sits on the edge its approach's own hardware is not on.
+      //
+      //   THEY REVEAL ARCHITECTURE THAT EXISTS. Every fixture is inside one of
+      //   the four authored floor regions, so what comes up in the dark is the
+      //   room's real plan and not a graphic painted over it.
+      //
+      // NO BAKED SOCKET. §11 offers one, and it is declined: a slot cut into
+      // the backdrop would be visible at NORMAL power, in a normal composition
+      // the human just approved, to buy believability for something only ever
+      // seen against a near-black floor. The recessed read is carried by the
+      // construction instead — a small crisp emitter with a tight spill
+      // stretched along its own axis, which is a light in the deck rather than
+      // a shape on it.
+      //
+      // FOUR JOBS, FOUR VOICES, and the difference is meant to be sensed
+      // rather than decoded — no colour coding, no green-means-exit.
+      //
+      // WEST / REACTOR — cyan-biased and technical, because this is the
+      // service artery and every pipe in the room runs into the interchange at
+      // the end of it. Its inboard fixture is the strong one: §14's stronger
+      // terminal, seated under the interchange's southern buttress so the
+      // approach binds to the landmark it feeds. Held to the way's NORTH edge,
+      // which is the interchange side; the spine conduit owns x 108..188.
+      { kind: 'strip', guide: true, dir: 'h', x: 222, y: 596, len: 60, t: 4, color: 0x1c4653, hot: 0xa6e0ec, normal: 0, emergency: 0.30, reach: 18 },
+      { kind: 'strip', guide: true, dir: 'h', x: 352, y: 596, len: 32, t: 4, color: 0x1c4653, hot: 0xa6e0ec, normal: 0, emergency: 0.22, reach: 16 },
+
+      // NORTH / SERVICE — cool service white. Held to the way's EAST edge,
+      // because the north conduit is already against its west one.
+      { kind: 'strip', guide: true, dir: 'v', x: 778, y: 180, len: 52, t: 4, color: 0x24405c, hot: 0xbcd2ea, normal: 0, emergency: 0.26, reach: 18 },
+      { kind: 'strip', guide: true, dir: 'v', x: 778, y: 318, len: 32, t: 4, color: 0x24405c, hot: 0xbcd2ea, normal: 0, emergency: 0.20, reach: 16 },
+
+      // EAST / CONTROL — the same cool family, one step whiter. The control
+      // side is the cleaner wall and its light has said so since the art pass.
+      // Held to the way's SOUTH edge, under the east stub conduit.
+      { kind: 'strip', guide: true, dir: 'h', x: 1228, y: 754, len: 52, t: 4, color: 0x24405c, hot: 0xc6dcf2, normal: 0, emergency: 0.26, reach: 18 },
+      { kind: 'strip', guide: true, dir: 'h', x: 1058, y: 754, len: 32, t: 4, color: 0x24405c, hot: 0xc6dcf2, normal: 0, emergency: 0.20, reach: 16 },
+
+      // THE DEPARTURE SPUR — a warm NEUTRAL white, one notch brighter, and its
+      // outboard fixture is the longest single guide in the room. That is the
+      // whole of §15: the way out stays the easiest structure to rediscover in
+      // the dark, said with a longer segment and a warmer neutral rather than
+      // with a colour that means "exit". It is warm-neutral and not amber —
+      // green sits at 96% of red here, where the danger red the saber and the
+      // telegraphs own drops it under a third.
+      { kind: 'strip', guide: true, dir: 'v', x: 1148, y: 206, len: 72, t: 4, color: 0x4a4436, hot: 0xf0e6cc, normal: 0, emergency: 0.32, reach: 18 },
+      { kind: 'strip', guide: true, dir: 'v', x: 1148, y: 348, len: 36, t: 4, color: 0x4a4436, hot: 0xf0e6cc, normal: 0, emergency: 0.24, reach: 16 },
     ],
     walls: [],
     // ══ THE COVER, AFTER HANDSET PLAY ══════════════════════════════════════

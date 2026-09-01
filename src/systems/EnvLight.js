@@ -275,6 +275,10 @@ export class EnvLight {
     for (const p of parts) {
       p._normal = s.normal ?? 0;
       p._emergency = s.emergency ?? 0;
+      // A PURELY DESCRIPTIVE TAG. Nothing in this file reads it; it exists so a
+      // test can measure the junction's emergency lane guidance on the LIVE
+      // objects rather than re-deriving which spec entry each part came from.
+      p._guide = !!s.guide;
       this.parts.push(p);
     }
   }
