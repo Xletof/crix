@@ -17,6 +17,31 @@ would corrupt each other's world state.
 
 ## The suite is load-sensitive. Prove a regression before chasing one.
 
+### A PAUSED SCENE PHOTOGRAPHS A FROZEN CAMERA FLASH
+
+Every screenshot rig here pauses the scene before the shutter, because freezing
+`tweens.timeScale` does not stop `scene.update`. But `scene.pause()` also stops
+CAMERA EFFECTS updating, and `player-hurt` fires
+`cameras.main.flash(120, 255, 80, 80)` — so a shutter that lands inside one
+photographs a **flat full-screen red wash that never decays**. Twelve evidence
+frames were lost to this twice before it was found, and it is invisible to the
+obvious diagnosis: the flash lives on the camera, so walking every display list
+in every active scene for a big red object returns nothing.
+
+`gs.cameras.main.resetFX()` before pausing. `_sectorTint` needs the same
+treatment for an unrelated reason — it is an ADD-blended screen-locked rectangle
+at depth 9000 that is re-raised after the room banner, so zeroing it once after
+`loadRoom` does not hold to the shutter.
+
+### ENDLESS ROLLS A NEW ROOM MODIFIER ON EVERY ROOM LOAD
+
+`loadRoom` picks one off `rng.waves` in endless mode, so loading the SAME room
+twice for an A/B gives the two halves different modifiers. One matched pair here
+came back DARKNESS against FRENZY — a different enemy speed and a different
+ambient wash, in a comparison that was supposed to differ only in cover. Null
+`gs._roomModifier` and re-emit `modifier-active` / `set-darkness` in BOTH halves.
+
+
 Under sustained load this suite returns 26-28/29 with a **different** test
 failing each run, and every failing test passes standalone. Observed across six
 consecutive runs: smoke-boss-moves, smoke-vader, smoke-endless, smoke-moves,
