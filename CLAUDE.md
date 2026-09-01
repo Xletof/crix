@@ -2,9 +2,10 @@
 
 **New session?** `HANDOVER.md` is the map — what the game is, how it is laid out,
 what is dead code, and what is in flight. **Its `§0. WHERE THINGS STAND` is the
-current state of play and is the first thing to read**; right now it says the
-Reactor Junction topology pass is finished, deployed and STOPPED FOR HANDSET
-REVIEW, and that nothing on it should be started until a human has played it.
+current state of play and is the first thing you read.** Do not restate §0's
+contents here: this line said "the topology pass is stopped for handset review"
+for exactly as long as it took the next pass to land, and a summary that can go
+stale is worse than a pointer. §0 is the single place the state lives.
 This file is the rules and the traps.
 `tests/README.md` covers the test harness and the ways it will lie to you.
 
