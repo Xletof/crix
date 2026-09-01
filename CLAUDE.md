@@ -1,7 +1,11 @@
 # Frix — project notes for Claude
 
 **New session?** `HANDOVER.md` is the map — what the game is, how it is laid out,
-what is dead code, and what is in flight. This file is the rules and the traps.
+what is dead code, and what is in flight. **Its `§0. WHERE THINGS STAND` is the
+current state of play and is the first thing to read**; right now it says the
+Reactor Junction topology pass is finished, deployed and STOPPED FOR HANDSET
+REVIEW, and that nothing on it should be started until a human has played it.
+This file is the rules and the traps.
 `tests/README.md` covers the test harness and the ways it will lie to you.
 
 ## Interaction rules (read first)
@@ -49,7 +53,7 @@ asserts separately that the ceiling is not reached.
 
 - **Deploys only happen from the `FRIX` branch.** `.github/workflows/deploy.yml`
   triggers on pushes to `FRIX` only. Work lands on the dev branch
-  (`claude/vader-progression-hardness-uqn9o9`); GitHub Pages will serve a **stale build**
+  (`claude/death-star-visual-pilot-olbbqx`); GitHub Pages will serve a **stale build**
   until `FRIX` is fast-forwarded. If a session ever finds this name stale again,
   trust `git rev-parse --abbrev-ref HEAD` over this line and fix the line.
 - **Always deploy — don't ask.** The user tests on a phone against GitHub Pages,

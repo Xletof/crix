@@ -8,6 +8,74 @@ the code at that commit, not remembered.
 
 ---
 
+## 0. WHERE THINGS STAND — read this first
+
+*Updated 2026-09-01 against `da6546a`, which is `HEAD` and `origin/FRIX` both.
+Pages run 207 is green, so the live build IS this commit.*
+
+### Waiting on a human, not on work
+
+The **Reactor Junction cover-topology pass is finished, deployed, and stopped
+for handset review.** Nothing should be started on it until a human has played
+it. What they are testing: natural waves, multi-direction crowd flow, crossing
+the centre under pressure, late Vader, FORCE PULL, FORCE PUSH, SABER THROW,
+Afterimages, and LIGHTS OUT.
+
+**To see it: DEBUG -> LOAD REACTOR JUNCTION, then DEBUG -> SPAWN VADER.**
+`SPAWN VADER` deliberately does not change rooms, and a fresh endless run only
+reaches the junction as its SECOND room.
+
+Read `§10t` for what that pass did and `§10s` for the art pass under it.
+
+### The arena ladder, and what each rung's verdict is
+
+| room | art | topology | state |
+|---|---|---|---|
+| Vader Chamber (`boss`) | PASS | — | **FROZEN.** `§10n`, `§10p` |
+| Hangar (`hangar`) | PASS | — | **FROZEN.** `§10q` |
+| Reactor Junction (`corridor`) | PASS | **awaiting verdict** | `§10s`, `§10t` |
+| Detention (`detention`) | untouched | untouched | not started, and not to be started |
+
+Vader himself is frozen — see `CLAUDE.md`. So is DEFLECTION, so is LIGHTS OUT.
+
+### The decision that comes after the verdict
+
+Two candidates, and the human picks:
+
+1. **Junction topology freezes**, and the reactor core prop + two struts get a
+   bounded visual migration — they are the oldest assets in the room and three
+   fewer cover objects around them made them more prominent, not less.
+2. **Detention becomes the fourth-room validation**, on the same rules the
+   junction proved: reuse the grammar, reuse none of the composition.
+
+Do not start either without being told which.
+
+### Open questions this pass deliberately did not answer
+
+- The junction's dark state lost seven console lights when three powered cover
+  objects went. That was the intent — one lit terminal instead of a ring — but
+  whether the centre now reads as too EMPTY in a blackout is a handset
+  question, and the brief forbade answering it by adding light.
+- The south-west cover piece is the weakest-justified of the four. It exists
+  for the player's route out of spawn rather than for the room's function.
+
+### Two suite failures that are NOT regressions
+
+The suite returns **31 of 33**, and both failures were re-run against
+`a980157` with `src/` swapped out:
+
+- `smoke-readability` fails its wind-up check with the IDENTICAL measurement on
+  the baseline — `forcepull 0px/s drift 45px` against a 40px bar. The speed is
+  ZERO, so he is in fact planted; the drift allowance is simply tight. It runs
+  in the Vader Chamber, which this pass never touched.
+- `smoke-deflect` fails a different check on almost every run, on the baseline
+  too. `tests/README.md` has the write-up.
+
+`smoke-moves` failed once and passed on re-run and on baseline. Do not chase
+any of these, and above all do not modify Vader because of them.
+
+---
+
 ## 1. What this is
 
 **Frix** — a mobile-first, portrait, top-down twin-stick **wave-survival**
@@ -16,7 +84,7 @@ Vite, vanilla JS ES modules, no TypeScript, no framework.
 
 - **Repo:** `Xletof/crix` — GitHub MCP tools are restricted to it
 - **Live:** https://xletof.github.io/crix/
-- **Dev branch:** `claude/vader-progression-hardness-uqn9o9` — this name changes
+- **Dev branch:** `claude/death-star-visual-pilot-olbbqx` — this name changes
   between sessions; if it looks wrong, believe `git rev-parse --abbrev-ref HEAD`
   and correct this line
 - **Deploy branch:** `FRIX` — Pages builds **only** from this (see §8)
@@ -3446,7 +3514,7 @@ There is deliberately **no general UI framework** — the problem did not need o
 ## 11. State as of this handover
 
 Everything is committed, pushed and deployed; `FRIX` is level with the dev
-branch `claude/vader-progression-hardness-uqn9o9`. `origin/main` is unrelated and
+branch `claude/death-star-visual-pilot-olbbqx`. `origin/main` is unrelated and
 unused — Pages builds from `FRIX` only.
 
 **Recently completed** (most recent first):
