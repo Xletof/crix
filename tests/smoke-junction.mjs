@@ -454,10 +454,11 @@ for (const b of R.geom.bodies.filter((x) => x.bw === 70)) {
 //
 //      Every one of them A/B's: run this against the eight-cover ring and it
 //      reports 8 bodies in the crossing, a 90px minimum gap, five sub-lane
-//      chokes, a 205px clear radius, a 0.202 radius spread, a 60-degree widest
-//      bearing gap and 53% of the crossing closed to Vader.
+//      chokes, a 205px clear radius, a 0.201 radius spread, a 55-degree widest
+//      bearing gap and 53% of the crossing closed to Vader. Eighteen findings
+//      in total, measured, not estimated.
 //
-//      THE RADIUS BAR IS 0.25 BECAUSE THE RING SCORES 0.202. The first version
+//      THE RADIUS BAR IS 0.25 BECAUSE THE RING SCORES 0.201. The first version
 //      of this check asked for 0.2 and the eight-cover ring PASSED it — its
 //      pieces sit between 254 and 311px out, which is spread enough to clear a
 //      lazy threshold. A check that passes on the bug is decoration.
@@ -471,7 +472,7 @@ if (R.topo.clearR < 300) fails.push(`the nearest solid face is ${R.topo.clearR}p
 if (R.topo.vaderCrossing < 95) fails.push(`only ${R.topo.vaderCrossing}% of the crossing admits a Ø112 body`);
 // NOT A RING: a ring is uniform in both radius and bearing. Five evenly spread
 // pieces would leave a 72-degree widest gap and a radius spread near zero.
-if (R.topo.radSpread < 0.25) fails.push(`the cover sits at a ${R.topo.radSpread} radius spread from the objective — the rejected ring scored 0.202, so this is no less uniform than the thing it replaced`);
+if (R.topo.radSpread < 0.25) fails.push(`the cover sits at a ${R.topo.radSpread} radius spread from the objective — the rejected ring scored 0.201, so this is no less uniform than the thing it replaced`);
 if (R.topo.maxAngGap < 110) fails.push(`the widest bearing gap between cover pieces is ${R.topo.maxAngGap} degrees — the pieces are evenly spread around the objective, which is a ring`);
 // ACCESS: 4-connected BFS cannot do better than 1.414 on a pure diagonal, so
 // the spawn->exit run is judged against that floor and not against 1.0.

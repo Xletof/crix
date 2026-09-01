@@ -780,10 +780,10 @@ asserts separately that the ceiling is not reached.
   the 80px lattice that means any two cover objects must differ by 240px in x
   or in y. Do not invent a pixel number here; re-derive it if a body changes.
 - **A RING TEST MUST TEST BEARING, NOT JUST RADIUS.** The first not-a-ring check
-  asked for a 0.2 radius spread and the eight-cover ring PASSED it — its pieces
-  sit 254-311px out, which clears a lazy threshold. The discriminator is the
-  widest gap between two cover BEARINGS: 60 degrees for the ring against 146 for
-  what shipped. A check that passes on the bug is decoration.
+  asked for a 0.2 radius spread and the eight-cover ring PASSED it at 0.201 —
+  its pieces sit 254-311px out, which clears a lazy threshold. The discriminator
+  is the widest gap between two cover BEARINGS: 55 degrees for the ring against
+  146 for what shipped. A check that passes on the bug is decoration.
 - **A PAUSED SCENE FREEZES A CAMERA FLASH FOREVER.** `player-hurt` fires
   `cameras.main.flash(120, 255, 80, 80)`, and `scene.pause()` — which is how
   every screenshot in this project is taken — stops the effect updating. A

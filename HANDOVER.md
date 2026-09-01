@@ -3116,6 +3116,13 @@ coordinate:
 
 Plus a NOT-A-RING check on bearing and radius spread, because deleting four of
 eight and leaving a tidy square would pass both rules above and fail the room.
+The bearing half is the one that discriminates: the ring's widest gap between
+two cover bearings is **55 degrees** against the shipped layout's **146**. The
+radius half needed its bar raised to 0.25 after the ring PASSED a 0.2 threshold
+at 0.201 — its pieces sit 254-311px out, which clears a lazy check.
+
+Reinstating the ring through the spec makes `smoke-junction` report **18
+findings**, all four relational truths among them.
 
 ### The selected layout — four pieces, and only one is lit
 
@@ -3146,6 +3153,15 @@ prop is already the mass on that side.
 | ordinary enemy contact, dense wave | 6.6% / 7.4% | 3.0% / 4.4% |
 | physics bodies / LOS rects | 11 | 7 |
 | emissive parts | 52 | 42 |
+| display list / roomLayer | 104 / 16 | 90 / 12 |
+| frame median, normal / dark | 126.7 / 149.7 ms | 126.7 / 142.4 ms |
+| room load | 39.1 ms | 43.4 ms |
+| backdrop / kit textures | 7.48 MB / 343 KB | unchanged |
+
+Frame time is a wash — an identical normal median in a same-session A/B, a ~5%
+better dark median, and a load figure whose 4ms difference sits inside the
+39-52ms spread the same build gives across runs. The saved objects were not
+spent on anything.
 
 ### The candidate that lost
 

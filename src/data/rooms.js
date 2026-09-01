@@ -644,7 +644,7 @@ export const ROOMS = [
     //   THE CROSSING IS THE CLEAR COMBAT ENVELOPE. No solid body may intersect
     //   x[400,1000] y[400,1000]. Cover lives in the peripheral bands, where the
     //   room's functions already are. Clear radius at the objective goes 205 ->
-    //   391px, and 99% of the crossing opens to Vader.
+    //   357px, and 96.5% of the crossing opens to Vader.
     //
     //   EVERY GAP IS A LANE. 160px minimum between any two solid bodies:
     //   Ø112 plus the nav grid's own 23px agent clearance on each side, which
@@ -654,9 +654,9 @@ export const ROOMS = [
     //   FOUR PIECES, NOT A TIDIER RING. Deleting four and leaving a tidy
     //   square would pass both rules above and fail the room, so the layout is
     //   deliberately uneven in BOTH radius and bearing. The pieces stand 405,
-    //   439, 474 and 528px out — a 0.27 spread against the ring's 0.20 — the
+    //   439, 474 and 528px out — a 0.27 spread against the ring's 0.201 — the
     //   widest gap between two cover bearings is 146 degrees against the ring's
-    //   60, and the north-west quadrant carries no cover at all, because the
+    //   55, and the north-west quadrant carries no cover at all, because the
     //   reactor core prop is already the mass on that side. A five-piece
     //   candidate was built and measured against this one; it opened the centre
     //   just as well but left ordinary enemies in contact with geometry nearly
