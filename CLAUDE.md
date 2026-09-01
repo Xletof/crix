@@ -756,6 +756,48 @@ asserts separately that the ceiling is not reached.
   and TWO concentric amber rings at r=250/300 centred exactly on the objective
   — a circle telegraph's shape, size and placement, on the square metre where
   the boss fight resolves. `smoke-junction` fails on either coming back.
+- **THE JUNCTION'S EIGHT-COVER RING IS GONE, AND NOT BECAUSE IT LOOKED BAD.**
+  Handset play approved the art pass (`HANDOVER.md` 10s) and rejected the
+  topology it had preserved. All eight cover bodies sat inside the room's own
+  authored 600x600 crossing; the tightest neighbour gaps were 90px against a
+  Ø112 boss; only 47% of the crossing admitted him; and Vader closed on the
+  player on **2 of 8** legs, spending 43-46% of frames in bodily contact with
+  geometry on every feeder approach. The replacement rule is relational, not
+  positional — **no solid body in the crossing, 160px minimum between any two
+  solid bodies** — and `smoke-junction` asserts it that way on purpose:
+  freezing coordinates is exactly what protected the bad layout. `10t` is the
+  record.
+- **A LAYOUT CAN BE BROKEN FOR EXACTLY ONE ACTOR SIZE.** The junction's ordinary
+  enemies are Ø40-48 and fitted the 90px gaps, so the wave-flow probe barely
+  discriminated between the ring and its replacement — detour and arrival times
+  moved by noise. `NavGrid.build` tests a cell CENTRE against a body rect
+  inflated by 23px, so it happily routed them through slots the boss cannot
+  physically enter: **pathing said yes and physics said no.** Measure the
+  LARGEST body before concluding a room paths well.
+- **160px IS THE JUNCTION'S LANE, AND IT IS DERIVED.** Ø112 (`BOSS.radius` 56,
+  doubled) plus `NavGrid`'s own 23px agent clearance on each side, rounded to
+  two nav cells so a qualifying gap always contains a fully walkable cell. On
+  the 80px lattice that means any two cover objects must differ by 240px in x
+  or in y. Do not invent a pixel number here; re-derive it if a body changes.
+- **A RING TEST MUST TEST BEARING, NOT JUST RADIUS.** The first not-a-ring check
+  asked for a 0.2 radius spread and the eight-cover ring PASSED it — its pieces
+  sit 254-311px out, which clears a lazy threshold. The discriminator is the
+  widest gap between two cover BEARINGS: 60 degrees for the ring against 146 for
+  what shipped. A check that passes on the bug is decoration.
+- **A PAUSED SCENE FREEZES A CAMERA FLASH FOREVER.** `player-hurt` fires
+  `cameras.main.flash(120, 255, 80, 80)`, and `scene.pause()` — which is how
+  every screenshot in this project is taken — stops the effect updating. A
+  shutter that lands inside one photographs a flat full-screen red wash that
+  never decays. It lives on the camera, so walking the display list for it finds
+  NOTHING; twelve evidence frames were lost to this twice before it was found.
+  Call `cameras.main.resetFX()` before pausing. `_sectorTint` needs the same
+  treatment for a different reason: it is re-raised after the room banner, so
+  zeroing it once after `loadRoom` does not hold.
+- **ENDLESS ROLLS A NEW ROOM MODIFIER ON EVERY ROOM LOAD.** `rng.waves.pick`,
+  in `loadRoom`. So two consecutive loads of the SAME room for an A/B come back
+  with different modifiers — one pair here was DARKNESS against FRENZY, which is
+  a different enemy speed and a different ambient wash in a comparison meant to
+  differ only in cover. Null it in both halves of any matched pair.
 - **THE `chamber` PERIMETER HAS FOUR JOBS, ONE PER SIDE.** north ceremonial (no
   ribs, no vents — that wall is behind Vader), west service (densest, the hero
   machine's side), east control (machinery block on alternate bays only), south

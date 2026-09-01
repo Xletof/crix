@@ -77,7 +77,17 @@ const place = (px, py, bx, by) => page.evaluate(([x, y, ox, oy]) => {
 }, [px, py, bx, by]);
 const pause = (on) => page.evaluate((f) => {
   const gs = window.game.scene.getScene('Game');
-  if (f) gs.scene.pause(); else gs.scene.resume();
+  // THE SECTOR WASH COMES BACK. `_sectorTint` is an ADD-blended screen-locked
+  // rectangle at depth 9000 and zeroing it once after `loadRoom` does not hold
+  // past the room banner — the combat stations of one run came back as six
+  // frames of flat red over the whole viewport. Re-assert it at the shutter,
+  // for the same reason `setDark` re-asserts the darkness.
+  // AND THE CAMERA FLASH: `player-hurt` fires `flash(120, 255, 80, 80)`, and
+  // `scene.pause()` stops the effect updating — a shutter inside one freezes a
+  // full-screen red wash that never decays. It lives on the camera, not in any
+  // display list, so walking the children for it finds nothing.
+  if (f) { gs._sectorTint?.setAlpha(0); gs.cameras.main.resetFX?.(); gs.scene.pause(); }
+  else gs.scene.resume();
 }, on);
 const shot = async (n) => { writeFileSync(`${OUT}/${n}.png`, await page.screenshot()); console.log('  ', n); };
 

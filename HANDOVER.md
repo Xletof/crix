@@ -3047,6 +3047,137 @@ cost.
 - **The emissive numbers are unreviewed.** Every intensity was chosen against
   screenshots on a desktop monitor.
 
+## 10t. THE JUNCTION'S COVER TOPOLOGY — the ring, and why it had to go
+
+`§10s` is the junction's art pass. Handset play **approved that pass** — the
+visual identity, the junction reinterpretation, the wall and perimeter language,
+the conduit vocabulary, the central restraint, the palette, the cabinet and
+console language, the LIGHTS OUT presentation, the colour hierarchy — and
+**rejected the room's level design**, which the art pass had deliberately left
+alone as gameplay geometry it was not allowed to touch.
+
+That cover freeze is REVOKED. This section is the correction and the record.
+
+### What the room actually was
+
+Eight cover objects in a near-perfect circle around an objective the player
+cannot leave. The art pass repainted them — three powered terminals at the
+feeder mouths, five unpowered service cabinets — but a repaint cannot fix a
+topology. On a handset it read as a furniture carousel: movement dictated by
+small gaps, enemies queueing round obstacles, and a boss fighting the desks.
+
+### What was measured
+
+Three diagnostics were built for this. `GameScene.loadRoom` takes a **spec
+object**, so a candidate topology is a cloned spec with a different `cover`
+array — no source edit, no rebuild, and every candidate is measured by the same
+code on the same machine within seconds of the others.
+
+- `tests/diag-junction-topology.mjs` — geometry and nav: clear radius, pairwise
+  gaps, how much of the room admits a Ø112 body, gate route ratios.
+- `tests/diag-junction-flow.mjs` — real waves at all three gates against a
+  pinned player, per-enemy detour, stall and contact over the APPROACH ONLY.
+- `tests/diag-junction-vader.mjs` — the frozen boss driven from eight stations
+  by his own AI with the move scheduler silenced. §12's benchmark.
+
+Three findings, and the third is the room's verdict:
+
+1. **ALL EIGHT PIECES SAT INSIDE THE CROSSING.** The floor art already declares
+   a 600x600 raised region as the junction — the room's whole spatial idea and
+   the calmest floor in the game — and every cover body was parked in it. The
+   nearest solid face was **205px** from the objective.
+2. **THE GAPS WERE VADER-PROOF.** Tightest neighbour gap **90px**, against a
+   Ø112 boss (`BOSS.radius` 56, doubled). `NavGrid.build` tests a cell CENTRE
+   against a body rect inflated by 23px, so it routed ordinary actors — Ø40-48 —
+   straight through slots the largest actor cannot physically enter. **Pathing
+   said yes and physics said no.** Only **47%** of the crossing admitted Vader.
+3. **SO THE BOSS JAMMED.** Vader closed on the player on **2 of 8** legs. On all
+   three feeder approaches he spent **43-46% of frames in bodily contact with
+   geometry** and never arrived. North to south he travelled **62px in six
+   seconds**. Under a second, heavier-loaded pass he closed **0 of 8**.
+
+Note what this says about instrumentation: the ordinary-enemy flow probe barely
+discriminated, because ordinary enemies FIT. A layout can be broken for exactly
+one actor size and look fine in every other measurement.
+
+### The rule that replaced the ring
+
+Two relational truths, both asserted by `smoke-junction`, neither of them a
+coordinate:
+
+- **THE CROSSING IS THE CLEAR COMBAT ENVELOPE.** No solid body may intersect
+  `x[400,1000] y[400,1000]`. Cover lives in the peripheral bands, where the
+  room's functions already are. The room's own architecture chose this envelope;
+  the topology just stopped contradicting it.
+- **EVERY GAP IS A LANE.** 160px minimum between any two solid bodies: Ø112 plus
+  the nav grid's own 23px agent clearance on each side, rounded to two nav cells
+  so a qualifying gap always contains a fully walkable cell. This is derived
+  from the actors and from `NavGrid`, not chosen by eye.
+
+Plus a NOT-A-RING check on bearing and radius spread, because deleting four of
+eight and leaving a tidy square would pass both rules above and fail the room.
+
+### The selected layout — four pieces, and only one is lit
+
+| where | texture | powered | why it is there |
+|---|---|---|---|
+| (920, 360) | `rj-cab-b` | no | north control, offset EAST of the feeder way so the way keeps its full width; pulled in to the crossing's corner so the four radii are uneven |
+| (1080, 920) | `ch-con-heavy` | **yes** | the east control station, south of the east way. The room's single powered cover object |
+| (280, 920) | `rj-cab-a` | no | west service band, south of the west way. North of it belongs to the reactor core prop, whose 200x120 body owns that pocket |
+| (440, 1160) | `rj-cab-b` | no | south-west staging, on the player's route out of spawn. The one piece that exists for the player rather than for the room |
+
+The north-west quadrant carries no cover at all, deliberately: the reactor core
+prop is already the mass on that side.
+
+### After
+
+| | ring | shipped |
+|---|---|---|
+| cover objects | 8 | 4 |
+| bodies inside the crossing | 8 | 0 |
+| clear radius at the objective | 205px | 357px |
+| minimum obstacle gap | 90px | 165px |
+| sub-160px gaps | 5 | 0 |
+| crossing admitting a Ø112 body | 47.3% | 96.5% |
+| feeder gate -> objective, nav ratio | 1.22 / 1.28 / 1.35 | 1.02 / 1.02 / 1.09 |
+| Vader legs closed | 2 of 8 | **8 of 8** |
+| Vader frames in contact with geometry | 30.6% | 4.6% |
+| ordinary enemies stalling | 2.2% | 0.0% |
+| ordinary enemy contact, dense wave | 6.6% / 7.4% | 3.0% / 4.4% |
+| physics bodies / LOS rects | 11 | 7 |
+| emissive parts | 52 | 42 |
+
+### The candidate that lost
+
+A five-piece variant (candidate A plus a cabinet at (780, 1080)) opened the
+centre just as well — 346px clear, 165px minimum gap, 98.3% of the crossing —
+and closed one more Vader leg. It lost on ordinary-enemy flow: **5.6% and 7.1%**
+obstacle contact at the discriminating density against the four-piece layout's
+**3.0% and 4.4%**, reproduced across two runs. Its fifth object also had the
+least reason to exist — open south field, nothing to relate to. §19: if moving
+an object 100px changes nothing tactically, question whether it is needed.
+
+### What this did NOT change
+
+`src/data/rooms.js` is the only source file in the diff. Bounds, walls, gates,
+spawn, exit, objective, props, enemies, pickups, floor art, architecture,
+perimeter, palette, the emissive layout, EnvLight, LIGHTS OUT and Vader are all
+untouched. The other three arenas are untouched and `smoke-junction` reads them
+from the same place as everything else.
+
+### Open
+
+- **The dark state lost seven console lights** with the three powered pieces.
+  That was the intent — one lit terminal instead of a ring — but whether the
+  centre now reads as too empty in a blackout is a handset question, and §22
+  explicitly forbids answering it by adding light in this pass.
+- **The reactor core prop and the two struts are still legacy assets** and are
+  now, with three fewer cover objects around them, more prominent than before.
+  Their migration is `§10s`'s open item and stays deferred.
+- **The south-west piece is the weakest-justified of the four.** It exists for
+  the player's route out of spawn rather than for the room's function, and it is
+  the one to question first if the layout is revisited.
+
 ## 10c. The narrative system
 ## 10c. The narrative system
 

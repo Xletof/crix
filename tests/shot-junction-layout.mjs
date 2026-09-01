@@ -59,7 +59,10 @@ const png = await page.evaluate(async ({ ring }) => {
     // gates, spawn, exit, objective
     const dot = (x, y, c, label) => {
       g.fillStyle = c; g.beginPath(); g.arc(T(x), T(y), 5, 0, 7); g.fill();
-      g.font = '11px monospace'; g.fillText(label, T(x) + 8, T(y) + 4);
+      g.font = '11px monospace';
+      // Labels flip inside near the right edge, or the panel clips them.
+      const w = g.measureText(label).width;
+      g.fillText(label, T(x) + 8 + w > W ? T(x) - 8 - w : T(x) + 8, T(y) + 4);
     };
     spec.gates.forEach((gt, i) => dot(gt.x, gt.y, '#c98a3a', 'gate' + i));
     dot(spec.spawn.x, spec.spawn.y, '#5aa8d8', 'spawn');
