@@ -836,6 +836,51 @@ asserts separately that the ceiling is not reached.
   with different modifiers — one pair here was DARKNESS against FRENZY, which is
   a different enemy speed and a different ambient wash in a comparison meant to
   differ only in cover. Null it in both halves of any matched pair.
+- **DETENTION IS 1600x1400 AND ITS LONG AXIS IS THE ONLY ONE THE VIEWPORT CAN
+  SHOW.** Spawn on the west edge, exit dead level with it on the east, two
+  objectives pulled off that line, four gates with TWO of them on the east wall
+  behind the way out, and `walls` completely EMPTY. The camera centre pins
+  inside x [360, 1240] and y [598, 802], so the full WIDTH is reachable — the
+  only arena where that is true — while world y beyond ~1100 is behind the
+  joysticks and the SOUTH band is effectively never in frame. Its plan is a
+  WALK, not a warren of cells, and the fiction follows the geometry: the frozen
+  open middle is the escort floor you are meant to be visible while crossing.
+  `HANDOVER.md` §10x. **To see it: DEBUG -> LOAD DETENTION BLOCK** — it is the
+  LAST room of the rotation and costs two full clears otherwise. Awaiting a
+  handset verdict; nothing in it is frozen.
+- **THE `block` PERIMETER'S SIGNATURE IS THE BAR, AND ITS PERIOD IS 176.**
+  Nothing else in CRIX draws slats across an opening — a chamber bay lands on
+  the deck, a junction bay crosses above it, a cell front CLOSES one. The
+  period is the tightest in the game because containment repeats at the width
+  of one person (chamber 320, hangar 400, junction 260). Three modules —
+  cell / service / secure — run `cell cell cell service` with exactly one
+  secure leaf per long wall, whose interlock bolt is HORIZONTAL when every
+  other bar is vertical, so the bolted cell reads from the pattern before any
+  light is involved. Occupancy varies by a fixed HASH of the bay index, never
+  by `Math.random`: a backdrop is repainted on every room load, and an
+  occupancy that reshuffled would make the block a different place each time.
+- **GREEN IS BULLET COLOUR, AND IN A DARK ROOM THAT MATTERS.** The no-red rule
+  is three arenas old; this one is newer and narrower. Enemy bullets are green,
+  so a scatter of small green environment points along both walls during LIGHTS
+  OUT is incoming fire that is not there. Detention's containment lamps are
+  cold white-blue and its two emergency systems are amber. `smoke-detention`
+  channel-tests both ends of every source colour.
+- **A LAMP ON EVERY REPEATED MODULE IS AN OUTLINE OF THE PLAYABLE SPACE.** Two
+  parallel dotted lines of lock lamps down detention's long walls is a corridor
+  drawn in light, which is the giant-emergency-outline failure wearing a new
+  costume. Five lamps north and three south, at irregular gaps, keyed to the
+  same occupancy the wall painter draws: a handful of doors that still have
+  someone behind them, not a run of them.
+- **`_clearRoomEntities` LEAKS ONE OBJECT PER ROOM LOAD, AND IT IS NOT YOURS TO
+  FIX IN AN ART PASS.** It sweeps with
+  `roomLayer.getChildren().forEach((o) => o.destroy())`; `getChildren()` hands
+  back the group's internal array and `destroy()` splices the member out of it,
+  so the loop **skips every other element**. Measured at exactly +1 display-list
+  object per load on every build tested, and the survivor is visible in play —
+  a hangar wall console standing in the detention block at (148, 106). The
+  enemy sweep two lines above already uses `.slice()`. Fixing it removes leaked
+  objects from the three APPROVED arenas too, so it needs its own change with
+  its own evidence, not a drive-by in a room pass. `HANDOVER.md` §10x.
 - **THE `chamber` PERIMETER HAS FOUR JOBS, ONE PER SIDE.** north ceremonial (no
   ribs, no vents — that wall is behind Vader), west service (densest, the hero
   machine's side), east control (machinery block on alternate bays only), south

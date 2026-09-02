@@ -3630,6 +3630,282 @@ was.
   the guidance was placed against the room, not against the brief.
 - **The reactor core and struts are still legacy assets** and still deferred.
 
+---
+
+## 10x. THE FOURTH ARENA — the Detention Block, and whether this is a language
+
+`§10n` is the chamber pilot, `§10q` the hangar, `§10s`-`§10w` the junction. This
+is the last unstyled room, and the question it exists to answer is not "does
+this room look better". It is **does CRIX have an environmental LANGUAGE, or
+three one-off rooms.** The test was set as: reuse the SYSTEMS, reuse none of the
+COMPOSITION — same world, different room.
+
+### The room, audited before a word of art direction
+
+The name is a trap and the geometry says so. Every number below was read out of
+`rooms.js` and the live scene, not remembered:
+
+| fact | value |
+|---|---|
+| bounds | **1600x1400** — the WIDEST arena, and the only one whose long axis runs east-west |
+| spawn | (150, 700), the west edge |
+| exit | (1450, 700) `side: 'right'` — **dead level with the spawn** |
+| gates | (800,100) N, (800,1300) S, (1450,300) and (1450,1100) — **two on the east wall**, behind the way out |
+| objectives | (500, 450) and (1100, 950) — diagonally opposed, pulled off the walk |
+| `walls` | **EMPTY.** Not one solid structure on the deck |
+| cover | 8, on a 3/3/2 grid: y=300 x{400,800,1200}, y=1100 x{400,800,1200}, y=700 x{600,1000} |
+| props | `prop-post` (260,1230) body 200x110; four bunks, bodies 120x60 |
+| perimeter | `cells`, thickness 64 |
+| authored floor / light | **none** — no `architecture`, no `emissives`, no `grounded` |
+
+**The plan is a WALK.** Enter one side, leave the other, straight through the
+middle, with the two objectives pulling you off the line and reinforcements
+coming from behind the exit. That is not a warren of cells, and building the
+obvious detention-corridor fantasy here would have been writing a fiction over
+a geometry that says something else.
+
+### The viewport decided the composition, again
+
+720x1196 of viewport pins the camera centre inside **x [360, 1240]** and
+**y [598, 802]**. Two consequences, and both are structural:
+
+- **The full WIDTH is reachable** — the only arena where that is true. The long
+  axis and the visible axis are the same axis here.
+- **World y beyond about 1100 is behind the touch controls** from every
+  position the player can stand in, and the SOUTH band (y 1304..1400) is
+  effectively never in frame at all. The junction lost a whole build to a
+  landmark on its south wall; this room's only landmark, `prop-post` at
+  (260, 1230), was already under the joysticks and had been its whole life.
+
+So everything that carries is composed east-west, on the north band and the
+east wall.
+
+### What the baseline actually was
+
+`docs/evidence/arena-pilot/detention-before/` — 40 frames.
+
+- **SIX full-width saturated CYAN strip lights** at `stripEvery: 220` plus
+  three pale accents, edge to edge over the props, the cover and the fight. The
+  loudest thing in every frame. The same failure the chamber shipped in crimson
+  and the junction in orange-red.
+- **No large forms and no medium forms.** A flat hex deck at full contrast,
+  twelve faint corner brackets, nothing else.
+- **Eight identical `bush` consoles on a grid**, every one lit, every one
+  carrying a painted red LED bar. In LIGHTS OUT they were eight equally pale
+  boxes and the brightest objects in a room that was supposed to be dark.
+- The bunks were painted from the Imperial family's top end and the observation
+  post was glazed in a saturated cyan it had no light to justify — both
+  brighter than the deck they stood on.
+
+### The one sentence
+
+> **A prisoner-transfer block: a long, deliberately exposed escort floor
+> running the full width of the level between two banks of holding cells, from
+> the intake end to a sealed processing gate.**
+
+The room's frozen open middle stops being something the art has to work around
+and becomes the fiction: **you are meant to be visible while you cross.**
+
+### LARGE, MEDIUM, SMALL
+
+**LARGE — three ideas.** The ESCORT FLOOR: 1408px of raised deck at `deckLit`
+0.24, wall to wall on the traverse line, 280 tall, with nothing drawn inside
+it. The two HOLDING APRONS: recessed strips in front of the cell banks, each
+split into two unequal runs (620 and 634) by a 150px gap that lands exactly
+where the room's own north and south gates are — the rhythm comes from the plan
+rather than from a decoration. The PROCESSING GATE: the landmark, in the east
+wall, described below.
+
+**MEDIUM.** Two secured thresholds where the walk begins and ends; two large
+bolted deck plates under the objectives, so the terminals stand on authored
+ground; heavy `doorframe` mouths on all four gates; two short recessed service
+channels at the bank foot.
+
+**SMALL.** Three hatches and two vents, all of them out at the edges. The walk
+carries nothing.
+
+### The perimeter is the identity
+
+`block`, thickness 96 (from 64 — a cell has to be deep enough to be a cell).
+Same RULE as all three approved walls, none of their composition:
+
+| wall | signature | period |
+|---|---|---|
+| chamber | pilaster / recess / machinery cabinet | 320 |
+| hangar | truss column / panelling / bracket foot | 400 |
+| junction | pier and lintel / conduit bank | 260 |
+| **detention** | **cell front / jamb / barred mouth** | **176** |
+
+**The period is the spatial argument, and this is the tightest in the game
+because a cell is sized for one person.** **The signature is the bar** — nothing
+else in CRIX draws slats across an opening; a chamber bay lands on the deck, a
+junction bay crosses above it, this one CLOSES one.
+
+Three modules and one rhythm: `cell cell cell service`, with exactly one SECURE
+leaf per long wall — an armoured door with a HORIZONTAL interlock bolt across
+it, when every other bar in the wall is vertical, so the bolted cell is legible
+from the pattern before any light is involved. Occupancy varies by a fixed hash
+of the bay index (never random: a backdrop is repainted on every load, and an
+occupancy that reshuffled would make the block a different place each time).
+North is the fuller run, south the emptier one — the two long walls are not
+each other's mirror.
+
+### The landmark, and the fourth landmark class
+
+**THE PROCESSING GATE**, east wall, centred on the exit at y=700. The chamber's
+landmark is a freestanding machine; the hangar's is a door you go through; the
+junction's is infrastructure converging on a sealed wall. This one is a
+**CHECKPOINT** — a gatehouse with its shutter down and the way out cut through
+its middle. Two unequal bastions (the northern one carries a control face), a
+lintel house spanning the opening, and slatted shutter reveals either side of a
+doorway that is left completely clear.
+
+It is on the east wall because that is where the walk ends and because the east
+wall is one of the two the camera clamps let this room show. It is deliberately
+NOT a machine: no pipes, no cores, no faceted housing. It is a wall thickened
+around a hole.
+
+### The dark state: *the room disappears, but the containment system stays armed*
+
+The fourth emergency identity, and a different KIND of answer from the other
+three. The chamber's is powered hero machinery, the hangar's is deployment
+systems, the junction's is wayfinding plus an amber reactor. **None of those is
+available here and none was borrowed:** this room has no machine, and it does
+not need to say where the doors are, because it has one way out and the whole
+room points at it. What a detention block has on its emergency bus is LOCKS.
+
+Fourteen sources. Eight cell-lock lamps — five north, three south — cold
+white-blue, `normal === emergency`, on SOME cells at irregular intervals and
+keyed to the same occupancy the wall painter draws. Two secure-door interlocks,
+amber, **dead at normal power**, which are the room's authored second state.
+Three gate sources, the brightest in both states. One intake lamp.
+
+**Four rules held the list down, and each is a way this could have gone wrong:**
+
+- **NOTHING AUTHORED STANDS IN THE WALK.** No source and no spill is inside
+  x [300, 1280] y [560, 840]. The two lit objects on the walk are the frozen
+  cover positions at (600,700) and (1000,700), lit by the shared console kit
+  from their own art — that is the CHECKPOINT and it is the composition, not an
+  exception to it. What the rule forbids is authored floor light down the
+  middle, which would be the junction's cover ring drawn in light.
+- **OCCUPANCY, NOT A ROW.** A lamp on every cell is an outline of the playable
+  space, and two parallel dotted lines down the long walls is a corridor drawn
+  in light. Scattered, they are a handful of doors that still have someone
+  behind them.
+- **NOMINAL LAMPS DO NOT SHOUT.** A lock says "holding" whether anyone is
+  watching. They become the brightest thing in the room by SUBTRACTION, which
+  is the honest way for a battery-backed system to win.
+- **NO RED, AND NO GREEN EITHER.** Red is three arenas old. Green is new and
+  specific to this room: **enemy bullets are green**, and a scatter of small
+  green points along both walls during a blackout is incoming fire that is not
+  there. `smoke-detention` channel-tests both.
+
+### The cover, and what a frozen grid can still be fixed by
+
+The eight positions are exactly the baseline's. Moving them would be a
+level-design pass wearing an art pass's clothes, and the junction's clearance
+failure does not exist here — the tightest neighbour gap is 400px against a
+Ø112 boss. What changed is WHICH OBJECT stands where:
+
+- **Three powered, five not** — the same ratio the hangar and the junction both
+  landed on, and for the same reason: cover that declares nothing in
+  `CONSOLE_KIT` takes the `prop` tint and GOES OUT.
+- **The three powered are not symmetric** — the two on the walk and one in the
+  north-east. The checkpoint being the lit part of the room is the
+  composition; a lit ring would be the grid again, in light.
+
+Two bounded kit additions, both on the frozen 28x28 canvas and the frozen 70x70
+body: `dt-con-lock`, ONE new console FACE (a lock board, not a display — you
+read a lock board at a glance and a terminal by staying at it), and `dt-bench`
+in two variants, the unpowered mass.
+
+### Three things that were measured and put back
+
+- **A `sink` inset in the gate mouths was a PIT.** 150x300 of near-black across
+  the square metre the player walks through to enter the room — the one lie a
+  room may not tell about where it can be walked. The gate approaches are plain
+  deck now.
+- **A `rib` at 0.55 across the walk was a BARRIER.** 20x14x280 of lit bar at the
+  proportion of something to walk round, in the one place the room must not
+  suggest there is anything to walk round. 0.34 and thinner.
+- **The gate interlocks at 92x6 / 0.66 were UI.** Two crisp white lines either
+  side of a doorway stop reading as fixtures. 56x8 at 0.52 is a lamp housing.
+
+### Measured
+
+**Darkness is a comparison, not a threshold** — this deck is a different value
+from all three approved rooms, so the only honest check puts them side by side.
+Mean luminance under LIGHTS OUT, both scenes paused, sampling the play window
+only (the HUD bar and the touch controls excluded, because the joysticks are
+the brightest thing on screen in every arena):
+
+| room | station | mean | peak | % over 40 |
+|---|---|---|---|---|
+| **detention** | the walk, centre | **4.90** | 255 | 1.08% |
+| **detention** | objective NW | **4.28** | 204 | 0.83% |
+| **detention** | the gate | **9.09** | 208 | 3.09% |
+| junction | the crossing | 5.82 | 208 | 1.74% |
+| junction | west approach | 7.83 | 210 | 3.51% |
+| hangar | centre | 5.65 | 204 | 1.21% |
+| chamber | the nave | 3.36 | 204 | 0.45% |
+
+Detention's dark state is **darker than both the junction and the hangar** and
+its gate is the one bright place, which is the intent.
+
+**Cost.** 44 EnvLight parts — the FEWEST of the four (chamber 66, hangar 60,
+junction 58). Room load 50-85ms, the same band as the other three. `setPower`
+across the whole layer **0.0105ms**, re-rasterising nothing. **Zero new
+per-frame work**: no update hook, no tween, no shader. Three new 112x112
+textures, **147KB** total. Part count flat at 44 across five consecutive loads
+and after a tour of the other three arenas.
+
+**Other rooms, hashed.** `tests/diag-texture-hash.mjs`, before against after:
+the only differences are the three NEW detention textures, the three re-toned
+detention-only props, and the detention backdrop. **The hangar, corridor and
+vader backdrops are byte-identical**, and every shared texture — the console
+kit, the crates, the hero machine, the shuttle, every perimeter — is unchanged.
+
+### A PRE-EXISTING LEAK THIS PASS FOUND AND DID NOT FIX
+
+`GameScene._clearRoomEntities` sweeps the room layer with
+`this.roomLayer.getChildren().forEach((o) => o.destroy())`. `getChildren()`
+returns the group's INTERNAL array and `destroy()` removes the member from it,
+so the iteration **skips every other element** and one object survives each
+room load. Measured: the display list grows by exactly **+1 per load**, and the
+survivor here is the hangar's wall console standing in the detention block at
+(148, 106). Two lines above it, the enemy sweep already uses `.slice()` for
+precisely this reason.
+
+**It is pre-existing and it was NOT fixed in this pass.** Verified on the
+pre-change build at the identical +1 rate. Fixing it removes leaked objects
+from every room, which means it changes what the three APPROVED arenas draw —
+and a shared change that alters an approved room is exactly the case where the
+brief says stop and report rather than proceed. It needs its own change with
+its own evidence.
+
+### What is open
+
+Everything, until a human plays it. Nothing here is frozen. Specifically not
+answered:
+
+- **Whether the cell-lock lamps read at handset scale.** They were raised twice
+  against a desktop monitor and are deliberately not pinned by a test.
+- **Whether the south bank is worth what it costs.** It is effectively never in
+  frame; it is authored as background, at 3 lamps against the north's 5, and
+  the honest answer may be that it should carry less still.
+- **Whether the north band is tall enough to read.** 96 of thickness is ~70px
+  on screen once the HUD bar is subtracted, and the cells are small in it.
+- **`prop-post` is still under the joysticks**, and it is unlit on purpose:
+  declaring a face on an object almost nobody sees is light spent in the dead
+  zone. Moving it is a solid body move, which this pass was not allowed to make.
+- **The 3/3/2 cover grid is still a grid.** It is broken by texture and by
+  power, not by position.
+
+Evidence: `docs/evidence/arena-pilot/detention-before/` and
+`detention-after/`, 40 matched frames each — stations, two motion runs (one
+along the walk, one along the cell bank for shimmer), a dense wave in both
+power states, and Vader with four asserted casts.
+
 ## 10c. The narrative system
 ## 10c. The narrative system
 
