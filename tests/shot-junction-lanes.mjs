@@ -138,10 +138,18 @@ const setDark = (on) => page.evaluate((d) => {
     hud._darkTweens?.blackout?.stop?.(); hud._overlays?.blackout?.setAlpha(0);
   }
 }, on);
-const cast = (id) => page.evaluate((f) => {
-  const gs = window.game.scene.getScene('Game');
-  return !!gs._castBossMove?.(gs.boss, f);
-}, id);
+// LOWERCASE, AND ASSERTED. `_castBossMove` matches the registry id exactly —
+// `saberthrow`, not `saberThrow` — so the camelCase spelling this rig shipped
+// with was refused every time and the boss's own state machine supplied the
+// frame instead. The move name in the filename was not the move in the picture.
+const cast = async (id) => {
+  const ok = await page.evaluate((f) => {
+    const gs = window.game.scene.getScene('Game');
+    return !!gs._castBossMove?.(gs.boss, f);
+  }, id);
+  if (!ok) console.error(`  !! CAST REFUSED: ${id} — the frame that follows is not that move`);
+  return ok;
+};
 const shoot = (n) => page.evaluate((k) => {
   const gs = window.game.scene.getScene('Game');
   for (let i = 0; i < k; i++) {
@@ -250,25 +258,25 @@ await pause(true); await shot('dark-vader'); await pause(false); await hush();
 // where the environment's directional fragments are closest to the move's own
 // lane language is the one that has to be captured.
 await place(700, 980, 700, 660);
-await page.waitForTimeout(120); await cast('saberThrow'); await page.waitForTimeout(340);
+await page.waitForTimeout(120); await cast('saberthrow'); await page.waitForTimeout(340);
 await setDark(true);
 await pause(true); await shot('dark-saber-throw'); await pause(false);
 await hush(); await page.waitForTimeout(500);
 
 await place(760, 760, 760, 300);
-await page.waitForTimeout(120); await cast('saberThrow'); await page.waitForTimeout(340);
+await page.waitForTimeout(120); await cast('saberthrow'); await page.waitForTimeout(340);
 await setDark(true);
 await pause(true); await shot('dark-saber-throw-lane'); await pause(false);
 await hush(); await page.waitForTimeout(500);
 
 await place(700, 980, 700, 660);
-await page.waitForTimeout(120); await cast('forcePull'); await page.waitForTimeout(260);
+await page.waitForTimeout(120); await cast('forcepull'); await page.waitForTimeout(260);
 await setDark(true);
 await pause(true); await shot('dark-force-pull'); await pause(false);
 await hush(); await page.waitForTimeout(400);
 
 await place(700, 980, 700, 660);
-await page.waitForTimeout(120); await cast('forcePush'); await page.waitForTimeout(260);
+await page.waitForTimeout(120); await cast('forcepush'); await page.waitForTimeout(260);
 await setDark(true);
 await pause(true); await shot('dark-force-push'); await pause(false);
 await hush(); await page.waitForTimeout(400);

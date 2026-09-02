@@ -21,11 +21,25 @@
 //      — 5 cover + 3 solid props. The two wall control panels are decoration
 //      and must NOT be in it.
 //   3. THE EMISSIVE LAYER IS OUTSIDE `roomLayer`, ADD-blended, at the light
-//      depth, and owns no physics body. AND IT CARRIES NO FACES AT ALL: the
-//      face exemption belongs to a prop whose disappearance would erase the
-//      room's identity, and this room's identity in the dark is architecture.
-//      Copying the hero machine's or the shuttle's pattern onto the reactor
-//      core would be the third room proving nothing.
+//      depth, and owns no physics body. IT CARRIES EXACTLY ONE FACE, and the
+//      rule that admits it is not the one that admitted the other two.
+//
+//      THIS USED TO ASSERT ZERO, and the reasoning was sound as far as it
+//      went: the face exemption was granted to a prop whose disappearance
+//      would erase a room's identity, which is the shuttle's argument and not
+//      this room's — the junction's dark identity is its architecture. Handset
+//      play then found the hole in it. `prop-core` paints a stack of amber
+//      slats behind a grille, which is a claim that the machine is running,
+//      and in a blackout that claim died: the art is inside the group LIGHTS
+//      OUT multiplies toward black. The verdict was not "I cannot see the
+//      reactor" but "it looks powered and does not behave like it".
+//
+//      So the admitting rule is IF IT LOOKS LIKE AN EMITTER, IT MUST EMIT —
+//      which is narrower than the old ban and much narrower than a template.
+//      It licenses one face on the one prop in this room whose ART makes that
+//      claim, and §14 below pins it down: exactly one (a PAIR would be the
+//      hero machine's composition borrowed rather than its doctrine reused),
+//      on the machine's own canvas, contained by the machine's own rectangle.
 //   4. THE POWER STATE RESTORES EXACTLY, through an outage and through a room
 //      torn down mid-outage.
 //   5. NOTHING LEAKS ACROSS ROOM LOADS, including handing the layer back and
@@ -408,6 +422,84 @@ const R = await page.evaluate(async () => {
     maxOtherDarkAlpha: Math.max(...envParts.map((p, i) => (p._guide ? 0 : darkAlphas[i]))),
     depths: [...new Set(guideIdx.map((i) => envParts[i].depth))],
   };
+  // ── THE REACTOR'S EMISSIVE TRUTH. `prop-core` paints a stack of amber slats
+  //    behind a grille — art that claims the machine is running — and until
+  //    this pass that claim died in a blackout: the slats are inside
+  //    `roomLayer`, which LIGHTS OUT multiplies toward black, and the room's
+  //    only reactor source was a radial `core` at the prop's BASE, underneath a
+  //    304x344 opaque sprite at a depth below it. What is asserted here is that
+  //    the face exists, that it is bolted to the machine rather than thrown on
+  //    the floor, and that the machine did not move. Brightness is a handset
+  //    question and is deliberately not frozen.
+  const coreProp = gs.children.list.find((o) => o.texture?.key === 'prop-core');
+  const faceIdx = envParts.findIndex((p) => p.texture?.key === 'prop-core-glow');
+  const fb = faceIdx >= 0 ? envParts[faceIdx].getBounds() : null;
+  const pb = coreProp ? coreProp.getBounds() : null;
+  const texSize = (k) => {
+    const im = window.game.textures.get(k)?.getSourceImage();
+    return im ? { w: im.width, h: im.height } : null;
+  };
+  // THE FACE'S COLOURS LIVE IN ITS TEXTURE, so the spec-level red check cannot
+  // see them. Read the pixels instead — this is the only source in the room
+  // whose palette is not declared in `emissives`.
+  const facePixels = (() => {
+    const im = window.game.textures.get('prop-core-glow')?.getSourceImage();
+    if (!im?.getContext) return null;
+    const d = im.getContext('2d').getImageData(0, 0, im.width, im.height).data;
+    let lit = 0, worstRed = null, minGreenRatio = 1;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 40) continue;
+      lit++;
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      if (r > 60) {
+        const ratio = g / r;
+        if (ratio < minGreenRatio) { minGreenRatio = ratio; worstRed = { r, g, b }; }
+      }
+    }
+    return { lit, minGreenRatio: +minGreenRatio.toFixed(3), worstRed };
+  })();
+  const reactorSpill = (spec.emissives || []).filter((e) => e.tag === 'reactor');
+  out.reactor = {
+    prop: coreProp ? {
+      x: coreProp.x, y: coreProp.y, depth: coreProp.depth,
+      w: Math.round(coreProp.displayWidth), h: Math.round(coreProp.displayHeight),
+      bodyW: coreProp.body?.width ?? null, bodyH: coreProp.body?.height ?? null,
+    } : null,
+    declaredFaces: ((spec.props || []).find((p) => p.tex === 'prop-core')?.faces || [])
+      .map((f) => ({ tex: f.tex, normal: f.normal ?? 0, emergency: f.emergency ?? 0 })),
+    faceParts: envParts.filter((p) => p.texture?.key === 'prop-core-glow').length,
+    faceDepth: faceIdx >= 0 ? envParts[faceIdx].depth : null,
+    faceNormalAlpha: faceIdx >= 0 ? +normalAlphas[faceIdx].toFixed(4) : null,
+    faceDarkAlpha: faceIdx >= 0 ? +darkAlphas[faceIdx].toFixed(4) : null,
+    // A FACE MAY ONLY COVER PIXELS ITS PROP ALREADY COVERS. That is the whole
+    // justification for it leaving ENV_LIGHT_DEPTH, so it is measured against
+    // the LIVE sprite rather than trusted.
+    faceInsideProp: fb && pb
+      ? (fb.x >= pb.x - 1 && fb.y >= pb.y - 1 && fb.right <= pb.right + 1 && fb.bottom <= pb.bottom + 1)
+      : null,
+    faceTex: texSize('prop-core-glow'), propTex: texSize('prop-core'),
+    facePixels,
+    // The deck spill, and the shape of it: a vertical slotted emitter throws a
+    // tall thin pool, never a radial halo.
+    spill: reactorSpill.map((e) => {
+      const b = boxOf(e);
+      return {
+        kind: e.kind, emitter: e.emitter !== false,
+        normal: e.normal ?? 0, emergency: e.emergency ?? 0,
+        w: Math.round(b.x1 - b.x0), h: Math.round(b.y1 - b.y0),
+        onCrossing: b.x0 < CROSS_R.x1 && b.x1 > CROSS_R.x0 && b.y0 < CROSS_R.y1 && b.y1 > CROSS_R.y0,
+      };
+    }),
+    // NO RADIAL POOL ON THE MACHINE. The `core` kind is a hot thing seen
+    // through a housing; the one that used to sit here was seated at the base,
+    // under the sprite, and is exactly the shape §7 forbids.
+    // ON the machine, not merely near it — the interchange's own core stands
+    // 189px away on the west wall and is a different fixture entirely. The
+    // prop's rectangle is x 108..412, y 56..400.
+    coresOnMachine: (spec.emissives || []).filter((e) => e.kind === 'core'
+      && e.x >= 108 && e.x <= 412 && e.y >= 56 && e.y <= 400).length,
+  };
+
   out.power = {
     anyOffAtNormal: normalAlphas.some((a, i) => a <= 0.002 && darkAlphas[i] > 0.02),
     anyBrighterInDark: darkAlphas.some((a, i) => a > normalAlphas[i] + 0.02),
@@ -442,6 +534,10 @@ const R = await page.evaluate(async () => {
       (o) => o.blendMode === Phaser.BlendModes.ADD && (o.depth === ENV_LIGHT_DEPTH || o._face),
     ).length,
     wallBodiesAfter: gs.walls.getChildren().filter((w) => w.active).length,
+    // ONE FACE PER MACHINE, AFTER FIVE LOADS AND A TOUR OF THE OTHER ROOMS. A
+    // face is registered by `loadRoom` from the live prop; a teardown that
+    // missed it would show up here as two amber stacks on one housing.
+    reactorFaceImages: gs.children.list.filter((o) => o.texture?.key === 'prop-core-glow').length,
   };
 
   // ── SPAWN VADER KEEPS THE ROOM.
@@ -512,8 +608,10 @@ if (R.layer.anyEnvInRoomLayer) fails.push('an emissive object is inside roomLaye
 if (R.layer.anyEnvHasBody) fails.push('an emissive object has a physics body');
 if (!R.layer.allEnvAdditive) fails.push('an emissive object is not ADD-blended');
 if (!eq(R.layer.envDepths, [R.cfg.envLightDepth])) fails.push(`junction emissive depths are ${JSON.stringify(R.layer.envDepths)} — everything here should be at the light depth`);
-if (R.layer.faceCount !== 0) fails.push(`the junction built ${R.layer.faceCount} emissive faces — the face exemption belongs to a prop whose loss would erase a room's identity, and this room's dark identity is its architecture`);
-if (R.spec.propFaces !== 0) fails.push(`the junction spec declares ${R.spec.propFaces} prop faces`);
+// EXACTLY ONE FACE, and §14 is where it is held to its terms. More than one is
+// the hero machine's two-state composition copied onto a third room; zero is
+// the reactor going back to looking powered while emitting nothing.
+if (R.layer.faceCount !== 1) fails.push(`the junction built ${R.layer.faceCount} emissive faces — one, on the reactor, because its art claims to be an emitter; a second would be the hero machine's composition borrowed rather than its doctrine reused`);
 for (const t of R.layer.envTextures) {
   if (/^prop-pod|^prop-shuttle/.test(t || '')) fails.push(`COPIED: the junction's light layer is wearing ${t}`);
 }
@@ -712,6 +810,77 @@ for (const [name, want, got] of [['hangar', HANGAR, R.hangar], ['chamber', CHAMB
 }
 if (R.hangar.props.some((p) => p.tex === 'prop-shuttle' && (p.x !== 420 || p.y !== 470))) fails.push('the shuttle moved');
 if (R.chamber.props.some((p) => p.tex === 'prop-pod' && (p.x !== 340 || p.y !== 740))) fails.push('the hero machine moved');
+
+// 14 — THE REACTOR'S EMISSIVE TRUTH. The one thing handset review still held
+//      against the junction's dark state: the amber slat stack LOOKS powered
+//      and did not emit, because its art is inside the group LIGHTS OUT tints
+//      and its only source was a radial `core` buried under the sprite. What is
+//      frozen here is the STRUCTURE of the fix — the machine has not moved, the
+//      light is bolted to it, and it is one face rather than a copy of the hero
+//      machine's pair. Intensity is the human's call and is not asserted.
+//
+//      Each of these discriminates: deleting the face fails EXISTS, moving it
+//      off the prop fails LOCAL, restoring the old radial `core` fails HALO,
+//      lighting it hard at normal power fails NORMAL, and a second face fails
+//      the hero-machine clone check.
+const RX = R.reactor;
+if (!RX.prop) fails.push('the reactor core prop is not in the room at all');
+else {
+  if (RX.prop.x !== 260 || RX.prop.y !== 400) fails.push(`the reactor moved to ${RX.prop.x},${RX.prop.y} — position is frozen and this pass is emissive only`);
+  if (RX.prop.w !== 304 || RX.prop.h !== 344) fails.push(`the reactor sprite is ${RX.prop.w}x${RX.prop.h} — the asset is frozen, only its light changed`);
+  if (RX.prop.bodyW !== 200 || RX.prop.bodyH !== 120) fails.push(`the reactor's body is ${RX.prop.bodyW}x${RX.prop.bodyH} — collision is frozen`);
+}
+// EXISTS, and exactly once.
+if (RX.faceParts !== 1) fails.push(`the reactor carries ${RX.faceParts} emissive faces — it needs exactly one, and a PAIR would be the hero machine's composition borrowed rather than its doctrine reused`);
+if (RX.declaredFaces.length !== 1) fails.push(`the spec declares ${RX.declaredFaces.length} reactor faces`);
+// THE ART AND ITS LIGHT ARE THE SAME CANVAS. Registration is structural, not
+// arithmetic — a cropped face puts a hand-computed offset between a machine and
+// its own glow.
+if (RX.faceTex && RX.propTex && (RX.faceTex.w !== RX.propTex.w || RX.faceTex.h !== RX.propTex.h)) {
+  fails.push(`the reactor face is ${RX.faceTex.w}x${RX.faceTex.h} against the prop's ${RX.propTex.w}x${RX.propTex.h} — they must be one canvas or registration is a constant waiting to drift`);
+}
+// LOCAL. The face's whole licence to leave ENV_LIGHT_DEPTH is that it cannot
+// reach a pixel the prop is not already covering opaquely.
+if (RX.faceInsideProp === false) fails.push('the reactor face reaches outside the prop it is bolted to — that is a halo on the deck, not light on a machine');
+if (RX.prop && RX.faceDepth !== RX.prop.depth + 1) {
+  fails.push(`the reactor face sits at depth ${RX.faceDepth} against the prop's ${RX.prop.depth} — one below and it is drawn underneath the object it lights, which is the bug this pass fixes`);
+}
+// TWO INDEPENDENT INTENSITIES, and the emergency one is the point.
+if (!(RX.faceDarkAlpha > RX.faceNormalAlpha + 0.2)) {
+  fails.push(`the reactor face runs at ${RX.faceNormalAlpha} normal and ${RX.faceDarkAlpha} emergency — the whole complaint was that it does not come up when the bus drops`);
+}
+// NORMAL POWER IS FROZEN. A restrained presence is allowed; a brighter machine
+// in a lit room is a different pass and one the human did not ask for.
+if (RX.declaredFaces[0] && RX.declaredFaces[0].normal > 0.2) {
+  fails.push(`the reactor face is declared at ${RX.declaredFaces[0].normal} on normal power — the approved normal composition may take a restrained lift, not a relight`);
+}
+// NO GENERIC HALO. The old radial pool is the shape this pass exists to
+// replace, and the deck spill that replaced it has to be shaped like a
+// vertical slotted emitter.
+if (RX.coresOnMachine) fails.push(`${RX.coresOnMachine} radial \'core\' source(s) still sit on the reactor — a big round pool is not what a vertical stack of slats throws`);
+if (RX.spill.length !== 1) fails.push(`the reactor declares ${RX.spill.length} deck sources — one, and only the spill`);
+for (const sp of RX.spill) {
+  if (sp.emitter) fails.push('the reactor\'s deck source draws its own emitter — the bright part is painted on the machine, and a second crisp bar on the floor reads as another object');
+  if (sp.normal > 0) fails.push(`the reactor's deck spill is lit at normal power (${sp.normal}) — the one part of this pass that reaches outside the prop owes the frozen room a zero-pixel delta`);
+  if (sp.h <= sp.w) fails.push(`the reactor's deck spill is ${sp.w}x${sp.h} — wider than it is tall is a pool, and this machine is a vertical emitter`);
+  if (Math.max(sp.w, sp.h) > 160) fails.push(`the reactor's deck spill spans ${Math.max(sp.w, sp.h)}px — light the machine, not the room`);
+  if (sp.onCrossing) fails.push('the reactor\'s deck spill reaches the 600x600 crossing — the centre stays dark');
+}
+// AMBER, NOT CRIMSON — measured in the face's own pixels, because its palette
+// is painted into the texture and the spec-level red check cannot see it.
+if (!RX.facePixels || !RX.facePixels.lit) fails.push('the reactor face texture has no lit pixels — it is an empty canvas');
+else if (RX.facePixels.minGreenRatio < 0.42) {
+  const w = RX.facePixels.worstRed;
+  fails.push(`the reactor face contains a near-red pixel (rgb ${w.r},${w.g},${w.b}, green at ${RX.facePixels.minGreenRatio} of red) — saturated red belongs to the saber and the telegraphs`);
+}
+// ONE FACE AFTER FIVE LOADS AND A TOUR OF THE OTHER THREE ROOMS.
+if (R.leak.reactorFaceImages !== 1) fails.push(`${R.leak.reactorFaceImages} reactor face images survive the load cycle — the emissive layer is leaking one per room load`);
+// THE OTHER ROOMS' FACES ARE UNTOUCHED. The shuttle's pair and the hero
+// machine's pair are frozen; this pass may not have added a third anywhere.
+if (R.hangar.propFaces !== 2) fails.push(`the hangar declares ${R.hangar.propFaces} prop faces — the shuttle's pair is frozen`);
+if (R.chamber.propFaces !== 2) fails.push(`the chamber declares ${R.chamber.propFaces} prop faces — the hero machine's pair is frozen`);
+if (R.detention.propFaces !== 0) fails.push(`detention declares ${R.detention.propFaces} prop faces — it has not been started`);
+if (R.spec.propFaces !== 1) fails.push(`the junction declares ${R.spec.propFaces} prop faces — the reactor gets one and the room has no other lit prop`);
 
 // 12 — LIGHTS OUT's own numbers. Frozen by handset verdict; this pass raised
 //      none of them, which is the same restraint the arena pilot showed after
