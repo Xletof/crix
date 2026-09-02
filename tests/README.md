@@ -1105,8 +1105,45 @@ idle box the same build passes 116/116, twice, and so does the build before it.
 
 This is the concurrency artifact already documented above, wearing a new face:
 the tell used to be five failures reducing to one scalar, and it still is — but
-the second Chrome can be **your own verification run**. Check `pgrep -f
-run-all.mjs` before believing a standalone result, and A/B against the previous
-build's `src/` with `git checkout <sha> -- src/` rather than `git stash`, which
-silently stashes nothing when the work is already committed and hands you two
-runs of the same build to compare.
+the second Chrome can be **your own verification run**. Know whether the suite is
+still running before believing a standalone result — by the PID you started it
+with, NOT by `pgrep -f run-all.mjs`, which matches the asking shell (see
+"waiting for the suite" below) — and A/B against the previous build's `src/`
+with `git checkout <sha> -- src/` rather than `git stash`, which silently
+stashes nothing when the work is already committed and hands you two runs of the
+same build to compare.
+
+## Waiting for the suite without leaving a process behind
+
+`npm run smoke` takes long enough that the tool call running it will time out,
+and the wrong reflex there cost a whole cleanup round: ten waiter shells for one
+suite, still alive long after it had finished. `CLAUDE.md` § *Background
+processes* is the doctrine; this is how it applies to this harness.
+
+**Own the suite by PID, and never by name.**
+
+```sh
+node tests/run-all.mjs > /tmp/suite.log 2>&1 &
+SUITE_PID=$!
+# later, on any turn:
+kill -0 "$SUITE_PID" 2>/dev/null && echo RUNNING || echo FINISHED
+tail -30 /tmp/suite.log
+```
+
+`until ! pgrep -f "run-all.mjs"; do sleep N; done` is the shape that failed. The
+waiter's own `bash -c` command line CONTAINS the string, so `pgrep -f` matched
+the waiter itself and the loop could never terminate; a second waiter then kept
+the first alive as well. The same trap fires on `chrom`, `vite` and `smoke-` —
+`pgrep -a -f chrom` on a box with no browser at all returns exactly one hit, the
+shell asking the question.
+
+**A timed-out tool call proves nothing about the suite.** Check `$SUITE_PID` and
+the log, then reuse or clean what is already there. Do not start a second run,
+and do not start a second waiter. Best of all, do not create a waiter: the next
+turn can read the PID and the tail of the log in one cheap command.
+
+**Audit before handing back.** No `run-all.mjs`, no `smoke-*`, no Chromium, no
+stale waiter — inspect with `ps -eo pid,comm` (which cannot match your own
+query the way `pgrep -f` can) and kill by PID after reading the command line,
+never with a bare `pkill -f`. One `npm run dev` Vite server may legitimately
+survive; say so by name rather than leaving it in the list unexplained.

@@ -893,6 +893,53 @@ The short version:
 - **Intermittent failure means the measurement is wrong, not the threshold.**
   Both flaky tests found here turned out to be measurement bugs.
 
+## Background processes
+
+**ONE REAL JOB, ONE LIFECYCLE OWNER.** Ten immortal waiter shells accumulated
+here while a single suite ran, long after that suite had finished. The whole
+class of failure is prevented by four habits, and every one of them costs less
+than the cleanup did.
+
+- **NEVER LET A WAITER DISCOVER ITSELF.** The bug was
+  `until ! pgrep -f "run-all.mjs"; do sleep N; done`. `pgrep -f` matches full
+  COMMAND LINES, and the waiter's own `bash -c` line contains the string
+  `run-all.mjs` — so it detected itself, could never exit, and once a second one
+  existed each kept the other alive too. This is not a subtle failure mode you
+  have to go looking for: `pgrep -a -f chrom` on an idle box with no browser
+  running returns exactly one hit, the shell asking the question. Verified here.
+- **PID BEATS PATTERN.** For anything this session starts, capture `$!` at
+  launch and own it: `node tests/run-all.mjs > "$LOG" 2>&1 & SUITE_PID=$!`, then
+  test liveness with `kill -0 "$SUITE_PID" 2>/dev/null` or wait on that PID
+  directly. Never rediscover by text a process whose PID you already had.
+  `pgrep -f` is FALLBACK ONLY — for a process nobody here launched — and then it
+  must be scoped so it cannot match the asking shell, and the candidate PID
+  inspected before anything is done to it.
+- **A TOOL TIMEOUT IS NOT PROCESS DEATH.** It means the tool stopped waiting and
+  NOTHING about the job. After one: inspect the PID, inspect the existing
+  waiter, read the log — then reuse or clean. Launching a second copy "because
+  there was no output" is how one waiter became ten.
+- **WAITING IS ORCHESTRATION, NOT WORK.** At most one real process plus one
+  lifecycle owner. Never wait for a waiter, never create a waiter to watch a
+  waiter, and prefer NO dedicated waiter at all — the next turn can just look at
+  the PID and the log.
+
+**FOUR STATES, AND CONFLATING TWO OF THEM IS THE INCIDENT.** *Running*: the PID
+is alive. *Finished*: the PID has exited and a log exists. *Waiter timed out*:
+only the observer stopped; the job's state is UNKNOWN until checked. *Stale
+waiter*: the observer is still alive after the job is known to be over — always
+a bug, never a wait.
+
+**CLEANUP IS PART OF THE JOB.** When a suite, build or deploy completes, fails,
+is superseded or is killed, its waiter goes with it. Before saying *stopped for
+human review*, audit for stale waiters, live test runners, orphaned Chromium and
+temporary servers, and name any intentional survivor (the `npm run dev` Vite
+server is the normal one) explicitly rather than leaving it in the list unlabelled.
+
+**NO PATTERN KILL WITHOUT INSPECTION.** `pkill -f <string>` has the same
+self-matching hazard as `pgrep -f`, with teeth. List the candidates, read their
+command lines, then kill the intended PIDs. Nothing here needs a process manager,
+a daemon or a dependency — this is shell lifecycle discipline, and that is all.
+
 ## Conventions
 
 - Vanilla JS ES modules, Phaser 3.90 + Vite. No TypeScript.
