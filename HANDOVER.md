@@ -14,38 +14,17 @@ the code at that commit, not remembered.
 from `FRIX`, so the live build IS this commit whenever the two agree — check
 `git rev-parse HEAD origin/FRIX` rather than trusting a hash written here.*
 
-### Waiting on a human, not on work
+### THE REACTOR JUNCTION IS FROZEN 🔒
 
-The **Reactor Junction reactor-emissive closeout is finished, deployed, and
-stopped for handset review.** Nothing should be started on it until a human has
-played it.
+Handset play of `68a76c4` **approved the whole room** — topology, crossing,
+enemy flow, Vader navigation, normal power, emergency lane guidance, lane count
+and intensity, central darkness, the amber reactor emissive stack, the
+reactor/Vader colour hierarchy, the LIGHTS OUT composition, and the reactor
+silhouette as good enough. **A full reactor migration is not needed and is
+deferred indefinitely.** `§10w` is the freeze record and the four truths worth
+carrying out of it; `§10s`/`§10t`/`§10u`/`§10v` are how it got there.
 
-Handset play has now **APPROVED the emergency lane guidance** (`§10u`) and with
-it the room: the junction stays genuinely dark, the approach fragments help,
-they read as infrastructure rather than as a UI lane, the centre stays black,
-and Vader's language dominates. Topology (`§10t`), crossing, feeder
-connectivity, navigation, normal-power composition, lane count, lane intensity,
-central darkness and the global LIGHTS OUT numbers are all frozen.
-
-One thing was left, and it was a truth problem: **the amber reactor stack looked
-powered and did not emit.** Its slats are painted into the prop texture, which
-LIGHTS OUT multiplies toward black, and the room's only reactor source was a
-radial `core` seated at the machine's base UNDER a 304x344 opaque sprite — light
-nobody could ever have seen. `§10v` is that fix: one ADD face on the machine's
-own canvas, a spill-only deck source replacing the radial pool, and zero pixels
-of normal-power change outside the prop.
-
-**To see it: DEBUG -> LOAD REACTOR JUNCTION, then DEBUG -> SPAWN VADER.**
-`SPAWN VADER` deliberately does not change rooms, and a fresh endless run only
-reaches the junction as its SECOND room.
-
-What the human is testing: the junction at normal power, LIGHTS OUT with the
-amber reactor in frame, the reactor against the cool emergency lanes, and a late
-Vader — saber, SABER THROW and Afterimages — with the machine on screen. If that
-passes, **the Reactor Junction is finished and should be frozen.**
-
-Read `§10v` for this pass, `§10u` for the lanes, `§10t` for the topology,
-`§10s` for the art.
+Do not reopen any part of the junction without NEW human play evidence.
 
 ### The arena ladder, and what each rung's verdict is
 
@@ -53,60 +32,43 @@ Read `§10v` for this pass, `§10u` for the lanes, `§10t` for the topology,
 |---|---|---|---|---|
 | Vader Chamber (`boss`) | PASS | — | PASS | **FROZEN.** `§10n`, `§10p` |
 | Hangar (`hangar`) | PASS | — | PASS | **FROZEN.** `§10q` |
-| Reactor Junction (`corridor`) | PASS | **PASS** | lanes **PASS**, reactor **awaiting verdict** | `§10s`, `§10t`, `§10u`, `§10v` |
-| Detention (`detention`) | untouched | untouched | untouched | not started, and not to be started |
+| Reactor Junction (`corridor`) | PASS | PASS | PASS | **FROZEN.** `§10w` |
+| Detention (`detention`) | see `§10x` | frozen for the pass | see `§10x` | **awaiting handset verdict** |
 
 Vader himself is frozen — see `CLAUDE.md`. So is DEFLECTION, so is LIGHTS OUT
-globally: this pass changed one prop's light and nothing else.
+globally.
 
-### The decision that comes after the verdict
+### The fourth arena is with the human
 
-1. **The Reactor Junction freezes entirely** and Detention becomes the
-   fourth-room validation, on the same rules the junction proved: reuse the
-   grammar, reuse none of the composition.
-2. A full **reactor / interchange landmark migration** is still nominally on the
-   table — but this pass is evidence AGAINST it. The perceived weakness was the
-   machine not behaving like a machine, not the machine's shape, and the shape
-   now sits inside a composition that works. Do not treat it as scheduled.
+`§10x` is the Detention pass: the last unstyled arena, and the test of whether
+CRIX has an environmental LANGUAGE rather than three one-off rooms. Its
+gameplay geometry — bounds, walls, spawn, exit, gates, objectives, cover count
+and positions — was frozen for the whole pass on purpose: no human play
+evidence says anything is wrong with it, and mixing a level-design pass into an
+art pass is how the junction's ring survived three sessions.
 
-Do not start either without being told which.
+**To see it: DEBUG -> LOAD DETENTION BLOCK.** Without that button it is the
+THIRD room of an endless run (`_arenaCycle` starts at 1: hangar -> junction ->
+detention), which costs two full clears to reach.
 
-### Open questions this pass deliberately did not answer
-
-- **Whether the reactor's emergency intensity is right.** It was chosen against
-  a desktop monitor and is deliberately NOT frozen by a test — `smoke-junction`
-  asserts the structure and caps the normal-power value, nothing more.
-- **Whether the machine should carry any normal-power presence at all.** It runs
-  at a declared 0.12, which measures as a 19/255 peak confined to the prop and
-  zero pixels outside it. Zero would also have been defensible.
-- **Whether eight lane fixtures is right**, and the emergency intensities with
-  them. Approved on handset but never tuned.
-- **The exact centre is a partial answer and the limit is the viewport.** The
-  crossing is 600px wide inside a 720px viewport, so a fixture that obeys the
-  no-crossing rule is at most ~60px into frame from the objective.
-- **The south-west cover piece** is still the weakest-justified of the four.
+What the human is testing: normal power, dense waves, traversal, LIGHTS OUT, a
+late Vader with saber, SABER THROW, FORCE PULL/PUSH and Afterimages. Only after
+that do we decide whether the four-arena language is mature enough to freeze.
 
 ### Two suite failures that are NOT regressions
 
-Both were re-run against the pre-pass build and fail identically there:
+Both re-run against earlier builds and fail identically there:
 
 - `smoke-readability` fails its wind-up check with the IDENTICAL measurement —
   `forcepull 0px/s drift 45px` against a 40px bar. The speed is ZERO, so he is
   in fact planted; the drift allowance is simply tight. It runs in the Vader
-  Chamber, which neither this pass nor the last one touched.
+  Chamber, which no arena pass has touched.
 - `smoke-deflect` fails a different check on almost every run, on the baseline
   too. `tests/README.md` has the write-up.
 
-`smoke-arc` and `smoke-vader` also failed in the suite run for this pass and
-both PASS standalone on an idle box — `smoke-vader` twice, on this build and on
-the one before it. The suite wants an idle machine, and the second browser can
-be your own verification run; `tests/README.md` has that write-up. Do not chase
-any of these, and above all do not modify Vader because of them.
-
-Measured on an idle box, this build and `c49c835` behave identically: 116/116 on
-`smoke-vader`, `smoke-readability` failing ONE of 19 (a different check each run,
-on both builds) and `smoke-deflect` failing 11 of 73 here against 13 of 73 on the
-baseline.
+The suite wants an idle machine, and the second browser can be your own
+verification run. Do not chase any of these, and above all **do not modify
+Vader because of them.**
 
 ---
 
@@ -3432,7 +3394,10 @@ was refused.
 
 ### What is open
 
-Nothing on the reactor's light until a handset verdict. The deferred candidate
+Nothing. The handset verdict closed it — see `§10w`.
+
+*Superseded, kept because it is the shape of the question:* until the verdict,
+the open item was the reactor's light, The deferred candidate
 remains a full **reactor / interchange landmark migration** — and after this
 pass the honest answer is that it looks much less necessary than it did, because
 the perceived weakness was the machine not behaving like a machine rather than
@@ -3442,6 +3407,84 @@ Evidence: `docs/evidence/arena-pilot/junction-reactor-before/` and
 `junction-reactor-after/`, matched stations, plus the A/B sheets.
 
 ---
+
+---
+
+## 10w. THE REACTOR JUNCTION IS HUMAN-APPROVED AND FROZEN 🔒
+
+Handset play of the final build (`68a76c4`) passed. The room is **closed**. Do
+not reopen any of it without NEW human play evidence — not a screenshot, not a
+measurement, not a better idea.
+
+### What the verdict covers
+
+Everything. Explicitly frozen, so that a later session cannot argue a piece of
+it was merely un-mentioned:
+
+| frozen | where it lives |
+|---|---|
+| bounds 1400x1400, spawn, exit, gates, objective | `rooms.js` `corridor` |
+| the 4-cover topology, its count and its positions | `rooms.js` `cover` |
+| the open central crossing, and the 160px lane rule | `§10t`, `smoke-junction` |
+| feeder connectivity and enemy flow | `§10t` |
+| Vader's navigation inside this room | `§10t` |
+| the `junction` perimeter style, its pier-and-lintel rhythm | `pixelArt.js` |
+| the conduit floor language, regions, thresholds | `pixelArt.js`, `rooms.js` |
+| normal-power palette and composition | `§10s` |
+| emergency lane guidance: 8 fixtures, 2 per approach | `§10u` |
+| lane intensities, the cool/neutral treatment, the no-crossing rule | `§10u` |
+| the reactor's amber emissive face, its normal/emergency values | `§10v` |
+| the reactor's local deck spill | `§10v` |
+| global LIGHTS OUT values, timing and ownership (already frozen) | `§10j` |
+
+The human's own words on the amber treatment, in motion: bright enough to
+behave like powered machinery, local enough not to become an environmental AoE,
+amber stays distinct from Vader's hostile red, the deck contamination is subtle,
+the normal state stays restrained. And the composition it produces:
+
+> cool guidance = orientation · amber reactor = room identity ·
+> crimson Vader = combat threat
+
+Three layers, three jobs, three colours. That is the thing the junction proves,
+and it is the standard the fourth arena is measured against.
+
+### The reactor migration is deferred INDEFINITELY
+
+A full reactor / interchange landmark migration was nominally on the table for
+three passes. It is now **off** it. The human approved the silhouette as good
+enough and said explicitly that no migration is needed. Do not schedule it, do
+not call it next, and do not treat "we once considered it" as authorization. It
+comes back only if play evidence exposes a real problem.
+
+### The four truths worth more than the room
+
+**TOPOLOGY.** The eight-cover ring failed for three reasons, and all three
+generalize: radial symmetry OCCUPIED the crossing, permanent geometry COMPETED
+with combat geometry, and the gaps disagreed with large-actor clearance. The
+replacement is stated relationally rather than as coordinates — open crossing,
+peripheral functional cover, meaningful lane clearance, no furniture orbiting
+the objective — because freezing coordinates is exactly what protected the bad
+layout for as long as it survived.
+
+**NAVIGATION — recorded engine debt, NOT to be fixed here.** `NavGrid.build`
+tests a cell centre against a body rect inflated by a fixed 23px agent
+clearance, which is right for the Ø40-48 rank and file and wrong for a Ø112
+boss. Pathing said yes where physics said no, and a layout was broken for
+exactly one actor size. **The junction was corrected through level topology,
+and NavGrid was not touched.** Do not touch it now either. Remember it when
+designing a tight space: measure the LARGEST body.
+
+**LIGHTING.** *Declared emitter is not visible emitter.* A source at the wrong
+depth under an opaque prop is functionally nonexistent, and it survived every
+test in the suite because every test asked whether a source was DECLARED.
+Environment validation must prove visual CONTRIBUTION, in pixels — see
+`tests/diag-junction-reactor-light.mjs` for the shape of that measurement.
+
+**EVIDENCE.** Two rig bugs, both of which produced photographs filed under moves
+that never ran. `_castBossMove` matches the registry id EXACTLY and the ids are
+lowercase. And restoring hp is not reviving: staging Vader beside the player
+kills the player, and the cast then refuses outright. **A forced-move rig must
+assert that the move it names actually began.**
 
 ## 10u. THE JUNCTION'S EMERGENCY LANE GUIDANCE — the dark state gets its plan back
 

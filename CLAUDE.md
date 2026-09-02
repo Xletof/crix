@@ -695,6 +695,22 @@ asserts separately that the ceiling is not reached.
   than the `#212328` deck it stands on. Its ladder is placed relative to the
   deck now — fuselage one step above, wings one step below, trim rationed to a
   few pixels. Same family as the hero housing's pale-donut round.
+- **THE REACTOR JUNCTION IS HUMAN-APPROVED AND FROZEN 🔒.** Handset play closed
+  it on `68a76c4`: topology, crossing, feeder connectivity, enemy flow, Vader
+  navigation, the `junction` perimeter, the conduit language, normal-power
+  composition, the eight emergency lane fixtures with their intensities and the
+  no-crossing rule, and the reactor's amber face and deck spill. `HANDOVER.md`
+  `§10w` is the record. The rules below are how the room works, not an
+  invitation to tune it, and **a full reactor migration is deferred
+  indefinitely** — the human approved the silhouette. Nothing moves without NEW
+  human play evidence.
+- **NAVGRID CLEARANCE CAN DISAGREE WITH PHYSICAL CLEARANCE, AND THAT IS ENGINE
+  DEBT WE ARE CARRYING ON PURPOSE.** `NavGrid.build` inflates a body rect by a
+  fixed 23px agent clearance, which fits the Ø40-48 rank and file and routes a
+  Ø112 boss through slots he cannot enter: pathing says yes, physics says no.
+  The junction was corrected through LEVEL TOPOLOGY and NavGrid was not touched.
+  Do not touch it in an art pass. Remember it when designing a tight space —
+  measure the LARGEST body.
 - **THE ROOM WHOSE ID IS `corridor` IS NOT A CORRIDOR.** It is REACTOR
   JUNCTION, 1400x1400, the only SQUARE arena in the game and the smallest —
   not narrower than either approved room. The objective is dead centre, three
