@@ -286,6 +286,25 @@ export const PAL = {
   detWall:      '#20272f',
   detWallLit:   '#2e3742',
   detWallDark:  '#11161c',
+  // ── THE DETENTION BLOCK'S MATERIAL LADDER (fourth arena) ─────────────────
+  // COLDER AND HARDER than the junction's service steel, and one notch
+  // LIGHTER, because a containment level is a maintained institutional space
+  // rather than a machine deck — the value has to be there for the cell
+  // architecture to read at all. Everything here is neutral-to-blue and there
+  // is NO RED in it: the escort floor is where a saber and a telegraph land.
+  dtSink:       '#090c10',   // the cell mouths — the darkest hole in the room
+  dtRecess:     '#151a21',   // holding aprons, service channels
+  dtDeck:       '#1e242c',   // the ground value: the block floor
+  dtDeckLit:    '#29313a',   // the escort floor, the processing plates
+  dtRib:        '#39424e',   // jambs, lintels, thresholds
+  dtRibLit:     '#4e5a68',   // the lit edge of a structural face
+  dtSeam:       '#0d1116',
+  dtBolt:       '#5c6674',
+  dtPaint:      '#8b949e',   // worn safety white, and there is very little
+  dtBar:        '#414b57',   // containment slats
+  dtWall2:      '#242b34',
+  dtWallLit2:   '#333c47',
+  dtWallDark2:  '#0e1218',
   vadWall:      '#131318',
   vadWallLit:   '#1d1d26',
   vadWallDark:  '#08080b',
@@ -2537,6 +2556,130 @@ function drawWallFeature(ctx, f, cx, thickness, pal) {
   // something if there is something painted for it to be fixed to. Declared by
   // the room at the same `at` the panel prop stands on, so the hardware and its
   // mounting cannot end up in different places.
+  // ── THE PROCESSING GATE (Detention Block landmark) ────────────────────────
+  //
+  // The fourth arena's landmark, and the fourth landmark CLASS: the chamber's
+  // is a freestanding machine, the hangar's is a door you are meant to go
+  // through, the junction's is infrastructure converging on a sealed wall.
+  // This one is a CHECKPOINT — the thing between the walk and the way out.
+  //
+  // WHY THE EAST WALL, AND WHY CENTRED ON THE EXIT. Detention's plan is the
+  // only axial one whose long axis is EAST-WEST, and the camera clamps make
+  // that the axis it can actually show: the centre is pinned inside x
+  // [360, 1240] in a 1600-wide room, so the full width is reachable, while
+  // world y beyond about 1100 is behind the touch controls from every position
+  // the player can stand in. A landmark on the south wall would be invisible
+  // in play — the junction lost a whole build to exactly that — and the east
+  // wall is where the player is walking anyway. The room asks one question
+  // from the moment it loads (what is at the end of this?) and this is it.
+  //
+  // WHAT IT IS: a heavy gatehouse, its shutter DOWN, with the exit cut through
+  // its middle. Three masses — two flanking control bastions and a raised
+  // lintel house over the opening — plus a slatted shutter either side of the
+  // doorway. It is deliberately NOT a machine: no pipes, no cores, no faceted
+  // housing. It is a wall that has been thickened around a hole.
+  if (f.kind === 'transfergate') {
+    const W = f.width ?? 560, x0 = Math.round(cx - W / 2);
+    const T = thickness;
+    const OPEN = f.opening ?? 200;            // the doorway the exit is cut in
+    const ox0 = Math.round(cx - OPEN / 2), ox1 = Math.round(cx + OPEN / 2);
+
+    // A RECESS FIRST — the feature interrupts the cell rhythm rather than
+    // sitting on top of a finished wall, or it reads as a decal. Both approved
+    // wall features open the same way.
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = wallDark;
+    ctx.fillRect(x0 - 10, 0, W + 20, T);
+
+    // ── THE TWO BASTIONS. The heaviest mass on any wall in the room. Square,
+    //    plated, and UNEQUAL: the northern one carries the control face and
+    //    the southern one is plain armour. Symmetry is the shape; the
+    //    asymmetry is where the hardware lives.
+    const BW = Math.round((W - OPEN) / 2) - 18;
+    for (const [bx, ctrl] of [[x0 + 6, true], [ox1 + 12, false]]) {
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = wall;
+      ctx.fillRect(bx, 4, BW, T - 8);
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = wallLit;
+      ctx.fillRect(bx, 4, BW, 5);
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = wallDark;
+      ctx.fillRect(bx, 4, 4, T - 8);
+      ctx.fillRect(bx + BW - 4, 4, 4, T - 8);
+      // Its face: a deep inset plate. RECTILINEAR, and its seams are at
+      // irregular intervals — an evenly divided plate is a grid, and a grid on
+      // a big object is a UI widget.
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = wallDark;
+      ctx.fillRect(bx + 10, 14, BW - 20, T - 28);
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = wall;
+      ctx.fillRect(bx + 14, 18, BW - 28, T - 36);
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = wallDark;
+      for (const sf of [0.31, 0.44, 0.79]) {
+        ctx.fillRect(Math.round(bx + BW * sf), 18, 3, T - 36);
+      }
+      if (ctrl) {
+        // THE CONTROL FACE. Information rows behind a lipped surround — the
+        // one place on this wall that says a person operates it. Painted
+        // hardware; its light is declared in the room's emissive layer, where
+        // it can have a state.
+        const fw = Math.min(BW - 40, 92), fx = bx + 22;
+        ctx.globalAlpha = 0.95;
+        ctx.fillStyle = wallLit;
+        ctx.fillRect(fx - 3, 25, fw + 6, T - 52);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = wallDark;
+        ctx.fillRect(fx, 28, fw, T - 58);
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = wall;
+        for (let k = 32; k < T - 34; k += 7) ctx.fillRect(fx + 4, k, fw - 8, 3);
+        ctx.globalAlpha = 1;
+      }
+      // Bolts, four, well inside the plate.
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = wallLit;
+      for (const [px, py] of [[bx + 16, 20], [bx + BW - 19, 20],
+                              [bx + 16, T - 24], [bx + BW - 19, T - 24]]) {
+        ctx.fillRect(px, py, 3, 3);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // ── THE LINTEL HOUSE. A raised beam spanning the opening, standing proud
+    //    of both bastions on the OUTER edge — the piece that makes the gate a
+    //    structure rather than two boxes with a gap. It stops short of the
+    //    band's inner edge so it can never look like it is blocking the way.
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = wall;
+    ctx.fillRect(ox0 - 14, 0, OPEN + 28, 26);
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = wallLit;
+    ctx.fillRect(ox0 - 14, 0, OPEN + 28, 4);
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = wallDark;
+    ctx.fillRect(ox0 - 14, 22, OPEN + 28, 4);
+
+    // ── THE SHUTTER. Slats in the reveal either side of the doorway, so the
+    //    gate reads as a thing that CLOSES. Vertical, matching the cell bars,
+    //    at a constant integer cadence. The doorway itself is left completely
+    //    clear: the perimeter's own opening cut lands here, and a slat drawn
+    //    across a way out is the one lie this wall must not tell.
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = wallLit;
+    for (const [sx, sw] of [[ox0 - 12, 12], [ox1, 12]]) {
+      ctx.fillStyle = wallDark;
+      ctx.globalAlpha = 0.95;
+      ctx.fillRect(sx, 26, sw, T - 34);
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = wallLit;
+      for (let k = 30; k < T - 12; k += 8) ctx.fillRect(sx + 2, k, sw - 4, 3);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   if (f.kind === 'panelmount') {
     const W = f.width ?? 96, x0 = Math.round(cx - W / 2);
     ctx.globalAlpha = 0.9;
@@ -2643,6 +2786,209 @@ function drawPerimeter(ctx, worldW, worldH, opts) {
         ctx.fillRect(x, thickness - 12, 96, 3);
         ctx.fillStyle = wallDark;
       }
+    } else if (style === 'block') {
+      // THE FOURTH ARENA'S WALL, and the one asked to carry the most.
+      //
+      // Detention is 1600x1400 with an EMPTY `walls` list and eight cover
+      // bodies on a wide open deck. Its plan is a WALK: spawn on the west
+      // edge, exit on the east, two objectives diagonally off the line. There
+      // is no hero machine to build, and the one thing a room like that can
+      // say about itself is what is standing along the sides of the walk.
+      //
+      // So the identity is HOLDING CELLS, in the band, where they cost the
+      // playable floor nothing. Same RULE as the three approved walls — one
+      // bay vocabulary, a job per side, a phase offset so no two adjacent
+      // walls resolve at the same distance from a corner — and none of their
+      // composition.
+      //
+      //   chamber   pilaster / recess / machinery cabinet   period 320
+      //   hangar    truss column / panelling / bracket foot period 400
+      //   junction  pier and lintel / conduit bank          period 260
+      //   detention CELL FRONT / jamb / barred mouth        period 176
+      //
+      // THE PERIOD IS THE SPATIAL ARGUMENT, again, and here it is the tightest
+      // in the game — because a cell is sized for ONE PERSON, and the interval
+      // at which containment repeats is a body's width, not a machine's.
+      //
+      // THE SIGNATURE IS THE BAR. Nothing else in CRIX draws slats across an
+      // opening. A chamber bay lands on the deck, a junction bay crosses above
+      // it; this one CLOSES one. It is the only vocabulary in the game that is
+      // about keeping something in.
+      //
+      // ── THREE MODULES, AND THE INTERRUPTION IS A RHYTHM, NOT A SPACER ────
+      //   CELL      jambs, lintel, a black mouth, vertical slats across it
+      //   SERVICE   no bars: a shallow panel recess and a grille — the gap in
+      //             the run where the block is maintained rather than occupied
+      //   SECURE    a solid armoured leaf with a heavy interlock bolt across
+      //             it, and no mouth at all: the cell that is not being opened
+      // `cell cell cell service` with a SECURE leaf landing once per wall is
+      // §12's rule: repetition is legitimate here, procedural repetition is
+      // not, and what separates them is that the run has events in it.
+      //
+      // ── OCCUPANCY IS THE VARIATION ──────────────────────────────────────
+      // A cell mouth is either BLACK (empty) or carries a faint interior wash
+      // behind its slats (occupied). It is decided by a fixed hash of the bay
+      // index and the side, so it is stable across reloads and never a row.
+      // This is what stops nine identical stamped modules from reading as a
+      // tiling bug — and it is the same information the lock lamps in the
+      // emissive layer are keyed to, so light and art agree about which cells
+      // still have someone in them.
+      //
+      // ── FOUR SIDES, FOUR JOBS ───────────────────────────────────────────
+      //   north  HOLDING     the long cell run, densest occupancy
+      //   south  HOLDING     the same run, EMPTIER — this block is half full,
+      //                      and the two long walls being unequal is what
+      //                      stops the room reading as a mirrored corridor
+      //   west   INTAKE      where the player arrives: no cells at all, heavy
+      //                      armour and service bays. You come in through the
+      //                      working end.
+      //   east   PROCESSING  the gate feature owns most of it; what is left is
+      //                      control panelling.
+      const period = 176;
+      const job = { top: 'holding', bottom: 'holding', left: 'intake', right: 'processing' }[e.side];
+      const phase = { top: 0, right: 61, bottom: 88, left: 37 }[e.side] || 0;
+      const T = thickness;
+      // A stable per-bay hash. Deliberately arithmetic rather than random: a
+      // backdrop is repainted on every room load and an occupancy that
+      // reshuffled would make the block a different place each time.
+      const h1 = (i) => ((i * 2654435761) >>> 0);
+      const SIDE_SALT = { top: 11, right: 29, bottom: 47, left: 71 }[e.side] || 0;
+
+      for (let x = -phase, i = 0; x < e.len + period; x += period, i++) {
+        const inner = period - 34;      // 142 of clear mouth between jambs
+        const ix = x + 17;
+        const hash = h1(i + SIDE_SALT);
+
+        // WHICH MODULE. The holding walls run cells with a service bay every
+        // fourth, and exactly one secure leaf each. The intake and processing
+        // walls have no cells at all — a detention block does not put a cell
+        // where the doors and the desks are, and giving all four sides the
+        // same module is how a vocabulary becomes wallpaper.
+        const holding = job === 'holding';
+        const secureAt = e.side === 'top' ? 5 : 3;
+        const mod = !holding ? (i % 3 === 1 ? 'service' : 'armour')
+          : i === secureAt ? 'secure'
+          : (i % 4 === 3) ? 'service' : 'cell';
+
+        if (mod === 'armour') {
+          // The plain armoured field of a working wall. Heavier than a cell
+          // front and completely closed.
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = wallDark;
+          ctx.fillRect(ix, 12, inner, T - 24);
+          ctx.globalAlpha = 0.4;
+          ctx.fillStyle = wall;
+          ctx.fillRect(ix + 6, 18, inner - 12, T - 36);
+          ctx.globalAlpha = 0.3;
+          ctx.fillStyle = wallLit;
+          ctx.fillRect(ix + 6, 18, inner - 12, 3);
+          ctx.globalAlpha = 1;
+          continue;
+        }
+
+        if (mod === 'service') {
+          // THE INTERRUPTION. A shallow panel recess and a grille — no jambs,
+          // no lintel, nothing that looks like a way in. Its whole job is to
+          // be the beat in the run that is not a cell.
+          ctx.globalAlpha = 0.8;
+          ctx.fillStyle = wallDark;
+          ctx.fillRect(ix + 10, 20, inner - 20, T - 40);
+          ctx.globalAlpha = 0.5;
+          ctx.fillStyle = wall;
+          ctx.fillRect(ix + 14, 24, inner - 28, T - 48);
+          // The grille. Horizontal slats, so it cannot be mistaken for a
+          // barred mouth — the bars in this room are vertical and mean
+          // something.
+          ctx.globalAlpha = 0.55;
+          ctx.fillStyle = wallLit;
+          for (let k = 27; k < T - 27; k += 6) ctx.fillRect(ix + 18, k, inner - 36, 2);
+          ctx.globalAlpha = 1;
+          continue;
+        }
+
+        // ── THE JAMBS. Heavy, square, and they are what make the mouth read
+        //    as an opening in something thick rather than as a dark rectangle
+        //    painted on a wall.
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = wall;
+        ctx.fillRect(x + 2, 4, 15, T - 8);
+        ctx.fillRect(x + period - 17, 4, 15, T - 8);
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = wallLit;
+        ctx.fillRect(x + 2, 4, 15, 4);
+        ctx.fillRect(x + period - 17, 4, 15, 4);
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = wallDark;
+        ctx.fillRect(x + 15, 4, 3, T - 8);
+        ctx.fillRect(x + period - 18, 4, 3, T - 8);
+
+        // THE LINTEL. A capping beam across the head of the opening, on the
+        // OUTER side of the band. The junction implies a frame overhead with
+        // one; this one is the head of a door, which is why it is shallow and
+        // sits hard against the outer edge rather than spanning the bay.
+        ctx.globalAlpha = 0.95;
+        ctx.fillStyle = wall;
+        ctx.fillRect(ix, 4, inner, 13);
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = wallLit;
+        ctx.fillRect(ix, 4, inner, 3);
+
+        if (mod === 'secure') {
+          // THE SECURE LEAF. No mouth: an armoured door face, a raised centre
+          // plate, and one heavy interlock bolt lying across it. The bolt is
+          // horizontal — every other bar in this wall is vertical — so the one
+          // cell that is bolted shut is legible at a glance from the pattern
+          // alone, before any light is involved.
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = wallDark;
+          ctx.fillRect(ix, 17, inner, T - 25);
+          ctx.globalAlpha = 0.65;
+          ctx.fillStyle = wall;
+          ctx.fillRect(ix + 8, 23, inner - 16, T - 38);
+          ctx.globalAlpha = 0.32;
+          ctx.fillStyle = wallLit;
+          ctx.fillRect(ix + 8, 23, inner - 16, 3);
+          // The bolt, and its two keepers.
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = wallLit;
+          const by = Math.round(T * 0.52);
+          ctx.fillRect(ix - 6, by, inner + 12, 8);
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = wall;
+          ctx.fillRect(ix - 8, by - 4, 9, 16);
+          ctx.fillRect(ix + inner - 1, by - 4, 9, 16);
+          ctx.globalAlpha = 1;
+          continue;
+        }
+
+        // ── THE MOUTH. The darkest value in the room, and the only place it
+        //    is spent. An occupied cell carries a faint interior wash behind
+        //    the slats; an empty one is a hole.
+        const occupied = (hash % 5) < 2;
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = wallDark;
+        ctx.fillRect(ix, 17, inner, T - 25);
+        if (occupied) {
+          ctx.globalAlpha = 0.30;
+          ctx.fillStyle = wall;
+          ctx.fillRect(ix + 4, 22, inner - 8, T - 36);
+        }
+
+        // THE SLATS. Vertical, five to a mouth, at a CONSTANT integer cadence
+        // — the shuttle's rule, applied to a repeated element instead of a
+        // diagonal: an irregular gap here would beat against the bay period
+        // and the whole wall would shimmer as the camera pans.
+        const gap = Math.round(inner / 6);
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = wallLit;
+        for (let k = 1; k <= 5; k++) ctx.fillRect(ix + k * gap - 2, 19, 4, T - 29);
+        // The floor rail the slats land on: a bright sliver at the very inner
+        // edge, which is what stops the mouth reading as a painted hole.
+        ctx.globalAlpha = 0.45;
+        ctx.fillRect(ix, T - 9, inner, 3);
+        ctx.globalAlpha = 1;
+      }
+      ctx.fillStyle = wallDark;
     } else if (style === 'bare') {
       // Vader: almost nothing. Tall narrow pilasters, far apart. The chamber
       // should feel severe, and greebles would make it look lived-in.
@@ -3916,26 +4262,46 @@ export function paintCatwalkStrut(scene, key = 'prop-strut') {
 // 64x70 logical at scale 4 = 256x280. A glassed control booth.
 export function paintSecurityPost(scene, key = 'prop-post') {
   const c = new PixelCanvas(scene, key, 64, 70, 4);
-  const SHELL = PAL.impMid, LT = PAL.impLight, DK = PAL.impDark;
-  const GLASS = PAL.detStripGlw, E = PAL.black;
+  const SHELL = PAL.dtRib, LT = PAL.dtRibLit, DK = PAL.dtWallDark2;
+  const GLASS = PAL.dtSink, E = PAL.black;
+
+  // ── THE OBSERVATION POST, re-toned into the block's material ladder.
+  //
+  // IT IS NOT AN EMITTER, AND THAT IS DELIBERATE. It used to be glazed in
+  // `detStripGlw` — a bright cyan pane with a white reflection across it — art
+  // that claims a lit booth, in a room that has no emissive layer to back the
+  // claim with. Under LIGHTS OUT it survived as a pale panel with nothing
+  // powering it, which is the same lie the junction's reactor was telling.
+  //
+  // The honest fix here is the OPPOSITE of the reactor's, because the fact on
+  // the ground is different: this prop stands at (260, 1230), and the camera's
+  // centre is pinned inside y [598, 802] with the touch controls over the
+  // bottom of the viewport, so nearly all of it is behind the joysticks from
+  // every position the player can reach. Declaring a face on an object almost
+  // nobody sees is light spent in the dead zone. So the glazing goes DARK —
+  // observation glass with the booth unlit, a plausible state for an abandoned
+  // block — it takes the `prop` tint, and it disappears when the power drops.
+  // If it looks powered it must emit; if it is decorative it should vanish.
 
   // Canopy
   c.rect(6, 4, 52, 6, DK);
   c.rect(7, 4, 50, 2, LT);
-  // Glazed upper half
+  // Glazed upper half — dark glass with a single cold sliver where the pane
+  // catches the corridor, and no interior light behind it.
   c.rect(8, 10, 48, 24, PAL.black);
   c.rect(10, 12, 44, 20, GLASS);
   for (let x = 18; x < 54; x += 12) c.vline(x, 12, 31, DK);   // mullions
-  c.rect(12, 14, 16, 5, PAL.white);                            // reflection
+  c.rect(12, 14, 14, 2, SHELL);                                // one reflection
+  c.hline(31, 10, 53, DK);
   // Console lip and body
   c.rect(6, 34, 52, 8, SHELL);
   c.rect(6, 34, 52, 2, LT);
-  for (let x = 12; x < 52; x += 8) c.rect(x, 37, 3, 2, PAL.ledGreen);
+  for (let x = 12; x < 52; x += 8) c.rect(x, 37, 3, 2, PAL.dtBolt);
   c.rect(8, 42, 48, 22, SHELL);
   c.rect(10, 44, 6, 18, LT);
   c.rect(24, 46, 18, 14, DK);
   // Base
-  c.rect(6, 64, 52, 3, PAL.impDark);
+  c.rect(6, 64, 52, 3, DK);
   for (let y = 10; y <= 64; y++) { c.px(5, y, E); c.px(58, y, E); }
   c.finish();
 }
@@ -3944,12 +4310,17 @@ export function paintSecurityPost(scene, key = 'prop-post') {
 // 34x26 logical at scale 4 = 136x104. Small; two colourways, scattered.
 export function paintBunk(scene, key = 'prop-bunk', sheet = null) {
   const c = new PixelCanvas(scene, key, 34, 26, 4);
-  const FRAME = PAL.impSilver, DK = PAL.impDark, E = PAL.black;
-  const CLOTH = sheet || PAL.detPanel;
+  // FURNITURE SITS ONE STEP ABOVE THE DECK. The frame was `impSilver` and the
+  // mattress carried an `impSheen` highlight — a small object painted from the
+  // Imperial family's top end, which reaches far lighter than this floor. Four
+  // of them scattered on the deck photographed as the brightest things in
+  // frame, which is the hangar's cargo-crate trap in a smaller object.
+  const FRAME = PAL.dtRib, DK = PAL.dtWallDark2, E = PAL.black;
+  const CLOTH = sheet || PAL.dtRecess;
   // Mattress slab
   c.rect(4, 6, 26, 9, CLOTH);
-  c.rect(4, 6, 26, 2, PAL.impSheen);
-  c.rect(6, 8, 8, 5, PAL.detAcc);            // folded blanket
+  c.rect(4, 6, 26, 2, PAL.dtRibLit);
+  c.rect(6, 8, 8, 5, PAL.dtWall2);           // folded blanket
   // Frame + legs
   c.rect(2, 15, 30, 3, FRAME);
   c.rect(3, 18, 3, 5, DK);
@@ -4816,6 +5187,125 @@ export function paintCoverCrate(scene, key, variant = 'a') {
     c.rect(1, 23, 26, 3, DK);
     c.hline(23, 1, 26, PAL.hgRib);
     for (let x = 3; x < 26; x += 6) c.vline(x, 24, 25, SEAM);
+  }
+  c.finish();
+}
+
+// ── THE DETENTION KIT — one console face, one unpowered mass ──────────────
+//
+// The fourth arena's two bounded additions to the cover kit, and both obey the
+// contract the hangar's crate established: IDENTICAL 28x28 canvas, so the
+// frozen 70x70 body under a 112px sprite still tells the truth about cover;
+// the same three-plane lit-top / working-front / dark-base read, so everything
+// in the room is lit by the same sun; and a light declared in `consoleKit.js`
+// or NOT DECLARED AT ALL, which is the whole of a cover object's dark state.
+//
+// FIVE OF DETENTION'S EIGHT COVER OBJECTS ARE BENCHES AND CARRY NO LIGHT. That
+// ratio is not decoration: cover that declares nothing takes the `prop` tint
+// and goes out, and it is what keeps this room's blackout black. The junction
+// and the hangar both landed on the same five-of-eight for the same reason.
+
+// ── CELL LOCK COLUMN — the one new console FACE ───────────────────────────
+// Same manufacturer, same chassis, same footprint as the pedestal terminals.
+// What changes is what it is FOR: this console does not show you information,
+// it holds a row of cells shut. So its face is a COLUMN OF LOCK STATES rather
+// than a display — eleven small square indicators in two ranks, each one a
+// door — over a narrow status ribbon. You read a lock board at a glance and
+// you read a terminal by staying at it, and the face says which this is.
+export function paintCellLock(scene, key = 'dt-con-lock') {
+  const c = new PixelCanvas(scene, key, 28, 28, 4);
+  conChassis(c, { top: [0, 5, 4], front: [6, 20, 3], base: [21, 26, 2], vents: [2] });
+
+  // THE LOCK BOARD. A recessed surround with two ranks of indicator wells.
+  // Wells, not lamps: the light is declared in `CONSOLE_KIT` and lands on the
+  // top rank, so what is painted here is the hardware it sits in.
+  c.rect(5, 7, 18, 9, CON.seam);
+  c.rect(6, 8, 16, 7, CON.sink);
+  for (let k = 0; k < 5; k++) {
+    c.rect(7 + k * 3, 9, 2, 2, CON.bolt);
+    c.rect(7 + k * 3, 12, 2, 2, CON.dark);
+  }
+  // The board's own bezel lip, lit along the top — the object has a light
+  // direction and its recesses have to agree with it.
+  c.hline(7, 5, 22, CON.ribLit);
+  c.hline(16, 5, 22, CON.dark);
+
+  // THE STATUS RIBBON. One narrow slot under the board with three rows in it,
+  // deliberately shorter than any pedestal display: this is a summary line,
+  // not a screen.
+  c.rect(5, 17, 12, 4, CON.seam);
+  c.rect(6, 18, 10, 2, CON.glass);
+  c.hline(18, 6, 13, PAL.chCyan);
+  c.hline(19, 6, 10, PAL.chAmber);
+
+  // A KEY BARREL on the free corner — a physical override, which is the thing
+  // a lock board has that a terminal does not.
+  c.rect(19, 17, 5, 5, CON.dark);
+  c.hline(16, 19, 23, CON.rib);
+  c.rect(20, 18, 3, 3, CON.seam);
+  c.px(21, 19, CON.bolt);
+  // Fault lamp: one pixel of painted hardware, never a declared source.
+  c.px(24, 12, PAL.chWarn);
+  c.finish();
+}
+
+// ── TRANSFER BENCH — the unpowered mass ───────────────────────────────────
+// What a transfer floor is actually furnished with: a bolted-down bench with a
+// restraint rail down its length and a stanchion at each end. Low, heavy, and
+// PAINTED rather than lit.
+//
+// ONE STEP ABOVE THE DECK AND NO MORE. The hangar's first crate palette read
+// as the brightest object in its room and had to come down; institutional
+// furniture has exactly the same trap in it, and this room's deck is lighter
+// than the hangar's to begin with. Every tone here is drawn from the detention
+// ladder rather than from a console's gunmetal, so a bench and a lock column
+// standing side by side are visibly different classes of object.
+export function paintTransferBench(scene, key = 'dt-bench', variant = 'a') {
+  const c = new PixelCanvas(scene, key, 28, 28, 4);
+  const BODY = PAL.dtRib, LIT = PAL.dtRibLit, DK = PAL.dtWallDark2;
+  const SEAM = PAL.dtSeam, BOLT = PAL.dtBolt, RAIL = PAL.dtBar;
+
+  // THE SEAT SLAB. A lit top face tapering into a dark front — the chassis
+  // read, at a bench's proportions rather than a console's.
+  const seat = (y0) => {
+    for (let y = y0; y <= y0 + 3; y++) {
+      const k = Math.floor((y - y0) * 0.7);
+      c.hline(y, 3 + k, 24 - k, y === y0 ? LIT : BODY);
+    }
+    c.hline(y0 + 4, 3, 24, SEAM);
+    c.rect(3, y0 + 5, 22, 3, BODY);
+    c.hline(y0 + 8, 3, 24, DK);
+  };
+
+  if (variant === 'a') {
+    // THE RESTRAINT RAIL, standing over the seat on two posts. Vertical
+    // members, matching the cell slats — the room's one repeated motif,
+    // brought down onto an object the player stands behind.
+    c.rect(4, 5, 20, 2, RAIL);
+    for (const x of [6, 12, 18, 22]) c.vline(x, 7, 10, RAIL);
+    c.hline(4, 4, 23, LIT);
+    seat(11);
+    // The foot: a bolted plinth, wider than the seat, so it sits DOWN.
+    c.rect(2, 20, 24, 4, DK);
+    c.hline(20, 2, 25, BODY);
+    for (const x of [4, 11, 18, 23]) { c.vline(x, 21, 23, SEAM); c.px(x, 21, BOLT); }
+  } else {
+    // VARIANT B — a bench with the rail gone and a stowage well under it, set
+    // OFF-CENTRE. Two identical benches side by side is a tiling bug; the
+    // asymmetry is what makes a run of them read as furniture.
+    seat(7);
+    c.rect(6, 16, 15, 5, PAL.dtSink);
+    c.hline(15, 5, 21, SEAM);
+    c.hline(21, 6, 20, LIT);
+    for (let x = 8; x < 20; x += 4) c.vline(x, 17, 19, DK);
+    // Stanchions, one taller than the other.
+    c.rect(3, 4, 3, 18, BODY);
+    c.hline(4, 3, 5, LIT);
+    c.rect(22, 8, 3, 14, BODY);
+    c.hline(8, 22, 24, LIT);
+    c.rect(2, 21, 24, 3, DK);
+    c.hline(21, 2, 25, BODY);
+    for (const x of [4, 13, 23]) c.px(x, 22, BOLT);
   }
   c.finish();
 }

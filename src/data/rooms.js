@@ -842,51 +842,241 @@ export const ROOMS = [
   },
 
   // ── 3. Detention Block ─────────────────────────────────────────────────
-  // Open prison block with double terminals, allowing clean routing.
+  //
+  // ══ THE FOURTH ARENA ══════════════════════════════════════════════════
+  //
+  // THE ONE SENTENCE. *A prisoner-transfer block: a long, deliberately
+  // exposed escort floor running the full width of the level between two
+  // banks of holding cells, from the intake end to a sealed processing gate.*
+  //
+  // WHY THAT SENTENCE AND NOT A CELL BLOCK. The geometry was audited before a
+  // word of art direction was written, and it does not describe the room the
+  // name suggests. 1600x1400 is the WIDEST arena in the game and the only one
+  // whose long axis runs EAST-WEST. `walls` is EMPTY: there is not one solid
+  // structure on the deck. Spawn is on the west edge at (150, 700) and the
+  // exit is on the east at (1450, 700) — dead level with it, so the room's
+  // plan is a straight walk across its own width, with the two objectives
+  // pulled off that line to opposite corners. Two of the four gates are on the
+  // EAST wall, which means reinforcements arrive from behind the way out.
+  //
+  // A room whose middle is empty by design and whose plan is a traverse is not
+  // a warren of cells. It is a WALK, watched from both sides. So the open
+  // centre — which is frozen gameplay geometry and was never in question —
+  // becomes the fiction rather than a thing the art has to apologise for: you
+  // are meant to be visible while you cross.
+  //
+  // ══ WHAT THE BASELINE ACTUALLY WAS ════════════════════════════════════
+  //
+  //   - SIX full-width saturated CYAN strip lights at `stripEvery: 220` plus
+  //     three pale accents, edge to edge over the props, the cover and the
+  //     fight. The loudest thing in every frame. Same failure the chamber and
+  //     the junction both shipped with, in a different colour.
+  //   - NO large forms and no medium forms at all: a flat hex deck at full
+  //     contrast, twelve faint corner brackets, and nothing else.
+  //   - EIGHT IDENTICAL `bush` consoles on a 3/3/2 grid, every one of them
+  //     lit, every one of them carrying a painted RED led bar. In LIGHTS OUT
+  //     they were eight equally pale boxes and the brightest objects in a room
+  //     that was supposed to be dark.
+  //   - The one landmark, a security post, at (260, 1230) — behind the touch
+  //     controls from every camera position the player can reach.
+  //
+  // ══ THE VIEWPORT DECIDED THE COMPOSITION ══════════════════════════════
+  //
+  // 720x1196 of viewport in a 1600x1400 room pins the camera centre inside
+  // x [360, 1240] and y [598, 802]. So the full WIDTH is reachable — the only
+  // arena where that is true — and world y beyond about 1100 is behind the
+  // joysticks from everywhere. The junction lost a whole build to a landmark
+  // on its south wall. Everything that matters here is composed on the
+  // east-west axis, which is the axis this room can actually show.
+  //
+  // ══ LARGE, MEDIUM, SMALL ══════════════════════════════════════════════
+  //
+  //   LARGE   the escort floor · the two holding aprons · the processing gate
+  //   MEDIUM  the two secured thresholds · the processing plates at each
+  //           objective · the gate mouths · the service channels
+  //   SMALL   hatches, vents, bolts — and there are very few of them
+  //
+  // ══ FROZEN ════════════════════════════════════════════════════════════
+  //
+  // `bounds`, `walls` (empty), `spawn`, `exit`, `gates`, `terminals`,
+  // `enemies`, `pickups` and every cover POSITION and the cover COUNT are
+  // exactly what they were. No human play evidence says the topology is wrong,
+  // and mixing a level-design pass into an art pass is how the junction's
+  // cover ring survived three sessions. What moved is which TEXTURE stands on
+  // which frozen spot — the junction's own rule.
   {
     id: 'detention',
     name: 'DETENTION BLOCK',
     bounds: { w: 1600, h: 1400 },
     spawn: { x: 150, y: 700 },
     exit: { x: 1450, y: 700, side: 'right' },
-    // Cold and clinical: tight small tiling that reads as cell-block floor,
-    // pale cyan lighting, almost no battle damage.
     floor: {
-      base: PAL.detBase, line: PAL.detLine, panel: PAL.detPanel,
-      strip: PAL.detStrip, stripGlow: PAL.detStripGlw,
-      accent: PAL.detAcc, accentGlow: PAL.detAccGlw,
-      hexW: 48, hexH: 42, stripEvery: 220, accentEvery: 440,
-      panels: 40, scorch: 12,
-      markColor: PAL.detAcc, markAlpha: 0.34,
+      // COLDER AND HARDER THAN THE JUNCTION, and one notch lighter. A
+      // containment level is a maintained institutional space, not a machine
+      // deck, and the value has to be there or the cell architecture in the
+      // band cannot read at all. Nothing in the ladder is warm and nothing in
+      // it is red.
+      base: PAL.dtDeck, line: PAL.dtSeam, panel: PAL.dtRecess,
+      strip: PAL.dtRib, stripGlow: PAL.dtRibLit,
+      accent: PAL.dtRib, accentGlow: PAL.dtRibLit,
+      // NO BAKED STRIP LIGHTS. See the baseline note above — six full-width
+      // cyan bars is a ceiling fixture drawn on the floor. The room's light is
+      // authored in `emissives`.
+      stripEvery: 0, accentEvery: 0,
+      // 96x84 — the TIGHTEST tiling in the game, against the chamber's 120x105,
+      // the junction's 132x116 and the hangar's 160x140. A cell block is laid
+      // out to a smaller module than a hangar deck, and the floor is the
+      // cheapest place to say so. Kept to a whisper, like all three.
+      hexW: 96, hexH: 84, hexAlpha: 0.20,
+      panels: 30, scorch: 14,
+      grounded: true,
+      // WORN SAFETY WHITE, AND ALMOST NONE OF IT. §14's forbidden list is
+      // exactly what a detention block invites — prisoner numbers, glowing
+      // grids, red lines, yellow stripes the length of the room, repeated
+      // arrows — and none of it is here. Four marks in total, all of them at
+      // thresholds, none of them on the walk.
+      markColor: PAL.dtPaint, markAlpha: 0.20,
       marks: [
-        // A row of cell doorways down each long wall — the one thing that
-        // makes this read as a detention block rather than a grey box.
-        { kind: 'bay', x: 200, y: 70, w: 150, h: 130 },
-        { kind: 'bay', x: 420, y: 70, w: 150, h: 130 },
-        { kind: 'bay', x: 640, y: 70, w: 150, h: 130 },
-        { kind: 'bay', x: 860, y: 70, w: 150, h: 130 },
-        { kind: 'bay', x: 1080, y: 70, w: 150, h: 130 },
-        { kind: 'bay', x: 1300, y: 70, w: 150, h: 130 },
-        { kind: 'bay', x: 200, y: 1200, w: 150, h: 130 },
-        { kind: 'bay', x: 420, y: 1200, w: 150, h: 130 },
-        { kind: 'bay', x: 640, y: 1200, w: 150, h: 130 },
-        { kind: 'bay', x: 860, y: 1200, w: 150, h: 130 },
-        { kind: 'bay', x: 1080, y: 1200, w: 150, h: 130 },
-        { kind: 'bay', x: 1300, y: 1200, w: 150, h: 130 },
+        // Caution hatching at the two side gates, where the room is entered
+        // from outside. Not at the two east gates: those open behind the
+        // processing gate, which is already the most marked place in the room.
+        { kind: 'stripes', x: 706, y: 100, w: 188, h: 70, alpha: 0.5, gap: 36 },
+        { kind: 'stripes', x: 706, y: 1230, w: 188, h: 70, alpha: 0.5, gap: 36 },
+        // The two processing points, bracketed. Corner brackets rather than a
+        // painted circle: an objective is a PLACE, and a ring drawn round the
+        // square metre a boss fight resolves on is a circle telegraph whatever
+        // colour it is. The chamber and the junction each killed one.
+        { kind: 'bay', x: 400, y: 350, w: 200, h: 200, alpha: 0.7, lw: 5 },
+        { kind: 'bay', x: 1000, y: 850, w: 200, h: 200, alpha: 0.7, lw: 5 },
+      ],
+      archPal: {
+        sink: PAL.dtSink, recess: PAL.dtRecess, deck: PAL.dtDeck,
+        deckLit: PAL.dtDeckLit, rib: PAL.dtRib, ribLit: PAL.dtRibLit,
+        seam: PAL.dtSeam, bolt: PAL.dtBolt,
+      },
+      // ── LARGE, then MEDIUM, then SMALL. Drawn in list order.
+      architecture: [
+        // ══ LARGE ═════════════════════════════════════════════════════════
+        //
+        // THE ESCORT FLOOR. The room's spine, and the only large form in the
+        // game that runs a level's full width: 1408px of raised deck from the
+        // intake wall to the processing gate, level with the spawn and the
+        // exit, 280 tall. Nothing is drawn inside it.
+        //
+        // A VALUE CHANGE, NOT A GRAPHIC. §14 forbids solving detention with
+        // floor art, and it explicitly permits a transfer-zone plate change —
+        // the difference is that this says the floor here is a different
+        // SURFACE, where a painted lane would say the floor here means
+        // something. Held at 0.24: the junction's crossing sits at 0.34 over
+        // 600x600, and a form this long at that strength is a bright band
+        // across the middle of every frame.
+        { kind: 'region', x: 96, y: 560, w: 1408, h: 280, tone: 'deckLit', alpha: 0.24, edge: 'h' },
+
+        // THE TWO HOLDING APRONS. Recessed strips in front of the cell banks,
+        // so the escort floor lifts out of them and the room reads as a raised
+        // walk between two lowered edges.
+        //
+        // BOTH ARE INTERRUPTED AT THE GATE, and that is where their rhythm
+        // comes from rather than from a decoration: the north and south gates
+        // land at x 800, so each apron is TWO runs with a 150px service gap
+        // between them, and the gap is exactly where the room's own plan puts
+        // a doorway. The two runs are unequal on purpose — 620 and 634 — so
+        // the room is not a mirror of itself about its own middle.
+        //
+        // 0.55, NOT 0.8. `recess` laid on thickly over this deck lands near
+        // black, and a near-black rectangle in a top-down game reads as a pit
+        // rather than as a step down. The junction measured that at 0.62 on a
+        // darker deck; this one is lighter, so it can take a little more.
+        { kind: 'region', x: 96, y: 96, w: 620, h: 300, tone: 'recess', alpha: 0.55, edge: 'h' },
+        { kind: 'region', x: 866, y: 96, w: 638, h: 300, tone: 'recess', alpha: 0.55, edge: 'h' },
+        { kind: 'region', x: 96, y: 1004, w: 620, h: 300, tone: 'recess', alpha: 0.55, edge: 'h' },
+        { kind: 'region', x: 866, y: 1004, w: 638, h: 300, tone: 'recess', alpha: 0.55, edge: 'h' },
+
+        // ══ MEDIUM ════════════════════════════════════════════════════════
+        //
+        // THE TWO SECURED THRESHOLDS. Where the escort floor begins and ends —
+        // a heavy transverse lip at each end of the walk, so the walk has a
+        // start and a finish rather than fading out at the wall.
+        //
+        // 0.34 ALPHA, BECAUSE A RIB AT FULL STRENGTH IS AN OBJECT. It draws a
+        // near-black surround under its face, and at full value four of them
+        // photographed as bright posts standing on the junction's deck. This
+        // pass measured the same thing at 0.55 and it was worse here than
+        // there: a 20x280 lit bar standing across the walk, at the exact
+        // proportion of a barrier, in the one place the room must not suggest
+        // there is anything to walk round. Thinner and fainter, they are lips.
+        { kind: 'rib', dir: 'v', x: 300, y: 560, len: 280, t: 14, alpha: 0.34 },
+        { kind: 'rib', dir: 'v', x: 1280, y: 560, len: 280, t: 14, alpha: 0.34 },
+
+        // THE PROCESSING PLATES. One large bolted deck plate under each
+        // objective, so the two terminals stand on authored ground rather than
+        // floating on open floor. Big — 300x260 — because a small plate is
+        // floor noise and a large one is architecture.
+        { kind: 'plate', x: 350, y: 320, w: 300, h: 260 },
+        { kind: 'plate', x: 950, y: 820, w: 300, h: 260 },
+
+        // THE GATE MOUTHS. A heavy frame on the deck side of each of the four
+        // doorways, so a gate is a threshold rather than a hole in a band.
+        // Thick jambs are the room's vocabulary and this is where the deck
+        // gets to say it.
+        { kind: 'doorframe', x: 700, y: 96, w: 200, h: 34 },
+        { kind: 'doorframe', x: 700, y: 1270, w: 200, h: 34 },
+        { kind: 'doorframe', x: 1470, y: 210, w: 34, h: 180 },
+        { kind: 'doorframe', x: 1470, y: 1010, w: 34, h: 180 },
+
+        // THE SERVICE CHANNELS. Short recessed drainage runs at the foot of
+        // the cell banks. Two, not a run down the whole wall: the point is
+        // that the block is maintained, not that it is plumbed.
+        //
+        // THEY WERE FIRST DRAWN IN THE APRON GAPS, FULL DEPTH, AT `sink`, AND
+        // THEY WERE HOLES. 150x300 of near-black at the mouth of the north and
+        // south gates — a pit painted across the one square metre the player
+        // walks through to enter the room, which is the single lie a room may
+        // not tell about where it can be walked. The gate approaches are plain
+        // deck now, at the ground value, and the channels are shallow runs
+        // along the bank foot where nobody crosses.
+        { kind: 'inset', x: 240, y: 372, w: 300, h: 26, tone: 'recess' },
+        { kind: 'inset', x: 1010, y: 1278, w: 300, h: 26, tone: 'recess' },
+
+        // ══ SMALL ═════════════════════════════════════════════════════════
+        // Sparse, and all of it out at the edges. The walk carries nothing.
+        { kind: 'hatch', x: 210, y: 470, w: 64, h: 44 },
+        { kind: 'hatch', x: 1310, y: 940, w: 64, h: 44 },
+        { kind: 'hatch', x: 1290, y: 460, w: 44, h: 64 },
+        { kind: 'vent', x: 118, y: 900, w: 40, h: 76 },
+        { kind: 'vent', x: 1444, y: 470, w: 40, h: 76 },
       ],
     },
-    // Recessed cell doors in the wall itself, standing behind the bay marks
-    // painted on the floor in front of them.
+    // ── THE CONTAINMENT BANKS. The room's identity, and it is in the WALL.
+    //
+    // 96 thick, against the baseline's 64: the cells have to be deep enough to
+    // be cells. `block` is the fourth perimeter style — cell front, jamb,
+    // barred mouth, at a period of 176, the tightest in the game, because
+    // containment repeats at the width of one person. See `drawPerimeter`.
+    //
+    // A COVER OBJECT'S POWER IS A COMPOSITION DECISION, and so is a wall's:
+    // north is the fuller run and south is the emptier one, so the two long
+    // walls are not each other's mirror.
     perimeter: {
-      style: 'cells', thickness: 64,
-      wall: PAL.detWall, wallLit: PAL.detWallLit, wallDark: PAL.detWallDark,
-      trim: PAL.detStrip, glow: PAL.detStripGlw,
+      style: 'block', thickness: 96,
+      wall: PAL.dtWall2, wallLit: PAL.dtWallLit2, wallDark: PAL.dtWallDark2,
+      trim: PAL.dtRib, glow: PAL.dtRibLit,
+      // THE LANDMARK, AND THE FOURTH LANDMARK CLASS. Not a freestanding
+      // machine (the chamber), not a door you go through (the hangar), not
+      // infrastructure converging on a sealed wall (the junction) — a
+      // CHECKPOINT: a gatehouse with its shutter down and the exit cut through
+      // its middle. On the east wall because that is where the walk ends, and
+      // because the east wall is one of the two the camera clamps let this
+      // room actually show.
+      features: [{ side: 'right', at: 700, width: 560, opening: 200, kind: 'transfergate' }],
     },
-    walls: [], // opened cells completely
-    // Props: one security post as the landmark, plus bunks spilled out of the
-    // cells. The bunks are the only repeated silhouette in the room, so they
-    // ship in two colourways, mirrored, and are placed as a two and two ones —
-    // never in a row, which is the failure this whole art pass corrects.
+    walls: [], // frozen: this deck has no solid structure on it
+    // Props: the observation post and four bunks spilled out of the cells.
+    // POSITIONS AND BODIES ARE FROZEN — every one of these is a solid body in
+    // the nav grid. Both textures were re-toned into the block's ladder (the
+    // bunks were painted from the Imperial family's top end and were the
+    // brightest objects in the room; the post was glazed in a bright cyan it
+    // had no light to justify).
     props: [
       { x: 260, y: 1230, tex: 'prop-post', solid: true, bodyW: 200, bodyH: 110 },
       { x: 700, y: 480,  tex: 'prop-bunk',   solid: true, bodyW: 120, bodyH: 60 },
@@ -894,11 +1084,141 @@ export const ROOMS = [
       { x: 1290, y: 880, tex: 'prop-bunk-b', solid: true, bodyW: 120, bodyH: 60 },
       { x: 420, y: 960,  tex: 'prop-bunk',   solid: true, bodyW: 120, bodyH: 60, flip: true },
     ],
+    // ── THE EIGHT FROZEN COVER SPOTS, AND WHAT NOW STANDS ON THEM.
+    //
+    // The positions are exactly the baseline's — a 3/3/2 grid, which is a
+    // VISUAL problem and not a gameplay one (the tightest neighbour gap is
+    // 400px against a Ø112 boss, so the junction's clearance failure does not
+    // exist here). Moving them would be a level-design pass wearing an art
+    // pass's clothes. What changes is which object stands where, which is the
+    // junction's own rule, and it breaks the grid read two ways:
+    //
+    //   OCCUPANCY. Three powered, five not — the same ratio the hangar and the
+    //   junction both landed on, and for the same reason: cover that declares
+    //   no light in `CONSOLE_KIT` takes the `prop` tint and GOES OUT. Five of
+    //   eight going dark is what keeps this room's blackout black.
+    //
+    //   PLACEMENT. The three powered pieces are NOT symmetric: the two on the
+    //   walk itself and one in the north-east. The checkpoint being the lit
+    //   part of the room is the composition; a lit ring would be the grid
+    //   again in light.
+    //
+    // Two bench variants alternate so no two neighbours are the same sprite.
     cover: snapAll([
-      { x: 400, y: 300 }, { x: 800, y: 300 }, { x: 1200, y: 300 },
-      { x: 400, y: 1100 }, { x: 800, y: 1100 }, { x: 1200, y: 1100 },
-      { x: 600, y: 700 }, { x: 1000, y: 700 },
+      { x: 400,  y: 300,  tex: 'dt-bench' },
+      { x: 800,  y: 300,  tex: 'dt-bench-b' },
+      { x: 1200, y: 300,  tex: 'ch-con-ped-a' },   // the north bank's terminal
+      { x: 400,  y: 1100, tex: 'dt-bench-b' },
+      { x: 800,  y: 1100, tex: 'dt-bench' },
+      { x: 1200, y: 1100, tex: 'dt-bench-b' },
+      { x: 600,  y: 700,  tex: 'dt-con-lock' },    // the checkpoint, west side
+      { x: 1000, y: 700,  tex: 'ch-con-heavy' },   // the checkpoint, east side
     ]),
+    // ══ THE ROOM'S AUTHORED LIGHT ═══════════════════════════════════════
+    //
+    // THE DARK-STATE SENTENCE: *the room disappears, but the containment
+    // system stays armed.*
+    //
+    // That is the fourth emergency identity, and it is a different KIND of
+    // answer from the other three. The chamber's is powered hero machinery,
+    // the hangar's is deployment systems, the junction's is sparse wayfinding
+    // plus an amber reactor. None of those is available here and none of them
+    // should be borrowed: this room has no machine, and it does not need to
+    // tell anyone where the doors are, because it has one way out and the
+    // whole room points at it. What a detention block has on its emergency bus
+    // is LOCKS.
+    //
+    // FOUR RULES HELD THE LIST DOWN:
+    //
+    //   NOTHING ON THE ESCORT FLOOR. Not one emitter and not one pixel of
+    //   spill enters y [560, 840] between the two thresholds. The walk is
+    //   where the fight resolves, and lighting it would be the cover ring's
+    //   mistake in light. It is also the whole composition: two scattered
+    //   lines of small hard points along the banks, and BLACK between them.
+    //
+    //   OCCUPANCY, NOT A ROW. The lock lamps are on SOME cells and not
+    //   others, at irregular intervals, keyed to the same occupancy the wall
+    //   painter draws. A lamp on every cell would be an outline of the
+    //   playable space, which §22 forbids and which would be true — two
+    //   parallel dotted lines down the long walls is a corridor drawn in
+    //   light. Scattered, they are a handful of doors that still have someone
+    //   behind them.
+    //
+    //   NOMINAL LAMPS DO NOT SHOUT. A lock says "holding" whether anyone is
+    //   watching or not, so `normal === emergency` on every one of them. They
+    //   become the brightest thing in the room by SUBTRACTION when everything
+    //   else goes out, which is the honest way for a battery-backed system to
+    //   win.
+    //
+    //   NO RED, AND NO GREEN EITHER. Red is the saber, the telegraphs and the
+    //   SABER THROW lane — that rule is three arenas old. Green is newer and
+    //   is specific to this room's dark state: enemy bullets are green, and a
+    //   scatter of small green points along both walls during a blackout is
+    //   incoming fire that is not there. The locks are COLD WHITE-BLUE and the
+    //   two emergency systems are amber.
+    emissives: [
+      // ── THE CELL LOCKS, NORTH BANK. `block` runs its bays at period 176
+      //    from a phase of 0, so bay i spans x [176i, 176i + 176] and its
+      //    mouth is centred at 176i + 88. Occupied bays on this wall are 0, 1,
+      //    4, 6 and 8; bay 5 is the secure leaf and bays 3 and 7 are service.
+      //    Five lamps out of nine bays, at gaps of 1, 3, 2, 2 — no interval
+      //    repeats twice running, which is what stops the scatter becoming a
+      //    rhythm.
+      { kind: 'led', x: 88,   y: 78, r: 5, color: 0x25506e, hot: 0xdfeaf6, normal: 0.55, emergency: 0.55, reach: 34 },
+      { kind: 'led', x: 264,  y: 78, r: 5, color: 0x25506e, hot: 0xdfeaf6, normal: 0.55, emergency: 0.55, reach: 34 },
+      { kind: 'led', x: 792,  y: 78, r: 5, color: 0x25506e, hot: 0xdfeaf6, normal: 0.55, emergency: 0.55, reach: 34 },
+      { kind: 'led', x: 1144, y: 78, r: 5, color: 0x25506e, hot: 0xdfeaf6, normal: 0.55, emergency: 0.55, reach: 34 },
+      { kind: 'led', x: 1496, y: 78, r: 5, color: 0x25506e, hot: 0xdfeaf6, normal: 0.55, emergency: 0.55, reach: 34 },
+
+      // ── THE CELL LOCKS, SOUTH BANK. EMPTIER, on purpose — three lamps
+      //    against the north's five. The block is half full and its two long
+      //    walls are not each other's mirror; that asymmetry is the difference
+      //    between a composition and a tiling. The south wall's local x runs
+      //    backwards, so these are placed in world coordinates directly.
+      { kind: 'led', x: 424,  y: 1322, r: 5, color: 0x25506e, hot: 0xdfeaf6, normal: 0.46, emergency: 0.46, reach: 34 },
+      { kind: 'led', x: 1072, y: 1322, r: 5, color: 0x25506e, hot: 0xdfeaf6, normal: 0.46, emergency: 0.46, reach: 34 },
+      { kind: 'led', x: 1248, y: 1322, r: 5, color: 0x25506e, hot: 0xdfeaf6, normal: 0.46, emergency: 0.46, reach: 34 },
+
+      // ── THE TWO SECURE LEAVES. The one cell on each long wall that is
+      //    bolted rather than barred, and the ONLY sources in the room that
+      //    are DEAD at normal power. When the bus drops, the interlock on the
+      //    door that is not being opened comes up — hardware that was not lit
+      //    a second ago, which is the whole difference between an authored
+      //    second state and a dimmer. Amber, and it is the only amber here.
+      //    Horizontal, matching the bolt the wall painter draws across it: a
+      //    strip's spill takes the shape of its source, and this source lies
+      //    across the door.
+      { kind: 'strip', dir: 'h', x: 968, y: 82, len: 120, t: 5, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.36, reach: 22 },
+      { kind: 'strip', dir: 'h', x: 720, y: 1318, len: 120, t: 5, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.36, reach: 22 },
+
+      // ── THE PROCESSING GATE. The landmark's own light, and the brightest
+      //    fixture in the room in BOTH states — because the room asks one
+      //    question from the moment it loads and this is the answer to it.
+      //
+      //    THREE SOURCES, ALL VERTICAL, ALL ON THE WALL. The two jamb
+      //    interlocks flank the doorway at x 1504+ (the band's inner edge is
+      //    1504) and the control face sits on the northern bastion. Nothing
+      //    radial: a round pool at a rectangular gate is the shape mistake the
+      //    junction spent a pass removing.
+      //
+      //    SHORT AND THICK, NOT LONG AND THIN. At 92x6 and 0.66 they
+      //    photographed as two crisp white LINES either side of the doorway —
+      //    at that proportion an interlock stops being a fixture and starts
+      //    reading as UI drawn over the gate, which is §18's failure. 56x8 at
+      //    0.52 is a lamp housing on a jamb.
+      { kind: 'strip', dir: 'v', x: 1522, y: 626, len: 56, t: 8, color: 0x2a4a6a, hot: 0xd6e8ff, normal: 0.22, emergency: 0.52, reach: 34 },
+      { kind: 'strip', dir: 'v', x: 1522, y: 774, len: 56, t: 8, color: 0x2a4a6a, hot: 0xd6e8ff, normal: 0.22, emergency: 0.52, reach: 34 },
+      // The gatehouse control face — a real screen, on the bastion the wall
+      // painter builds one into. `drop` biases its wash down onto the deck in
+      // front of it, which is what a monitor does and a lamp does not.
+      { kind: 'screen', x: 1548, y: 522, w: 56, h: 40, color: 0x1a5a96, hot: 0x9fe0ff, normal: 0.22, emergency: 0.58, reach: 66, drop: 0.26 },
+
+      // ── THE INTAKE WALL. ONE lamp, and it is the room's quietest fixture.
+      //    The player arrives under it. A working wall has a couple of lamps
+      //    on it and not a row, and this side's job is to be the end you leave
+      //    rather than the end you are heading for.
+      { kind: 'led', x: 78, y: 610, r: 3, color: 0x8a5a10, hot: 0xffd08a, normal: 0.20, emergency: 0.20, reach: 10 },
+    ],
     enemies: [
       { type: 'grunt', x: 600, y: 450 },
       { type: 'grunt', x: 1000, y: 950 },

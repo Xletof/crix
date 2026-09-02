@@ -59,8 +59,9 @@ export class DebugScene extends Phaser.Scene {
     // is the exact friction this group exists to remove. Grew by one `row` (62)
     // again for LOAD VADER CHAMBER; CLOSE was already sitting within a few px
     // of the old bottom edge, so a new row without this would push it outside
-    // the card's own border. And once more for LOAD REACTOR JUNCTION.
-    const cardW = 620, cardH = 1106;
+    // the card's own border. And once more for LOAD REACTOR JUNCTION, and
+    // once more again for LOAD DETENTION BLOCK.
+    const cardW = 620, cardH = 1168;
     const cardX = cx - cardW / 2, cardY = VIEW.height * 0.03;
     g.fillStyle(0x0c101d, 0.9);
     g.fillRoundedRect(cardX, cardY, cardW, cardH, 16);
@@ -165,6 +166,13 @@ export class DebugScene extends Phaser.Scene {
     // after you leave costs three more rooms. Every other styled arena has a
     // way in from here; this is the junction's.
     this._button(cx, y, 'LOAD REACTOR JUNCTION', () => this._loadJunction(), 420);
+    y += row;
+
+    // AND THE THIRD, WHICH IS THE WORST OF THEM. The detention block is the
+    // LAST room of the rotation, so reaching it costs a hangar clear and a
+    // junction clear, and re-entering it after you leave costs three more. One
+    // predicate, same loader, same contract as the other two.
+    this._button(cx, y, 'LOAD DETENTION BLOCK', () => this._loadDetention(), 420);
     y += row;
 
     this.sectorBtn = this._button(cx - half, y, this._sectorLabel(), () => {
@@ -387,6 +395,9 @@ export class DebugScene extends Phaser.Scene {
 
   /** The third styled arena — REACTOR JUNCTION, `ROOMS[1]`, id `corridor`. */
   _loadJunction() { this._loadArena((r) => r.id === 'corridor'); }
+
+  /** The fourth — DETENTION BLOCK, id `detention`. */
+  _loadDetention() { this._loadArena((r) => r.id === 'detention'); }
 
   /**
    * One loader behind both buttons, so a third arena costs a predicate rather

@@ -23,6 +23,8 @@ import {
   paintReactorCoreGlow,
   paintCatwalkStrut,
   paintSecurityPost,
+  paintCellLock,
+  paintTransferBench,
   paintBunk,
   paintMeditationPod,
   paintPodGlow,
@@ -133,8 +135,16 @@ export class PreloadScene extends Phaser.Scene {
     paintReactorCoreGlow(this, 'prop-core-glow');
     paintCatwalkStrut(this, 'prop-strut');
     paintSecurityPost(this, 'prop-post');
+    // THE DETENTION KIT. Painted for every room, like every other texture, and
+    // handed out only to a room that names it — the same opt-in that keeps the
+    // console kit from leaking into the arenas it was never authored for.
+    paintCellLock(this, 'dt-con-lock');
+    paintTransferBench(this, 'dt-bench', 'a');
+    paintTransferBench(this, 'dt-bench-b', 'b');
     paintBunk(this, 'prop-bunk');
-    paintBunk(this, 'prop-bunk-b', PAL.detStrip);
+    // The second colourway. NOT `detStrip` — that is a saturated cyan, and a
+    // 136x104 object painted in it was the brightest thing on the deck.
+    paintBunk(this, 'prop-bunk-b', PAL.dtWall2);
     paintMeditationPod(this, 'prop-pod');
     // The hero machine's two ADD faces. Painted here with the prop so they can
     // never drift out of registration with it, and used only by the Vader

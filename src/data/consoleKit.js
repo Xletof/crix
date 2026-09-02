@@ -47,6 +47,10 @@ const L = (x, y, w, h) => ({
 /** a logical rect that is a STRIP rather than a screen: same offset, but its
  *  extent is declared as the length/thickness `EnvLight` asks a strip for. */
 const LSTRIP = (x, y, w, h) => { const r = L(x, y, w, h); return { dx: r.dx, dy: r.dy, len: r.h, t: r.w }; };
+/** the same, for a HORIZONTAL strip: length runs along x, thickness along y.
+ *  A strip's `len`/`t` are axis-relative, so one helper cannot serve both — and
+ *  a vertical helper used on a horizontal source silently swaps the two. */
+const LSTRIPH = (x, y, w, h) => { const r = L(x, y, w, h); return { dx: r.dx, dy: r.dy, len: r.w, t: r.h }; };
 /** logical pixel → world-space offset */
 const P = (x, y) => ({ dx: (x + 0.5 - SPRITE / 2) * SCALE, dy: (y + 0.5 - SPRITE / 2) * SCALE });
 
@@ -90,6 +94,25 @@ export const CONSOLE_KIT = {
     { kind: 'screen', ...L(8, 9, 12, 6), ...SCREEN, normal: 0.22, emergency: 0.70, reach: 80, drop: 0.28 },
     { kind: 'screen', ...L(8, 17, 7, 3), color: 0x8a4a10, hot: 0xffcf8a, normal: 0, emergency: 0.55, reach: 46, drop: 0.35 },
     { kind: 'led', ...P(17, 21), r: 2, ...NOMINAL, normal: 0.26, emergency: 0.26, reach: 9 },
+  ],
+  // ── D / CELL LOCK COLUMN — THE DETENTION BLOCK'S ONE BOUNDED ADDITION.
+  //    Same chassis, same footprint, a FACE built for a different job: a lock
+  //    board rather than a display. So its light is a different SHAPE too —
+  //    a short horizontal strip across the top rank of indicators instead of
+  //    a screen's box wash, because a row of lock states is what it shows.
+  //
+  //    ITS LOCK RANK IS NOMINAL AND ITS RIBBON IS NOT. The indicators do not
+  //    get louder in the dark — they are the system that is supposed to be
+  //    holding whether anyone is watching or not — while the status ribbon
+  //    below them is dead at normal power and comes up on the emergency bus.
+  //    One region reserved for emergency, exactly as the heavy console does
+  //    it, and for the room's own reason: when the block loses power the board
+  //    starts reporting.
+  'dt-con-lock': [
+    { kind: 'strip', dir: 'h', ...LSTRIPH(7, 9, 14, 2),
+      color: 0x25506e, hot: 0xcfe4f4, normal: 0.24, emergency: 0.24, reach: 62 },
+    { kind: 'screen', ...L(6, 18, 10, 2), color: 0x8a4a10, hot: 0xffcf8a, normal: 0, emergency: 0.48, reach: 44, drop: 0.34 },
+    { kind: 'led', ...P(21, 19), r: 2, ...NOMINAL, normal: 0.22, emergency: 0.22, reach: 9 },
   ],
   // ── B / WALL CONTROL PANEL. VALIDATED IN CONTEXT in the hangar, bolted to
   //    the control station beside the launch door and to the exit threshold.
