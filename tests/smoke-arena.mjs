@@ -432,7 +432,24 @@ if (R.leak.orphanAdditiveAtEnvDepth !== R.leak.partsAfter) {
 // the room — 1400x1400 and square, which is why it is the SPATIAL test rather
 // than a second generalization test. Detention is still untouched and the
 // `else` branch below still proves it.
-const STYLED = ['hangar', 'corridor'];
+// EVERY ARENA IS STYLED NOW, AND THAT CHANGES WHAT THIS SECTION CAN CHECK.
+//
+// This list started as an EXEMPTION: the pilot was one room and everything not
+// on it had to prove it was untouched, which is the check that kept the
+// chamber's language from becoming four rooms' language. With detention
+// authored there is nothing left off it, so the "must be empty" half of the
+// section below can no longer fire — and a check that cannot fire is
+// decoration, so it is replaced rather than left standing.
+//
+// What survives, and what is now doing the work: every styled room must still
+// prove it did not COPY (no `chamber` perimeter outside the chamber, no
+// `prop-pod` faces, no `prop-shuttle` faces outside the hangar), the kit's
+// footprint contract still holds for every texture in it, and each room's
+// authored composition is asserted in its OWN smoke test — `smoke-arena` for
+// the chamber, `smoke-hangar`, `smoke-junction`, `smoke-detention`. The
+// opt-in-by-name architecture is unchanged; what changed is that all four
+// rooms have now opted in, one at a time, each behind its own handset verdict.
+const STYLED = ['hangar', 'corridor', 'detention'];
 for (const o of R.others) {
   if (STYLED.includes(o.id)) {
     if (!o.specEmissives || !o.specArchitecture) fails.push(`${o.id} claims to be a styled arena but authored nothing`);
@@ -454,12 +471,10 @@ for (const o of R.others) {
     }
     continue;
   }
-  if (o.specEmissives || o.specGrounded || o.specArchitecture || o.specPropFaces) {
-    fails.push(`PROPAGATED: ${o.id} has picked up pilot spec fields ${JSON.stringify(o)}`);
-  }
-  if (o.specPerimeter === 'chamber') fails.push(`PROPAGATED: ${o.id} is using the pilot's perimeter style`);
-  if (o.envParts !== 0) fails.push(`${o.id} built ${o.envParts} emissive parts — the layer is meant to be empty there`);
-  if (o.additiveAtEnvDepth !== 0) fails.push(`${o.id} has ${o.additiveAtEnvDepth} additive environment objects left drawing`);
+  // No unstyled arena remains. If one is ever added it lands here, and the
+  // rule it has to satisfy is the one that protected the other three: an
+  // authored room is authored deliberately, not by inheriting a spec field.
+  fails.push(`UNSTYLED ARENA: ${o.id} is not in STYLED and has no authored composition — add it deliberately or add it to the list ${JSON.stringify(o)}`);
 }
 
 // 5c — NO RED IN THE ENVIRONMENT. Red is the saber, the SABER THROW lane and
@@ -516,7 +531,13 @@ if (!R.spec.propFaces.some((f) => f.normal > 0.1)) {
 //
 // The kit exists to make consoles reusable, and everything below is a way for
 // "reusable" to stay honest under a later edit.
-const KIT_TEX = ['ch-con-heavy', 'ch-con-ped-a', 'ch-con-ped-b', 'ch-con-ped-c', 'ch-con-wall'];
+// FOUR CHAMBER ARCHETYPES, ONE HANGAR FACE, ONE DETENTION FACE. Each addition
+// is a room's ONE bounded contribution, made when that room was authored and
+// argued for in its own handover section — `ch-con-ped-c` is the hangar's
+// manifest terminal (§10q) and `dt-con-lock` is detention's lock board (§10x).
+// The list is spelled out rather than counted so a fifth arrival has to come
+// past this line with a reason.
+const KIT_TEX = ['ch-con-heavy', 'ch-con-ped-a', 'ch-con-ped-b', 'ch-con-ped-c', 'ch-con-wall', 'dt-con-lock'];
 if (!eq(R.kit.archetypes, KIT_TEX)) {
   fails.push(`console kit is ${JSON.stringify(R.kit.archetypes)}, expected ${JSON.stringify(KIT_TEX)}`);
 }
@@ -576,9 +597,14 @@ for (const t of R.kit.heroTex) {
   if (!want || t.w !== want[0] || t.h !== want[1]) fails.push(`${t.k} is ${t.w}x${t.h}, expected ${want?.join('x')}`);
 }
 
-// ── 10 — CORRIDOR AND DETENTION ARE STILL ON THE PROTOTYPE CONSOLE. The kit is
-// shared code and its textures are painted for every room; opting in is by
-// name, per room, and stays that way until a human has seen the two that have.
+// ── 10 — COVER ART IS OPT-IN BY NAME, AND EVERY ROOM HAS NOW OPTED IN.
+//
+// The kit is shared code and its textures are painted for every room. This
+// check used to be "the unstyled rooms are still on `bush`", which is how the
+// pilot stayed one arena; with four authored rooms the surviving half of it is
+// that a room which opted in carries NO prototype art — a single `bush` left
+// among seven authored consoles is a spot somebody forgot, and it is exactly
+// the kind of thing that survives a screenshot review.
 for (const o of R.others) {
   if (STYLED.includes(o.id)) {
     if (o.coverTex.includes('bush')) fails.push(`${o.id} opted in but still has prototype cover art on it`);

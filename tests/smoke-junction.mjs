@@ -629,7 +629,11 @@ if (R.leak.partsAfter !== R.leak.partsBefore) fails.push(`emissive parts drifted
 if (R.leak.glowTexAfter !== R.leak.glowTexBefore) fails.push('the shared glow textures were re-created on a room load');
 if (R.leak.orphanAdditive !== R.leak.partsAfter) fails.push(`${R.leak.orphanAdditive} additive environment objects are drawing but the layer owns ${R.leak.partsAfter}`);
 if (R.leak.wallBodiesAfter !== 7) fails.push(`after five room loads the walls group holds ${R.leak.wallBodiesAfter} bodies`);
-if (R.leak.detentionParts !== 0) fails.push(`detention built ${R.leak.detentionParts} emissive parts — it is not in any of this`);
+// Detention authors 44 parts of its own now (§10x). What this leak check is
+// for is that loading it and coming back does not leave the junction's lights
+// burning over it or vice versa — a COUNT that is stable and correct, not a
+// count of zero.
+if (R.leak.detentionParts !== 44) fails.push(`detention built ${R.leak.detentionParts} emissive parts, expected its own 44`);
 if (R.leak.hangarParts < 20 || R.leak.chamberParts < 20) fails.push('an approved arena came back from a junction round trip with an empty light layer');
 
 // 6 — MOST OF THIS ROOM'S COVER GOES OUT. Three of five now rather than five
@@ -738,7 +742,7 @@ for (const a of R.guide.perApproach) {
 }
 // ROOM-SPECIFIC, AND IT STAYS THAT WAY.
 if (R.guideElsewhere.length) {
-  fails.push(`emergency guides have spread to ${R.guideElsewhere.map((r) => `${r.id} (${r.n})`).join(', ')} — the chamber and the hangar are FROZEN and detention has not been started`);
+  fails.push(`emergency guides have spread to ${R.guideElsewhere.map((r) => `${r.id} (${r.n})`).join(', ')} — all three are authored rooms with their own dark states, and \`guide\` is the JUNCTION'S answer to a square room with no long axis`);
 }
 // The live objects, not the spec's arithmetic.
 if (R.guideRuntime.parts !== R.guide.count * 2) {
@@ -798,9 +802,21 @@ const CHAMBER = {
   propFaces: 2, stripEvery: 0,
   bounds: { w: 1600, h: 1600 },
 };
+// DETENTION HAS SINCE BEEN AUTHORED, and this table said it must not be.
+//
+// Written when the junction was the third arena and detention the last
+// unstyled one, the entry below asserted `bush` cover, the `cells` perimeter
+// and zero authored light — a correct guard at the time, and superseded on
+// purpose rather than deleted: `HANDOVER.md` §10x is the fourth-arena pass and
+// the handset verdict it is waiting on. What this test still has to protect is
+// that DETENTION'S PASS DID NOT REACH BACK INTO THE JUNCTION, and the fields
+// below are now the fourth room's own frozen shape rather than an empty one.
+// Its 8 cover positions, 5 prop bodies and 1600x1400 bounds are unchanged from
+// the build this replaced; `smoke-detention` is where they are checked in full.
 const DETENTION = {
-  coverTex: ['bush'], perimeterStyle: 'cells', perimeterThickness: 64,
-  propFaces: 0, emissiveCount: 0, architectureLen: 0,
+  coverTex: ['ch-con-heavy', 'ch-con-ped-a', 'dt-bench', 'dt-bench-b', 'dt-con-lock'],
+  perimeterStyle: 'block', perimeterThickness: 96,
+  propFaces: 0, emissiveCount: 14, architectureLen: 20,
   bounds: { w: 1600, h: 1400 },
 };
 for (const [name, want, got] of [['hangar', HANGAR, R.hangar], ['chamber', CHAMBER, R.chamber], ['detention', DETENTION, R.detention]]) {
@@ -879,7 +895,12 @@ if (R.leak.reactorFaceImages !== 1) fails.push(`${R.leak.reactorFaceImages} reac
 // machine's pair are frozen; this pass may not have added a third anywhere.
 if (R.hangar.propFaces !== 2) fails.push(`the hangar declares ${R.hangar.propFaces} prop faces — the shuttle's pair is frozen`);
 if (R.chamber.propFaces !== 2) fails.push(`the chamber declares ${R.chamber.propFaces} prop faces — the hero machine's pair is frozen`);
-if (R.detention.propFaces !== 0) fails.push(`detention declares ${R.detention.propFaces} prop faces — it has not been started`);
+// Detention declares NO prop face, and that is its own decision rather than a
+// room that has not been started: its one large prop stands at (260, 1230),
+// behind the touch controls from every camera position the player can reach,
+// so it is painted UNLIT and takes the `prop` tint. If it looks powered it
+// must emit; if it is decorative it should vanish. §10x.
+if (R.detention.propFaces !== 0) fails.push(`detention declares ${R.detention.propFaces} prop faces — its unlit post is deliberate`);
 if (R.spec.propFaces !== 1) fails.push(`the junction declares ${R.spec.propFaces} prop faces — the reactor gets one and the room has no other lit prop`);
 
 // 12 — LIGHTS OUT's own numbers. Frozen by handset verdict; this pass raised

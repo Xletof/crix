@@ -1203,3 +1203,96 @@ off the spec onto every part it builds; a rig finds the reactor's light with
 `p._tag === 'reactor' || p.texture?.key === 'prop-core-glow'` instead of
 reconstructing which spec entry produced which Image.
 
+
+## A cast that returns truthy and still did not happen
+
+`tests/README.md` already records the two ways a forced boss move never runs —
+`_castBossMove` matching the registry id EXACTLY and in lowercase, and the
+player being killed by having Vader staged beside them. The Detention rig found
+a third, one step further along, and it is the reason its `cast()` has two
+checks instead of one:
+
+```js
+const ok = await page.evaluate(...gs._castBossMove(gs.boss, id));   // truthy
+const ran = await page.evaluate(() => {
+  const b = window.game.scene.getScene('Game').boss;
+  return b?._activeMove?.move?.id === f ? b._activeMove.phase : null;
+});
+```
+
+**The handle has no `id`.** `runMove` builds `{ cancelled, phase, timers }` and
+`_castBossMove` then sets `handle.move = move`, so the registry id lives at
+`_activeMove.move.id`. Asking for `_activeMove.id` is `undefined` for every
+move ever cast, and a check written that way reports EVERY cast as failed —
+which is the previous failure mode inverted and just as useless. Assert the
+phase you get back, and print it: `saberthrow -> anticipate` is a frame you can
+trust, and nothing else is.
+
+## Measuring "is the dark state dark" without inventing a threshold
+
+`tests/diag-detention.mjs`. The instinct is to pick a luminance number and
+assert under it. Do not: each arena's deck is a different material value on
+purpose, so an absolute threshold either passes everything or condemns a room
+for being made of lighter steel. **Darkness is a comparison.** The rig loads all
+four arenas in ONE page, shoots a matched station in each under LIGHTS OUT with
+both scenes paused, and prints them together — detention's walk at 4.90 against
+the junction's crossing at 5.82 and the chamber's nave at 3.36 is an answer; a
+bare 4.90 is not.
+
+Two things the sampling window has to exclude, or the measurement is of the
+interface rather than the room:
+
+- **The HUD top bar** (the first 84px) and **the touch controls** (the bottom
+  ~300px). The joysticks are the brightest object on screen in every arena in
+  both power states, and a mean over the whole frame is mostly a mean over
+  them. The clip used is `y 90..890`.
+- `_sectorTint` and `cameras.main.resetFX()`, re-asserted **at every shutter**
+  rather than once at load — the sector wash is re-raised after the room banner,
+  and a paused scene freezes a camera flash forever.
+
+The PNG is decoded **in the page** (`new Image()` onto a canvas, read back with
+`getImageData`) rather than in node. There is no image library in this repo and
+the browser already has one; a base64 round trip costs less than a dependency.
+
+## Proving three approved rooms did not move
+
+`tests/diag-texture-hash.mjs` is the tool and it already existed; what the
+Detention pass added is the discipline of running it as a PAIR:
+
+```
+node tests/diag-texture-hash.mjs > tests/out/tex-after.txt
+git stash push -q -- src/ && node tests/diag-texture-hash.mjs > tests/out/tex-before.txt
+git stash pop -q && diff tests/out/tex-before.txt tests/out/tex-after.txt
+```
+
+A clean fourth-arena pass diffs to exactly three classes of line: the NEW
+textures it painted, the room-local textures it re-toned, and its own backdrop.
+Anything else in the diff — a shared console, a crate, the hero machine, or
+another room's backdrop hash — is the pass leaking, and the diff finds it in
+one run where reading the source diff will not. It caught nothing this time,
+which is the point of running it anyway.
+
+## A display list that grows by one per room load
+
+Found while measuring the fourth arena's cost, and worth knowing about because
+it will show up in ANY per-load measurement taken here:
+
+```
+detention {"parts":44,"display":97}
+detention {"parts":44,"display":98}
+detention {"parts":44,"display":99}
+```
+
+`parts` is flat, so the emissive layer is clean. `display` climbs by exactly one
+per load, on every build tested including builds from before this pass, because
+`GameScene._clearRoomEntities` sweeps with
+`roomLayer.getChildren().forEach((o) => o.destroy())` — the group's internal
+array, spliced while it is being walked, so **every other element is skipped**.
+The survivor is visible in play: the hangar's wall console stands in the
+detention block at (148, 106) in both the before and after evidence sets.
+
+Two lessons. **A cost measurement that climbs is not necessarily your feature** —
+A/B it against the stashed build before writing it up; this one was identical on
+both. And **the fix is not free**: repairing the sweep removes leaked objects
+from the three approved arenas too, so it changes rooms a human has signed off
+and needs its own change with its own evidence.

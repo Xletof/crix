@@ -95,6 +95,7 @@ heading(); pos.loadout = [cx - half, y]; pos.spawnNemesis = [cx + half, y]; y +=
 pos.vaderN = [cx - half, y]; pos.spawnVader = [cx + half, y]; y += row;
 pos.loadChamber = [cx, y]; y += row;          // full width
 pos.loadJunction = [cx, y]; y += row;         // full width
+pos.loadDetention = [cx, y]; y += row;        // full width
 pos.sector = [cx - half, y]; pos.clearField = [cx + half, y]; y += row;
 pos.forceMove = [cx, y]; y += row + 12;
 pos.close = [cx, y];
@@ -267,8 +268,36 @@ const junctionLoaded = await page.evaluate(() => {
 await page.evaluate(() => window.game.scene.getScene('Debug')?._close?.());
 await page.waitForTimeout(300);
 
+// ── LOAD DETENTION BLOCK ─────────────────────────────────────────────────
+// The fourth arena's way in, and it needs one more than either of the others:
+// detention is the LAST room of the rotation (`_arenaCycle` starts at 1, so
+// hangar -> junction -> detention), which costs a hangar clear AND a junction
+// clear to reach. Asserted from the junction, where the previous block left
+// the run, so a button that silently did nothing reads as "still in corridor".
+await reopen();
+await tap('loadDetention');
+await page.waitForTimeout(2200);
+const detentionLoaded = await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  const spec = gs.roomSpec;
+  return {
+    roomId: spec?.id,
+    isBossRoom: !!spec?.boss,
+    // Detention's own markers, so this cannot pass on a room that merely has
+    // the right id.
+    archCount: (spec?.floor?.architecture || []).length,
+    perimeterStyle: spec?.perimeter?.style,
+    envLightParts: gs.envLight?.parts?.length ?? 0,
+    bossSpawned: !!gs.boss,
+    closed: !window.game.scene.getScene('Debug')?.sys?.isActive(),
+  };
+});
+await page.evaluate(() => window.game.scene.getScene('Debug')?._close?.());
+await page.waitForTimeout(300);
+
 console.log(JSON.stringify({ pauseOpen, before, after, hud, god, spawnBefore, spawnAfter, closed,
-  nemesisSpawned, vaderSpawned, fieldCleared, roomBefore, chamberLoaded, junctionLoaded }, null, 2));
+  nemesisSpawned, vaderSpawned, fieldCleared, roomBefore, chamberLoaded, junctionLoaded,
+  detentionLoaded }, null, 2));
 console.log('page errors:', errors.length ? errors : 'none');
 
 const fails = [];
@@ -334,6 +363,19 @@ else {
     fails.push('LOAD REACTOR JUNCTION spawned a boss — it loads the room and stops');
   }
   if (!junctionLoaded.closed) fails.push('LOAD REACTOR JUNCTION left the panel open over the room it just loaded');
+}
+if (!detentionLoaded) fails.push('LOAD DETENTION BLOCK produced no readout');
+else {
+  if (detentionLoaded.roomId !== 'detention' || detentionLoaded.isBossRoom) {
+    fails.push(`LOAD DETENTION BLOCK left the run in '${detentionLoaded.roomId}' — the fourth arena is unreachable from debug`);
+  }
+  if (!detentionLoaded.archCount || detentionLoaded.perimeterStyle !== 'block' || !detentionLoaded.envLightParts) {
+    fails.push(`the loaded room is not carrying detention: arch ${detentionLoaded.archCount}, perimeter ${detentionLoaded.perimeterStyle}, env parts ${detentionLoaded.envLightParts}`);
+  }
+  if (detentionLoaded.bossSpawned) {
+    fails.push('LOAD DETENTION BLOCK spawned a boss — it loads the room and stops');
+  }
+  if (!detentionLoaded.closed) fails.push('LOAD DETENTION BLOCK left the panel open over the room it just loaded');
 }
 if (errors.length) fails.push(`page errors: ${errors.join(' | ')}`);
 
