@@ -601,12 +601,30 @@ export const ROOMS = [
       //    thresholds cut through it are the only events on that wall.
       { kind: 'led', x: 960, y: 104, r: 3, color: 0x8a5a10, hot: 0xffd08a, normal: 0.20, emergency: 0.20, reach: 10 },
 
-      // ── THE REACTOR CORE. One source, and it is NOT a pair of authored
-      //    faces: the shuttle got those because losing it erased the hangar's
-      //    identity, and that rule is about authored STATE, not a template
-      //    every large prop inherits. This room's identity in the dark is its
-      //    architecture, so the core stays a lit column and nothing more.
-      { kind: 'core', x: 260, y: 352, r: 11, color: 0x8a4a10, hot: 0xffb45a, normal: 0.16, emergency: 0.42, reach: 62 },
+      // ── THE REACTOR CORE'S DECK SPILL, and it is ONLY the spill.
+      //
+      //    WHAT WAS HERE, AND WHY IT WAS NOT LIGHT. A radial `core` at
+      //    (260, 352) — 130px BELOW the machine's lit slot, which is at world
+      //    y 168..272, and underneath a 304x344 opaque sprite at a depth above
+      //    it. Environment light draws at depth 3 and the prop sorts at its own
+      //    y of 400, so the entire emitter and all but the outermost ~25px of
+      //    the falloff were behind the object they belonged to. The room's
+      //    reactor was lit by a source nobody could see, which is why its amber
+      //    slats went out with the walls while the interchange beside them came
+      //    up. `prop-core-glow` is the fix; this is what that face throws.
+      //
+      //    A STRIP, NOT A CORE. §7's forbidden shape is precisely the radial
+      //    pool this replaces: the machine is a VERTICAL slotted emitter and
+      //    its light on the deck should say so. `emitter: false` because the
+      //    bright part is painted on the machine — the same contract the hero
+      //    machine's two deck spills use, and for the same reason: left on, the
+      //    crisp bar reads as a second object lying on the floor.
+      //
+      //    DEAD AT NORMAL POWER. The approved normal composition is frozen and
+      //    a warm pool on the deck is the one part of this pass that could
+      //    reach outside the prop's own rectangle. It comes up only when the
+      //    bus drops, so the normal-power delta stays inside the machine.
+      { kind: 'strip', tag: 'reactor', dir: 'v', x: 262, y: 452, len: 96, t: 6, emitter: false, color: 0x8a4a10, normal: 0, emergency: 0.26, reach: 20, spill: 0.9 },
 
       // ══ EMERGENCY LANE GUIDANCE ════════════════════════════════════════
       //
@@ -781,7 +799,16 @@ export const ROOMS = [
     // three sit off the diagonal between spawn (200,1200) and exit (1200,200)
     // so the through-route stays clean. Positions and bodies are frozen.
     props: [
-      { x: 260, y: 400, tex: 'prop-core',  solid: true, bodyW: 200, bodyH: 120 },
+      // THE REACTOR CORE, AND ITS ONE FACE. Position, footprint and body are
+      // frozen; the face is registered on the LIVE sprite by `loadRoom`, so
+      // the light cannot end up where the machine used to be. `normal` is a
+      // restrained presence rather than zero — the slot is painted as running
+      // hardware and a lit room should still see a little of it — and
+      // `emergency` is where the pass actually lives.
+      {
+        x: 260, y: 400, tex: 'prop-core',  solid: true, bodyW: 200, bodyH: 120,
+        faces: [{ tex: 'prop-core-glow', normal: 0.12, emergency: 0.88 }],
+      },
       { x: 1150, y: 1180, tex: 'prop-strut', solid: true, bodyW: 190, bodyH: 60 },
       { x: 1230, y: 480, tex: 'prop-strut', solid: true, bodyW: 190, bodyH: 60, flip: true },
       // THE WALL CONTROL PANEL, SECOND USE-CASE. Each bolted to a mounting the

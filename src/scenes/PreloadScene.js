@@ -20,6 +20,7 @@ import {
   paintCraneGantry,
   paintFuelDrum,
   paintReactorCore,
+  paintReactorCoreGlow,
   paintCatwalkStrut,
   paintSecurityPost,
   paintBunk,
@@ -127,6 +128,9 @@ export class PreloadScene extends Phaser.Scene {
     paintFuelDrum(this, 'prop-drum');
     paintFuelDrum(this, 'prop-drum-b', PAL.hangStrip);
     paintReactorCore(this, 'prop-core');
+    // The reactor's single ADD face, painted here with the housing for the
+    // same registration reason as the two pairs above. Junction only.
+    paintReactorCoreGlow(this, 'prop-core-glow');
     paintCatwalkStrut(this, 'prop-strut');
     paintSecurityPost(this, 'prop-post');
     paintBunk(this, 'prop-bunk');

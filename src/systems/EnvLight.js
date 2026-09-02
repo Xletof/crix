@@ -279,6 +279,12 @@ export class EnvLight {
       // test can measure the junction's emergency lane guidance on the LIVE
       // objects rather than re-deriving which spec entry each part came from.
       p._guide = !!s.guide;
+      // The same idea, one step more general: a free-form label a room can put
+      // on a source so a rig can find it again. `tag: 'reactor'` is what lets
+      // the locality diag switch exactly the reactor's own light off and
+      // photograph the difference, without a test re-deriving which spec entry
+      // produced which Image.
+      p._tag = s.tag ?? null;
       this.parts.push(p);
     }
   }

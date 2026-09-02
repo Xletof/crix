@@ -3769,6 +3769,127 @@ export function paintReactorCore(scene, key = 'prop-core') {
   c.finish();
 }
 
+// ── THE REACTOR CORE'S LIGHT ──────────────────────────────────────────────
+//
+// ONE ADD-blended face registered exactly on top of `prop-core`, on the SAME
+// 76x86 canvas at the SAME scale 4 — so registration with the machine is
+// structural rather than arithmetic, exactly as the hero machine's pair is.
+//
+// WHY THE SLATS NEEDED THIS. `paintReactorCore` paints a vertical stack of
+// amber slats behind a grille, which is a claim that the machine is running.
+// The slats live in the prop texture, the prop lives in `roomLayer`, and
+// LIGHTS OUT multiplies that whole group toward black — so the one object in
+// the room that most looks like an energy source went out harder than the
+// walls around it. The room's only reactor source was a radial `core` seated
+// at the prop's BASE, 130px below the slot and underneath a 304x344 opaque
+// sprite at a depth below it, so effectively none of it was ever on screen.
+//
+// ONE TEXTURE, NOT TWO. The hero machine gets `prop-pod-glow` plus a dead-at-
+// normal `prop-pod-emer` because fixtures that were not lit come up when its
+// bus drops. A reactor core has no such second composition — the same stack is
+// simply the only light left in the room — so a second texture here would be
+// the pod's composition borrowed rather than its doctrine reused.
+//
+// THE HIERARCHY IS THE WHOLE JOB, and it is four values deep:
+//   CORE         the six slats, over the housing's own hot band. Brightest.
+//   RECESS       a tight vertical wash in the cavity that holds them.
+//   NEAR METAL   a wide, much fainter wash on the cylinder and the two
+//                containment-band stubs the slot interrupts.
+//   HOUSING      nothing at all. The shell stays as dark as the room.
+// The grille bars are painted by NEITHER pass, so they stay dark and the stack
+// reads as light coming through something rather than as a lit rectangle.
+export function paintReactorCoreGlow(scene, key = 'prop-core-glow') {
+  const c = new PixelCanvas(scene, key, 76, 86, 4);
+  const S = c.scale, ctx = c.ctx;
+  ctx.clearRect(0, 0, 76 * S, 86 * S);
+
+  // A soft wash, elliptical along the emitter's own aspect. A vertical stack
+  // does not make a circular pool — §7's forbidden shape is exactly what a
+  // lazy radial would give here.
+  const wash = (x, y, w, h, col, peak) => {
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.save();
+    ctx.globalAlpha = peak;
+    ctx.translate(x * S, y * S);
+    ctx.scale(w * S, h * S);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  };
+  const bar = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x * S, y * S, w * S, h * S); };
+
+  // ── NEAR METAL, first and widest so everything else draws over it. This is
+  //    the cylinder catching its own core — the part that makes the light look
+  //    like it is INSIDE the machine rather than stuck on the front of it.
+  //
+  //    IT HAS TO BE MUCH STRONGER THAN IT LOOKS ON PAPER. The face's own alpha
+  //    multiplies every peak here, so the first build's 0.13 wash arrived on
+  //    screen at roughly (16, 9, 4) over a near-black housing and photographed
+  //    as nothing at all: bright bars in a black hole, which is the pasted-on
+  //    read this pass exists to remove.
+  wash(38.5, 42, 28, 36, 'rgba(255,150,60,0.70)', 0.34);
+  // The two containment-band stubs the slot interrupts, at y 40..43. A hard
+  // 4px block on each side photographed as two brown rectangles floating
+  // beside the machine; the light on a band is a wash along it with a single
+  // bright pixel column on the inner edge, which is where the metal actually
+  // turns to face the stack.
+  wash(31, 42, 9, 3.4, 'rgba(255,150,60,0.75)', 0.30);
+  wash(46, 42, 9, 3.4, 'rgba(255,150,60,0.75)', 0.30);
+  bar(29, 40, 1, 4, 'rgba(255,175,90,0.55)');
+  bar(46, 40, 1, 4, 'rgba(255,175,90,0.55)');
+  // ── THE RECESS. Tight, vertical, and inside the black surround the painter
+  //    already cut at x 30..46, y 26..55. Its two inner walls carry a thin warm
+  //    rim down the full height of the cavity — a hole with lit walls is what
+  //    separates a recess from a rectangle of paint.
+  wash(38.5, 41, 12, 22, 'rgba(255,160,70,0.9)', 0.58);
+  bar(30, 27, 2, 28, 'rgba(255,150,60,0.34)');
+  bar(45, 27, 2, 28, 'rgba(255,150,60,0.34)');
+
+  // ── THE SIX SLATS. `paintReactorCore` fills x 32..44, y 28..53 and then lays
+  //    a grille line every fourth row from 28, so the lit rows are 29, 33, 37,
+  //    41, 45 and 49, three pixels each, over a hotter inner band at x 35..41.
+  //    Those numbers are the painter's own — a hand-measured copy here is one
+  //    edit away from lighting the grille instead of the gaps.
+  //
+  //    CENTRE-WEIGHTED, because six identical bars are a dash pattern and a
+  //    cylinder is hottest in the middle of its charge. The ramp is small
+  //    enough to read as depth rather than as an animation frame.
+  for (let i = 0; i < 6; i++) {
+    const sy = 29 + i * 4;
+    const k = 0.70 + 0.30 * Math.sin(Math.PI * (i + 0.5) / 6);
+    // The slat's own contamination across the full slot width...
+    bar(32, sy, 13, 3, `rgba(255,144,32,${(0.26 * k).toFixed(3)})`);
+    // ...its local bloom, wider than tall because the slat is...
+    wash(38.5, sy + 1.5, 8.5, 3.4, 'rgba(255,170,70,0.85)', 0.30 * k);
+    // ...and the hot band the painter put at its centre.
+    bar(35, sy, 7, 3, `rgba(255,206,120,${(0.92 * k).toFixed(3)})`);
+  }
+
+  // THE HOUSING IS THE CLIP. A face's rectangle is its prop's rectangle and
+  // `smoke-arena` measures that, but the honest claim is tighter: light off
+  // this machine may not land where the machine is not, or the near-metal wash
+  // becomes a halo on the deck beside it. ONE path, ONE fill — `destination-in`
+  // composites the whole canvas against a single operation's source, so a
+  // fillRect per row erases everything except the last row.
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  for (let y = 0; y < 86; y++) {
+    let x0, x1;
+    if (y < 6) continue;
+    else if (y < 14) { const t = y - 6; x0 = 27 - t; x1 = 49 + t; }   // elliptical cap
+    else if (y < 74) { x0 = 10; x1 = 66; }                            // cylinder + bands
+    else if (y < 80) { x0 = 8;  x1 = 68; }                            // base skirt
+    else { x0 = 6; x1 = 70; }
+    ctx.rect(x0 * S, y * S, (x1 - x0 + 1) * S, S);
+  }
+  ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  c.finish();
+}
+
 // ── CATWALK STRUT (Reactor Junction) ──────────────────────────────────────
 // 56x40 logical at scale 4 = 224x160. Angled support truss.
 export function paintCatwalkStrut(scene, key = 'prop-strut') {
