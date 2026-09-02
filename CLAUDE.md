@@ -752,10 +752,27 @@ asserts separately that the ceiling is not reached.
   declares nothing in `CONSOLE_KIT` and therefore takes the `prop` tint and
   goes out. Five of eight unpowered is what keeps the dark state dark — the
   same ratio as the hangar's crates.
-- **THE FACE EXEMPTION IS NOT A TEMPLATE.** The shuttle carries two ADD faces
-  because losing it erased the hangar's identity. The junction's reactor core
-  gets ONE `core` source and no faces at all, because this room's identity in
-  the dark is its architecture. `smoke-junction` fails if a face appears.
+- **THE FACE EXEMPTION IS NOT A TEMPLATE, AND IT HAS TWO ADMITTING RULES.** The
+  shuttle carries two ADD faces because losing it erased the hangar's identity.
+  That was read for a while as the ONLY rule, and `smoke-junction` asserted the
+  junction carried zero faces on the strength of it — this room's dark identity
+  is its architecture, so no prop qualified. Handset play found the hole. The
+  second rule is **IF IT LOOKS LIKE AN EMITTER, IT MUST EMIT**: `prop-core`
+  paints a stack of amber slats behind a grille, which is a claim that the
+  machine is running, and LIGHTS OUT multiplies that claim toward black with the
+  rest of `roomLayer`. The junction now carries EXACTLY ONE face, on that one
+  prop, and `smoke-junction` pins the count at one in both directions — zero is
+  the lie coming back, two is the hero machine's composition being copied.
+  Neither rule licenses a face on a prop whose art claims nothing.
+- **A LIGHT ON A LARGE PROP IS A LIGHT UNDER IT — AND CHECK WHERE IT ACTUALLY
+  IS.** The depth trap is already above; the junction's reactor added a second
+  half to it. Its only source was a radial `core` at (260, 352) while the lit
+  slot it was supposed to be is at world y **168..272** — 130px away, down at
+  the base skirt, under a 304x344 sprite, at a depth below it. Emitter invisible,
+  falloff invisible except for a 25px tail that is the near-zero end of the
+  gradient. It had been that way since the room was authored and no test could
+  see it, because every check asked whether a source EXISTED. Ask where its
+  light lands, in pixels: `tests/diag-junction-reactor-light.mjs`.
 - **`stripEvery` AND A `ring` FLOOR MARK ARE BOTH LOADED GUNS.** The junction
   shipped with NINE full-width saturated orange-red bars at `stripEvery: 150`
   and TWO concentric amber rings at r=250/300 centred exactly on the objective
@@ -850,6 +867,17 @@ game that was right. Seven rules came out of it:
 - **Probe a theory before designing around it.** I was confident the boss's AI
   was snapping his thrown saber back to his hand; a one-frame probe measured it
   503px away and the premise was false.
+
+**`_castBossMove` MATCHES THE REGISTRY ID EXACTLY, AND THE IDS ARE LOWERCASE**
+— `saberthrow`, `forcepull`, `forcepush`, `sabercombo`, `vanishslash`. A
+camelCase argument is refused, the boss's own state machine supplies the next
+frame, and the screenshot is filed under a move that never ran. Two evidence
+rigs shipped with that bug. **It also refuses outright once `player.alive` is
+false, and staging Vader next to the player kills the player** — restoring hp is
+not reviving, so a rig that repositions him has to revive as well
+(`p.alive = true; p.setActive(true).setVisible(true).setAlpha(1)`). Assert every
+cast and print the refusal reason; "a refused call reads exactly like a failed
+one" is the post-mortem rule and it keeps arriving in new costumes.
 
 **Two engine facts that cost a round each.** Sprite `preUpdate` runs on
 PRE_UPDATE, *before* the tween manager steps on UPDATE — so anything a move

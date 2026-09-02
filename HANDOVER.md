@@ -10,33 +10,42 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-09-01 against `HEAD`, which is `origin/FRIX`. Pages builds only
+*Updated 2026-09-02 against `HEAD`, which is `origin/FRIX`. Pages builds only
 from `FRIX`, so the live build IS this commit whenever the two agree — check
 `git rev-parse HEAD origin/FRIX` rather than trusting a hash written here.*
 
 ### Waiting on a human, not on work
 
-The **Reactor Junction emergency lane guidance pass is finished, deployed, and
+The **Reactor Junction reactor-emissive closeout is finished, deployed, and
 stopped for handset review.** Nothing should be started on it until a human has
 played it.
 
-The topology pass (`§10t`) was **APPROVED** on handset — the open centre, the
-four-cover layout, the feeder flow, Vader's room to move, FORCE PULL / PUSH /
-SABER THROW, the south-west cover and the normal-power composition are all
-frozen. The one thing that came back was that **LIGHTS OUT lost the room's
-four-way identity**: not a readability problem, a spatial one. `§10u` is that
-fix — eight recessed emergency fixtures in the four authored approaches, dead at
-normal power, and the crossing deliberately left dark.
+Handset play has now **APPROVED the emergency lane guidance** (`§10u`) and with
+it the room: the junction stays genuinely dark, the approach fragments help,
+they read as infrastructure rather than as a UI lane, the centre stays black,
+and Vader's language dominates. Topology (`§10t`), crossing, feeder
+connectivity, navigation, normal-power composition, lane count, lane intensity,
+central darkness and the global LIGHTS OUT numbers are all frozen.
+
+One thing was left, and it was a truth problem: **the amber reactor stack looked
+powered and did not emit.** Its slats are painted into the prop texture, which
+LIGHTS OUT multiplies toward black, and the room's only reactor source was a
+radial `core` seated at the machine's base UNDER a 304x344 opaque sprite — light
+nobody could ever have seen. `§10v` is that fix: one ADD face on the machine's
+own canvas, a spill-only deck source replacing the radial pool, and zero pixels
+of normal-power change outside the prop.
 
 **To see it: DEBUG -> LOAD REACTOR JUNCTION, then DEBUG -> SPAWN VADER.**
 `SPAWN VADER` deliberately does not change rooms, and a fresh endless run only
 reaches the junction as its SECOND room.
 
-What the human is testing: normal waves on the approved topology, LIGHTS OUT
-from the exact centre, moving between approaches, Vader, SABER THROW against the
-new floor fragments, FORCE PULL / PUSH, and ECLIPSE.
+What the human is testing: the junction at normal power, LIGHTS OUT with the
+amber reactor in frame, the reactor against the cool emergency lanes, and a late
+Vader — saber, SABER THROW and Afterimages — with the machine on screen. If that
+passes, **the Reactor Junction is finished and should be frozen.**
 
-Read `§10u` for this pass, `§10t` for the topology under it, `§10s` for the art.
+Read `§10v` for this pass, `§10u` for the lanes, `§10t` for the topology,
+`§10s` for the art.
 
 ### The arena ladder, and what each rung's verdict is
 
@@ -44,34 +53,37 @@ Read `§10u` for this pass, `§10t` for the topology under it, `§10s` for the a
 |---|---|---|---|---|
 | Vader Chamber (`boss`) | PASS | — | PASS | **FROZEN.** `§10n`, `§10p` |
 | Hangar (`hangar`) | PASS | — | PASS | **FROZEN.** `§10q` |
-| Reactor Junction (`corridor`) | PASS | **PASS** | **awaiting verdict** | `§10s`, `§10t`, `§10u` |
+| Reactor Junction (`corridor`) | PASS | **PASS** | lanes **PASS**, reactor **awaiting verdict** | `§10s`, `§10t`, `§10u`, `§10v` |
 | Detention (`detention`) | untouched | untouched | untouched | not started, and not to be started |
 
 Vader himself is frozen — see `CLAUDE.md`. So is DEFLECTION, so is LIGHTS OUT
-globally: this pass changed only the junction's own authored sources.
+globally: this pass changed one prop's light and nothing else.
 
 ### The decision that comes after the verdict
 
-Two candidates, and the human picks:
-
-1. **Junction lighting freezes**, and the reactor core prop + two struts get a
-   bounded visual migration — they are the oldest assets in the room and three
-   fewer cover objects around them made them more prominent, not less.
-2. **Detention becomes the fourth-room validation**, on the same rules the
-   junction proved: reuse the grammar, reuse none of the composition.
+1. **The Reactor Junction freezes entirely** and Detention becomes the
+   fourth-room validation, on the same rules the junction proved: reuse the
+   grammar, reuse none of the composition.
+2. A full **reactor / interchange landmark migration** is still nominally on the
+   table — but this pass is evidence AGAINST it. The perceived weakness was the
+   machine not behaving like a machine, not the machine's shape, and the shape
+   now sits inside a composition that works. Do not treat it as scheduled.
 
 Do not start either without being told which.
 
 ### Open questions this pass deliberately did not answer
 
-- **Whether eight fixtures is too many or too few**, and whether the emergency
-  intensities are right. They were chosen against a desktop monitor and are
-  deliberately NOT frozen by a test.
+- **Whether the reactor's emergency intensity is right.** It was chosen against
+  a desktop monitor and is deliberately NOT frozen by a test — `smoke-junction`
+  asserts the structure and caps the normal-power value, nothing more.
+- **Whether the machine should carry any normal-power presence at all.** It runs
+  at a declared 0.12, which measures as a 19/255 peak confined to the prop and
+  zero pixels outside it. Zero would also have been defensible.
+- **Whether eight lane fixtures is right**, and the emergency intensities with
+  them. Approved on handset but never tuned.
 - **The exact centre is a partial answer and the limit is the viewport.** The
   crossing is 600px wide inside a 720px viewport, so a fixture that obeys the
-  no-crossing rule is at most ~60px into frame from the objective. From dead
-  centre the north way reads and the west way clips the edge; east and the spur
-  are off screen. Fixing that means lighting the crossing, which is forbidden.
+  no-crossing rule is at most ~60px into frame from the objective.
 - **The south-west cover piece** is still the weakest-justified of the four.
 
 ### Two suite failures that are NOT regressions
@@ -3283,6 +3295,153 @@ from the same place as everything else.
 - **The south-west piece is the weakest-justified of the four.** It exists for
   the player's route out of spawn rather than for the room's function, and it is
   the one to question first if the layout is revisited.
+
+## 10v. THE REACTOR EMITS — the junction's last visible lie, and the end of it
+
+`§10u` is the emergency lane guidance. Handset play **approved it**, and
+approved the room: the junction stays genuinely dark, the approach fragments
+improve orientation, they read as infrastructure rather than a glowing UI lane,
+the centre stays black, SABER THROW / PULL / PUSH dominate immediately,
+Afterimages stay threatening, and the saber keeps visual priority. Topology,
+crossing, feeder connectivity, navigation, normal-power composition, lane count,
+lane intensity, central darkness and the global LIGHTS OUT numbers are all
+**frozen**.
+
+One thing was still wrong, and it was a truth problem rather than a taste one.
+
+### What the art claimed and what the room did
+
+`paintReactorCore` paints a vertical stack of amber slats behind a grille. That
+is a claim: *this machine is running*. In LIGHTS OUT the claim collapsed — the
+slats are painted into the prop texture, the prop is in `roomLayer`, and the
+blackout multiplies that whole group toward black. The biggest machine in the
+room went out harder than the walls, while the interchange fixture 190px away on
+the same screen came UP on emergency power. One frame carried both.
+
+**And the reactor's only source could never have been seen.** It was a radial
+`core` at (260, 352):
+
+  - the machine's lit slot is at world **x 236..288, y 168..272**. The source sat
+    **130px below it**, down at the base skirt;
+  - `prop-core` is 304x344 at (260, 400) with origin (0.5, 1), so it occupies
+    **x 108..412, y 56..400**, and it sorts at its own y of 400;
+  - environment light draws at `ENV_LIGHT_DEPTH` **3**.
+
+So the emitter and all but the outermost ~25px of its falloff were behind the
+object they belonged to, and that remainder is the tail of the gradient, which
+is nothing. The room's reactor was lit by a light nobody could see. This is the
+prop-occlusion trap the hero machine's faces already exist to solve — it was
+simply never checked on this prop.
+
+### The fix, and the rule that admits it
+
+`prop-core-glow`: ONE ADD-blended face, painted on the machine's own 76x86
+canvas at the same scale 4, so registration is structural rather than a
+hand-computed offset. `loadRoom` registers it from the LIVE sprite at the prop's
+depth **+ 1**.
+
+**One texture, not two.** The hero machine gets `prop-pod-glow` plus a
+dead-at-normal `prop-pod-emer` because fixtures that were not lit come up when
+its bus drops. A reactor core has no second composition — the same stack is
+simply the only light left in the room — so a second texture would have been the
+pod's composition borrowed rather than its doctrine reused. `smoke-junction`
+pins the count at exactly one in both directions.
+
+**Four values deep, and the fourth is nothing:**
+
+| layer | what it is | why |
+|---|---|---|
+| core | the six slats over the painter's own hot band | the emitter |
+| recess | a tight vertical wash + a warm rim down both cavity walls | a hole with lit walls is not a rectangle of paint |
+| near metal | a wide faint wash on the cylinder, and the two containment-band stubs the slot interrupts | light INSIDE the machine rather than stuck on its front |
+| housing | **nothing at all** | the shell stays as dark as the room |
+
+The grille bars are painted by *neither* pass, so they stay dark and the stack
+reads as light coming through something. The whole face is clipped to the
+housing silhouette with one `destination-in` path, so contamination stops at the
+metal.
+
+**THE RADIAL POOL IS GONE AND WHAT REPLACED IT IS ONLY THE SPILL.** A vertical
+slotted emitter does not throw a circle. The deck source is an
+`emitter: false` vertical strip below the machine — the same contract the hero
+machine's two deck spills use, and for the same reason: left on, the crisp
+`TEX_FLAT` bar reads as a second object lying on the floor. It is **dead at
+normal power**, because it is the one part of this pass that reaches outside
+the prop's own rectangle.
+
+### The face exemption's admitting rule just got wider, on purpose
+
+`smoke-junction` §3 used to assert the junction carried **zero** faces, and the
+reasoning was sound as far as it went: the exemption was granted to a prop whose
+disappearance would erase a room's identity — the shuttle's argument, not this
+room's, whose dark identity is its architecture.
+
+Handset play found the hole. The admitting rule is not only *losing it erases
+the room*; it is also **IF IT LOOKS LIKE AN EMITTER, IT MUST EMIT.** That is
+narrower than a template and it licenses exactly one face here, on the one prop
+in this room whose ART makes the claim. It is still not something a large prop
+inherits: the junction's cabinets, struts and consoles declare nothing.
+
+### Measured, because "it looks brighter" is not a locality claim
+
+`tests/diag-junction-reactor-light.mjs` — one page load, both scenes paused, the
+camera hand-scrolled, a shoot-until-two-frames-are-identical shutter, and the
+reactor's own two parts switched off between shots:
+
+| region | emergency mean gain | peak |
+|---|---|---|
+| the slot | **54.0** | 104 |
+| the recess rim | 45.7 | 134 |
+| the housing | 7.2 | 134 |
+| the deck below it | 1.9 | 32 |
+| the crossing | **0.00** | **0** |
+
+Strictly decreasing, ending at literally zero on unrelated room pixels: a local
+machine light, not exposure compensation.
+
+**Normal power: 0 pixels changed outside the prop's own rectangle**, and a peak
+of 19/255 inside it. The approved composition is untouched; the A/B crop is
+indistinguishable at a glance.
+
+### Cost
+
+Display list is UNCHANGED — the `core` it replaces built two Images (radial
+spill + radial hot), and the face plus the spill-only strip build two. One new
+texture, 304x344 RGBA, ~408KB. `setPower` across the whole 58-part layer
+measures 0.01ms and re-rasterises nothing; there is no update hook and no tween,
+so per-frame work is zero by construction. Room load is 42-68ms across repeated
+loads with the part count flat at 58 — no duplication.
+
+### Two instruments were lying, and both were found the same way
+
+**`_castBossMove` matches the registry id EXACTLY, and the ids are lowercase.**
+`cast('saberThrow')` was refused every single time — in this rig and in
+`shot-junction-lanes.mjs` before it — so the frame filed as SABER THROW was
+whatever the boss's own state machine did next. `§10u`'s combat-hierarchy
+evidence was photographed through that bug.
+
+**Staging Vader beside the player KILLS the player,** and `_castBossMove`
+refuses outright once `player.alive` is false. Restoring hp is not reviving.
+Three frames came back under moves that never ran while every guard the rig knew
+about — active move, guard stance, state machine — reported clear, and the
+refusal reason printed as `unknown` until `player.alive` was added to it.
+
+Both are the post-mortem's rule in a new costume: **a refused call reads exactly
+like a failed one.** Every cast in both rigs is asserted now and prints why it
+was refused.
+
+### What is open
+
+Nothing on the reactor's light until a handset verdict. The deferred candidate
+remains a full **reactor / interchange landmark migration** — and after this
+pass the honest answer is that it looks much less necessary than it did, because
+the perceived weakness was the machine not behaving like a machine rather than
+the machine's shape. See `§0`.
+
+Evidence: `docs/evidence/arena-pilot/junction-reactor-before/` and
+`junction-reactor-after/`, matched stations, plus the A/B sheets.
+
+---
 
 ## 10u. THE JUNCTION'S EMERGENCY LANE GUIDANCE — the dark state gets its plan back
 

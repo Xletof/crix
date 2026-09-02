@@ -1147,3 +1147,59 @@ stale waiter — inspect with `ps -eo pid,comm` (which cannot match your own
 query the way `pgrep -f` can) and kill by PID after reading the command line,
 never with a bare `pkill -f`. One `npm run dev` Vite server may legitimately
 survive; say so by name rather than leaving it in the list unexplained.
+
+## A staged boss frame: two ways the cast never happened
+
+Both of these produced evidence filed under the name of a move that did not run,
+and both were invisible because a refused `_castBossMove` returns null and the
+boss's own state machine immediately supplies a plausible-looking frame.
+
+**THE IDS ARE LOWERCASE.** `_castBossMove(b, forcedId)` looks the id up in the
+registry verbatim: `saberthrow`, `forcepull`, `forcepush`, `sabercombo`,
+`vanishslash`. `cast('saberThrow')` has never once worked, in any rig, and
+`shot-junction-lanes.mjs` shipped a whole combat-hierarchy set through it.
+
+**STAGING VADER NEXT TO THE PLAYER KILLS THE PLAYER**, and the very first line
+of `_castBossMove` is `if (!pool.length || !this.player?.alive) return null`.
+Setting `player.hp = player.hpMax` is not reviving — `alive` stays false. A rig
+that repositions the boss beside the player has to revive:
+
+```js
+if (p && !p.alive) { p.alive = true; p.setActive(true).setVisible(true).setAlpha(1); }
+```
+
+The four guards a rig usually knows about — no pool, an unfinished
+`_activeMove`, `isGuarding()`, a state machine that is not `idle` — all reported
+clear while this was the actual cause, so the refusal diagnostic printed
+`unknown`. **Assert every cast, and print WHY it was refused.** `state` also
+re-arms between a poll and the call, because a boss placed beside the player
+leaves `idle` for `chase` within a frame or two: release it on the same tick as
+the cast.
+
+## Measuring where a light lands, rather than whether it exists
+
+Every emissive check before this one asked whether a source was DECLARED. The
+junction's reactor had one — a radial `core` seated 130px from the slot it was
+meant to be, underneath a 304x344 opaque sprite, at a depth below it — and it
+passed every one of them while contributing nothing to a single frame.
+
+`diag-junction-reactor-light.mjs` asks the other question. In ONE page load,
+with both scenes paused and the camera hand-scrolled: shoot, switch that
+source's own parts invisible, shoot again, subtract, and report the mean and
+peak channel gain per region. The shape of the answer is the claim —
+
+```
+emitter 54.0   recess 45.7   housing 7.2   deck 1.9   crossing 0.00 (peak 0)
+```
+
+— strictly decreasing to literally zero on unrelated pixels is a machine light;
+a flat profile is exposure compensation. The same run at normal power is the
+frozen-state proof (0 px changed outside the prop's rectangle), and the
+emergency pass doubles as the control that the probe can report something other
+than zero. All three shutter traps documented above apply and are handled.
+
+**Tag a source rather than re-deriving it.** `EnvLight` copies `tag` and `guide`
+off the spec onto every part it builds; a rig finds the reactor's light with
+`p._tag === 'reactor' || p.texture?.key === 'prop-core-glow'` instead of
+reconstructing which spec entry produced which Image.
+
