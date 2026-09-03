@@ -33,12 +33,21 @@ Do not reopen any part of the junction without NEW human play evidence.
 | Vader Chamber (`boss`) | PASS | — | PASS | **FROZEN.** `§10n`, `§10p` |
 | Hangar (`hangar`) | PASS | — | PASS | **FROZEN.** `§10q` |
 | Reactor Junction (`corridor`) | PASS | PASS | PASS | **FROZEN.** `§10w` |
-| Detention (`detention`) | see `§10x` | frozen for the pass | see `§10x` | **awaiting handset verdict** |
+| Detention (`detention`) | PASS | PASS | see `§10y` | **dark state back with the human** |
 
 Vader himself is frozen — see `CLAUDE.md`. So is DEFLECTION, so is LIGHTS OUT
 globally.
 
-### The fourth arena is with the human
+### The fourth arena is with the human, ON ITS SECOND ROUND
+
+Handset play of `2462592` **approved most of Detention** — topology, open
+traversal, cover layout, normal power, the cell-block and processing-gate
+concepts, combat readability and Vader's gameplay in it. One thing came back
+rejected: *the room becomes too black and visually empty during LIGHTS OUT.
+Combat remains very readable, but the environment loses too much identity.*
+
+`§10y` is the bounded emergency-light refinement that answers it, and the room
+is back with the human for exactly that question. `§10x` is the original pass.
 
 `§10x` is the Detention pass: the last unstyled arena, and the test of whether
 CRIX has an environmental LANGUAGE rather than three one-off rooms. Its
@@ -51,9 +60,10 @@ art pass is how the junction's ring survived three sessions.
 THIRD room of an endless run (`_arenaCycle` starts at 1: hangar -> junction ->
 detention), which costs two full clears to reach.
 
-What the human is testing: normal power, dense waves, traversal, LIGHTS OUT, a
-late Vader with saber, SABER THROW, FORCE PULL/PUSH and Afterimages. Only after
-that do we decide whether the four-arena language is mature enough to freeze.
+What the human is testing THIS round: dead-centre darkness, floor shine in
+motion, the processing gate, containment identity, dense combat, and a late
+Vader / SABER THROW / Afterimages. Only after that do we decide whether the
+four-arena language is mature enough to freeze.
 
 ### Two suite failures that are NOT regressions
 
@@ -4152,6 +4162,146 @@ There is deliberately **no general UI framework** — the problem did not need o
 - **Depth is asymmetric** — see §6. Combat text at 30 is *above* every telegraph
   and *below* the whole Y-sorted actor band. That asymmetry is the entire reason
   the telegraph-avoidance check has to exist: draw order will not save you.
+
+---
+
+## 10y. DETENTION'S SECOND STATE — the handset said too black, and what changed
+
+`2462592` went to the phone and came back with most of the room approved:
+topology, open traversal, cover layout, normal-power composition, the
+cell-block and processing-gate concepts, combat readability and Vader's
+gameplay in it. One thing was rejected:
+
+> The room becomes too black and visually empty during LIGHTS OUT. Combat
+> remains very readable, but the environment loses too much identity. It needs
+> more authored lighting and some attractive floor shine / reflected light like
+> the stronger dark states in the other arenas.
+
+### THE RULE THAT WAS WRONG, AND WHY IT LOOKED RIGHT
+
+`§10x`'s first rule was NOTHING ON THE ESCORT FLOOR: not one emitter and not
+one pixel of spill inside y [560, 840]. Every argument for it still holds — the
+walk is where the fight resolves and the junction's cover ring is what happens
+when a room's composition stands in its own way. It was wrong anyway, and the
+frame that proves it is `dark-centre`.
+
+**At the room's exact middle the camera shows x [440, 1160] and y [102, 1298].**
+The north containment bank is at y 96 — ABOVE the top of that view. The south
+bank is at y 1304 — behind the joysticks. So a rule that kept every fixture off
+the walk kept every fixture out of the picture the fight happens in, and what
+was left at dead centre was the player, two consoles and black. Measured as an
+emergency light budget inside that rectangle (intensity x spill area landing in
+view) it was **0.003 square megapixels**. It is 0.084 now — 28x.
+
+A room can pass every negative rule it was given and still lose the argument.
+
+### WHAT WAS ADDED: RECEIVED LIGHT, NOT MORE FIXTURES
+
+Fifteen new sources, and **fourteen of them carry `emitter: false`** — a spill
+with no source of its own, because the source is a fixture that was already
+declared and what is wanted is the light it throws. That is structural, not
+stylistic: an `emitter: false` strip draws its soft box and NO `TEX_FLAT` bar,
+so there is not one hard edge anywhere in the set and none of it can read as a
+painted mark. **THE FLOOR IS NOT GLOWING. THE FLOOR IS CATCHING.** A lit bar
+lying on the deck is the full-width cyan strips this room was built to remove.
+
+Every entry is SOURCE -> SURFACE -> FALLOFF:
+
+| source that already existed | surface it now lands on | state |
+|---|---|---|
+| three of the five north lock lamps | the cell fronts they are bolted to | both, leaning emergency |
+| the same three | the deck in front of those cells | both, leaning emergency |
+| one south lock lamp | its cell front, and the deck below it | both, weakest in the room |
+| the two secure-leaf interlocks | the deck at each bolted door | emergency only |
+| the two checkpoint consoles | their own deck, on opposite sides | both, leaning emergency |
+| the gate's jamb interlocks | the threshold in front of the doorway | both, strongest catch |
+| the gatehouse control face | the bastion it is mounted on | both |
+| a new north-bastion interlock | itself | emergency only |
+
+### THE FOUR RULES THAT KEPT IT FROM BECOMING A RUNWAY
+
+**SPARSE AND UNEQUAL.** Three catches under nine north bays, ONE under the
+south wall's. A catch is NOT the partner of a lamp — two of the five lit north
+bays get none — or the pair becomes a rhythm and the rhythm becomes a lane. No
+two catches share a length, a reach or an intensity.
+
+**THE CENTRE OF THE WALK STILL RECEIVES NOTHING**, and the width of that centre
+is derived rather than chosen: x [720, 880] is 160px, the junction's own lane
+(Ø112 boss plus NavGrid's 23px agent clearance a side), the narrowest gap this
+game ever calls open floor. Both console catches stop clear of it by more than
+a body width. That is what holds a large black negative space in the middle of
+every frame.
+
+**THE GATE'S EXTRA PRESENCE WAS SPENT ON MATERIAL, NOT ON THE PANEL.** The
+obvious move for "make the landmark more present" is a bigger screen, and at
+that size a bigger cyan rectangle stops being a monitor and becomes UI. The
+screen is untouched. What changed is the gatehouse material around it — a
+threshold reflection on the deck in front of the doorway and a graze up the
+bastion the control face is mounted on. Before, the panel was a cyan rectangle
+floating in black; now it is the lit part of a structure.
+
+**AN `led` MAY NEVER BE LOUDER UNDER EMERGENCY THAN AT NORMAL POWER.** The
+first build of the new bastion fixture was an `led` at 0.14 -> 0.38 and
+`smoke-detention` failed it, correctly: a nominal lamp says the same thing
+whether anyone is watching or not. It is a `strip` now — an interlock that
+engages when the bus drops, dead at normal power, shaped like the bolt it
+belongs to, the same language as the two secure leaves.
+
+### NORMAL POWER
+
+Unchanged in kind. Every new contribution is between 0.04 and 0.11 at normal
+against 0.20-0.58 under emergency, and six of the fifteen are `normal: 0`.
+`normal-centre`, `normal-gate` and `normal-cells` are matched pairs at
+byte-identical camera positions.
+
+### COST
+
+| | before | after |
+|---|---|---|
+| detention EnvLight parts | 44 | 60 |
+| detention display list | 95 | 111 |
+| hangar / junction / chamber display list | 110 / 102 / 99 | unchanged |
+| textures | — | none added |
+| per-frame work | none | none |
+
+`setPower` is N alpha writes on a state change and rasterises nothing, so
+sixteen more Images cost sixteen more alpha writes twice per blackout.
+
+### THE EVIDENCE, AND ONE THING THE RIG WAS GETTING WRONG
+
+`docs/evidence/arena-pilot/detention-lo-before/` and `detention-lo-after/`,
+eighteen matched frames each, captured by `tests/shot-detention-lo.mjs`.
+
+**A MATCHED PAIR NEEDS A CAMERA THAT IS PLACED, NOT FOLLOWED.** The first two
+runs of that rig were not comparable and it took a printed scroll value to see
+it: the live follow lerps at 0.22, and at the harness's ~20fps it settled 50px
+NORTH of the player on one run and 50px SOUTH on the next — 100px of
+disagreement between two halves of a pair meant to differ only in lighting. The
+rig now stops the follow and sets `scrollX/scrollY` by hand (the world bounds
+still clamp it), and prints the scroll at every station so the next session can
+see the pair is matched rather than trust it. `shot-detention.mjs` still uses
+the follow and has the same weakness.
+
+### THE ROOM-TRANSITION LEAK, FIXED
+
+`_clearRoomEntities` swept `roomLayer.getChildren().forEach((o) => o.destroy())`.
+`getChildren()` returns the group's LIVE array and a destroyed member removes
+itself from it, so the splice ran under the loop's index and every other element
+was skipped; the `clear` on the next line then dropped the survivors from the
+group while leaving them on the scene's display list forever. Measured at +6
+display objects per four-room rotation, and visible in play as a hangar wall
+console standing in the detention block. Both sweeps now take `.slice()` — the
+grenade sweep four lines down had the identical shape. `tests/diag-room-leak.mjs`
+is the probe and asserts a fixed point across three rotations.
+
+### WHAT IS OPEN
+
+The dark state is with the human. The weakest part of it, stated plainly: **the
+western half of the walk**, roughly x [300, 600]. The intake wall carries one
+deliberately quiet lamp, the west checkpoint console carries one catch, and
+between them there is very little — `dark-west` is the frame to judge that on.
+It is defensible (you are walking AWAY from the lit end) and it is the first
+place to spend light if the handset says the room is still too empty.
 
 ---
 

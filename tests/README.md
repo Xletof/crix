@@ -1296,3 +1296,44 @@ A/B it against the stashed build before writing it up; this one was identical on
 both. And **the fix is not free**: repairing the sweep removes leaked objects
 from the three approved arenas too, so it changes rooms a human has signed off
 and needs its own change with its own evidence.
+
+
+## `diag-room-leak.mjs` — room transitions reach a fixed point
+
+Three rotations of hangar -> junction -> detention -> chamber, asserting the
+display list, the room layer, the EnvLight part count, the additive-object
+count, the physics bodies and the wall group all reach a FIXED POINT: the same
+room loaded twice must produce the same counts.
+
+It exists because they did not. `_clearRoomEntities` swept
+`roomLayer.getChildren().forEach((o) => o.destroy())`, and a Phaser Group
+removes a destroyed member from the LIVE array `getChildren()` hands back — so
+the splice ran under the loop's own index and every other element was skipped.
+Measured at +6 display objects per rotation (hangar 112 -> 118 -> 124), with the
+survivors visible in play as a hangar wall console standing in the detention
+block. Fixed with `.slice()` in `b339c1f`; the grenade sweep four lines below
+had the identical shape.
+
+**A COUNT THAT ONLY EVER GOES UP IS NOT A LEAK TEST.** What discriminates here
+is loading the SAME room more than once and comparing it to itself. A single
+pass over four rooms shows four different numbers and tells you nothing.
+
+## `shot-detention-lo.mjs` — the camera has to be placed, not followed
+
+The evidence rig for Detention's emergency-power composition (18 matched frames
+into `docs/evidence/arena-pilot/detention-lo-{before,after}/`).
+
+**THE TRAP IT WAS BUILT AROUND.** The game camera follows the player with a
+0.22 lerp and the harness runs at ~20fps, so a station set 400px away is still
+~29% short 240ms later — and worse, the settled position was not even stable
+between runs: the same station photographed 50px north of the player on one run
+and 50px south on the next. That is 100px of disagreement between two halves of
+a pair whose whole purpose is to differ only in lighting, and nothing in the
+frame says so. The rig now:
+
+  - places the player, waits, and RE-PLACES until it stays put (physics nudges);
+  - calls `stopFollow()` and sets `scrollX/scrollY` by hand (bounds still clamp);
+  - prints the camera scroll and the player position at every station, so the
+    next session can SEE the pair is matched rather than assume it.
+
+`shot-detention.mjs` still uses the live follow and has the same weakness.

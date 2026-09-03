@@ -846,8 +846,10 @@ asserts separately that the ceiling is not reached.
   WALK, not a warren of cells, and the fiction follows the geometry: the frozen
   open middle is the escort floor you are meant to be visible while crossing.
   `HANDOVER.md` §10x. **To see it: DEBUG -> LOAD DETENTION BLOCK** — it is the
-  LAST room of the rotation and costs two full clears otherwise. Awaiting a
-  handset verdict; nothing in it is frozen.
+  LAST room of the rotation and costs two full clears otherwise. Handset play
+  APPROVED its topology, traversal, cover, normal power and combat readability
+  and rejected only its dark state; `§10y` is the refinement that answers that,
+  and the room is back with the human for it. Nothing in it is frozen yet.
 - **THE `block` PERIMETER'S SIGNATURE IS THE BAR, AND ITS PERIOD IS 176.**
   Nothing else in CRIX draws slats across an opening — a chamber bay lands on
   the deck, a junction bay crosses above it, a cell front CLOSES one. The
@@ -871,16 +873,45 @@ asserts separately that the ceiling is not reached.
   costume. Five lamps north and three south, at irregular gaps, keyed to the
   same occupancy the wall painter draws: a handful of doors that still have
   someone behind them, not a run of them.
-- **`_clearRoomEntities` LEAKS ONE OBJECT PER ROOM LOAD, AND IT IS NOT YOURS TO
-  FIX IN AN ART PASS.** It sweeps with
+- **THE FLOOR IS NOT GLOWING, THE FLOOR IS CATCHING — and `emitter: false` is
+  what makes that structural.** Detention's first dark state forbade every
+  emitter and every pixel of spill on the escort floor, and the handset verdict
+  was *too black and visually empty*: at the room's middle the camera shows
+  y [102, 1298], which puts the north bank above the frame and the south bank
+  behind the joysticks, so the rule kept every fixture out of the picture the
+  fight happens in. What answers that is RECEIVED light — fourteen sources
+  carrying `emitter: false`, each one an existing fixture's spill landing on a
+  surface (SOURCE -> SURFACE -> FALLOFF), drawing a soft box and no `TEX_FLAT`
+  bar. No hard edge means nothing can read as a painted mark; a lit bar lying
+  on the deck is the full-width cyan strips this room was built to remove. The
+  centre of the walk still receives nothing, and the width of that centre is
+  DERIVED: x [720, 880] is the junction's 160px lane. `HANDOVER.md` §10y, and
+  `smoke-detention` measures the emergency light budget inside the centre
+  station's own view — 0.003 on the rejected build, 0.084 now.
+- **AN `led` MAY NEVER BE LOUDER UNDER EMERGENCY THAN AT NORMAL POWER, AND A
+  FIXTURE THAT NEEDS TO BE IS NOT AN `led`.** A nominal lamp says the same
+  thing whether anyone is watching or not. An interlock that ENGAGES when the
+  bus drops is a `strip` at `normal: 0` — shaped like the bolt it belongs to,
+  which is also what tells it apart from a lamp on sight.
+- **A MATCHED EVIDENCE PAIR NEEDS A CAMERA THAT IS PLACED, NOT FOLLOWED.** The
+  game camera lerps at 0.22 and the harness runs at ~20fps: the same rig, run
+  twice at the same station, settled 50px north of the player once and 50px
+  south the next time — 100px of disagreement between two halves of a pair
+  meant to differ only in lighting, and invisible until the scroll value was
+  printed. `stopFollow()` then `setScroll` by hand; the world bounds still
+  clamp. `shot-detention-lo.mjs` does this and prints the scroll at every
+  station. `shot-detention.mjs` does not and has the same weakness.
+- **`_clearRoomEntities` USED TO LEAK ONE OBJECT PER ROOM LOAD — FIXED in
+  `b339c1f`, and the shape of the bug is worth keeping.** It sweeps with
   `roomLayer.getChildren().forEach((o) => o.destroy())`; `getChildren()` hands
   back the group's internal array and `destroy()` splices the member out of it,
   so the loop **skips every other element**. Measured at exactly +1 display-list
   object per load on every build tested, and the survivor is visible in play —
   a hangar wall console standing in the detention block at (148, 106). The
-  enemy sweep two lines above already uses `.slice()`. Fixing it removes leaked
-  objects from the three APPROVED arenas too, so it needs its own change with
-  its own evidence, not a drive-by in a room pass. `HANDOVER.md` §10x.
+  enemy sweep two lines above already uses `.slice()`; both sweeps do now. The
+  same shape is a live hazard anywhere a Phaser Group is destroyed in place —
+  snapshot with `.slice()` before iterating. `tests/diag-room-leak.mjs` asserts
+  a fixed point across three room rotations. `HANDOVER.md` §10y.
 - **THE `chamber` PERIMETER HAS FOUR JOBS, ONE PER SIDE.** north ceremonial (no
   ribs, no vents — that wall is behind Vader), west service (densest, the hero
   machine's side), east control (machinery block on alternate bays only), south

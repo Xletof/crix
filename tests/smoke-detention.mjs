@@ -101,16 +101,60 @@ const R = await page.evaluate(async () => {
     const rr = (s.r ?? Math.max(s.w ?? 0, s.h ?? 0) / 2) + reach;
     return { x0: s.x - rr, x1: s.x + rr, y0: s.y - rr, y1: s.y + rr };
   };
-  // THE WALK is the escort floor's own rectangle: x [300, 1280] between the
-  // two thresholds, y [560, 840]. Not the whole band of the room at that
-  // height — the transfer gate sits at x 1522 and the intake lamp at x 78, and
-  // both are ON the walk's axis on purpose: they are what the player is
-  // walking towards and away from. What this forbids is authored light
-  // STANDING IN the walk, which would be the junction's cover ring in light.
+  // THE WALK'S CENTRE. This used to be the whole walk — x [300, 1280],
+  // y [560, 840] — and NOTHING was allowed inside it. Handset play retired
+  // that: with the camera at the room's middle the view is x [440, 1160] and
+  // y [102, 1298], which puts the north bank above the frame and the south
+  // bank behind the joysticks, so a rule that kept every fixture off the walk
+  // kept every fixture out of the picture the fight happens in. The verdict
+  // was *too black and visually empty*.
+  //
+  // WHAT REPLACED IT IS NARROWER AND STILL REAL. The two checkpoint consoles
+  // may contaminate their own deck, because a powered machine standing on a
+  // floor puts light on that floor. The CENTRE of the walk still receives
+  // nothing, which is what holds a large black negative space in the middle
+  // of every frame — and the width of that centre is DERIVED, not chosen:
+  // x [720, 880] is 160px, the junction's lane (Ø112 boss plus NavGrid's 23px
+  // agent clearance a side), which is the narrowest gap this game calls open
+  // floor. Both console catches stop clear of it by more than a body width.
+  const inCore = (spec.emissives || []).filter((s) => {
+    const b = box(s);
+    return b.y1 > 560 && b.y0 < 840 && b.x1 > 720 && b.x0 < 880;
+  }).length;
+  // THE CHECK THAT WOULD HAVE CAUGHT THE COMPLAINT. Everything above says
+  // where light may NOT go; this one says the frame the fight happens in is
+  // not empty. At the centre station the camera shows x [440, 1160] and
+  // y [102, 1298]; count the authored sources whose spill lands inside it.
+  // On the build the handset rejected this was ONE — the west checkpoint
+  // console's own kit light — and the verdict was *too black and visually
+  // empty*. A room that passes every negative rule and puts nothing in the
+  // player's own frame has satisfied the rules and lost the argument.
+  // Presence is not the measure — the rejected build had sources overlapping
+  // that rectangle too, at a reach that put almost nothing inside it. What is
+  // measured is the EMERGENCY LIGHT BUDGET: each source's emergency intensity
+  // times the area of its spill that actually falls in the view, in square
+  // megapixels of world.
+  const inCentreView = +((spec.emissives || []).reduce((acc, s) => {
+    const b = box(s);
+    const w = Math.max(0, Math.min(b.x1, 1160) - Math.max(b.x0, 440));
+    const h = Math.max(0, Math.min(b.y1, 1298) - Math.max(b.y0, 102));
+    return acc + (s.emergency ?? 0) * w * h;
+  }, 0) / 1e6).toFixed(3);
+
+  // Everything the walk DOES receive has to be received light, not a fixture:
+  // `emitter: false` means the source draws its soft box and no `TEX_FLAT`
+  // bar, so there is no hard edge anywhere on the deck and nothing can read as
+  // a painted mark. A lit bar lying on the escort floor is the full-width cyan
+  // strips this room was built to remove.
   const onWalk = (spec.emissives || []).filter((s) => {
     const b = box(s);
     return b.y1 > 560 && b.y0 < 840 && b.x1 > 300 && b.x0 < 1280;
-  }).length;
+  });
+  const walkEmitters = onWalk.filter((s) => s.emitter !== false).length;
+  // THE FLOOR IS NOT GLOWING, IT IS CATCHING. Every received-light entry in
+  // the room is a spill with no emitter of its own.
+  const catches = (spec.emissives || []).filter((s) => s.emitter === false);
+  const catchEmitters = catches.filter((s) => s.kind !== 'strip').length;
 
   // ── POWER. Cycle it and prove the alphas come back.
   const before = gs.envLight.parts.map((p) => +p.alpha.toFixed(4));
@@ -152,7 +196,8 @@ const R = await page.evaluate(async () => {
       markKinds: [...new Set((spec.floor?.marks || []).map((m) => m.kind))],
       grounded: !!spec.floor?.grounded,
     },
-    srcs, onWalk,
+    srcs, onWalk: onWalk.length, inCore, walkEmitters, inCentreView,
+    catches: catches.length, catchEmitters,
     kitPowered: coverBodies.filter((c) => !!CONSOLE_KIT[c.tex]).length,
     parts: gs.envLight.parts.length,
     faces: gs.envLight.parts.filter((p) => p._face).length,
@@ -260,8 +305,16 @@ ok('no source is brighter at normal power than on emergency',
   }
   ok('no environment source is bullet green', bad.length === 0, bad.join(','));
 }
-ok('NOTHING AUTHORED STANDS IN THE WALK — no source or spill inside x[300,1280] y[560,840]',
-  R.onWalk === 0, String(R.onWalk));
+ok('THE CENTRE OF THE WALK RECEIVES NOTHING — x[700,900] y[560,840] is empty',
+  R.inCore === 0, String(R.inCore));
+ok('nothing on the walk is an EMITTER — the deck catches light, it does not make it',
+  R.walkEmitters === 0, String(R.walkEmitters));
+ok('THE CENTRE STATION IS NOT AN EMPTY FRAME — the camera\'s own view receives light',
+  // Measured: 0.003 on the build the handset rejected, 0.084 on this one — a
+  // 28x difference, so the gate sits an order of magnitude clear of both.
+  R.inCentreView >= 0.04, String(R.inCentreView));
+ok('every received-light source is a soft box with no hard bar in it',
+  R.catches >= 12 && R.catchEmitters === 0, JSON.stringify([R.catches, R.catchEmitters]));
 ok('three of eight cover objects are powered, five go out',
   R.kitPowered === 3, String(R.kitPowered));
 ok('the five unpowered take the `prop` tint, not the console one',

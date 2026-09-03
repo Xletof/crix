@@ -1213,6 +1213,112 @@ export const ROOMS = [
       // front of it, which is what a monitor does and a lamp does not.
       { kind: 'screen', x: 1548, y: 522, w: 56, h: 40, color: 0x1a5a96, hot: 0x9fe0ff, normal: 0.22, emergency: 0.58, reach: 66, drop: 0.26 },
 
+      // ══ RECEIVED LIGHT — the surfaces the fixtures above are landing on.
+      //
+      //    THE HANDSET VERDICT THAT PRODUCED THIS SECTION: *the room becomes
+      //    too black and visually empty during LIGHTS OUT. Combat remains very
+      //    readable, but the environment loses too much identity.*
+      //
+      //    The first build's rule was NOTHING ON THE ESCORT FLOOR — not one
+      //    emitter and not one pixel of spill inside y [560, 840]. It was the
+      //    right instinct and it went one step too far, and the frame that
+      //    proves it is `dark-centre`: at the room's exact middle the camera
+      //    shows x [440, 1160] and y [102, 1298], which puts the north bank
+      //    ABOVE the top of the view and the south bank behind the joysticks.
+      //    Every fixture this room owned was outside the frame the fight
+      //    happens in. Player, two consoles, black.
+      //
+      //    WHAT CHANGED IS NOT THE BRIGHTNESS, IT IS THE SURFACE. Every entry
+      //    below is `emitter: false` — a spill with no source of its own,
+      //    because the source is a fixture already declared above it and what
+      //    is wanted here is the light it throws. THE FLOOR IS NOT GLOWING.
+      //    THE FLOOR IS CATCHING. That distinction is the whole pass, and it
+      //    is enforced structurally: not one of these draws a `TEX_FLAT` bar,
+      //    so there is no hard edge anywhere in the set and nothing can read
+      //    as a painted mark. A lit bar lying on the deck would be the cyan
+      //    strips this room was built to get rid of.
+      //
+      //    SPARSE, UNEQUAL, BROKEN. Three catches under nine north bays and
+      //    ONE under the south wall's — a catch is not the partner of a lamp,
+      //    or the pair becomes a rhythm and the rhythm becomes a runway. No
+      //    two are the same length, the same reach or the same intensity. The
+      //    centre of the walk — x [700, 900] — still receives nothing at all,
+      //    which is what keeps a large black negative space in the middle of
+      //    every frame.
+
+      // ── THE NORTH BANK'S DECK. Light off the lit cell fronts, landing on
+      //    the floor in front of them. Three of the five lit bays, and the
+      //    two it skips (264 and 1496) are what stop this reading as one
+      //    fixture repeated.
+      { kind: 'strip', dir: 'h', emitter: false, x: 96,   y: 168, len: 232, t: 16, reach: 76, color: 0x25506e, normal: 0.10, emergency: 0.52 },
+      { kind: 'strip', dir: 'h', emitter: false, x: 792,  y: 152, len: 168, t: 12, reach: 58, color: 0x25506e, normal: 0.08, emergency: 0.44 },
+      { kind: 'strip', dir: 'h', emitter: false, x: 1148, y: 176, len: 268, t: 18, reach: 84, color: 0x25506e, normal: 0.11, emergency: 0.58 },
+
+      // ── THE CELL FRONTS THEMSELVES. The lock lamps sit at y 78 with a
+      //    34px reach, which lights the lamp and almost nothing around it —
+      //    so in the blackout the containment bank was a row of white points
+      //    floating in front of no wall. This is the same three fixtures'
+      //    light on the material they are BOLTED TO: wide, shallow, and held
+      //    inside the 96px band. It leans on emergency because at normal
+      //    power the room's own ambient already describes that wall.
+      { kind: 'strip', dir: 'h', emitter: false, x: 96,   y: 54, len: 196, t: 22, reach: 30, color: 0x25506e, normal: 0.06, emergency: 0.30 },
+      { kind: 'strip', dir: 'h', emitter: false, x: 792,  y: 54, len: 150, t: 20, reach: 26, color: 0x25506e, normal: 0.05, emergency: 0.24 },
+      { kind: 'strip', dir: 'h', emitter: false, x: 1148, y: 54, len: 224, t: 24, reach: 34, color: 0x25506e, normal: 0.07, emergency: 0.34 },
+
+      // ── THE SOUTH BANK'S DECK. ONE, and the faintest in the room. The
+      //    south wall is the emptier one and the camera can barely reach it;
+      //    matching the north here would undo the asymmetry the banks were
+      //    authored with.
+      { kind: 'strip', dir: 'h', emitter: false, x: 1072, y: 1244, len: 176, t: 12, reach: 58, color: 0x25506e, normal: 0.07, emergency: 0.30 },
+
+      // The south wall gets ONE, on the bay whose lamp is brightest, and it
+      // is weaker than any of the three above.
+      { kind: 'strip', dir: 'h', emitter: false, x: 1072, y: 1346, len: 154, t: 20, reach: 26, color: 0x25506e, normal: 0.04, emergency: 0.20 },
+
+      // ── THE TWO SECURE LEAVES, ON THE DECK. Emergency only, like the
+      //    interlocks that cast them — the amber is hardware that was not lit
+      //    a second ago, and its light on the floor has to arrive with it.
+      { kind: 'strip', dir: 'h', emitter: false, x: 968, y: 160,  len: 146, t: 12, reach: 56, color: 0x6a3406, normal: 0, emergency: 0.46 },
+      { kind: 'strip', dir: 'h', emitter: false, x: 720, y: 1248, len: 124, t: 10, reach: 46, color: 0x6a3406, normal: 0, emergency: 0.28 },
+
+      // ── THE TWO CHECKPOINT CONSOLES, CONTAMINATING THEIR OWN DECK. These
+      //    are the only two entries inside the walk, and they are there
+      //    because the consoles are: a powered machine standing on a floor
+      //    puts light on that floor. NOT A CIRCULAR POOL — the console kit's
+      //    own screens are horizontal bands, and their spill is the same
+      //    shape. Unequal on purpose, and on OPPOSITE sides of their consoles
+      //    so the pair cannot read as a matched set of markings. Both stop
+      //    clear of x [720, 880] — 160px of guaranteed black down the middle
+      //    of the walk, which is the junction's derived lane width (Ø112 plus
+      //    NavGrid's 23px clearance a side) and therefore the narrowest gap
+      //    this game ever calls open floor.
+      { kind: 'strip', dir: 'h', emitter: false, x: 620, y: 774, len: 140, t: 13, reach: 52, color: 0x25506e, normal: 0.08, emergency: 0.46 },
+      { kind: 'strip', dir: 'h', emitter: false, x: 966, y: 640, len: 112, t: 10, reach: 44, color: 0x25506e, normal: 0.06, emergency: 0.34 },
+
+      // ── THE PROCESSING CHECKPOINT'S THRESHOLD. The strongest catch in the
+      //    room, and it is the landmark's, because the landmark is what the
+      //    walk is for. VERTICAL, lying along the doorway it belongs to: a
+      //    threshold reflection runs across the way you walk, not down it.
+      //    It stops at x ~1385 — 105px short of the exit marker and nowhere
+      //    near the middle of the room — so it anchors the east side without
+      //    becoming a lane.
+      { kind: 'strip', dir: 'v', emitter: false, x: 1462, y: 700, len: 214, t: 16, reach: 78, color: 0x2a4a6a, normal: 0.11, emergency: 0.52 },
+      // The gatehouse control face grazing the bastion it is mounted on —
+      // SURFACE, not a second screen. This is where the gate's extra presence
+      // was spent, rather than on making the panel itself larger: a bigger
+      // cyan rectangle at that size stops being a monitor and becomes UI.
+      { kind: 'strip', dir: 'v', emitter: false, x: 1510, y: 512, len: 116, t: 12, reach: 34, color: 0x1a5a96, normal: 0.09, emergency: 0.36 },
+      // And ONE amber interlock on the northern bastion — the manned side,
+      // the side with the control face. Not mirrored to the south: two lamps
+      // either side of a doorway is a marquee. A STRIP AND NOT AN LED, and
+      // that is a rule rather than a preference: a nominal lamp says the same
+      // thing whether anyone is watching or not, so an `led` may never be
+      // louder under emergency than at normal power. This is the other kind of
+      // fixture — an interlock that engages when the bus drops — so it is dead
+      // at normal power and shaped like the bolt it belongs to, exactly like
+      // the two secure leaves.
+      { kind: 'strip', dir: 'v', x: 1556, y: 604, len: 34, t: 7, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.40, reach: 26 },
+
       // ── THE INTAKE WALL. ONE lamp, and it is the room's quietest fixture.
       //    The player arrives under it. A working wall has a couple of lamps
       //    on it and not a row, and this side's job is to be the end you leave
