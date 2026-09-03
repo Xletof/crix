@@ -906,8 +906,18 @@ export class GameScene extends Phaser.Scene {
     this.envLight?.destroy();
     this.envLight = null;
 
-    // Room-layer objects (backdrop, walls, cover)
-    this.roomLayer.getChildren().forEach((o) => o.destroy());
+    // Room-layer objects (backdrop, walls, cover).
+    //
+    // SNAPSHOT FIRST. `getChildren()` returns the group's LIVE internal array,
+    // and a Phaser Group removes a member from that array when the member is
+    // destroyed — so destroying while iterating it splices the array under the
+    // loop's own index and EVERY OTHER ELEMENT IS SKIPPED. The survivors are
+    // removed from the group by the `clear` below but stay on the scene's
+    // display list forever: measured at +6 objects per four-room rotation, and
+    // visible in play as a hangar wall console standing in the detention block.
+    // The enemy sweep above has always taken `.slice()` for exactly this
+    // reason; these two did not.
+    this.roomLayer.getChildren().slice().forEach((o) => o.destroy());
     this.roomLayer.clear(false, false);
 
     // Release the room's backdrop TEXTURE, not just the image above. Destroying
@@ -932,7 +942,7 @@ export class GameScene extends Phaser.Scene {
     this.terminals = [];
 
     // Grenades
-    this.grenades?.getChildren().forEach((g) => { try { g.destroy(); } catch (_) {} });
+    this.grenades?.getChildren().slice().forEach((g) => { try { g.destroy(); } catch (_) {} });
     this.grenades?.clear(false, false);
 
     // Kill in-flight bullets
