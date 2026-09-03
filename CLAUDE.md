@@ -888,6 +888,25 @@ asserts separately that the ceiling is not reached.
   DERIVED: x [720, 880] is the junction's 160px lane. `HANDOVER.md` §10y, and
   `smoke-detention` measures the emergency light budget inside the centre
   station's own view — 0.003 on the rejected build, 0.084 now.
+- **A HAZE AND A REFLECTION ARE DIFFERENT SHAPES, AND `EnvLight`'s KINDS COULD
+  ONLY MAKE ONE OF THEM.** A `strip`'s spill is `len + reach` by
+  `t + reach * 2.6` — its softness inflates BOTH axes, so a wide soft catch is
+  necessarily a tall one. Detention's fourteen catches therefore landed as
+  light in the AIR over the deck and came back from the handset as *the hazes
+  are cool, but the floor still feels dead*. No intensity would have fixed it.
+  A surface reflection is FLAT: long on one axis, shallow on the other, low in
+  opacity, lying on the plane — the ASPECT RATIO IS THE MATERIAL CLAIM. The
+  `floor` kind is the only one that states its own footprint (`w`/`h`/`angle`)
+  instead of deriving it, and it never carries an emitter because the case has
+  no `TEX_FLAT` branch. `HANDOVER.md` §10z.
+- **HEIGHT IS WHAT MAKES A SOFT SHAPE VOLUMETRIC — a narrow tall one is a
+  SHAFT OF FOG.** The first floor reflections were thrown 46x196 away from the
+  wall that cast them, which is the intuitive direction and photographed as
+  fog standing in the room: the haze failure in a narrower costume. 7:1 and
+  shallow lies down. And CANT them a few degrees off the wall — level with it,
+  two short bands parallel to a room's long axis are a lane in embryo.
+  `smoke-detention` holds it generally: at least 3.2:1, no two sharing a
+  footprint, none over 420px.
 - **AN `led` MAY NEVER BE LOUDER UNDER EMERGENCY THAN AT NORMAL POWER, AND A
   FIXTURE THAT NEEDS TO BE IS NOT AN `led`.** A nominal lamp says the same
   thing whether anyone is watching or not. An interlock that ENGAGES when the
@@ -900,7 +919,11 @@ asserts separately that the ceiling is not reached.
   meant to differ only in lighting, and invisible until the scroll value was
   printed. `stopFollow()` then `setScroll` by hand; the world bounds still
   clamp. `shot-detention-lo.mjs` does this and prints the scroll at every
-  station. `shot-detention.mjs` does not and has the same weakness.
+  station. `shot-detention.mjs` does not and has the same weakness. A ROOM
+  BANNER IS THE OTHER ONE: `loadRoom` schedules the objective hint on a delay,
+  so it can arrive minutes into a run and photograph as a headline across the
+  arena. Kill `HUD.banner` at the shutter, with the camera flash and the
+  sector tint.
 - **`_clearRoomEntities` USED TO LEAK ONE OBJECT PER ROOM LOAD — FIXED in
   `b339c1f`, and the shape of the bug is worth keeping.** It sweeps with
   `roomLayer.getChildren().forEach((o) => o.destroy())`; `getChildren()` hands

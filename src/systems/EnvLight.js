@@ -220,6 +220,36 @@ export class EnvLight {
         break;
       }
 
+      // ── A REFLECTION ON THE FLOOR. The room's surface catching a fixture
+      //    that is somewhere else, and the ONE kind here whose footprint is
+      //    stated outright instead of derived from an emitter's dimensions.
+      //
+      //    WHY IT HAD TO EXIST. Every other kind couples its softness to its
+      //    size: a `strip`'s spill is `len + reach` by `t + reach * 2.6`, so
+      //    asking for a wide soft catch necessarily asks for a tall one, and
+      //    what lands is a volumetric HAZE — atmosphere hanging over the deck.
+      //    Detention's emergency pass shipped fourteen of those and came back
+      //    from the handset as *the hazes are cool, but the floor still feels
+      //    dead*: light in the air over a floor is not light ON a floor. A
+      //    surface reflection is FLAT — long on one axis, shallow on the
+      //    other, low in opacity, and attached to the plane it lies on. The
+      //    aspect ratio IS the material claim.
+      //
+      //    It is the same mechanism as everything else here — one ADD image
+      //    of the separable box texture, whose whole property is that it
+      //    stretches to any ratio without the corners going wrong. Nothing is
+      //    computed per frame, no texture is created, and a room that does not
+      //    ask for one is byte-identical.
+      //
+      //    A REFLECTION IS NOT AN EMITTER and never carries one. If the thing
+      //    casting it can be seen, it is already declared somewhere above.
+      case 'floor': {
+        parts.push(this._img(TEX_BOX, s.x, s.y, s.w ?? 200, s.h ?? 44,
+          col, s.spill ?? 1, s.angle ?? 0));
+        parts[parts.length - 1]._floor = true;
+        break;
+      }
+
       // ── A STATUS LAMP. Compact by definition. If it needs a big glow it is
       //    not an LED, it is a `core`.
       case 'led': {

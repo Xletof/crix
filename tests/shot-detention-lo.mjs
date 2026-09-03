@@ -152,7 +152,15 @@ const pause = (on) => page.evaluate((f) => {
   const gs = window.game.scene.getScene('Game');
   // A PAUSED SCENE FREEZES A CAMERA FLASH FOREVER, and `_sectorTint` is
   // re-raised after the room banner — both re-asserted at the shutter.
-  if (f) { gs._sectorTint?.setAlpha(0); gs.cameras.main.resetFX?.(); gs.scene.pause(); }
+  // A ROOM BANNER IS HUD TEXT LYING OVER THE FRAME. `loadRoom` schedules an
+  // objective hint on a delay, so it can arrive minutes into a rig run and
+  // photograph as a headline across the arena. Killed at the shutter, with the
+  // camera flash and the sector tint, for the same reason.
+  if (f) {
+    const hud = window.game.scene.getScene('HUD');
+    if (hud?.banner) { hud.tweens?.killTweensOf?.(hud.banner); hud.banner.setAlpha(0).setVisible(false); }
+    gs._sectorTint?.setAlpha(0); gs.cameras.main.resetFX?.(); gs.scene.pause();
+  }
   else gs.scene.resume();
 }, on);
 const shot = async (n) => { writeFileSync(`${OUT}/${n}.png`, await page.screenshot()); console.log('  ', n); };

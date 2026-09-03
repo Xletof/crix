@@ -87,10 +87,17 @@ const R = await page.evaluate(async () => {
   const srcs = (spec.emissives || []).map((s) => ({
     kind: s.kind, x: s.x, y: s.y, len: s.len, t: s.t, r: s.r, w: s.w, h: s.h,
     dir: s.dir, color: s.color, hot: s.hot, normal: s.normal, emergency: s.emergency,
+    emitter: s.emitter, angle: s.angle,
   }));
   // A source's spill box, in the same arithmetic EnvLight uses to size one.
   const box = (s) => {
     const reach = s.reach ?? 0;
+    // A `floor` reflection states its own footprint outright — that is the
+    // whole point of the kind, and why it is the only one that can be flat.
+    if (s.kind === 'floor') {
+      const w = s.w ?? 200, h = s.h ?? 44;
+      return { x0: s.x - w / 2, x1: s.x + w / 2, y0: s.y - h / 2, y1: s.y + h / 2 };
+    }
     if (s.kind === 'strip') {
       return s.dir === 'v'
         ? { x0: s.x - (s.t + reach * 2.6) / 2, x1: s.x + (s.t + reach * 2.6) / 2,
@@ -150,11 +157,33 @@ const R = await page.evaluate(async () => {
     const b = box(s);
     return b.y1 > 560 && b.y0 < 840 && b.x1 > 300 && b.x0 < 1280;
   });
-  const walkEmitters = onWalk.filter((s) => s.emitter !== false).length;
+  // `floor` is never an emitter BY CONSTRUCTION — the kind builds one soft box
+  // and has no `TEX_FLAT` branch at all — so it needs no opt-out to qualify.
+  const walkEmitters = onWalk.filter((s) => s.emitter !== false && s.kind !== 'floor').length;
   // THE FLOOR IS NOT GLOWING, IT IS CATCHING. Every received-light entry in
   // the room is a spill with no emitter of its own.
-  const catches = (spec.emissives || []).filter((s) => s.emitter === false);
-  const catchEmitters = catches.filter((s) => s.kind !== 'strip').length;
+  const catches = (spec.emissives || []).filter((s) => s.emitter === false || s.kind === 'floor');
+  const catchEmitters = catches.filter((s) => s.kind !== 'strip' && s.kind !== 'floor').length;
+
+  // ── THE FLOOR REFLECTIONS. A separate class from the hazes above them, and
+  //    the separation is GEOMETRIC. A `strip`'s spill is `len + reach` by
+  //    `t + reach * 2.6`, so its softness inflates both axes and a wide soft
+  //    catch is necessarily a tall one — which is why fourteen of them landed
+  //    as atmosphere over the deck and came back from the handset as *the
+  //    hazes are cool, but the floor still feels dead*. A surface reflection
+  //    is FLAT. These assert that it stayed flat, and that it stayed a
+  //    reflection rather than becoming a second set of fixtures.
+  const refl = (spec.emissives || []).filter((s) => s.kind === 'floor');
+  const reflFat = refl.filter((s) => {
+    const w = s.w ?? 200, h = s.h ?? 44;
+    return Math.max(w, h) / Math.max(1, Math.min(w, h)) < 3.2;
+  }).length;
+  const reflLit = refl.filter((s) => (s.normal ?? 0) > 0).length;
+  // NOT A RUNWAY: no two reflections may share a footprint, and none may be
+  // long enough to cross the room. A repeated size at a repeating interval is
+  // what a lane is made of.
+  const reflSizes = new Set(refl.map((s) => `${s.w ?? 200}x${s.h ?? 44}`));
+  const reflLongest = Math.max(0, ...refl.map((s) => Math.max(s.w ?? 200, s.h ?? 44)));
 
   // ── POWER. Cycle it and prove the alphas come back.
   const before = gs.envLight.parts.map((p) => +p.alpha.toFixed(4));
@@ -197,6 +226,7 @@ const R = await page.evaluate(async () => {
       grounded: !!spec.floor?.grounded,
     },
     srcs, onWalk: onWalk.length, inCore, walkEmitters, inCentreView,
+    refl: refl.length, reflFat, reflLit, reflSizes: reflSizes.size, reflLongest,
     catches: catches.length, catchEmitters,
     kitPowered: coverBodies.filter((c) => !!CONSOLE_KIT[c.tex]).length,
     parts: gs.envLight.parts.length,
@@ -313,6 +343,12 @@ ok('THE CENTRE STATION IS NOT AN EMPTY FRAME — the camera\'s own view receives
   // Measured: 0.003 on the build the handset rejected, 0.084 on this one — a
   // 28x difference, so the gate sits an order of magnitude clear of both.
   R.inCentreView >= 0.04, String(R.inCentreView));
+ok('THE FLOOR REFLECTIONS ARE FLAT — every one is at least 3.2:1, or it is a haze',
+  R.refl >= 6 && R.reflFat === 0, JSON.stringify([R.refl, R.reflFat]));
+ok('every floor reflection is emergency-only — a lit deck has nothing to reflect',
+  R.reflLit === 0, String(R.reflLit));
+ok('no two reflections share a footprint, and none can cross the room',
+  R.reflSizes === R.refl && R.reflLongest < 420, JSON.stringify([R.reflSizes, R.refl, R.reflLongest]));
 ok('every received-light source is a soft box with no hard bar in it',
   R.catches >= 12 && R.catchEmitters === 0, JSON.stringify([R.catches, R.catchEmitters]));
 ok('three of eight cover objects are powered, five go out',

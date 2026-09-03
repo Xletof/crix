@@ -33,7 +33,7 @@ Do not reopen any part of the junction without NEW human play evidence.
 | Vader Chamber (`boss`) | PASS | — | PASS | **FROZEN.** `§10n`, `§10p` |
 | Hangar (`hangar`) | PASS | — | PASS | **FROZEN.** `§10q` |
 | Reactor Junction (`corridor`) | PASS | PASS | PASS | **FROZEN.** `§10w` |
-| Detention (`detention`) | PASS | PASS | see `§10y` | **dark state back with the human** |
+| Detention (`detention`) | PASS | PASS | see `§10z` | **floor treatment with the human** |
 
 Vader himself is frozen — see `CLAUDE.md`. So is DEFLECTION, so is LIGHTS OUT
 globally.
@@ -46,8 +46,11 @@ concepts, combat readability and Vader's gameplay in it. One thing came back
 rejected: *the room becomes too black and visually empty during LIGHTS OUT.
 Combat remains very readable, but the environment loses too much identity.*
 
-`§10y` is the bounded emergency-light refinement that answers it, and the room
-is back with the human for exactly that question. `§10x` is the original pass.
+`§10y` is the bounded emergency-light refinement that answered it. Handset play
+of `a88ee50` then approved everything in that pass and rejected one last thing
+— *the hazes are cool, but the floor still feels dead* — which `§10z` answers
+with nine flat surface reflections and no extra brightness. `§10x` is the
+original pass. The room is with the human for the floor.
 
 `§10x` is the Detention pass: the last unstyled arena, and the test of whether
 CRIX has an environmental LANGUAGE rather than three one-off rooms. Its
@@ -4302,6 +4305,109 @@ deliberately quiet lamp, the west checkpoint console carries one catch, and
 between them there is very little — `dark-west` is the frame to judge that on.
 It is defensible (you are walking AWAY from the lit end) and it is the first
 place to spend light if the handset says the room is still too empty.
+
+---
+
+## 10z. THE FLOOR — why the hazes were not enough, and what a reflection is
+
+`a88ee50` went to the phone. Everything in `§10y` was approved — the cleanup
+fix, the darkness level, combat readability, the gate improvement, the local
+blue/amber haze, the containment concept — with one thing still rejected:
+
+> The new hazes are cool and should stay, but the room still feels dead. This
+> is not the satisfying floor lighting / shine I wanted. I still feel like I am
+> walking through blackness between glowing objects.
+
+### THE DIAGNOSIS IS GEOMETRIC AND IT IS IN `EnvLight`
+
+A `strip`'s spill is `len + reach` wide by **`t + reach * 2.6` tall**. Its
+softness inflates BOTH axes, so asking for a wide soft catch necessarily asks
+for a tall one. Every one of §10y's fourteen catches is therefore a
+tall-ish soft mass sitting over the deck — which is exactly what the handset
+saw and named: light in the AIR over a floor, not light ON a floor. No
+intensity change could have fixed it, because the problem was never the amount.
+
+**A SURFACE REFLECTION IS FLAT.** Long on one axis, shallow on the other, low
+in opacity, lying on the plane. The aspect ratio IS the material claim: it is
+what says *hard polished deck* rather than *atmosphere*.
+
+### THE `floor` KIND
+
+`EnvLight` gained one case, and it is the only kind whose footprint is stated
+outright (`w`, `h`, optional `angle`) instead of derived from an emitter's
+dimensions. Same mechanism as everything else — one ADD-blended image of the
+separable box texture, whose whole documented property is that it stretches to
+any ratio without the corners going wrong. No shader, no per-frame work, no new
+texture, and a room that does not ask for one is byte-identical.
+
+**A `floor` SOURCE NEVER CARRIES AN EMITTER**, structurally: the case has no
+`TEX_FLAT` branch at all. If the thing casting the reflection can be seen, it
+is already declared somewhere above it.
+
+### THE NINE, AND WHAT PAID FOR THEM
+
+| reflection | shape | reads as |
+|---|---|---|
+| gate threshold, contact | 262x58 | the strongest catch in the room |
+| gate threshold, tail | 316x30 at -2° | it reaching further west |
+| two north cell fronts | 268x38 at +5°, 214x32 at -4° | light off two lit doors |
+| north secure leaf | 150x24 at +3° | the only amber on the deck |
+| west checkpoint console | 196x38 | a machine on a hard floor |
+| east checkpoint console | 122x28 | barely there, on purpose |
+| south bank | 190x28 at -3° | the emptier wall, faintest |
+| intake end | 168x34 at +3° | the end you are walking away from |
+
+**THE ROOM DID NOT GET BRIGHTER TO PAY FOR THEM.** Six of §10y's hazes were
+turned down by 0.06-0.10 first — the three north deck catches, both console
+catches and the gate threshold. The budget moved from volume into surface,
+which is the change the verdict actually asked for.
+
+All nine are `normal: 0`. A polished floor throwing a visible reflection is
+what a room looks like having lost its ambient and kept two fixtures; under
+normal power the deck is evenly lit and there is nothing to reflect. That is
+also what keeps the approved normal state untouched.
+
+### THE CORRECTION THAT MADE IT WORK, AND IT IS WORTH THE PARAGRAPH
+
+The first build threw the two north cell reflections north-south, as 46x196
+columns — the intuitive direction for light leaving a wall. They photographed
+as **SHAFTS OF FOG standing in the room**, which is the same failure the hazes
+had, in a narrower costume. HEIGHT IS WHAT MAKES A SOFT SHAPE VOLUMETRIC. They
+are 7:1 and 6:1 and shallow now, and they lie down.
+
+They are also CANTED a few degrees off the wall they came from. Level with it
+they would have been two short bands parallel to the deck's own long axis,
+which is a lane in embryo. `smoke-detention` holds the rule generally: every
+reflection at least 3.2:1, no two sharing a footprint, none longer than 420px
+so nothing can cross the room.
+
+### COST
+
+| | §10y | now |
+|---|---|---|
+| detention EnvLight parts | 60 | 69 |
+| detention display list | 111 | 120 |
+| hangar / junction / chamber | 110 / 102 / 99 | unchanged |
+| textures | — | none added |
+| per-frame work | none | none |
+
+### EVIDENCE, AND ONE MORE RIG BUG
+
+`docs/evidence/arena-pilot/detention-fl-{before,after}/`, eighteen matched
+frames each. `dark-gate` is the clearest pair: before, a rounded blob against
+the wall with black deck west of it; after, a long flat sheen running out
+across the floor.
+
+**A ROOM BANNER IS HUD TEXT LYING OVER THE FRAME.** `loadRoom` schedules the
+objective hint on a delay, so it can arrive minutes into a rig run and
+photograph as a headline across the arena — one `dark-centre` was lost to it.
+The rig kills the banner at the shutter now, alongside the camera flash and the
+sector tint, for the same reason.
+
+### WHAT IS OPEN
+
+The floor is with the human. If this is approved, Detention's dark state is
+finished and the room can be frozen whole.
 
 ---
 

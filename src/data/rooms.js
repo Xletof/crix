@@ -1250,9 +1250,9 @@ export const ROOMS = [
       //    the floor in front of them. Three of the five lit bays, and the
       //    two it skips (264 and 1496) are what stop this reading as one
       //    fixture repeated.
-      { kind: 'strip', dir: 'h', emitter: false, x: 96,   y: 168, len: 232, t: 16, reach: 76, color: 0x25506e, normal: 0.10, emergency: 0.52 },
-      { kind: 'strip', dir: 'h', emitter: false, x: 792,  y: 152, len: 168, t: 12, reach: 58, color: 0x25506e, normal: 0.08, emergency: 0.44 },
-      { kind: 'strip', dir: 'h', emitter: false, x: 1148, y: 176, len: 268, t: 18, reach: 84, color: 0x25506e, normal: 0.11, emergency: 0.58 },
+      { kind: 'strip', dir: 'h', emitter: false, x: 96,   y: 168, len: 232, t: 16, reach: 76, color: 0x25506e, normal: 0.10, emergency: 0.46 },
+      { kind: 'strip', dir: 'h', emitter: false, x: 792,  y: 152, len: 168, t: 12, reach: 58, color: 0x25506e, normal: 0.08, emergency: 0.36 },
+      { kind: 'strip', dir: 'h', emitter: false, x: 1148, y: 176, len: 268, t: 18, reach: 84, color: 0x25506e, normal: 0.11, emergency: 0.48 },
 
       // ── THE CELL FRONTS THEMSELVES. The lock lamps sit at y 78 with a
       //    34px reach, which lights the lamp and almost nothing around it —
@@ -1292,8 +1292,8 @@ export const ROOMS = [
       //    of the walk, which is the junction's derived lane width (Ø112 plus
       //    NavGrid's 23px clearance a side) and therefore the narrowest gap
       //    this game ever calls open floor.
-      { kind: 'strip', dir: 'h', emitter: false, x: 620, y: 774, len: 140, t: 13, reach: 52, color: 0x25506e, normal: 0.08, emergency: 0.46 },
-      { kind: 'strip', dir: 'h', emitter: false, x: 966, y: 640, len: 112, t: 10, reach: 44, color: 0x25506e, normal: 0.06, emergency: 0.34 },
+      { kind: 'strip', dir: 'h', emitter: false, x: 620, y: 774, len: 140, t: 13, reach: 52, color: 0x25506e, normal: 0.08, emergency: 0.38 },
+      { kind: 'strip', dir: 'h', emitter: false, x: 966, y: 640, len: 112, t: 10, reach: 44, color: 0x25506e, normal: 0.06, emergency: 0.28 },
 
       // ── THE PROCESSING CHECKPOINT'S THRESHOLD. The strongest catch in the
       //    room, and it is the landmark's, because the landmark is what the
@@ -1302,7 +1302,7 @@ export const ROOMS = [
       //    It stops at x ~1385 — 105px short of the exit marker and nowhere
       //    near the middle of the room — so it anchors the east side without
       //    becoming a lane.
-      { kind: 'strip', dir: 'v', emitter: false, x: 1462, y: 700, len: 214, t: 16, reach: 78, color: 0x2a4a6a, normal: 0.11, emergency: 0.52 },
+      { kind: 'strip', dir: 'v', emitter: false, x: 1462, y: 700, len: 214, t: 16, reach: 78, color: 0x2a4a6a, normal: 0.11, emergency: 0.44 },
       // The gatehouse control face grazing the bastion it is mounted on —
       // SURFACE, not a second screen. This is where the gate's extra presence
       // was spent, rather than on making the panel itself larger: a bigger
@@ -1318,6 +1318,83 @@ export const ROOMS = [
       // at normal power and shaped like the bolt it belongs to, exactly like
       // the two secure leaves.
       { kind: 'strip', dir: 'v', x: 1556, y: 604, len: 34, t: 7, color: 0x6a3406, hot: 0xffab52, normal: 0, emergency: 0.40, reach: 26 },
+
+      // ══ THE FLOOR ITSELF — reflections, which are not hazes ═══════════
+      //
+      //    THE SECOND HANDSET VERDICT, on the build that added the catches
+      //    above: *the new hazes are cool and should stay, but the room still
+      //    feels dead. I still feel like I am walking through blackness
+      //    between glowing objects.*
+      //
+      //    THE DIAGNOSIS IS GEOMETRIC, NOT A BRIGHTNESS ONE. A `strip`'s
+      //    spill is `len + reach` wide by `t + reach * 2.6` tall, so its
+      //    softness inflates BOTH axes and a wide soft catch is necessarily a
+      //    tall one. Everything above therefore lands as light hanging in the
+      //    air OVER the deck — atmosphere, correctly read as such. Light on a
+      //    hard floor is the opposite shape: long on one axis, SHALLOW on the
+      //    other, faint, and lying flat. That is what the `floor` kind exists
+      //    for, and the aspect ratio is the whole material claim.
+      //
+      //    THE ROOM DID NOT GET BRIGHTER TO PAY FOR THESE. Six of the hazes
+      //    above were turned down by 0.06-0.10 first; the budget was
+      //    redistributed from volume into surface, which is the change the
+      //    verdict actually asked for.
+      //
+      //    ALL NINE ARE EMERGENCY-ONLY. A polished floor throwing a visible
+      //    reflection is what a room looks like when it has lost its ambient
+      //    and kept two fixtures; under normal power the deck is evenly lit
+      //    and there is nothing to reflect. `normal: 0` on every one of them
+      //    is also what keeps the approved normal state untouched.
+      //
+      //    NOT A RUNWAY, AND THE SHAPES ARE WHAT GUARANTEE IT: nine, at four
+      //    lengths, three widths, two colours and two bearings, two of them
+      //    off-axis; the north streaks run ACROSS the direction of travel;
+      //    the centre x [720, 880] still receives nothing at all; and no two
+      //    are the same size or sit at a repeating interval.
+
+      // ── THE PROCESSING GATE'S THRESHOLD. The strongest reflection in the
+      //    room and the only one that reads at a glance, because it is the
+      //    powered checkpoint and the room has pointed at it since it loaded.
+      //    TWO pieces, not one: a short bright contact just off the doorway
+      //    and a long faint tail reaching further west, at a different height
+      //    and slightly off-axis so the pair cannot read as one drawn bar.
+      { kind: 'floor', x: 1396, y: 702, w: 262, h: 58, color: 0x35577a, normal: 0, emergency: 0.30 },
+      { kind: 'floor', x: 1288, y: 688, w: 316, h: 30, angle: -0.035, color: 0x2a4a6a, normal: 0, emergency: 0.15 },
+
+      // ── TWO NORTH CELL FRONTS, ON THE DECK BELOW THEM. LONG AND SHALLOW,
+      //    and that is the correction that made this work: the first build
+      //    threw them north-south as 46x196 columns, which is a tall narrow
+      //    soft shape and photographed as a SHAFT OF FOG standing in the room
+      //    rather than as anything lying on a floor. Height is what makes a
+      //    soft shape volumetric. These are 7:1 and 6:1 and they sit flat.
+      //
+      //    DIAGONAL, at a few degrees off the wall they came from. Level with
+      //    it they would be two short bands parallel to the deck's own long
+      //    axis, which is a lane in embryo; canted, they read as light that
+      //    landed where it landed. Unequal, opposite bearings, and only two of
+      //    the five lit bays cast one at all.
+      { kind: 'floor', x: 792,  y: 236, w: 268, h: 38, angle:  0.09, color: 0x2c5a7e, normal: 0, emergency: 0.20 },
+      { kind: 'floor', x: 1150, y: 264, w: 214, h: 32, angle: -0.07, color: 0x2c5a7e, normal: 0, emergency: 0.26 },
+
+      // ── THE NORTH SECURE LEAF. The only amber on the floor, and the
+      //    narrowest thing on it.
+      { kind: 'floor', x: 968, y: 212, w: 150, h: 24, angle: 0.05, color: 0x6a3406, normal: 0, emergency: 0.18 },
+
+      // ── THE TWO CHECKPOINT CONSOLES, ON THEIR OWN DECK. A machine standing
+      //    on a hard floor throws a short reflection in front of itself. The
+      //    west one is the longer; the east one is barely there. Both stop
+      //    clear of x [720, 880].
+      { kind: 'floor', x: 600, y: 796, w: 196, h: 38, color: 0x2c5a7e, normal: 0, emergency: 0.22 },
+      { kind: 'floor', x: 972, y: 634, w: 122, h: 28, color: 0x2c5a7e, normal: 0, emergency: 0.14 },
+
+      // ── THE SOUTH BANK. One, and the faintest in the room — the south wall
+      //    is the emptier one and the camera can barely reach it.
+      { kind: 'floor', x: 1072, y: 1214, w: 190, h: 28, angle: -0.06, color: 0x2c5a7e, normal: 0, emergency: 0.14 },
+
+      // ── THE INTAKE END. One short catch under the room's quietest lamp, so
+      //    the west is not entirely without a surface. Deliberately the least
+      //    legible reflection here: you are walking away from it.
+      { kind: 'floor', x: 150, y: 660, w: 168, h: 34, angle: 0.05, color: 0x6a3406, normal: 0, emergency: 0.12 },
 
       // ── THE INTAKE WALL. ONE lamp, and it is the room's quietest fixture.
       //    The player arrives under it. A working wall has a couple of lamps
