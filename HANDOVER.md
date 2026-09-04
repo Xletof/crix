@@ -10,82 +10,118 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-09-02 against `HEAD`, which is `origin/FRIX`. Pages builds only
-from `FRIX`, so the live build IS this commit whenever the two agree — check
-`git rev-parse HEAD origin/FRIX` rather than trusting a hash written here.*
+*Updated 2026-09-04. The approved runtime is `e43cc60`, which is HEAD,
+`origin/FRIX` and the dev branch `claude/crix-frix-reactor-review-wdwelf`.
+Pages builds only from `FRIX`, so the live build IS this commit whenever the
+refs agree — check `git rev-parse HEAD origin/FRIX` rather than trusting a hash
+written here, and `git rev-parse --abbrev-ref HEAD` for the branch name.*
 
-### THE REACTOR JUNCTION IS FROZEN 🔒
+### THE FOUR-ARENA ENVIRONMENT PILOT IS COMPLETE. ALL FOUR ROOMS ARE FROZEN 🔒
 
-Handset play of `68a76c4` **approved the whole room** — topology, crossing,
-enemy flow, Vader navigation, normal power, emergency lane guidance, lane count
-and intensity, central darkness, the amber reactor emissive stack, the
-reactor/Vader colour hierarchy, the LIGHTS OUT composition, and the reactor
-silhouette as good enough. **A full reactor migration is not needed and is
-deferred indefinitely.** `§10w` is the freeze record and the four truths worth
-carrying out of it; `§10s`/`§10t`/`§10u`/`§10v` are how it got there.
+| room | id | what it is | verdict |
+|---|---|---|---|
+| Vader Chamber | `boss` | formal containment / boss chamber | **FROZEN** `§10n`, `§10p` |
+| Hangar | `hangar` | operational deployment deck | **FROZEN** `§10q` |
+| Reactor Junction | `corridor` | infrastructure crossing | **FROZEN** `§10w` |
+| Detention Block | `detention` | prisoner-transfer / containment block | **FROZEN** `§10ab` |
 
-Do not reopen any part of the junction without NEW human play evidence.
+Every one of them closed on human handset play. Art, topology where it was
+open, normal power, the emergency second state and combat readability are all
+approved in all four. `§10ab` is the closeout and carries the reusable
+doctrine; do not re-derive it from the individual pass sections.
 
-### The arena ladder, and what each rung's verdict is
+**Vader himself is frozen** (see `CLAUDE.md`), and so are DEFLECTION and the
+global LIGHTS OUT behaviour. **Nothing in this list reopens without NEW human
+play evidence**, and a screenshot is not play evidence.
 
-| room | art | topology | dark state | state |
-|---|---|---|---|---|
-| Vader Chamber (`boss`) | PASS | — | PASS | **FROZEN.** `§10n`, `§10p` |
-| Hangar (`hangar`) | PASS | — | PASS | **FROZEN.** `§10q` |
-| Reactor Junction (`corridor`) | PASS | PASS | PASS | **FROZEN.** `§10w` |
-| Detention (`detention`) | PASS | PASS | see `§10aa` | **console faces with the human** |
+### What Detention's freeze covers
 
-Vader himself is frozen — see `CLAUDE.md`. So is DEFLECTION, so is LIGHTS OUT
-globally.
+Closed on `e43cc60`, after four rounds of handset play (`2462592` → `a88ee50`
+→ `77975da` → `e43cc60`): topology, traversal and cover; normal-power
+composition; the cell / `block` perimeter language; the processing gate;
+containment lighting; the local blue/amber haze; the flat floor reflections;
+the powered console emissive faces; the powered/unpowered console asymmetry
+(three of eight); the whole LIGHTS OUT composition; and combat readability with
+the Vader hierarchy inside it.
 
-### The fourth arena is with the human, ON ITS SECOND ROUND
+`§10x` is the original pass, `§10y` the emergency-light refinement, `§10z` the
+floor reflections, `§10aa` the console faces, `§10ab` the freeze.
 
-Handset play of `2462592` **approved most of Detention** — topology, open
-traversal, cover layout, normal power, the cell-block and processing-gate
-concepts, combat readability and Vader's gameplay in it. One thing came back
-rejected: *the room becomes too black and visually empty during LIGHTS OUT.
-Combat remains very readable, but the environment loses too much identity.*
-
-`§10y` is the bounded emergency-light refinement that answered it. Handset play
-of `a88ee50` then approved everything in that pass and rejected one last thing
-— *the hazes are cool, but the floor still feels dead* — which `§10z` answers
-with nine flat surface reflections and no extra brightness. Handset play of
-`77975da` approved the floor and found the last one: *the consoles read like a
-dark box with a light installed behind it*, which was true — every
-`CONSOLE_KIT` source is drawn at depth 3 UNDERNEATH a sprite that sorts at
-`y + 56`. `§10aa` is the powered console face that answers it. `§10x` is the
-original pass. The room is with the human for the consoles.
-
-`§10x` is the Detention pass: the last unstyled arena, and the test of whether
-CRIX has an environmental LANGUAGE rather than three one-off rooms. Its
-gameplay geometry — bounds, walls, spawn, exit, gates, objectives, cover count
-and positions — was frozen for the whole pass on purpose: no human play
-evidence says anything is wrong with it, and mixing a level-design pass into an
-art pass is how the junction's ring survived three sessions.
-
-**To see it: DEBUG -> LOAD DETENTION BLOCK.** Without that button it is the
-THIRD room of an endless run (`_arenaCycle` starts at 1: hangar -> junction ->
+**To see it: DEBUG → LOAD DETENTION BLOCK.** Without that button it is the
+THIRD room of an endless run (`_arenaCycle` starts at 1: hangar → junction →
 detention), which costs two full clears to reach.
 
-What the human is testing THIS round: the powered console face, the haze
-around it, the floor reflection under it, the dark centre, and the combat
-hierarchy. Only after that do we decide whether the four-arena language is
-mature enough to freeze.
+### Closed, and not to be reopened by a stale suggestion
 
-### Two suite failures that are NOT regressions
+- **The `roomLayer` sweep leak is FIXED** — `b339c1f`, shipped, in the approved
+  runtime. `_clearRoomEntities`'s three destructive sweeps (enemies, roomLayer,
+  grenades) all snapshot with `.slice()` before iterating. A Claude Code
+  "Suggested task" card proposing to fix it again is **stale: closed /
+  superseded.** Verify in one grep (`slice().forEach` in `GameScene.js`) and
+  move on — no leak investigation, no evidence campaign. `§10y` has the shape
+  of the bug, which is worth keeping even though the bug is gone.
+- **The reactor migration is deferred indefinitely** — the human approved the
+  junction's existing silhouette. Not pending, not queued.
+- **No further Detention polish pass is queued.** There is no open art item in
+  any of the four arenas.
 
-Both re-run against earlier builds and fail identically there:
+### Genuinely open technical debt
 
-- `smoke-readability` fails its wind-up check with the IDENTICAL measurement —
-  `forcepull 0px/s drift 45px` against a 40px bar. The speed is ZERO, so he is
-  in fact planted; the drift allowance is simply tight. It runs in the Vader
-  Chamber, which no arena pass has touched.
-- `smoke-deflect` fails a different check on almost every run, on the baseline
-  too. `tests/README.md` has the write-up.
+- **NAVGRID CLEARANCE DISAGREES WITH PHYSICAL CLEARANCE, and we are carrying it
+  on purpose.** `NavGrid.build` inflates a body rect by a fixed 23px agent
+  clearance, which fits the Ø40-48 rank and file and routes a Ø112 boss through
+  slots he cannot physically enter — pathing says yes, physics says no. The
+  junction was corrected through LEVEL TOPOLOGY instead and NavGrid was not
+  touched. **Deferred engine debt. Do not fix it in an art pass.** Remember it
+  when designing a tight space: measure the LARGEST body.
+- **Two depth conventions run at once** and ordinary bullets plus the shared
+  emitters still sit on flat constants under the whole actor band. Known, not
+  scheduled. `CLAUDE.md` has the detail.
+- **There is no super-TYPE concept.** `superPellets` / `superDamage` are flat
+  `PLAYER` constants down one code path; alternative supers need a registry.
+- **`LIGHTSOUT.consoleGlowAlpha`** is a dead placeholder now that all four
+  arenas have real authored emissive second states. Setting it to 0 removes it;
+  nobody has.
+- Dormant code from the game's two earlier shapes is still in the tree — §9.
 
-The suite wants an idle machine, and the second browser can be your own
-verification run. Do not chase any of these, and above all **do not modify
-Vader because of them.**
+### The recommended next area of work
+
+The environment pilot is finished, so the next thing is **not** another room.
+Nothing is chosen; the honest options, in the order they look worth doing:
+
+1. **Content breadth** — the arena rotation is four rooms and `_arenaCycle`
+   walks them in order. More rooms would now be an application of a proven
+   language rather than an experiment, which is a different and cheaper kind of
+   task.
+2. **The super registry** (see debt above), which is the one structural gap
+   that blocks a whole class of player-facing content.
+3. **The flat-depth cleanup** for bullets and shared emitters.
+
+Pick with the human. Do not start one on the strength of this list.
+
+### Process and evidence caveats the next session needs
+
+- **SINGLE AGENT. No subagents** on this project unless the human asks in the
+  session. Every pass here has been one agent start to finish.
+- **Deploy from `FRIX` only, never force-push it**, and fast-forward in the
+  same turn as the commit — the human plays the Pages build on a phone, so an
+  undeployed dev-branch push is not a finished task.
+- **Two suite failures are NOT regressions.** Both reproduce identically on
+  earlier approved builds:
+  - `smoke-readability`'s FORCE PULL wind-up check — `forcepull 0px/s drift
+    ~45px` against a 40px bar. The speed is ZERO, so he is in fact planted; the
+    allowance is simply tight. It runs in the Vader Chamber, which no arena
+    pass touched.
+  - `smoke-deflect` fails a different check on most runs, on the baseline too.
+    `tests/README.md` has the write-up.
+
+  Do not chase either, and above all **do not modify Vader because of them.**
+- **A matched evidence pair needs a camera that is PLACED, not followed.**
+  `shot-detention-lo.mjs` and `shot-detention-face.mjs` do this and print the
+  scroll at every station; `shot-detention.mjs` does not and has the weakness.
+  Kill `HUD.banner`, `cameras.main.resetFX()` and `_sectorTint` at the shutter.
+- **One tracked PID, no pattern-matched process discovery.** `CLAUDE.md`'s
+  background-process section is the record of what that cost once already.
 
 ---
 
@@ -3628,9 +3664,10 @@ Ten new checks, every one of them run against a deliberately broken build first:
 a guide through the objective, a continuous lane down an approach, a fixture lit
 at normal power, a guide brighter than the exit threshold, a dashed-line gap
 rhythm, and guidance propagated into the frozen hangar. Each produced its own
-finding. Intensities are **deliberately not frozen** — they are the handset's to
-judge, and freezing an unreviewed number is exactly the mistake the cover ring
-was.
+finding. Intensities were left unfrozen for the handset to judge, and freezing
+an unreviewed number is exactly the mistake the cover ring was. **SUPERSEDED:
+`§10w` records the handset's verdict — the lane fixtures and their intensities
+are approved and frozen with the rest of the junction.**
 
 ### Open, and honest
 
@@ -4301,14 +4338,15 @@ console standing in the detention block. Both sweeps now take `.slice()` — the
 grenade sweep four lines down had the identical shape. `tests/diag-room-leak.mjs`
 is the probe and asserts a fixed point across three rotations.
 
-### WHAT IS OPEN
+### WHAT WAS OPEN — CLOSED
 
-The dark state is with the human. The weakest part of it, stated plainly: **the
-western half of the walk**, roughly x [300, 600]. The intake wall carries one
-deliberately quiet lamp, the west checkpoint console carries one catch, and
-between them there is very little — `dark-west` is the frame to judge that on.
-It is defensible (you are walking AWAY from the lit end) and it is the first
-place to spend light if the handset says the room is still too empty.
+The dark state went to the handset, which approved the pass and asked for the
+floor (`§10z`) and then the consoles (`§10aa`). **`§10ab` is the freeze.** The
+weakness flagged at the time — the western half of the walk, roughly
+x [300, 600], where the intake wall's one quiet lamp and the west checkpoint's
+catch are all there is — was judged acceptable in play: you are walking AWAY
+from the lit end there. It is recorded because it is true, not because it is
+open.
 
 ---
 
@@ -4523,8 +4561,74 @@ perimeter styles, unchanged face counts (2 shuttle, 1 reactor, 0 chamber cover).
 
 ### WHAT IS OPEN
 
-The console faces are with the human. If this is approved there is no visual
-reason left not to freeze Detention whole.
+Nothing. Handset play of `e43cc60` approved the console faces and froze
+Detention whole — `§10ab`.
+
+---
+
+## 10ab. THE FOUR-ARENA ENVIRONMENT PILOT — CLOSED 🔒
+
+`e43cc60` went to the phone and came back approved. **Detention is frozen, and
+with it the pilot.** All four arenas are now human-approved:
+
+| room | id | what it is | record |
+|---|---|---|---|
+| Vader Chamber | `boss` | formal containment / boss chamber | `§10n`, `§10p` |
+| Hangar | `hangar` | operational deployment deck | `§10q` |
+| Reactor Junction | `corridor` | infrastructure crossing | `§10w` |
+| Detention Block | `detention` | prisoner-transfer / containment block | `§10x`-`§10aa` |
+
+What Detention's freeze covers: topology, traversal and cover; normal-power
+composition; the cell / perimeter language; the processing gate; containment
+lighting; the haze; the floor reflections; the console emissive faces; the
+powered/unpowered console distinction; the LIGHTS OUT composition; and combat
+readability with the Vader hierarchy inside it.
+
+### THE DOCTRINE, WHICH IS THE ONLY PART THAT TRAVELS
+
+Four rooms were built from one vocabulary and no two share a composition. These
+are the rules that produced that, and they are what a fifth room would inherit
+— not any room's layout, palette or prop.
+
+- **Architecture and FUNCTION before decoration.** A room is a place that does
+  a job; the art says what the job is.
+- **Large forms before medium before small.** Every arena's floor is authored
+  in that order and the centre is left calm.
+- **Reuse SYSTEMS, never COMPOSITIONS.** `EnvLight`, `CONSOLE_KIT`,
+  `drawArchitecture`, the perimeter styles and the recessed floor primitives
+  are shared. A trench, a track and a conduit are three different claims, and
+  borrowing one room's arrangement is the single thing each pass was forbidden.
+- **If it looks solid, collision must agree.** Baked floor art may never draw a
+  tall mass on the open deck: the backdrop is one image and can never reach
+  `this.walls`, so it would promise cover the room does not have.
+- **If it looks POWERED, the powered element itself must emit.** A painted
+  display is a claim, and `roomLayer`'s tint multiplies it toward black.
+- **A DECLARED EMITTER IS NOT A VISIBLE EMITTER.** Twice now a source existed,
+  passed every check, and was drawn underneath the object it belonged to — the
+  junction reactor (`§10v`) and every console screen in the kit (`§10aa`). Ask
+  where the light LANDS, in pixels.
+- **SOURCE → CONTAMINATION → SURFACE.** The bright thing, the metal
+  immediately around it, then the spill or reflection further out — in that
+  order of brightness, always.
+- **Floor shine is RECEIVED light, not a glowing floor graphic.** A reflection
+  is flat, sparse, unequal and broken; a lit bar lying on the deck is a
+  painted mark, which is the failure this whole vocabulary was built to remove.
+- **An emergency state preserves DIFFERENT information; it does not dim the
+  normal art.** Two independent intensities per source, and at least one region
+  per room dead at normal power. Two textures, not one dimmer.
+- **Hostile red belongs to combat.** The saber, the SABER THROW lane and the
+  telegraphs. No red in any environment. Green is bullet colour and is spent as
+  carefully in a dark room.
+- **The environment stays subordinate to combat readability.** Environment
+  light lives below the whole actor band by a depth constant, not by taste.
+- **HUMAN HANDSET APPROVAL CLOSES THE EXPERIMENT.** No amount of passing checks
+  or good screenshots does. Four of the five things the human rejected across
+  this pilot had a full green suite behind them.
+
+### WHAT IS OPEN
+
+Nothing in the environment. The NavGrid large-actor clearance disagreement
+remains DEFERRED ENGINE DEBT and was deliberately not fixed — §0 records it.
 
 ---
 

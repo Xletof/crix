@@ -28,6 +28,18 @@ approval, and never let it trigger a retry loop.
 **Don't repeat work already done in the session.** Before exploring, check whether
 the finding is already established earlier in the conversation.
 
+**SINGLE AGENT. Do not spawn subagents** unless the human asks for one in the
+session. Every pass in this project has been one agent start to finish, and the
+cost of a cold subagent re-deriving this file is higher than the work it saves.
+
+**HUMAN HANDSET APPROVAL IS THE ONLY THING THAT CLOSES A VISUAL SYSTEM, AND IT
+FREEZES IT.** A green suite does not, and neither does a good screenshot — four
+of the five things the human rejected across the environment pilot had a fully
+passing suite behind them. Once a system is approved on the phone it is FROZEN:
+the notes about it in this file describe how it works and how it breaks, and
+none of them is an invitation to tune it. Nothing frozen reopens without NEW
+human play evidence.
+
 ## VADER IS FROZEN 🔒
 
 **Handset review closed him out on `83dee24`.** The ladder, hp, damage, the move
@@ -439,14 +451,17 @@ asserts separately that the ceiling is not reached.
   and `_wKickT`/`_wKickDur`/`_wKickMag`. Never reintroduce a hardcoded divisor; that
   bug made the super shrink the player instead of popping it.
 
-- **THE ARENA PILOT IS THE VADER CHAMBER, AND IT IS NOT FROZEN.** `HANDOVER.md`
-  §10n is the record. Three pieces: `drawArchitecture` (baked floor forms in
-  `pixelArt.js`), the `'chamber'` perimeter style, and `src/systems/EnvLight.js`.
-  It is a PILOT awaiting handset review — do not propagate it to the other three
-  arenas, and do not keep polishing it from screenshots. **To see it: DEBUG →
-  LOAD VADER CHAMBER → DEBUG → SPAWN VADER.** `SPAWN VADER` alone deliberately
-  does not change rooms, and a fresh endless run does not reach the chamber
-  until sector 5, so pressing it on its own shows Vader in the hangar.
+- **THE FOUR-ARENA ENVIRONMENT PILOT IS COMPLETE AND ALL FOUR ROOMS ARE
+  FROZEN 🔒.** Vader Chamber, Hangar, Reactor Junction and Detention Block each
+  closed on human handset play; `HANDOVER.md` §10ab is the closeout and carries
+  the doctrine that travels. The chamber was the pilot (§10n): three pieces —
+  `drawArchitecture` (baked floor forms in `pixelArt.js`), the `'chamber'`
+  perimeter style, and `src/systems/EnvLight.js`. **To see it: DEBUG → LOAD
+  VADER CHAMBER → DEBUG → SPAWN VADER.** `SPAWN VADER` alone deliberately does
+  not change rooms, and a fresh endless run does not reach the chamber until
+  sector 5, so pressing it on its own shows Vader in the hangar. A FIFTH room
+  inherits the RULES and none of the four compositions — that constraint is
+  what made these four different rooms instead of one room four times.
 - **ENVIRONMENT LIGHT LIVES OUTSIDE `roomLayer`, OR IT IS NOT LIGHT.** LIGHTS
   OUT multiplicatively tints that group; anything inside it gets multiplied
   toward black. That is why a screen baked into a console texture cannot stay
@@ -846,10 +861,14 @@ asserts separately that the ceiling is not reached.
   WALK, not a warren of cells, and the fiction follows the geometry: the frozen
   open middle is the escort floor you are meant to be visible while crossing.
   `HANDOVER.md` §10x. **To see it: DEBUG -> LOAD DETENTION BLOCK** — it is the
-  LAST room of the rotation and costs two full clears otherwise. Handset play
-  APPROVED its topology, traversal, cover, normal power and combat readability
-  and rejected only its dark state; `§10y` is the refinement that answers that,
-  and the room is back with the human for it. Nothing in it is frozen yet.
+  LAST room of the rotation and costs two full clears otherwise. **DETENTION IS
+  HUMAN-APPROVED AND FROZEN 🔒** — closed on `e43cc60` after four rounds of
+  handset play: topology, traversal, cover, normal power, the cell/perimeter
+  language, the processing gate, containment lighting, the haze, the floor
+  reflections, the console emissive faces, the powered/unpowered asymmetry, the
+  LIGHTS OUT composition and combat readability. `§10x`-`§10aa` are how it got
+  there and `§10ab` is the freeze; the rules below are how the room works, not
+  an invitation to tune it.
 - **THE `block` PERIMETER'S SIGNATURE IS THE BAR, AND ITS PERIOD IS 176.**
   Nothing else in CRIX draws slats across an opening — a chamber bay lands on
   the deck, a junction bay crosses above it, a cell front CLOSES one. The
