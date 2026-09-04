@@ -11,13 +11,14 @@ the code at that commit, not remembered.
 ## 0. WHERE THINGS STAND — read this first
 
 *Updated 2026-09-04. The last HUMAN-APPROVED runtime is `e43cc60`. HEAD is the
-camera Phase 1 work on the dev branch `claude/camera-framing-phase-1-jt7v53`,
-which is DEPLOYED but NOT approved. Pages builds only from `FRIX`, so the live
+camera work on the dev branch `claude/camera-framing-phase-1-jt7v53`: Phase 1
+is handset-APPROVED as a design (`f7f88bd`), Phase 2A on top of it is DEPLOYED
+but NOT approved. Pages builds only from `FRIX`, so the live
 build is whatever `FRIX` points at — check `git rev-parse HEAD origin/FRIX`
 rather than trusting a hash written here, and
 `git rev-parse --abbrev-ref HEAD` for the branch name.*
 
-### THE CAMERA IS IN PHASE 1 AND IT IS WAITING ON A HANDSET
+### THE CAMERA IS IN PHASE 2A AND IT IS WAITING ON A HANDSET
 
 The environment pilot closed and the next thing was NOT another room. The camera
 was: `startFollow(player, true, 0.22, 0.22)`, no deadzone, camera bounds set to
@@ -32,16 +33,30 @@ bounds decoupled from collision bounds with a SOUTH padding that is derived
 rather than chosen. After: the player rests at screen y 886-889 at the south
 wall in all four rooms. **`§12` is the full record — the diagnosis, every tuning
 value, the measured before/after, what the overscan costs, and the five traps.**
+It is unchanged by Phase 2A, which touched only X.
 
-**IT IS NOT APPROVED AND IT IS NOT FROZEN. The human decides the tuning.** Two
-things that already shipped are deliberately OFF so the handset can judge the
-foundation alone — `CAMERA.lookahead` (the aim/velocity lead, moved into the
-composition solver at weight 0) and `CAMERA.zoomBreathe` (the continuous
-speed-tied zoom). If the camera feels dead without the lead, that is a **Phase 2
-finding, not a Phase 1 regression.**
+**PHASE 1 CAME BACK APPROVED** — the gameplay-safe viewport, the south-edge fix,
+the overscan architecture, the above-centre anchor, all vertical framing, fixed
+zoom, the solver split and the spring. The one complaint was lateral: *"it lags
+behind too much for west/east. I can't see where I will be going or the enemies
+there."* Measured, Phase 1 left only 179-236px of the 720px viewport ahead of a
+travelling player.
 
-**DO NOT START PHASE 2** (movement + aim intent), Phase 3 (Vader interest
-weighting) or Phase 4 (impact impulses) until the handset verdict lands.
+**PHASE 2A ANSWERS THAT AND IS THE THING NOW AWAITING A HANDSET.** Tighter
+horizontal deadzone (120 -> 60), a stiffer X spring only (19.5 against Y's
+untouched 13.5), and MOVEMENT LOOKAHEAD as an input to the composition solver's
+focus. World visible ahead during travel roughly doubles: east 236 -> 425, west
+195 -> 414, south wall 179 -> 457. **`§13` is the full record** — every tuning
+value, the A/B table, why `leadX` is 220 when only ~115px of it lands on screen,
+why `leadY` is 0, the one known cost (repeated strafes move the camera 2.24x as
+far as the player) and five traps.
+
+**NOTHING IS FROZEN AND THE HUMAN DECIDES THE TUNING.** `CAMERA.zoomBreathe`
+stays 0 (fixed zoom) and `CAMERA.leadAim` is 0 — aim influence is Phase 2B and
+`smoke-camera` fails if it ships early.
+
+**DO NOT START PHASE 2B** (aim intent), Phase 3 (Vader interest weighting) or
+Phase 4 (impact impulses) until the handset verdict lands.
 
 ### THE FOUR-ARENA ENVIRONMENT PILOT IS COMPLETE. ALL FOUR ROOMS ARE FROZEN 🔒
 
@@ -4890,6 +4905,179 @@ was doing comparable work, so the net is approximately zero.
   lookahead, reversal tuning. Phase 3 is Vader interest weighting; Phase 4 is
   impact impulses and any discrete zoom. Vader, his moves, his AI, his
   telegraphs and all combat logic are untouched by this pass.
+
+---
+
+## 13. CAMERA PHASE 2A — movement lookahead, and the eager X axis
+
+**Landed on `claude/camera-framing-phase-1-jt7v53`. NOT human-approved.
+Handset review required. Phase 2B (aim intent) is explicitly still pending and
+must not be started.**
+
+### THE VERDICT THIS ANSWERS
+
+Handset play of `f7f88bd` approved Phase 1 and named one thing:
+
+> "It lags behind too much for lateral movement west/east. I can't see where I
+> will be going or the enemies there. I want it a bit more snappy because that
+> also gives motion and velocity feeling."
+
+Everything else in Phase 1 was approved and is closed for this pass: the
+gameplay-safe viewport, the south-edge fix, the overscan architecture, the
+south corners, the above-centre anchor, all vertical framing, fixed zoom, the
+solver split, the spring, and room compatibility. **§12 is still the record for
+all of it.**
+
+### THE COMPLAINT HAD A NUMBER BEHIND IT
+
+`tests/diag-camera-lateral.mjs` drove the real move stick and measured the one
+thing the complaint is about: how much of the 720px viewport lies AHEAD of the
+player during settled travel. Neutral, standing still, is 360.
+
+| station | Phase 1 | Phase 2A |
+|---|---|---|
+| sustained east | **236** | **425** |
+| sustained west | **195** | **414** |
+| diagonal NE | 220 | 401 |
+| diagonal SE | 188 | 416 |
+| diagonal NW | 184 | 415 |
+| east along the south wall | **179** | **457** |
+| worst during three committed dashes | 317 | 529 |
+
+Phase 1 put a travelling player at screen x 484-541 — pushed toward the edge
+they were travelling *toward*, with under a third of the frame in front of
+them. That is the complaint, exactly.
+
+### THREE CHANGES, ALL ON X
+
+| key | Phase 1 | Phase 2A | why |
+|---|---|---|---|
+| `dzX` | 120 | **60** | 120px is a third of the portrait width; a player crossing a room spent a long time inside a frame that had not begun to participate. Now tighter than either vertical half — portrait width is the scarce axis. |
+| `stiffnessX` | (shared 13.5) | **19.5** | Responsive X, composed Y. |
+| `stiffnessY` | 13.5 | **13.5** | The approved vertical feel. Untouched, and `smoke-camera` fails if it moves. |
+| `leadX` | — | **220** | Movement lookahead. |
+| `leadY` | — | **0** | Structural — see below. |
+| `leadAttackMs` | — | **130** | While input is being given. |
+| `leadReleaseMs` | — | **260** | When it stops. |
+| `leadDashMult` | — | **1.35** | A dash is committed travel. |
+| `leadAim` | — | **0** | PHASE 2B. |
+
+Everything else in `CAMERA` is Phase 1's, unchanged.
+
+### `leadX: 220` IS NOT WHAT LANDS ON SCREEN, AND THE FIRST BUILD GOT THAT WRONG
+
+This is the part worth keeping. The first Phase 2A build used `leadX: 130` and
+measured a player in sustained eastward travel at screen x 379 with 341px
+ahead — *no better than standing still*. During sustained travel the lead has to
+pay for two things before one pixel of it is visible:
+
+- **the deadzone.** Dragged from one side, the target rides its trailing edge,
+  so `dzX` is permanently spent in the direction of travel.
+- **the spring lag,** `v*(2/w + h)` — about 45px at a 380px/s walk on a 60fps
+  handset — which pushes the player the OTHER way.
+
+The visible shift is `leadX - dzX - lag`. 220 buys about 115px of it. And it
+costs nothing at rest: the lead is driven by movement intent, so a standing
+player has none and returns to Phase 1's neutral composition.
+
+### `leadY: 0` IS STRUCTURAL, NOT LAZY
+
+A NORTHWARD lead pushes the player DOWN the screen. At the southern wall the
+framing clamp is the only thing holding them clear of the touch controls, and
+45px of north lead there would put them at screen y 931 against a control edge
+at 926 — the exact Phase 1 win the brief forbade trading. Zero means the south
+guarantee is untouched BY CONSTRUCTION rather than defended by a margin, and
+`smoke-camera` re-runs the south acceptance case in all four arenas with the
+lead pinned hard east and hard west.
+
+### THE LEAD IS INTENT, NOT VELOCITY
+
+`Player.preUpdate` eases `body.velocity` toward `_moveTarget*` over an
+acceleration ramp, so velocity is a LAGGED copy of what the player asked for —
+leading off it would add the ramp's delay to the very lag this pass removes.
+`_moveTarget*` is the stick's own request and is current on the frame the thumb
+moves. Its magnitude carries the stick force, so a light touch gets a
+proportionally smaller lead for free.
+
+While dashing, the DASH's heading wins: a dash can be vault-locked up to 35
+degrees off the stick, and a dash that outlives its input keeps its lead open
+until it ends, which is what stops the camera snapping back on the frame the
+dash finishes.
+
+**One filter, two time constants, no reversal special case.** A hard reversal is
+simply a large error against the attack constant, so the lead crosses neutral
+and catches the new side on its own; only a stop switches to the slower release
+constant. Measured: a reversal crosses neutral in 250ms and reaches 80% of the
+new side in 350ms, symmetric in both directions.
+
+### THE KNOWN COST, AND IT IS FOR THE HANDSET TO RULE ON
+
+**Repeated short strafes move the camera 2.24x as far as the player moves.**
+Composition stays correct (the player sits at screen x 360, dead neutral, with
+360px ahead) and nothing oscillates — but during a strafe dance the world
+travels further than the body does, and that is the direct price of a tighter
+deadzone plus a lead. Sustained travel is 1.4-1.7x, which is what a lead
+opening once over a long leg looks like and is not the same phenomenon.
+`leadAttackMs` is the dial: raising it damps strafe slosh and costs reversal
+snappiness.
+
+### TRAPS THIS PASS LEFT BEHIND
+
+- **A LATERAL RIG THAT WALKS INTO A WALL MEASURES THE CLAMP.** A 3s eastward leg
+  from mid-room crosses 1140px and ends pressed against the wall, where the
+  camera has stopped and composition is decided by the framing clamp. Arcade
+  physics blocks the POSITION and leaves the VELOCITY, so those frames still
+  read as "moving" and were being averaged in — they reported sustained west at
+  screen x 366 (no lead at all) while the diagonals, which never reach a wall,
+  reported 304 on the same build. Exclude frames within half a viewport of the
+  bounds, and stage legs that fit.
+- **A PARTIALLY RESTORED SLOW-MOTION THROTTLES THE WHOLE GAME.** `juice.js`
+  writes `time.timeScale` and `physics.world.timeScale` (the arcade one DIVIDES)
+  and tweens them back to 1. A rig sampling while one is mid-restore measures a
+  throttled game. Kill the tweens, then set both to 1.
+- **THE ARENA WAVE SPAWNER IS WHY A LONG RIG DEGRADES.** With waves running the
+  page was down to ~12fps by the fourth station. `gs.arenaActive = false` in the
+  quiet helper, not just an enemy purge. This is the real fix for the "stations
+  late in a rig report nonsense" problem §12 worked around by reordering.
+- **A DASH IN A ROOM WITH COVER IS A VAULT DASH.** `tryDash` retargets onto a
+  cover spot within 300px and 35 degrees and shortens the dash to the travel
+  time, clamped to a 100ms FLOOR — which at the harness's ~100ms frames falls
+  cleanly between two samples. Three real dashes, zero frames caught, and a row
+  that read as "the dash never fired", for two builds. Park
+  `coverRegistry.spots` for a committed-dash measurement, and **print whether
+  each cast took**: a refused call reads exactly like a failed one.
+- **A DEADZONE MEANS THE PLAYER DOES NOT RETURN TO CENTRE.** When the lead
+  closes, the ideal scroll moves back by the full lead but the target only has
+  to be within `dzX` of it, so the player ends up to `dzX` off centre and the
+  camera does not spend a pull to fix it — measured at exactly 60px. A check
+  asserting a return to centre is asserting a camera that re-centres on its
+  own, which is the opposite of what was approved.
+
+### TESTS
+
+`smoke-camera` gained the Phase 2A claims: `stiffnessX > stiffnessY`,
+`stiffnessY` pinned at Phase 1's value, `dzX < dzDown`, `leadY === 0`,
+`leadAim === 0`, bounds on `leadX` and both time constants, a matched pair
+(the lead opens east AND west by a real amount, symmetrically, without shoving
+the player toward the far edge; and it decays back inside the deadzone when
+input stops), a bounded reversal time, and the south acceptance case re-run in
+all four arenas under maximum lateral lead. A/B'd against Phase 1's X values:
+every one of them fails on that build.
+
+`tests/diag-camera-lateral.mjs` is the instrument and prints the table above;
+it is written to be run on both builds by setting `leadX: 0`, `dzX: 120`,
+`stiffnessX: 13.5`.
+
+### WHAT IS OPEN
+
+- **The handset verdict on all of it.** Every number is a proposal.
+- **`leadX` (220) is the value most likely to need adjustment**, with
+  `leadAttackMs` (130) second if strafe slosh reads badly in the hand.
+- **Phase 2B is NOT started**: aim-direction influence, and the case where the
+  player's feet go one way while they fight another. Phase 3 is Vader interest
+  weighting; Phase 4 is impact impulses and any discrete zoom. Vader, his moves,
+  his AI, his telegraphs and all combat logic are untouched by this pass, as is
+  every one of the four frozen arenas.
 
 ---
 

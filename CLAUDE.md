@@ -130,11 +130,11 @@ asserts separately that the ceiling is not reached.
   BOUNDS** — the director frames past the room's edge, and that framing freedom
   is the only thing keeping a player at the southern wall out from under the
   touch controls. `physics.world.setBounds` is still exactly the room and must
-  stay that way. **Phase 1 is DEPLOYED AND NOT APPROVED** — `HANDOVER.md` §12 is
-  the record, §0 is the state, and every number in it is the human's to decide.
-  `CAMERA.lookahead` and `CAMERA.zoomBreathe` are deliberately 0 so the handset
-  can judge the foundation alone; if the camera feels dead without the lead that
-  is a PHASE 2 finding, not a Phase 1 regression. Do not start Phase 2.
+  stay that way. **PHASE 1 IS HANDSET-APPROVED AS A DESIGN and PHASE 2A ON TOP
+  OF IT IS NOT** — `HANDOVER.md` §12 and §13 are the records, §0 is the state,
+  and every number in either is the human's to decide. `CAMERA.zoomBreathe` and
+  `CAMERA.leadAim` are deliberately 0; aim influence is PHASE 2B and
+  `smoke-camera` fails if it ships early. Do not start Phase 2B.
 - **THE SOUTH FRAMING PADDING IS DERIVED AND THE ROOM HEIGHT CANCELS OUT.**
   `padSouth = viewH - PLAYER.radius - (safeBottom - southClearance)` = 372 on
   the default layout, and `safeBottom` is read from the LIVE control layout
@@ -142,6 +142,37 @@ asserts separately that the ceiling is not reached.
   upward needs more framing freedom, and that read is the only place that can
   know it. Do not replace it with a literal, and do not make it per-room: a room
   may override padding as DATA (`spec.camera`) and none of the four does.
+- **X AND Y ARE NOT THE SAME CAMERA, AND THE ASYMMETRY IS THE PHASE 2A RESULT.**
+  The handset approved Phase 1's vertical feel and rejected its lateral one, so
+  2A tightened `dzX` (120 -> 60, now tighter than either vertical half),
+  stiffened X alone (`stiffnessX` 19.5 against `stiffnessY` 13.5) and spent the
+  whole lookahead budget on X. **Never answer "lateral movement lags" by raising
+  both** — that is "make the camera faster" and costs the stability that was
+  approved. `smoke-camera` pins `stiffnessY` at 13.5 and requires
+  `stiffnessX > stiffnessY` and `dzX < dzDown`.
+- **THE MOVEMENT LEAD IS INTENT, NOT VELOCITY, AND `leadX` IS NOT WHAT LANDS ON
+  SCREEN.** `Player.preUpdate` eases velocity toward `_moveTarget*` over an
+  acceleration ramp, so leading off velocity adds that ramp's delay to the lag
+  the lead exists to remove; `_moveTarget*` is the stick's own request and is
+  current on the frame the thumb moves. And during sustained travel the lead
+  pays for the DEADZONE (the target rides its trailing edge, so `dzX` is
+  permanently spent in the direction of travel) and for the SPRING LAG
+  (`v*(2/w + h)`, which pushes the player the other way) before one pixel of it
+  is visible: the shift is `leadX - dzX - lag`. `leadX: 130` measured no better
+  than standing still. It is 220 and about 115px of it lands.
+- **`CAMERA.leadY` IS 0 BY CONSTRUCTION, NOT BY OVERSIGHT.** A northward lead
+  pushes the player DOWN the screen, and at the southern wall the framing clamp
+  is the only thing holding them clear of the touch controls — 45px of it lands
+  them at screen y 931 against a control edge at 926, which is the Phase 1 win
+  thrown away. Zero means the south guarantee cannot be eroded by a vertical
+  tuning value at all. `smoke-camera` re-runs the south acceptance case in all
+  four arenas with the lead pinned hard east and hard west.
+- **A DEADZONE MEANS THE PLAYER DOES NOT RETURN TO CENTRE.** When the lead
+  closes, the ideal scroll moves back by the full lead but the target only has
+  to be within `dzX` of it, so the player rests up to `dzX` off centre and the
+  camera does not spend a pull to fix it. A test asserting a return to centre is
+  asserting a camera that re-centres on its own, which is the opposite of what
+  was approved.
 - **THE DEADZONE'S VERTICAL SIGN INVERTS.** Screen y of the focus is
   `(focus - scroll) * zoom`, so a HIGHER scroll draws the focus HIGHER. The focus
   drifting DOWN — toward the controls — is the target falling BELOW ideal, so

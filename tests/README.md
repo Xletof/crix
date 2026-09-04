@@ -1199,6 +1199,51 @@ rig has to go through the game's own entry point — `?camdbg=1`. READING is saf
 both copies carry the same authored values, which is why `smoke-camera` can
 still compare config against the live camera.
 
+### Camera Phase 2A added a fifth rig, and four more ways they lied
+
+`diag-camera-lateral.mjs` measures the one thing the Phase 1 handset verdict was
+about: how much of the 720px viewport lies AHEAD of the player during settled
+travel. Run it on both builds — `leadX: 0`, `dzX: 120`, `stiffnessX: 13.5` is
+the Phase 1 camera exactly — because the number that matters is the difference.
+
+**A LATERAL RIG THAT WALKS INTO A WALL MEASURES THE CLAMP.** A 3s eastward leg
+from mid-room crosses 1140px and ends pressed against the wall, where the camera
+has stopped and composition is decided by the framing clamp rather than by the
+lead. Arcade physics blocks the POSITION and leaves the VELOCITY, so those
+frames still read as "moving" and were averaged in: sustained west reported
+screen x 366 — no lead at all — while the diagonals, which never reach a wall,
+reported 304 on the same build. Exclude frames within half a viewport of the
+bounds and stage legs that fit.
+
+**A PARTIALLY RESTORED SLOW-MOTION THROTTLES THE WHOLE GAME.** `juice.js` writes
+`time.timeScale` and `physics.world.timeScale` (the arcade one DIVIDES, so 2.84
+is a third speed) and tweens them back to 1. A rig that samples while one is
+mid-restore is measuring a throttled game. `killTweensOf` both, then set both to
+1 — or the tween writes it straight back.
+
+**THE ARENA WAVE SPAWNER IS WHY A LONG RIG DEGRADES.** With waves running the
+page was at ~12fps by the fourth station. `gs.arenaActive = false` in the quiet
+helper, not just an enemy purge. This is the actual fix for the "late stations
+report nonsense" problem the Phase 1 rigs worked around by reordering.
+
+**A DASH IN A ROOM WITH COVER IS A VAULT DASH.** `tryDash` retargets onto a
+cover spot within 300px and 35 degrees of the stick and shortens the dash to the
+travel time, clamped to a 100ms FLOOR — which at the harness's ~100ms frames
+falls cleanly between two samples. Three real dashes, zero frames caught, and a
+row that read as "the dash never fired", across two builds. Park
+`coverRegistry.spots` for a committed-dash measurement and put them back after —
+and PRINT WHETHER EACH CAST TOOK. A refused call reads exactly like a failed
+one, and so does one that succeeded differently from how you assumed.
+
+**AND ONE ASSERTION THAT WAS WRONG ABOUT A CAMERA THAT WAS RIGHT.**
+`smoke-camera` first asserted the player returns to screen centre after the lead
+releases. It does not, and should not: when the lead closes the ideal scroll
+moves back by the full lead but the target only has to be within `dzX` of it, so
+the player rests up to `dzX` off centre — measured at exactly 60px against a
+130px lead — and the camera does not spend a pull to fix it. Asserting a return
+to centre is asserting a camera that re-centres on its own, which is the
+opposite of the behaviour that was approved.
+
 ### Two existing tests that were asserting the old camera
 
 `smoke-arena`, `smoke-hangar` and `smoke-junction` each asserted that camera
