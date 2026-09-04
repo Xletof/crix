@@ -285,7 +285,7 @@ const R = await page.evaluate(async () => {
   const wallKids = gs.walls.getChildren().filter((w) => w.active);
   out.geom = {
     worldBounds: { w: gs.physics.world.bounds.width, h: gs.physics.world.bounds.height },
-    cameraBounds: { w: gs.cameras.main._bounds.width, h: gs.cameras.main._bounds.height },
+    cameraBounds: { x: gs.cameras.main._bounds.x, y: gs.cameras.main._bounds.y, w: gs.cameras.main._bounds.width, h: gs.cameras.main._bounds.height },
     wallBodies: wallKids.length,
     losRects: gs.losRects.length,
     navBlocked: gs.navGrid?.blockedCount?.() ?? null,
@@ -584,7 +584,18 @@ for (const k of Object.keys(FROZEN)) {
   if (!eq(R.spec[k], FROZEN[k])) fails.push(`JUNCTION GEOMETRY MOVED: spec.${k} = ${JSON.stringify(R.spec[k])}`);
 }
 if (R.geom.worldBounds.w !== 1400 || R.geom.worldBounds.h !== 1400) fails.push(`arena bounds are ${R.geom.worldBounds.w}x${R.geom.worldBounds.h}`);
-if (R.geom.cameraBounds.w !== 1400 || R.geom.cameraBounds.h !== 1400) fails.push('camera bounds no longer match the arena');
+// CAMERA BOUNDS ARE NOT COLLISION BOUNDS, and this check used to assert they
+// were the same rect. That was true until camera Phase 1 decoupled them on
+// purpose (HANDOVER §12): `CameraDirector` frames PAST the room's edge, which
+// is the only thing that can hold a player standing at the southern wall clear
+// of the touch controls. The arena's playable size is asserted from the
+// PHYSICS world bounds a few lines above and is the claim this ever meant; what
+// is left to protect here is that the room did not quietly acquire its own
+// framing override, which would make this arena's camera different from every
+// other room's. `smoke-camera` owns the padding values themselves.
+if (!(R.geom.cameraBounds.w > 1400 && R.geom.cameraBounds.h > 1400
+  && R.geom.cameraBounds.x < 0 && R.geom.cameraBounds.y < 0))
+  fails.push(`camera framing rect ${JSON.stringify(R.geom.cameraBounds)} does not overscan the room — the south safe area depends on it`);
 
 // 2 — nothing painted became collision. 5 cover + 3 solid props.
 if (R.geom.wallBodies !== 7) fails.push(`walls group holds ${R.geom.wallBodies} bodies, expected 7 (4 cover + 3 solid props)`);

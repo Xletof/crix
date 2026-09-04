@@ -88,6 +88,16 @@ if (cfg.cam.zoomBreathe !== 0) fails.push(`CAMERA.zoomBreathe is ${cfg.cam.zoomB
 if (cfg.cam.lookahead !== 0) fails.push(`CAMERA.lookahead is ${cfg.cam.lookahead} — Phase 1 follows the player and nothing else`);
 if (cfg.cam.debug) fails.push('CAMERA.debug shipped ON — the overlay is debug-only');
 
+// 3, first half — THE DEADZONE HAS TO BE BIG ENOUGH TO BE ONE. The drift check
+// below displaces the player by a FRACTION of the configured extents, so with
+// the extents at zero it displaces by zero and passes on a camera with no
+// deadzone at all: a check that passes on the bug. This is the floor that
+// stops that. It pins the CONCEPT, not the tuning — 40px is a fifth of the
+// smallest reasonable value and the human's numbers sit far above it.
+for (const k of ['dzX', 'dzUp', 'dzDown']) {
+  if (!(cfg.cam[k] >= 40)) fails.push(`CAMERA.${k} is ${cfg.cam[k]} — below 40px there is no deadzone, only a lerp`);
+}
+
 // ── Per-room walk of the four frozen arenas ────────────────────────────────
 const ROOMS = ['vader', 'hangar', 'corridor', 'detention'];
 

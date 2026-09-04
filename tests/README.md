@@ -1148,6 +1148,72 @@ query the way `pgrep -f` can) and kill by PID after reading the command line,
 never with a bare `pkill -f`. One `npm run dev` Vite server may legitimately
 survive; say so by name rather than leaving it in the list unexplained.
 
+## Camera rigs (added with camera Phase 1)
+
+Four files, and between them they are the whole camera instrument:
+
+- **`smoke-camera.mjs`** (in `run-all`) — the structural gate. Framing bounds vs
+  collision bounds in all four frozen arenas with the exact padding, the south
+  safe area at every southern station in all four rooms, the deadzone as a
+  MATCHED PAIR, fixed zoom, scroll validity inside the framing rect at all eight
+  edge and corner stations, no follow target, and camera state reset across
+  repeated room loads.
+- **`diag-camera-baseline.mjs`** — the station audit. Drives the REAL move stick
+  to each wall and corner of each arena and prints player position, scroll,
+  clamp, screen position and whether the controls cover the player. It is the
+  before/after table in `HANDOVER.md` §12; run it after any camera change.
+- **`diag-camera-motion.mjs`** — jitter, oscillation, lag, settle, room
+  transitions. Samples on `postupdate` inside the page.
+- **`shot-camera.mjs`** — what the framing overscan actually shows, plus the
+  debug overlay.
+
+### Five ways these lied before they told the truth
+
+**THE MEASURING BOT DIED HALFWAY AND EVERY LATER STATION READ OFF A DEAD
+SCENE.** `diag-camera-baseline`'s first run reported three rooms as
+`Cannot read properties of undefined (reading 'scrollX')`. `lives = 9999`, an
+absurd hp pool and an enemy purge at every station, exactly as
+`diag-encounter` does.
+
+**A LIVE CAMERA PUNCH IS A LIVE ZOOM WRITE.** Stations photographed mid-punch
+reported a resting zoom of 1.10 and a scroll clamp computed from it. Stop the
+tween and `setZoom(1)` before reading anything.
+
+**A DEADZONE CHECK THAT DISPLACES BY A FRACTION OF THE CONFIGURED EXTENTS
+PASSES ON A ZERO DEADZONE**, because it then displaces by zero. A/B'd: setting
+`dzX/dzUp/dzDown` to 0 produced no failure at all. `smoke-camera` carries a 40px
+floor on the extents next to the drift check for exactly that reason — a check
+that passes on the bug is decoration.
+
+**A RIG THAT RUNS TEN STATIONS IN ONE PAGE DEGRADES, AND SAYS NOTHING.** By its
+ninth station `diag-camera-motion` was recording 6 frames in 3 seconds against
+~50 earlier, and reported a 241px/s "dash" — a true number about a page running
+at 2fps. Anything that needs a real frame rate goes EARLY in the sequence, and
+the dash probe now prints how many frames it caught and how many of them were
+actually mid-dash.
+
+**A DYNAMIC `import('/src/config.js')` INSIDE `page.evaluate` IS NOT THE MODULE
+THE GAME IS HOLDING.** `CAMERA.debug = true` there mutates a second copy: the
+overlay never appears and nothing errors. Anything that MUTATES config from a
+rig has to go through the game's own entry point — `?camdbg=1`. READING is safe;
+both copies carry the same authored values, which is why `smoke-camera` can
+still compare config against the live camera.
+
+### Two existing tests that were asserting the old camera
+
+`smoke-arena`, `smoke-hangar` and `smoke-junction` each asserted that camera
+bounds equalled the room's size. That was a proxy for "the playable room did
+not change size" — which the PHYSICS world bounds a few lines above already
+say — and it became false the moment framing bounds were decoupled from
+collision bounds on purpose. They now assert the camera OVERSCANS the room and
+leave the padding values to `smoke-camera`.
+
+`smoke-debug` walks the debug card BY COORDINATE. Adding CAM DBG to the free
+half of the REFILL DASH row moved REFILL DASH off centre, and the unmirrored tap
+landed on empty card and read as `dash not refilled: 0` — the feature looking
+broken when only the map was stale. A button added or moved in `DebugScene` has
+to be mirrored there.
+
 ## A staged boss frame: two ways the cast never happened
 
 Both of these produced evidence filed under the name of a move that did not run,

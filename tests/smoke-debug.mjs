@@ -85,7 +85,13 @@ heading(); pos.god = [cx - half, y]; pos.heal = [cx + half, y]; y += row;
 heading(); pos.rifle = [cx - half, y]; pos.pod = [cx + half, y]; y += row;
 pos.ammo = [cx - half, y]; pos.podAmmo = [cx + half, y]; y += row;
 heading(); pos.superFill = [cx - half, y]; pos.meleeFill = [cx + half, y]; y += row;
-pos.dash = [cx, y]; y += row;
+// REFILL DASH moved off centre when CAM DBG took the free half of this row —
+// the debug card is 1168 tall and CLOSE already sits within a few px of its
+// border, so the camera toggle had nowhere else to go. This file walks the
+// panel BY COORDINATE, so a button that moves and is not mirrored here taps
+// empty card and reads as "the feature is broken": that is exactly how it
+// failed, as `dash not refilled: 0`.
+pos.dash = [cx - half, y]; pos.camDbg = [cx + half, y]; y += row;
 heading(); pos.type = [cx - half, y]; pos.spawn = [cx + half, y]; y += row;
 pos.clear = [cx - half, y]; pos.skip = [cx + half, y]; y += row;
 // BOSSES — the proving ground. Mirrored here because this file walks the panel

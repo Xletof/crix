@@ -26,6 +26,7 @@ const TESTS = [
   'smoke-arena',
   'smoke-boss',
   'smoke-boss-moves',
+  'smoke-camera',
   'smoke-boost',
   'smoke-cluster',
   'smoke-controls',

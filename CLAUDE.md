@@ -122,6 +122,37 @@ asserts separately that the ceiling is not reached.
 - **The game camera is inset below the HUD top bar** by `HUDCFG.topBarHeight` (84px)
   via `setViewport`. Any screen-space overlay maths must account for that offset —
   see `HUD._drawThreatChevrons`.
+- **NOTHING MAY CALL `startFollow`, `setFollowOffset` OR `cameras.main.setBounds`
+  ANY MORE.** `CameraDirector` (`src/systems/CameraDirector.js`) owns the scroll
+  and drives it from `POST_UPDATE`; a follow target reinstated anywhere is a
+  second author for the same two numbers, and `smoke-camera` fails on one. Every
+  tuning value is `CAMERA` in `config.js`. **CAMERA BOUNDS ARE NOT COLLISION
+  BOUNDS** — the director frames past the room's edge, and that framing freedom
+  is the only thing keeping a player at the southern wall out from under the
+  touch controls. `physics.world.setBounds` is still exactly the room and must
+  stay that way. **Phase 1 is DEPLOYED AND NOT APPROVED** — `HANDOVER.md` §12 is
+  the record, §0 is the state, and every number in it is the human's to decide.
+  `CAMERA.lookahead` and `CAMERA.zoomBreathe` are deliberately 0 so the handset
+  can judge the foundation alone; if the camera feels dead without the lead that
+  is a PHASE 2 finding, not a Phase 1 regression. Do not start Phase 2.
+- **THE SOUTH FRAMING PADDING IS DERIVED AND THE ROOM HEIGHT CANCELS OUT.**
+  `padSouth = viewH - PLAYER.radius - (safeBottom - southClearance)` = 372 on
+  the default layout, and `safeBottom` is read from the LIVE control layout
+  (`controlLayout.js`), never from `HUDCFG` — a player who drags their buttons
+  upward needs more framing freedom, and that read is the only place that can
+  know it. Do not replace it with a literal, and do not make it per-room: a room
+  may override padding as DATA (`spec.camera`) and none of the four does.
+- **THE DEADZONE'S VERTICAL SIGN INVERTS.** Screen y of the focus is
+  `(focus - scroll) * zoom`, so a HIGHER scroll draws the focus HIGHER. The focus
+  drifting DOWN — toward the controls — is the target falling BELOW ideal, so
+  `dzDown` is the allowance on the LOW side. It is written out in `_solveTarget`
+  because it reads like a typo either way round.
+- **A DYNAMIC `import('/src/config.js')` INSIDE `page.evaluate` IS NOT THE MODULE
+  THE GAME IS HOLDING.** Writing `CAMERA.debug = true` there mutates a second
+  copy and the overlay never appears, with no error anywhere. Anything that
+  MUTATES config from a rig goes through the game's own entry point (`?camdbg=1`,
+  or DEBUG -> CAM DBG). Reading is safe: both copies carry the same authored
+  values.
 - **Two depth conventions run at once.** Actors Y-sort (`setDepth(this.y)`), walls
   and cover sort at `y + 56` — a band spanning ~150-1656 in a 1600px arena.
   Everything else uses flat constants (bullets 26, grenade 22, particles 0), which

@@ -63,6 +63,17 @@ export class CameraDirector {
     this._loX = 0;
     this._loY = 0;
 
+    // Scratch. The whole per-frame path is ~30 arithmetic operations and it
+    // runs every frame forever, so it allocates NOTHING: the focus, the ideal
+    // scroll and the two spring results are written into these instead of
+    // returned as object literals. Four small objects a frame is not a frame
+    // budget problem on its own — it is a garbage-collection pause on a phone
+    // in a fight, which is the only kind of camera stutter that is invisible in
+    // a profile and obvious in the hand.
+    this._fx = 0; this._fy = 0;     // focus
+    this._ix = 0; this._iy = 0;     // ideal scroll for that focus
+    this._sx = 0; this._sv = 0;     // spring result
+
     this._dbg = null;
   }
 
@@ -127,8 +138,8 @@ export class CameraDirector {
   // this: springing in from the previous room's scroll is a camera flying
   // across a level the player has never seen.
   reset(x, y) {
-    const ideal = this._idealScroll(x ?? this.scene.player?.x ?? 0, y ?? this.scene.player?.y ?? 0);
-    this._tx = ideal.x; this._ty = ideal.y;
+    this._idealScroll(x ?? this.scene.player?.x ?? 0, y ?? this.scene.player?.y ?? 0);
+    this._tx = this._ix; this._ty = this._iy;
     this._clampTarget();
     this._vx = 0; this._vy = 0;
     this._loX = 0; this._loY = 0;
@@ -174,7 +185,7 @@ export class CameraDirector {
       fx += this._loX * CAMERA.lookahead;
       fy += this._loY * CAMERA.lookahead;
     }
-    return { x: fx, y: fy };
+    this._fx = fx; this._fy = fy;
   }
 
   // The scroll that would put `(fx, fy)` exactly on the resting anchor.
@@ -183,10 +194,8 @@ export class CameraDirector {
   // `_cameraPunch` briefly makes it not.
   _idealScroll(fx, fy) {
     const z = this.cam.zoom;
-    return {
-      x: fx - (CAMERA.anchorX * this.cam.width) / z,
-      y: fy - (CAMERA.anchorY * this.cam.height) / z,
-    };
+    this._ix = fx - (CAMERA.anchorX * this.cam.width) / z;
+    this._iy = fy - (CAMERA.anchorY * this.cam.height) / z;
   }
 
   _clampTarget() {
@@ -209,8 +218,8 @@ export class CameraDirector {
   // rubber band. Inside the zone the clamp is a no-op and the target does not
   // move by even a pixel, which is the claim this system is making.
   _solveTarget(delta) {
-    const f = this._solveFocus(delta);
-    const ideal = this._idealScroll(f.x, f.y);
+    this._solveFocus(delta);
+    this._idealScroll(this._fx, this._fy);
     const z = this.cam.zoom;
     // Deadzone half-extents are viewport pixels; scroll is world pixels.
     const dx = CAMERA.dzX / z, up = CAMERA.dzUp / z, down = CAMERA.dzDown / z;
@@ -220,8 +229,8 @@ export class CameraDirector {
     // draws the focus HIGHER on screen. The focus drifting DOWN — toward the
     // controls, the dangerous direction — is therefore the target falling
     // BELOW ideal, and `dzDown` is the allowance on the LOW side.
-    this._tx = Phaser.Math.Clamp(this._tx, ideal.x - dx, ideal.x + dx);
-    this._ty = Phaser.Math.Clamp(this._ty, ideal.y - down, ideal.y + up);
+    this._tx = Phaser.Math.Clamp(this._tx, this._ix - dx, this._ix + dx);
+    this._ty = Phaser.Math.Clamp(this._ty, this._iy - down, this._iy + up);
     this._clampTarget();
   }
 
@@ -235,15 +244,17 @@ export class CameraDirector {
   _spring(x, v, target, h, w) {
     const f = 1 + 2 * w * h + h * h * w * w;
     const nv = (v - h * w * w * (x - target)) / f;
-    return { x: x + h * nv, v: nv };
+    this._sv = nv;
+    this._sx = x + h * nv;
   }
 
   _solveMotion(delta) {
     const h = Math.min(delta, 100) / 1000;   // a stalled tab is not a camera move
     const w = CAMERA.stiffness;
-    const rx = this._spring(this.cam.scrollX, this._vx, this._tx, h, w);
-    const ry = this._spring(this.cam.scrollY, this._vy, this._ty, h, w);
-    let x = rx.x, y = ry.x;
+    this._spring(this.cam.scrollX, this._vx, this._tx, h, w);
+    let x = this._sx; const nvx = this._sv;
+    this._spring(this.cam.scrollY, this._vy, this._ty, h, w);
+    let y = this._sx; const nvy = this._sv;
 
     // MAXIMUM LAG IS BOUNDED. The spring's steady-state error under a constant
     // velocity V is 2V/w — 56px at a walk, 141px at a 950px/s dash. That is the
@@ -254,7 +265,7 @@ export class CameraDirector {
     x = Phaser.Math.Clamp(x, this._tx - lag, this._tx + lag);
     y = Phaser.Math.Clamp(y, this._ty - lag, this._ty + lag);
 
-    this._vx = rx.v; this._vy = ry.v;
+    this._vx = nvx; this._vy = nvy;
     // NaN is the one failure that persists: a single bad frame poisons scroll
     // forever, because next frame's spring reads it back. Refuse it here.
     if (Number.isFinite(x) && Number.isFinite(y)) this.cam.setScroll(x, y);

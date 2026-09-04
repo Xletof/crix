@@ -10,11 +10,38 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-09-04. The approved runtime is `e43cc60`, which is HEAD,
-`origin/FRIX` and the dev branch `claude/crix-frix-reactor-review-wdwelf`.
-Pages builds only from `FRIX`, so the live build IS this commit whenever the
-refs agree — check `git rev-parse HEAD origin/FRIX` rather than trusting a hash
-written here, and `git rev-parse --abbrev-ref HEAD` for the branch name.*
+*Updated 2026-09-04. The last HUMAN-APPROVED runtime is `e43cc60`. HEAD is the
+camera Phase 1 work on the dev branch `claude/camera-framing-phase-1-jt7v53`,
+which is DEPLOYED but NOT approved. Pages builds only from `FRIX`, so the live
+build is whatever `FRIX` points at — check `git rev-parse HEAD origin/FRIX`
+rather than trusting a hash written here, and
+`git rev-parse --abbrev-ref HEAD` for the branch name.*
+
+### THE CAMERA IS IN PHASE 1 AND IT IS WAITING ON A HANDSET
+
+The environment pilot closed and the next thing was NOT another room. The camera
+was: `startFollow(player, true, 0.22, 0.22)`, no deadzone, camera bounds set to
+the room's own collision bounds. At the south wall of all four arenas the player
+stood at SCREEN y 1253-1258 with the topmost touch control's edge at 926 —
+roughly 190px underneath their own thumb, in every room in the game, because the
+camera clamps ~200px before the player does.
+
+`src/systems/CameraDirector.js` replaces it: a UI-safe viewport, a resting
+anchor above centre, a soft deadzone, a critically damped spring, and framing
+bounds decoupled from collision bounds with a SOUTH padding that is derived
+rather than chosen. After: the player rests at screen y 886-889 at the south
+wall in all four rooms. **`§12` is the full record — the diagnosis, every tuning
+value, the measured before/after, what the overscan costs, and the five traps.**
+
+**IT IS NOT APPROVED AND IT IS NOT FROZEN. The human decides the tuning.** Two
+things that already shipped are deliberately OFF so the handset can judge the
+foundation alone — `CAMERA.lookahead` (the aim/velocity lead, moved into the
+composition solver at weight 0) and `CAMERA.zoomBreathe` (the continuous
+speed-tied zoom). If the camera feels dead without the lead, that is a **Phase 2
+finding, not a Phase 1 regression.**
+
+**DO NOT START PHASE 2** (movement + aim intent), Phase 3 (Vader interest
+weighting) or Phase 4 (impact impulses) until the handset verdict lands.
 
 ### THE FOUR-ARENA ENVIRONMENT PILOT IS COMPLETE. ALL FOUR ROOMS ARE FROZEN 🔒
 
@@ -86,8 +113,10 @@ detention), which costs two full clears to reach.
 
 ### The recommended next area of work
 
-The environment pilot is finished, so the next thing is **not** another room.
-Nothing is chosen; the honest options, in the order they look worth doing:
+**The camera is the work in flight — see above. Nothing else is chosen.** After
+the handset verdict closes Phase 1 the roadmap is Phases 2-4 of the camera; the
+options below are what was on the table when the environment pilot closed and
+are still the honest list for anything that is not the camera:
 
 1. **Content breadth** — the arena rotation is four rooms and `_arenaCycle`
    walks them in order. More rooms would now be an application of a proven
@@ -4629,6 +4658,238 @@ are the rules that produced that, and they are what a fifth room would inherit
 
 Nothing in the environment. The NavGrid large-actor clearance disagreement
 remains DEFERRED ENGINE DEBT and was deliberately not fixed — §0 records it.
+
+---
+
+## 12. CAMERA PHASE 1 — a camera that frames the game
+
+**Landed on `claude/camera-framing-phase-1-jt7v53`. NOT human-approved. Handset
+review required, and the human decides the tuning — nothing here is frozen.**
+
+### THE DIAGNOSIS, MEASURED
+
+The camera was one line:
+
+```js
+this.cameras.main.startFollow(this.player, true, 0.22, 0.22);
+```
+
+plus a `setFollowOffset` aim/velocity lookahead and a speed-tied zoom breathe.
+No deadzone, and camera bounds set to the room's own collision bounds on every
+`loadRoom`. `tests/diag-camera-baseline.mjs` drove the real move stick to every
+wall and corner of all four frozen arenas and read the live camera. What it
+found:
+
+| station | player SCREEN y | clamp |
+|---|---|---|
+| south wall, all four rooms | **1253 – 1258** | camera south-clamped ~200px early |
+| north wall | 104 – 106 | jammed under the HUD bar |
+| west / east wall | screen x 15–22 / 692–698 | pinned to the frame edge |
+
+The topmost touch control's edge is at screen y **926** and the move sticks'
+tops are at **1064**. So at the southern wall of every room in the game the
+player was roughly 190px below their own thumb. That is the blocker, and it is
+not a smoothing problem: the camera physically cannot go further south, so no
+amount of lerp tuning reaches it. The zoom also drifted 0.97–1.00 continuously
+and the follow offset reached ±80px — both live, both stacking on top.
+
+### THE SHAPE OF THE FIX
+
+`src/systems/CameraDirector.js`, driven from `POST_UPDATE` — the first moment in
+the frame where `player.x/y` are the positions physics just produced rather than
+last frame's. `startFollow` is gone; the director owns the scroll.
+
+Two solvers, and the split is the deliverable as much as the feel is:
+
+- **COMPOSITION** (`_solveTarget`) — where the camera WANTS to be. Phase 1:
+  `_solveFocus` returns the player, an above-centre resting anchor converts that
+  to an ideal scroll, a soft deadzone clamps the TARGET against it, and the
+  room's framing rect clamps that. Later phases enrich `_solveFocus` and touch
+  nothing else in the file.
+- **MOTION** (`_solveMotion`) — how it travels. A critically damped spring with
+  a hard lag ceiling, which knows nothing about what it is chasing.
+
+Three things carry it:
+
+**CAMERA BOUNDS ARE NOT COLLISION BOUNDS.** `physics.world.setBounds` is still
+exactly the room; `CameraDirector.setRoom` widens the CAMERA's rect. No room
+art, topology, wall or nav data moved — the four arenas are untouched.
+
+**THE DEADZONE IS WHERE THE STABILITY COMES FROM, NOT THE DAMPING.** Inside it
+the target does not move at all, so the world genuinely holds still while the
+player crosses the frame. A different constant lerp is the same glued follow
+with slower glue, which is the thing the brief asked to remove; the smoke test
+asserts ZERO scroll movement for an in-deadzone displacement, and asserts the
+opposite for a 400px one so it cannot pass on a camera that has stopped working.
+
+**THE SPRING IS INTEGRATED IMPLICITLY.** `v += (-2wv - w^2 x)dt` is
+conditionally stable and rings at large dt — and this harness runs at ~20fps, so
+an explicit integrator would oscillate on the machine that reviews the build and
+not on the phone. The implicit form cannot overshoot at any step size.
+
+### SOUTH PADDING IS DERIVED, AND THE ROOM HEIGHT CANCELS OUT OF IT
+
+This is the part worth keeping even if every number changes. Standing at the
+south wall the player is at world `h - PLAYER.radius`, and an unpadded camera
+can only scroll to `h - viewH`; so the player's viewport y there is
+`viewH - PLAYER.radius` **whatever the room is** — 1174 in a 1196-tall viewport,
+under everything. Wanting them at `safeBottom - southClearance` instead costs
+exactly the difference, and that difference contains no `h`. One global number,
+not per-room tuning:
+
+```
+padSouth = viewH - PLAYER.radius - (safeBottom - southClearance)
+         = 1196 - 22 - (842 - 40) = 372
+```
+
+`safeBottom` is read from the **live control layout**, not from `HUDCFG`,
+because the player can move and resize every widget at Pause → CONTROLS — a
+layout with the buttons dragged upward is a layout that needs more framing
+freedom, and `CameraDirector.safeBottom()` is the one place that can know it.
+Clamped to `[padSouthMin, padSouthMax]` so a widget parked near the HUD bar
+cannot demand half a screen of overscan.
+
+A room may override any padding as DATA (`spec.camera`), per the brief. None of
+the four does, and `smoke-camera` fails loudly if one starts to rather than
+silently stopping asserting.
+
+### THE EXACT TUNING (all of it in `CAMERA`, `src/config.js`)
+
+| key | value | what it is |
+|---|---|---|
+| `anchorX` / `anchorY` | 0.50 / **0.44** | resting focus position as a fraction of the 720x1196 viewport → screen y ~610, with ~316px of useful world still below the player |
+| `dzX` | 120 | horizontal deadzone half-width |
+| `dzUp` / `dzDown` | 100 / **80** | vertical deadzone, asymmetric: DOWN is the dangerous direction |
+| `stiffness` | 13.5 rad/s | critically damped natural frequency; ~95% settle in 0.35s |
+| `maxLag` | 190px | hard ceiling on \|scroll − target\| |
+| `padNorth` | 100 | |
+| `padSide` | 120 | east and west |
+| `southClearance` | 40 | px the player keeps above the topmost control at the south wall |
+| `padSouthMin/Max` | 140 / 400 | clamp on the derived south padding |
+| `lookahead` | **0** | Phase 2 input, present and off |
+| `zoomBreathe` | **0** | Phase 1 is fixed zoom |
+
+### MEASURED AFTER
+
+Same rig, same stations (`diag-camera-baseline`):
+
+| station | before | after |
+|---|---|---|
+| south wall (all four rooms) | screen y 1253–1258 | **886 – 889** (control edge 926) |
+| north wall | 104–106 | **206** |
+| west / east wall | x 15–22 / 692–698 | **142 / 580** |
+| resting zoom | 0.97–1.00, drifting | **1.000** |
+| follow offset | up to ±80 | **0** |
+
+`diag-camera-motion` drove ten motion cases with the real stick, sampled on
+`postupdate`:
+
+- **in-deadzone hold: 0.0px of scroll movement over 38 frames.** The world does
+  not move because the player moved five pixels.
+- no oscillation on any straight leg (0 direction flips while the player has not
+  turned); the rapid L-R reversal shows 1–3, all of them the spring's momentum
+  carrying through the player's own turn, which is the mass this pass is FOR.
+- peak \|scroll − target\|: 60px walking, 22.7px through three dashes — far under
+  the 190 ceiling. At 60fps the analytic steady-state lag is `v(2/w + h)`: ~60px
+  at a walk, ~157px at a 950px/s dash, which is why the ceiling is 190.
+- every room load arrives composed, spring velocity exactly 0, no NaN, and the
+  same room loaded twice composes to the same scroll to the pixel.
+
+### THE ONE HONEST COST: WHAT THE OVERSCAN SHOWS
+
+Nothing is painted beyond the backdrop, so the framing padding shows the scene's
+own background (`#0a0c14`), immediately outside a perimeter wall band 80–116px
+thick. `tests/shot-camera.mjs` photographs it in all four rooms.
+
+South is nearly free: the padding puts the void at screen y ~910 and below,
+which is the control band, so the wall terminates the room right where the
+thumbs begin. **The sides are the visible cost** — a 120px black strip down one
+edge whenever the player is against a side wall, and nothing covers it. It reads
+as the room ending, which it does, but it is the one number a handset might want
+smaller. It is `CAMERA.padSide` and nothing else depends on it.
+
+### WHAT WAS DELIBERATELY TURNED OFF, AND HOW TO PUT IT BACK
+
+Two behaviours that already shipped are off in Phase 1. Both are one config
+number, and both are off for the same reason: the brief's question is *does the
+camera frame well following ONLY the player*, and a handset verdict cannot
+separate a lookahead — or a zoom that changes the world size of the deadzone —
+from a framing failure when they land in the same build.
+
+- **`CAMERA.lookahead: 0`** — the aim + velocity lead is not deleted. It moved
+  out of `GameScene.update`'s `setFollowOffset` write and into
+  `CameraDirector._solveFocus` as a weighted input. Phase 2 raises the weight.
+- **`CAMERA.zoomBreathe: 0`** — the continuous 1.00 → 0.96 speed-tied zoom.
+  `_cameraPunch` is UNTOUCHED: it is impact feedback, transient, and returns to
+  exactly 1.
+
+If the handset says the camera feels dead without the lead, that is a Phase 2
+finding, not a Phase 1 regression — say so and raise the number.
+
+### THE TUNING OVERLAY
+
+`?camdbg=1`, or DEBUG → **CAM DBG: ON** (it sits in the free half of the REFILL
+DASH row; the card is 1168 tall and CLOSE already sits within a few px of its
+border, so there was no room for a new one). It draws the gameplay-safe
+rectangle, the deadzone around the anchor, the anchor cross, the camera centre
+and the desired target — the gap between the last two IS the lag.
+
+### TESTS
+
+- `tests/smoke-camera.mjs` (in `run-all`) — framing-vs-collision bounds and the
+  exact padding in all four rooms, the south safe area at every southern station
+  in all four rooms, the deadzone as a matched pair, fixed zoom, scroll validity
+  inside the framing rect at all eight edge/corner stations, no follow target,
+  and camera state reset across repeated room loads.
+- `tests/diag-camera-baseline.mjs` — the station audit. Run it on any camera
+  change; it is the before/after table above.
+- `tests/diag-camera-motion.mjs` — jitter, oscillation, lag, settle and the
+  transitions.
+- `tests/shot-camera.mjs` — what the overscan shows, plus the debug overlay.
+
+### TRAPS THIS PASS LEFT BEHIND
+
+- **A DYNAMIC `import('/src/config.js')` INSIDE `page.evaluate` IS NOT THE
+  MODULE THE GAME IS HOLDING.** Writing `CAMERA.debug = true` there mutates a
+  second copy and the overlay never appears, with no error anywhere. Anything
+  that MUTATES config from a rig has to go through the game's own entry point
+  (`?camdbg=1`). READING is safe — both copies carry the same authored values.
+- **THE DEADZONE'S VERTICAL SIGN INVERTS.** Screen y of the focus is
+  `(focus - scroll) * zoom`, so a HIGHER scroll draws the focus HIGHER. The focus
+  drifting DOWN is the target falling BELOW ideal, so `dzDown` is the allowance
+  on the LOW side. Written out in `_solveTarget` for exactly this reason.
+- **A DEADZONE CHECK THAT DISPLACES BY A FRACTION OF THE CONFIGURED EXTENTS
+  PASSES ON A ZERO DEADZONE**, because it then displaces by zero. `smoke-camera`
+  carries a 40px floor on the extents alongside it; A/B'd, and the drift check
+  alone passed on the bug.
+- **A MEASURING RIG THAT RUNS TEN STATIONS IN ONE PAGE DEGRADES.** By the ninth
+  station `diag-camera-motion` was recording 6 frames in 3 seconds against ~50
+  earlier, and reported a 241px/s "dash". Stations that need a real frame rate go
+  EARLY, and the dash probe prints how many frames it actually caught.
+- **`git checkout src/config.js` TO UNDO AN A/B THROWS AWAY UNCOMMITTED WORK.**
+  It cost the whole `CAMERA` block once here. Commit before A/B'ing a config
+  value, then revert with `git checkout`.
+
+### PERFORMANCE
+
+One `POST_UPDATE` callback: ~30 arithmetic operations, two `Phaser.Math.Clamp`
+calls per axis, one `setScroll`. **Zero allocations per frame** — the focus, the
+ideal scroll and both spring results are written into scratch fields on the
+director rather than returned as object literals, because four small objects a
+frame is not a frame-budget problem, it is a GC pause on a phone in a fight. No
+render textures, no shaders, no new display objects (the debug graphics exists
+only while `CAMERA.debug` is on). It replaced Phaser's own follow maths, which
+was doing comparable work, so the net is approximately zero.
+
+### WHAT IS OPEN
+
+- **The handset verdict on all of it.** Every number in the table is a proposal.
+- `CAMERA.padSide` (120) is the one value with a visible cost — see the overscan
+  section.
+- **Phase 2 is NOT started** and must not be: movement lookahead, stronger aim
+  lookahead, reversal tuning. Phase 3 is Vader interest weighting; Phase 4 is
+  impact impulses and any discrete zoom. Vader, his moves, his AI, his
+  telegraphs and all combat logic are untouched by this pass.
 
 ---
 
