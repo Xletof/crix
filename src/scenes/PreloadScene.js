@@ -24,6 +24,7 @@ import {
   paintCatwalkStrut,
   paintSecurityPost,
   paintCellLock,
+  paintDetentionConsoleFace,
   paintTransferBench,
   paintBunk,
   paintMeditationPod,
@@ -139,6 +140,18 @@ export class PreloadScene extends Phaser.Scene {
     // handed out only to a room that names it — the same opt-in that keeps the
     // console kit from leaking into the arenas it was never authored for.
     paintCellLock(this, 'dt-con-lock');
+    // THE POWERED CONSOLE FACES. Painted on the console's own 28x28 canvas at
+    // the same scale, so registration with the object is structural — the same
+    // contract the hero machine's and the reactor's faces are built on. Named
+    // `dt-` and referenced only by the detention spec's cover list: a face on a
+    // cover console is opt-in per PLACEMENT, so the two shared archetypes here
+    // (`ch-con-ped-a`, `ch-con-heavy`) stand unchanged in the three approved
+    // arenas. The `-emer` pair is dead at normal power.
+    paintDetentionConsoleFace(this, 'dt-face-ped-a', 'ped-a');
+    paintDetentionConsoleFace(this, 'dt-face-lock', 'lock');
+    paintDetentionConsoleFace(this, 'dt-face-lock-emer', 'lock-emer');
+    paintDetentionConsoleFace(this, 'dt-face-heavy', 'heavy');
+    paintDetentionConsoleFace(this, 'dt-face-heavy-emer', 'heavy-emer');
     paintTransferBench(this, 'dt-bench', 'a');
     paintTransferBench(this, 'dt-bench-b', 'b');
     paintBunk(this, 'prop-bunk');

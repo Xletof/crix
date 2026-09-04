@@ -201,6 +201,10 @@ const R = await page.evaluate(async () => {
     others[id] = {
       parts: gs.envLight.parts.length,
       faces: gs.envLight.parts.filter((p) => p._face).length,
+      // THE OVERLAY IS DETENTION'S. Two of the three consoles wearing one are
+      // SHARED archetypes standing in the approved arenas; the face is opted
+      // into per PLACEMENT, so no other room may be carrying a `dt-face-`.
+      faceTex: gs.envLight.parts.filter((p) => p._face).map((p) => p.texture.key),
       bodies: gs.walls.getChildren().length,
       style: ROOMS.find((r) => r.id === id).perimeter?.style,
     };
@@ -231,6 +235,35 @@ const R = await page.evaluate(async () => {
     kitPowered: coverBodies.filter((c) => !!CONSOLE_KIT[c.tex]).length,
     parts: gs.envLight.parts.length,
     faces: gs.envLight.parts.filter((p) => p._face).length,
+    // ── THE POWERED CONSOLE FACES, MEASURED ON THE LIVE OBJECTS.
+    //    A face is the one thing in the emissive layer allowed above depth 3,
+    //    and the entire argument for that exemption is CONTAINMENT: its
+    //    rectangle is its host's rectangle, so every pixel it can reach is a
+    //    pixel the host already covers opaquely. Asserted, not assumed.
+    faceDetail: gs.envLight.parts.filter((p) => p._face).map((p) => {
+      const b = p.getBounds();
+      const host = gs.roomLayer.getChildren()
+        .filter((o) => o.texture && o.getBounds)
+        .map((o) => ({ o, hb: o.getBounds() }))
+        .find(({ hb }) => Math.abs(hb.centerX - b.centerX) < 2
+                       && Math.abs(hb.centerY - b.centerY) < 2
+                       && hb.width >= b.width - 1 && hb.height >= b.height - 1);
+      return {
+        tex: p.texture.key,
+        hostTex: host ? host.o.texture.key : null,
+        // Exactly its host's depth plus one: high enough to be seen on the
+        // object, low enough that an actor standing in front of the console
+        // still draws over it.
+        onHost: host ? p.depth === host.o.depth + 1 : false,
+        additive: p.blendMode === Phaser.BlendModes.ADD,
+        normal: p._normal, emergency: p._emergency,
+      };
+    }),
+    // From the SPEC, so the powered/unpowered asymmetry is checked where it is
+    // authored rather than inferred from what happened to be built.
+    coverFaces: (spec.cover || []).map((c) => ({
+      tex: c.tex, powered: !!CONSOLE_KIT[c.tex], faces: (c.faces || []).length,
+    })),
     envDepth: ENV_LIGHT_DEPTH,
     minPartDepth: Math.min(...gs.envLight.parts.map((p) => p.depth)),
     inRoomLayer: gs.envLight.parts.filter((p) => gs.roomLayer.contains(p)).length,
@@ -363,8 +396,31 @@ ok('every light part sits at or below the environment depth',
 ok('the player draws above every light', R.playerDepth > R.envDepth + 1, String(R.playerDepth));
 ok('no light is inside roomLayer — a light the blackout can tint is not a light',
   R.inRoomLayer === 0, String(R.inRoomLayer));
-ok('this room carries NO prop face — nothing here paints a claim it cannot back',
-  R.faces === 0, String(R.faces));
+// ── THE SOURCE IS BRIGHTER THAN THE EVIDENCE OF THE SOURCE.
+//
+// This check used to read `R.faces === 0`, on the argument that detention's
+// dark identity is its architecture and no prop qualified for the exemption.
+// Handset play found the hole the same way it found the junction's: a console
+// PAINTS a lit display, so it CLAIMS to be an emitter, and every source the
+// kit declares for it is built at depth 3 UNDERNEATH a 112px opaque sprite
+// that sorts at `y + 56`. Only the ring of spill clearing the sprite's edge
+// was ever on screen — a light installed behind the console, which is exactly
+// what came back from the phone. The rule that admits a face is unchanged and
+// it is the junction's second one: IF IT LOOKS LIKE AN EMITTER, IT MUST EMIT.
+ok('the three powered consoles contain their own light',
+  R.faces === 5 && R.faceDetail.every((f) => f.additive),
+  JSON.stringify(R.faceDetail.map((f) => f.tex)));
+ok('every face is registered on a console and contained by it',
+  R.faceDetail.length > 0 && R.faceDetail.every((f) => f.hostTex && f.onHost),
+  JSON.stringify(R.faceDetail.map((f) => [f.tex, f.hostTex, f.onHost])));
+ok('THE UNPOWERED COVER STAYS DEAD — a face only lands on a console with a kit',
+  R.coverFaces.filter((c) => c.faces > 0).length === 3
+  && R.coverFaces.every((c) => c.powered || c.faces === 0),
+  JSON.stringify(R.coverFaces.map((c) => [c.tex, c.powered, c.faces])));
+ok('LIGHTS OUT is what the faces are for — restrained at normal, loud in the dark',
+  R.faceDetail.every((f) => f.emergency > f.normal && f.normal <= 0.2)
+  && R.faceDetail.filter((f) => f.normal === 0).length === 2,
+  JSON.stringify(R.faceDetail.map((f) => [f.normal, f.emergency])));
 
 console.log('\n── NO LEAKS ──────────────────────────────────────────────────');
 ok('repeated loads do not duplicate lights',
@@ -374,6 +430,9 @@ ok('the power state restores exactly after a full cycle',
   && JSON.stringify(R.power.before) !== JSON.stringify(R.power.dark));
 
 console.log('\n── THE THREE APPROVED ARENAS ARE UNTOUCHED ───────────────────');
+ok('NOT PROPAGATED — no other arena wears a detention console face',
+  ['hangar', 'corridor', 'vader'].every((k) => !R.others[k].faceTex.some((t) => /^dt-face-/.test(t))),
+  JSON.stringify(Object.fromEntries(Object.entries(R.others).map(([k, v]) => [k, v.faceTex]))));
 ok('the Vader chamber still runs `chamber` and its light is unchanged',
   R.others.vader.style === 'chamber' && R.others.vader.parts === 66, JSON.stringify(R.others.vader));
 ok('the hangar still runs `hangar`, with its two shuttle faces',

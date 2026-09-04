@@ -629,12 +629,12 @@ if (R.leak.partsAfter !== R.leak.partsBefore) fails.push(`emissive parts drifted
 if (R.leak.glowTexAfter !== R.leak.glowTexBefore) fails.push('the shared glow textures were re-created on a room load');
 if (R.leak.orphanAdditive !== R.leak.partsAfter) fails.push(`${R.leak.orphanAdditive} additive environment objects are drawing but the layer owns ${R.leak.partsAfter}`);
 if (R.leak.wallBodiesAfter !== 7) fails.push(`after five room loads the walls group holds ${R.leak.wallBodiesAfter} bodies`);
-// Detention authors 69 parts of its own now — 44 in the fourth-arena pass, 16
-// in the emergency-light refinement and 9 floor reflections (§10y/§10z). What
-// this leak check is for is that loading it and coming back does not leave the
-// junction's lights burning over it or vice versa — a COUNT that is stable and
-// correct, not a count of zero.
-if (R.leak.detentionParts !== 69) fails.push(`detention built ${R.leak.detentionParts} emissive parts, expected its own 69`);
+// Detention authors 74 parts of its own now — 44 in the fourth-arena pass, 16
+// in the emergency-light refinement, 9 floor reflections and 5 powered console
+// faces (§10y/§10z/§10aa). What this leak check is for is that loading it and
+// coming back does not leave the junction's lights burning over it or vice
+// versa — a COUNT that is stable and correct, not a count of zero.
+if (R.leak.detentionParts !== 74) fails.push(`detention built ${R.leak.detentionParts} emissive parts, expected its own 74`);
 if (R.leak.hangarParts < 20 || R.leak.chamberParts < 20) fails.push('an approved arena came back from a junction round trip with an empty light layer');
 
 // 6 — MOST OF THIS ROOM'S COVER GOES OUT. Three of five now rather than five

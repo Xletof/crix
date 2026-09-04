@@ -888,6 +888,27 @@ asserts separately that the ceiling is not reached.
   DERIVED: x [720, 880] is the junction's 160px lane. `HANDOVER.md` §10y, and
   `smoke-detention` measures the emergency light budget inside the centre
   station's own view — 0.003 on the rejected build, 0.084 now.
+- **A CONSOLE'S LIGHT WAS DRAWN UNDERNEATH THE CONSOLE, AND THAT IS THE
+  GENERAL SHAPE OF THE BUG.** `EnvLight` draws every source at
+  `ENV_LIGHT_DEPTH` (3) because that is the readability gate; a cover console
+  sorts at `y + 56` under a 112px OPAQUE sprite. So a `screen`'s crisp emitter
+  bar and the inner half of its wash are drawn under the object they belong to
+  and only the ring of spill that clears the sprite's edge is ever on screen —
+  which photographs as *a dark box with an LED strip installed behind it*, the
+  handset's own words for a construction that was exactly that. **IF A THING
+  VISUALLY CLAIMS TO CONTAIN A POWERED DISPLAY, THE DISPLAY ITSELF MUST EMIT
+  BEFORE ITS HAZE OR ITS FLOOR SPILL CAN BE BELIEVABLE — the source has to be
+  brighter than the evidence of the source.** The fix is the `face` kind, on
+  the junction reactor's admitting rule (IF IT LOOKS LIKE AN EMITTER, IT MUST
+  EMIT): an ADD texture painted on the object's OWN canvas so registration is
+  structural, at its depth + 1, containing only the pixels the art already
+  paints as powered — the chassis, bezel, keys and base are painted by neither
+  pass and stay dark, which is what keeps a display embedded instead of pasted
+  on. Declared per PLACEMENT (`cover[].faces`), never per archetype: two of
+  detention's three are shared consoles standing in three approved arenas. And
+  no test caught it for the kit's whole life, because every check asked whether
+  a source EXISTED — **ask where its light LANDS, in pixels.** `HANDOVER.md`
+  §10aa.
 - **A HAZE AND A REFLECTION ARE DIFFERENT SHAPES, AND `EnvLight`'s KINDS COULD
   ONLY MAKE ONE OF THEM.** A `strip`'s spill is `len + reach` by
   `t + reach * 2.6` — its softness inflates BOTH axes, so a wide soft catch is

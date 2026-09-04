@@ -1107,12 +1107,44 @@ export const ROOMS = [
     cover: snapAll([
       { x: 400,  y: 300,  tex: 'dt-bench' },
       { x: 800,  y: 300,  tex: 'dt-bench-b' },
-      { x: 1200, y: 300,  tex: 'ch-con-ped-a' },   // the north bank's terminal
+      // ── AND WHAT THE THREE POWERED ONES NOW CONTAIN.
+      //
+      //   THE SOURCE MUST BE BRIGHTER THAN THE EVIDENCE OF THE SOURCE. Every
+      //   `CONSOLE_KIT` source is built at `ENV_LIGHT_DEPTH` (3) and a console
+      //   sorts at `y + 56` under a 112px opaque sprite, so a screen's emitter
+      //   and the inner half of its wash were drawn UNDERNEATH the console and
+      //   only its outer spill was ever on screen. In a lit room nobody
+      //   notices; in this one the handset read it exactly as it was built —
+      //   *dark console, LED strip behind it, haze around it*. The face is the
+      //   display itself, on the console's own canvas, at its depth + 1.
+      //
+      //   OPT-IN PER PLACEMENT, NOT PER ARCHETYPE. Two of these three are the
+      //   shared kit (`ch-con-ped-a`, `ch-con-heavy`) and they stand in three
+      //   approved arenas untouched: nothing about the archetype changed, this
+      //   room's three placements simply declare a face.
+      //
+      //   RESTRAINED AT NORMAL, LOUD UNDER EMERGENCY. Normal Detention is
+      //   approved and stays approved — 0.16 is a display that looks powered
+      //   rather than a room full of monitors. The `-emer` faces are DEAD at
+      //   normal power and carry the two regions the kit already declares as
+      //   emergency-only, so the second state is a composition and not a
+      //   brightness. Five of eight cover objects still declare nothing at all
+      //   and still go out.
+      { x: 1200, y: 300,  tex: 'ch-con-ped-a',     // the north bank's terminal
+        faces: [{ tex: 'dt-face-ped-a', normal: 0.16, emergency: 0.90 }] },
       { x: 400,  y: 1100, tex: 'dt-bench-b' },
       { x: 800,  y: 1100, tex: 'dt-bench' },
       { x: 1200, y: 1100, tex: 'dt-bench-b' },
-      { x: 600,  y: 700,  tex: 'dt-con-lock' },    // the checkpoint, west side
-      { x: 1000, y: 700,  tex: 'ch-con-heavy' },   // the checkpoint, east side
+      { x: 600,  y: 700,  tex: 'dt-con-lock',      // the checkpoint, west side
+        faces: [
+          { tex: 'dt-face-lock',      normal: 0.16, emergency: 0.84 },
+          { tex: 'dt-face-lock-emer', normal: 0,    emergency: 0.88 },
+        ] },
+      { x: 1000, y: 700,  tex: 'ch-con-heavy',     // the checkpoint, east side
+        faces: [
+          { tex: 'dt-face-heavy',      normal: 0.16, emergency: 0.92 },
+          { tex: 'dt-face-heavy-emer', normal: 0,    emergency: 0.90 },
+        ] },
     ]),
     // ══ THE ROOM'S AUTHORED LIGHT ═══════════════════════════════════════
     //
@@ -1292,8 +1324,16 @@ export const ROOMS = [
       //    of the walk, which is the junction's derived lane width (Ø112 plus
       //    NavGrid's 23px clearance a side) and therefore the narrowest gap
       //    this game ever calls open floor.
-      { kind: 'strip', dir: 'h', emitter: false, x: 620, y: 774, len: 140, t: 13, reach: 52, color: 0x25506e, normal: 0.08, emergency: 0.38 },
-      { kind: 'strip', dir: 'h', emitter: false, x: 966, y: 640, len: 112, t: 10, reach: 44, color: 0x25506e, normal: 0.06, emergency: 0.28 },
+      //
+      //    TRIMMED 0.38 -> 0.30 AND 0.28 -> 0.22 WHEN THE CONSOLES THEMSELVES
+      //    STARTED EMITTING. These two are the CONSEQUENCE of the checkpoint's
+      //    light, and for one build they were the only part of it on screen —
+      //    the source was drawn underneath its own sprite. With the face there
+      //    the same checkpoint would have been carrying both at full weight,
+      //    which is a brighter room rather than a redistributed one. The haze
+      //    stays; it is simply no longer the loudest thing about a console.
+      { kind: 'strip', dir: 'h', emitter: false, x: 620, y: 774, len: 140, t: 13, reach: 52, color: 0x25506e, normal: 0.08, emergency: 0.30 },
+      { kind: 'strip', dir: 'h', emitter: false, x: 966, y: 640, len: 112, t: 10, reach: 44, color: 0x25506e, normal: 0.06, emergency: 0.22 },
 
       // ── THE PROCESSING CHECKPOINT'S THRESHOLD. The strongest catch in the
       //    room, and it is the landmark's, because the landmark is what the

@@ -5249,6 +5249,158 @@ export function paintCellLock(scene, key = 'dt-con-lock') {
   c.finish();
 }
 
+// ── THE POWERED CONSOLE FACES — DETENTION ONLY ────────────────────────────
+//
+// THE LIGHT SOURCE MUST BE BRIGHTER THAN THE EVIDENCE OF THE LIGHT, and until
+// this existed detention's consoles had it exactly backwards. Every source in
+// `CONSOLE_KIT` is built by `EnvLight` at `ENV_LIGHT_DEPTH` (3); a cover
+// console Y-sorts at `y + 56` under a 112px opaque sprite. So a screen's crisp
+// emitter bar AND the inner half of its wash are drawn UNDERNEATH the object
+// they belong to, and the only part that ever reaches the screen is the outer
+// ring of spill that clears the sprite's edge. Handset verdict, in the human's
+// own words: *dark console, LED strip installed behind it, haze around it* —
+// which is precisely what that arrangement can produce and nothing else.
+//
+// It is the same failure the reactor's amber slats had, in a smaller costume,
+// and it takes the same answer: an ADD face painted in the object's OWN
+// canvas — 28x28 at scale 4, the console's exact canvas, so registration is
+// structural rather than arithmetic — and registered on top of it at the
+// console's depth + 1. The `face` kind's depth escape is bounded by the same
+// argument it always was: the face rectangle IS the console rectangle, so
+// every pixel it can reach is a pixel the console already covers opaquely.
+//
+// WHAT IS PAINTED, AND WHAT DELIBERATELY IS NOT. Only the pixels whose ART
+// CLAIMS TO BE POWERED: the data rows inside a recessed display, the lock
+// board's indicator wells, a status ribbon. The bezel, the cast shadow inside
+// the top lip, the key block, the shoulders, the base and the chassis are
+// painted by NEITHER pass and stay as dark as the room — which is what makes
+// the display read as light coming out of a machine rather than as a lit
+// rectangle pasted onto one. Same doctrine as the reactor's grille.
+//
+// FOUR VALUES DEEP, and the order is the physical chain:
+//   DISPLAY      the data rows themselves. Brightest, and small.
+//   RECESS       a tight wash inside the glass, so the display has a depth.
+//   NEAR METAL   a wider, much fainter wash on the housing immediately around
+//                the recess. This is the one that makes it look embedded.
+//   HAZE / FLOOR neither is here at all — they are the room's own authored
+//                sources, and they were already the only thing on screen.
+//
+// TWO THINGS THIS ROOM WITHHOLDS ON PURPOSE. The pedestal's veridian nominal
+// lamp and the heavy console's are painted hardware here and NOT lit: green is
+// bullet colour, and a scatter of small green points on a dark transfer floor
+// is incoming fire that is not there. The single-pixel fault lamps stay
+// painted for the same reason red always does.
+//
+// SPLIT BY POWER STATE, exactly as the hero machine's pair is. The `-emer`
+// faces are DEAD at normal power and carry the two regions `CONSOLE_KIT`
+// already declares as emergency-only — the heavy console's secondary display
+// and the lock column's status ribbon. One texture with a dimmer would make
+// the second state a brightness; two make it a composition.
+function conFace(scene, key, paint) {
+  const c = new PixelCanvas(scene, key, 28, 28, 4);
+  const S = c.scale, ctx = c.ctx;
+  ctx.clearRect(0, 0, 28 * S, 28 * S);
+  // A soft wash, elliptical along the emitter's own aspect. A display does not
+  // make a circular pool — the same reason `EnvLight` has a separable box
+  // texture and not a radial one for its screens.
+  const wash = (x, y, w, h, col, peak) => {
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.save();
+    ctx.globalAlpha = peak;
+    ctx.translate(x * S, y * S);
+    ctx.scale(w * S, h * S);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  };
+  const dot = (x, y, r, col, peak) => wash(x, y, r, r, col, peak);
+  const bar = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x * S, y * S, w * S, h * S); };
+  paint({ ctx, S, wash, dot, bar });
+  c.finish();
+}
+
+// COLDER THAN THE CHAMBER'S. `PAL.chCyanHot` is the console kit's display
+// white and it is the right colour in a machine room; a containment level is
+// security electronics and its screens are a desaturated cold blue. The amber
+// is the kit's own — restrained, and only where the painter already put one.
+const DT_LINE  = '#a8d4ee';                  // a lit data row
+const DT_WARM  = '#f0bd7a';                  // the one warm row a display has
+const DT_LAMP  = 'rgba(160,205,238,0.85)';   // a containment indicator
+const DT_GLASS = 'rgba(128,188,230,0.90)';   // inside the recess
+const DT_METAL = 'rgba(100,155,200,0.75)';   // the housing around it
+const DT_EMER  = 'rgba(255,180,90,0.78)';    // an emergency readout's own wash
+
+/**
+ * One powered console's emissive face, in the console's own logical pixels.
+ * Every coordinate below is READ OFF the painter above it, not re-invented —
+ * a hand-measured copy is one edit away from lighting the bezel instead of
+ * the glass, which is the reactor's own lesson about the grille.
+ *
+ * @param variant 'ped-a' | 'lock' | 'lock-emer' | 'heavy' | 'heavy-emer'
+ */
+export function paintDetentionConsoleFace(scene, key, variant = 'ped-a') {
+  conFace(scene, key, ({ wash, dot, bar }) => {
+    if (variant === 'ped-a') {
+      // `paintConsolePedestal` variant 'a': conScreen(6, 8, 16, 7) with
+      // conLines(7, 8, [[1,12],[2,7],[3,10,warm],[4,5]]) — rows at y 9..12,
+      // four unequal lengths with the glass dark between and around them.
+      wash(14, 12.5, 13, 8.5, DT_METAL, 0.19);
+      wash(13.5, 11.5, 8.5, 4.6, DT_GLASS, 0.40);
+      bar(7, 9, 12, 1, DT_LINE);
+      bar(7, 10, 7, 1, DT_LINE);
+      bar(7, 11, 10, 1, DT_WARM);
+      bar(7, 12, 5, 1, DT_LINE);
+      // The panel insert's amber status pixel at (22, 18). One pixel, and it
+      // gets a dot rather than a bar so it reads as a lamp and not a segment.
+      dot(22.5, 18.5, 2.4, 'rgba(255,190,110,0.85)', 0.40);
+      bar(22, 18, 1, 1, '#ffcf8a');
+    } else if (variant === 'lock') {
+      // `paintCellLock`: five indicator wells at x 7, 10, 13, 16, 19, y 9,
+      // two logical pixels square, in a sink at (6, 8, 16, 7).
+      //
+      // UNEQUAL, AND THAT IS THE ROOM'S OWN LANGUAGE. Five identical lamps in
+      // an even row is a row of lamps — the same failure the block's wall
+      // occupancy exists to avoid, at console scale. These are DOORS: three
+      // holding hard, one dim, one nearly out.
+      wash(14, 10.5, 11.5, 5.6, DT_METAL, 0.17);
+      [1.0, 0.72, 0.16, 1.0, 0.44].forEach((k, i) => {
+        const x = 7 + i * 3;
+        dot(x + 1, 10, 3.6, DT_LAMP, 0.30 * k);
+        bar(x, 9, 2, 2, `rgba(207,228,244,${(0.30 + 0.70 * k).toFixed(2)})`);
+      });
+    } else if (variant === 'lock-emer') {
+      // The status ribbon — glass at (6, 18, 10, 2), a cyan summary row over
+      // an amber one. `CONSOLE_KIT` already declares it dead at normal power:
+      // when the block loses its bus, the board starts reporting.
+      wash(10.5, 19, 8, 3.2, DT_EMER, 0.32);
+      bar(6, 18, 8, 1, DT_LINE);
+      bar(6, 19, 5, 1, '#ffcf8a');
+    } else if (variant === 'heavy') {
+      // `paintConsoleHeavy`: conScreen(8, 9, 12, 6) with
+      // conLines(9, 9, [[1,9],[2,5],[3,8,warm],[4,3]]) — rows at y 10..13.
+      // The shoulders either side are dark plate and stay dark.
+      wash(14, 13, 12.5, 9, DT_METAL, 0.19);
+      wash(13.5, 12, 7.5, 4.2, DT_GLASS, 0.42);
+      bar(9, 10, 9, 1, DT_LINE);
+      bar(9, 11, 5, 1, DT_LINE);
+      bar(9, 12, 8, 1, DT_WARM);
+      bar(9, 13, 3, 1, DT_LINE);
+    } else {
+      // heavy-emer — the secondary display at (8, 17, 7, 3) and the segmented
+      // readout beneath the keys. The kit's one dead-at-normal screen.
+      wash(11, 19, 6.5, 3.4, DT_EMER, 0.34);
+      bar(9, 18, 5, 1, DT_LINE);
+      bar(9, 19, 3, 1, '#ffcf8a');
+      // `for k < 5: px(9 + k*2, 21)` — three amber segments then two sink.
+      // Only the three that are painted amber are lit.
+      for (let k = 0; k < 3; k++) bar(9 + k * 2, 21, 1, 1, '#e9b473');
+      wash(11, 21.5, 4.5, 1.8, DT_EMER, 0.20);
+    }
+  });
+}
+
 // ── TRANSFER BENCH — the unpowered mass ───────────────────────────────────
 // What a transfer floor is actually furnished with: a bolted-down bench with a
 // restraint rail down its length and a stanchion at each end. Low, heavy, and

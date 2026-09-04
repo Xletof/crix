@@ -513,6 +513,17 @@ export class GameScene extends Phaser.Scene {
     // AI can still close to within firing distance of the cover spot.
     this.bushSystem.clear();
     this.coverRegistry = new CoverRegistry(spec.cover);
+    // A POWERED CONSOLE MAY CARRY ITS OWN FACE, and until it could, the light
+    // it declared in `CONSOLE_KIT` was drawn UNDERNEATH it: every kit source
+    // is built at `ENV_LIGHT_DEPTH` (3) and a console sorts at `y + 56` under
+    // a 112px opaque sprite, so a screen's emitter and the inner half of its
+    // wash never reached the screen at all — only the ring of spill that
+    // cleared the sprite's edge did, which photographs as a light installed
+    // BEHIND the console. Same failure the reactor's slats had, same answer:
+    // an ADD texture painted in the object's own space, registered on it, at
+    // its depth + 1. Opt-in per PLACEMENT rather than per archetype, so a
+    // shared console standing in an approved arena is untouched.
+    const coverFaces = [];
     for (const cp of spec.cover) {
       // WHICH CONSOLE. Opt-in by name, exactly like `emissives`: a spec that
       // says nothing gets `bush`, the art every room has always had. The
@@ -543,6 +554,18 @@ export class GameScene extends Phaser.Scene {
       con._loClass = (cp.tex && !CONSOLE_KIT[cp.tex]) ? 'prop' : 'console';
       this.roomLayer.add(con);
       this.bushSystem.add(con, 55);
+      // Position and depth are read off the LIVE sprite for the same reason
+      // the props' faces are: a hand-written constant here is a face half a
+      // console away from the console it belongs to. Cover is drawn at origin
+      // (0.5, 0.5), so the face is too.
+      for (const f of cp.faces || []) {
+        coverFaces.push({
+          kind: 'face', tex: f.tex,
+          x: con.x, y: con.y, originX: 0.5, originY: 0.5,
+          depth: con.depth + 1,
+          normal: f.normal ?? 0, emergency: f.emergency ?? 0,
+        });
+      }
     }
 
     // Room props — large single objects (shuttle, gantry, drums).
@@ -636,6 +659,7 @@ export class GameScene extends Phaser.Scene {
     this.envLight = new EnvLight(this, !authored ? [] : [
       ...spec.emissives,
       ...propFaces,
+      ...coverFaces,
       ...propLights,
       // A cover console is a powered terminal. WHERE its light is, and how
       // much of it comes up on emergency power, is declared once per archetype

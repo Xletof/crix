@@ -33,7 +33,7 @@ Do not reopen any part of the junction without NEW human play evidence.
 | Vader Chamber (`boss`) | PASS | — | PASS | **FROZEN.** `§10n`, `§10p` |
 | Hangar (`hangar`) | PASS | — | PASS | **FROZEN.** `§10q` |
 | Reactor Junction (`corridor`) | PASS | PASS | PASS | **FROZEN.** `§10w` |
-| Detention (`detention`) | PASS | PASS | see `§10z` | **floor treatment with the human** |
+| Detention (`detention`) | PASS | PASS | see `§10aa` | **console faces with the human** |
 
 Vader himself is frozen — see `CLAUDE.md`. So is DEFLECTION, so is LIGHTS OUT
 globally.
@@ -49,8 +49,12 @@ Combat remains very readable, but the environment loses too much identity.*
 `§10y` is the bounded emergency-light refinement that answered it. Handset play
 of `a88ee50` then approved everything in that pass and rejected one last thing
 — *the hazes are cool, but the floor still feels dead* — which `§10z` answers
-with nine flat surface reflections and no extra brightness. `§10x` is the
-original pass. The room is with the human for the floor.
+with nine flat surface reflections and no extra brightness. Handset play of
+`77975da` approved the floor and found the last one: *the consoles read like a
+dark box with a light installed behind it*, which was true — every
+`CONSOLE_KIT` source is drawn at depth 3 UNDERNEATH a sprite that sorts at
+`y + 56`. `§10aa` is the powered console face that answers it. `§10x` is the
+original pass. The room is with the human for the consoles.
 
 `§10x` is the Detention pass: the last unstyled arena, and the test of whether
 CRIX has an environmental LANGUAGE rather than three one-off rooms. Its
@@ -63,10 +67,10 @@ art pass is how the junction's ring survived three sessions.
 THIRD room of an endless run (`_arenaCycle` starts at 1: hangar -> junction ->
 detention), which costs two full clears to reach.
 
-What the human is testing THIS round: dead-centre darkness, floor shine in
-motion, the processing gate, containment identity, dense combat, and a late
-Vader / SABER THROW / Afterimages. Only after that do we decide whether the
-four-arena language is mature enough to freeze.
+What the human is testing THIS round: the powered console face, the haze
+around it, the floor reflection under it, the dark centre, and the combat
+hierarchy. Only after that do we decide whether the four-arena language is
+mature enough to freeze.
 
 ### Two suite failures that are NOT regressions
 
@@ -4406,8 +4410,121 @@ sector tint, for the same reason.
 
 ### WHAT IS OPEN
 
-The floor is with the human. If this is approved, Detention's dark state is
-finished and the room can be frozen whole.
+Nothing here. Handset play of `77975da` approved the floor treatment and found
+one more thing — see `§10aa`.
+
+---
+
+## 10aa. THE CONSOLE — the light was behind it, and why no test could see that
+
+`77975da` went to the phone. The floor treatment was approved and told to stay,
+along with everything else in `§10y` and `§10z`. One thing came back:
+
+> The powered consoles currently read like: dark console + LED strip / blue
+> light installed behind it + haze around it. The actual screen / illuminated
+> controls on the console face are comparatively dark. This is backwards
+> physically.
+
+### THE DIAGNOSIS IS A DEPTH CONSTANT, AND THE ROOM WAS BUILT EXACTLY AS
+### DESCRIBED
+
+`EnvLight` draws every source at `ENV_LIGHT_DEPTH` — **3** — which is the
+project's readability gate: below the whole actor band, so environment light
+can never draw over a bullet, a telegraph or the saber. A cover console sorts
+at **`y + 56`** under a 112x112 opaque sprite.
+
+So for a console screen declared in `CONSOLE_KIT`:
+
+| part | where it is | what happens to it |
+|---|---|---|
+| the `TEX_FLAT` emitter bar | inside the sprite's rectangle | **never drawn** |
+| the inner half of its box wash | inside the sprite's rectangle | **never drawn** |
+| the outer ring of wash | clears the 112px sprite | the only thing on screen |
+
+Which is a light installed BEHIND the console and a haze around it — the
+handset's words, describing the construction precisely. It had been that way
+since the kit was authored. **No check could see it**, because every check
+asked whether a source EXISTED, and the sources all existed. It is the
+junction reactor's failure (`§10v`) in a second costume: *ask where the light
+actually LANDS, in pixels.*
+
+In a lit room it does not matter — the painted display carries the console. In
+a room whose whole dark identity is three islands of remaining power, the
+consequence was the only thing left.
+
+### THE ANSWER IS THE REACTOR'S, NOT THE REACTOR'S LOOK
+
+`face` already exists for exactly this and its admitting rule is the junction's
+second one: **IF IT LOOKS LIKE AN EMITTER, IT MUST EMIT.** A console PAINTS a
+lit display; that is a claim, and `roomLayer`'s tint was multiplying it toward
+black with the chassis.
+
+Five ADD textures, painted on the console's own 28x28 canvas at the same scale
+so registration is structural rather than arithmetic, registered on the live
+sprite at **its depth + 1**. The depth escape is bounded by the same argument
+it always was: a face's rectangle IS its host's rectangle, so every pixel it
+can reach is a pixel the host already covers opaquely — `smoke-detention` now
+measures that containment on the live objects rather than trusting it.
+
+**OPT-IN PER PLACEMENT, NOT PER ARCHETYPE.** Two of detention's three powered
+consoles are the SHARED kit (`ch-con-ped-a`, `ch-con-heavy`) and they stand in
+the three approved arenas. Nothing about the archetype changed and no shared
+texture was touched: `cover[].faces` is a per-placement declaration, plumbed in
+`loadRoom` exactly as `props[].faces` already was, and a room that says nothing
+gets nothing. `smoke-detention` fails if any other arena is wearing a
+`dt-face-`.
+
+### WHAT IS PAINTED, AND WHAT DELIBERATELY IS NOT
+
+Only pixels whose ART CLAIMS TO BE POWERED — the data rows inside a recessed
+display, the lock board's indicator wells, a status ribbon. The bezel, the cast
+shadow inside the top lip, the key block, the shoulders and the base are
+painted by neither pass and stay as dark as the room. That is the reactor's
+grille doctrine: the structure has to remain visible OVER the light, or the
+display is a lit rectangle pasted onto a machine.
+
+Four values deep, in the physical order: **display → recess wash → near-metal
+contamination → nothing.** The haze and the floor reflection are the room's own
+authored sources and were already the only thing on screen.
+
+Two withholdings on purpose. The pedestal's and the heavy console's **veridian
+nominal lamps are painted hardware and are NOT lit** — green is bullet colour,
+and small green points on a dark transfer floor are incoming fire that is not
+there. The single-pixel fault lamps stay painted for the reason red always
+does.
+
+**TWO TEXTURES, NOT ONE DIMMER**, on the two consoles that have a second
+composition. `dt-face-lock-emer` and `dt-face-heavy-emer` are DEAD at normal
+power and carry the two regions `CONSOLE_KIT` already declares as
+emergency-only — the heavy console's secondary display and the lock column's
+status ribbon. The hero machine's contract, reused; the same reason it exists
+there.
+
+### THE HAZE WAS TRIMMED, NOT REMOVED
+
+The two authored checkpoint contamination catches came down `0.38 → 0.30` and
+`0.28 → 0.22`. They are the CONSEQUENCE of the checkpoint's light and for one
+build they were the entire visible half of it; with the face there, carrying
+both at full weight is a brighter room rather than a redistributed one. Nothing
+else moved. Measured: the centre station's emergency light budget is 0.081
+against 0.084 before, and 0.003 on the build the handset first rejected.
+
+### COST
+
+| | before | after |
+|---|---|---|
+| detention EnvLight parts | 69 | 74 |
+| detention display list | 120 | 125 |
+| textures added | — | 5 (112x112, ~50KB each) |
+| per-frame work | none | **none** — a face is one more alpha write in `setPower` |
+
+The three approved arenas are byte-identical: 66 / 60 / 58 parts, unchanged
+perimeter styles, unchanged face counts (2 shuttle, 1 reactor, 0 chamber cover).
+
+### WHAT IS OPEN
+
+The console faces are with the human. If this is approved there is no visual
+reason left not to freeze Detention whole.
 
 ---
 

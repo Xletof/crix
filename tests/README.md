@@ -1337,3 +1337,22 @@ frame says so. The rig now:
     next session can SEE the pair is matched rather than assume it.
 
 `shot-detention.mjs` still uses the live follow and has the same weakness.
+
+## `shot-detention-face.mjs` — the two frames that are taken at zoom 2
+
+The evidence rig for Detention's powered console faces (13 matched frames into
+`docs/evidence/arena-pilot/detention-cf-{before,after}/`). Built on
+`shot-detention-lo.mjs`'s placed camera and inherits all of it.
+
+**IT ADDS TWO THINGS AND THEY ARE BOTH ABOUT LOOKING AT ONE OBJECT.** `aim()`
+moves the camera off the player by hand — a console is a solid body, so the
+only way to put one in the middle of the frame is to stand beside it and then
+point the camera at it. `look(z)` sets `cameras.main.setZoom(z)`; `midPoint` is
+`scroll + size / 2` whatever the zoom is, so the two compose and the placement
+maths does not change.
+
+**ZOOM IS A DIAGNOSTIC, NOT A COMPOSITION.** A 112px console at gameplay
+distance is 112 screen pixels, and the difference between a lit display and a
+lit haze cannot be judged there — the three `dark-near-*` frames and one normal
+control exist for that and nothing else. Every other frame is reset to zoom 1,
+because a picture of the room taken at 2x is a picture of a different room.
