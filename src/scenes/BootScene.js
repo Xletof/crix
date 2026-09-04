@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import {
   setDialogueMuted, setDuelRequest, parseDuelParams, setHitstopMuted, setMoveNamesMuted,
 } from '../systems/debug.js';
+import { CAMERA } from '../config.js';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -23,6 +24,11 @@ export class BootScene extends Phaser.Scene {
     if (params.has('nonames')) setMoveNamesMuted(true);
     // `?duel=` drops straight into a nemesis fight — see systems/debug.js for
     // the grammar. Parsed here so the request survives the Preload/Title hop.
+    // `?camdbg=1` raises the camera director's tuning overlay — the safe area,
+    // the deadzone, the anchor and the gap between the camera's target and
+    // where it actually is. Debug only; there is also a DEBUG card toggle.
+    if (params.has('camdbg')) CAMERA.debug = true;
+
     setDuelRequest(parseDuelParams(params));
 
     this.scene.start('Preload');

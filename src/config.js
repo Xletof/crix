@@ -872,6 +872,97 @@ export const HEALTH_ORB = {
   lifeMs: 8000,
 };
 
+// ── CAMERA ─────────────────────────────────────────────────────────────────
+//
+// PHASE 1 OF THE CAMERA WORK. The old camera was `startFollow(player, 0.22)`
+// and nothing else, which is a TRACKER: every pixel the player moved moved the
+// world, and at the south wall the camera clamped while the player kept
+// walking — straight down into the touch controls. Measured in the detention
+// block, the player at the south wall stood at SCREEN y 1258 with the move
+// stick's top edge at 1064: nearly 200px underneath the thumb holding it.
+//
+// The replacement is `CameraDirector` (src/systems/CameraDirector.js), split
+// into a COMPOSITION solver (where should the camera want to be?) and a MOTION
+// solver (how does it travel there?). Every number the two read is here.
+//
+// THE VERTICAL ANCHOR IS ABOVE CENTRE ON PURPOSE. The game camera is inset by
+// `HUDCFG.topBarHeight`, so its viewport is 720x1196 inside a 1280-tall screen,
+// and the bottom of that screen belongs to the sticks and the button cluster.
+// Resting the player at 44% of the viewport puts them at screen y ~610 with
+// ~316px of USEFUL world still visible below them before the topmost control.
+export const CAMERA = {
+  // Resting screen position of the focus, as a fraction of the camera viewport.
+  anchorX: 0.50,
+  anchorY: 0.44,
+
+  // SOFT DEADZONE, in viewport pixels from the anchor. Inside it the player
+  // moves within the frame and the camera does not move at all — that is where
+  // the stability comes from; the damping only decides how the camera travels
+  // once composition genuinely has to change.
+  //
+  // Wider horizontally than vertically because the portrait view is 720 wide
+  // and 1196 tall: a step sideways costs a larger share of the visible world
+  // than a step up or down, so the frame can afford to hold still for longer.
+  // Asymmetric vertically because DOWN is the dangerous direction: the camera
+  // starts restoring composition sooner when the player heads for the controls.
+  dzX: 120,
+  dzUp: 100,
+  dzDown: 80,
+
+  // MOTION. `stiffness` is the natural frequency (rad/s) of a critically
+  // damped spring, integrated implicitly so it cannot oscillate or overshoot
+  // at any frame rate — which matters here, because the headless harness runs
+  // at ~20fps and an explicit integrator at that step is a spring that rings.
+  // 13.5 settles ~95% in 0.35s and trails a walking player (380px/s) by about
+  // v*(2/w + h) = 60px at 60fps, which is the weight.
+  stiffness: 13.5,
+  // Hard ceiling on how far the camera may ever be from its target, so a dash
+  // (950px/s) cannot open an unbounded gap. Nothing else bounds the lag.
+  maxLag: 190,
+
+  // ── FRAMING PADDING (overscan) ──────────────────────────────────────────
+  // CAMERA BOUNDS ARE NOT COLLISION BOUNDS. The room is unchanged; the camera
+  // is simply allowed to frame past its edge so a player standing against a
+  // wall is not pinned to the edge of the screen. What shows out there is the
+  // scene's own background (#0a0c14), immediately outside a perimeter wall
+  // band that is 80-116px thick — the room ending, which it does.
+  padNorth: 100,
+  padSide: 120,
+  // SOUTH IS DERIVED, NOT CHOSEN. It is whatever it takes to hold the player
+  // `southClearance` px above the topmost touch control while they stand at
+  // the south wall, read from the LIVE control layout (a player who moves
+  // their buttons gets the padding their layout needs). The room height
+  // cancels out of that derivation, so it is one global number, not per-room.
+  // On the default layout it lands at 372.
+  southClearance: 40,
+  padSouthMin: 140,
+  padSouthMax: 400,
+
+  // ── PHASE 2+ INPUTS, PRESENT AND OFF ────────────────────────────────────
+  // The aim + velocity lead that used to run as a `setFollowOffset` write is
+  // now an input to the composition solver, at weight 0. Phase 1 has to answer
+  // "does the camera feel good following ONLY the player" — with lookahead
+  // stacked on top, no handset verdict can tell the two apart. Phase 2 raises
+  // this; nothing else has to change.
+  lookahead: 0,
+  lookaheadAim: 50,
+  lookaheadVel: 60,
+  lookaheadDash: 120,
+  lookaheadMax: 150,
+
+  // FIXED ZOOM. There used to be a continuous speed-tied "breathe" (1.00 down
+  // to 0.96 at full sprint) writing `setZoom` every frame. Phase 1 is fixed
+  // zoom by instruction, and a zoom that changes also changes the world size
+  // of the deadzone, which would make the framing impossible to judge. The
+  // transient `_cameraPunch` on impacts is untouched — that is impact
+  // feedback, not framing.
+  zoomBreathe: 0,
+
+  // DEBUG-ONLY overlay (safe area, deadzone, target, anchor). Toggled from the
+  // DEBUG card or `?camdbg=1`; never on in ordinary play.
+  debug: false,
+};
+
 export const HUDCFG = {
   joystickRadius: 90,
   joystickKnobRadius: 42,

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, ENDLESS, FONTS, HUDCFG, VIEW, DEPTH, LIGHTSOUT, bossMechanicsFor, bossMechanicById } from '../config.js';
+import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, ENDLESS, FONTS, HUDCFG, VIEW, DEPTH, LIGHTSOUT, CAMERA, bossMechanicsFor, bossMechanicById } from '../config.js';
 import { EnvLight } from '../systems/EnvLight.js';
 import { consoleEmissives, CONSOLE_KIT } from '../data/consoleKit.js';
 import { Player } from '../entities/Player.js';
@@ -16,6 +16,7 @@ import { attachFX, SFX, startMusic, duckMusic, duckSfx, stopMusic, isLowQuality 
 import { setMusicPhase, setBossPhase, tickDirector, musicSampleDue, resetDirector } from '../systems/musicDirector.js';
 import { ROOMS } from '../data/rooms.js';
 import { perimeterOpenings } from '../data/mapUtils.js';
+import { CameraDirector } from '../systems/CameraDirector.js';
 import { rollNemesis, traitLine } from '../data/nemesis.js';
 import {
   createLedger, recordEscape, recordKill, dueAt, applyScar,
@@ -233,16 +234,33 @@ export class GameScene extends Phaser.Scene {
 
     // ── Player ─────────────────────────────────────────────────────────────
     this.player = new Player(this, 200, 200);
-    // Looser follow lerp so the camera trails the player by a couple of
-    // frames. With the acceleration ramp on Player movement, a tight lerp
-    // (0.5) was eating the weight curve by chasing the player instantly;
-    // 0.22 lets the ramp register on screen as actual physical motion.
-    // The aim-lookahead `_camOX/_camOY` smoothing still carries the snap.
-    this.cameras.main.startFollow(this.player, true, 0.22, 0.22);
     // Inset the game viewport below the HUD top bar so the world never renders
     // behind it (the bar is a separate overlay scene drawn above everything).
     // This also un-hides the top room exit, which used to sit under the bar.
+    // It is set BEFORE the director exists because every number the director
+    // derives — the safe area, the anchor, the south padding — is a fraction of
+    // this viewport, not of the 1280-tall screen.
     this.cameras.main.setViewport(0, HUDCFG.topBarHeight, VIEW.width, VIEW.height - HUDCFG.topBarHeight);
+
+    // ── Camera ────────────────────────────────────────────────────────────
+    //
+    // NOT `startFollow`. This used to be `startFollow(this.player, true, 0.22,
+    // 0.22)` and that is precisely the behaviour Phase 1 exists to remove: a
+    // tracker with no deadzone, clamped to the room's own collision bounds,
+    // which let the player walk 200px below the camera's southern stop and
+    // straight underneath the touch controls. `CameraDirector` owns the scroll
+    // now and drives it from POST_UPDATE, which is the first moment in the
+    // frame where `player.x/y` are the positions physics just produced rather
+    // than last frame's.
+    this.cameras.main.roundPixels = true;
+    this.cameraDirector = new CameraDirector(this);
+    this._camStep = (t, d) => { if (!this.scene.isPaused()) this.cameraDirector.update(d); };
+    this.events.on(Phaser.Scenes.Events.POST_UPDATE, this._camStep);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.events.off(Phaser.Scenes.Events.POST_UPDATE, this._camStep);
+      this.cameraDirector?.destroy();
+      this.cameraDirector = null;
+    });
 
     // ── Bush / cover system ────────────────────────────────────────────────
     this.bushSystem = new BushSystem(this);
@@ -432,9 +450,12 @@ export class GameScene extends Phaser.Scene {
 
     const { w, h } = spec.bounds;
 
-    // Physics + camera bounds
+    // Physics bounds are the ROOM. Camera bounds are NOT — `setRoom` widens
+    // them by the framing padding, which is the whole reason a player at the
+    // southern wall can still be composed above the controls. Nothing about
+    // collision, nav or the room's art moves.
     this.physics.world.setBounds(0, 0, w, h);
-    this.cameras.main.setBounds(0, 0, w, h);
+    this.cameraDirector?.setRoom(spec);
 
     // Backdrop — painted per room, at the room's own size.
     //
@@ -736,6 +757,10 @@ export class GameScene extends Phaser.Scene {
     // Place player at spawn
     this.player.setPosition(spec.spawn.x, spec.spawn.y);
     this.player.setVelocity(0, 0);
+    // SNAP, DO NOT SPRING. The camera's target, spring velocity and lookahead
+    // all carry state, and letting them travel from the previous room's scroll
+    // is a camera flying across a level the player has never seen.
+    this.cameraDirector?.reset(spec.spawn.x, spec.spawn.y);
 
     // Draw sealed exit door
     this.drawDoor(spec, true);
@@ -4082,36 +4107,11 @@ export class GameScene extends Phaser.Scene {
           if (b.active && g !== this.bossSuperOrbs) this.fx.trail(b.x, b.y);
     }
 
-    // Camera lookahead — shift the follow target toward where the player is
-    // looking AND where they're moving, so you see further down the barrel and
-    // get extra reaction room ahead of movement in the narrow portrait view.
-    // Both leads feed one smoothed offset (no snap); the total is clamped.
-    if (this.player.alive) {
-      const aim = this.player.aiming ? this.player.aim
-                : this.player.superAiming ? this.player.superAim
-                : this.player.facing;
-      // Aim lead (unchanged): look down the barrel.
-      let tx = Math.cos(aim) * 50;
-      let ty = Math.sin(aim) * 50;
-      // Velocity lead: push ahead of travel, scaled by how fast we're moving.
-      // A dash gets a bigger transient lead that eases back via the smoother.
-      const vx = this.player.body.velocity.x;
-      const vy = this.player.body.velocity.y;
-      const sp = Math.hypot(vx, vy);
-      if (sp > 1) {
-        const speedN  = Math.min(1, sp / PLAYER.speed);
-        const velLead = (this.player.isDashing ? 120 : 60) * speedN;
-        tx += (vx / sp) * velLead;
-        ty += (vy / sp) * velLead;
-      }
-      // Clamp the combined offset so aim + velocity can't stack too far.
-      const mag = Math.hypot(tx, ty);
-      const MAXO = 150;
-      if (mag > MAXO) { tx = (tx / mag) * MAXO; ty = (ty / mag) * MAXO; }
-      this._camOX = (this._camOX ?? 0) * 0.92 + tx * 0.08;
-      this._camOY = (this._camOY ?? 0) * 0.92 + ty * 0.08;
-      this.cameras.main.setFollowOffset(-this._camOX, -this._camOY);
-    }
+    // The aim + velocity camera lookahead that used to be written here as a
+    // `setFollowOffset` now lives in `CameraDirector._solveFocus`, at weight 0.
+    // It is a PHASE 2 input: Phase 1 has to answer whether the camera frames
+    // well following only the player, and a handset verdict cannot separate a
+    // lookahead from a framing failure when both land in the same build.
 
     // ── Ambient floor motes — slow airborne drift across the viewport.
     // Spawns one mote every ~220 ms at a random point in the camera's
@@ -4126,14 +4126,19 @@ export class GameScene extends Phaser.Scene {
     }
 
     // ── Speed-tied camera zoom-breathe — subtle zoom-out when sprinting,
-    // zoom-in tighter when idle/aiming. Stacks with _cameraPunch (zoom
-    // punches are multiplicative through the tween's main.zoom write).
-    const ps      = this.player.alive ? Math.hypot(this.player.body.velocity.x, this.player.body.velocity.y) : 0;
-    const speedN  = Math.min(1, ps / PLAYER.speed);
-    const targetZ = 1.0 - speedN * 0.04;
-    // 200 ms exponential smoothing toward target. Skip while a punch tween
-    // is actively writing to main.zoom so the two effects don't fight.
-    if (!this._cameraPunchTween || !this._cameraPunchTween.isPlaying()) {
+    // zoom-in tighter when idle/aiming.
+    //
+    // OFF IN PHASE 1 (`CAMERA.zoomBreathe` is 0), and this is a framing
+    // decision rather than a taste one: zoom changes the WORLD size of the
+    // deadzone and of the safe area, so a camera that breathes is a camera
+    // whose composition rules quietly change with the player's speed. Phase 1
+    // is fixed zoom by instruction. The transient `_cameraPunch` on impacts is
+    // untouched — that is impact feedback, not framing, and it returns to 1.
+    if (CAMERA.zoomBreathe > 0
+      && (!this._cameraPunchTween || !this._cameraPunchTween.isPlaying())) {
+      const ps      = this.player.alive ? Math.hypot(this.player.body.velocity.x, this.player.body.velocity.y) : 0;
+      const speedN  = Math.min(1, ps / PLAYER.speed);
+      const targetZ = 1.0 - speedN * CAMERA.zoomBreathe;
       const k = 1 - Math.exp(-delta / 200);
       const z = this.cameras.main.zoom;
       this.cameras.main.setZoom(z + (targetZ - z) * k);

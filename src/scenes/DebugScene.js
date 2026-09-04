@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW, FONTS, PLAYER, WEAPONS, ENDLESS } from '../config.js';
+import { VIEW, FONTS, PLAYER, WEAPONS, ENDLESS, CAMERA } from '../config.js';
 import { SFX } from '../systems/FX.js';
 import { isGodMode, setGodMode } from '../systems/debug.js';
 import { ROOMS } from '../data/rooms.js';
@@ -109,7 +109,18 @@ export class DebugScene extends Phaser.Scene {
     this._button(cx - half, y, 'FILL SUPER', () => this._fillSuper(), 280);
     this._button(cx + half, y, 'FILL MELEE', () => this._fillMelee(), 280);
     y += row;
-    this._button(cx, y, 'REFILL DASH', () => this._refillDash(), 280);
+    this._button(cx - half, y, 'REFILL DASH', () => this._refillDash(), 280);
+    // CAMERA OVERLAY, in the free half of an existing row rather than a new one
+    // — the card is 1168 tall and CLOSE already sits within a few px of its
+    // border. Phase 1's numbers (anchor, deadzone, safe area, and the gap
+    // between the camera's target and where it actually is) are invisible from
+    // the outside, which is how a camera ends up tuned by guessing. Never on in
+    // ordinary play.
+    this.camBtn = this._button(cx + half, y, this._camLabel(), () => {
+      CAMERA.debug = !CAMERA.debug;
+      if (!CAMERA.debug) this.gs?.cameraDirector?.destroy();
+      this.camBtn.label.setText(this._camLabel());
+    }, 280);
     y += row;
 
     // ── Encounter ──────────────────────────────────────────────────────────
@@ -195,6 +206,7 @@ export class DebugScene extends Phaser.Scene {
   }
 
   _godLabel() { return isGodMode() ? 'GOD: ON' : 'GOD: OFF'; }
+  _camLabel() { return CAMERA.debug ? 'CAM DBG: ON' : 'CAM DBG: OFF'; }
   _typeLabel(types) { return types[this._spawnType].toUpperCase(); }
   _loadoutLabel() { return LOADOUTS[this._loadout].label; }
   _vaderLabel() { return `VADER #${this._vaderN}`; }
