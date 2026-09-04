@@ -84,11 +84,39 @@ if (!cfg.cam) {
 
 // 5 — fixed zoom. Read from config, not from a frame: a `_cameraPunch` is
 // allowed to move zoom transiently and always returns to 1.
-if (cfg.cam.zoomBreathe !== 0) fails.push(`CAMERA.zoomBreathe is ${cfg.cam.zoomBreathe} — Phase 1 is fixed zoom`);
-if (cfg.cam.lookahead !== 0) fails.push(`CAMERA.lookahead is ${cfg.cam.lookahead} — Phase 1 follows the player and nothing else`);
+if (cfg.cam.zoomBreathe !== 0) fails.push(`CAMERA.zoomBreathe is ${cfg.cam.zoomBreathe} — fixed zoom, through Phase 2A`);
+if (cfg.cam.leadAim !== 0) fails.push(`CAMERA.leadAim is ${cfg.cam.leadAim} — aim influence is PHASE 2B and must not ship with 2A`);
 if (cfg.cam.debug) fails.push('CAMERA.debug shipped ON — the overlay is debug-only');
 
-// 3, first half — THE DEADZONE HAS TO BE BIG ENOUGH TO BE ONE. The drift check
+// ── PHASE 2A: RESPONSIVE X, COMPOSED Y ─────────────────────────────────────
+// Three structural claims, not tuning. The handset approved Phase 1's vertical
+// feel and rejected its lateral one, so the answer had to be a better X
+// composition rather than a faster camera — and each of these is what stops
+// the next pass quietly turning it back into the latter.
+if (!(cfg.cam.stiffnessX > cfg.cam.stiffnessY))
+  fails.push(`stiffnessX ${cfg.cam.stiffnessX} is not above stiffnessY ${cfg.cam.stiffnessY} — X is meant to be the eager axis`);
+if (cfg.cam.stiffnessY !== 13.5)
+  fails.push(`stiffnessY moved to ${cfg.cam.stiffnessY} — the vertical spring is the approved Phase 1 feel and this pass may not touch it`);
+if (!(cfg.cam.dzX < cfg.cam.dzDown))
+  fails.push(`dzX ${cfg.cam.dzX} is not tighter than dzDown ${cfg.cam.dzDown} — portrait width is the scarce axis`);
+// VERTICAL LEAD IS ZERO BY CONSTRUCTION, and that is what keeps the south
+// guarantee below from resting on a margin. A northward lead pushes the player
+// DOWN the screen; at the south wall the framing clamp is the only thing
+// holding them clear of the controls, and 45px of it would land them at 931
+// against a control edge at 926.
+if (cfg.cam.leadY !== 0)
+  fails.push(`CAMERA.leadY is ${cfg.cam.leadY} — a vertical lead trades the Phase 1 south win for anticipation nobody asked for`);
+if (!(cfg.cam.leadX >= 60 && cfg.cam.leadX <= 260))
+  fails.push(`CAMERA.leadX is ${cfg.cam.leadX} — outside the range where a lead helps without becoming a trick`);
+// The filter has to have BOTH constants and neither may be cinematic.
+if (!(cfg.cam.leadAttackMs > 0 && cfg.cam.leadAttackMs <= 260))
+  fails.push(`leadAttackMs ${cfg.cam.leadAttackMs} — a lead that opens slower than a quarter second is not anticipation`);
+if (!(cfg.cam.leadReleaseMs >= cfg.cam.leadAttackMs && cfg.cam.leadReleaseMs <= 700))
+  fails.push(`leadReleaseMs ${cfg.cam.leadReleaseMs} — release must be the slower of the two and must not hang around`);
+
+// 3, first half — THE DEADZONE HAS TO BE BIG ENOUGH TO BE ONE.
+// Phase 2A halved dzX; this floor is what stops the next tightening pass from
+// deleting it outright and calling the result "snappier". The drift check
 // below displaces the player by a FRACTION of the configured extents, so with
 // the extents at zero it displaces by zero and passes on a camera with no
 // deadzone at all: a check that passes on the bug. This is the floor that
@@ -238,7 +266,7 @@ const dzr = await page.evaluate(async () => {
   for (const id of ['hangar', 'detention', 'hangar', 'detention']) {
     const spec = (await import('/src/data/rooms.js')).ROOMS.find((r) => r.id === id);
     gs.loadRoom(spec);
-    seen.push({ id, sx: c.scrollX, sy: c.scrollY, vx: d._vx, vy: d._vy, lo: d._loX });
+    seen.push({ id, sx: c.scrollX, sy: c.scrollY, vx: d._vx, vy: d._vy, lo: d._leadX });
   }
   out.loads = seen;
   return out;
@@ -251,13 +279,132 @@ if (dzr.outsideMove < 200)
 for (const l of dzr.loads) {
   if (!Number.isFinite(l.sx) || !Number.isFinite(l.sy)) fails.push(`room load ${l.id}: scroll is not a number`);
   if (Math.abs(l.vx) > 1e-6 || Math.abs(l.vy) > 1e-6) fails.push(`room load ${l.id}: the spring arrived moving (${l.vx}, ${l.vy}) — the camera flies in from the previous room`);
-  if (Math.abs(l.lo) > 1e-6) fails.push(`room load ${l.id}: the lookahead smoother carried across a room boundary`);
+  if (Math.abs(l.lo) > 1e-6) fails.push(`room load ${l.id}: the movement lead carried across a room boundary`);
 }
 const h = dzr.loads.filter((l) => l.id === 'hangar');
 const d2 = dzr.loads.filter((l) => l.id === 'detention');
 for (const [a, b2] of [h, d2]) {
   if (Math.abs(a.sx - b2.sx) > 0.5 || Math.abs(a.sy - b2.sy) > 0.5)
     fails.push(`${a.id}: two loads composed differently (${a.sx},${a.sy}) vs (${b2.sx},${b2.sy}) — camera state leaks across rooms`);
+}
+
+// ── PHASE 2A behavioural checks ────────────────────────────────────────────
+//
+// Two of them, and they are a matched pair for the same reason the deadzone
+// checks are: "the lead opens" passes on a lead that never closes, and "the
+// lead closes" passes on a lead that never opened.
+//
+// Driven by writing `_moveTargetX` — the same field the joystick writes and the
+// same one the solver reads — and stepping the director directly, because a
+// real stick at ~20fps cannot hold a measured direction for a fixed number of
+// frames.
+const lead = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const { CAMERA, PLAYER } = await import('/src/config.js');
+  const { ROOMS } = await import('/src/data/rooms.js');
+  gs.loadRoom(ROOMS.find((r) => r.id === 'detention'));
+  const c = gs.cameras.main, d = gs.cameraDirector, p = gs.player;
+  const at = (x, y) => { p.setPosition(x, y); p.setVelocity(0, 0); };
+  const push = (sx) => { p._moveTargetX = sx * PLAYER.speed; p._moveTargetY = 0; };
+  const step = (n) => { for (let i = 0; i < n; i++) d.update(16); };
+  const screenX = () => (p.x - c.scrollX) * c.zoom + c.x;
+  const out = {};
+
+  // Neutral composition at the room's middle, no input.
+  at(800, 700); push(0); d.reset(800, 700); step(60);
+  out.neutralX = screenX();
+
+  // SUSTAINED EAST. The player is held still so the ONLY thing that can move
+  // the camera is the lead — otherwise this measures walking, not anticipation.
+  push(1); step(90);
+  out.eastX = screenX();
+  out.eastLead = d._leadX;
+
+  // SUSTAINED WEST, from a hard reversal. Time it: the lead has to cross
+  // neutral and reach the far side, and "responsive without snapping" means
+  // this is bounded but not instant.
+  push(-1);
+  let frames = 0;
+  while (frames < 200 && d._leadX > -CAMERA.leadX * 0.8) { d.update(16); frames++; }
+  out.reversalFrames = frames;
+  step(60);
+  out.westX = screenX();
+  out.westLead = d._leadX;
+
+  // STOP. The lead must return to ~zero on its own.
+  push(0); step(120);
+  out.restLead = d._leadX;
+  out.restX = screenX();
+  return out;
+});
+
+// The east/west shift must be real, symmetric, and not a shove to the edge.
+const shiftE = lead.neutralX - lead.eastX;
+const shiftW = lead.westX - lead.neutralX;
+if (shiftE < 60) fails.push(`sustained east moved the player only ${shiftE.toFixed(0)}px left of neutral — no useful world opened ahead`);
+if (shiftW < 60) fails.push(`sustained west moved the player only ${shiftW.toFixed(0)}px right of neutral`);
+if (Math.abs(shiftE - shiftW) > 12) fails.push(`the lead is asymmetric: east ${shiftE.toFixed(0)}px vs west ${shiftW.toFixed(0)}px`);
+// ...and it must stay well inside the frame. A player shoved toward the far
+// edge is the camera doing a trick, which is the failure on the other side.
+if (lead.eastX < 120 || lead.westX > cfg.view.width - 120)
+  fails.push(`the lead pushes the player to screen x ${lead.eastX.toFixed(0)}/${lead.westX.toFixed(0)} — too close to the opposite edge`);
+// A reversal at ~16ms/step: fast enough to be an action game, slow enough to
+// have mass. Instant would mean the filter is gone.
+if (lead.reversalFrames < 6) fails.push(`a hard reversal crossed the lead in ${lead.reversalFrames} steps — the lead is teleporting, not filtered`);
+if (lead.reversalFrames > 60) fails.push(`a hard reversal took ${lead.reversalFrames} steps (~${(lead.reversalFrames * 16 / 1000).toFixed(2)}s) — cinematic drift, not anticipation`);
+// And it decays.
+if (Math.abs(lead.restLead) > 2) fails.push(`the lead did not return to zero after input stopped (${lead.restLead.toFixed(1)}px)`);
+// NEAR neutral, not ON it, and the residual is the DEADZONE — which is the
+// point of having one. When the lead closes, the ideal scroll moves back by the
+// full lead but the target only has to be within dzX of it, so the player ends
+// up to dzX off centre and the camera does not spend a pull to fix it. Measured
+// at exactly 60px against a 130px lead. Asserting a return to centre here would
+// be asserting a camera that re-centres on its own, which is the opposite of
+// what was approved.
+const rest = Math.abs(lead.restX - lead.neutralX);
+if (rest > cfg.cam.dzX + 8)
+  fails.push(`after stopping the player sits ${rest.toFixed(0)}px off neutral, beyond the deadzone (${cfg.cam.dzX}) — the composition did not come back`);
+if (rest > shiftE)
+  fails.push(`after stopping the player is further from neutral (${rest.toFixed(0)}px) than the lead ever moved them (${shiftE.toFixed(0)}px) — the lead is not releasing`);
+
+// ── §15 — THE PHASE 1 SOUTH WIN, UNDER MAXIMUM LATERAL LEAD ───────────────
+//
+// The main Phase 1 result was that a player at the southern wall stays clear of
+// the touch controls. Phase 2A may not trade that for horizontal visibility, so
+// this re-runs the acceptance case in every arena with the lead pinned hard
+// east and hard west — the two states a lateral traversal along the south wall
+// actually passes through.
+for (const id of ROOMS) {
+  const rows = await page.evaluate(async ([rid, rad]) => {
+    const gs = window.game.scene.getScene('Game');
+    const { ROOMS } = await import('/src/data/rooms.js');
+    const { PLAYER } = await import('/src/config.js');
+    gs.loadRoom(ROOMS.find((r) => r.id === rid));
+    const c = gs.cameras.main, d = gs.cameraDirector, p = gs.player;
+    const { w, h } = gs.roomSpec.bounds;
+    const out = [];
+    for (const [name, fx, dir] of [['S-w', 0.5, -1], ['S-e', 0.5, 1], ['SW', 0, -1], ['SE', 1, 1], ['SW-e', 0, 1], ['SE-w', 1, -1]]) {
+      const px = rad + fx * (w - rad * 2), py = h - rad;
+      p.setPosition(px, py); p.setVelocity(0, 0);
+      p._moveTargetX = dir * PLAYER.speed; p._moveTargetY = 0;
+      d.reset(px, py);
+      for (let i = 0; i < 140; i++) { p.setPosition(px, py); d.update(16); }
+      out.push({
+        name,
+        screenX: (px - c.scrollX) * c.zoom + c.x,
+        screenY: (py - c.scrollY) * c.zoom + c.y,
+        lead: d._leadX,
+      });
+    }
+    p._moveTargetX = 0; p._moveTargetY = 0;
+    return out;
+  }, [id, cfg.radius]);
+  for (const r of rows) {
+    if (r.screenY >= cfg.ctrlTop)
+      fails.push(`${id} ${r.name}: at the south wall with a ${r.lead.toFixed(0)}px lateral lead the player is at screen y ${r.screenY.toFixed(0)}, at or below the control edge (${cfg.ctrlTop}) — Phase 2A broke the Phase 1 win`);
+    if (r.screenX < 40 || r.screenX > cfg.view.width - 40)
+      fails.push(`${id} ${r.name}: lead pushed the player to screen x ${r.screenX.toFixed(0)} — pinned to the frame edge`);
+  }
 }
 
 if (errors.length) fails.push(`page errors: ${errors.join(' | ')}`);

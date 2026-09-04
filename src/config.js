@@ -905,7 +905,14 @@ export const CAMERA = {
   // than a step up or down, so the frame can afford to hold still for longer.
   // Asymmetric vertically because DOWN is the dangerous direction: the camera
   // starts restoring composition sooner when the player heads for the controls.
-  dzX: 120,
+  // PHASE 2A MOVED dzX FROM 120 TO 60, and it is now TIGHTER than either
+  // vertical half. Handset verdict on Phase 1: vertical framing good, lateral
+  // "lags behind too much... I can't see where I will be going or the enemies
+  // there." A 120px horizontal tolerance is a third of the 720px portrait
+  // width, so a player crossing a room spent a long time travelling inside a
+  // frame that had not started to participate. Portrait width is the scarce
+  // axis and the deadzone should reflect that, not the other way round.
+  dzX: 60,
   dzUp: 100,
   dzDown: 80,
 
@@ -913,11 +920,20 @@ export const CAMERA = {
   // damped spring, integrated implicitly so it cannot oscillate or overshoot
   // at any frame rate — which matters here, because the headless harness runs
   // at ~20fps and an explicit integrator at that step is a spring that rings.
-  // 13.5 settles ~95% in 0.35s and trails a walking player (380px/s) by about
-  // v*(2/w + h) = 60px at 60fps, which is the weight.
-  stiffness: 13.5,
+  //
+  // PER AXIS, AND THAT ASYMMETRY IS THE POINT: RESPONSIVE X, COMPOSED Y. The
+  // handset approved the vertical feel and rejected the lateral one, so Y is
+  // Phase 1's number untouched and only X was raised. Steady-state lag under a
+  // constant velocity v is v*(2/w + h): at a 380px/s walk on a 60fps handset
+  // that is 60px on Y and 46px on X, and at a 950px/s dash 157px and 116px.
+  // Raising BOTH would have been "make the camera faster", which is not what
+  // was asked and would have cost the stability that was approved.
+  stiffnessY: 13.5,
+  stiffnessX: 19.5,
   // Hard ceiling on how far the camera may ever be from its target, so a dash
-  // (950px/s) cannot open an unbounded gap. Nothing else bounds the lag.
+  // (950px/s) cannot open an unbounded gap. Nothing else bounds the lag. It is
+  // a backstop rather than a behaviour — at ordinary speeds neither axis
+  // reaches it — so it stays shared.
   maxLag: 190,
 
   // ── FRAMING PADDING (overscan) ──────────────────────────────────────────
@@ -938,17 +954,61 @@ export const CAMERA = {
   padSouthMin: 140,
   padSouthMax: 400,
 
-  // ── PHASE 2+ INPUTS, PRESENT AND OFF ────────────────────────────────────
-  // The aim + velocity lead that used to run as a `setFollowOffset` write is
-  // now an input to the composition solver, at weight 0. Phase 1 has to answer
-  // "does the camera feel good following ONLY the player" — with lookahead
-  // stacked on top, no handset verdict can tell the two apart. Phase 2 raises
-  // this; nothing else has to change.
-  lookahead: 0,
-  lookaheadAim: 50,
-  lookaheadVel: 60,
-  lookaheadDash: 120,
-  lookaheadMax: 150,
+  // ── MOVEMENT LOOKAHEAD (PHASE 2A) ───────────────────────────────────────
+  //
+  // The camera looks where the player is TRAVELLING. This is an input to the
+  // composition solver's focus — not a `setFollowOffset` write, which is what
+  // Phase 1 deleted; the whole point of the focus/motion split is that a new
+  // interest changes WHERE the camera wants to be and nothing about how it
+  // gets there.
+  //
+  // 220 IS NOT WHAT LANDS ON SCREEN, AND THE FIRST BUILD OF THIS PASS GOT THAT
+  // WRONG. During sustained travel the lead has to pay for two things before a
+  // single pixel of it is visible:
+  //
+  //   the DEADZONE — dragged from one side, the target rides its trailing edge,
+  //     so `dzX` (60) is permanently spent in the direction of travel; and
+  //   the SPRING LAG — v*(2/w + h), about 45px at a 380px/s walk on a 60fps
+  //     handset, which pushes the player the OTHER way, back toward the edge
+  //     they came from.
+  //
+  // At `leadX: 130` those two ate essentially all of it: measured, a player in
+  // sustained eastward travel sat at screen x 379 with 341px of world ahead —
+  // no better than standing still, which is exactly the handset complaint the
+  // pass exists to fix. The visible shift is `leadX - dzX - lag`, so 220 buys
+  // about 115px of it on a phone: the player rides near screen x 245 while
+  // travelling east, with ~475px of world ahead instead of 360.
+  //
+  // It costs NOTHING at rest. The lead is driven by movement intent, so a
+  // standing player has none and returns to the Phase 1 neutral composition.
+  leadX: 220,
+  // VERTICAL LEAD IS ZERO IN PHASE 2A, AND THAT IS STRUCTURAL, NOT LAZY. The
+  // handset complaint is X, portrait makes horizontal information the scarce
+  // kind, and — decisively — a NORTHWARD lead pushes the player DOWN the
+  // screen. At the southern wall the framing clamp is the only thing holding
+  // them clear of the touch controls, and a 45px north lead there would put
+  // them at screen y 931 against a control edge at 926. That is the exact
+  // Phase 1 win the brief forbids trading away. Zero means the south
+  // guarantee is untouched BY CONSTRUCTION rather than by a margin.
+  leadY: 0,
+  // INTENT, WITH A LITTLE MASS. Attack is the time constant while the player is
+  // giving input — a committed direction opens the lead quickly, and a hard
+  // reversal is just a large error against the same constant, so it crosses
+  // neutral and catches the new side without a special case. Release is what
+  // runs when input stops: slower, so the lead does not snap shut, but nowhere
+  // near cinematic. Neither may be so slow that a stale lead hangs around.
+  leadAttackMs: 130,
+  leadReleaseMs: 260,
+  // A dash is committed travel at 950px/s, so it opens more ground ahead — but
+  // through the SAME filter, so the first dash frame ramps rather than lurches.
+  leadDashMult: 1.35,
+
+  // ── PHASE 2B, PRESENT AND OFF ───────────────────────────────────────────
+  // Aim-direction influence: "my feet are moving one way, but I am fighting
+  // somewhere else." Deliberately not implemented — Phase 2A has to answer
+  // whether MOVEMENT anticipation alone fixes lateral travel, and a handset
+  // cannot separate the two when they land together.
+  leadAim: 0,
 
   // FIXED ZOOM. There used to be a continuous speed-tied "breathe" (1.00 down
   // to 0.96 at full sprint) writing `setZoom` every frame. Phase 1 is fixed

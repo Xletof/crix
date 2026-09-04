@@ -13,10 +13,13 @@
 // TWO SOLVERS, AND THE SPLIT IS THE POINT.
 //
 //   COMPOSITION  — where should the camera WANT to be? (`_solveTarget`)
-//                  Phase 1: the player, an above-centre resting anchor, a soft
-//                  deadzone and the room's framing rect. Later phases enrich
-//                  the FOCUS (`_solveFocus`) with movement and aim intent, then
-//                  Vader and his attack state. None of them touch the motion.
+//                  The player, a MOVEMENT LEAD (Phase 2A), an above-centre
+//                  resting anchor, a soft deadzone and the room's framing rect.
+//                  Later phases enrich the FOCUS (`_solveFocus`) with aim
+//                  intent, then Vader and his attack state. None of them touch
+//                  the motion solver — that is what the split is for, and the
+//                  movement lead is the first thing to prove it: Phase 2A added
+//                  a whole new interest and changed not one line of `_spring`.
 //   MOTION       — how does the camera TRAVEL there? (`_solveMotion`)
 //                  A critically damped spring with a hard lag ceiling. It knows
 //                  nothing about what it is chasing and never will.
@@ -27,6 +30,12 @@
 //    it the target does not move at all, so the world genuinely holds still
 //    while the player crosses the frame. Damping alone is the same glued
 //    follow with a slower glue — the thing this pass exists to stop.
+//  * X AND Y ARE NOT THE SAME CAMERA. The handset approved Phase 1's vertical
+//    feel and rejected its lateral one, so Phase 2A tightened the horizontal
+//    deadzone, stiffened the horizontal spring and spent the whole lookahead
+//    budget on X — and left every vertical number exactly where it was. The
+//    answer to "lateral movement lags" is a better X composition, never a
+//    faster camera.
 //  * CAMERA BOUNDS ARE NOT COLLISION BOUNDS. The camera frames past the room's
 //    edge (`_framing`); the room, its walls and its physics bounds are
 //    untouched. That freedom is the only thing that can keep a player standing
@@ -58,10 +67,11 @@ export class CameraDirector {
     // Framing rect (room bounds + padding). Set per room.
     this._framing = { x: 0, y: 0, w: VIEW.width, h: VIEW.height };
 
-    // Smoothed lookahead offset. Phase 2's input, kept alive at weight 0 so
-    // turning it on is one config number rather than a rewrite.
-    this._loX = 0;
-    this._loY = 0;
+    // Filtered movement lead (Phase 2A). It is STATE, and deliberately so —
+    // the whole claim of a lead built from intent rather than from raw input is
+    // that it takes a moment to open and a moment to close.
+    this._leadX = 0;
+    this._leadY = 0;
 
     // Scratch. The whole per-frame path is ~30 arithmetic operations and it
     // runs every frame forever, so it allocates NOTHING: the focus, the ideal
@@ -142,7 +152,7 @@ export class CameraDirector {
     this._tx = this._ix; this._ty = this._iy;
     this._clampTarget();
     this._vx = 0; this._vy = 0;
-    this._loX = 0; this._loY = 0;
+    this._leadX = 0; this._leadY = 0;
     this._ready = true;
     this.cam.setScroll(this._tx, this._ty);
   }
@@ -157,35 +167,60 @@ export class CameraDirector {
   // reason it is a method with one caller instead of two lines inlined below.
   _solveFocus(delta) {
     const p = this.scene.player;
-    let fx = p.x, fy = p.y;
+    this._solveLead(delta, p);
+    this._fx = p.x + this._leadX;
+    this._fy = p.y + this._leadY;
+  }
 
-    // PHASE 2 INPUT, AT WEIGHT 0. This is the aim + velocity lead that used to
-    // be written straight onto `setFollowOffset`. Phase 1 has to answer "does
-    // the camera feel good following ONLY the player" and a handset cannot
-    // separate a lookahead from a framing failure, so `CAMERA.lookahead` is 0
-    // and this whole block is dead weight until Phase 2 raises it.
-    if (CAMERA.lookahead > 0 && p.alive) {
-      const aim = p.aiming ? p.aim : p.superAiming ? p.superAim : p.facing;
-      let tx = Math.cos(aim) * CAMERA.lookaheadAim;
-      let ty = Math.sin(aim) * CAMERA.lookaheadAim;
-      const vx = p.body.velocity.x, vy = p.body.velocity.y;
-      const sp = Math.hypot(vx, vy);
-      if (sp > 1) {
-        const n = Math.min(1, sp / PLAYER.speed);
-        const lead = (p.isDashing ? CAMERA.lookaheadDash : CAMERA.lookaheadVel) * n;
-        tx += (vx / sp) * lead; ty += (vy / sp) * lead;
+  // ── MOVEMENT LOOKAHEAD (PHASE 2A) ─────────────────────────────────────────
+  //
+  // Look where the player is TRAVELLING, so committed lateral movement opens
+  // the world ahead of them instead of revealing it once they are already
+  // standing in it.
+  //
+  // IT IS DRIVEN BY INTENT, NOT BY VELOCITY, and the difference is the feature.
+  // `Player.preUpdate` eases `body.velocity` toward `_moveTarget*` over an
+  // acceleration ramp, so velocity is a LAGGED copy of what the player asked
+  // for — leading off it would add the ramp's delay to the very lag this pass
+  // exists to remove. `_moveTarget*` is the stick's own request and it is
+  // current on the frame the thumb moves. Its magnitude carries the stick's
+  // force, so a light touch gets a proportionally smaller lead for free and
+  // only committed movement spends the whole budget.
+  //
+  // WHILE DASHING THE DASH'S OWN HEADING WINS. A dash can be vault-locked onto
+  // a cover spot up to 35 degrees off the stick (`Player.tryDash`), and the
+  // camera has to look where the body is actually going. It also means a dash
+  // that outlives the input keeps its lead open until it ends, which is what
+  // stops the camera snapping back on the frame the dash finishes.
+  //
+  // ONE FILTER, TWO TIME CONSTANTS, NO REVERSAL SPECIAL CASE. A hard reversal
+  // is simply a large error against the attack constant, so the lead crosses
+  // through neutral and catches the new side on its own; a stop is the only
+  // thing that switches to the slower release constant. A reversal branch here
+  // would be a second author for the same number and would have to agree with
+  // this one about what "reversing" means.
+  _solveLead(delta, p) {
+    let tx = 0, ty = 0;
+    if (p.alive) {
+      let ix = p._moveTargetX || 0;
+      let iy = p._moveTargetY || 0;
+      let commit = Math.min(1, Math.hypot(ix, iy) / (PLAYER.speed * (p.moveMult || 1)));
+      if (p.isDashing && Number.isFinite(p.dashAngle)) {
+        ix = Math.cos(p.dashAngle); iy = Math.sin(p.dashAngle);
+        commit = CAMERA.leadDashMult;
       }
-      const mag = Math.hypot(tx, ty);
-      if (mag > CAMERA.lookaheadMax) {
-        tx = (tx / mag) * CAMERA.lookaheadMax; ty = (ty / mag) * CAMERA.lookaheadMax;
+      const m = Math.hypot(ix, iy);
+      if (m > 1e-4 && commit > 0) {
+        tx = (ix / m) * CAMERA.leadX * commit;
+        ty = (iy / m) * CAMERA.leadY * commit;
       }
-      const k = 1 - Math.exp(-delta / 200);
-      this._loX += (tx - this._loX) * k;
-      this._loY += (ty - this._loY) * k;
-      fx += this._loX * CAMERA.lookahead;
-      fy += this._loY * CAMERA.lookahead;
     }
-    this._fx = fx; this._fy = fy;
+    // `delta` is clamped for the same reason the spring clamps it: a stalled
+    // tab must not resolve as one enormous step.
+    const tau = (tx === 0 && ty === 0) ? CAMERA.leadReleaseMs : CAMERA.leadAttackMs;
+    const k = 1 - Math.exp(-Math.min(delta, 100) / tau);
+    this._leadX += (tx - this._leadX) * k;
+    this._leadY += (ty - this._leadY) * k;
   }
 
   // The scroll that would put `(fx, fy)` exactly on the resting anchor.
@@ -250,10 +285,10 @@ export class CameraDirector {
 
   _solveMotion(delta) {
     const h = Math.min(delta, 100) / 1000;   // a stalled tab is not a camera move
-    const w = CAMERA.stiffness;
-    this._spring(this.cam.scrollX, this._vx, this._tx, h, w);
+    // PER AXIS. X is stiffer than Y on purpose — see CAMERA.stiffnessX.
+    this._spring(this.cam.scrollX, this._vx, this._tx, h, CAMERA.stiffnessX);
     let x = this._sx; const nvx = this._sv;
-    this._spring(this.cam.scrollY, this._vy, this._ty, h, w);
+    this._spring(this.cam.scrollY, this._vy, this._ty, h, CAMERA.stiffnessY);
     let y = this._sx; const nvy = this._sv;
 
     // MAXIMUM LAG IS BOUNDED. The spring's steady-state error under a constant
@@ -316,6 +351,20 @@ export class CameraDirector {
     const tsy = (this._ty - this.cam.scrollY) * z + ch / 2;
     g.lineStyle(2, 0xff5090, 0.9);
     g.strokeCircle(tsx, tsy, 5);
+
+    // THE MOVEMENT LEAD, drawn from the player to the focus the solver is
+    // actually composing on. Without this the only visible symptom of a lead
+    // that is too large, too small or stuck open is "the camera feels wrong",
+    // which is how a camera gets tuned by guessing.
+    const p = this.scene.player;
+    if (p && (Math.abs(this._leadX) > 0.5 || Math.abs(this._leadY) > 0.5)) {
+      const psx = (p.x - this.cam.scrollX) * z;
+      const psy = (p.y - this.cam.scrollY) * z;
+      g.lineStyle(3, 0x60ffc0, 0.85);
+      g.lineBetween(psx, psy, psx + this._leadX * z, psy + this._leadY * z);
+      g.fillStyle(0x60ffc0, 0.85);
+      g.fillCircle(psx + this._leadX * z, psy + this._leadY * z, 4);
+    }
   }
 
   destroy() {

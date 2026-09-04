@@ -45,6 +45,17 @@ const quiet = () => page.evaluate(() => {
   const gs = window.game.scene.getScene('Game');
   gs.lives = 9999; gs.player.hp = gs.player.hpMax = 1e9;
   for (const e of gs.enemies.getChildren().slice()) e.destroy();
+  // AND THE CLOCKS RESTORED. `juice.js` slow-motion writes `time.timeScale` and
+  // `physics.world.timeScale` (the arcade one DIVIDES, so 2.84 is a third
+  // speed) and tweens them back to 1. A rig that samples while one is partly
+  // restored measures a throttled game: this reported a peak dash velocity of
+  // 241px/s against a 950px/s dash and 380px/s walk, and NO frames mid-dash,
+  // for two whole builds before it was found. Kill the tweens first or they
+  // write it straight back.
+  gs.tweens.killTweensOf(gs.time);
+  gs.tweens.killTweensOf(gs.physics.world);
+  gs.time.timeScale = 1;
+  gs.physics.world.timeScale = 1;
   if (gs._cameraPunchTween) { gs._cameraPunchTween.stop(); gs._cameraPunchTween = null; }
   gs.cameras.main.setZoom(1);
 });
