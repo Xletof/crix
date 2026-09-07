@@ -54,6 +54,13 @@ export class CameraDirector {
   constructor(scene) {
     this.scene = scene;
     this.cam = scene.cameras.main;
+    // The LIVE tuning object, exposed deliberately. A rig cannot reach it with
+    // `import('/src/config.js')` inside page.evaluate — that hands back a
+    // SECOND module instance whose values the running camera never reads, which
+    // has already cost this project one silent debugging round. Anything that
+    // needs to mutate tuning at runtime goes through here or through the game's
+    // own entry points; reading a fresh import is still fine.
+    this.cfg = CAMERA;
 
     // Target scroll — the composition solver's output, and the spring's input.
     // It is STATE, not a pure function of the player: that persistence is what
@@ -72,6 +79,21 @@ export class CameraDirector {
     // that it takes a moment to open and a moment to close.
     this._leadX = 0;
     this._leadY = 0;
+
+    // ── ABILITY INTENT (Phase 2B) ───────────────────────────────────────────
+    // `_abW` is the filtered 0..1 authority the ability lead currently holds
+    // over the movement lead; `_abDX/_abDY` is the unit direction it points.
+    // `_abCommitMs` is the committed hold that outlives the preview — the
+    // preview flag drops on the frame the ability FIRES, which is exactly when
+    // the player's body starts travelling along it.
+    this._abW = 0;
+    this._abDX = 0;
+    this._abDY = 0;
+    this._abCommitDX = 0;
+    this._abCommitDY = 0;
+    this._abCommitMs = 0;
+    this._abCommitAgeMs = 0;
+    this._abKind = null;   // 'super' | 'melee' | null, for the debug overlay
 
     // Scratch. The whole per-frame path is ~30 arithmetic operations and it
     // runs every frame forever, so it allocates NOTHING: the focus, the ideal
@@ -153,6 +175,8 @@ export class CameraDirector {
     this._clampTarget();
     this._vx = 0; this._vy = 0;
     this._leadX = 0; this._leadY = 0;
+    this._abW = 0; this._abDX = 0; this._abDY = 0;
+    this._abCommitMs = 0; this._abCommitAgeMs = 0; this._abKind = null;
     this._ready = true;
     this.cam.setScroll(this._tx, this._ty);
   }
@@ -168,8 +192,90 @@ export class CameraDirector {
   _solveFocus(delta) {
     const p = this.scene.player;
     this._solveLead(delta, p);
-    this._fx = p.x + this._leadX;
-    this._fy = p.y + this._leadY;
+    this._solveAbility(delta, p);
+
+    // PRIORITY, NOT AVERAGING. Moving west while aiming the Super east is the
+    // case the brief names: the two leads point opposite ways and blending them
+    // produces a neutral frame that says nothing about either. `_abW` is a
+    // CROSSFADE — as explicit intent acquires, the movement lead gives up its
+    // share of the frame rather than fighting for it. `abilityMoveKeep` is the
+    // dial if a residue of travel sense turns out to be wanted; it is 0 so the
+    // handset judges the unambiguous version.
+    const w = this._abW;
+    const mk = CAMERA.abilityMoveKeep;
+    const moveShare = 1 - w * (1 - mk);
+    this._fx = p.x + this._leadX * moveShare + this._abDX * CAMERA.abilityLeadX * w;
+    this._fy = p.y + this._leadY * moveShare + this._abDY * CAMERA.abilityLeadY * w;
+  }
+
+  // ── ABILITY INTENT ────────────────────────────────────────────────────────
+  //
+  // THE CAMERA READS THE SAME VECTOR THE TELEGRAPH IS DRAWN FROM. If the
+  // preview says the skill goes there, the camera frames there — so this reads
+  // `superAim`/`superAiming` and `meleeAim`/`meleeAiming` directly, which is
+  // exactly what `GameScene._drawAimCone` and `_drawMeleeTelegraph` consult.
+  // Deriving a direction independently here would let the two disagree, and the
+  // one the player is looking at would be the one that was right.
+  //
+  // A PREVIEW OUTRANKS A COMMIT: if a telegraph is armed you are aiming the
+  // NEXT cast, and that is where the frame belongs. Super outranks melee only
+  // because they cannot both be armed — the two abilities keep their aim on
+  // separate fields precisely so they can never stomp each other.
+  _solveAbility(delta, p) {
+    const dt = Math.min(delta, 100);
+    this._abCommitMs = Math.max(0, this._abCommitMs - dt);
+
+    // A melee chain re-arms its own hold from the live swing clock, so three
+    // casts read as one continuous commitment instead of three expiring ones —
+    // under a ceiling, because that clock belongs to `Player.preUpdate` and a
+    // frozen one would hold the frame for ever. See CAMERA.abilityMeleeMaxMs.
+    this._abCommitAgeMs += dt;
+    if (this._abKind === 'melee' && p.alive && p._meleeAnimT > 0
+      && this._abCommitAgeMs < CAMERA.abilityMeleeMaxMs)
+      this._abCommitMs = Math.max(this._abCommitMs, CAMERA.abilityMeleeTailMs);
+
+    let ang = null;
+    if (p.alive) {
+      if (p.superAiming) { ang = p.superAim; this._abKind = 'super'; }
+      else if (p.meleeAiming) { ang = p.meleeAim; this._abKind = 'melee'; }
+    }
+
+    let tx = 0, ty = 0, want = 0;
+    if (ang !== null) {
+      tx = Math.cos(ang); ty = Math.sin(ang); want = 1;
+    } else if (this._abCommitMs > 0) {
+      // The committed direction, snapshotted when the ability actually fired.
+      tx = this._abCommitDX; ty = this._abCommitDY; want = 1;
+    } else if (!p.alive || (!p.superAiming && !p.meleeAiming)) {
+      this._abKind = this._abCommitMs > 0 ? this._abKind : null;
+    }
+
+    // The DIRECTION is only updated while there is one, so a releasing lead
+    // decays along the bearing it was pointing rather than swinging toward
+    // zero through some arbitrary heading.
+    if (want > 0) {
+      const k = 1 - Math.exp(-dt / CAMERA.abilityAttackMs);
+      this._abDX += (tx - this._abDX) * k;
+      this._abDY += (ty - this._abDY) * k;
+    }
+    const tau = want > 0 ? CAMERA.abilityAttackMs : CAMERA.abilityReleaseMs;
+    const kw = 1 - Math.exp(-dt / tau);
+    this._abW += (want - this._abW) * kw;
+    if (this._abW < 0.002 && want === 0) { this._abW = 0; this._abKind = null; }
+  }
+
+  // Called from the scene's `player-fire-super` / `player-melee-cast`
+  // handlers — the events that carry the direction the ability RESOLVED, which
+  // is not always the direction the preview last showed (a release with a live
+  // stick re-reads it, and an unaimed tap auto-aims). Snapshotting here is what
+  // stops the camera forgetting the intent on the frame the preview vanishes.
+  commitAbility(kind, dir) {
+    if (!Number.isFinite(dir)) return;
+    this._abKind = kind;
+    this._abCommitDX = Math.cos(dir);
+    this._abCommitDY = Math.sin(dir);
+    this._abCommitMs = kind === 'super' ? CAMERA.abilitySuperHoldMs : CAMERA.abilityMeleeHoldMs;
+    this._abCommitAgeMs = 0;
   }
 
   // ── MOVEMENT LOOKAHEAD (PHASE 2A) ─────────────────────────────────────────
@@ -266,7 +372,37 @@ export class CameraDirector {
     // BELOW ideal, and `dzDown` is the allowance on the LOW side.
     this._tx = Phaser.Math.Clamp(this._tx, this._ix - dx, this._ix + dx);
     this._ty = Phaser.Math.Clamp(this._ty, this._iy - down, this._iy + up);
+    this._clampSafeArea();
     this._clampTarget();
+  }
+
+  // THE SAFE-AREA SOLVER IS THE FINAL AUTHORITY, AND IT GUARDS THE TARGET
+  // RATHER THAN EACH INPUT.
+  //
+  // Phase 2A kept the player clear of the touch controls by refusing to have a
+  // vertical movement lead at all (`leadY: 0`) — correct, but it defends the
+  // rule one input at a time, and Phase 2B adds an input that genuinely needs
+  // vertical authority. So the rule moved to where it belongs: whatever the
+  // composition asked for, the PLAYER may not end up composed below the safe
+  // area. An ability aiming north can request it; this is what refuses.
+  //
+  // Only a FLOOR on the target, never a lift — pushing the camera the other way
+  // would be re-centring the player, which is exactly the behaviour the
+  // deadzone exists to avoid. A higher scroll draws the player higher, so the
+  // limit is a minimum on `_ty` (see the sign note in `_solveTarget`).
+  //
+  // `_clampTarget` still runs AFTER this and still wins: the framing rect is
+  // what bounds how far past the room the camera may look, and at a southern
+  // wall the two agree by construction because `padSouth` is derived from this
+  // very number. Where a room's padding could not satisfy both, framing wins
+  // and the guarantee degrades exactly as it did before this existed —
+  // `smoke-camera` measures the real outcome in all four arenas rather than
+  // trusting either clamp.
+  _clampSafeArea() {
+    const p = this.scene.player;
+    if (!p) return;
+    const limit = this.safeBottom() - CAMERA.southClearance;
+    this._ty = Math.max(this._ty, p.y - limit / this.cam.zoom);
   }
 
   // ── MOTION SOLVER ─────────────────────────────────────────────────────────
@@ -351,6 +487,23 @@ export class CameraDirector {
     const tsy = (this._ty - this.cam.scrollY) * z + ch / 2;
     g.lineStyle(2, 0xff5090, 0.9);
     g.strokeCircle(tsx, tsy, 5);
+
+    // ABILITY INTENT, when it holds any authority. Drawn in the telegraph's own
+    // amber so it can be told apart from the movement lead at a glance, with
+    // its length scaled by `_abW` — a lead that is acquiring, holding through a
+    // commit or releasing looks different, which is the whole question this
+    // pass is asking.
+    const pl = this.scene.player;
+    if (pl && this._abW > 0.01) {
+      const psx = (pl.x - this.cam.scrollX) * z;
+      const psy = (pl.y - this.cam.scrollY) * z;
+      const ex = psx + this._abDX * CAMERA.abilityLeadX * this._abW * z;
+      const ey = psy + this._abDY * CAMERA.abilityLeadY * this._abW * z;
+      g.lineStyle(4, this._abCommitMs > 0 && !pl.superAiming && !pl.meleeAiming ? 0xff9020 : 0xffd040, 0.9);
+      g.lineBetween(psx, psy, ex, ey);
+      g.fillStyle(0xffd040, 0.9);
+      g.fillCircle(ex, ey, 6);
+    }
 
     // THE MOVEMENT LEAD, drawn from the player to the focus the solver is
     // actually composing on. Without this the only visible symptom of a lead

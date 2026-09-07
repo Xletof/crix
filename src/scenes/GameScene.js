@@ -2595,12 +2595,22 @@ export class GameScene extends Phaser.Scene {
       this.player?.onShotMissed();
     });
     this._on('player-melee-cast', (dir, stage, finisher) => {
+      // The camera commits WITH the attack. `releaseMeleeAim` clears
+      // `meleeAiming` before it calls `tryMeleeCombo`, so the telegraph the
+      // camera was framing is already gone by the time the body starts moving
+      // along it — this event carries the direction the cast actually RESOLVED
+      // (which a release with a live stick re-reads, and an unaimed tap
+      // auto-aims), and is the only place that can hand it over.
+      this.cameraDirector?.commitAbility('melee', dir);
       this.performMeleeCast(dir, stage, finisher);
     });
     this._on('player-melee-land', (dir, stage, finisher) => {
       this.performMeleeLand(dir, stage, finisher);
     });
     this._on('player-fire-super', (angle) => {
+      // Same contract as the melee cast above: `releaseSuperAim` drops
+      // `superAiming` before firing, so the committed angle arrives here.
+      this.cameraDirector?.commitAbility('super', angle);
       this.firePlayerSuper(angle);
       this.events.emit('room-alarm-klaxon');
       // Punchier than before: harder zoom kick + a brief slow-mo so the

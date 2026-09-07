@@ -1003,11 +1003,69 @@ export const CAMERA = {
   // through the SAME filter, so the first dash frame ramps rather than lurches.
   leadDashMult: 1.35,
 
-  // ── PHASE 2B, PRESENT AND OFF ───────────────────────────────────────────
-  // Aim-direction influence: "my feet are moving one way, but I am fighting
-  // somewhere else." Deliberately not implemented — Phase 2A has to answer
-  // whether MOVEMENT anticipation alone fixes lateral travel, and a handset
-  // cannot separate the two when they land together.
+  // ── ABILITY INTENT (PHASE 2B) ───────────────────────────────────────────
+  //
+  // Movement says where the player is GOING. An ability preview says where they
+  // are COMMITTING, and commitment should win the frame: the Super's cone and
+  // the melee telegraph are the player explicitly stating "I care about what is
+  // over there", and in the melee case they are about to put their body in it.
+  //
+  // ONE input, not one per skill. `CameraDirector._solveAbility` reads the same
+  // resolved vectors the telegraphs are drawn from (`superAim`/`superAiming`,
+  // `meleeAim`/`meleeAiming`) and the same committed direction the cast itself
+  // publishes (`player-fire-super`, `player-melee-cast`), so the camera cannot
+  // disagree with the preview about where the skill goes.
+  //
+  // STRONGER THAN THE MOVEMENT LEAD (220) BECAUSE IT IS BETTER INFORMATION.
+  // Locomotion is continuous and mostly incidental; an armed telegraph is a
+  // deliberate statement about one direction, held for a fraction of a second.
+  abilityLeadX: 260,
+  // VERTICAL IS ALLOWED HERE AND IT IS NOT IN THE MOVEMENT LEAD, because
+  // `_clampSafeArea` now enforces the mobile safe area on the FINAL target
+  // rather than trusting every input to behave. Restrained anyway: the portrait
+  // view is tall, so a given number of vertical pixels buys less than the same
+  // number sideways, and the south framing is the one thing this pass may not
+  // spend. Aiming SOUTH lifts the player up the screen and is free; aiming
+  // NORTH is the direction the guard exists for.
+  abilityLeadY: 150,
+
+  // Faster than the movement lead's 130/260 — the player is explicitly
+  // previewing an action and expects the frame to acknowledge it — but still
+  // filtered, because raw aim-stick pixels driving the camera is the "dragging
+  // the camera with the joystick" feel the whole pass is written against.
+  abilityAttackMs: 90,
+  abilityReleaseMs: 220,
+
+  // COMMITTED HOLD. The preview flag drops on the frame the ability fires
+  // (`releaseSuperAim` clears `superAiming` before `tryFireSuper`;
+  // `releaseMeleeAim` clears `meleeAiming` before `tryMeleeCombo`), so without
+  // these the camera would forget the direction at exactly the moment the
+  // player's body starts travelling along it — melee outrunning its own frame.
+  abilitySuperHoldMs: 320,
+  // Melee re-arms itself from the live `_meleeAnimT` while a swing is playing,
+  // so a three-cast chain holds continuously and the tail is what decays after
+  // the last one. The hold is the floor, the tail is the top-up.
+  abilityMeleeHoldMs: 420,
+  abilityMeleeTailMs: 260,
+  // A CEILING ON THE RE-ARM, because the re-arm reads a clock this file does not
+  // own. `_meleeAnimT` is decremented in `Player.preUpdate`; anything that stops
+  // that running — a paused player, a state the combo reset does not reach —
+  // leaves it frozen above zero and the ability lead holds the frame for ever.
+  // Caught in the Phase 2B rig, which steps the director without the player and
+  // measured a melee lead still at full weight three seconds after the cast.
+  // Each new cast resets the ceiling, so a three-cast chain still runs
+  // continuously; what it bounds is ONE cast outliving its own animation.
+  abilityMeleeMaxMs: 1200,
+
+  // How much of the movement lead survives underneath a fully acquired ability
+  // lead. 0 means explicit commitment owns the frame outright, which is the
+  // unambiguous version of the priority rule and the one a handset can judge.
+  abilityMoveKeep: 0,
+
+  // ── PHASE 2C, PRESENT AND OFF ───────────────────────────────────────────
+  // ORDINARY weapon aim. Not the same problem as an ability preview: normal aim
+  // is active almost constantly, so it needs its own tuning against camera
+  // wander during micro-adjustments. `smoke-camera` fails if it ships non-zero.
   leadAim: 0,
 
   // FIXED ZOOM. There used to be a continuous speed-tied "breathe" (1.00 down

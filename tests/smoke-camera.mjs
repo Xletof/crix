@@ -85,7 +85,27 @@ if (!cfg.cam) {
 // 5 — fixed zoom. Read from config, not from a frame: a `_cameraPunch` is
 // allowed to move zoom transiently and always returns to 1.
 if (cfg.cam.zoomBreathe !== 0) fails.push(`CAMERA.zoomBreathe is ${cfg.cam.zoomBreathe} — fixed zoom, through Phase 2A`);
-if (cfg.cam.leadAim !== 0) fails.push(`CAMERA.leadAim is ${cfg.cam.leadAim} — aim influence is PHASE 2B and must not ship with 2A`);
+if (cfg.cam.leadAim !== 0) fails.push(`CAMERA.leadAim is ${cfg.cam.leadAim} — ORDINARY weapon aim is PHASE 2C and must not ship with 2B`);
+
+// ── PHASE 2B config claims ─────────────────────────────────────────────────
+// Explicit ability intent is meant to be BETTER information than locomotion, so
+// it may lead harder; and it is allowed vertical authority the movement lead is
+// not, because `_clampSafeArea` now guards the final target instead of trusting
+// each input. Neither of those is licence for an unbounded number.
+if (!(cfg.cam.abilityLeadX > cfg.cam.leadX))
+  fails.push(`abilityLeadX ${cfg.cam.abilityLeadX} does not outweigh the movement lead ${cfg.cam.leadX} — explicit commitment is meant to win the frame`);
+if (!(cfg.cam.abilityLeadY > 0 && cfg.cam.abilityLeadY < cfg.cam.abilityLeadX))
+  fails.push(`abilityLeadY ${cfg.cam.abilityLeadY} — vertical ability lead must exist and stay restrained relative to horizontal`);
+if (!(cfg.cam.abilityAttackMs < cfg.cam.leadAttackMs))
+  fails.push(`abilityAttackMs ${cfg.cam.abilityAttackMs} is not faster than the movement lead's ${cfg.cam.leadAttackMs} — an explicit preview should be acknowledged sooner`);
+if (!(cfg.cam.abilityAttackMs >= 40))
+  fails.push(`abilityAttackMs ${cfg.cam.abilityAttackMs} — below ~40ms this stops being a filter and becomes the aim stick dragging the camera`);
+if (!(cfg.cam.abilityReleaseMs > cfg.cam.abilityAttackMs))
+  fails.push('abilityReleaseMs must be the slower of the pair — an ability lead should let go more gently than it acquires');
+if (!(cfg.cam.abilityMoveKeep >= 0 && cfg.cam.abilityMoveKeep < 0.5))
+  fails.push(`abilityMoveKeep ${cfg.cam.abilityMoveKeep} — at or above 0.5 movement is no longer secondary and the priority rule is gone`);
+if (!(cfg.cam.abilityMeleeMaxMs > cfg.cam.abilityMeleeHoldMs))
+  fails.push('abilityMeleeMaxMs must exceed the melee hold — it is the ceiling on the re-arm, not a shorter hold');
 if (cfg.cam.debug) fails.push('CAMERA.debug shipped ON — the overlay is debug-only');
 
 // ── PHASE 2A: RESPONSIVE X, COMPOSED Y ─────────────────────────────────────
@@ -367,6 +387,157 @@ if (rest > cfg.cam.dzX + 8)
 if (rest > shiftE)
   fails.push(`after stopping the player is further from neutral (${rest.toFixed(0)}px) than the lead ever moved them (${shiftE.toFixed(0)}px) — the lead is not releasing`);
 
+// ── PHASE 2B — ABILITY INTENT ─────────────────────────────────────────────
+//
+// Four structural claims, driven through the REAL entry points the touch
+// widgets call. Poking `superAim` directly would test a field rather than a
+// feature, and would miss that both release paths clear their own preview flag
+// before the cast — which is the entire reason `commitAbility` exists.
+const ab = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const { ROOMS } = await import('/src/data/rooms.js');
+  // The GAME's own CAMERA object, reached through the director rather than a
+  // fresh dynamic import — an `import('/src/config.js')` inside page.evaluate
+  // hands back a SECOND copy, and mutating that one changes nothing the running
+  // camera reads. See tests/README.
+  const { PLAYER } = await import('/src/config.js');
+  gs.loadRoom(ROOMS.find((r) => r.id === 'detention'));
+  const c = gs.cameras.main, d = gs.cameraDirector, p = gs.player;
+  const CAMERA2 = d.cfg;
+  const step = (n) => {
+    for (let i = 0; i < n; i++) {
+      // The player's own clocks have to tick: the camera reads `_meleeAnimT`,
+      // and a rig that freezes it measures a state that cannot occur.
+      if (p._meleeAnimT > 0) p._meleeAnimT = Math.max(0, p._meleeAnimT - 16);
+      if (p._comboWindowMs > 0) p._comboWindowMs = Math.max(0, p._comboWindowMs - 16);
+      d.update(16);
+    }
+  };
+  const stage = () => {
+    p.setPosition(800, 700); p.setVelocity(0, 0);
+    p._moveTargetX = 0; p._moveTargetY = 0;
+    p.superAiming = false; p.meleeAiming = false;
+    p.resetMeleeCombo(); p._suppressedMs = 0; p.isDashing = false;
+    p.superCharge = 99; p.meleeCharge = 99;
+    d.reset(800, 700); step(50);
+  };
+  const sx = () => (p.x - c.scrollX) * c.zoom + c.x;
+  const E = { x: 1, y: 0, force: 1 };
+  const out = {};
+
+  // 1 — NO ABILITY, NO INFLUENCE. Idle with nothing armed must leave the
+  // ability input at exactly zero, or Phase 2A is being quietly modified.
+  stage();
+  out.idleW = d._abW;
+  out.idleX = sx();
+
+  // 2 — A PREVIEW OPENS THE AIMED DIRECTION, and beats an opposing movement
+  // lead rather than averaging with it into a neutral frame.
+  stage();
+  p._moveTargetX = -PLAYER.speed;          // travelling WEST
+  step(80);
+  out.moveOnlyX = sx();
+  p.setSuperAimInput(E);                   // aiming EAST
+  step(70);
+  out.conflictX = sx();
+  out.conflictW = d._abW;
+
+  // 3 — EXECUTION RETAINS THE COMMITTED DIRECTION. Both release paths drop the
+  // preview flag before the cast; the frame must not go with it.
+  stage();
+  p.setMeleeAimInput(E); p.meleeAiming = true;
+  step(60);
+  out.meleePreviewX = sx();
+  const fired = p.releaseMeleeAim(E);
+  out.meleeFired = fired;
+  out.meleeArmedAfter = p.meleeAiming;
+  out.meleeCommitMs = d._abCommitMs;
+  step(8);
+  out.meleeJustAfterX = sx();
+  out.meleeJustAfterW = d._abW;
+  step(200);
+  out.meleeSettledW = d._abW;
+  out.meleeSettledX = sx();
+
+  // 4 — A CANCELLED PREVIEW RETAINS NOTHING. Dropping the aim without firing
+  // (death, a suppressed release) must leave no committed hold behind.
+  stage();
+  p.setSuperAimInput(E);
+  step(60);
+  out.cancelArmedW = d._abW;
+  p.superAiming = false;                    // cancelled, never cast
+  out.cancelCommitMs = d._abCommitMs;
+  step(200);
+  out.cancelSettledW = d._abW;
+  out.cancelSettledX = sx();
+
+  // 5 — THE SAFE-AREA GUARD, MEASURED WHERE IT ACTUALLY DECIDES ANYTHING.
+  // At a southern WALL the framing clamp already pins the player, so a check
+  // there passes with the guard deleted — it proves nothing. In OPEN FLOOR
+  // nothing else is holding the line: an ability aiming north pushes the player
+  // down the screen by the full lead, and `_clampSafeArea` is the only thing
+  // that can refuse it. Measured at the configured lead and again at a
+  // deliberately absurd one, because a guard that cannot be shown to engage is
+  // decoration.
+  // Staged in the SOUTHERN half of the open floor, not mid-room: at (800, 700)
+  // detention's northern framing edge is only ~800px away, so the framing clamp
+  // catches an extreme north lead first and the check passes with the guard
+  // deleted. It has to be somewhere neither the framing rect nor a wall is
+  // already deciding.
+  p.setPosition(800, 1050); p.setVelocity(0, 0);
+  p._moveTargetX = 0; p._moveTargetY = 0;
+  p.superAiming = false; p.meleeAiming = false;
+  p.superCharge = 99;
+  d.reset(800, 1050); step(50);
+  p.setSuperAimInput({ x: 0, y: -1, force: 1 });
+  step(90);
+  out.aimNorthY = (p.y - c.scrollY) * c.zoom + c.y;
+  const savedY = CAMERA2.abilityLeadY;
+  CAMERA2.abilityLeadY = 900;               // far past anything shippable
+  step(120);
+  out.aimNorthExtremeY = (p.y - c.scrollY) * c.zoom + c.y;
+  CAMERA2.abilityLeadY = savedY;
+
+  p.superAiming = false; p.meleeAiming = false; p.resetMeleeCombo();
+  return out;
+});
+
+if (ab.idleW !== 0)
+  fails.push(`ability weight is ${ab.idleW} with nothing armed — ability intent must be inert unless an ability asks for it`);
+if (!ab.meleeFired)
+  fails.push('the melee cast was REFUSED, so the execution checks below prove nothing about a commit');
+if (ab.meleeArmedAfter)
+  fails.push('meleeAiming survived the cast — the test is not exercising the preview-vanishes case it exists for');
+// 2: the aimed direction must gain real ground against an opposing movement lead.
+const conflictGain = ab.moveOnlyX - ab.conflictX;
+if (conflictGain < 120)
+  fails.push(`aiming east while travelling west moved the player only ${conflictGain.toFixed(0)}px — ability intent is being averaged with movement, not winning`);
+if (!(ab.conflictW > 0.9))
+  fails.push(`ability weight only reached ${ab.conflictW.toFixed(2)} while a preview was armed`);
+// 3: the frame holds through the cast, then returns.
+if (!(ab.meleeCommitMs > 0))
+  fails.push('no committed hold was retained at the melee cast — the camera will forget the direction as the body starts moving along it');
+if (Math.abs(ab.meleeJustAfterX - ab.meleePreviewX) > 40)
+  fails.push(`the frame jumped ${Math.abs(ab.meleeJustAfterX - ab.meleePreviewX).toFixed(0)}px at the cast — composition is not continuous through the commit`);
+if (!(ab.meleeJustAfterW > 0.9))
+  fails.push(`ability weight collapsed to ${ab.meleeJustAfterW.toFixed(2)} at the cast`);
+if (ab.meleeSettledW > 0.02)
+  fails.push(`the ability lead never released after the melee (weight ${ab.meleeSettledW.toFixed(2)}) — a stuck commit holds the frame for ever`);
+// 4: a cancel retains nothing at all.
+if (ab.cancelCommitMs !== 0)
+  fails.push(`a cancelled preview left ${ab.cancelCommitMs}ms of committed hold — only a real cast may commit`);
+if (ab.cancelSettledW > 0.02)
+  fails.push(`ability weight did not clear after a cancel (${ab.cancelSettledW.toFixed(2)})`);
+// 5: the safe-area guard, in open floor where it is the only thing deciding.
+if (ab.aimNorthY >= cfg.ctrlTop)
+  fails.push(`aiming north in open floor put the player at screen y ${ab.aimNorthY.toFixed(0)}, at or below the control edge (${cfg.ctrlTop})`);
+if (ab.aimNorthExtremeY >= cfg.ctrlTop)
+  fails.push(`with an absurd vertical ability lead the player reached screen y ${ab.aimNorthExtremeY.toFixed(0)} — the safe-area guard is not enforcing the limit`);
+// Both endings return to the same Phase 2A composition.
+for (const [what, x] of [['after a melee', ab.meleeSettledX], ['after a cancel', ab.cancelSettledX]])
+  if (Math.abs(x - ab.idleX) > cfg.cam.dzX + 8)
+    fails.push(`${what} the player rests ${Math.abs(x - ab.idleX).toFixed(0)}px from the idle composition — the camera did not settle back into Phase 2A framing`);
+
 // ── §15 — THE PHASE 1 SOUTH WIN, UNDER MAXIMUM LATERAL LEAD ───────────────
 //
 // The main Phase 1 result was that a player at the southern wall stays clear of
@@ -383,11 +554,20 @@ for (const id of ROOMS) {
     const c = gs.cameras.main, d = gs.cameraDirector, p = gs.player;
     const { w, h } = gs.roomSpec.bounds;
     const out = [];
-    for (const [name, fx, dir] of [['S-w', 0.5, -1], ['S-e', 0.5, 1], ['SW', 0, -1], ['SE', 1, 1], ['SW-e', 0, 1], ['SE-w', 1, -1]]) {
+    // The last two stations arm an ABILITY aiming NORTH — the one bearing that
+    // pushes the player DOWN the screen, and therefore the only way Phase 2B
+    // could spend the Phase 1 south win. `_clampSafeArea` is what refuses it.
+    for (const [name, fx, dir, aim] of [
+      ['S-w', 0.5, -1, null], ['S-e', 0.5, 1, null],
+      ['SW', 0, -1, null], ['SE', 1, 1, null], ['SW-e', 0, 1, null], ['SE-w', 1, -1, null],
+      ['S-aimN', 0.5, 0, -Math.PI / 2], ['SE-aimN', 1, 0, -Math.PI / 2],
+    ]) {
       const px = rad + fx * (w - rad * 2), py = h - rad;
       p.setPosition(px, py); p.setVelocity(0, 0);
       p._moveTargetX = dir * PLAYER.speed; p._moveTargetY = 0;
+      p.superAiming = false; p.meleeAiming = false;
       d.reset(px, py);
+      if (aim !== null) { p.superCharge = 99; p.setSuperAimInput({ x: Math.cos(aim), y: Math.sin(aim), force: 1 }); }
       for (let i = 0; i < 140; i++) { p.setPosition(px, py); d.update(16); }
       out.push({
         name,
@@ -397,6 +577,7 @@ for (const id of ROOMS) {
       });
     }
     p._moveTargetX = 0; p._moveTargetY = 0;
+    p.superAiming = false; p.meleeAiming = false;
     return out;
   }, [id, cfg.radius]);
   for (const r of rows) {
