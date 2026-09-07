@@ -95,6 +95,19 @@ export class CameraDirector {
     this._abCommitAgeMs = 0;
     this._abKind = null;   // 'super' | 'melee' | null, for the debug overlay
 
+    // ── ORDINARY COMBAT INTENT (Phase 2C) ───────────────────────────────────
+    // A recency-weighted sum of the directions of committed ordinary shots, and
+    // the matching total weight. Three scratch numbers; no history array, and
+    // nothing allocated per shot. `_fvW` is the recency-weighted SHOT COUNT, so
+    // `hypot(_fvX,_fvY)/_fvW` is how consistent recent fire has been and `_fvW`
+    // itself is how much of it there was.
+    this._fvX = 0;
+    this._fvY = 0;
+    this._fvW = 0;
+    // The contribution actually applied, as a vector whose LENGTH is confidence.
+    this._aimX = 0;
+    this._aimY = 0;
+
     // Scratch. The whole per-frame path is ~30 arithmetic operations and it
     // runs every frame forever, so it allocates NOTHING: the focus, the ideal
     // scroll and the two spring results are written into these instead of
@@ -177,6 +190,8 @@ export class CameraDirector {
     this._leadX = 0; this._leadY = 0;
     this._abW = 0; this._abDX = 0; this._abDY = 0;
     this._abCommitMs = 0; this._abCommitAgeMs = 0; this._abKind = null;
+    this._fvX = 0; this._fvY = 0; this._fvW = 0;
+    this._aimX = 0; this._aimY = 0;
     this._ready = true;
     this.cam.setScroll(this._tx, this._ty);
   }
@@ -192,6 +207,7 @@ export class CameraDirector {
   _solveFocus(delta) {
     const p = this.scene.player;
     this._solveLead(delta, p);
+    this._solveAim(delta);
     this._solveAbility(delta, p);
 
     // PRIORITY, NOT AVERAGING. Moving west while aiming the Super east is the
@@ -202,10 +218,78 @@ export class CameraDirector {
     // dial if a residue of travel sense turns out to be wanted; it is 0 so the
     // handset judges the unambiguous version.
     const w = this._abW;
+
+    // TIER 2 — ordinary combat, which BLENDS with movement rather than
+    // replacing it. `_aimX/_aimY` already carry confidence as their length, so
+    // at zero confidence this is arithmetically identical to Phase 2A and the
+    // approved movement feel is returned untouched.
+    const conf = Math.hypot(this._aimX, this._aimY);
+    const aimShare = 1 - conf * (1 - CAMERA.aimMoveKeep);
+    let lx = this._leadX * aimShare + this._aimX * CAMERA.aimLeadX;
+    let ly = this._leadY * aimShare + this._aimY * CAMERA.aimLeadY;
+
+    // A CEILING ON THE TWO TOGETHER, not on each. It binds only when movement
+    // and combat AGREE — running east while shooting east — which is the one
+    // case where two moderate leads stack into an immoderate one.
+    const mag = Math.hypot(lx, ly);
+    if (mag > CAMERA.leadCombinedMax) {
+      const k = CAMERA.leadCombinedMax / mag;
+      lx *= k; ly *= k;
+    }
+
+    // TIER 1 — explicit ability commitment, which crossfades over BOTH of the
+    // above. Ordinary fire may outrank locomotion; it may not outrank a Super
+    // cone or a melee telegraph, and the memory underneath keeps decaying on its
+    // own clock so nothing stale is waiting to snap back when the ability ends.
     const mk = CAMERA.abilityMoveKeep;
-    const moveShare = 1 - w * (1 - mk);
-    this._fx = p.x + this._leadX * moveShare + this._abDX * CAMERA.abilityLeadX * w;
-    this._fy = p.y + this._leadY * moveShare + this._abDY * CAMERA.abilityLeadY * w;
+    const share = 1 - w * (1 - mk);
+    this._fx = p.x + lx * share + this._abDX * CAMERA.abilityLeadX * w;
+    this._fy = p.y + ly * share + this._abDY * CAMERA.abilityLeadY * w;
+  }
+
+  // ── ORDINARY COMBAT INTENT ────────────────────────────────────────────────
+  //
+  // DO NOT FOLLOW THE NEAREST ENEMY. Ordinary fire auto-aims, so the resolved
+  // bearing can jump east -> northwest -> southeast between consecutive taps;
+  // a camera that chased it would be a lock-on nobody asked for, swinging on
+  // target selection the player cannot see. Nothing here consults an enemy, a
+  // position, a distance or a target id — only the direction a shot was
+  // actually committed along, which the fire path already resolved.
+  //
+  // ONE SHOT IS NOISE, REPEATED CONSISTENT SHOTS ARE INTENT. The accumulator
+  // decays exponentially, so similar bearings reinforce, opposing ones cancel,
+  // and a sector the fight has left fades on its own.
+  //
+  // THE CONTRIBUTION IS THE VECTOR, NEVER A NORMALISED DIRECTION. Under
+  // alternating fire the sum passes through zero, and a normalised bearing
+  // there is arbitrary and spins — the exact camera ping-pong this is built to
+  // avoid. Dividing the sum by the weight total gives a vector whose length IS
+  // consistency and whose direction is meaningless precisely when its length is
+  // zero, which is the behaviour we want and needs no special case.
+  _solveAim(delta) {
+    const dt = Math.min(delta, 100);
+    const decay = Math.exp(-dt / CAMERA.aimMemoryMs);
+    this._fvX *= decay; this._fvY *= decay; this._fvW *= decay;
+    if (this._fvW < 1e-4) { this._fvW = 0; this._fvX = 0; this._fvY = 0; }
+
+    const activity = Math.min(1, this._fvW / CAMERA.aimShotsForFull);
+    if (this._fvW > 1e-4) {
+      this._aimX = (this._fvX / this._fvW) * activity;
+      this._aimY = (this._fvY / this._fvW) * activity;
+    } else {
+      this._aimX = 0; this._aimY = 0;
+    }
+  }
+
+  // Called from the scene's ordinary-fire handlers with the direction the shot
+  // was RESOLVED along — the same number the bolt flies at, whether it came
+  // from the aim stick, an auto-aimed tap or the keyboard. Input device cannot
+  // matter, because by this point it no longer exists.
+  noteShot(dir) {
+    if (!Number.isFinite(dir)) return;
+    this._fvX += Math.cos(dir);
+    this._fvY += Math.sin(dir);
+    this._fvW += 1;
   }
 
   // ── ABILITY INTENT ────────────────────────────────────────────────────────
@@ -503,6 +587,22 @@ export class CameraDirector {
       g.lineBetween(psx, psy, ex, ey);
       g.fillStyle(0xffd040, 0.9);
       g.fillCircle(ex, ey, 6);
+    }
+
+    // ORDINARY COMBAT INTENT, in a third colour again — cyan, so the three
+    // player-intent tiers are told apart at a glance: green locomotion, amber
+    // explicit ability, cyan the fight. Its length is confidence, so a build-up,
+    // a cancellation under alternating fire and a decay after the shooting
+    // stops all look different, which is the whole question here.
+    const pc = this.scene.player;
+    const conf = Math.hypot(this._aimX, this._aimY);
+    if (pc && conf > 0.01) {
+      const psx = (pc.x - this.cam.scrollX) * z;
+      const psy = (pc.y - this.cam.scrollY) * z;
+      g.lineStyle(3, 0x40e0ff, 0.85);
+      g.lineBetween(psx, psy, psx + this._aimX * CAMERA.aimLeadX * z, psy + this._aimY * CAMERA.aimLeadY * z);
+      g.fillStyle(0x40e0ff, 0.85);
+      g.fillCircle(psx + this._aimX * CAMERA.aimLeadX * z, psy + this._aimY * CAMERA.aimLeadY * z, 5);
     }
 
     // THE MOVEMENT LEAD, drawn from the player to the focus the solver is

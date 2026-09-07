@@ -2526,6 +2526,11 @@ export class GameScene extends Phaser.Scene {
     this._offOwnEvents();
 
     this._on('player-fire', (angle) => {
+      // ORDINARY COMBAT INTENT. The camera is handed the direction the shot was
+      // RESOLVED along — not the target, not the stick, not the enemy that
+      // auto-aim picked — and accumulates it. One shot barely moves anything;
+      // several consistent ones tell the camera where the fight is.
+      this.cameraDirector?.noteShot(angle);
       this.firePlayerPrimary(angle);
       this.propagateSound(this.player.x, this.player.y, 420);
       this._cameraPunch(1.008, 90);
@@ -2619,6 +2624,12 @@ export class GameScene extends Phaser.Scene {
       this._slowMo(0.6, 200);
     });
     this._on('player-fire-rifle', (angle) => {
+      // Each bolt of a burst is a real shot along the same bearing, so a burst
+      // simply builds confidence three times as fast as a pistol tap. The
+      // CLUSTER is deliberately not here: a lobbed munition is one throw, not
+      // sustained ranged fire, and weighting it like a stream of bolts would
+      // let a single grenade compose the room.
+      this.cameraDirector?.noteShot(angle);
       this.firePlayerRifle(angle);
       this.propagateSound(this.player.x, this.player.y, 560);
       this._cameraPunch(1.012, 100);

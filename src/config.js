@@ -1062,11 +1062,64 @@ export const CAMERA = {
   // unambiguous version of the priority rule and the one a handset can judge.
   abilityMoveKeep: 0,
 
-  // ── PHASE 2C, PRESENT AND OFF ───────────────────────────────────────────
-  // ORDINARY weapon aim. Not the same problem as an ability preview: normal aim
-  // is active almost constantly, so it needs its own tuning against camera
-  // wander during micro-adjustments. `smoke-camera` fails if it ships non-zero.
-  leadAim: 0,
+  // ── ORDINARY COMBAT INTENT (PHASE 2C) ───────────────────────────────────
+  //
+  // WHERE THE FIGHT IS, not where the nearest enemy is. CRIX's ordinary loop is
+  // not "hold an aim stick on one target": the player taps fire and the shot
+  // auto-aims at whatever is closest, so the resolved bearing can jump between
+  // consecutive shots. Following it would be a lock-on camera the player never
+  // asked for and never sees coming.
+  //
+  // So the camera consumes only the RESOLVED DIRECTION OF COMMITTED SHOTS and
+  // accumulates them: one shot is noise, several consistent ones are intent.
+  // `CameraDirector._solveAim` keeps a recency-weighted vector sum and a
+  // matching weight total; the vector's length over that total is CONSISTENCY
+  // (opposing shots cancel), and the total itself is ACTIVITY (how much recent
+  // firing there has been). Confidence is the product, and the contribution is
+  // that vector directly — never a normalised direction, which would spin
+  // arbitrarily as the sum passes through zero during alternating fire.
+  //
+  // MEMORY IS TUNED TO THE REAL CADENCE. The pistol is a 120ms cooldown, three
+  // rounds, then a 520ms reload — sustained fire is a shot roughly every
+  // 170-200ms. A 700ms time constant means three taps still carry most of their
+  // weight when the fourth lands (a steady stream settles near 4.0), while a
+  // sector the player stopped shooting at is down to ~14% after 1.4s and gone by
+  // 2s. Long enough that a burst is one intention, short enough that stale
+  // combat direction cannot survive the fight moving.
+  aimMemoryMs: 700,
+  // Recency-weighted shots for full activity, and it is 3 rather than 4 because
+  // of where the accumulator actually SETTLES. Sustained tapping at the real
+  // cadence reaches a steady weight near 3.4, not infinity, so a divisor of 4
+  // capped live confidence around 0.68 — and at that operating point the
+  // movement residue still cancelled the combat lead outright: measured, a
+  // player retreating west while firing east came out with a net lead of -13px,
+  // which is the 50/50 neutral the brief specifically forbids. At 3 an isolated
+  // shot is still only a third of the lead (a nudge inside the deadzone) while
+  // six taps reach 0.89. Tune this against the FIRE CADENCE, never in theory.
+  aimShotsForFull: 3,
+
+  // SUBSTANTIALLY MORE RESTRAINED THAN AN ABILITY PREVIEW (260), on purpose.
+  // A Super cone is a deliberate one-off statement; ordinary fire is continuous,
+  // and giving it the same authority would make the fire button read as a second
+  // control stick. Vertical is restrained again, and `_clampSafeArea` remains
+  // the authority on what is actually legal.
+  aimLeadX: 200,
+  aimLeadY: 120,
+  // MOVEMENT SURVIVES ORDINARY FIRE, and this is the deliberate difference from
+  // `abilityMoveKeep`. Explicit commitment may own the frame outright; ordinary
+  // shooting must not, because the player is usually dodging while they do it
+  // and a westward dodge that carries no camera weight has lost its physicality.
+  // At full confidence the split is 75/25 in the fight's favour — which, with
+  // the movement lead being the larger number (220 against 200), is what it
+  // takes for the fight to actually win the frame rather than merely tie it.
+  aimMoveKeep: 0.25,
+  // Ceiling on the COMBINED movement + combat lead. The line it draws is that
+  // IMPLICIT signals never out-frame an EXPLICIT one: whatever locomotion and
+  // ordinary fire agree about, they cannot compose harder than a Super cone or
+  // a melee telegraph does, so it matches `abilityLeadX`. It only binds when
+  // the two point the same way — measured, running east while firing east
+  // reaches 252, so today it is a ceiling rather than a behaviour.
+  leadCombinedMax: 260,
 
   // FIXED ZOOM. There used to be a continuous speed-tied "breathe" (1.00 down
   // to 0.96 at full sprint) writing `setZoom` every frame. Phase 1 is fixed

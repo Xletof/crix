@@ -85,7 +85,26 @@ if (!cfg.cam) {
 // 5 — fixed zoom. Read from config, not from a frame: a `_cameraPunch` is
 // allowed to move zoom transiently and always returns to 1.
 if (cfg.cam.zoomBreathe !== 0) fails.push(`CAMERA.zoomBreathe is ${cfg.cam.zoomBreathe} — fixed zoom, through Phase 2A`);
-if (cfg.cam.leadAim !== 0) fails.push(`CAMERA.leadAim is ${cfg.cam.leadAim} — ORDINARY weapon aim is PHASE 2C and must not ship with 2B`);
+// ── PHASE 2C config claims ─────────────────────────────────────────────────
+// Ordinary fire sits BETWEEN locomotion and explicit commitment, and each of
+// these is what stops it drifting to one end or the other.
+if (!(cfg.cam.aimLeadX < cfg.cam.abilityLeadX))
+  fails.push(`aimLeadX ${cfg.cam.aimLeadX} is not below abilityLeadX ${cfg.cam.abilityLeadX} — ordinary fire must be more restrained than an explicit preview`);
+if (!(cfg.cam.aimLeadY < cfg.cam.aimLeadX))
+  fails.push(`aimLeadY ${cfg.cam.aimLeadY} — vertical combat lead must stay restrained relative to horizontal`);
+// THE DELIBERATE DIFFERENCE FROM ABILITY INTENT. Explicit commitment may own
+// the frame outright (`abilityMoveKeep` 0); ordinary shooting may not, because
+// the player is usually dodging while they do it.
+if (!(cfg.cam.aimMoveKeep > 0.1 && cfg.cam.aimMoveKeep < 0.5))
+  fails.push(`aimMoveKeep ${cfg.cam.aimMoveKeep} — movement must survive ordinary fire as a real minority, not vanish and not tie`);
+if (!(cfg.cam.aimMoveKeep > cfg.cam.abilityMoveKeep))
+  fails.push('aimMoveKeep must exceed abilityMoveKeep — ordinary fire blends with movement, an ability replaces it');
+if (!(cfg.cam.leadCombinedMax <= cfg.cam.abilityLeadX))
+  fails.push(`leadCombinedMax ${cfg.cam.leadCombinedMax} exceeds abilityLeadX — implicit signals must never out-frame an explicit one`);
+if (!(cfg.cam.aimMemoryMs >= 300 && cfg.cam.aimMemoryMs <= 1500))
+  fails.push(`aimMemoryMs ${cfg.cam.aimMemoryMs} — outside the range where several taps are one intention but a stale sector still expires`);
+if (!(cfg.cam.aimShotsForFull >= 2))
+  fails.push(`aimShotsForFull ${cfg.cam.aimShotsForFull} — below 2 a single shot carries most of the lead, and one shot is noise`);
 
 // ── PHASE 2B config claims ─────────────────────────────────────────────────
 // Explicit ability intent is meant to be BETTER information than locomotion, so
@@ -537,6 +556,127 @@ if (ab.aimNorthExtremeY >= cfg.ctrlTop)
 for (const [what, x] of [['after a melee', ab.meleeSettledX], ['after a cancel', ab.cancelSettledX]])
   if (Math.abs(x - ab.idleX) > cfg.cam.dzX + 8)
     fails.push(`${what} the player rests ${Math.abs(x - ab.idleX).toFixed(0)}px from the idle composition — the camera did not settle back into Phase 2A framing`);
+
+// ── PHASE 2C — ORDINARY COMBAT INTENT ─────────────────────────────────────
+//
+// Relational claims only: one shot is noise, consistent shots are intent,
+// opposing shots cancel, intent expires, and an explicit ability still wins.
+// Fed through `noteShot` — the exact entry point the two committed-fire
+// handlers call — at the game's own cadence (a 120ms pistol cooldown, three
+// rounds, a 520ms reload: a shot roughly every 180ms sustained).
+const aim = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const { ROOMS } = await import('/src/data/rooms.js');
+  gs.loadRoom(ROOMS.find((r) => r.id === 'detention'));
+  const c = gs.cameras.main, d = gs.cameraDirector, p = gs.player;
+  const step = (ms) => { for (let i = 0; i < Math.round(ms / 16); i++) d.update(16); };
+  const clear = () => {
+    p.setPosition(800, 700); p.setVelocity(0, 0);
+    p._moveTargetX = 0; p._moveTargetY = 0;
+    p.superAiming = false; p.meleeAiming = false; p.resetMeleeCombo();
+    d.reset(800, 700); d._fvX = 0; d._fvY = 0; d._fvW = 0; d._aimX = 0; d._aimY = 0;
+    step(400);
+  };
+  const shoot = (a, gap = 180) => { d.noteShot(a); step(gap); };
+  const conf = () => Math.hypot(d._aimX, d._aimY);
+  const sx = () => (p.x - c.scrollX) * c.zoom + c.x;
+  const out = {};
+
+  // 6 — inert until an ordinary shot actually happens.
+  clear();
+  out.idleConf = conf();
+  out.idleX = sx();
+
+  // 1 + 2 — one shot is noise; repeated consistent shots are intent.
+  clear(); shoot(0, 200);
+  out.oneShot = conf();
+  out.oneShotX = sx();
+  clear(); for (let i = 0; i < 6; i++) shoot(0);
+  out.sixShots = conf();
+  out.sixShotsX = sx();
+
+  // 3 — opposing directions cancel rather than swing the frame.
+  clear();
+  const xs = [];
+  for (let i = 0; i < 8; i++) { shoot(i % 2 ? Math.PI : 0); xs.push(sx()); }
+  out.altConf = conf();
+  out.altSwing = Math.max(...xs) - Math.min(...xs);
+
+  // 4 — it expires.
+  clear(); for (let i = 0; i < 6; i++) shoot(0);
+  out.beforeDecay = conf();
+  step(2000);
+  out.afterDecay = conf();
+
+  // 5 — an explicit ability still outranks it, and nothing stale snaps back.
+  clear(); for (let i = 0; i < 6; i++) shoot(0);
+  out.combatX = sx();
+  p.superCharge = 99;
+  p.setSuperAimInput({ x: -1, y: 0, force: 1 });     // aiming WEST against east fire
+  step(400);
+  out.abilityX = sx();
+  out.abilityW = d._abW;
+  p.superAiming = false;
+  let jump = 0, prev = sx();
+  for (let i = 0; i < 12; i++) { step(60); const n = sx(); jump = Math.max(jump, Math.abs(n - prev)); prev = n; }
+  out.releaseJump = jump;
+
+  // 7 — the safe area, with sustained fire NORTH: the bearing that pushes the
+  // player DOWN the screen. Staged in open floor in the room's southern half,
+  // where neither a wall nor the northern framing edge is already deciding.
+  p.setPosition(800, 1050); p.setVelocity(0, 0);
+  p._moveTargetX = 0; p._moveTargetY = 0;
+  p.superAiming = false;
+  d.reset(800, 1050); d._fvX = 0; d._fvY = 0; d._fvW = 0; d._aimX = 0; d._aimY = 0;
+  step(300);
+  for (let i = 0; i < 10; i++) { d.noteShot(-Math.PI / 2); p.setPosition(800, 1050); step(180); }
+  out.fireNorthY = (p.y - c.scrollY) * c.zoom + c.y;
+  out.fireNorthConf = conf();
+  const savedY = d.cfg.aimLeadY;
+  d.cfg.aimLeadY = 900;                              // far past anything shippable
+  step(400);
+  out.fireNorthExtremeY = (p.y - c.scrollY) * c.zoom + c.y;
+  d.cfg.aimLeadY = savedY;
+
+  d._fvX = 0; d._fvY = 0; d._fvW = 0; d._aimX = 0; d._aimY = 0;
+  return out;
+});
+
+if (aim.idleConf !== 0)
+  fails.push(`combat confidence is ${aim.idleConf} with no shots fired — ordinary intent must be inert until an ordinary shot happens`);
+// ONE SHOT IS NOISE. Not zero influence, but it must not move the frame.
+if (!(aim.oneShot > 0 && aim.oneShot < 0.45))
+  fails.push(`one shot produced confidence ${aim.oneShot.toFixed(2)} — a single tap must register weakly, not decide the composition`);
+if (Math.abs(aim.oneShotX - aim.idleX) > 24)
+  fails.push(`one shot moved the player ${Math.abs(aim.oneShotX - aim.idleX).toFixed(0)}px on screen — a tap should not recompose the room`);
+// REPEATED CONSISTENT SHOTS ARE INTENT.
+if (!(aim.sixShots > aim.oneShot * 2))
+  fails.push(`six consistent shots reached ${aim.sixShots.toFixed(2)} against one shot's ${aim.oneShot.toFixed(2)} — consistency is not accumulating`);
+const opened = aim.idleX - aim.sixShotsX;
+if (opened < 80)
+  fails.push(`six shots east opened only ${opened.toFixed(0)}px of view in that direction`);
+// ...AND NOT AS HARD AS AN EXPLICIT PREVIEW.
+if (opened > (cfg.cam.abilityLeadX - cfg.cam.dzX))
+  fails.push(`ordinary fire moved the frame ${opened.toFixed(0)}px, at or past what an explicit ability preview commands — the fire button is steering the camera`);
+// OPPOSING SHOTS CANCEL — and the pair matters: a camera that never moves at
+// all would also pass this on its own.
+if (aim.altConf > 0.3)
+  fails.push(`alternating east/west fire still reached confidence ${aim.altConf.toFixed(2)} — opposing evidence is not cancelling`);
+if (aim.altSwing > 40)
+  fails.push(`alternating fire swung the player ${aim.altSwing.toFixed(0)}px across 8 shots — this is the target-switch ping-pong the design forbids`);
+// IT EXPIRES.
+if (!(aim.afterDecay < aim.beforeDecay * 0.15))
+  fails.push(`combat intent was still ${aim.afterDecay.toFixed(2)} two seconds after the last shot (peak ${aim.beforeDecay.toFixed(2)}) — a stale sector is steering the camera`);
+// EXPLICIT COMMITMENT STILL WINS.
+if (!(aim.abilityW > 0.9) || (aim.abilityX - aim.combatX) < 150)
+  fails.push(`an ability aimed west against east fire only moved the frame ${(aim.abilityX - aim.combatX).toFixed(0)}px (weight ${aim.abilityW.toFixed(2)}) — ordinary fire is competing with explicit intent`);
+if (aim.releaseJump > 60)
+  fails.push(`the frame jumped ${aim.releaseJump.toFixed(0)}px in one 60ms step after the ability ended — stale combat memory is snapping the camera back`);
+// THE SAFE AREA HOLDS, INCLUDING UNDER AN ABSURD VERTICAL COMBAT LEAD.
+if (aim.fireNorthY >= cfg.ctrlTop)
+  fails.push(`sustained fire north put the player at screen y ${aim.fireNorthY.toFixed(0)}, at or below the control edge (${cfg.ctrlTop})`);
+if (aim.fireNorthExtremeY >= cfg.ctrlTop)
+  fails.push(`with an absurd vertical combat lead the player reached screen y ${aim.fireNorthExtremeY.toFixed(0)} — the safe-area guard is not enforcing the limit`);
 
 // ── §15 — THE PHASE 1 SOUTH WIN, UNDER MAXIMUM LATERAL LEAD ───────────────
 //
