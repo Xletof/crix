@@ -18,7 +18,7 @@ build is whatever `FRIX` points at — check `git rev-parse HEAD origin/FRIX`
 rather than trusting a hash written here, and
 `git rev-parse --abbrev-ref HEAD` for the branch name.*
 
-### THE CAMERA IS IN PHASE 2A AND IT IS WAITING ON A HANDSET
+### THE CAMERA IS IN PHASE 2B AND IT IS WAITING ON A HANDSET
 
 The environment pilot closed and the next thing was NOT another room. The camera
 was: `startFollow(player, true, 0.22, 0.22)`, no deadzone, camera bounds set to
@@ -42,7 +42,10 @@ behind too much for west/east. I can't see where I will be going or the enemies
 there."* Measured, Phase 1 left only 179-236px of the 720px viewport ahead of a
 travelling player.
 
-**PHASE 2A ANSWERS THAT AND IS THE THING NOW AWAITING A HANDSET.** Tighter
+**PHASE 2A ANSWERED THAT AND CAME BACK APPROVED** — *"lateral camera feels
+dynamic and bounded; strafing right/left feels good; no jitter; when movement
+stops, the delayed forward settle feels good and gives weight."* It is FROZEN;
+`§13` is its record and none of its numbers moved afterwards. Tighter
 horizontal deadzone (120 -> 60), a stiffer X spring only (19.5 against Y's
 untouched 13.5), and MOVEMENT LOOKAHEAD as an input to the composition solver's
 focus. World visible ahead during travel roughly doubles: east 236 -> 425, west
@@ -51,11 +54,22 @@ value, the A/B table, why `leadX` is 220 when only ~115px of it lands on screen,
 why `leadY` is 0, the one known cost (repeated strafes move the camera 2.24x as
 far as the player) and five traps.
 
-**NOTHING IS FROZEN AND THE HUMAN DECIDES THE TUNING.** `CAMERA.zoomBreathe`
-stays 0 (fixed zoom) and `CAMERA.leadAim` is 0 — aim influence is Phase 2B and
-`smoke-camera` fails if it ships early.
+**PHASE 2B IS THE THING NOW AWAITING A HANDSET.** It adds ABILITY INTENT: the
+Super's cone and the melee telegraph are the player explicitly stating where
+they are committing, and commitment outranks locomotion. The camera reads the
+same vectors the telegraphs are drawn from, snapshots the direction the cast
+actually resolved (both release paths clear their own preview flag before
+firing), holds through the action and settles back into 2A framing. Measured, a
+player travelling west while aiming east goes from 200px of world in the aimed
+direction to 560. **`§14` is the full record.** The structural result is that the
+mobile safe area is now guarded on the FINAL target (`_clampSafeArea`) instead
+of one input at a time — which is what makes a vertical ability lead safe.
 
-**DO NOT START PHASE 2B** (aim intent), Phase 3 (Vader interest weighting) or
+**NOTHING IN 2B IS FROZEN AND THE HUMAN DECIDES THE TUNING.**
+`CAMERA.zoomBreathe` stays 0 (fixed zoom) and `CAMERA.leadAim` is 0 — ORDINARY
+weapon aim is Phase 2C and `smoke-camera` fails if it ships early.
+
+**DO NOT START PHASE 2C** (ordinary aim), Phase 3 (Vader interest weighting) or
 Phase 4 (impact impulses) until the handset verdict lands.
 
 ### THE FOUR-ARENA ENVIRONMENT PILOT IS COMPLETE. ALL FOUR ROOMS ARE FROZEN 🔒
@@ -5078,6 +5092,169 @@ it is written to be run on both builds by setting `leadX: 0`, `dzX: 120`,
   weighting; Phase 4 is impact impulses and any discrete zoom. Vader, his moves,
   his AI, his telegraphs and all combat logic are untouched by this pass, as is
   every one of the four frozen arenas.
+
+---
+
+## 14. CAMERA PHASE 2B — ability intent, and who owns the frame
+
+**Landed on `claude/camera-framing-phase-1-jt7v53`. NOT human-approved. Handset
+review required. Phase 2C (ordinary weapon aim) and Phase 3 (Vader) are
+explicitly still pending and must not be started.**
+
+Phase 2A came back approved — *"lateral camera feels dynamic and bounded;
+strafing right/left feels good; no jitter; when movement stops, the delayed
+forward settle feels good and gives weight."* Every 2A number is frozen and this
+pass changed none of them.
+
+### THE AUTHORITATIVE VECTORS (the §1 audit)
+
+| what | source of truth | who else reads it |
+|---|---|---|
+| Super preview | `player.superAiming` + `player.superAim` | `GameScene._drawAimCone` |
+| Super commit | the `player-fire-super` event's angle | `firePlayerSuper` |
+| Melee preview | `player.meleeAiming` + `player.meleeAim` | `GameScene._drawMeleeTelegraph` |
+| Melee commit | the `player-melee-cast` event's `dir` | `performMeleeCast`, the lunge |
+| Melee still executing | `player._meleeAnimT` | the pose chain |
+
+**THE CAMERA READS EXACTLY THESE.** If the preview says the skill goes there,
+the camera frames there. Deriving a bearing independently would let the two
+disagree, and the one the player is looking at would be the one that was right.
+
+**BOTH RELEASE PATHS CLEAR THEIR OWN PREVIEW FLAG BEFORE THE CAST** —
+`releaseSuperAim` drops `superAiming` before `tryFireSuper`, `releaseMeleeAim`
+drops `meleeAiming` before `tryMeleeCombo`. So the telegraph the camera was
+framing is gone on the exact frame the body starts travelling along it. That is
+the whole reason `commitAbility` exists.
+
+### HOW IT PLUGS IN
+
+`CameraDirector._solveAbility(delta, p)` produces a filtered authority `_abW`
+(0..1) and a unit direction, and `_solveFocus` CROSSFADES:
+
+```
+focus = player
+      + movementLead * (1 - w * (1 - abilityMoveKeep))
+      + abilityDir   * abilityLead * w
+```
+
+Priority, not averaging: at full weight explicit commitment owns the frame
+outright. Nothing in the motion solver changed — the focus/motion split has now
+survived two passes adding entirely new interests.
+
+A PREVIEW OUTRANKS A COMMIT (if a telegraph is armed you are aiming the next
+cast). Super outranks melee only because they cannot both be armed — the two
+abilities deliberately keep their aim on separate fields.
+
+### THE TUNING
+
+| key | value | why |
+|---|---|---|
+| `abilityLeadX` | 260 | above the movement lead's 220 — explicit intent is better information than locomotion |
+| `abilityLeadY` | 150 | allowed here and not in the movement lead; restrained |
+| `abilityAttackMs` | 90 | faster than locomotion's 130, still filtered |
+| `abilityReleaseMs` | 220 | lets go more gently than it acquires |
+| `abilitySuperHoldMs` | 320 | the committed hold past the cast |
+| `abilityMeleeHoldMs` | 420 | melee puts the body in the space |
+| `abilityMeleeTailMs` | 260 | the re-arm top-up while a swing is playing |
+| `abilityMeleeMaxMs` | 1200 | ceiling on the re-arm — see the trap below |
+| `abilityMoveKeep` | 0 | movement keeps none of the frame at full ability weight |
+
+### THE SAFE-AREA RULE MOVED, AND THAT IS THE STRUCTURAL RESULT
+
+Phase 2A kept the player clear of the touch controls by refusing a vertical
+movement lead at all (`leadY: 0`). Correct, but it defends the rule ONE INPUT AT
+A TIME, and ability intent genuinely needs vertical authority. `_clampSafeArea`
+now guards the FINAL target: whatever the composition asked for, the player may
+not be composed below the safe area.
+
+- Only a FLOOR on the target, never a lift — a lift would be re-centring the
+  player, which is precisely what the deadzone exists to avoid.
+- `_clampTarget` (the framing rect) still runs after it and still wins, because
+  framing is what bounds how far past the room the camera may look. At a
+  southern wall the two agree by construction: `padSouth` is derived from this
+  very number.
+- `leadY` stays 0 regardless. It is not needed and Phase 2A is frozen.
+
+### MEASURED (`tests/diag-camera-ability.mjs`)
+
+`aheadIn(dir)` is viewport pixels between the player and the frame edge along a
+bearing. Neutral standing: 360 east/west.
+
+| case | before | with ability intent |
+|---|---|---|
+| Super aimed east / west | 360 | **560** (+200) |
+| Super aimed north | 526 | 576 |
+| Super aimed south | 670 | 740 |
+| **moving west, aiming east** | **200** | **560** |
+| **moving east, aiming west** | **200** | **560** |
+
+Continuity, melee east: preview 560 → **at the cast still 560, weight 1.00, with
+the preview flag already false** → 560 at +160ms → decaying by +1.1s → settled
+at 420, which is the Phase 2A composition (the 60px deadzone residual). A
+cancelled preview retains zero committed hold and decays to the same place.
+
+**South safety, all four arenas, every bearing including north: screen y 886
+against a control edge at 926 — identical to Phase 2A.**
+
+### TRAPS THIS PASS LEFT BEHIND
+
+- **A HOLD THAT RE-ARMS FROM SOMEONE ELSE'S CLOCK NEEDS A CEILING.** The melee
+  lead tops itself up while `_meleeAnimT > 0` so a three-cast chain reads as one
+  commitment. That clock is decremented in `Player.preUpdate`; anything that
+  stops it running leaves it frozen above zero and the ability lead holds the
+  frame for ever. The rig measured exactly that — full weight three seconds
+  after the cast — because it stepped the director without the player.
+  `abilityMeleeMaxMs` bounds one cast; each new cast resets it.
+- **A RIG THAT STEPS ONE SYSTEM MEASURES A STATE THAT CANNOT OCCUR.** The same
+  bug, from the other side: freezing `_meleeAnimT` and `_comboWindowMs` also
+  leaked combo state into the next case, which then reported a REFUSED cast as
+  though it were a measurement. Tick the player's clocks, reset the combo
+  between cases, and print the gate that refused.
+- **BACKTICKS IN A COMMENT INSIDE A TEMPLATE LITERAL CLOSE THE STRING.** These
+  rigs build their page scripts as template literals; a comment mentioning
+  `` `tryMeleeCombo` `` is a syntax error at module load. Cost one run.
+- **A GUARD TESTED WHERE SOMETHING ELSE ALREADY DECIDES IS DECORATION.** The
+  first safe-area check stood at a southern WALL — where the framing clamp pins
+  the player anyway — and passed with `_clampSafeArea` deleted. It had to move
+  to open floor in the room's southern half, far enough from the northern
+  framing edge that nothing else catches an extreme north lead first: with the
+  guard removed the player reaches screen y 1234, with it 886.
+- **`CameraDirector.cfg` EXISTS BECAUSE A RIG CANNOT REACH THE LIVE CONFIG.** An
+  `import('/src/config.js')` inside `page.evaluate` returns a SECOND module
+  instance whose values the running camera never reads (§12's trap). Mutating
+  tuning at runtime goes through `director.cfg`.
+
+### VALIDATION
+
+`smoke-camera` gained the Phase 2B claims: config relationships (ability lead
+outweighs movement, vertical restrained, attack faster than locomotion but not
+instant, release slower than attack, `moveKeep` genuinely secondary, melee
+ceiling above the hold); ability intent inert with nothing armed; a preview
+beating an opposing movement lead; execution retaining the committed direction
+with the preview flag already false and no jump at the cast; a cancel retaining
+nothing; both endings settling back into the Phase 2A composition; the
+safe-area guard in open floor at the shipped lead and at an absurd one; and the
+south stations now also armed with an ability aiming north.
+
+Each was A/B'd against the build without the feature — disabling the ability
+lead, removing the commit snapshot, and removing the safe-area guard each fail a
+specific check with the exact number the bug produces.
+
+### WHAT IS OPEN
+
+- **The handset verdict.** Every number is a proposal.
+- **`abilityLeadX` (260) and `abilityMeleeHoldMs` (420)** are the two most
+  likely to want adjustment — the first is how much the frame swings on a
+  preview, the second is how long it stays committed after the swing.
+- **`abilityMoveKeep` is 0**, so a Super aimed east while sprinting west shows
+  no trace of the sprint. That is the unambiguous version of the priority rule
+  and the one a handset can judge; if it reads as losing the sense of travel,
+  the dial is there.
+- **Phase 2C (ordinary weapon aim) is NOT started** and is a different problem:
+  normal aim is active almost constantly and needs its own tuning against camera
+  wander during micro-adjustments. **Phase 3 (Vader interest weighting) is NOT
+  started.** Vader, his moves, his AI, his telegraphs and all combat logic are
+  untouched by this pass, as is every one of the four frozen arenas.
 
 ---
 

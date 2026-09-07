@@ -1244,6 +1244,48 @@ the player rests up to `dzX` off centre — measured at exactly 60px against a
 to centre is asserting a camera that re-centres on its own, which is the
 opposite of the behaviour that was approved.
 
+### Camera Phase 2B added a sixth rig, and four more ways they lied
+
+`diag-camera-ability.mjs` measures the Phase 2B claim: explicit commitment
+outranks locomotion, so a player travelling west while aiming the Super east
+gets a frame that opens EAST. It reports viewport pixels between the player and
+the frame edge along the ABILITY's bearing, plus the two continuity beats a
+preview cannot show on its own — whether the framing survives the preview
+vanishing at the cast, and whether it returns to Phase 2A composition after.
+
+It drives the REAL entry points (`setSuperAimInput`, `setMeleeAimInput`,
+`releaseSuperAim`, `releaseMeleeAim`). Poking `superAim` directly would test a
+field rather than a feature, and would miss that both release paths clear their
+own preview flag before the cast.
+
+**A RIG THAT STEPS ONE SYSTEM MEASURES A STATE THAT CANNOT OCCUR.** Stepping
+only `cameraDirector.update` left `_meleeAnimT` and `_comboWindowMs` frozen at
+their cast values. The camera re-arms its melee hold off `_meleeAnimT`, so the
+ability lead read as holding the frame at full weight three seconds after the
+cast — and the frozen combo state leaked into the next case, which then reported
+a REFUSED melee cast as though it were a measurement. Tick the player's clocks,
+`resetMeleeCombo()` between cases, and print the gate that refused. (The game
+gained a ceiling out of this too: a hold that re-arms from a clock this system
+does not own needs a bound.)
+
+**A GUARD TESTED WHERE SOMETHING ELSE ALREADY DECIDES IS DECORATION.** The first
+safe-area check stood the player at a southern WALL — where the framing clamp
+pins them regardless — and passed with `_clampSafeArea` deleted. Moving it to
+open floor was not enough either: at detention's mid-room the NORTHERN framing
+edge catches an extreme north lead first. It has to be far enough from every
+other clamp that the guard is the only thing that can refuse: in the room's
+southern half, with the guard removed the player reaches screen y 1234, with it
+886.
+
+**BACKTICKS IN A COMMENT INSIDE A TEMPLATE LITERAL CLOSE THE STRING.** These
+rigs build their in-page scripts as template literals, so a comment mentioning a
+function name in backticks is a syntax error at module load, pointing at a line
+that looks fine. Cost one run.
+
+**A DYNAMIC CONFIG IMPORT CANNOT MUTATE THE RUNNING CAMERA** — the §12 trap
+again, hit from a new direction. `CameraDirector.cfg` is now the live object and
+is what a rig must use to change tuning at runtime.
+
 ### Two existing tests that were asserting the old camera
 
 `smoke-arena`, `smoke-hangar` and `smoke-junction` each asserted that camera

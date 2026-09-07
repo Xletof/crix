@@ -130,11 +130,12 @@ asserts separately that the ceiling is not reached.
   BOUNDS** — the director frames past the room's edge, and that framing freedom
   is the only thing keeping a player at the southern wall out from under the
   touch controls. `physics.world.setBounds` is still exactly the room and must
-  stay that way. **PHASE 1 IS HANDSET-APPROVED AS A DESIGN and PHASE 2A ON TOP
-  OF IT IS NOT** — `HANDOVER.md` §12 and §13 are the records, §0 is the state,
-  and every number in either is the human's to decide. `CAMERA.zoomBreathe` and
-  `CAMERA.leadAim` are deliberately 0; aim influence is PHASE 2B and
-  `smoke-camera` fails if it ships early. Do not start Phase 2B.
+  stay that way. **PHASES 1 AND 2A ARE HANDSET-APPROVED AND FROZEN; PHASE 2B ON
+  TOP OF THEM IS NOT** — `HANDOVER.md` §12, §13 and §14 are the records, §0 is
+  the state, and every 2B number is the human's to decide. `CAMERA.zoomBreathe`
+  and `CAMERA.leadAim` are deliberately 0; ORDINARY weapon aim is PHASE 2C and
+  `smoke-camera` fails if it ships early. Do not start Phase 2C or the Vader
+  camera (Phase 3).
 - **THE SOUTH FRAMING PADDING IS DERIVED AND THE ROOM HEIGHT CANCELS OUT.**
   `padSouth = viewH - PLAYER.radius - (safeBottom - southClearance)` = 372 on
   the default layout, and `safeBottom` is read from the LIVE control layout
@@ -165,8 +166,41 @@ asserts separately that the ceiling is not reached.
   is the only thing holding them clear of the touch controls — 45px of it lands
   them at screen y 931 against a control edge at 926, which is the Phase 1 win
   thrown away. Zero means the south guarantee cannot be eroded by a vertical
-  tuning value at all. `smoke-camera` re-runs the south acceptance case in all
-  four arenas with the lead pinned hard east and hard west.
+  MOVEMENT tuning value at all. `smoke-camera` re-runs the south acceptance case
+  in all four arenas with the lead pinned hard east and hard west.
+- **THE SAFE AREA IS GUARDED ON THE FINAL TARGET, NOT ONE INPUT AT A TIME.**
+  `_clampSafeArea` (Phase 2B) refuses any composition that would put the PLAYER
+  below the safe area, whatever asked for it — which is what makes ability
+  intent's vertical lead safe where the movement lead's had to be zero. It is
+  only a FLOOR on the target, never a lift: a lift would be re-centring the
+  player, which the deadzone exists to avoid. `_clampTarget` (the framing rect)
+  still runs after it and still wins, and at a southern wall the two agree by
+  construction because `padSouth` is derived from the same number. **A CHECK FOR
+  IT AT A SOUTHERN WALL IS DECORATION** — the framing clamp pins the player
+  there anyway and the check passes with the guard deleted. Test it in open
+  floor in the room's southern half.
+- **ABILITY INTENT OUTRANKS MOVEMENT, AND IT READS THE TELEGRAPH'S OWN VECTOR.**
+  `CameraDirector._solveAbility` consults `superAim`/`superAiming` and
+  `meleeAim`/`meleeAiming` — exactly what `_drawAimCone` and
+  `_drawMeleeTelegraph` consult — so the camera cannot disagree with the preview
+  the player is looking at. It is a CROSSFADE, not an average: moving west while
+  aiming east must frame EAST, and blending the two produces a neutral frame
+  that says nothing about either. **BOTH RELEASE PATHS CLEAR THEIR OWN PREVIEW
+  FLAG BEFORE THE CAST** (`releaseSuperAim` before `tryFireSuper`,
+  `releaseMeleeAim` before `tryMeleeCombo`), so the committed direction is
+  snapshotted from the `player-fire-super` / `player-melee-cast` events —
+  without that the camera forgets the direction on the exact frame the body
+  starts travelling along it.
+- **A HOLD THAT RE-ARMS FROM SOMEONE ELSE'S CLOCK NEEDS A CEILING.** The melee
+  ability lead tops itself up while `player._meleeAnimT > 0` so a three-cast
+  chain reads as one commitment — but that clock is decremented in
+  `Player.preUpdate`, and anything that stops it running leaves it frozen above
+  zero and the lead holds the frame for ever. `CAMERA.abilityMeleeMaxMs` bounds
+  one cast; each new cast resets it.
+- **`CameraDirector.cfg` IS THE LIVE TUNING OBJECT AND EXISTS FOR THE RIGS.** A
+  dynamic `import('/src/config.js')` inside `page.evaluate` hands back a second
+  module instance the running camera never reads (see the trap below); anything
+  that MUTATES tuning at runtime goes through `director.cfg`.
 - **A DEADZONE MEANS THE PLAYER DOES NOT RETURN TO CENTRE.** When the lead
   closes, the ideal scroll moves back by the full lead but the target only has
   to be within `dzX` of it, so the player rests up to `dzX` off centre and the
