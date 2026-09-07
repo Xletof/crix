@@ -1286,6 +1286,36 @@ that looks fine. Cost one run.
 again, hit from a new direction. `CameraDirector.cfg` is now the live object and
 is what a rig must use to change tuning at runtime.
 
+### Camera Phase 2C added a seventh rig, and two more lessons
+
+`diag-camera-aim.mjs` measures ordinary combat intent — the claim that the
+camera reads the SECTOR the fight is in without chasing auto-aim target
+switches. It feeds `noteShot` (the exact entry point the two committed-fire
+handlers call) with real bearings at the game's real cadence, and reports the
+SIGNAL — combat vector, confidence, the lead it produces — as well as what lands
+on screen. Ten cases: isolated shot, repeated same-sector taps, opposite
+movement, reinforcing movement, alternating targets, sector migration, being
+surrounded, release after firing stops, ability priority, and the south wall.
+
+**AN ACCUMULATOR SETTLES; IT DOES NOT CLIMB.** The first build divided the
+weight total by 4 for full confidence. At the pistol's real cadence the total
+settles near 3.4, so live confidence capped at 0.68 — and at that operating
+point the movement residue exactly cancelled the combat lead: a player
+retreating west while firing east measured a net lead of -13px, a perfectly
+neutral frame, from a feature that was working as written. **Read any such
+divisor against the steady state the real event rate produces**, not against the
+count you have in mind. Measuring the cadence first is the whole reason the rig
+prints the confidence after every shot rather than only at the end.
+
+**A CANCELLATION CHECK PASSES ON A CAMERA THAT NEVER MOVES.** "Alternating
+east/west fire must not swing the frame" is satisfied by a broken feature that
+does nothing at all — the same shape as the deadzone pair in §12 and the "guard
+tested where something else already decides" trap in §14. It is only meaningful
+next to "six consistent shots must open the view", and `smoke-camera` asserts
+both. The A/B that proves it: replacing the accumulator with "follow the latest
+resolved shot" — the lock-on bug the design exists to prevent — swings the
+player 218px across eight alternating shots and fails four checks at once.
+
 ### Two existing tests that were asserting the old camera
 
 `smoke-arena`, `smoke-hangar` and `smoke-junction` each asserted that camera

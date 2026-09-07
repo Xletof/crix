@@ -132,10 +132,11 @@ asserts separately that the ceiling is not reached.
   touch controls. `physics.world.setBounds` is still exactly the room and must
   stay that way. **PHASES 1 AND 2A ARE HANDSET-APPROVED AND FROZEN; PHASE 2B ON
   TOP OF THEM IS NOT** — `HANDOVER.md` §12, §13 and §14 are the records, §0 is
-  the state, and every 2B number is the human's to decide. `CAMERA.zoomBreathe`
-  and `CAMERA.leadAim` are deliberately 0; ORDINARY weapon aim is PHASE 2C and
-  `smoke-camera` fails if it ships early. Do not start Phase 2C or the Vader
-  camera (Phase 3).
+  the state, and every 2C number is the human's to decide. `CAMERA.zoomBreathe`
+  is 0 — fixed zoom, through all four passes. **PHASES 1, 2A AND 2B ARE
+  HANDSET-APPROVED AND FROZEN; PHASE 2C ON TOP OF THEM IS NOT** — §12, §13, §14
+  and §15 are the records. **Do not start the Vader camera (Phase 3): it belongs
+  to a FRESH session**, after the player-intent stack is approved.
 - **THE SOUTH FRAMING PADDING IS DERIVED AND THE ROOM HEIGHT CANCELS OUT.**
   `padSouth = viewH - PLAYER.radius - (safeBottom - southClearance)` = 372 on
   the default layout, and `safeBottom` is read from the LIVE control layout
@@ -191,6 +192,37 @@ asserts separately that the ceiling is not reached.
   snapshotted from the `player-fire-super` / `player-melee-cast` events —
   without that the camera forgets the direction on the exact frame the body
   starts travelling along it.
+- **ORDINARY FIRE TELLS THE CAMERA WHERE THE FIGHT IS — NEVER WHERE THE NEAREST
+  ENEMY IS.** Ordinary shots AUTO-AIM, so the resolved bearing can jump east ->
+  northwest -> southeast between consecutive taps; chasing it is a lock-on camera
+  the player never asked for and cannot see coming. `CameraDirector._solveAim`
+  consults NO enemy, position, distance or target id — only the direction of
+  COMMITTED shots (`player-fire`, `player-fire-rifle`, which mobile and Spacebar
+  both reach through `tryFire`, so the input device no longer exists). It keeps a
+  recency-weighted vector sum plus its weight total: length/total is CONSISTENCY
+  (opposing shots cancel), the total is ACTIVITY. **The contribution is that
+  vector, never a normalised direction** — under alternating fire the sum passes
+  through zero and a bearing there is arbitrary and spins, which is the exact
+  ping-pong the design forbids. The CLUSTER is deliberately excluded: one lobbed
+  munition is not sustained ranged fire.
+- **AN ACCUMULATOR SETTLES; IT DOES NOT CLIMB — READ THE DIVISOR AGAINST THE REAL
+  EVENT RATE.** At the pistol's real cadence (120ms cooldown, 3 rounds, 520ms
+  reload — a shot every ~180ms) the weight total settles near 3.4, so
+  `aimShotsForFull: 4` capped live confidence at 0.68, and at that operating
+  point the movement residue cancelled the combat lead outright: a player
+  retreating west while firing east measured a net lead of **-13px**, a
+  perfectly neutral frame. It is 3. Never pick such a divisor from the count you
+  imagine.
+- **ORDINARY FIRE BLENDS WITH MOVEMENT; AN ABILITY REPLACES IT.** `aimMoveKeep`
+  is 0.25 where `abilityMoveKeep` is 0, and that difference is deliberate: the
+  player is usually dodging while they shoot, and a westward dodge with no camera
+  weight has lost its physicality. `leadCombinedMax` (260, matching
+  `abilityLeadX`) then holds the line that IMPLICIT signals never out-frame an
+  EXPLICIT one.
+- **A CANCELLATION CHECK PASSES ON A CAMERA THAT NEVER MOVES.** "Alternating fire
+  must not swing the frame" is satisfied by a feature that does nothing at all;
+  it is only meaningful asserted alongside "six consistent shots must open the
+  view". `smoke-camera` carries both.
 - **A HOLD THAT RE-ARMS FROM SOMEONE ELSE'S CLOCK NEEDS A CEILING.** The melee
   ability lead tops itself up while `player._meleeAnimT > 0` so a three-cast
   chain reads as one commitment — but that clock is decremented in

@@ -18,7 +18,7 @@ build is whatever `FRIX` points at — check `git rev-parse HEAD origin/FRIX`
 rather than trusting a hash written here, and
 `git rev-parse --abbrev-ref HEAD` for the branch name.*
 
-### THE CAMERA IS IN PHASE 2B AND IT IS WAITING ON A HANDSET
+### THE CAMERA IS IN PHASE 2C AND IT IS WAITING ON A HANDSET
 
 The environment pilot closed and the next thing was NOT another room. The camera
 was: `startFollow(player, true, 0.22, 0.22)`, no deadzone, camera bounds set to
@@ -54,7 +54,8 @@ value, the A/B table, why `leadX` is 220 when only ~115px of it lands on screen,
 why `leadY` is 0, the one known cost (repeated strafes move the camera 2.24x as
 far as the player) and five traps.
 
-**PHASE 2B IS THE THING NOW AWAITING A HANDSET.** It adds ABILITY INTENT: the
+**PHASE 2B CAME BACK APPROVED TOO** — *"walking, rushing, strafing, Super aiming
+and melee preview/execution all feel very good."* It adds ABILITY INTENT: the
 Super's cone and the melee telegraph are the player explicitly stating where
 they are committing, and commitment outranks locomotion. The camera reads the
 same vectors the telegraphs are drawn from, snapshots the direction the cast
@@ -65,12 +66,18 @@ direction to 560. **`§14` is the full record.** The structural result is that t
 mobile safe area is now guarded on the FINAL target (`_clampSafeArea`) instead
 of one input at a time — which is what makes a vertical ability lead safe.
 
-**NOTHING IN 2B IS FROZEN AND THE HUMAN DECIDES THE TUNING.**
-`CAMERA.zoomBreathe` stays 0 (fixed zoom) and `CAMERA.leadAim` is 0 — ORDINARY
-weapon aim is Phase 2C and `smoke-camera` fails if it ships early.
+**PHASE 2C IS THE THING NOW AWAITING A HANDSET.** It adds ORDINARY COMBAT
+INTENT — where the fight is, NOT where the nearest enemy is. Auto-aim switches
+targets between taps, so the camera never follows a resolved bearing; it
+accumulates the directions of committed shots and reads the SECTOR out of them.
+One shot is noise (365px of east view against a neutral 360); six consistent
+taps are intent (500); **retreating west while firing east goes from 201 to
+445**; eight alternating east/west shots move the player one pixel. **`§15` is
+the full record.** `CAMERA.zoomBreathe` stays 0 — fixed zoom, through all four
+passes.
 
-**DO NOT START PHASE 2C** (ordinary aim), Phase 3 (Vader interest weighting) or
-Phase 4 (impact impulses) until the handset verdict lands.
+**DO NOT START PHASE 3** (Vader / combat-interest framing) — it belongs to a
+FRESH session, after this layer is approved. Phase 4 is impact impulses.
 
 ### THE FOUR-ARENA ENVIRONMENT PILOT IS COMPLETE. ALL FOUR ROOMS ARE FROZEN 🔒
 
@@ -5255,6 +5262,151 @@ specific check with the exact number the bug produces.
   wander during micro-adjustments. **Phase 3 (Vader interest weighting) is NOT
   started.** Vader, his moves, his AI, his telegraphs and all combat logic are
   untouched by this pass, as is every one of the four frozen arenas.
+
+---
+
+## 15. CAMERA PHASE 2C — where the fight is, not where the nearest enemy is
+
+**Landed on `claude/camera-framing-phase-1-jt7v53`. NOT human-approved. Handset
+review required. Phase 3 (Vader framing) is explicitly NOT started and belongs
+to a FRESH session.**
+
+Phases 2A and 2B came back approved — *"walking, rushing, strafing, Super aiming
+and melee preview/execution all feel very good."* Nothing in them was retuned.
+
+### THE PROBLEM, AND THE TRAP INSIDE IT
+
+CRIX's ordinary loop is not "hold an aim stick on one target". The player taps
+fire and the shot auto-aims at whatever is closest, so during a real fight the
+body is dodging WEST while the shooting happens EAST — and the camera understood
+the feet and not the fight.
+
+The obvious fix is the wrong one. **Auto-aim can switch targets between
+consecutive shots**, so following the resolved bearing would swing the frame
+east -> northwest -> southeast on target selection the player never sees and
+never asked for. That is a lock-on camera in disguise.
+
+### THE SIGNAL (the §1 audit)
+
+| what | source of truth |
+|---|---|
+| ordinary shot committed | `player-fire` (pistol) and `player-fire-rifle` (each burst bolt) |
+| resolved direction | the `dir` those events carry, from `tryFire` |
+| auto-aim resolution | `Player._autoAimAngle()` -> `scene.findNearestEnemy` |
+| mobile vs Spacebar | both reach `tryFire(resolvedDir)`; **the device is gone by then** |
+| manual ordinary aim | yes — `releaseAim(vec)` above 0.05 force uses the stick, and resolves into the same `dir` |
+
+**NOTHING in `_solveAim` consults an enemy, a position, a distance or a target
+id.** The cluster is deliberately excluded: a lobbed munition is one throw, not
+sustained ranged fire, and weighting it like a stream of bolts would let a single
+grenade compose the room.
+
+### THE ACCUMULATOR
+
+Three scratch numbers, no history array, nothing allocated per shot:
+
+```
+per frame:  fv *= exp(-dt / aimMemoryMs)            // fvX, fvY, fvW
+per shot:   fvX += cos(dir); fvY += sin(dir); fvW += 1
+
+activity    = min(1, fvW / aimShotsForFull)
+contribution = (fvX, fvY) / fvW * activity          // length IS confidence
+```
+
+**THE CONTRIBUTION IS THE VECTOR, NEVER A NORMALISED DIRECTION.** Under
+alternating fire the sum passes through zero, and a bearing there is arbitrary
+and spins — the exact ping-pong this is built to prevent. Dividing by the weight
+total gives a vector whose direction is meaningless precisely when its length is
+zero, which needs no special case.
+
+### THE TUNING, AND WHY THE FIRST BUILD WAS WRONG
+
+| key | value | why |
+|---|---|---|
+| `aimMemoryMs` | 700 | the pistol is a 120ms cooldown, 3 rounds, a 520ms reload — sustained fire is a shot every ~180ms |
+| `aimShotsForFull` | 3 | see below |
+| `aimLeadX` | 200 | below `abilityLeadX` (260): ordinary fire is continuous, a preview is a one-off statement |
+| `aimLeadY` | 120 | restrained; `_clampSafeArea` remains the authority |
+| `aimMoveKeep` | 0.25 | movement SURVIVES ordinary fire — the deliberate difference from `abilityMoveKeep` 0 |
+| `leadCombinedMax` | 260 | implicit signals never out-frame an explicit one |
+
+**TUNE THE MEMORY AGAINST THE CADENCE, NEVER IN THEORY.** At the real fire rate
+the accumulator SETTLES near 3.4 rather than climbing, so a divisor of 4 capped
+live confidence at 0.68 — and at that operating point the movement residue still
+cancelled the combat lead outright: measured, a player retreating west while
+firing east came out with a net lead of **-13px**, the 50/50 neutral the brief
+specifically forbids. Divisor 3 fixes it while keeping an isolated shot at a
+third of the lead, which is inside the deadzone and moves nothing.
+
+### MEASURED (`tests/diag-camera-aim.mjs`)
+
+Viewport pixels east of the player. Neutral standing is 360.
+
+| case | result |
+|---|---|
+| A one isolated shot | **365** — five pixels, inside the deadzone |
+| B six taps east | confidence 0.26 → 0.91, **500** |
+| **C retreating west while firing east** | **201 → 445** |
+| D running east while firing east | 519 → **555** (reinforcement adds 36, not a stack) |
+| E alternating east/west ×8 | confidence 0.13, player moves **1px** total |
+| F east ×5 then west ×6 | crosses neutral by the 2nd west shot, reaches -0.66 by the 6th |
+| G surrounded, 8 bearings | confidence 0.06, frame stays centred |
+| H stop firing | 0.91 → 0.45 → 0.22 → 0.11 → 0.05 at +0.5/1.0/1.5/2.0s |
+| I ability aimed west against east fire | 220 → 523; on release, no step above 29px |
+| J south wall, sustained fire south | screen y 886 in all four arenas |
+
+C is the pass. **At zero confidence the arithmetic is identical to Phase 2A**, so
+the approved movement feel returns exactly — not approximately.
+
+### THE PRIORITY STACK IS NOW COMPLETE
+
+```
+explicit ability  (Super cone / melee telegraph)   crossfades over everything
+ordinary combat   (recent resolved shot directions) blends with, and beats, movement
+movement          (Phase 2A intent lead)            the baseline
+                  -> combined ceiling -> deadzone -> safe area -> framing rect -> spring
+```
+
+### TRAPS THIS PASS LEFT BEHIND
+
+- **AN ACCUMULATOR SETTLES; IT DOES NOT CLIMB.** Any "N events for full
+  confidence" divisor has to be read against the steady state the real event
+  rate produces, not against the count you imagine. Here that was 3.4, and
+  picking 4 quietly made the whole feature cancel out.
+- **A NORMALISED DIRECTION IS A SINGULARITY WHERE THE EVIDENCE CANCELS.** The
+  one place the design most needs to be calm — alternating targets — is exactly
+  where normalising divides by nearly zero.
+- **A CANCELLATION CHECK PASSES ON A CAMERA THAT NEVER MOVES.** "Alternating
+  fire must not swing the frame" is satisfied by a broken feature that does
+  nothing at all. It is only meaningful next to "six consistent shots must open
+  the view", and both are asserted together.
+
+### VALIDATION
+
+`smoke-camera` gained the Phase 2C claims: the config relationships (weaker than
+an ability, vertical restrained, movement genuinely surviving, combined ceiling
+at or under the ability lead, memory in a sane band); inert with no shots fired;
+one shot weak and moving the frame under 24px; six consistent shots more than
+doubling it and opening real view, but not as hard as an explicit preview;
+alternating fire cancelling AND not swinging the frame; expiry after two
+seconds; an ability still winning with no snap on release; and the safe area
+under sustained north fire at the shipped lead and at an absurd one.
+
+A/B'd three ways — the lead disabled, the accumulator replaced by "follow the
+latest shot" (which reproduces the lock-on bug: a **218px** swing across eight
+alternating shots), and the memory made permanent. Each fails specific checks
+with the exact number the bug produces.
+
+### WHAT IS OPEN
+
+- **The handset verdict.** Every number is a proposal.
+- **`aimMoveKeep` (0.25) is the value most likely to need adjustment** — it is
+  the one that decides whether a dodge still has weight while you shoot the
+  other way. `aimMemoryMs` behaved well against the real cadence and
+  `aimLeadX` is bounded on both sides by checks.
+- **PHASE 3 (Vader / combat-interest framing) IS NOT STARTED** and should begin
+  in a fresh session. Vader, his moves, his AI, his telegraphs and all combat
+  logic are untouched by this pass, as is every one of the four frozen arenas.
 
 ---
 
