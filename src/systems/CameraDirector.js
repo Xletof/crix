@@ -108,6 +108,17 @@ export class CameraDirector {
     this._aimX = 0;
     this._aimY = 0;
 
+    // ── EXTERNAL THREAT INTEREST (Phase 3A) ─────────────────────────────────
+    // The filtered boss contribution in WORLD PIXELS, and the 0..1 strength it
+    // was asked for this frame. `_bsX/_bsY` is the state — an external signal
+    // that snapped on and off would be worse than none — and `_bsW`, `_bsNX`,
+    // `_bsNY` are the unfiltered request, kept for the overlay and the rig.
+    this._bsX = 0;
+    this._bsY = 0;
+    this._bsW = 0;
+    this._bsNX = 0;
+    this._bsNY = 0;
+
     // Scratch. The whole per-frame path is ~30 arithmetic operations and it
     // runs every frame forever, so it allocates NOTHING: the focus, the ideal
     // scroll and the two spring results are written into these instead of
@@ -192,6 +203,7 @@ export class CameraDirector {
     this._abCommitMs = 0; this._abCommitAgeMs = 0; this._abKind = null;
     this._fvX = 0; this._fvY = 0; this._fvW = 0;
     this._aimX = 0; this._aimY = 0;
+    this._bsX = 0; this._bsY = 0; this._bsW = 0; this._bsNX = 0; this._bsNY = 0;
     this._ready = true;
     this.cam.setScroll(this._tx, this._ty);
   }
@@ -243,8 +255,141 @@ export class CameraDirector {
     // own clock so nothing stale is waiting to snap back when the ability ends.
     const mk = CAMERA.abilityMoveKeep;
     const share = 1 - w * (1 - mk);
-    this._fx = p.x + lx * share + this._abDX * CAMERA.abilityLeadX * w;
-    this._fy = p.y + ly * share + this._abDY * CAMERA.abilityLeadY * w;
+    const fx = p.x + lx * share + this._abDX * CAMERA.abilityLeadX * w;
+    const fy = p.y + ly * share + this._abDY * CAMERA.abilityLeadY * w;
+
+    // TIER 0 — the one signal that is not the player's. It is solved AGAINST
+    // the composition above and added ON TOP of it, never inside the player
+    // hierarchy: an external interest that could displace an approved player
+    // lead would be retuning the frozen camera by proxy. Its own cap is what
+    // bounds it (`bossLeadMax`), and it is the smallest cap in the file.
+    this._solveBoss(delta, p, fx, fy);
+    this._fx = fx + this._bsX;
+    this._fy = fy + this._bsY;
+  }
+
+  // ── EXTERNAL THREAT INTEREST — VADER (PHASE 3A) ───────────────────────────
+  //
+  // VADER IS AN INTEREST SIGNAL, NOT THE OWNER OF THE CAMERA. Everything above
+  // this method is the player stating an intention; this is the room stating a
+  // fact, and it gets the smallest voice in the composition for exactly that
+  // reason.
+  //
+  // IT IS SOLVED FROM COMPOSITION NEED, NOT FROM THE RELATIONSHIP. There is no
+  // midpoint here, no direction-to-Vader lead and no distance term driving the
+  // strength — those are all lock-on cameras with a bound on them, and Phase 2C
+  // already refused that shape for ordinary enemies. What this asks instead is
+  // one question: given the frame the APPROVED PLAYER CAMERA is about to
+  // compose, where does Vader land in it? Inside the comfort inset he is
+  // readable and this contributes exactly ZERO, however close, however
+  // dangerous and whatever he is winding up. Only the OVERFLOW past that inset
+  // is bought back, and only along the axis that overflowed — a Vader falling
+  // off the east edge at the player's own height asks for eastward frame and
+  // nothing vertical at all.
+  //
+  // THE NEED IS MEASURED AGAINST THE PLAYER-INTENT FOCUS, NOT THE ACHIEVED
+  // FRAME, AND THAT IS WHAT MAKES IT INCAPABLE OF OSCILLATING. `fx`/`fy` above
+  // is a pure function of the player's own state, so the boss term is never an
+  // input to its own strength: pulling the frame east cannot reduce the need
+  // that asked for it, so there is no loop to hunt. A version that measured
+  // Vader against the real scroll would breathe at the spring's own frequency
+  // for the whole fight.
+  //
+  // VERTICALLY THE COMFORT BAND IS THE GAMEPLAY-SAFE AREA, not the viewport.
+  // The bottom ~350px belongs to the thumbs; a Vader "on screen" behind the
+  // joysticks is not visible in any sense this layer cares about.
+  //
+  // WHAT IT REFUSES TO KNOW: afterimages, minions, the thrown saber, the caught
+  // super, the returned orb, his move ids, his phase, his hp. It reads
+  // `scene.boss` and nothing else, so an afterimage cannot tug the frame by
+  // construction rather than by an exclusion list — and Phase 3B, if the
+  // handset ever asks for one, is a weight on `want` here and not a second
+  // author anywhere else.
+  _solveBoss(delta, p, fx, fy) {
+    const dt = Math.min(delta, 100);
+    const b = this.scene.boss;
+    let tx = 0, ty = 0;
+    this._bsW = 0; this._bsNX = 0; this._bsNY = 0;
+
+    if (this._bossFramable(b)) {
+      const z = this.cam.zoom;
+      // Vader's VIEWPORT position under the frame the player camera wants.
+      const vx = (b.x - (fx - (CAMERA.anchorX * this.cam.width) / z)) * z;
+      const vy = (b.y - (fy - (CAMERA.anchorY * this.cam.height) / z)) * z;
+
+      const cx = this.cam.width / 2;
+      const cy = this.safeBottom() / 2;
+      const hx = Math.max(0, cx - CAMERA.bossMarginX);
+      const hy = Math.max(0, cy - CAMERA.bossMarginY);
+      // Signed overflow past the comfort rect, zero inside it. A RAMP, never a
+      // visible/offscreen boolean: a boolean is a pop every time he crosses it,
+      // and in a real fight he crosses it constantly.
+      const ox = vx > cx + hx ? vx - (cx + hx) : (vx < cx - hx ? vx - (cx - hx) : 0);
+      const oy = vy > cy + hy ? vy - (cy + hy) : (vy < cy - hy ? vy - (cy - hy) : 0);
+      const nx = Phaser.Math.Clamp(ox / CAMERA.bossNeedRamp, -1, 1);
+      const ny = Phaser.Math.Clamp(oy / CAMERA.bossNeedRamp, -1, 1);
+      this._bsNX = nx; this._bsNY = ny;
+
+      // A Vader most of a room away cannot be recovered by 130px of pan, so
+      // spending the frame on it is pure cost with no awareness bought.
+      const dist = Math.hypot(b.x - p.x, b.y - p.y);
+      const span = Math.max(1, CAMERA.bossFarEnd - CAMERA.bossFarStart);
+      const near = 1 - Phaser.Math.Clamp((dist - CAMERA.bossFarStart) / span, 0, 1);
+
+      // EXPLICIT PLAYER COMMITMENT OUTRANKS HIM, COMPLETELY. Aiming a Super
+      // away from Vader is a decision; answering it by dragging the frame back
+      // to the thing the player just chose not to look at is the camera
+      // overruling them.
+      const auth = 1 - this._abW * (1 - CAMERA.bossAbilityKeep);
+
+      const k = near * auth;
+      this._bsW = Math.min(1, Math.hypot(nx, ny)) * k;
+      tx = nx * CAMERA.bossLeadX * k;
+      ty = ny * CAMERA.bossLeadY * k;
+    }
+
+    // THE CALMEST FILTER IN THE COMPOSITION. Nobody asked for this signal, so
+    // it acquires slower than locomotion and releases slower still — which is
+    // also why losing Vader (VANISH, death, a room change) is a fade along the
+    // bearing it was already holding rather than a snap back to the player.
+    const want = Math.hypot(tx, ty), have = Math.hypot(this._bsX, this._bsY);
+    const tau = want >= have ? CAMERA.bossAttackMs : CAMERA.bossReleaseMs;
+    const kf = 1 - Math.exp(-dt / tau);
+    this._bsX += (tx - this._bsX) * kf;
+    this._bsY += (ty - this._bsY) * kf;
+
+    // THE HARD BOUND, ON THE FILTERED VALUE, so no combination of need,
+    // distance and axis can ever exceed it. This is the number that makes the
+    // difference between awareness and ownership.
+    const mag = Math.hypot(this._bsX, this._bsY);
+    if (mag > CAMERA.bossLeadMax) {
+      const c = CAMERA.bossLeadMax / mag;
+      this._bsX *= c; this._bsY *= c;
+    }
+    if (mag < 0.05 && want === 0) { this._bsX = 0; this._bsY = 0; }
+  }
+
+  // IS THIS BODY'S POSITION SOMETHING THE CAMERA MAY FRAME AGAINST?
+  //
+  // `scene.boss` IS THE ONLY AUTHORITATIVE VADER. Afterimages are ordinary
+  // `Enemy` clones and minions are enemies; neither is ever this reference, so
+  // "afterimages must not drag the camera" needs no exclusion rule — the
+  // `_afterimage` line below is belt and braces, and says the contract in code.
+  //
+  // AND A TELEPORTING MOVE'S POSITION IS A LIE WHILE HE IS DISCORPOREAL.
+  // VANISH's wind-up leaves the sprite standing at the spot he is leaving for
+  // the whole 620ms anticipation and only moves it on the ACT beat — so framing
+  // that position is framing a place he has already left, and then snapping
+  // across the room when he arrives. The move declares `teleports` in the
+  // registry and this reads the flag, not the id: a future move that takes his
+  // body only has to say so, exactly as `_saberAway` is the general contract
+  // for a move that takes his blade.
+  _bossFramable(b) {
+    if (!b || !b.active || !b.alive || !b.visible || b._afterimage) return false;
+    if (!Number.isFinite(b.x) || !Number.isFinite(b.y)) return false;
+    const m = b._activeMove;
+    if (m && m.phase === 'anticipate' && m.move?.teleports) return false;
+    return true;
   }
 
   // ── ORDINARY COMBAT INTENT ────────────────────────────────────────────────
@@ -603,6 +748,34 @@ export class CameraDirector {
       g.lineBetween(psx, psy, psx + this._aimX * CAMERA.aimLeadX * z, psy + this._aimY * CAMERA.aimLeadY * z);
       g.fillStyle(0x40e0ff, 0.85);
       g.fillCircle(psx + this._aimX * CAMERA.aimLeadX * z, psy + this._aimY * CAMERA.aimLeadY * z, 5);
+    }
+
+    // EXTERNAL THREAT INTEREST, in magenta — the fourth and last colour, and
+    // deliberately the one that is usually absent. Two marks: the vector the
+    // boss layer is actually contributing (from the player), and a ring on
+    // Vader himself, so "he is comfortably in frame and the layer is silent" is
+    // visibly different from "he is at the edge and it is buying frame back".
+    const bs = this.scene.boss;
+    const pb = this.scene.player;
+    if (pb && (Math.abs(this._bsX) > 0.5 || Math.abs(this._bsY) > 0.5)) {
+      const psx = (pb.x - this.cam.scrollX) * z;
+      const psy = (pb.y - this.cam.scrollY) * z;
+      g.lineStyle(3, 0xff60ff, 0.85);
+      g.lineBetween(psx, psy, psx + this._bsX * z, psy + this._bsY * z);
+      g.fillStyle(0xff60ff, 0.85);
+      g.fillCircle(psx + this._bsX * z, psy + this._bsY * z, 5);
+    }
+    if (this._bossFramable(bs)) {
+      const bsx = (bs.x - this.cam.scrollX) * z;
+      const bsy = (bs.y - this.cam.scrollY) * z;
+      g.lineStyle(2, 0xff60ff, 0.35 + 0.6 * this._bsW);
+      g.strokeCircle(bsx, bsy, 14 + 10 * this._bsW);
+      // The comfort rect the need is measured against, vertically bounded by
+      // the gameplay-safe band rather than by the viewport.
+      const sbh = this.safeBottom() / 2;
+      g.lineStyle(1, 0xff60ff, 0.25);
+      g.strokeRect(CAMERA.bossMarginX, CAMERA.bossMarginY,
+        cw - CAMERA.bossMarginX * 2, Math.max(0, sbh * 2 - CAMERA.bossMarginY * 2));
     }
 
     // THE MOVEMENT LEAD, drawn from the player to the focus the solver is

@@ -139,12 +139,57 @@ asserts separately that the ceiling is not reached.
   works and how it breaks, and **none of them is an invitation to tune it.**
   `CAMERA.zoomBreathe` is 0: fixed zoom, through all four passes.
 
-  **PHASE 3 IS VADER / MAJOR-THREAT AWARENESS AND IT IS NOT STARTED.** It is an
+  **PHASE 3A IS BUILT AND IS A CANDIDATE, NOT APPROVED.** It is an
   EXTERNAL-INTEREST layer added on top, not another general camera pass, and it
-  must ADAPT to this camera: **the frozen player camera may not be retuned to
-  make Vader integration easier.** It reopens only on new human gameplay
-  evidence, a real regression, or a conflict demonstrably caused by the new
-  layer itself.
+  ADAPTS to this camera: **the frozen player camera may not be retuned to make
+  Vader integration easier.** Not one frozen value moved for it. The frozen
+  stack reopens only on new human gameplay evidence, a real regression, or a
+  conflict demonstrably caused by the new layer itself. `HANDOVER.md` §18 is
+  the record and the tuning table.
+- **VADER IS AN INTEREST SIGNAL, NOT THE OWNER OF THE CAMERA, AND THE LAYER
+  SOLVES COMPOSITION NEED RATHER THAN THE RELATIONSHIP.** There is no midpoint,
+  no direction-to-Vader lead and no distance term driving strength — those are
+  all lock-on cameras with a bound on them, and Phase 2C refused that shape for
+  ordinary enemies. `CameraDirector._solveBoss` asks ONE question: given the
+  frame the approved player camera is about to compose, where does Vader land
+  in it? Inside the comfort inset (`bossMarginX/Y`) he contributes EXACTLY
+  ZERO, however close, however dangerous and whatever he is winding up; only
+  the OVERFLOW past that inset is bought back, and only along the axis that
+  overflowed. **If he is already visible, the camera is left alone** — that is
+  the difference between a guardrail and a tether, and `smoke-camera` asserts
+  it next to "a Vader at the edge must open the frame", because the silence
+  claim alone passes on a layer that has been deleted.
+- **THE BOSS NEED IS MEASURED AGAINST THE PLAYER-INTENT FOCUS, NOT THE ACHIEVED
+  FRAME, AND THAT IS THE ANTI-OSCILLATION GUARANTEE.** The focus it measures
+  against is a pure function of the player's own state, so the boss term is
+  never an input to its own strength: pulling the frame east cannot reduce the
+  need that asked for it and there is no loop to hunt. A version measuring
+  Vader against the real scroll would breathe at the spring's own frequency for
+  the whole fight. Do not "improve" it by reading `cam.scrollX`.
+- **THE EXTERNAL SIGNAL IS THE SMALLEST VOICE AND THE CALMEST FILTER.**
+  `bossLeadMax` (130) is below the movement lead (220), ordinary combat (200)
+  and an ability preview (260); `bossAttackMs` (320) is slower than both player
+  intents, because an explicit preview is acknowledged fastest — the player
+  just asked for it — and an external actor's wandering slowest, since nobody
+  asked for anything. `bossAbilityKeep: 0` means an armed Super or melee
+  suppresses him outright: aiming away from Vader is a decision and the camera
+  may not overrule it. **`bossLeadMax` is the handset dial.**
+- **ONLY `scene.boss` IS VADER.** The layer reads that one reference and
+  nothing else — no enemy list, no distance search, no move ids, no phase, no
+  hp, not the thrown saber, the caught super or the returned orb. Afterimages
+  are ordinary `Enemy` clones and minions are enemies, so "a clone must not tug
+  the camera" holds by CONSTRUCTION rather than by an exclusion list that could
+  drift. A Phase 3B, if the handset ever asks for one, is a weight inside
+  `_solveBoss` and not a second author anywhere else.
+- **A TELEPORTING MOVE'S POSITION IS A LIE, AND THE REGISTRY SAYS SO.** VANISH's
+  wind-up leaves his sprite standing at the spot he is LEAVING for the whole
+  620ms and only moves it on the ACT beat — framing that is framing a place he
+  has already left, then snapping across the room when he arrives. The move
+  declares `teleports: true` in `bossMoves.js` and `_bossFramable` reads the
+  FLAG, never the id: a future move that takes his body only has to say so,
+  exactly as `_saberAway` is the general contract for one that takes his blade.
+  Testing this by phase alone collects the NEXT move's wind-up and reports the
+  gate as broken — filter samples by `_activeMove.move.id`.
 - **THE SOUTH FRAMING PADDING IS DERIVED AND THE ROOM HEIGHT CANCELS OUT.**
   `padSouth = viewH - PLAYER.radius - (safeBottom - southClearance)` = 372 on
   the default layout, and `safeBottom` is read from the LIVE control layout

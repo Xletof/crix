@@ -10,11 +10,11 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-09-08. HEAD is `claude/camera-framing-phase-1-jt7v53`, which is
-also `origin/FRIX` — the whole camera stack is human-approved and deployed.
-Pages builds only from `FRIX`, so the live build is whatever `FRIX` points at:
-check `git rev-parse HEAD origin/FRIX` rather than trusting a hash written here,
-and `git rev-parse --abbrev-ref HEAD` for the branch name.*
+*Updated 2026-09-08. HEAD is `claude/vader-threat-awareness-jv6kns`. Pages
+builds only from `FRIX`, so the live build is whatever `FRIX` points at: check
+`git rev-parse HEAD origin/FRIX` rather than trusting a hash written here, and
+`git rev-parse --abbrev-ref HEAD` for the branch name. This line has now named a
+stale branch twice — trust the command, fix the line.*
 
 ### THE PLAYER-INTENT CAMERA IS COMPLETE, HUMAN-APPROVED AND FROZEN 🔒
 
@@ -42,16 +42,18 @@ describe how it works and how it breaks; none of them is an invitation to tune
 it. It reopens only on new human gameplay evidence, a real regression, or a
 conflict demonstrably caused by a new layer.
 
-### THE NEXT THING IS PHASE 3, AND IT IS NOT STARTED
+### PHASE 3A IS BUILT AND IS AWAITING A HANDSET VERDICT
 
-**Vader / major-threat awareness** — an EXTERNAL-INTEREST layer on top of the
-frozen camera, not another general camera pass. **`§17` is the boundary, the one
-principle (*Vader is an interest signal, not the new owner of the camera*) and
-fourteen open design questions.** Start it in a FRESH session from `§16` and
-`§17`.
+**Vader / major-threat awareness** — a bounded EXTERNAL-INTEREST layer on top of
+the frozen camera. **`§18` is the record**: the one idea (it solves COMPOSITION
+NEED, not the relationship — if Vader is already visible it contributes exactly
+zero), the tuning table, thirteen measured stations and the four answers.
+`§17` is the original brief and is now history.
 
-**The frozen player camera may NOT be retuned to make Vader integration
-easier.** Phase 3 adapts to the camera.
+**NOT ONE FROZEN VALUE MOVED FOR IT**, and it is a CANDIDATE — not approved,
+and nothing about it may be called closed until the human has played it. The
+dial if it needs one is `bossLeadMax`. **Do not start an attack-specific Phase
+3B**: there is no evidence for one yet.
 
 
 ### THE FOUR-ARENA ENVIRONMENT PILOT IS COMPLETE. ALL FOUR ROOMS ARE FROZEN 🔒
@@ -5500,13 +5502,15 @@ that keeps movement present underneath it.
 | `tests/diag-camera-lateral.mjs` | world visible ahead during travel |
 | `tests/diag-camera-ability.mjs` | Super/melee preview, cast continuity, cancel, priority |
 | `tests/diag-camera-aim.mjs` | the combat-intent signal across ten real combat cases |
+| `tests/diag-camera-boss.mjs` | Phase 3A — thirteen boss stations, each A/B'd against the frozen camera |
 | `docs/evidence/camera-phase1/`, `-phase2a/`, `-phase2b/`, `-phase2c/` | overlay frames |
 
 ---
 
-## 17. PHASE 3 — VADER / MAJOR-THREAT AWARENESS. **NOT STARTED.**
+## 17. PHASE 3 — THE ORIGINAL BRIEF. **SUPERSEDED BY §18.**
 
-**Begin this in a FRESH session, from §16 and this section.**
+*Kept for the reasoning behind the boundary. What was actually built, and what
+it measured, is `§18`.*
 
 ### THE BOUNDARY
 
@@ -5551,6 +5555,137 @@ EASIER.** Phase 3 adapts to the camera, not the other way round.
 - The mobile safe-area guarantee is preserved regardless — `_clampSafeArea`
   already guards the FINAL target, so a new interest inherits that protection
   without restating it.
+
+---
+
+## 18. CAMERA PHASE 3A — VADER AWARENESS. **CANDIDATE, NOT APPROVED.**
+
+Built on `claude/vader-threat-awareness-jv6kns` against the frozen §16 camera.
+**NOT ONE FROZEN VALUE MOVED.** The `CAMERA` block gained ten new keys and lost
+none; `_solveLead`, `_solveAim`, `_solveAbility`, `_solveTarget`,
+`_clampSafeArea`, `_clampTarget`, `_spring` and `_solveMotion` are byte-for-byte
+what the handset approved. Awaiting handset play.
+
+### THE ONE IDEA
+
+**It solves COMPOSITION NEED, not the relationship.** There is no midpoint, no
+direction-to-Vader lead and no distance term driving strength — every one of
+those is a lock-on camera with a bound on it, and Phase 2C already refused that
+shape for ordinary enemies. `CameraDirector._solveBoss` asks exactly one
+question:
+
+> Given the frame the APPROVED PLAYER CAMERA is about to compose, where does
+> Vader land in it?
+
+Inside a comfort inset he contributes **exactly zero** — however close, however
+dangerous, whatever he is winding up. Only the OVERFLOW past that inset is
+bought back, and only along the axis that overflowed. That is what makes it a
+guardrail rather than a tether: *if he is already visible, the camera is left
+alone.*
+
+### THE STACK NOW
+
+```
+  EXPLICIT ABILITY  ─┐
+  ORDINARY COMBAT    ├─ the frozen player hierarchy, untouched
+  MOVEMENT          ─┘
+        v
+  + BOUNDED BOSS INTEREST   solved AGAINST that composition, added ON TOP of
+                            it, with its own cap. Never inside the player
+                            hierarchy: an external signal that could displace
+                            an approved player lead would be retuning the
+                            frozen camera by proxy.
+        v
+  deadzone -> safe-area clamp -> framing rect -> spring   (all unchanged)
+```
+
+### THE ANTI-OSCILLATION GUARANTEE, AND IT IS STRUCTURAL
+
+The need is measured against the PLAYER-INTENT FOCUS, not the achieved frame.
+That focus is a pure function of the player's own state, so **the boss term is
+never an input to its own strength**: pulling the frame east cannot reduce the
+need that asked for it, and there is no loop to hunt. A version measuring Vader
+against `cam.scrollX` would breathe at the spring's own frequency for the whole
+fight. Do not "improve" it that way.
+
+### WHAT IT REFUSES TO KNOW
+
+`scene.boss` and nothing else. No enemy list, no distance search, no move ids,
+no phase, no hp, not the thrown saber, the caught super or the returned orb.
+Afterimages are ordinary `Enemy` clones and minions are enemies, so **"a clone
+must not tug the camera" holds by construction**, not by an exclusion list that
+could drift. The one exception is a single flag: a move that TELEPORTS declares
+`teleports: true` in `bossMoves.js`, because VANISH's wind-up leaves his sprite
+standing at the spot he is leaving for 620ms and framing that is framing a place
+he has already left. `_bossFramable` reads the FLAG, never the id — the same
+general-contract shape as `_saberAway`.
+
+### THE TUNING
+
+| key | value | what it decides |
+|---|---|---|
+| `bossMarginX` / `bossMarginY` | 90 / 90 | the comfort inset; inside it he asks for nothing. Vertically measured against the GAMEPLAY-SAFE band, not the viewport — a Vader behind the joysticks is not visible |
+| `bossNeedRamp` | 240 | how far past the inset until the interest saturates. A ramp, never a visible/offscreen boolean |
+| `bossLeadX` / `bossLeadY` | 120 / 90 | the per-axis contribution at full need |
+| **`bossLeadMax`** | **130** | **the hard cap on the filtered vector. THE HANDSET DIAL.** Below `leadX` 220, `aimLeadX` 200 and `abilityLeadX` 260 — the smallest voice in the composition |
+| `bossFarStart` / `bossFarEnd` | 1100 / 1700 | distance fade; 130px of pan cannot recover a Vader most of a room away |
+| `bossAttackMs` / `bossReleaseMs` | 320 / 520 | the calmest filter in the file — slower than locomotion (130) and far slower than an explicit preview (90), because nobody asked for this signal |
+| `bossAbilityKeep` | 0 | an armed Super or melee suppresses him outright |
+
+### WHAT WAS MEASURED — `tests/diag-camera-boss.mjs`
+
+Thirteen stations, each run twice through the game's own live tuning object
+(`bossLeadMax = 0` reproduces the frozen camera exactly), in detention.
+
+| case | result |
+|---|---|
+| A Vader comfortably visible, 220px east | need **0**, contribution **0px**, frame identical |
+| B east edge, moving west | +120px east, player moved 95px; the 220px movement lead intact |
+| C west edge, moving east | −120px, 95px — symmetric |
+| D retreat west while firing east at him | need only **0.35**: combat intent already framed him, boss added 43px |
+| E firing west at a minion, Vader east | 120px, bounded; the westward combat sector still owns the frame |
+| F Super aimed west, Vader east | **1px**. Explicit commitment wins outright |
+| G melee committed west | 26px under the live commit against 80px after it released |
+| H offscreen east, 760px out | 120px — under the 130 cap |
+| I he walks back into frame | largest single-step scroll move **0.4px**. No snap |
+| J VANISH | never framable during the wind-up, framable again on arrival |
+| K six afterimages, real Vader dead | contribution **0**, scroll unchanged to the pixel |
+| L open floor south, Vader 620px NORTH | player rests at screen y **610** (the vertical term sits inside `dzUp` and recomposes nothing); at an absurd 689px lead the safe-area guard pins them at **886** against a control edge at 926 |
+| M live fight, nothing silenced | scroll reversals 9 → **7** with the layer on. No new oscillation |
+
+### THE FOUR QUESTIONS
+
+**A. Does awareness improve without ownership?** On the instruments, yes. He is
+recovered by up to 120px exactly when the player camera was losing him and by
+literally zero when it was not — the strongest evidence being D, where combat
+intent had already framed him and the layer barely engaged.
+
+**B. When player intent conflicts, who wins?** Explicit commitment, completely
+(F: 1px, G: 26px against 80px) — the player chose to look away and the camera
+may not overrule it. Ordinary combat and movement BLEND with him rather than
+losing, because the boss term is additive and small: in B a 220px westward
+movement lead survives a full-strength boss request intact.
+
+**C. Is generic enough, or is 3B justified?** No evidence for 3B yet. FORCE
+PULL, SABER THROW, CHARGE and SLAM all keep him at a range where generic need
+already engages, and every attack-specific weight would be a second author for
+`want`. Revisit only if handset play names a specific move that reads badly.
+
+**D. The likely handset dial.** **`bossLeadMax`.** 130px is a deliberate
+minority share of a 220px movement lead; if the human says "I still lose him",
+raise it before touching `bossMarginX`, and never answer it by touching a frozen
+value.
+
+### GUARDS ADDED
+
+`smoke-camera` carries the config hierarchy (the external signal is the smallest
+lead and the slowest filter) plus eight behavioural claims, each a MATCHED PAIR:
+inert with no boss; silent on a comfortably visible one **next to** engaging on
+an edge-bound one; bounded at an absurd separation; suppressed by an armed Super
+**and** returning after it; zero from six afterimages **next to** a live lead
+before they spawned; the south guarantee at the configured lead **and** under an
+absurd one; and Vader unframable through a real VANISH cast **and** framable
+again after it.
 
 ---
 

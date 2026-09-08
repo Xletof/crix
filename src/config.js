@@ -1121,6 +1121,65 @@ export const CAMERA = {
   // reaches 252, so today it is a ceiling rather than a behaviour.
   leadCombinedMax: 260,
 
+  // ── EXTERNAL THREAT INTEREST — VADER (PHASE 3A) ─────────────────────────
+  //
+  // VADER IS AN INTEREST SIGNAL, NOT THE OWNER OF THE CAMERA. Every value
+  // below is bounded on purpose: this layer is a GUARDRAIL that engages when
+  // the approved player-intent composition would otherwise lose him, not a
+  // tether that holds him in frame all fight. If he is already comfortably in
+  // shot it contributes ZERO — the need is measured, not assumed.
+  //
+  // THE NEED IS MEASURED AGAINST THE PLAYER-INTENT FRAME, NOT THE ACHIEVED
+  // ONE, which is what makes this incapable of oscillating: the boss term is
+  // never an input to its own strength. See `CameraDirector._solveBoss`.
+
+  // The comfort inset, in VIEWPORT pixels. Vader inside the frame minus this
+  // margin is comfortably readable and asks for nothing. 90px on a 720-wide
+  // portrait frame means the layer starts caring only once he is within an
+  // eighth of the width of falling off the side. Vertically it is measured
+  // against the GAMEPLAY-SAFE band (0..safeBottom), not the full viewport —
+  // the bottom of the screen belongs to the thumbs, so a Vader "on screen"
+  // behind the joysticks is not visible in any sense that matters.
+  bossMarginX: 90,
+  bossMarginY: 90,
+  // How far past the comfort edge he has to be for the interest to saturate.
+  // A RAMP RATHER THAN A MODE SWITCH: there is no visible/offscreen boolean
+  // anywhere in this layer, because a boolean is a pop every time he crosses
+  // it and he crosses it constantly.
+  bossNeedRamp: 240,
+
+  // THE BOUNDED CONTRIBUTION. Deliberately the SMALLEST lead in the whole
+  // composition — below `leadX` (220), below `aimLeadX` (200), far below
+  // `abilityLeadX` (260) — because everything else in the stack is the player
+  // stating an intention and this one is the room stating a fact. At the cap
+  // a fully-lost Vader buys back 130px of frame against a 220px movement lead:
+  // a real minority share, which is what "awareness, not ownership" has to
+  // mean numerically. THIS IS THE VALUE MOST LIKELY TO NEED A HANDSET VERDICT.
+  bossLeadX: 120,
+  bossLeadY: 90,
+  bossLeadMax: 130,
+
+  // DISTANCE FADE. A Vader most of a room away cannot be brought back by 130px
+  // of pan, so spending the frame trying is pure cost. Rooms are 1400-1600 on
+  // a side, so the fade starts beyond any range he actually fights at and is
+  // gone by the room diagonal.
+  bossFarStart: 1100,
+  bossFarEnd: 1700,
+
+  // THE CALMEST FILTER IN THE COMPOSITION, and that is the point: an explicit
+  // preview is acknowledged in 90ms because the player just asked for it,
+  // locomotion in 130ms because they are doing it, and an external actor's
+  // wandering in 320ms because nobody asked for anything. It is what stops
+  // Vader's own footwork ticking the frame, and it is why reacquisition after
+  // VANISH is a fade rather than a snap.
+  bossAttackMs: 320,
+  bossReleaseMs: 520,
+  // EXPLICIT PLAYER COMMITMENT OUTRANKS THE BOSS, COMPLETELY. Aiming a Super
+  // away from Vader is a decision; the camera may not answer it by dragging
+  // the frame back to the thing the player just chose not to look at. Zero
+  // matches `abilityMoveKeep` for the same reason it is zero there.
+  bossAbilityKeep: 0,
+
   // FIXED ZOOM. There used to be a continuous speed-tied "breathe" (1.00 down
   // to 0.96 at full sprint) writing `setZoom` every frame. Phase 1 is fixed
   // zoom by instruction, and a zoom that changes also changes the world size

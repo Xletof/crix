@@ -1316,6 +1316,44 @@ both. The A/B that proves it: replacing the accumulator with "follow the latest
 resolved shot" — the lock-on bug the design exists to prevent — swings the
 player 218px across eight alternating shots and fails four checks at once.
 
+### Camera Phase 3A added an eighth rig, and three more lessons
+
+`diag-camera-boss.mjs` measures the bounded Vader-awareness layer across
+thirteen stations — comfortably visible, both edges, retreat-while-firing,
+firing at a minion opposite him, Super and melee committed away from him,
+offscreen, reacquisition, VANISH, afterimages, the south safe area, and a live
+fight with nothing silenced. **The A/B is built into the rig**: every station
+runs twice, with `director.cfg.bossLeadMax` set to 0 for the first pass, which
+reproduces the frozen Phase 2C camera exactly (the need is still computed,
+nothing is spent). A station that reports the same numbers both ways is a
+station where the layer correctly did nothing, and one of them — a comfortably
+visible Vader — is supposed to.
+
+**A CLOSURE COUNTER SHARED ACROSS AN A/B'S TWO HALVES FIRES ZERO EVENTS IN THE
+SECOND ONE.** The fire cadence was `if (i - t >= 11) { t = i; ... }` with `t`
+declared outside the station helper, so the ON pass started with `t` at the
+OFF pass's final frame index, never fired a shot, and reported combat intent
+that was not there — which read exactly like the boss layer changing the
+answer. Derive a cadence from the frame index (`i % 11 === 0`), or reset the
+counter inside the run.
+
+**FILTER A MOVE-PHASE SAMPLE BY THE MOVE'S OWN ID.** The VANISH check asks
+whether Vader is framable during the wind-up. VANISH's whole cycle is ~2s and
+his AI starts something else immediately after, so a sample filtered only on
+`phase === 'anticipate'` collects the NEXT move's wind-up — where he IS
+framable — and reports the gate as broken. `_activeMove.move.id` is the
+discriminator.
+
+**THE SOUTH GUARD, AGAIN, AND AT A WALL IT IS STILL DECORATION.** The first
+version of the boss layer's safe-area station put the player at the southern
+wall and read 886 against a control edge at 926 — which is also what the
+framing clamp alone produces there, so it would have passed with
+`_clampSafeArea` deleted. Moved to open floor in the room's southern half, the
+same station reads 610 at the configured lead (the vertical boss term sits
+inside `dzUp` and recomposes nothing) and exactly 886 under a deliberately
+absurd 689px one, which is the guard visibly engaging. §14's lesson arriving in
+a third costume.
+
 ### Two existing tests that were asserting the old camera
 
 `smoke-arena`, `smoke-hangar` and `smoke-junction` each asserted that camera

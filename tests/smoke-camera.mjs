@@ -106,6 +106,39 @@ if (!(cfg.cam.aimMemoryMs >= 300 && cfg.cam.aimMemoryMs <= 1500))
 if (!(cfg.cam.aimShotsForFull >= 2))
   fails.push(`aimShotsForFull ${cfg.cam.aimShotsForFull} — below 2 a single shot carries most of the lead, and one shot is noise`);
 
+// ── PHASE 3A config claims ─────────────────────────────────────────────────
+// VADER IS AN INTEREST SIGNAL, NOT THE OWNER OF THE CAMERA, and these are the
+// numeric form of that sentence. Every one is relational: the external signal
+// is the smallest voice in the composition and the calmest filter in it.
+if (!(cfg.cam.bossLeadMax <= cfg.cam.leadX))
+  fails.push(`bossLeadMax ${cfg.cam.bossLeadMax} is not below the movement lead ${cfg.cam.leadX} — an external actor may not out-frame the player's own locomotion`);
+if (!(cfg.cam.bossLeadMax < cfg.cam.abilityLeadX))
+  fails.push(`bossLeadMax ${cfg.cam.bossLeadMax} reaches an explicit ability's authority (${cfg.cam.abilityLeadX})`);
+if (!(cfg.cam.bossLeadMax <= cfg.cam.aimLeadX))
+  fails.push(`bossLeadMax ${cfg.cam.bossLeadMax} exceeds ordinary combat intent (${cfg.cam.aimLeadX}) — the room may not out-shout the player's own fight`);
+if (!(cfg.cam.bossLeadY <= cfg.cam.bossLeadX))
+  fails.push(`bossLeadY ${cfg.cam.bossLeadY} — vertical is the axis the controls own, and it must stay the restrained one`);
+// THE CALMEST FILTER, and deliberately slower than either player intent: an
+// explicit preview is acknowledged fastest because the player just asked for
+// it, and an external actor's wandering slowest because nobody asked at all.
+if (!(cfg.cam.bossAttackMs > cfg.cam.leadAttackMs && cfg.cam.bossAttackMs > cfg.cam.abilityAttackMs))
+  fails.push(`bossAttackMs ${cfg.cam.bossAttackMs} is not the slowest acquisition in the composition — Vader's footwork will tick the frame`);
+if (!(cfg.cam.bossReleaseMs > cfg.cam.bossAttackMs))
+  fails.push('bossReleaseMs must be the slower of the pair — losing Vader should be a fade, not a snap back to the player');
+if (!(cfg.cam.bossAbilityKeep >= 0 && cfg.cam.bossAbilityKeep < 0.5))
+  fails.push(`bossAbilityKeep ${cfg.cam.bossAbilityKeep} — at or above 0.5 an explicit Super or melee no longer outranks the boss`);
+// A RAMP, NOT A MODE SWITCH. A margin or ramp of zero is a visible/offscreen
+// boolean, which pops every time he crosses it — and in a real fight he
+// crosses it constantly.
+if (!(cfg.cam.bossNeedRamp >= 80))
+  fails.push(`bossNeedRamp ${cfg.cam.bossNeedRamp} — below ~80px this is a threshold, not a ramp, and it will pop`);
+for (const k of ['bossMarginX', 'bossMarginY']) {
+  if (!(cfg.cam[k] >= 40))
+    fails.push(`CAMERA.${k} is ${cfg.cam[k]} — with no comfort inset a Vader anywhere but dead centre asks for frame`);
+}
+if (!(cfg.cam.bossFarEnd > cfg.cam.bossFarStart))
+  fails.push('bossFarEnd must exceed bossFarStart — the distance fade needs a span to fade across');
+
 // ── PHASE 2B config claims ─────────────────────────────────────────────────
 // Explicit ability intent is meant to be BETTER information than locomotion, so
 // it may lead harder; and it is allowed vertical authority the movement lead is
@@ -677,6 +710,221 @@ if (aim.fireNorthY >= cfg.ctrlTop)
   fails.push(`sustained fire north put the player at screen y ${aim.fireNorthY.toFixed(0)}, at or below the control edge (${cfg.ctrlTop})`);
 if (aim.fireNorthExtremeY >= cfg.ctrlTop)
   fails.push(`with an absurd vertical combat lead the player reached screen y ${aim.fireNorthExtremeY.toFixed(0)} — the safe-area guard is not enforcing the limit`);
+
+// ── PHASE 3A — EXTERNAL THREAT INTEREST ───────────────────────────────────
+//
+// Relational claims only, and every one of them is a matched pair or it proves
+// nothing: "a comfortably visible Vader must not pull the frame" is satisfied
+// by a layer that does nothing at all, so it is only meaningful next to "a
+// Vader falling off the edge must". Driven through a REAL spawned boss —
+// `scene.boss` is the layer's only input, and a fake object would not exercise
+// the one property that makes afterimages structurally exempt.
+const bs = await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const { ROOMS } = await import('/src/data/rooms.js');
+  const { PLAYER } = await import('/src/config.js');
+  gs.loadRoom(ROOMS.find((r) => r.id === 'detention'));
+  gs.lives = 9999; gs.player.hp = gs.player.hpMax = 1e9;
+  const c = gs.cameras.main, d = gs.cameraDirector, p = gs.player;
+  const out = {};
+
+  const clean = () => {
+    for (const e of gs.enemies.getChildren().slice()) e.destroy();
+    if (gs.boss) { try { gs.boss.shadow?.destroy(); gs.boss.hpBar?.destroy(); gs.boss.destroy(); } catch (_) {} gs.boss = null; }
+    if (gs._cameraPunchTween) { gs._cameraPunchTween.stop(); gs._cameraPunchTween = null; }
+    c.setZoom(1);
+  };
+  const boss = (bx, by) => { clean(); gs.spawnBoss(bx, by, { encounter: 1 }); gs.boss.hp = gs.boss.hpMax = 1e9; return gs.boss; };
+  const stage = (px, py) => {
+    p.alive = true; p.setActive(true).setVisible(true).setAlpha(1);
+    p.setPosition(px, py); p.setVelocity(0, 0);
+    p._moveTargetX = 0; p._moveTargetY = 0;
+    p.superAiming = false; p.meleeAiming = false; p.resetMeleeCombo();
+    p.superCharge = 99; p.meleeCharge = 99;
+    d.reset(px, py);
+    d._fvX = 0; d._fvY = 0; d._fvW = 0; d._aimX = 0; d._aimY = 0;
+    d._bsX = 0; d._bsY = 0; d._bsW = 0;
+  };
+  // Vader's own AI writes velocity every frame; the camera is what is under
+  // test, so he is pinned. The live-fight case belongs in the diag rig.
+  const run = (n, b, bx, by, px, py) => {
+    for (let i = 0; i < n; i++) {
+      if (b) { b.setPosition(bx, by); b.body?.setVelocity(0, 0); }
+      p.setPosition(px, py); p.setVelocity(0, 0);
+      d.update(16);
+    }
+  };
+  const sx = () => (p.x - c.scrollX) * c.zoom + c.x;
+  const lead = () => Math.hypot(d._bsX, d._bsY);
+
+  // 1 — NO BOSS, NO CONTRIBUTION. The layer must be inert in every room that
+  // is not a boss fight, which is most of the game.
+  clean(); stage(800, 700); run(120, null, 0, 0, 800, 700);
+  out.noBossLead = lead();
+  out.noBossW = d._bsW;
+  out.noBossX = sx();
+
+  // 2 — COMFORTABLY VISIBLE. 220px east of a standing player is well inside
+  // the comfort inset: if he is already readable the approved camera is left
+  // alone, whatever else is true about him.
+  {
+    const b = boss(1020, 700); stage(800, 700); run(140, b, 1020, 700, 800, 700);
+    out.visibleW = d._bsW; out.visibleLead = lead(); out.visibleX = sx();
+  }
+
+  // 3 — THE OTHER HALF OF THE PAIR. Same player, Vader at the edge. Without
+  // this, 2 passes on a layer that has been deleted.
+  {
+    const b = boss(1300, 700); stage(800, 700); run(160, b, 1300, 700, 800, 700);
+    out.edgeW = d._bsW; out.edgeLead = lead(); out.edgeX = sx();
+    out.edgeDir = d._bsX;
+  }
+
+  // 4 — BOUNDED, at an absurd separation. The cap is on the FILTERED value, so
+  // no combination of need, axis and distance may exceed it.
+  {
+    const b = boss(1560, 1340); stage(200, 200); run(220, b, 1560, 1340, 200, 200);
+    out.farLead = lead();
+  }
+
+  // 5 — EXPLICIT COMMITMENT OUTRANKS HIM. A Super aimed west while Vader sits
+  // at the eastern edge: the boss request must collapse while the preview is
+  // armed, and come back after it.
+  {
+    const b = boss(1300, 700); stage(800, 700); run(120, b, 1300, 700, 800, 700);
+    out.preAbilityLead = lead();
+    p.setSuperAimInput({ x: -1, y: 0, force: 1 });
+    run(120, b, 1300, 700, 800, 700);
+    out.underAbilityW = d._bsW; out.underAbilityLead = lead(); out.underAbilityAbW = d._abW;
+    p.superAiming = false;
+    run(200, b, 1300, 700, 800, 700);
+    out.postAbilityLead = lead();
+  }
+
+  // 6 — AFTERIMAGES ARE NOT VADER. Six clones east, the real Vader dead. The
+  // layer reads `scene.boss` and nothing else, so this is a structural claim
+  // rather than an exclusion rule — and it is asserted with a live scroll,
+  // because "the weight is zero" would also pass on a stuck camera.
+  {
+    const b = boss(1300, 700); stage(800, 700); run(120, b, 1300, 700, 800, 700);
+    out.beforeClonesLead = lead();
+    gs._spawnAfterimages(b, 6);
+    b.alive = false; b.setActive(false).setVisible(false);
+    run(240, null, 0, 0, 800, 700);
+    out.clones = gs.enemies.getChildren().filter((e) => e.active && e._afterimage).length;
+    out.clonesW = d._bsW; out.clonesLead = lead(); out.clonesX = sx();
+  }
+
+  // 7 — THE SOUTH GUARANTEE, AT THE ONE BEARING THAT COULD SPEND IT. A Vader
+  // NORTH of the player pulls the focus north, which draws the player DOWN the
+  // screen. Staged in the southern OPEN FLOOR, not at the wall: at a wall the
+  // framing clamp pins the player anyway and this passes with the guard
+  // deleted. Measured at the configured lead and again at a deliberately
+  // absurd one, because a guard that cannot be shown to engage is decoration.
+  {
+    const py = 1050, px = 800, by = py - 620;
+    const b = boss(px, by);
+    stage(px, py); run(220, b, px, by, px, py);
+    out.southY = (p.y - c.scrollY) * c.zoom + c.y;
+    out.southLead = d._bsY;
+    const sl = d.cfg.bossLeadY, sm = d.cfg.bossLeadMax;
+    d.cfg.bossLeadY = 900; d.cfg.bossLeadMax = 900;
+    run(300, b, px, by, px, py);
+    out.southExtremeY = (p.y - c.scrollY) * c.zoom + c.y;
+    out.southExtremeLead = d._bsY;
+    d.cfg.bossLeadY = sl; d.cfg.bossLeadMax = sm;
+  }
+
+  clean(); stage(800, 700);
+  return out;
+});
+
+// 8 — VANISH. His sprite stands at the spot he is LEAVING for the whole
+// wind-up, so framing it is framing a place he has already left. Run through
+// the real cast because the gate reads the move REGISTRY's `teleports` flag,
+// and sampled against the move's own id: VANISH's cycle is ~2s and his AI
+// starts something else afterwards, whose wind-up is not this one.
+await page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const d = gs.cameraDirector, p = gs.player;
+  for (const e of gs.enemies.getChildren().slice()) e.destroy();
+  if (gs.boss) { try { gs.boss.shadow?.destroy(); gs.boss.hpBar?.destroy(); gs.boss.destroy(); } catch (_) {} gs.boss = null; }
+  p.alive = true; p.setActive(true).setVisible(true).setAlpha(1);
+  p.setPosition(800, 700);
+  gs.spawnBoss(1300, 700, { encounter: 1 });
+  gs.boss.hp = gs.boss.hpMax = 1e9;
+  d.reset(800, 700);
+  window.__vanish = { framableInWindup: false, windupSamples: 0, framableAfter: false, cast: false };
+  window.__vanish.cast = !!gs._castBossMove(gs.boss, 'vanishslash');
+  window.__vanishHook = () => {
+    const m = gs.boss?._activeMove;
+    if (m?.move?.id !== 'vanishslash') return;
+    const f = d._bossFramable(gs.boss);
+    if (m.phase === 'anticipate') { window.__vanish.windupSamples++; if (f) window.__vanish.framableInWindup = true; }
+    else if (f) window.__vanish.framableAfter = true;
+  };
+  gs.events.on('postupdate', window.__vanishHook);
+});
+await page.waitForTimeout(2200);
+const van = await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  gs.events.off('postupdate', window.__vanishHook);
+  gs.boss?._activeMove?.cancel?.();
+  return window.__vanish;
+});
+
+// 1 — inert with no boss at all.
+if (bs.noBossLead !== 0 || bs.noBossW !== 0)
+  fails.push(`the boss layer contributed ${bs.noBossLead.toFixed(1)}px with no boss in the room — it must be inert outside a boss fight`);
+// 2 + 3 — THE MATCHED PAIR. Silent when he is readable, present when he is not.
+if (bs.visibleW > 0.01 || bs.visibleLead > 1)
+  fails.push(`a comfortably visible Vader still asked for ${bs.visibleLead.toFixed(0)}px (need ${bs.visibleW.toFixed(2)}) — the layer is a tether, not a guardrail`);
+if (!(bs.edgeW > 0.5))
+  fails.push(`a Vader at the frame edge only reached need ${bs.edgeW.toFixed(2)} — the awareness this pass exists for is not engaging`);
+if (!(bs.edgeLead > 40))
+  fails.push(`a Vader at the frame edge bought back only ${bs.edgeLead.toFixed(0)}px of frame`);
+if (!(bs.edgeDir > 0))
+  fails.push('the boss lead points AWAY from a Vader at the eastern edge — the sign is inverted');
+if (!(bs.edgeX < bs.visibleX))
+  fails.push('the frame did not open toward an edge-bound Vader relative to a comfortable one');
+// 4 — BOUNDED. This is the difference between awareness and ownership.
+if (!(bs.farLead <= cfg.cam.bossLeadMax + 1))
+  fails.push(`a distant offscreen Vader produced ${bs.farLead.toFixed(0)}px, past the ${cfg.cam.bossLeadMax}px cap — the boss term is unbounded`);
+// 5 — explicit commitment wins, and nothing is stranded afterwards.
+if (!(bs.preAbilityLead > 40))
+  fails.push('the boss lead was not open before the ability, so the suppression check below proves nothing');
+if (!(bs.underAbilityAbW > 0.9))
+  fails.push(`the Super preview only reached ability weight ${bs.underAbilityAbW.toFixed(2)} — the priority case is not being exercised`);
+if (bs.underAbilityW > 0.05 || bs.underAbilityLead > 12)
+  fails.push(`an armed Super left ${bs.underAbilityLead.toFixed(0)}px of boss lead (need ${bs.underAbilityW.toFixed(2)}) — explicit commitment must outrank an external interest`);
+if (!(bs.postAbilityLead > 40))
+  fails.push('the boss lead did not return after the ability released — suppression became deletion');
+// 6 — afterimages drag nothing.
+if (bs.clones < 3)
+  fails.push(`only ${bs.clones} afterimages were alive — the check below proves nothing about clones`);
+if (bs.clonesW !== 0 || bs.clonesLead > 1)
+  fails.push(`six afterimages held ${bs.clonesLead.toFixed(0)}px of boss lead (need ${bs.clonesW.toFixed(2)}) — a clone is dragging the camera`);
+if (!(bs.beforeClonesLead > 40))
+  fails.push('the boss lead was never open before the clones were spawned, so 6 proves nothing');
+// 7 — the south guarantee survives an external interest, including an absurd one.
+if (bs.southY >= cfg.ctrlTop)
+  fails.push(`with Vader north of a player at the south wall the player is at screen y ${bs.southY.toFixed(0)}, at or below the control edge (${cfg.ctrlTop})`);
+if (!(Math.abs(bs.southExtremeLead) > Math.abs(bs.southLead) * 2))
+  fails.push(`the absurd boss lead only reached ${bs.southExtremeLead.toFixed(0)}px against the configured ${bs.southLead.toFixed(0)}px — the extreme probe is not engaging, so the check below is decoration`);
+if (bs.southExtremeY >= cfg.ctrlTop)
+  fails.push(`with an absurd boss lead the player reached screen y ${bs.southExtremeY.toFixed(0)} — the safe-area guard is not enforcing the limit on the boss term`);
+// 8 — a teleporting Vader's old position is never framed.
+if (!van.cast)
+  fails.push('the VANISH cast was REFUSED — the teleport check proves nothing (a refused call reads exactly like a failed one)');
+// The wind-up is a fixed 620ms and the headless harness runs at ~20fps, so
+// this is three or four frames on a good run and fewer on a slow one. It is a
+// floor on "the sample happened at all", not a coverage figure.
+if (!(van.windupSamples >= 3))
+  fails.push(`only ${van.windupSamples} frames of VANISH wind-up were sampled — too few to conclude anything`);
+if (van.framableInWindup)
+  fails.push('Vader was framable during the VANISH wind-up — the camera is composing on a body he has already left');
+if (!van.framableAfter)
+  fails.push('Vader never became framable again after the VANISH — the gate is refusing him permanently');
 
 // ── §15 — THE PHASE 1 SOUTH WIN, UNDER MAXIMUM LATERAL LEAD ───────────────
 //
