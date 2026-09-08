@@ -113,6 +113,9 @@ export class CameraDirector {
     // was asked for this frame. `_bsX/_bsY` is the state — an external signal
     // that snapped on and off would be worse than none — and `_bsW`, `_bsNX`,
     // `_bsNY` are the unfiltered request, kept for the overlay and the rig.
+    // Since 3A.1 `_bsNX/_bsNY` are the requested correction in WORLD PIXELS
+    // (they were a 0..1 ramp position in 3A) and `_bsW` is that request as a
+    // fraction of `bossLeadMax`.
     this._bsX = 0;
     this._bsY = 0;
     this._bsW = 0;
@@ -287,6 +290,18 @@ export class CameraDirector {
   // off the east edge at the player's own height asks for eastward frame and
   // nothing vertical at all.
   //
+  // PHASE 3A.1 — IT ANSWERS THE DEFICIT, NOT A RAMP POSITION. The first build
+  // multiplied a fixed lead by `clamp(overflow / 240, ±1)`, which stopped
+  // responding past 240px of overflow and capped at 120px against a 220px
+  // movement lead: the handset verdict was that ordinary locomotion could shed
+  // Vader almost for free. Measured on the real geometry, standing at a 300px
+  // separation bought 15px of frame and running away left him 40px offscreen.
+  // `_band` now answers a bounded FRACTION OF THE ACTUAL DEFICIT from two
+  // boundaries — a gentle one that starts early so he has weight before he is
+  // nearly lost, and a guard one near the frame edge where he is genuinely
+  // going. Same measurement, same anti-oscillation guarantee; a law that scales
+  // with how badly he is being lost instead of a ceiling it hits immediately.
+  //
   // THE NEED IS MEASURED AGAINST THE PLAYER-INTENT FOCUS, NOT THE ACHIEVED
   // FRAME, AND THAT IS WHAT MAKES IT INCAPABLE OF OSCILLATING. `fx`/`fy` above
   // is a pure function of the player's own state, so the boss term is never an
@@ -319,19 +334,22 @@ export class CameraDirector {
 
       const cx = this.cam.width / 2;
       const cy = this.safeBottom() / 2;
+      // TWO BOUNDARIES PER AXIS. The comfort half-extent is where a gentle
+      // relationship weight begins; the guard half-extent sits close to the
+      // frame edge, where he is actually being lost. `Math.min` keeps the guard
+      // outside the comfort band even if the margins are ever set to cross.
       const hx = Math.max(0, cx - CAMERA.bossMarginX);
       const hy = Math.max(0, cy - CAMERA.bossMarginY);
-      // Signed overflow past the comfort rect, zero inside it. A RAMP, never a
-      // visible/offscreen boolean: a boolean is a pop every time he crosses it,
-      // and in a real fight he crosses it constantly.
-      const ox = vx > cx + hx ? vx - (cx + hx) : (vx < cx - hx ? vx - (cx - hx) : 0);
-      const oy = vy > cy + hy ? vy - (cy + hy) : (vy < cy - hy ? vy - (cy - hy) : 0);
-      const nx = Phaser.Math.Clamp(ox / CAMERA.bossNeedRamp, -1, 1);
-      const ny = Phaser.Math.Clamp(oy / CAMERA.bossNeedRamp, -1, 1);
-      this._bsNX = nx; this._bsNY = ny;
+      const gx = Math.max(hx, cx - CAMERA.bossGuardMargin);
+      const gy = Math.max(hy, cy - CAMERA.bossGuardMargin);
 
-      // A Vader most of a room away cannot be recovered by 130px of pan, so
-      // spending the frame on it is pure cost with no awareness bought.
+      const softX = CAMERA.bossLeadX * CAMERA.bossSoftShare;
+      const softY = CAMERA.bossLeadY * CAMERA.bossSoftShare;
+      this._bsNX = this._band(vx, cx, hx, gx, softX, CAMERA.bossLeadX - softX, z);
+      this._bsNY = this._band(vy, cy, hy, gy, softY, CAMERA.bossLeadY - softY, z);
+
+      // A Vader most of a room away cannot be recovered by any bounded pan, so
+      // spending the frame on it buys no awareness and reads as a compass.
       const dist = Math.hypot(b.x - p.x, b.y - p.y);
       const span = Math.max(1, CAMERA.bossFarEnd - CAMERA.bossFarStart);
       const near = 1 - Phaser.Math.Clamp((dist - CAMERA.bossFarStart) / span, 0, 1);
@@ -343,9 +361,12 @@ export class CameraDirector {
       const auth = 1 - this._abW * (1 - CAMERA.bossAbilityKeep);
 
       const k = near * auth;
-      this._bsW = Math.min(1, Math.hypot(nx, ny)) * k;
-      tx = nx * CAMERA.bossLeadX * k;
-      ty = ny * CAMERA.bossLeadY * k;
+      tx = this._bsNX * k;
+      ty = this._bsNY * k;
+      // Guarded: a rig that zeroes the cap to reproduce the frozen camera would
+      // otherwise compute 0/0 and poison every reported strength with NaN.
+      this._bsW = CAMERA.bossLeadMax > 0
+        ? Math.min(1, Math.hypot(tx, ty) / CAMERA.bossLeadMax) : 0;
     }
 
     // THE CALMEST FILTER IN THE COMPOSITION. Nobody asked for this signal, so
@@ -376,6 +397,31 @@ export class CameraDirector {
   // "afterimages must not drag the camera" needs no exclusion rule — the
   // `_afterimage` line below is belt and braces, and says the contract in code.
   //
+  // ONE SATURATING LAW, TWO BOUNDARIES — AND IT ANSWERS THE DEFICIT RATHER
+  // THAN A RAMP POSITION.
+  //
+  // Phase 3A asked "how far past the comfort edge is he, as a fraction of a
+  // fixed 240px ramp?" and multiplied a fixed lead by it. That saturates: past
+  // 240px of overflow it stops responding, so a Vader 250px out and one 1000px
+  // out get the identical reply, and no cap raise could ever have been reached.
+  //
+  // This asks "how many WORLD PIXELS of frame would it take to put him back
+  // inside that boundary?" and answers a fraction of it, bent by a tanh so the
+  // answer is roughly what is needed when the deficit is small and asymptotes
+  // to the budget when it is large. `tanh` is ODD, so the same expression
+  // serves both sides of the frame with no sign special case — the west edge
+  // and the east edge cannot drift apart.
+  //
+  // ELASTIC, NOT A CLAMP. `bossPreserve` below 1 means the correction never
+  // closes the whole gap: it leans against losing him instead of pinning him
+  // to a screen coordinate, which is the difference between a guardrail and a
+  // soft lock-on.
+  _band(v, c, h, g, capSoft, capGuard, z) {
+    const over = (half) => (v > c + half ? v - (c + half) : (v < c - half ? v - (c - half) : 0));
+    const sat = (d, cap) => (cap <= 0 ? 0 : cap * Math.tanh((CAMERA.bossPreserve * (d / z)) / cap));
+    return sat(over(h), capSoft) + sat(over(g), capGuard);
+  }
+
   // AND A MOVE MAY DECLARE THAT ITS ACTOR'S POSITION HAS STOPPED BEING THE
   // TRUTH. VANISH is the case: he departs over the move's own `departMs`, and
   // from the end of that shear until the ACT beat puts him down somewhere else
@@ -789,12 +835,16 @@ export class CameraDirector {
       const bsy = (bs.y - this.cam.scrollY) * z;
       g.lineStyle(2, 0xff60ff, 0.35 + 0.6 * this._bsW);
       g.strokeCircle(bsx, bsy, 14 + 10 * this._bsW);
-      // The comfort rect the need is measured against, vertically bounded by
-      // the gameplay-safe band rather than by the viewport.
+      // BOTH boundaries the law measures against, vertically bounded by the
+      // gameplay-safe band rather than by the viewport: the inner one is where
+      // the gentle weight starts, the outer one where preservation gets
+      // serious. Drawing only the inner one would hide half the behaviour.
       const sbh = this.safeBottom() / 2;
-      g.lineStyle(1, 0xff60ff, 0.25);
-      g.strokeRect(CAMERA.bossMarginX, CAMERA.bossMarginY,
-        cw - CAMERA.bossMarginX * 2, Math.max(0, sbh * 2 - CAMERA.bossMarginY * 2));
+      for (const [m, alpha] of [[CAMERA.bossMarginX, 0.22], [CAMERA.bossGuardMargin, 0.4]]) {
+        const my = m === CAMERA.bossMarginX ? CAMERA.bossMarginY : CAMERA.bossGuardMargin;
+        g.lineStyle(1, 0xff60ff, alpha);
+        g.strokeRect(m, my, cw - m * 2, Math.max(0, sbh * 2 - my * 2));
+      }
     }
 
     // THE MOVEMENT LEAD, drawn from the player to the focus the solver is

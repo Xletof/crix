@@ -107,13 +107,16 @@ const out = await page.evaluate(async () => {
     p._moveTargetX = mx * PLAYER.speed; p._moveTargetY = my * PLAYER.speed;
   };
 
-  // A — VADER COMFORTABLY VISIBLE. He is 220px east of a standing player, well
-  // inside the comfort inset. The layer must be silent: this is the "if he is
-  // already visible, leave the camera alone" claim, and it is the one that
-  // separates a guardrail from a tether.
+  // A — VADER COMFORTABLY VISIBLE. 160px east of a standing player, inside the
+  // comfort inset. The layer must be silent: this is the "if he is already
+  // visible, leave the camera alone" claim, and it is the one that separates a
+  // guardrail from a tether. (3A staged this at 220px; 3A.1 moved the boundary
+  // deliberately earlier so relationship weight starts before he is nearly
+  // lost, which puts 220 just outside it — the station moved rather than the
+  // claim being weakened.)
   {
-    const b = boss(1020, 700);
-    station('A comfortably visible', 800, 700, b, 140, pin(b, 1020, 700));
+    const b = boss(960, 700);
+    station('A comfortably visible', 800, 700, b, 140, pin(b, 960, 700));
   }
 
   // B / C — VADER AT THE EDGE, PLAYER TRAVELLING THE OTHER WAY. The central
@@ -126,6 +129,55 @@ const out = await page.evaluate(async () => {
   {
     const b = boss(300, 700);
     station('C west edge, moving east', 800, 700, b, 160, hold(b, 300, 700, 1, 0));
+  }
+
+  // D2 — THE STRAFE REVERSAL, WHICH IS THE PHASE 3A HANDSET FAILURE. Vader
+  // holds one side while the player strafes left and right the way a real
+  // fight is played. What matters is not the average but the WORST frame: does
+  // ordinary locomotion reversal repeatedly throw him out of the picture?
+  {
+    const b = boss(1100, 700);
+    stage(800, 700);
+    let worst = -1e9, off = 0, n = 0, minLead = 1e9, maxLead = -1e9;
+    for (let i = 0; i < 420; i++) {
+      b.setPosition(1100, 700); b.body?.setVelocity(0, 0);
+      p.setPosition(800, 700); p.setVelocity(0, 0);
+      // ~1.3s per full left-right cycle, which is about how fast a player
+      // actually strafes.
+      p._moveTargetX = (Math.floor(i / 40) % 2 ? 1 : -1) * PLAYER.speed;
+      p._moveTargetY = 0;
+      d.update(16);
+      if (i > 60) {
+        const bx = sx(b);
+        worst = Math.max(worst, bx);
+        if (bx > 720 || bx < 0) off++;
+        n++;
+        const L = Math.hypot(d._bsX, d._bsY);
+        minLead = Math.min(minLead, L); maxLead = Math.max(maxLead, L);
+      }
+    }
+    p._moveTargetX = 0;
+    rows.push({
+      name: 'D2 strafe reversal, Vader 300px east',
+      worstVaderScreenX: +worst.toFixed(0),
+      framesVaderOffscreen: `${off}/${n}`,
+      bossLeadRange: `${minLead.toFixed(0)}..${maxLead.toFixed(0)}px`,
+    });
+  }
+
+  // I2 — SLIGHTLY OFFSCREEN, STANDING. He is 60px past the frame edge with no
+  // player intent at all; the question is purely how much of him the layer
+  // buys back.
+  {
+    const b = boss(1220, 700);
+    stage(800, 700);
+    for (let i = 0; i < 220; i++) { b.setPosition(1220, 700); b.body?.setVelocity(0, 0); d.update(16); }
+    rows.push({
+      name: 'I2 slightly offscreen (420px east), standing',
+      vaderScreenX: +sx(b).toFixed(0),
+      recovered: `${Math.hypot(d._bsX, d._bsY).toFixed(0)}px`,
+      onScreen: sx(b) < 720,
+    });
   }
 
   // D — RETREAT WHILE FIRING AT HIM. Combat intent and boss interest agree, so
@@ -282,6 +334,40 @@ const out = await page.evaluate(async () => {
     });
   }
 
+  // N — OSCILLATION, ANSWERED WHERE IT CAN BE ANSWERED. A live fight shows more
+  // scroll direction changes with the layer on than off, and that is NOT
+  // oscillation — it is the frame tracking a boss who is walking around, which
+  // the weaker 3A layer was too quiet to do. The question a reversal count in a
+  // live fight cannot answer is whether the guardrail rings on its own, so this
+  // pins BOTH bodies and samples after settling: a converging layer must show
+  // zero reversals and zero spread. (The structural guarantee is that the need
+  // is measured against the player-intent focus, so the correction is never an
+  // input to its own strength; this is that claim, measured.)
+  for (const [label, bx] of [['300px east', 1100], ['500px east', 1300]]) {
+    const b = boss(bx, 700);
+    stage(800, 700);
+    let prev = null, rev = 0, last = 0, lPrev = null, lRev = 0, lLast = 0;
+    const tail = [];
+    for (let i = 0; i < 500; i++) {
+      b.setPosition(bx, 700); b.body?.setVelocity(0, 0);
+      p.setPosition(800, 700); p.setVelocity(0, 0);
+      d.update(16);
+      if (i > 150) {
+        if (prev !== null) { const v = c.scrollX - prev; if (Math.abs(v) > 0.05) { const sg = Math.sign(v); if (last && sg !== last) rev++; last = sg; } }
+        if (lPrev !== null) { const v = d._bsX - lPrev; if (Math.abs(v) > 0.05) { const sg = Math.sign(v); if (lLast && sg !== lLast) lRev++; lLast = sg; } }
+        tail.push(d._bsX);
+      }
+      prev = c.scrollX; lPrev = d._bsX;
+    }
+    rows.push({
+      name: `N static inputs, Vader ${label} — does the guardrail ring?`,
+      scrollReversalsAfterSettle: rev,
+      bossLeadReversalsAfterSettle: lRev,
+      leadSpreadPx: +(Math.max(...tail) - Math.min(...tail)).toFixed(2),
+      settledLead: +d._bsX.toFixed(1),
+    });
+  }
+
   // L — THE SOUTH GUARANTEE, AT THE ONE BEARING THAT COULD SPEND IT, IN OPEN
   // FLOOR. A Vader NORTH of the player pulls the focus north, which draws the
   // player DOWN the screen toward the controls — the trade `leadY: 0` refused
@@ -304,11 +390,13 @@ const out = await page.evaluate(async () => {
     } };
     run(220);
     const at = +sy(p).toFixed(0), atLead = +d._bsY.toFixed(0);
-    const savedY = C.bossLeadY, savedMax = C.bossLeadMax;
-    C.bossLeadY = 900; C.bossLeadMax = 900;
+    // RAISE THE GAIN, NOT JUST THE CAP: the law saturates, so the correction
+    // can never exceed `bossPreserve x deficit` however large the budget is.
+    const savedY = C.bossLeadY, savedMax = C.bossLeadMax, savedP = C.bossPreserve;
+    C.bossLeadY = 900; C.bossLeadMax = 900; C.bossPreserve = 6;
     run(300);
     const extreme = +sy(p).toFixed(0), extremeLead = +d._bsY.toFixed(0);
-    C.bossLeadY = savedY; C.bossLeadMax = savedMax;
+    C.bossLeadY = savedY; C.bossLeadMax = savedMax; C.bossPreserve = savedP;
     const { getControls } = await import('/src/systems/controlLayout.js');
     rows.push({
       name: 'L open floor south, Vader 620px NORTH',
@@ -360,7 +448,7 @@ const out = await page.evaluate(async () => {
   return { rows, cfg: { bossLeadX: C.bossLeadX, bossLeadY: C.bossLeadY, bossLeadMax: C.bossLeadMax } };
 });
 
-console.log('\nCAMERA PHASE 3A — external threat interest');
+console.log('\nCAMERA PHASE 3A.1 — Vader relationship guardrail');
 console.log('tuning:', JSON.stringify(out.cfg));
 for (const r of out.rows) {
   if (r.off) {

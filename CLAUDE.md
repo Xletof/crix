@@ -166,14 +166,42 @@ asserts separately that the ceiling is not reached.
   need that asked for it and there is no loop to hunt. A version measuring
   Vader against the real scroll would breathe at the spring's own frequency for
   the whole fight. Do not "improve" it by reading `cam.scrollX`.
-- **THE EXTERNAL SIGNAL IS THE SMALLEST VOICE AND THE CALMEST FILTER.**
-  `bossLeadMax` (130) is below the movement lead (220), ordinary combat (200)
-  and an ability preview (260); `bossAttackMs` (320) is slower than both player
-  intents, because an explicit preview is acknowledged fastest — the player
-  just asked for it — and an external actor's wandering slowest, since nobody
-  asked for anything. `bossAbilityKeep: 0` means an armed Super or melee
-  suppresses him outright: aiming away from Vader is a decision and the camera
-  may not overrule it. **`bossLeadMax` is the handset dial.**
+- **THE 3A.1 LAW ANSWERS THE DEFICIT, NOT A RAMP POSITION — AND THAT WAS THE
+  WHOLE COMPLAINT.** 3A was `clamp(overflow / 240, ±1) × 120`: it STOPPED
+  RESPONDING past 240px of overflow, so a Vader 250px out and one 1000px out
+  got the identical 120px reply against a 220px movement lead. Measured on the
+  real geometry, standing at a 300px separation bought **15px** of frame and
+  running away left him **40px offscreen** — handset verdict, "too weak".
+  `_band` now answers a bounded fraction of the ACTUAL deficit through a
+  `tanh`, from TWO boundaries: a gentle one (`bossMarginX/Y`) that starts early
+  so he has weight before he is nearly lost, and a guard one
+  (`bossGuardMargin`) near the frame edge where he is genuinely going. **A
+  BIGGER CAP ALONE WOULD NOT HAVE FIXED IT** — the old law could never reach a
+  bigger cap.
+- **`bossPreserve` IS WHAT KEEPS IT A GUARDRAIL RATHER THAN A LOCK, AND IT
+  BOUNDS THE WHOLE LAYER.** `tanh` means the correction can never exceed
+  `bossPreserve × deficit`, so at 0.5 the layer can never close more than half
+  the gap however large the budget is — elastic by construction, and it can
+  never pin Vader to a screen coordinate. Two consequences for rigs: an
+  "absurd lead" probe must raise `bossPreserve` too, because raising the cap
+  alone moves the answer by a few pixels and the probe silently fails to
+  engage; and `tanh` is ODD, so one expression serves both frame edges and they
+  cannot drift apart.
+- **THE EXTERNAL SIGNAL MAY NOW OUT-WEIGH LOCOMOTION, BUT NEVER AN EXPLICIT
+  ABILITY.** 3A pinned `bossLeadMax` below the movement lead on the theory that
+  it must always be the smallest voice; the handset rejected exactly that, so
+  `smoke-camera` no longer asserts it. What survives is the line that was
+  always the real one: `bossLeadMax` (240) ≤ `abilityLeadX` (260), and
+  `bossAbilityKeep: 0` suppresses him outright while a Super or melee is armed
+  — aiming away from Vader is a decision and the camera may not overrule it.
+  `bossAttackMs` (240) is still the slowest acquisition in the composition.
+  **`bossLeadX` is the handset dial.**
+- **MORE SCROLL REVERSALS IN A LIVE FIGHT IS NOT OSCILLATION.** 3A.1 roughly
+  doubles them (5 → 9-17 measured), and that is the frame tracking a boss who
+  is walking around — which the quieter 3A layer could not do. The question a
+  live-fight reversal count cannot answer is whether the guardrail RINGS, so
+  pin both bodies and sample after settling: measured, zero scroll reversals,
+  zero lead reversals and 0.00-0.01px of spread. `diag-camera-boss` station N.
 - **ONLY `scene.boss` IS VADER.** The layer reads that one reference and
   nothing else — no enemy list, no distance search, no move ids, no phase, no
   hp, not the thrown saber, the caught super or the returned orb. Afterimages

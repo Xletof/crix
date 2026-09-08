@@ -106,36 +106,46 @@ if (!(cfg.cam.aimMemoryMs >= 300 && cfg.cam.aimMemoryMs <= 1500))
 if (!(cfg.cam.aimShotsForFull >= 2))
   fails.push(`aimShotsForFull ${cfg.cam.aimShotsForFull} — below 2 a single shot carries most of the lead, and one shot is noise`);
 
-// ── PHASE 3A config claims ─────────────────────────────────────────────────
+// ── PHASE 3A.1 config claims ───────────────────────────────────────────────
 // VADER IS AN INTEREST SIGNAL, NOT THE OWNER OF THE CAMERA, and these are the
-// numeric form of that sentence. Every one is relational: the external signal
-// is the smallest voice in the composition and the calmest filter in it.
-if (!(cfg.cam.bossLeadMax <= cfg.cam.leadX))
-  fails.push(`bossLeadMax ${cfg.cam.bossLeadMax} is not below the movement lead ${cfg.cam.leadX} — an external actor may not out-frame the player's own locomotion`);
-if (!(cfg.cam.bossLeadMax < cfg.cam.abilityLeadX))
-  fails.push(`bossLeadMax ${cfg.cam.bossLeadMax} reaches an explicit ability's authority (${cfg.cam.abilityLeadX})`);
-if (!(cfg.cam.bossLeadMax <= cfg.cam.aimLeadX))
-  fails.push(`bossLeadMax ${cfg.cam.bossLeadMax} exceeds ordinary combat intent (${cfg.cam.aimLeadX}) — the room may not out-shout the player's own fight`);
-if (!(cfg.cam.bossLeadY <= cfg.cam.bossLeadX))
+// numeric form of what survives of that after the handset verdict.
+//
+// WHAT CHANGED, AND WHY THIS FILE NO LONGER ASSERTS IT: 3A pinned
+// `bossLeadMax` below the movement lead on the theory that the external signal
+// must always be the smallest voice in the composition. Handset play rejected
+// exactly that — ordinary locomotion could shed Vader almost for free. The
+// surviving line is the one that was always the real one: an IMPLICIT or
+// EXTERNAL signal may not out-frame an EXPLICIT ability.
+if (!(cfg.cam.bossLeadMax <= cfg.cam.abilityLeadX))
+  fails.push(`bossLeadMax ${cfg.cam.bossLeadMax} exceeds an explicit ability's authority (${cfg.cam.abilityLeadX}) — the room may not out-frame what the player deliberately asked for`);
+if (!(cfg.cam.bossLeadY < cfg.cam.bossLeadX))
   fails.push(`bossLeadY ${cfg.cam.bossLeadY} — vertical is the axis the controls own, and it must stay the restrained one`);
-// THE CALMEST FILTER, and deliberately slower than either player intent: an
-// explicit preview is acknowledged fastest because the player just asked for
-// it, and an external actor's wandering slowest because nobody asked at all.
+if (!(cfg.cam.bossLeadMax >= cfg.cam.bossLeadX))
+  fails.push(`bossLeadMax ${cfg.cam.bossLeadMax} is below the per-axis budget ${cfg.cam.bossLeadX} — the combined cap would silently bind on a single axis`);
+// THE GUARDRAIL MUST STAY ELASTIC. At 1.0 the correction closes the whole
+// deficit every frame, which is a soft lock-on wearing a ramp's clothes.
+if (!(cfg.cam.bossPreserve > 0 && cfg.cam.bossPreserve < 1))
+  fails.push(`bossPreserve ${cfg.cam.bossPreserve} — outside (0,1) this stops being a lean against losing him and becomes a clamp onto a screen position`);
+// TWO BOUNDARIES, AND THE GUARD ONE MUST BE THE OUTER ONE. Inverted, the
+// gentle term would fire later than the serious one.
+if (!(cfg.cam.bossGuardMargin < cfg.cam.bossMarginX && cfg.cam.bossGuardMargin < cfg.cam.bossMarginY))
+  fails.push(`bossGuardMargin ${cfg.cam.bossGuardMargin} is not outside both comfort insets — the two boundaries are inverted`);
+if (!(cfg.cam.bossSoftShare > 0 && cfg.cam.bossSoftShare < 1))
+  fails.push(`bossSoftShare ${cfg.cam.bossSoftShare} — outside (0,1) one of the two terms is dead`);
+// A COMFORT INSET HAS TO LEAVE A COMFORT REGION. With no inset a Vader
+// anywhere but dead centre asks for frame, which is the tether 3A was built
+// not to be — and the handset approved that half of it.
+for (const k of ['bossMarginX', 'bossMarginY']) {
+  if (!(cfg.cam[k] >= 40)) fails.push(`CAMERA.${k} is ${cfg.cam[k]} — with no comfort inset the layer is a tether, not a guardrail`);
+}
+// THE CALMEST FILTER, still: an explicit preview is acknowledged fastest
+// because the player just asked for it, and an external actor slowest.
 if (!(cfg.cam.bossAttackMs > cfg.cam.leadAttackMs && cfg.cam.bossAttackMs > cfg.cam.abilityAttackMs))
   fails.push(`bossAttackMs ${cfg.cam.bossAttackMs} is not the slowest acquisition in the composition — Vader's footwork will tick the frame`);
 if (!(cfg.cam.bossReleaseMs > cfg.cam.bossAttackMs))
   fails.push('bossReleaseMs must be the slower of the pair — losing Vader should be a fade, not a snap back to the player');
 if (!(cfg.cam.bossAbilityKeep >= 0 && cfg.cam.bossAbilityKeep < 0.5))
   fails.push(`bossAbilityKeep ${cfg.cam.bossAbilityKeep} — at or above 0.5 an explicit Super or melee no longer outranks the boss`);
-// A RAMP, NOT A MODE SWITCH. A margin or ramp of zero is a visible/offscreen
-// boolean, which pops every time he crosses it — and in a real fight he
-// crosses it constantly.
-if (!(cfg.cam.bossNeedRamp >= 80))
-  fails.push(`bossNeedRamp ${cfg.cam.bossNeedRamp} — below ~80px this is a threshold, not a ramp, and it will pop`);
-for (const k of ['bossMarginX', 'bossMarginY']) {
-  if (!(cfg.cam[k] >= 40))
-    fails.push(`CAMERA.${k} is ${cfg.cam[k]} — with no comfort inset a Vader anywhere but dead centre asks for frame`);
-}
 if (!(cfg.cam.bossFarEnd > cfg.cam.bossFarStart))
   fails.push('bossFarEnd must exceed bossFarStart — the distance fade needs a span to fade across');
 
@@ -764,11 +774,13 @@ const bs = await page.evaluate(async () => {
   out.noBossW = d._bsW;
   out.noBossX = sx();
 
-  // 2 — COMFORTABLY VISIBLE. 220px east of a standing player is well inside
-  // the comfort inset: if he is already readable the approved camera is left
-  // alone, whatever else is true about him.
+  // 2 — COMFORTABLY VISIBLE. 160px east of a standing player, well inside the
+  // comfort inset: if he is already readable the approved camera is left alone,
+  // whatever else is true about him. (3A staged this at 220px; 3A.1 moved the
+  // boundary deliberately earlier, so 220 is now just outside it and the
+  // station had to move rather than the threshold being loosened.)
   {
-    const b = boss(1020, 700); stage(800, 700); run(140, b, 1020, 700, 800, 700);
+    const b = boss(960, 700); stage(800, 700); run(140, b, 960, 700, 800, 700);
     out.visibleW = d._bsW; out.visibleLead = lead(); out.visibleX = sx();
   }
 
@@ -778,6 +790,49 @@ const bs = await page.evaluate(async () => {
     const b = boss(1300, 700); stage(800, 700); run(160, b, 1300, 700, 800, 700);
     out.edgeW = d._bsW; out.edgeLead = lead(); out.edgeX = sx();
     out.edgeDir = d._bsX;
+  }
+
+  // 3b — 3A.1: THE LAW MUST KEEP RESPONDING PAST THE OLD SATURATION POINT.
+  // This is the handset complaint in one assertion. 3A multiplied a fixed lead
+  // by `clamp(overflow / 240, ±1)`, so a Vader 250px out and one 600px out got
+  // the identical reply and no cap raise could ever be reached. A deeper
+  // deficit must now buy a bigger correction.
+  //
+  // BOTH STATIONS MUST SIT PAST THE OLD SATURATION POINT or this passes on the
+  // bug: 3A stopped responding at 240px of overflow, which a standing player
+  // reaches at ~510px of separation, so a pair straddling that point still
+  // showed a difference on the build being replaced. 520 and 700 are both well
+  // past it and both well inside the distance fade.
+  {
+    const b = boss(1320, 700); stage(800, 700); run(200, b, 1320, 700, 800, 700);
+    out.deficitNear = lead();
+    const b2 = boss(1500, 700); stage(800, 700); run(200, b2, 1500, 700, 800, 700);
+    out.deficitFar = lead();
+  }
+
+  // 3c — MOVEMENT MAY NOT CHEAPLY SHED HIM, AND MUST STILL FEEL ALIVE. Both
+  // halves, because either alone is satisfied by a broken build: a layer that
+  // does nothing passes "movement still moves the frame", and a layer that
+  // pins Vader passes "he stays in frame". Vader sits east; the player holds
+  // the stick west, which is the exact case the handset rejected.
+  {
+    const b = boss(1100, 700);
+    stage(800, 700);
+    for (let i = 0; i < 200; i++) {
+      b.setPosition(1100, 700); b.body?.setVelocity(0, 0);
+      p.setPosition(800, 700); p.setVelocity(0, 0);
+      p._moveTargetX = -PLAYER.speed; p._moveTargetY = 0;
+      d.update(16);
+    }
+    out.westMoveBossX = (b.x - c.scrollX) * c.zoom + c.x;   // Vader's screen x
+    out.westMovePlayerX = sx();
+    out.westMoveLead = lead();
+    out.westMoveMovementLead = d._leadX;
+    // The same station standing still, for the "movement is still alive"
+    // comparison: holding west must move the frame relative to resting.
+    stage(800, 700); run(200, b, 1100, 700, 800, 700);
+    out.restPlayerX = sx();
+    p._moveTargetX = 0; p._moveTargetY = 0;
   }
 
   // 4 — BOUNDED, at an absurd separation. The cap is on the FILTERED value, so
@@ -827,12 +882,16 @@ const bs = await page.evaluate(async () => {
     stage(px, py); run(220, b, px, by, px, py);
     out.southY = (p.y - c.scrollY) * c.zoom + c.y;
     out.southLead = d._bsY;
-    const sl = d.cfg.bossLeadY, sm = d.cfg.bossLeadMax;
-    d.cfg.bossLeadY = 900; d.cfg.bossLeadMax = 900;
+    // RAISE THE GAIN, NOT JUST THE CAP. The 3A.1 law is saturating, so the
+    // correction can never exceed `bossPreserve x deficit` however large the
+    // budget is — an absurd cap alone moves the answer by a few pixels and the
+    // probe would silently fail to engage, leaving the guard check decoration.
+    const sl = d.cfg.bossLeadY, sm = d.cfg.bossLeadMax, sp = d.cfg.bossPreserve;
+    d.cfg.bossLeadY = 900; d.cfg.bossLeadMax = 900; d.cfg.bossPreserve = 6;
     run(300, b, px, by, px, py);
     out.southExtremeY = (p.y - c.scrollY) * c.zoom + c.y;
     out.southExtremeLead = d._bsY;
-    d.cfg.bossLeadY = sl; d.cfg.bossLeadMax = sm;
+    d.cfg.bossLeadY = sl; d.cfg.bossLeadMax = sm; d.cfg.bossPreserve = sp;
   }
 
   clean(); stage(800, 700);
@@ -965,6 +1024,24 @@ if (!(bs.edgeDir > 0))
   fails.push('the boss lead points AWAY from a Vader at the eastern edge — the sign is inverted');
 if (!(bs.edgeX < bs.visibleX))
   fails.push('the frame did not open toward an edge-bound Vader relative to a comfortable one');
+// 3b — the law responds to the DEFICIT, not to a ramp it saturates.
+if (!(bs.deficitFar > bs.deficitNear + 20))
+  fails.push(`a Vader 180px further out bought only ${(bs.deficitFar - bs.deficitNear).toFixed(0)}px more frame (${bs.deficitNear.toFixed(0)} -> ${bs.deficitFar.toFixed(0)}) — the correction saturates instead of answering the real deficit, which is the Phase 3A complaint`);
+// 3c — the handset case, both halves.
+if (!(bs.westMoveMovementLead < -150))
+  fails.push(`the westward movement lead only reached ${bs.westMoveMovementLead.toFixed(0)}px — the station is not exercising committed movement, so the checks below prove nothing`);
+if (!(bs.westMoveBossX < cfg.view.width))
+  fails.push(`running west put Vader at screen x ${bs.westMoveBossX.toFixed(0)}, off the ${cfg.view.width}px frame — ordinary locomotion is still shedding the boss for free`);
+if (!(bs.westMoveLead > 120))
+  fails.push(`running away from Vader produced only ${bs.westMoveLead.toFixed(0)}px of preservation — the guardrail is not leaning`);
+// ...AND MOVEMENT IS STILL ALIVE. A guardrail that cancels the movement lead
+// outright is the camera resisting the player, which the handset also refused.
+// THE SIGN, WRITTEN OUT, BECAUSE IT INVERTS. A WESTWARD lead moves the camera
+// west, which draws the player further RIGHT on screen — so movement staying
+// alive means westMovePlayerX ABOVE the resting one. The first version of this
+// check had it backwards and read a working feature as a regression.
+if (!(bs.westMovePlayerX - bs.restPlayerX > 30))
+  fails.push(`holding west moved the player only ${(bs.westMovePlayerX - bs.restPlayerX).toFixed(0)}px on screen against resting — the boss term has cancelled the movement lead and the camera now resists the stick`);
 // 4 — BOUNDED. This is the difference between awareness and ownership.
 if (!(bs.farLead <= cfg.cam.bossLeadMax + 1))
   fails.push(`a distant offscreen Vader produced ${bs.farLead.toFixed(0)}px, past the ${cfg.cam.bossLeadMax}px cap — the boss term is unbounded`);

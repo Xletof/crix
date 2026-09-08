@@ -51,9 +51,13 @@ zero), the tuning table, thirteen measured stations and the four answers.
 `§17` is the original brief and is now history.
 
 **NOT ONE FROZEN VALUE MOVED FOR IT**, and it is a CANDIDATE — not approved,
-and nothing about it may be called closed until the human has played it. The
-dial if it needs one is `bossLeadMax`. **Do not start an attack-specific Phase
-3B**: there is no evidence for one yet.
+and nothing about it may be called closed until the human has played it.
+**Do not start an attack-specific Phase 3B**: there is no evidence for one yet.
+
+**3A came back from the handset as TOO WEAK and `§19` is the answer** — the
+Vader relationship guardrail. The law now answers the actual deficit instead of
+a ramp it saturated, from two boundaries, and the dial is `bossLeadX`. Also a
+candidate; also not approved.
 
 
 ### THE FOUR-ARENA ENVIRONMENT PILOT IS COMPLETE. ALL FOUR ROOMS ARE FROZEN 🔒
@@ -5733,6 +5737,113 @@ composition does not need him.
 this test, `smoke-camera` fails with *"Vader was unframable in 4/4 frames of the
 VISIBLE VANISH wind-up — a whole-move gate is suppressing awareness of an attack
 that has not teleported yet."*
+
+---
+
+## 19. CAMERA PHASE 3A.1 — the Vader relationship guardrail. **CANDIDATE.**
+
+**Handset verdict on 3A: smooth, harmless to the player camera, and TOO WEAK.**
+Ordinary left/right movement could shed Vader almost for free; the layer read as
+an occasional edge correction rather than a second weight. 3A.1 answers exactly
+that and changes nothing else. Awaiting handset play.
+
+### THE DIAGNOSIS, IN THE REAL GEOMETRY
+
+3A's law was `clamp(overflow / 240, ±1) × 120`. On a 720px frame with the
+player anchored at 360:
+
+| station | Vader's screen x | deficit | 3A correction | result |
+|---|---|---|---|---|
+| 300px east, standing | 660 | 30 | **15px** | on screen, but imperceptible |
+| 300px east, running west | 880 | 250 | 120 (capped) | **offscreen by 40px** |
+| 350px east, running west | 930 | 300 | 120 (capped) | **offscreen by 90px** |
+
+It **saturated at 240px of overflow**, so a 250px deficit and a 1000px deficit
+got the identical 120px reply — against a movement lead of 220. **Raising
+`bossLeadMax` alone could never have fixed it: the old law stopped responding
+long before a bigger cap would have been reached.**
+
+### THE CORRECTION — a deficit-answering law with two boundaries
+
+`CameraDirector._band` answers a bounded fraction of the ACTUAL deficit, pushed
+through a `tanh`, from two boundaries per axis:
+
+- **comfort** (`bossMarginX` 150 / `bossMarginY` 130) — a gentle weight that
+  starts EARLY, so he matters before he is nearly lost;
+- **guard** (`bossGuardMargin` 20) — near the frame edge, where he is genuinely
+  going, carrying the larger share of the budget.
+
+Same function, same measurement, one continuous curve, no threshold pop. The
+anti-oscillation guarantee is untouched: the deficit is still measured against
+the PLAYER-INTENT focus, so the correction is never an input to its own
+strength.
+
+**`bossPreserve` (0.5) is what keeps it elastic.** `tanh` bounds the correction
+by `bossPreserve × deficit`, so the layer can never close more than half the
+gap however large the budget — it leans against losing him, it cannot pin him
+to a screen coordinate. That is the structural difference from a soft lock-on.
+
+### THE TUNING
+
+| key | 3A | 3A.1 | why |
+|---|---|---|---|
+| `bossMarginX` / `bossMarginY` | 90 / 90 | **150 / 130** | weight begins earlier |
+| `bossGuardMargin` | — | **20** | new: where preservation gets serious |
+| `bossNeedRamp` | 240 | **removed** | the saturating ramp was the bug |
+| `bossPreserve` | — | **0.5** | new: elasticity, and the hard bound on the whole layer |
+| `bossSoftShare` | — | **0.45** | new: budget split between the two terms |
+| `bossLeadX` / `bossLeadY` | 120 / 90 | **220 / 140** | **the handset dial** |
+| `bossLeadMax` | 130 | **240** | ≤ `abilityLeadX` (260) still holds |
+| `bossAttackMs` / `bossReleaseMs` | 320 / 520 | **240 / 460** | still the slowest in the composition |
+| `bossFarStart` / `bossFarEnd` | 1100 / 1700 | unchanged | no compass tether |
+| `bossAbilityKeep` | 0 | unchanged | explicit commitment still wins outright |
+
+### WHAT WAS MEASURED — A/B against the deployed 3A build
+
+| case | Phase 3A | Phase 3A.1 |
+|---|---|---|
+| **strafe reversal, Vader 300px east** (the handset failure) | offscreen in **71 of 359 frames**, lead 26-95px | **0 of 359**, worst screen x 692, lead 37-144px |
+| slightly offscreen (420px east), standing | recovered 75px, 45px still off | recovered **116px**, 4px still off |
+| deficit response, 520px vs 700px separation | **120 → 120** (saturated) | 167 → 207 |
+| running west, Vader 300px east | Vader at screen x **743 (off frame)** | on screen, and the player still moves 95px on screen against resting |
+| comfortably visible (160px) | 0px | **0px** — unchanged |
+| Super aimed away | 1px | **1px** — unchanged |
+| melee under commit | 26px | 37px, against 129px after release |
+| VANISH three intervals | correct | **correct, unchanged** |
+| afterimages, real Vader dead | 0px | **0px** |
+| south safe area, absurd lead | pinned at 886 vs control edge 926 | **pinned at 886** |
+| static inputs, does it ring? | — | **0 reversals, 0.00-0.01px spread** |
+
+### THE FOUR QUESTIONS
+
+**A. Is the handset complaint solved?** On the instruments, yes, and in the case
+the human named: a strafing player with Vader on one side lost him 20% of the
+time under 3A and never loses him under 3A.1.
+
+**B. Gravity without ownership?** He is silent inside 210px of separation, never
+exceeds 240px of correction, cannot close more than half of any deficit, and is
+suppressed outright by an armed ability. Movement keeps real weight — running
+west still moves the player 95px across the screen.
+
+**C. Did it need relationship preservation rather than a bigger cap?** **Yes,
+and this is the load-bearing finding.** The old law stopped responding past
+240px of overflow; a larger `bossLeadMax` would never have been reached. The
+A/B prints it as `120 → 120` where 3A.1 gives `167 → 207`.
+
+**D. The likely handset dial.** **`bossLeadX`** (220). If he still feels light,
+raise it before touching a boundary; if the camera feels like it resists the
+stick, lower it. `bossPreserve` is the second dial and changes the character
+rather than the amount.
+
+### GUARDS
+
+`smoke-camera` gained three behavioural claims that all fail on the deployed 3A
+build: the law must keep responding past the old saturation point; running away
+from Vader must not put him off the frame; and — the necessary other half —
+holding a direction must still move the player across the screen, or the camera
+is resisting the stick. `diag-camera-boss` gained the strafe-reversal station,
+a slightly-offscreen station and station N, which is the oscillation question
+asked where it can be answered.
 
 ---
 
