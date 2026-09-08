@@ -54,10 +54,17 @@ zero), the tuning table, thirteen measured stations and the four answers.
 and nothing about it may be called closed until the human has played it.
 **Do not start an attack-specific Phase 3B**: there is no evidence for one yet.
 
-**3A came back from the handset as TOO WEAK and `§19` is the answer** — the
-Vader relationship guardrail. The law now answers the actual deficit instead of
-a ramp it saturated, from two boundaries, and the dial is `bossLeadX`. Also a
-candidate; also not approved.
+**`§19` (the relationship guardrail) is HUMAN-APPROVED AND FROZEN 🔒** —
+*"Vader feels anchored in the fight now, but my movement camera still feels
+like mine."* It does not reopen.
+
+**`§20` IS THE OPEN CANDIDATE**: Phase 3A.2, the passive Vader gaze — a small
+bounded bias toward him during quiet locomotion, because the approved
+guardrail's idle correction was smaller than `dzX` and therefore landed as
+nothing at all. Not approved; the dial is `bossGazeX`.
+
+**Open gameplay bug, NOT a camera one and not touched here**: DEFLECTION was
+observed opening while SABER THROW still owned the blade. See the section above.
 
 
 ### THE FOUR-ARENA ENVIRONMENT PILOT IS COMPLETE. ALL FOUR ROOMS ARE FROZEN 🔒
@@ -108,6 +115,20 @@ detention), which costs two full clears to reach.
   junction's existing silhouette. Not pending, not queued.
 - **No further Detention polish pass is queued.** There is no open art item in
   any of the four arenas.
+
+### OPEN GAMEPLAY BUG — DEFLECTION opened while SABER THROW still owned the blade
+
+**Observed on handset during the approved Phase 3A.1 Vader fight, on multiple
+occasions.** The DEFLECTION stance began while SABER THROW still physically
+owned/carried the saber — the one-saber/one-owner invariant `CLAUDE.md`
+describes (`_saberAway`, `hasSaber()`, `canOpenGuard()`) did not hold in play.
+
+**NOT DIAGNOSED AND NOT FIXED** — recorded here deliberately, out of the camera
+pass that observed it. It is a Vader gameplay invariant bug, not a camera bug,
+and it is scheduled AFTER the camera handset gate. The scheduler was rebuilt
+once for exactly this failure (DUE vs ACTIVE, `_reflectPending` /
+`_reflectClaimed`), so the fix starts by asking which of those gates the throw
+is slipping past rather than by adding a new one.
 
 ### Genuinely open technical debt
 
@@ -5844,6 +5865,98 @@ holding a direction must still move the player across the screen, or the camera
 is resisting the stick. `diag-camera-boss` gained the strafe-reversal station,
 a slightly-offscreen station and station N, which is the oscillation question
 asked where it can be answered.
+
+---
+
+## 20. CAMERA PHASE 3A.2 — the passive Vader gaze. **CANDIDATE.**
+
+**Phase 3A.1 is HUMAN-APPROVED and FROZEN 🔒** — *"Vader feels anchored in the
+fight now, but my movement camera still feels like mine."* Strafing dynamic,
+Vader not cheaply lost at edges, shooting elsewhere does not erase the
+relationship, Super/melee authoritative, VANISH clean, no lock-on, no jitter.
+Nothing in `§19` reopens.
+
+The remaining finding was narrower: **during quiet moments — plain walking, no
+firing, no ability — the frame still read as free traversal.** The guardrail
+correctly said *do not lose Vader*; it did not yet say *Vader is the subject of
+this encounter*.
+
+### WHY IT WAS INVISIBLE, WHICH IS NOT WHAT I EXPECTED
+
+Standing at a 300px separation the approved guardrail asks for **42px** — and
+`dzX` is **60**. The deadzone swallowed it whole: measured on 3A.1, the resting
+player sits at screen x **360.0**, dead centre, with a live 42px correction
+behind it. The quiet correction was real and landed as *nothing at all*. Same
+family as the movement lead's `leadX - dzX - lag`, and it means **any boss term
+below `dzX` is invisible by construction.**
+
+### THE ADDITION — a second, separate term
+
+`_bgX/_bgY`: a small bounded bias along the player→Vader direction. **It is the
+one place a direction-to-Vader lead is allowed**, and only because four gates
+can each switch it off:
+
+| gate | effect |
+|---|---|
+| SEPARATION (`bossGazeNear` 120 → `bossGazeFull` 380) | a Vader already composed with the player gets none |
+| QUIET (`bossGazeAimKeep` 0.25, and `1 - _abW`) | ordinary fire reduces it to a residue; an armed ability removes it |
+| YIELD (`1 - _bsW`) | as the approved guardrail engages this stands down — they can never stack |
+| DISTANCE (the existing far fade) | it can never become a compass |
+
+Its own filter (520/700 — the calmest in the file) and its own cap, added
+alongside the guardrail and never folded into its budget, so the approved
+emergency preservation is untouched.
+
+### THE TUNING
+
+| key | value | purpose |
+|---|---|---|
+| **`bossGazeX` / `bossGazeY`** | **70 / 45** | the cap. **The handset dial for this half** |
+| `bossGazeNear` / `bossGazeFull` | 120 / 380 | separation ramp — not a deficit; gaze does not wait for an edge |
+| `bossGazeAimKeep` | 0.25 | what survives sustained ordinary fire |
+| `bossGazeAttackMs` / `bossGazeReleaseMs` | 520 / 700 | slower than the guardrail (240/460) |
+
+### MEASURED — A/B against approved 3A.1
+
+**Idle, what the frame carries toward Vader** (gaze + guardrail):
+
+| separation | 3A.1 | 3A.2 |
+|---|---|---|
+| 100px | 0 | **0** (close: nothing) |
+| 200px | 0 | 22 (still inside `dzX`) |
+| 300px | 42 (**all inside `dzX` — invisible**) | **82** (22px lands on screen) |
+| 420px | 116 | **152** |
+
+**Walking with Vader 300px east, nothing else happening:**
+
+| | 3A.1 | 3A.2 |
+|---|---|---|
+| resting player screen x | 360 (dead centre) | **338** (biased toward him) |
+| walking west | 406 | 398 |
+| walking east | 200 | 152 |
+| **movement's own travel** | 46px west / 160px east | **60px west / 186px east** |
+
+**Movement response did not shrink — it grew.** The resting frame moved toward
+Vader and the stick still moves it further in both directions.
+
+**Suppression and non-interference:** sustained fire away from him cuts the gaze
+to under 60% of idle; an armed Super leaves under 6px and it returns afterwards
+within its own filter's per-frame bound; at a real deficit the split is 167px
+guardrail to 15px gaze, so `§19`'s approved emergency behaviour is what acts.
+
+### THE ANSWERS
+
+1. **~40px of gaze idle at a fighting separation**, 22px of which clears the
+   deadzone and lands. 2. **Movement grew** (46→60px west, 160→186px east).
+3. Fire cuts it to a residue and the combat-sector camera owns its own frame.
+4. An armed ability leaves under 6px. 5. **Unchanged** — the gaze yields.
+6. VANISH untouched — the gaze sits inside `_bossFramable`. 7. No oscillation:
+static inputs still settle to 0 reversals and 0.00px spread. 8. **`bossGazeX`.**
+
+**A.** Quiet locomotion is now boss-aware where it previously showed literally
+zero. **B.** Yes — the movement travel measured larger, not smaller. **C.** The
+split is clean and structural: gaze = presence (separation-driven, quiet-gated,
+yields), guardrail = preservation (deficit-driven, survives everything).
 
 ---
 

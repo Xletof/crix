@@ -121,6 +121,13 @@ export class CameraDirector {
     this._bsW = 0;
     this._bsNX = 0;
     this._bsNY = 0;
+    // PASSIVE BOSS GAZE (Phase 3A.2) — a SEPARATE term with its own filter, not
+    // a bigger guardrail. Kept apart from `_bsX/_bsY` so the approved 3A.1
+    // preservation can still be measured, asserted and reasoned about on its
+    // own, and so this one can yield to it.
+    this._bgX = 0;
+    this._bgY = 0;
+    this._bgW = 0;
 
     // Scratch. The whole per-frame path is ~30 arithmetic operations and it
     // runs every frame forever, so it allocates NOTHING: the focus, the ideal
@@ -207,6 +214,7 @@ export class CameraDirector {
     this._fvX = 0; this._fvY = 0; this._fvW = 0;
     this._aimX = 0; this._aimY = 0;
     this._bsX = 0; this._bsY = 0; this._bsW = 0; this._bsNX = 0; this._bsNY = 0;
+    this._bgX = 0; this._bgY = 0; this._bgW = 0;
     this._ready = true;
     this.cam.setScroll(this._tx, this._ty);
   }
@@ -267,8 +275,11 @@ export class CameraDirector {
     // lead would be retuning the frozen camera by proxy. Its own cap is what
     // bounds it (`bossLeadMax`), and it is the smallest cap in the file.
     this._solveBoss(delta, p, fx, fy);
-    this._fx = fx + this._bsX;
-    this._fy = fy + this._bsY;
+    // TWO BOSS TERMS, ADDED SEPARATELY AND CAPPED SEPARATELY. Folding the gaze
+    // into the guardrail's budget would make a quiet bias eat the emergency
+    // one, which is precisely the approved behaviour this pass may not touch.
+    this._fx = fx + this._bsX + this._bgX;
+    this._fy = fy + this._bsY + this._bgY;
   }
 
   // ── EXTERNAL THREAT INTEREST — VADER (PHASE 3A) ───────────────────────────
@@ -323,8 +334,9 @@ export class CameraDirector {
   _solveBoss(delta, p, fx, fy) {
     const dt = Math.min(delta, 100);
     const b = this.scene.boss;
-    let tx = 0, ty = 0;
-    this._bsW = 0; this._bsNX = 0; this._bsNY = 0;
+    // `zx/zy` for the gaze: `gx/gy` are already the guardrail's half-extents.
+    let tx = 0, ty = 0, zx = 0, zy = 0;
+    this._bsW = 0; this._bsNX = 0; this._bsNY = 0; this._bgW = 0;
 
     if (this._bossFramable(b)) {
       const z = this.cam.zoom;
@@ -367,6 +379,27 @@ export class CameraDirector {
       // otherwise compute 0/0 and poison every reported strength with NaN.
       this._bsW = CAMERA.bossLeadMax > 0
         ? Math.min(1, Math.hypot(tx, ty) / CAMERA.bossLeadMax) : 0;
+
+      // ── PASSIVE GAZE — the quiet half, and the only direction-to-Vader lead
+      // in the file. Four gates, and every one of them can switch it off:
+      //   SEPARATION  he and the player already composed together need nothing;
+      //   QUIET       ordinary fire reduces it to a residue, an armed ability
+      //               removes it — the player's own intent still owns the frame;
+      //   YIELD       as the guardrail engages this stands down, so the
+      //               approved emergency preservation is what acts at a deficit
+      //               and the two never stack into an over-strong pull;
+      //   DISTANCE    the same far fade, so it can never become a compass.
+      const sep = dist;
+      const ramp = Phaser.Math.Clamp(
+        (sep - CAMERA.bossGazeNear) / Math.max(1, CAMERA.bossGazeFull - CAMERA.bossGazeNear), 0, 1);
+      const conf = Math.min(1, Math.hypot(this._aimX, this._aimY));
+      const quiet = (1 - conf * (1 - CAMERA.bossGazeAimKeep)) * (1 - this._abW);
+      const yieldToGuard = 1 - Math.min(1, this._bsW);
+      this._bgW = ramp * quiet * yieldToGuard * near;
+      if (sep > 1e-3) {
+        zx = ((b.x - p.x) / sep) * CAMERA.bossGazeX * this._bgW;
+        zy = ((b.y - p.y) / sep) * CAMERA.bossGazeY * this._bgW;
+      }
     }
 
     // THE CALMEST FILTER IN THE COMPOSITION. Nobody asked for this signal, so
@@ -388,6 +421,16 @@ export class CameraDirector {
       this._bsX *= c; this._bsY *= c;
     }
     if (mag < 0.05 && want === 0) { this._bsX = 0; this._bsY = 0; }
+
+    // THE GAZE'S OWN FILTER, and it is the calmest in the file. Its own cap
+    // too: `bossGazeX/Y` bound it whatever the guardrail is doing, so the two
+    // terms cannot conspire.
+    const gWant = Math.hypot(zx, zy), gHave = Math.hypot(this._bgX, this._bgY);
+    const gTau = gWant >= gHave ? CAMERA.bossGazeAttackMs : CAMERA.bossGazeReleaseMs;
+    const gk = 1 - Math.exp(-dt / gTau);
+    this._bgX += (zx - this._bgX) * gk;
+    this._bgY += (zy - this._bgY) * gk;
+    if (Math.hypot(this._bgX, this._bgY) < 0.05 && gWant === 0) { this._bgX = 0; this._bgY = 0; }
   }
 
   // IS THIS BODY'S POSITION SOMETHING THE CAMERA MAY FRAME AGAINST?
@@ -829,6 +872,18 @@ export class CameraDirector {
       g.lineBetween(psx, psy, psx + this._bsX * z, psy + this._bsY * z);
       g.fillStyle(0xff60ff, 0.85);
       g.fillCircle(psx + this._bsX * z, psy + this._bsY * z, 5);
+    }
+    // The PASSIVE GAZE, drawn from the player in a paler tint than the
+    // guardrail so the two boss terms are told apart at a glance: a quiet bias
+    // toward Vader and an emergency correction look nothing alike in the hand
+    // and must not look alike here either.
+    if (pb && (Math.abs(this._bgX) > 0.5 || Math.abs(this._bgY) > 0.5)) {
+      const psx = (pb.x - this.cam.scrollX) * z;
+      const psy = (pb.y - this.cam.scrollY) * z;
+      g.lineStyle(2, 0xffb0ff, 0.7);
+      g.lineBetween(psx, psy, psx + this._bgX * z, psy + this._bgY * z);
+      g.fillStyle(0xffb0ff, 0.7);
+      g.fillCircle(psx + this._bgX * z, psy + this._bgY * z, 3);
     }
     if (this._bossFramable(bs)) {
       const bsx = (bs.x - this.cam.scrollX) * z;

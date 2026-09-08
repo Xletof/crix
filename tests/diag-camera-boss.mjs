@@ -334,6 +334,44 @@ const out = await page.evaluate(async () => {
     });
   }
 
+  // P — THE PASSIVE GAZE (3A.2). The handset finding was that quiet locomotion
+  // still read as free traversal even though the guardrail was doing its job.
+  // These are the quiet stations: what the frame carries toward Vader when
+  // almost nothing else is happening, and how fast it gives that up.
+  {
+    const cases = [];
+    for (const sep of [100, 200, 300, 420]) {
+      const b = boss(800 + sep, 700);
+      stage(800, 700);
+      for (let i = 0; i < 300; i++) { b.setPosition(800 + sep, 700); b.body?.setVelocity(0, 0); p.setPosition(800, 700); p.setVelocity(0, 0); d.update(16); }
+      cases.push(`sep ${sep}: gaze ${(d._bgX ?? 0).toFixed(0)}px + guard ${d._bsX.toFixed(0)}px = ${((d._bgX ?? 0) + d._bsX).toFixed(0)}px`);
+    }
+    rows.push({ name: 'P1 idle, what the frame carries toward Vader', cases: cases.join(' | ') });
+  }
+  {
+    // Walking, no shooting — the case the human described. Both directions,
+    // plus a strafe, and what matters is that movement still moves the frame.
+    const b = boss(1100, 700);
+    const walk = (dir, n = 260) => {
+      stage(800, 700);
+      for (let i = 0; i < n; i++) {
+        b.setPosition(1100, 700); b.body?.setVelocity(0, 0);
+        p.setPosition(800, 700); p.setVelocity(0, 0);
+        p._moveTargetX = dir * PLAYER.speed; p._moveTargetY = 0;
+        d.update(16);
+      }
+      const r = { playerX: +sx(p).toFixed(0), vaderX: +sx(b).toFixed(0), gaze: +(d._bgX ?? 0).toFixed(0), guard: +d._bsX.toFixed(0) };
+      p._moveTargetX = 0;
+      return r;
+    };
+    const rest = walk(0), west = walk(-1), east = walk(1);
+    rows.push({
+      name: 'P2 walking with Vader 300px east, nothing else happening',
+      resting: JSON.stringify(rest), walkingWest: JSON.stringify(west), walkingEast: JSON.stringify(east),
+      movementStillMovesFrame: `${(west.playerX - rest.playerX).toFixed(0)}px west, ${(east.playerX - rest.playerX).toFixed(0)}px east`,
+    });
+  }
+
   // N — OSCILLATION, ANSWERED WHERE IT CAN BE ANSWERED. A live fight shows more
   // scroll direction changes with the layer on than off, and that is NOT
   // oscillation — it is the frame tracking a boss who is walking around, which

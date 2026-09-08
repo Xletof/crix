@@ -146,11 +146,12 @@ asserts separately that the ceiling is not reached.
   stack reopens only on new human gameplay evidence, a real regression, or a
   conflict demonstrably caused by the new layer itself. `HANDOVER.md` §18 is
   the record and the tuning table.
-- **VADER IS AN INTEREST SIGNAL, NOT THE OWNER OF THE CAMERA, AND THE LAYER
-  SOLVES COMPOSITION NEED RATHER THAN THE RELATIONSHIP.** There is no midpoint,
-  no direction-to-Vader lead and no distance term driving strength — those are
-  all lock-on cameras with a bound on them, and Phase 2C refused that shape for
-  ordinary enemies. `CameraDirector._solveBoss` asks ONE question: given the
+- **VADER IS AN INTEREST SIGNAL, NOT THE OWNER OF THE CAMERA, AND THE
+  GUARDRAIL SOLVES COMPOSITION NEED RATHER THAN THE RELATIONSHIP.** There is no
+  midpoint and no distance term driving its strength — those are lock-on
+  cameras with a bound on them, and Phase 2C refused that shape for ordinary
+  enemies. (A direction-to-Vader lead exists in exactly ONE place, the Phase
+  3A.2 passive gaze below, which is small, quiet-gated and yields to this.) `CameraDirector._solveBoss` asks ONE question: given the
   frame the approved player camera is about to compose, where does Vader land
   in it? Inside the comfort inset (`bossMarginX/Y`) he contributes EXACTLY
   ZERO, however close, however dangerous and whatever he is winding up; only
@@ -196,6 +197,28 @@ asserts separately that the ceiling is not reached.
   — aiming away from Vader is a decision and the camera may not overrule it.
   `bossAttackMs` (240) is still the slowest acquisition in the composition.
   **`bossLeadX` is the handset dial.**
+- **THE DEADZONE ATE THE QUIET GUARDRAIL, AND THAT IS WHY 3A.1 READ AS FREE
+  TRAVERSAL WHEN NOTHING WAS HAPPENING.** Standing at a 300px separation the
+  guardrail asks for 42px — and `dzX` is 60, so the target does not move by a
+  single pixel and the resting frame is EXACTLY centred. Measured: player screen
+  x 360.0 on 3A.1. The correction was real and entirely invisible. This is the
+  same family as the movement lead's `leadX - dzX - lag`: **any boss term below
+  `dzX` lands on screen as nothing at all.** Phase 3A.2's passive gaze is what
+  carries the quiet total past that threshold (82px at 300 separation, of which
+  22 lands), and it is why the perceptible boundary sits near 270px of
+  separation rather than wherever the law's own ramp starts.
+- **THE PASSIVE GAZE IS A SECOND, SEPARATE BOSS TERM — presence, not
+  preservation.** `_bgX/_bgY`, its own filter (520/700, the calmest in the
+  file), its own cap (`bossGazeX` 70 / `bossGazeY` 45), added alongside the
+  guardrail and never folded into its budget. It is **the one place a
+  direction-to-Vader lead is allowed**, and only because four gates can each
+  switch it off: SEPARATION (`bossGazeNear` 120 — a Vader already composed with
+  the player needs none), QUIET (`bossGazeAimKeep` 0.25 under sustained fire,
+  and `1 - _abW` removes it outright under an armed ability), YIELD
+  (`1 - _bsW`, so as the approved guardrail engages this stands down and the
+  two can never stack), and the same far-distance fade. Measured, that yield is
+  what keeps 3A.1 intact: walking away from a Vader 300px east is 167px of
+  guardrail and 15px of gaze. **`bossGazeX` is the handset dial for this half.**
 - **MORE SCROLL REVERSALS IN A LIVE FIGHT IS NOT OSCILLATION.** 3A.1 roughly
   doubles them (5 → 9-17 measured), and that is the frame tracking a boss who
   is walking around — which the quieter 3A layer could not do. The question a

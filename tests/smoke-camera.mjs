@@ -149,6 +149,27 @@ if (!(cfg.cam.bossAbilityKeep >= 0 && cfg.cam.bossAbilityKeep < 0.5))
 if (!(cfg.cam.bossFarEnd > cfg.cam.bossFarStart))
   fails.push('bossFarEnd must exceed bossFarStart — the distance fade needs a span to fade across');
 
+// ── PHASE 3A.2 config claims — the PASSIVE GAZE ────────────────────────────
+// A presence bias, not a preservation mechanism, and every one of these is
+// what keeps those two jobs separate.
+if (!(cfg.cam.bossGazeX < cfg.cam.bossLeadX))
+  fails.push(`bossGazeX ${cfg.cam.bossGazeX} is not materially below the guardrail budget ${cfg.cam.bossLeadX} — a quiet bias may not rival emergency preservation`);
+if (!(cfg.cam.bossGazeX <= cfg.cam.bossLeadX / 2))
+  fails.push(`bossGazeX ${cfg.cam.bossGazeX} is more than half the guardrail budget — it has stopped being the gentle half of the pair`);
+if (!(cfg.cam.bossGazeY < cfg.cam.bossGazeX))
+  fails.push(`bossGazeY ${cfg.cam.bossGazeY} — vertical is the axis the controls own and must stay the restrained one`);
+if (!(cfg.cam.bossGazeFull > cfg.cam.bossGazeNear))
+  fails.push('bossGazeFull must exceed bossGazeNear — the separation ramp needs a span');
+if (!(cfg.cam.bossGazeNear > 0))
+  fails.push('bossGazeNear is 0 — a Vader standing on the player would still be gazed at, which is a bias with nothing to bias toward');
+if (!(cfg.cam.bossGazeAimKeep >= 0 && cfg.cam.bossGazeAimKeep < 0.5))
+  fails.push(`bossGazeAimKeep ${cfg.cam.bossGazeAimKeep} — at or above 0.5 ordinary fire no longer owns the frame it is aimed into`);
+// CALMER THAN EVERYTHING, including the guardrail. Nobody asked for this one.
+if (!(cfg.cam.bossGazeAttackMs > cfg.cam.bossAttackMs))
+  fails.push(`bossGazeAttackMs ${cfg.cam.bossGazeAttackMs} is not slower than the guardrail's ${cfg.cam.bossAttackMs} — a passive bias must be the calmest thing in the composition`);
+if (!(cfg.cam.bossGazeReleaseMs > cfg.cam.bossGazeAttackMs))
+  fails.push('bossGazeReleaseMs must be the slower of the pair');
+
 // ── PHASE 2B config claims ─────────────────────────────────────────────────
 // Explicit ability intent is meant to be BETTER information than locomotion, so
 // it may lead harder; and it is allowed vertical authority the movement lead is
@@ -835,6 +856,68 @@ const bs = await page.evaluate(async () => {
     p._moveTargetX = 0; p._moveTargetY = 0;
   }
 
+  // 3d — 3A.2: THE PASSIVE GAZE, AND ITS THREE GATES. Vader comfortably visible
+  // at a real fighting separation, player idle: the frame must carry a visible
+  // bias toward him even though the guardrail has almost nothing to say. Then
+  // the same station under fire and under an armed Super, which must reduce and
+  // remove it — otherwise this is a tether wearing a new name.
+  {
+    const b = boss(1100, 700);
+    stage(800, 700); run(300, b, 1100, 700, 800, 700);
+    out.gazeIdle = d._bgX ?? 0;
+    out.gazeIdleGuard = d._bsX ?? 0;
+    out.gazeIdleX = sx();
+    // ...with sustained ordinary fire WEST, away from him.
+    stage(800, 700);
+    for (let i = 0; i < 300; i++) {
+      b.setPosition(1100, 700); b.body?.setVelocity(0, 0);
+      p.setPosition(800, 700); p.setVelocity(0, 0);
+      if (i % 11 === 0) d.noteShot(Math.PI);
+      d.update(16);
+    }
+    out.gazeUnderFire = d._bgX ?? 0;
+    // ...and with a Super armed west.
+    stage(800, 700); run(80, b, 1100, 700, 800, 700);
+    p.setSuperAimInput({ x: -1, y: 0, force: 1 });
+    run(200, b, 1100, 700, 800, 700);
+    out.gazeUnderAbility = d._bgX ?? 0;
+    out.gazeAbilityW = d._abW;
+    p.superAiming = false;
+    // ...and it comes back afterwards, without a snap. MEASURED ON THE GAZE'S
+    // OWN PER-FRAME CHANGE, not on screen travel: the frame legitimately swings
+    // back by the whole approved ability lead as that releases, and a check on
+    // scroll attributes 2B's behaviour to this layer. (It also has to be ONE
+    // `d.update`, not a batch of thirty — the first version measured a 480ms
+    // interval and called it a step.)
+    let gStep = 0, gPrev = d._bgX ?? 0;
+    for (let i = 0; i < 720; i++) {
+      b.setPosition(1100, 700); b.body?.setVelocity(0, 0);
+      p.setPosition(800, 700); p.setVelocity(0, 0);
+      d.update(16);
+      gStep = Math.max(gStep, Math.abs((d._bgX ?? 0) - gPrev));
+      gPrev = d._bgX ?? 0;
+    }
+    out.gazeAfterAbility = d._bgX ?? 0;
+    out.gazeReturnStep = gStep;
+  }
+
+  // 3e — AND IT MUST NOT DISTURB THE APPROVED 3A.1 EMERGENCY BEHAVIOUR. Same
+  // walking-away station as 3c: the guardrail is what acts at a deficit, and
+  // the gaze stands down as it engages.
+  {
+    const b = boss(1100, 700);
+    stage(800, 700);
+    for (let i = 0; i < 220; i++) {
+      b.setPosition(1100, 700); b.body?.setVelocity(0, 0);
+      p.setPosition(800, 700); p.setVelocity(0, 0);
+      p._moveTargetX = -PLAYER.speed; p._moveTargetY = 0;
+      d.update(16);
+    }
+    out.deficitGuard = Math.hypot(d._bsX, d._bsY);
+    out.deficitGaze = Math.hypot(d._bgX ?? 0, d._bgY ?? 0);
+    p._moveTargetX = 0;
+  }
+
   // 4 — BOUNDED, at an absurd separation. The cap is on the FILTERED value, so
   // no combination of need, axis and distance may exceed it.
   {
@@ -1042,6 +1125,32 @@ if (!(bs.westMoveLead > 120))
 // check had it backwards and read a working feature as a regression.
 if (!(bs.westMovePlayerX - bs.restPlayerX > 30))
   fails.push(`holding west moved the player only ${(bs.westMovePlayerX - bs.restPlayerX).toFixed(0)}px on screen against resting — the boss term has cancelled the movement lead and the camera now resists the stick`);
+// 3d — the passive gaze exists, is bounded, and yields to everything.
+if (!(bs.gazeIdle > 25))
+  fails.push(`idling at a 300px separation produced only ${bs.gazeIdle.toFixed(0)}px of passive gaze — quiet locomotion is not boss-aware, which is the 3A.1 handset finding`);
+if (!(bs.gazeIdle <= cfg.cam.bossGazeX + 1))
+  fails.push(`the passive gaze reached ${bs.gazeIdle.toFixed(0)}px, past its ${cfg.cam.bossGazeX}px cap`);
+if (!(bs.gazeUnderFire < bs.gazeIdle * 0.6))
+  fails.push(`sustained fire away from Vader only reduced the gaze from ${bs.gazeIdle.toFixed(0)} to ${bs.gazeUnderFire.toFixed(0)}px — ordinary combat must own the frame it is aimed into`);
+if (!(bs.gazeAbilityW > 0.9))
+  fails.push(`the Super preview only reached ability weight ${bs.gazeAbilityW.toFixed(2)} — the suppression check below proves nothing`);
+if (!(Math.abs(bs.gazeUnderAbility) < 6))
+  fails.push(`an armed Super left ${bs.gazeUnderAbility.toFixed(0)}px of passive gaze — explicit commitment must remove it, not share with it`);
+if (!(bs.gazeAfterAbility > 25))
+  fails.push(`the gaze did not return after the ability released (${bs.gazeAfterAbility.toFixed(0)}px) — suppression became deletion`);
+// Its own filter is the bound: a one-pole filter at 16ms may move at most
+// `bossGazeX * (1 - exp(-16 / bossGazeAttackMs))` in a frame. Frame-rate
+// independent, and it fails on a real discontinuity.
+{
+  const bound = cfg.cam.bossGazeX * (1 - Math.exp(-16 / cfg.cam.bossGazeAttackMs)) + 0.5;
+  if (bs.gazeReturnStep > bound)
+    fails.push(`the passive gaze moved ${bs.gazeReturnStep.toFixed(2)}px in one 16ms frame against its filter's ${bound.toFixed(2)}px — it is re-entering as a step, not a fade`);
+}
+// 3e — the approved emergency behaviour is what acts at a deficit.
+if (!(bs.deficitGuard > 120))
+  fails.push(`at a real deficit the guardrail only supplied ${bs.deficitGuard.toFixed(0)}px — the 3A.1 behaviour has been disturbed`);
+if (!(bs.deficitGaze < bs.deficitGuard * 0.2))
+  fails.push(`at a real deficit the passive gaze still held ${bs.deficitGaze.toFixed(0)}px against the guardrail's ${bs.deficitGuard.toFixed(0)}px — it is not yielding, and the two are stacking`);
 // 4 — BOUNDED. This is the difference between awareness and ownership.
 if (!(bs.farLead <= cfg.cam.bossLeadMax + 1))
   fails.push(`a distant offscreen Vader produced ${bs.farLead.toFixed(0)}px, past the ${cfg.cam.bossLeadMax}px cap — the boss term is unbounded`);

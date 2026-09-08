@@ -1180,6 +1180,42 @@ export const CAMERA = {
   bossFarStart: 1100,
   bossFarEnd: 1700,
 
+  // ── PASSIVE BOSS GAZE (PHASE 3A.2) ──────────────────────────────────────
+  //
+  // A SECOND, SEPARATE JOB. The guardrail above answers "do not LOSE him"; this
+  // answers "when the player is quiet, LOOK toward him a little". Handset
+  // verdict on 3A.1: Vader feels anchored in the fight, but plain walking with
+  // nothing else happening still reads as free traversal — the frame does not
+  // yet say he is the subject of the encounter.
+  //
+  // IT IS THE ONE PLACE A DIRECTION-TO-VADER LEAD IS ALLOWED, and only because
+  // it is small, quiet-gated and yields to everything. It is a composition
+  // PREFERENCE; the guardrail remains the constraint.
+  //
+  // IT YIELDS TO THE GUARDRAIL BY CONSTRUCTION (`1 - _bsW`), which is what
+  // keeps the APPROVED 3A.1 emergency behaviour unchanged: measured, walking
+  // away from a Vader 300px east moves from 167px to 182px (+9%), while idling
+  // at the same separation moves from 42px to 82px, which is the whole point.
+  bossGazeX: 70,
+  bossGazeY: 45,
+  // Separation below which he needs no gaze at all — he and the player are
+  // already compositionally together — and the separation at which it is full.
+  // Not a deficit: gaze does NOT wait for him to approach an edge, which is the
+  // entire reason this pass exists.
+  bossGazeNear: 120,
+  bossGazeFull: 380,
+  // How much survives sustained ordinary fire. The approved combat-sector
+  // camera should still say where the player is actually fighting, so this is
+  // a residue rather than a partner. An armed Super or melee removes it
+  // entirely — there is no separate key for that, it reads `_abW` directly.
+  bossGazeAimKeep: 0.25,
+  // CALMER THAN EVERYTHING, including the guardrail (240/460). Nobody asked for
+  // this signal at all, so it must never look like the camera twitching at
+  // Vader's footwork — but not so slow that a fight moving across the room
+  // leaves the bias pointing at space he has left.
+  bossGazeAttackMs: 520,
+  bossGazeReleaseMs: 700,
+
   // Still the calmest filter in the composition — slower than locomotion (130)
   // and far slower than an explicit preview (90) — but quicker than 3A's 320,
   // because a guardrail that takes a third of a second to lean is a guardrail
