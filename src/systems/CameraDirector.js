@@ -300,7 +300,7 @@ export class CameraDirector {
   // joysticks is not visible in any sense this layer cares about.
   //
   // WHAT IT REFUSES TO KNOW: afterimages, minions, the thrown saber, the caught
-  // super, the returned orb, his move ids, his phase, his hp. It reads
+  // super, the returned orb, his move ids, his hp. It reads
   // `scene.boss` and nothing else, so an afterimage cannot tug the frame by
   // construction rather than by an exclusion list — and Phase 3B, if the
   // handset ever asks for one, is a weight on `want` here and not a second
@@ -376,19 +376,38 @@ export class CameraDirector {
   // "afterimages must not drag the camera" needs no exclusion rule — the
   // `_afterimage` line below is belt and braces, and says the contract in code.
   //
-  // AND A TELEPORTING MOVE'S POSITION IS A LIE WHILE HE IS DISCORPOREAL.
-  // VANISH's wind-up leaves the sprite standing at the spot he is leaving for
-  // the whole 620ms anticipation and only moves it on the ACT beat — so framing
-  // that position is framing a place he has already left, and then snapping
-  // across the room when he arrives. The move declares `teleports` in the
-  // registry and this reads the flag, not the id: a future move that takes his
-  // body only has to say so, exactly as `_saberAway` is the general contract
-  // for a move that takes his blade.
+  // AND A MOVE MAY DECLARE THAT ITS ACTOR'S POSITION HAS STOPPED BEING THE
+  // TRUTH. VANISH is the case: he departs over the move's own `departMs`, and
+  // from the end of that shear until the ACT beat puts him down somewhere else
+  // the sprite is a leftover standing on a spot he has left. Framing it frames
+  // a place he is not, and then snaps across the room when he arrives.
+  //
+  // THE MOVE OWNS THE BOUNDARY, NOT THIS FILE. `handle.bodyAuthoritative` is
+  // published by the beat that knows — false when he goes, true again on the
+  // frame he commits — so there is no VANISH millisecond in the camera and a
+  // future move that takes his body only has to say so, exactly as
+  // `_saberAway` is the general contract for one that takes his blade. Absent
+  // means authoritative, so no other move has to know the field exists.
+  //
+  // IT IS NOT A WHOLE-MOVE GATE, AND THAT DISTINCTION IS THE POINT. For the
+  // first `departMs` he is a boss winding up in plain sight at his real
+  // position; suppressing that is suppressing ordinary awareness of an ordinary
+  // attack because of something that has not happened yet.
+  //
+  // AND IT IS NOT SPRITE ALPHA. `Boss.preUpdate` writes `setAlpha(1)` every
+  // frame, so the fade is restored partway through the wind-up and he is fully
+  // opaque on the old spot for the last ~300ms — alpha says he is back when he
+  // is not. That restoration is existing Vader behaviour and is not this
+  // camera's business; reading the move's own claim is what steps around it.
+  //
+  // A CANCELLED MOVE IS NOT A CLAIM. `cancel()` does not clear `_activeMove`,
+  // so a VANISH interrupted after its shear would otherwise leave the flag
+  // false and the boss unframable for the rest of the room.
   _bossFramable(b) {
     if (!b || !b.active || !b.alive || !b.visible || b._afterimage) return false;
     if (!Number.isFinite(b.x) || !Number.isFinite(b.y)) return false;
     const m = b._activeMove;
-    if (m && m.phase === 'anticipate' && m.move?.teleports) return false;
+    if (m && !m.cancelled && m.phase !== 'done' && m.bodyAuthoritative === false) return false;
     return true;
   }
 

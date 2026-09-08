@@ -181,15 +181,42 @@ asserts separately that the ceiling is not reached.
   the camera" holds by CONSTRUCTION rather than by an exclusion list that could
   drift. A Phase 3B, if the handset ever asks for one, is a weight inside
   `_solveBoss` and not a second author anywhere else.
-- **A TELEPORTING MOVE'S POSITION IS A LIE, AND THE REGISTRY SAYS SO.** VANISH's
-  wind-up leaves his sprite standing at the spot he is LEAVING for the whole
-  620ms and only moves it on the ACT beat — framing that is framing a place he
-  has already left, then snapping across the room when he arrives. The move
-  declares `teleports: true` in `bossMoves.js` and `_bossFramable` reads the
-  FLAG, never the id: a future move that takes his body only has to say so,
-  exactly as `_saberAway` is the general contract for one that takes his blade.
-  Testing this by phase alone collects the NEXT move's wind-up and reports the
-  gate as broken — filter samples by `_activeMove.move.id`.
+- **A MOVE OWNS THE MOMENT ITS ACTOR'S POSITION STOPS BEING THE TRUTH, AND
+  VANISH IS THREE INTERVALS, NOT ONE.** He winds up VISIBLY on his real spot
+  for `departMs` (260); then the shear finishes and the sprite left behind is a
+  place he is not; then ACT puts him down somewhere else. The move publishes
+  the boundary as `handle.bodyAuthoritative` — false when the departure timer
+  fires, true again on the frame he commits — on its OWN cancellable clock, so
+  an interrupted VANISH takes the claim down with it. `_bossFramable` reads
+  that; ABSENT MEANS AUTHORITATIVE, so no other move needs to know the field
+  exists, and there is no VANISH millisecond anywhere in `CameraDirector`.
+  `departMs` drives the fade too, so the visual and the semantic cannot drift.
+  **A WHOLE-MOVE FLAG IS THE WRONG SHAPE and was the first attempt**: a
+  `teleports: true` gate suppressed all 620ms, including the ~250ms in which he
+  is simply a boss winding up in plain sight, which is suppressing ordinary
+  awareness of an ordinary attack because of something that has not happened
+  yet. That flag is GONE rather than left unread — an unread flag that the
+  notes describe as the gate is worse than none.
+- **SPRITE ALPHA IS NOT AN AUTHORITY ON WHETHER VADER IS THERE.**
+  `Boss.preUpdate` writes `setAlpha(1)` every frame unconditionally, so once
+  `vanish()`'s 260ms tween completes the sprite is restored to FULLY OPAQUE on
+  the spot he has left, for the last ~300ms of the wind-up. Measured. Alpha
+  says he is back when he is not. That restoration is existing approved Vader
+  behaviour and is not the camera's business to fix — read the move's claim and
+  step around it.
+- **A CANCELLED MOVE IS NOT A CLAIM.** `MoveScript.cancel()` does NOT clear
+  `actor._activeMove` (only the `done` path does), so a handle carrying
+  `bodyAuthoritative: false` would otherwise survive an interrupted VANISH and
+  leave the boss unframable for the rest of the room. `_bossFramable` ignores a
+  handle that is `cancelled` or `done`.
+- **TESTING VANISH BY PHASE ALONE COLLECTS THE NEXT MOVE'S WIND-UP** and reports
+  the gate as broken — filter samples by `_activeMove.move.id`. And a SAMPLE
+  COUNT is a frame-rate reading: the 620ms wind-up measured 3.8 SECONDS on a
+  cold container and four frames on a warm one, so classify by `phase` and
+  `bodyAuthoritative`, never by elapsed ms or by how many frames an interval
+  got. Likewise a px-per-frame "no pop" threshold is really a frame-rate meter —
+  bound the boss lead's per-frame change by its own filter,
+  `bossLeadMax * (1 - exp(-dt / bossAttackMs))`.
 - **THE SOUTH FRAMING PADDING IS DERIVED AND THE ROOM HEIGHT CANCELS OUT.**
   `padSouth = viewH - PLAYER.radius - (safeBottom - southClearance)` = 372 on
   the default layout, and `safeBottom` is read from the LIVE control layout

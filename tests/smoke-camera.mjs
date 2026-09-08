@@ -839,38 +839,116 @@ const bs = await page.evaluate(async () => {
   return out;
 });
 
-// 8 — VANISH. His sprite stands at the spot he is LEAVING for the whole
-// wind-up, so framing it is framing a place he has already left. Run through
-// the real cast because the gate reads the move REGISTRY's `teleports` flag,
-// and sampled against the move's own id: VANISH's cycle is ~2s and his AI
-// starts something else afterwards, whose wind-up is not this one.
+// 8 — VANISH, AND ITS THREE INTERVALS ARE THREE DIFFERENT CLAIMS.
+//
+// The move is not one state. He winds up VISIBLY, standing on his real spot;
+// then he departs and the sprite left behind is a place he is not; then he
+// commits somewhere else. A whole-move gate collapses those into one and
+// suppresses ordinary awareness of an ordinary attack because of something
+// that has not happened yet, so this samples all three separately.
+//
+// CLASSIFIED BY OBSERVED STATE, NEVER BY WALL CLOCK. This harness runs the
+// move's own clock several times slower than real time — a 620ms wind-up
+// measured 3.8 SECONDS on a cold container and a few frames on a warm one — so
+// anything keyed on elapsed ms, or on a SAMPLE COUNT, is measuring the machine.
+// `phase` and the move's own `bodyAuthoritative` are the boundary and they are
+// true at any frame rate.
+//
+// HE IS PINNED UNTIL THE CAST. The acquisition window exists so the wind-up is
+// measured on an already-live lead rather than one still ramping from zero —
+// but his AI walks him at the player during it, which closes the distance and
+// quietly turns the station into one where composition does NOT need him. The
+// first version of this check measured need 0.20 for exactly that reason.
 await page.evaluate(async () => {
   const gs = window.game.scene.getScene('Game');
-  const d = gs.cameraDirector, p = gs.player;
+  const d = gs.cameraDirector, p = gs.player, c = gs.cameras.main;
   for (const e of gs.enemies.getChildren().slice()) e.destroy();
   if (gs.boss) { try { gs.boss.shadow?.destroy(); gs.boss.hpBar?.destroy(); gs.boss.destroy(); } catch (_) {} gs.boss = null; }
   p.alive = true; p.setActive(true).setVisible(true).setAlpha(1);
-  p.setPosition(800, 700);
+  p.setPosition(800, 700); p.setVelocity(0, 0);
+  p._moveTargetX = 0; p._moveTargetY = 0;
+  p.superAiming = false; p.meleeAiming = false;
   gs.spawnBoss(1300, 700, { encounter: 1 });
   gs.boss.hp = gs.boss.hpMax = 1e9;
   d.reset(800, 700);
-  window.__vanish = { framableInWindup: false, windupSamples: 0, framableAfter: false, cast: false };
-  window.__vanish.cast = !!gs._castBossMove(gs.boss, 'vanishslash');
+  window.__V = { cast: false, rows: [], pre: null, pinned: true, prevLead: null };
   window.__vanishHook = () => {
-    const m = gs.boss?._activeMove;
-    if (m?.move?.id !== 'vanishslash') return;
-    const f = d._bossFramable(gs.boss);
-    if (m.phase === 'anticipate') { window.__vanish.windupSamples++; if (f) window.__vanish.framableInWindup = true; }
-    else if (f) window.__vanish.framableAfter = true;
+    const b = gs.boss; if (!b) return;
+    const V = window.__V;
+    // Hold him at the eastern edge until the cast, so the station stays one
+    // where the composition genuinely needs him. VANISH plants him itself for
+    // the wind-up, so nothing has to hold him after that.
+    if (V.pinned) { b.setPosition(1300, 700); b.body?.setVelocity(0, 0); }
+    const lead = Math.hypot(d._bsX, d._bsY);
+    const dt = gs.game.loop.delta;
+    if (V.pinned) { V.pre = { w: d._bsW, lead }; V.prevLead = lead; return; }
+    const m = b._activeMove;
+    if (m?.move?.id !== 'vanishslash') { V.prevLead = lead; return; }
+    V.rows.push({
+      phase: m.phase, auth: m.bodyAuthoritative,
+      alpha: +b.alpha.toFixed(2), vis: !!b.visible,
+      framable: d._bossFramable(b),
+      w: +d._bsW.toFixed(2), lead, dt,
+      dLead: V.prevLead === null ? 0 : Math.abs(lead - V.prevLead),
+      scrollX: c.scrollX,
+    });
+    V.prevLead = lead;
   };
   gs.events.on('postupdate', window.__vanishHook);
+  await new Promise((r) => setTimeout(r, 1200));   // acquire, pinned
+  // A REFUSED CAST READS EXACTLY LIKE A FAILED ONE, and after a second of
+  // acquisition his own state machine owns him: `_castBossMove` refuses unless
+  // he is idle, unguarded and running no scripted move. So the precondition is
+  // established rather than hoped for, and the refusal context is carried out
+  // for the report if it still will not take.
+  const b = gs.boss;
+  for (let i = 0; i < 12 && !window.__V.cast; i++) {
+    b._activeMove?.cancel?.();
+    b.state = 'idle';
+    window.__V.why = { state: b.state, guarding: !!b.isGuarding?.(), move: b._activeMove?.phase ?? null, playerAlive: gs.player.alive };
+    window.__V.cast = !!gs._castBossMove(b, 'vanishslash');
+    if (!window.__V.cast) await new Promise((r) => setTimeout(r, 200));
+  }
+  window.__V.pinned = false;
 });
-await page.waitForTimeout(2200);
-const van = await page.evaluate(() => {
+// Generous: 620+700+750ms nominal, and this harness runs that clock several
+// times slower. The classification does not care how long it takes.
+await page.waitForTimeout(16000);
+const van = await page.evaluate(async () => {
   const gs = window.game.scene.getScene('Game');
   gs.events.off('postupdate', window.__vanishHook);
   gs.boss?._activeMove?.cancel?.();
-  return window.__vanish;
+  const V = window.__V, d = gs.cameraDirector;
+  // `!== false` rather than `=== true` ON PURPOSE. A build with no such claim
+  // at all (the whole-move gate this replaces) then classifies its entire
+  // wind-up as EARLY and fails on the behaviour — "he was unframable while
+  // visibly standing there" — instead of passing vacuously on an empty set
+  // because a field it never had was missing.
+  const early = V.rows.filter((r) => r.phase === 'anticipate' && r.auth !== false);
+  const gone  = V.rows.filter((r) => r.phase === 'anticipate' && r.auth === false);
+  const after = V.rows.filter((r) => r.phase !== 'anticipate');
+  // The interval where `Boss.preUpdate` has put his alpha back while he is
+  // still absent — the trap a sprite-alpha authority would fall into.
+  const restored = gone.filter((r) => r.alpha >= 0.99 && r.vis);
+  // NO POP, MEASURED AGAINST THE FILTER RATHER THAN IN PIXELS PER FRAME. A raw
+  // px/frame threshold measures how long a frame was — the post-mortem's own
+  // example of an instrument that is really a frame-rate meter. The boss lead
+  // is a one-pole filter, so the most it may move in a frame of `dt` is the
+  // full range times `1 - exp(-dt/bossAttackMs)`; anything beyond that is a
+  // discontinuity rather than a fast fade.
+  let worst = 0, worstAt = null;
+  for (const r of V.rows) {
+    const bound = d.cfg.bossLeadMax * (1 - Math.exp(-r.dt / d.cfg.bossAttackMs)) + 2;
+    if (r.dLead / bound > worst) { worst = r.dLead / bound; worstAt = { d: +r.dLead.toFixed(1), bound: +bound.toFixed(1), phase: r.phase, auth: r.auth }; }
+  }
+  return {
+    cast: V.cast, why: V.why, total: V.rows.length, pre: V.pre,
+    early: { n: early.length, framable: early.filter((r) => r.framable).length, maxW: Math.max(0, ...early.map((r) => r.w)), maxLead: Math.max(0, ...early.map((r) => r.lead)) },
+    gone:  { n: gone.length,  framable: gone.filter((r) => r.framable).length,  maxW: Math.max(0, ...gone.map((r) => r.w)) },
+    restored: { n: restored.length, framable: restored.filter((r) => r.framable).length },
+    after: { n: after.length, framable: after.filter((r) => r.framable).length, firstFramable: after[0]?.framable ?? null },
+    filterRatio: worst, worstAt,
+  };
 });
 
 // 1 — inert with no boss at all.
@@ -913,18 +991,48 @@ if (!(Math.abs(bs.southExtremeLead) > Math.abs(bs.southLead) * 2))
   fails.push(`the absurd boss lead only reached ${bs.southExtremeLead.toFixed(0)}px against the configured ${bs.southLead.toFixed(0)}px — the extreme probe is not engaging, so the check below is decoration`);
 if (bs.southExtremeY >= cfg.ctrlTop)
   fails.push(`with an absurd boss lead the player reached screen y ${bs.southExtremeY.toFixed(0)} — the safe-area guard is not enforcing the limit on the boss term`);
-// 8 — a teleporting Vader's old position is never framed.
+// 8 — VANISH's three intervals, A to E.
 if (!van.cast)
-  fails.push('the VANISH cast was REFUSED — the teleport check proves nothing (a refused call reads exactly like a failed one)');
-// The wind-up is a fixed 620ms and the headless harness runs at ~20fps, so
-// this is three or four frames on a good run and fewer on a slow one. It is a
-// floor on "the sample happened at all", not a coverage figure.
-if (!(van.windupSamples >= 3))
-  fails.push(`only ${van.windupSamples} frames of VANISH wind-up were sampled — too few to conclude anything`);
-if (van.framableInWindup)
-  fails.push('Vader was framable during the VANISH wind-up — the camera is composing on a body he has already left');
-if (!van.framableAfter)
-  fails.push('Vader never became framable again after the VANISH — the gate is refusing him permanently');
+  fails.push(`the VANISH cast was REFUSED — every check below proves nothing (last refusal context: ${JSON.stringify(van.why)})`);
+// A SAMPLE COUNT IS A FRAME-RATE READING HERE, so the floor is existence only:
+// the departure window is 260ms of the move's own clock and lands anywhere
+// between one frame and fifteen depending on how warm the box is.
+for (const [k, n] of [['early wind-up', van.early.n], ['departed', van.gone.n], ['committed', van.after.n]])
+  if (!(n >= 1)) fails.push(`no VANISH samples at all in the ${k} interval — that interval was never observed`);
+// A — the EARLY wind-up is an ordinary boss winding up in plain sight, and it
+// must still buy frame when the composition needs it. Both halves: he is
+// framable, AND the need was real, or this passes on a dead layer.
+if (van.early.framable !== van.early.n)
+  fails.push(`Vader was unframable in ${van.early.n - van.early.framable}/${van.early.n} frames of the VISIBLE VANISH wind-up — a whole-move gate is suppressing awareness of an attack that has not teleported yet`);
+// The station has to be one where composition needs him, or A is vacuous —
+// measured on the pinned pre-cast frame, which does not depend on how many
+// frames the wind-up happened to get.
+if (!(van.pre && van.pre.w > 0.5 && van.pre.lead > 20))
+  fails.push(`before the cast the layer held need ${van.pre?.w?.toFixed(2)} / ${van.pre?.lead?.toFixed(0)}px — the station is not one where composition needs him, so A proves nothing`);
+if (!(van.early.maxLead > 20))
+  fails.push(`the early VANISH wind-up produced only ${van.early.maxLead.toFixed(0)}px of boss lead — ordinary bounded interest is not being produced`);
+if (van.early.maxLead > cfg.cam.bossLeadMax + 1)
+  fails.push(`the early VANISH wind-up produced ${van.early.maxLead.toFixed(0)}px, past the ${cfg.cam.bossLeadMax}px cap`);
+// B — once he has departed, zero. Not reduced: zero.
+if (van.gone.framable !== 0)
+  fails.push(`Vader was framable in ${van.gone.framable}/${van.gone.n} frames AFTER he departed — the camera is composing on a body he has left`);
+if (van.gone.maxW !== 0)
+  fails.push(`the departed interval still asked for need ${van.gone.maxW.toFixed(2)} — it must contribute nothing at all`);
+// C — the alpha restoration is a trap, and it must not reacquire him. If this
+// interval is empty the check is vacuous, so its existence is asserted too.
+if (!(van.restored.n >= 1))
+  fails.push('never observed the fully-opaque old-position interval — C is vacuous (Boss.preUpdate restores alpha partway through the wind-up, so it should occur)');
+if (van.restored.framable !== 0)
+  fails.push(`the restored-alpha old-position sprite was framable in ${van.restored.framable} frames — sprite alpha is being trusted over the move's own claim`);
+// D — the committed position is authoritative again, from the first frame.
+if (van.after.firstFramable !== true)
+  fails.push('Vader was not framable on the first frame after he committed to the new position — reacquisition is late');
+if (van.after.framable !== van.after.n)
+  fails.push(`Vader was unframable in ${van.after.n - van.after.framable}/${van.after.n} frames after committing`);
+// E — and none of the three transitions may pop the frame. The boss filter is
+// the slowest in the composition precisely so this holds.
+if (van.filterRatio > 1)
+  fails.push(`the boss lead moved ${JSON.stringify(van.worstAt)} — beyond what its own filter permits in that frame, so a transition is a step rather than a fade`);
 
 // ── §15 — THE PHASE 1 SOUTH WIN, UNDER MAXIMUM LATERAL LEAD ───────────────
 //

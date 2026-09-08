@@ -220,38 +220,43 @@ const out = await page.evaluate(async () => {
     rows.push({ name: 'I reacquisition', maxStepPx: +jump.toFixed(1), endW: +d._bsW.toFixed(2) });
   }
 
-  // J — VANISH. His sprite stands at the spot he is LEAVING for the whole
-  // wind-up, so a camera that frames it is framing a place he has already
-  // left. `_bossFramable` must refuse the position for the wind-up and take it
-  // back only once he has arrived.
+  // J — VANISH, AS THREE INTERVALS. He winds up VISIBLY on his real spot, then
+  // departs, then commits somewhere else. The move publishes the boundary as
+  // `handle.bodyAuthoritative` on its own clock (`departMs`), so the camera
+  // holds ordinary bounded interest through the visible wind-up, drops it the
+  // moment he goes, ignores the alpha `Boss.preUpdate` restores while he is
+  // still absent, and takes him back when he commits.
   {
     const b = boss(1400, 700);
     stage(800, 700);
     for (let i = 0; i < 120; i++) { b.setPosition(1400, 700); d.update(16); }
-    const beforeW = d._bsW;
-    const cast = gs._castBossMove(b, 'vanishslash');
-    const samples = [];
-    for (let i = 0; i < 90; i++) {
+    const beforeW = d._bsW, beforeLead = Math.hypot(d._bsX, d._bsY);
+    for (let i = 0; i < 12 && !b._activeMove; i++) { b._activeMove?.cancel?.(); b.state = 'idle'; gs._castBossMove(b, 'vanishslash'); }
+    const cast = !!b._activeMove;
+    const S = [];
+    for (let i = 0; i < 140; i++) {
       d.update(16);
-      // FILTER BY THE MOVE, NOT BY THE PHASE. VANISH's whole cycle is ~2s and
-      // his AI starts something else after it; a sample that only records
-      // "phase === anticipate" collects the NEXT move's wind-up and reports
-      // the gate as broken. It cost this rig one round.
-      samples.push({
-        id: b._activeMove?.move?.id ?? null,
-        phase: b._activeMove?.phase ?? 'done',
+      const m = b._activeMove;
+      if (m?.move?.id === 'vanishslash') S.push({
+        phase: m.phase, auth: m.bodyAuthoritative, alpha: +b.alpha.toFixed(2),
         framable: d._bossFramable(b), w: +d._bsW.toFixed(2),
+        lead: +Math.hypot(d._bsX, d._bsY).toFixed(0),
       });
       await new Promise((r) => setTimeout(r, 0));
     }
+    const early = S.filter((x) => x.phase === 'anticipate' && x.auth !== false);
+    const gone = S.filter((x) => x.phase === 'anticipate' && x.auth === false);
+    const after = S.filter((x) => x.phase !== 'anticipate');
+    const restored = gone.filter((x) => x.alpha >= 0.99);
+    const f = (a2) => `${a2.filter((x) => x.framable).length}/${a2.length}`;
     rows.push({
-      name: 'J vanish',
-      cast: !!cast,
-      beforeW: +beforeW.toFixed(2),
-      windupFramable: samples.filter((s) => s.id === 'vanishslash' && s.phase === 'anticipate').some((s) => s.framable),
-      windupSamples: samples.filter((s) => s.id === 'vanishslash' && s.phase === 'anticipate').length,
-      maxWindupW: Math.max(0, ...samples.filter((s) => s.id === 'vanishslash' && s.phase === 'anticipate').map((s) => s.w)),
-      arrivedFramable: samples.filter((s) => s.id === 'vanishslash' && s.phase !== 'anticipate').some((s) => s.framable),
+      name: 'J vanish — three intervals',
+      cast, beforeW: +beforeW.toFixed(2), beforeLead: +beforeLead.toFixed(0),
+      earlyWindup: `framable ${f(early)}, maxLead ${Math.max(0, ...early.map((x) => x.lead))}px, maxNeed ${Math.max(0, ...early.map((x) => x.w))}`,
+      departed: `framable ${f(gone)}, maxNeed ${Math.max(0, ...gone.map((x) => x.w))}`,
+      restoredAlphaWhileAbsent: `framable ${f(restored)}`,
+      committed: `framable ${f(after)}, first ${after[0]?.framable}`,
+      leadPath: S.map((x) => x.lead).join(' '),
     });
     b._activeMove?.cancel?.();
   }

@@ -518,12 +518,6 @@ export const BOSS_MOVES = [
     // sense — "he should use it when I give too much damage but not spam every
     // time".
     reactive: true,
-    // HIS BODY IS NOT WHERE HE IS, FOR THE WHOLE WIND-UP. The sprite stands at
-    // the spot he is leaving until the ACT beat teleports it. Declared here so
-    // anything that frames, tracks or reasons about his position can ask the
-    // registry instead of testing for this move's id — `CameraDirector`
-    // `_bossFramable` is the first reader. Behaviour is untouched.
-    teleports: true,
     minPhase: 1,
     everyMs: 10000,
     anticipateMs: 620,
@@ -531,10 +525,37 @@ export const BOSS_MOVES = [
     recoverMs: 750,
     damage: 210,
     radius: 150,
+    // HOW LONG HE TAKES TO LEAVE, and it is ONE number for two claims.
+    //
+    // It is the duration of the departure shear, and it is also the moment his
+    // body stops being where he is: for `departMs` he is still standing on the
+    // spot, visible and real, and after it the sprite is a leftover until the
+    // ACT beat puts him down somewhere else. Both readings have to move
+    // together or the visual and the semantic disagree, which is why the fade
+    // below is driven from this field rather than from a literal.
+    //
+    // The BOUNDARY it marks is published on the handle as `bodyAuthoritative`
+    // — see the `h.later` below. A whole-move flag cannot say this: it would
+    // suppress the first `departMs` too, in which he is simply a boss winding
+    // up in plain sight.
+    departMs: 260,
 
     anticipate(scene, b, h) {
-      vanish(scene, b, 260);
+      vanish(scene, b, this.departMs);
       b.body?.setVelocity(0, 0);
+      // HIS POSITION STOPS BEING THE TRUTH WHEN THE SHEAR FINISHES, NOT WHEN
+      // THE MOVE STARTS. Published on the handle so anything that frames,
+      // tracks or reasons about where he is can ask the MOVE, rather than
+      // testing for this move's id or guessing from sprite alpha — the alpha
+      // is restored by `Boss.preUpdate` partway through the wind-up and says
+      // he is back when he is not. `CameraDirector._bossFramable` is the first
+      // reader; the default (absent) means authoritative, so no other move
+      // needs to know this field exists.
+      //
+      // On the move's OWN clock (`h.later`), so an interrupted VANISH takes
+      // the claim down with it instead of stranding it false for ever.
+      h.bodyAuthoritative = true;
+      h.later(this.departMs, () => { h.bodyAuthoritative = false; });
       // He comes APART where he was. The move used to be a plain alpha fade and
       // a landing circle, so the departure said nothing at all and the whole
       // read was carried by a marker on the floor — which is a promise about
@@ -568,6 +589,10 @@ export const BOSS_MOVES = [
 
     act(scene, b, h) {
       b.setPosition(h.spot.x, h.spot.y);
+      // He has committed. This is the frame his position means something
+      // again, and it is set BEFORE the arrival tween so nothing has to wait
+      // for a fade to believe him.
+      h.bodyAuthoritative = true;
       // Assembling, not fading in. Same shear, run backwards, on the landing
       // spot the marker has been holding for the whole wind-up — so the marker
       // is paid off by the thing it promised rather than by a body appearing.

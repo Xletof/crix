@@ -5611,14 +5611,44 @@ fight. Do not "improve" it that way.
 ### WHAT IT REFUSES TO KNOW
 
 `scene.boss` and nothing else. No enemy list, no distance search, no move ids,
-no phase, no hp, not the thrown saber, the caught super or the returned orb.
-Afterimages are ordinary `Enemy` clones and minions are enemies, so **"a clone
-must not tug the camera" holds by construction**, not by an exclusion list that
-could drift. The one exception is a single flag: a move that TELEPORTS declares
-`teleports: true` in `bossMoves.js`, because VANISH's wind-up leaves his sprite
-standing at the spot he is leaving for 620ms and framing that is framing a place
-he has already left. `_bossFramable` reads the FLAG, never the id — the same
-general-contract shape as `_saberAway`.
+no hp, not the thrown saber, the caught super or the returned orb. Afterimages
+are ordinary `Enemy` clones and minions are enemies, so **"a clone must not tug
+the camera" holds by construction**, not by an exclusion list that could drift.
+
+The one thing it asks a move is whether the actor's position still means
+anything — see the VANISH correction below.
+
+### THE VANISH CORRECTION — three intervals, not one
+
+The first build gated on a whole-move `teleports: true` flag and suppressed boss
+interest for the ENTIRE 620ms wind-up. Measured, that is wrong for ~520ms of it:
+
+| interval | what he is | framable |
+|---|---|---|
+| 0 → `departMs` (260ms) | winding up **visibly, on his real spot** | **YES** — ordinary bounded interest, measured holding 120px at full need |
+| `departMs` → ACT (620ms) | departed; the sprite is a place he is not | **no** — need exactly 0 |
+| …including the last ~300ms | `Boss.preUpdate` has restored alpha to **1.0** on the old spot | **no** — the alpha is not an authority |
+| ACT onward | committed to the new position | **YES** from the first frame |
+
+**THE MOVE OWNS THE BOUNDARY, NOT THE CAMERA.** `handle.bodyAuthoritative` is
+published by the beat that knows — false when the departure timer fires, true
+on the frame he commits — on the move's OWN cancellable clock, so an interrupted
+VANISH takes the claim down with it. `_bossFramable` reads that and nothing
+else; **absent means authoritative**, so no other move has to know the field
+exists, and there is no VANISH millisecond anywhere in `CameraDirector`. The
+one number, `departMs: 260`, drives the departure fade as well, so the visual
+and the semantic cannot drift apart. `teleports: true` is GONE — an unread flag
+the notes describe as the gate is worse than no flag.
+
+Two things this deliberately does not do: it does not read sprite alpha (which
+lies for ~300ms), and it does not touch Vader's alpha behaviour, which is
+approved and outside this pass. And a handle that is `cancelled` or `done` is
+ignored, because `MoveScript.cancel()` does not clear `_activeMove` and a stale
+`false` would leave the boss unframable for the rest of the room.
+
+Measured after the correction, lead path across the whole cast:
+`120 120 … 120 113 96 74 53 35 28 19 12 8 5` — flat through the visible wind-up,
+then a smooth monotonic release. No step at any of the three transitions.
 
 ### THE TUNING
 
@@ -5648,7 +5678,7 @@ Thirteen stations, each run twice through the game's own live tuning object
 | G melee committed west | 26px under the live commit against 80px after it released |
 | H offscreen east, 760px out | 120px — under the 130 cap |
 | I he walks back into frame | largest single-step scroll move **0.4px**. No snap |
-| J VANISH | never framable during the wind-up, framable again on arrival |
+| J VANISH | three intervals: visible wind-up framable 11/11 holding 120px at full need; departed 0/4 with need 0; restored-alpha-while-absent 0/4; committed 6/6, first frame true |
 | K six afterimages, real Vader dead | contribution **0**, scroll unchanged to the pixel |
 | L open floor south, Vader 620px NORTH | player rests at screen y **610** (the vertical term sits inside `dzUp` and recomposes nothing); at an absurd 689px lead the safe-area guard pins them at **886** against a control edge at 926 |
 | M live fight, nothing silenced | scroll reversals 9 → **7** with the layer on. No new oscillation |
@@ -5683,9 +5713,26 @@ lead and the slowest filter) plus eight behavioural claims, each a MATCHED PAIR:
 inert with no boss; silent on a comfortably visible one **next to** engaging on
 an edge-bound one; bounded at an absurd separation; suppressed by an armed Super
 **and** returning after it; zero from six afterimages **next to** a live lead
-before they spawned; the south guarantee at the configured lead **and** under an
-absurd one; and Vader unframable through a real VANISH cast **and** framable
-again after it.
+before they spawned; and the south guarantee at the configured lead **and**
+under an absurd one.
+
+The VANISH check proves five things separately (A: the visible wind-up still
+produces bounded interest; B: the departed interval produces zero; C: the
+restored-alpha old-position interval does not reacquire — and that the interval
+was actually observed, or C is vacuous; D: the committed position is
+authoritative from its first frame; E: no transition moves the boss lead further
+than its own filter permits). Three instrument lessons came out of building it,
+and `tests/README.md` carries them: a SAMPLE COUNT is a frame-rate reading here
+(the same wind-up measured 3.8s cold and four frames warm); a px-per-frame "no
+pop" threshold is a frame-rate meter, so the bound is
+`bossLeadMax * (1 - exp(-dt/bossAttackMs))`; and the boss walks at the player
+during any acquisition window, which quietly turns the station into one where
+composition does not need him.
+
+**The A/B that proves it discriminates**: with the pre-correction sources and
+this test, `smoke-camera` fails with *"Vader was unframable in 4/4 frames of the
+VISIBLE VANISH wind-up — a whole-move gate is suppressing awareness of an attack
+that has not teleported yet."*
 
 ---
 

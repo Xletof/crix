@@ -1354,6 +1354,43 @@ inside `dzUp` and recomposes nothing) and exactly 886 under a deliberately
 absurd 689px one, which is the guard visibly engaging. §14's lesson arriving in
 a third costume.
 
+### The VANISH correction, and three ways its instrument lied first
+
+The boss layer's first VANISH gate was a whole-move `teleports: true` flag, and
+it suppressed the entire 620ms wind-up. Only ~100ms of that is a Vader who is
+actually gone; for the rest he is either visibly winding up on his real spot or
+standing there fully opaque again because `Boss.preUpdate` restored his alpha.
+The fix is `handle.bodyAuthoritative`, published by the move on its own clock.
+Building the check for it produced three instrument failures worth keeping.
+
+**A SAMPLE COUNT IS A FRAME-RATE READING.** The check first required "at least
+two samples per interval". The same 620ms wind-up measured **3.8 seconds** on a
+cold container (fifteen samples) and **four frames** on a warm one — the move's
+own clock runs several times slower than real time here, and how much depends on
+the machine. Classify by `phase` and `bodyAuthoritative`; assert an interval was
+OBSERVED, never how many frames it got.
+
+**A PX-PER-FRAME "NO POP" THRESHOLD IS A FRAME-RATE METER.** "The camera must
+not move more than 40px in one frame" failed at 109px — on a 200ms frame, with
+nothing wrong. The post-mortem names this exact shape. The boss lead is a
+one-pole filter, so the honest bound is what the filter itself permits in that
+frame: `bossLeadMax * (1 - exp(-dt / bossAttackMs))`, with `dt` read from
+`game.loop.delta`. Frame-rate independent, and it fails on a real discontinuity.
+
+**AN ACQUISITION WINDOW LETS THE BOSS WALK OUT OF THE STATION.** The check waits
+before casting so the wind-up is measured on a live lead rather than one ramping
+from zero — and his AI spends that second closing on the player, which drops the
+composition need from 1.0 to **0.20** and quietly turns it into a station where
+the camera does not need him, i.e. where "he is framable" proves nothing. Pin
+him until the cast, and measure the "does composition need him" premise on the
+pinned pre-cast frame rather than on the wind-up samples.
+
+And a fourth, which is the post-mortem's own rule arriving again: after a second
+of acquisition his state machine owns him and `_castBossMove` REFUSES. Establish
+the precondition (cancel the active move, set `state = 'idle'`, retry) and carry
+the refusal context out into the failure message — a refused call reads exactly
+like a failed one.
+
 ### Two existing tests that were asserting the old camera
 
 `smoke-arena`, `smoke-hangar` and `smoke-junction` each asserted that camera
