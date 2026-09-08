@@ -130,13 +130,21 @@ asserts separately that the ceiling is not reached.
   BOUNDS** — the director frames past the room's edge, and that framing freedom
   is the only thing keeping a player at the southern wall out from under the
   touch controls. `physics.world.setBounds` is still exactly the room and must
-  stay that way. **PHASES 1 AND 2A ARE HANDSET-APPROVED AND FROZEN; PHASE 2B ON
-  TOP OF THEM IS NOT** — `HANDOVER.md` §12, §13 and §14 are the records, §0 is
-  the state, and every 2C number is the human's to decide. `CAMERA.zoomBreathe`
-  is 0 — fixed zoom, through all four passes. **PHASES 1, 2A AND 2B ARE
-  HANDSET-APPROVED AND FROZEN; PHASE 2C ON TOP OF THEM IS NOT** — §12, §13, §14
-  and §15 are the records. **Do not start the Vader camera (Phase 3): it belongs
-  to a FRESH session**, after the player-intent stack is approved.
+  stay that way.
+
+  **THE PLAYER-INTENT CAMERA IS HUMAN-APPROVED AND FROZEN 🔒.** Phases 1, 2A, 2B
+  and 2C all closed on handset play; `HANDOVER.md` §12-§15 are the records and
+  §16 is the freeze, the intent hierarchy and the Phase 3 boundary. Every value
+  in `CAMERA` is a handset verdict now — the notes below describe how the camera
+  works and how it breaks, and **none of them is an invitation to tune it.**
+  `CAMERA.zoomBreathe` is 0: fixed zoom, through all four passes.
+
+  **PHASE 3 IS VADER / MAJOR-THREAT AWARENESS AND IT IS NOT STARTED.** It is an
+  EXTERNAL-INTEREST layer added on top, not another general camera pass, and it
+  must ADAPT to this camera: **the frozen player camera may not be retuned to
+  make Vader integration easier.** It reopens only on new human gameplay
+  evidence, a real regression, or a conflict demonstrably caused by the new
+  layer itself.
 - **THE SOUTH FRAMING PADDING IS DERIVED AND THE ROOM HEIGHT CANCELS OUT.**
   `padSouth = viewH - PLAYER.radius - (safeBottom - southClearance)` = 372 on
   the default layout, and `safeBottom` is read from the LIVE control layout

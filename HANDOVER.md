@@ -10,74 +10,49 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-09-04. The last HUMAN-APPROVED runtime is `e43cc60`. HEAD is the
-camera work on the dev branch `claude/camera-framing-phase-1-jt7v53`: Phase 1
-is handset-APPROVED as a design (`f7f88bd`), Phase 2A on top of it is DEPLOYED
-but NOT approved. Pages builds only from `FRIX`, so the live
-build is whatever `FRIX` points at — check `git rev-parse HEAD origin/FRIX`
-rather than trusting a hash written here, and
-`git rev-parse --abbrev-ref HEAD` for the branch name.*
+*Updated 2026-09-08. HEAD is `claude/camera-framing-phase-1-jt7v53`, which is
+also `origin/FRIX` — the whole camera stack is human-approved and deployed.
+Pages builds only from `FRIX`, so the live build is whatever `FRIX` points at:
+check `git rev-parse HEAD origin/FRIX` rather than trusting a hash written here,
+and `git rev-parse --abbrev-ref HEAD` for the branch name.*
 
-### THE CAMERA IS IN PHASE 2C AND IT IS WAITING ON A HANDSET
+### THE PLAYER-INTENT CAMERA IS COMPLETE, HUMAN-APPROVED AND FROZEN 🔒
 
-The environment pilot closed and the next thing was NOT another room. The camera
-was: `startFollow(player, true, 0.22, 0.22)`, no deadzone, camera bounds set to
-the room's own collision bounds. At the south wall of all four arenas the player
-stood at SCREEN y 1253-1258 with the topmost touch control's edge at 926 —
-roughly 190px underneath their own thumb, in every room in the game, because the
-camera clamps ~200px before the player does.
+Four passes, all closed on handset play, and they are ONE system:
 
-`src/systems/CameraDirector.js` replaces it: a UI-safe viewport, a resting
-anchor above centre, a soft deadzone, a critically damped spring, and framing
-bounds decoupled from collision bounds with a SOUTH padding that is derived
-rather than chosen. After: the player rests at screen y 886-889 at the south
-wall in all four rooms. **`§12` is the full record — the diagnosis, every tuning
-value, the measured before/after, what the overscan costs, and the five traps.**
-It is unchanged by Phase 2A, which touched only X.
+| phase | what it added | record |
+|---|---|---|
+| 1 | mobile-safe viewport, framing overscan decoupled from collision bounds, above-centre anchor, deadzone, two-solver split, fixed zoom | `§12` |
+| 2A | lateral movement-intent lead, the X/Y asymmetry, the weighted settle | `§13` |
+| 2B | ability intent — Super/melee preview and committed-cast continuity | `§14` |
+| 2C | ordinary combat intent from recent resolved shot directions | `§15` |
 
-**PHASE 1 CAME BACK APPROVED** — the gameplay-safe viewport, the south-edge fix,
-the overscan architecture, the above-centre anchor, all vertical framing, fixed
-zoom, the solver split and the spring. The one complaint was lateral: *"it lags
-behind too much for west/east. I can't see where I will be going or the enemies
-there."* Measured, Phase 1 left only 179-236px of the 720px viewport ahead of a
-travelling player.
+**`§16` is the authoritative state**: the verdict, the intent hierarchy, the
+complete frozen tuning table, what the freeze covers, and where every instrument
+lives. Read that one, not the four pass records, unless you need the reasoning
+behind a specific number.
 
-**PHASE 2A ANSWERED THAT AND CAME BACK APPROVED** — *"lateral camera feels
-dynamic and bounded; strafing right/left feels good; no jitter; when movement
-stops, the delayed forward settle feels good and gives weight."* It is FROZEN;
-`§13` is its record and none of its numbers moved afterwards. Tighter
-horizontal deadzone (120 -> 60), a stiffer X spring only (19.5 against Y's
-untouched 13.5), and MOVEMENT LOOKAHEAD as an input to the composition solver's
-focus. World visible ahead during travel roughly doubles: east 236 -> 425, west
-195 -> 414, south wall 179 -> 457. **`§13` is the full record** — every tuning
-value, the A/B table, why `leadX` is 220 when only ~115px of it lands on screen,
-why `leadY` is 0, the one known cost (repeated strafes move the camera 2.24x as
-far as the player) and five traps.
+The hierarchy, which is the thing to understand first — **explicit ability
+commitment › ordinary combat intent › movement intent**, then the combined
+ceiling, the deadzone, the safe-area clamp, the framing rect and the spring. The
+motion solver is not one of those intents and never learns what it is chasing.
 
-**PHASE 2B CAME BACK APPROVED TOO** — *"walking, rushing, strafing, Super aiming
-and melee preview/execution all feel very good."* It adds ABILITY INTENT: the
-Super's cone and the melee telegraph are the player explicitly stating where
-they are committing, and commitment outranks locomotion. The camera reads the
-same vectors the telegraphs are drawn from, snapshots the direction the cast
-actually resolved (both release paths clear their own preview flag before
-firing), holds through the action and settles back into 2A framing. Measured, a
-player travelling west while aiming east goes from 200px of world in the aimed
-direction to 560. **`§14` is the full record.** The structural result is that the
-mobile safe area is now guarded on the FINAL target (`_clampSafeArea`) instead
-of one input at a time — which is what makes a vertical ability lead safe.
+**Every value in `CAMERA` is a handset verdict now.** `CLAUDE.md`'s camera notes
+describe how it works and how it breaks; none of them is an invitation to tune
+it. It reopens only on new human gameplay evidence, a real regression, or a
+conflict demonstrably caused by a new layer.
 
-**PHASE 2C IS THE THING NOW AWAITING A HANDSET.** It adds ORDINARY COMBAT
-INTENT — where the fight is, NOT where the nearest enemy is. Auto-aim switches
-targets between taps, so the camera never follows a resolved bearing; it
-accumulates the directions of committed shots and reads the SECTOR out of them.
-One shot is noise (365px of east view against a neutral 360); six consistent
-taps are intent (500); **retreating west while firing east goes from 201 to
-445**; eight alternating east/west shots move the player one pixel. **`§15` is
-the full record.** `CAMERA.zoomBreathe` stays 0 — fixed zoom, through all four
-passes.
+### THE NEXT THING IS PHASE 3, AND IT IS NOT STARTED
 
-**DO NOT START PHASE 3** (Vader / combat-interest framing) — it belongs to a
-FRESH session, after this layer is approved. Phase 4 is impact impulses.
+**Vader / major-threat awareness** — an EXTERNAL-INTEREST layer on top of the
+frozen camera, not another general camera pass. **`§17` is the boundary, the one
+principle (*Vader is an interest signal, not the new owner of the camera*) and
+fourteen open design questions.** Start it in a FRESH session from `§16` and
+`§17`.
+
+**The frozen player camera may NOT be retuned to make Vader integration
+easier.** Phase 3 adapts to the camera.
+
 
 ### THE FOUR-ARENA ENVIRONMENT PILOT IS COMPLETE. ALL FOUR ROOMS ARE FROZEN 🔒
 
@@ -149,10 +124,10 @@ detention), which costs two full clears to reach.
 
 ### The recommended next area of work
 
-**The camera is the work in flight — see above. Nothing else is chosen.** After
-the handset verdict closes Phase 1 the roadmap is Phases 2-4 of the camera; the
-options below are what was on the table when the environment pilot closed and
-are still the honest list for anything that is not the camera:
+**PHASE 3 — Vader / major-threat camera awareness — is the chosen next task;
+`§17` is its brief.** The options below are what was on the table when the
+environment pilot closed and remain the honest list for anything that is not
+the camera:
 
 1. **Content breadth** — the arena rotation is four rooms and `_arenaCycle`
    walks them in order. More rooms would now be an application of a proven
@@ -171,16 +146,17 @@ Pick with the human. Do not start one on the strength of this list.
 - **Deploy from `FRIX` only, never force-push it**, and fast-forward in the
   same turn as the commit — the human plays the Pages build on a phone, so an
   undeployed dev-branch push is not a finished task.
-- **Two suite failures are NOT regressions.** Both reproduce identically on
-  earlier approved builds:
-  - `smoke-readability`'s FORCE PULL wind-up check — `forcepull 0px/s drift
-    ~45px` against a 40px bar. The speed is ZERO, so he is in fact planted; the
-    allowance is simply tight. It runs in the Vader Chamber, which no arena
-    pass touched.
-  - `smoke-deflect` fails a different check on most runs, on the baseline too.
-    `tests/README.md` has the write-up.
+- **THE SUITE IS LOAD-SENSITIVE, AND A LONE FAILURE UNDER A FULL RUN IS NOT A
+  REGRESSION UNTIL IT FAILS STANDALONE.** Across the four camera runs the full
+  suite scored 29/35, 35/35, 34/35 and 34/35, and **every failure that was not
+  the pass's own fault passed when re-run standalone** — `smoke-boss-moves`
+  (twice, on two different checks), `smoke-music-tiers`, `smoke-readability`.
+  The rule: re-run the one file before believing it. `smoke-readability`'s
+  FORCE PULL wind-up check is the most frequent — `forcepull 0px/s drift ~45px`
+  against a 40px bar, where the speed is ZERO so he is in fact planted and the
+  allowance is simply tight.
 
-  Do not chase either, and above all **do not modify Vader because of them.**
+  Do not chase these, and above all **do not modify Vader because of them.**
 - **A matched evidence pair needs a camera that is PLACED, not followed.**
   `shot-detention-lo.mjs` and `shot-detention-face.mjs` do this and print the
   scroll at every station; `shot-detention.mjs` does not and has the weakness.
@@ -4699,8 +4675,10 @@ remains DEFERRED ENGINE DEBT and was deliberately not fixed — §0 records it.
 
 ## 12. CAMERA PHASE 1 — a camera that frames the game
 
-**Landed on `claude/camera-framing-phase-1-jt7v53`. NOT human-approved. Handset
-review required, and the human decides the tuning — nothing here is frozen.**
+**HUMAN-APPROVED AND FROZEN 🔒 as part of the player-intent camera — `§16` is
+the authoritative state and carries the final tuning. This section is how
+Phase 1 got there: the reasoning behind its numbers and the traps it left
+behind. It is HISTORY, and none of it is an invitation to tune.**
 
 ### THE DIAGNOSIS, MEASURED
 
@@ -4917,7 +4895,7 @@ render textures, no shaders, no new display objects (the debug graphics exists
 only while `CAMERA.debug` is on). It replaced Phaser's own follow maths, which
 was doing comparable work, so the net is approximately zero.
 
-### WHAT IS OPEN
+### WHAT WAS OPEN AT THE TIME — ALL OF IT IS NOW CLOSED BY THE FREEZE (`§16`)
 
 - **The handset verdict on all of it.** Every number in the table is a proposal.
 - `CAMERA.padSide` (120) is the one value with a visible cost — see the overscan
@@ -4931,9 +4909,10 @@ was doing comparable work, so the net is approximately zero.
 
 ## 13. CAMERA PHASE 2A — movement lookahead, and the eager X axis
 
-**Landed on `claude/camera-framing-phase-1-jt7v53`. NOT human-approved.
-Handset review required. Phase 2B (aim intent) is explicitly still pending and
-must not be started.**
+**HUMAN-APPROVED AND FROZEN 🔒 as part of the player-intent camera — `§16` is
+the authoritative state and carries the final tuning. This section is how
+Phase 2A got there: the reasoning behind its numbers and the traps it left
+behind. It is HISTORY, and none of it is an invitation to tune.**
 
 ### THE VERDICT THIS ANSWERS
 
@@ -5089,7 +5068,7 @@ every one of them fails on that build.
 it is written to be run on both builds by setting `leadX: 0`, `dzX: 120`,
 `stiffnessX: 13.5`.
 
-### WHAT IS OPEN
+### WHAT WAS OPEN AT THE TIME — ALL OF IT IS NOW CLOSED BY THE FREEZE (`§16`)
 
 - **The handset verdict on all of it.** Every number is a proposal.
 - **`leadX` (220) is the value most likely to need adjustment**, with
@@ -5104,9 +5083,10 @@ it is written to be run on both builds by setting `leadX: 0`, `dzX: 120`,
 
 ## 14. CAMERA PHASE 2B — ability intent, and who owns the frame
 
-**Landed on `claude/camera-framing-phase-1-jt7v53`. NOT human-approved. Handset
-review required. Phase 2C (ordinary weapon aim) and Phase 3 (Vader) are
-explicitly still pending and must not be started.**
+**HUMAN-APPROVED AND FROZEN 🔒 as part of the player-intent camera — `§16` is
+the authoritative state and carries the final tuning. This section is how
+Phase 2B got there: the reasoning behind its numbers and the traps it left
+behind. It is HISTORY, and none of it is an invitation to tune.**
 
 Phase 2A came back approved — *"lateral camera feels dynamic and bounded;
 strafing right/left feels good; no jitter; when movement stops, the delayed
@@ -5247,7 +5227,7 @@ Each was A/B'd against the build without the feature — disabling the ability
 lead, removing the commit snapshot, and removing the safe-area guard each fail a
 specific check with the exact number the bug produces.
 
-### WHAT IS OPEN
+### WHAT WAS OPEN AT THE TIME — ALL OF IT IS NOW CLOSED BY THE FREEZE (`§16`)
 
 - **The handset verdict.** Every number is a proposal.
 - **`abilityLeadX` (260) and `abilityMeleeHoldMs` (420)** are the two most
@@ -5267,9 +5247,10 @@ specific check with the exact number the bug produces.
 
 ## 15. CAMERA PHASE 2C — where the fight is, not where the nearest enemy is
 
-**Landed on `claude/camera-framing-phase-1-jt7v53`. NOT human-approved. Handset
-review required. Phase 3 (Vader framing) is explicitly NOT started and belongs
-to a FRESH session.**
+**HUMAN-APPROVED AND FROZEN 🔒 as part of the player-intent camera — `§16` is
+the authoritative state and carries the final tuning. This section is how
+Phase 2C got there: the reasoning behind its numbers and the traps it left
+behind. It is HISTORY, and none of it is an invitation to tune.**
 
 Phases 2A and 2B came back approved — *"walking, rushing, strafing, Super aiming
 and melee preview/execution all feel very good."* Nothing in them was retuned.
@@ -5397,7 +5378,7 @@ latest shot" (which reproduces the lock-on bug: a **218px** swing across eight
 alternating shots), and the memory made permanent. Each fails specific checks
 with the exact number the bug produces.
 
-### WHAT IS OPEN
+### WHAT WAS OPEN AT THE TIME — ALL OF IT IS NOW CLOSED BY THE FREEZE (`§16`)
 
 - **The handset verdict.** Every number is a proposal.
 - **`aimMoveKeep` (0.25) is the value most likely to need adjustment** — it is
@@ -5410,11 +5391,178 @@ with the exact number the bug produces.
 
 ---
 
+## 16. THE PLAYER-INTENT CAMERA — CLOSED AND FROZEN 🔒
+
+**Human-approved on `631dddc` after a full handset gameplay test.** Phases 1,
+2A, 2B and 2C are one frozen system. `§12`-`§15` are how each got there; THIS
+section is the authoritative state, and it is the only one a fresh session needs
+to read before Phase 3.
+
+### THE VERDICT
+
+Traversal smooth and dynamic; the lateral movement lead excellent; strafing
+bounded to the player rather than floaty; the weighted delayed settle on
+stopping approved; no meaningful jitter; rush/dash good; Super aim framing good;
+melee preview and execution framing good; ordinary auto-fire combat intent
+natural; **repeated auto-aim target switching not perceptibly steering the
+camera**; **dodging one direction while shooting the other works especially
+well**; visibility of the fight improved without the camera becoming another
+control stick; mobile south-safe framing comfortable; and movement, ordinary
+fire, Super, melee and rest reading as ONE continuous camera rather than
+separate modes.
+
+### THE INTENT HIERARCHY, WHICH IS THE THING TO UNDERSTAND FIRST
+
+```
+  EXPLICIT ABILITY      Super cone / melee telegraph, and the committed
+  (highest)             direction held through the action.
+                        CROSSFADES over everything below it.
+        v
+  ORDINARY COMBAT       Where recent resolved shots say the fight is.
+                        BEATS movement, but keeps a movement residue.
+        v
+  MOVEMENT              Phase 2A intent lead. The baseline.
+        v
+  -------------------------------------------------------------
+  combined lead ceiling  ->  deadzone  ->  safe-area clamp
+                         ->  framing rect  ->  spring
+```
+
+**THE MOTION SOLVER IS NOT ONE OF THESE INTENTS.** Composition decides where the
+camera WANTS to be; the spring decides how it travels there and knows nothing
+about what it is chasing. Three passes added entirely new interests and
+`_spring` never changed a line — that separation is the reason Phase 3 is
+tractable at all.
+
+In code the order inside `CameraDirector._solveFocus` is: movement lead and
+combat intent blend first (`aimMoveKeep`), that pair is clamped by
+`leadCombinedMax`, and the ability lead crossfades over the result
+(`abilityMoveKeep`). Then `_solveTarget` applies the deadzone,
+`_clampSafeArea` refuses anything that would put the player below the mobile
+safe area, `_clampTarget` applies the framing rect, and `_solveMotion` runs the
+spring.
+
+### THE FROZEN TUNING — every value in `CAMERA`, `src/config.js`
+
+| key | value | phase |
+|---|---|---|
+| `anchorX` / `anchorY` | 0.50 / **0.44** | 1 |
+| `dzX` | **60** | 2A |
+| `dzUp` / `dzDown` | 100 / 80 | 1 |
+| `stiffnessX` / `stiffnessY` | **19.5 / 13.5** | 2A / 1 |
+| `maxLag` | 190 | 1 |
+| `padNorth` / `padSide` | 100 / 120 | 1 |
+| `southClearance` | 40 | 1 |
+| `padSouthMin` / `padSouthMax` | 140 / 400 (derives 372) | 1 |
+| `leadX` / `leadY` | **220 / 0** | 2A |
+| `leadAttackMs` / `leadReleaseMs` | 130 / 260 | 2A |
+| `leadDashMult` | 1.35 | 2A |
+| `abilityLeadX` / `abilityLeadY` | **260 / 150** | 2B |
+| `abilityAttackMs` / `abilityReleaseMs` | **90 / 220** | 2B |
+| `abilitySuperHoldMs` | **320** | 2B |
+| `abilityMeleeHoldMs` / `abilityMeleeTailMs` | **420 / 260** | 2B |
+| `abilityMeleeMaxMs` | **1200** | 2B |
+| `abilityMoveKeep` | **0** | 2B |
+| `aimMemoryMs` | **700** | 2C |
+| `aimShotsForFull` | **3** | 2C |
+| `aimLeadX` / `aimLeadY` | **200 / 120** | 2C |
+| `aimMoveKeep` | **0.25** | 2C |
+| `leadCombinedMax` | **260** | 2C |
+| `zoomBreathe` | **0** — fixed zoom | 1 |
+| `debug` | false (`?camdbg=1` / DEBUG -> CAM DBG) | 1 |
+
+**`abilityMoveKeep: 0` against `aimMoveKeep: 0.25` is the load-bearing
+asymmetry**: explicit commitment may own the frame outright, ordinary shooting
+may not, because the player is usually dodging while they do it.
+
+### WHAT THE FREEZE COVERS
+
+Phase 1 — the mobile-safe viewport, framing overscan decoupled from collision
+bounds, the derived south padding, the above-centre anchor, the deadzone
+architecture, the two-solver split, fixed zoom, and the removal of the
+continuous zoom breathe.
+Phase 2A — the lateral movement-intent lead, the X/Y asymmetry, the weighted
+stop and settle, and `leadY: 0`.
+Phase 2B — ability intent from the telegraphs' own vectors, preview framing,
+committed-direction continuity through the cast for both Super and melee, and
+the safe-area clamp moving onto the final target.
+Phase 2C — ordinary combat intent from recent RESOLVED SHOT DIRECTIONS, the
+directional accumulator that filters auto-aim target switching, and the blend
+that keeps movement present underneath it.
+
+### WHERE THE INSTRUMENTS ARE
+
+| file | what it answers |
+|---|---|
+| `tests/smoke-camera.mjs` (in `run-all`) | every structural claim, all four phases |
+| `tests/diag-camera-baseline.mjs` | the station audit — walls and corners, all four arenas |
+| `tests/diag-camera-motion.mjs` | jitter, oscillation, lag, settle, room transitions |
+| `tests/diag-camera-lateral.mjs` | world visible ahead during travel |
+| `tests/diag-camera-ability.mjs` | Super/melee preview, cast continuity, cancel, priority |
+| `tests/diag-camera-aim.mjs` | the combat-intent signal across ten real combat cases |
+| `docs/evidence/camera-phase1/`, `-phase2a/`, `-phase2b/`, `-phase2c/` | overlay frames |
+
+---
+
+## 17. PHASE 3 — VADER / MAJOR-THREAT AWARENESS. **NOT STARTED.**
+
+**Begin this in a FRESH session, from §16 and this section.**
+
+### THE BOUNDARY
+
+Phase 3 is **not another general camera pass.** The camera already knows where
+the player is, where they are moving, where ordinary combat is happening, where
+they are aiming a Super, and where a melee is about to carry their body. The one
+missing question is:
+
+> How much should the camera care about a uniquely important EXTERNAL threat —
+> Vader — without fighting the approved player-intent composition?
+
+So it adds an external-interest layer, **conservatively**, on top of a frozen
+system. **THE FROZEN PLAYER CAMERA MAY NOT BE RETUNED TO MAKE VADER INTEGRATION
+EASIER.** Phase 3 adapts to the camera, not the other way round.
+
+### THE ONE PRINCIPLE TO CARRY
+
+> **Vader is an external interest SIGNAL, not the new owner of the camera.**
+
+### OPEN DESIGN QUESTIONS — these are questions, not decisions
+
+- Vader must not become a hard camera target.
+- Do NOT simply midpoint the player and Vader.
+- Do NOT create lock-on behaviour the game does not otherwise have. (Phase 2C
+  refused exactly this for ordinary enemies; the same instinct applies here, and
+  its accumulator is a worked example of how to avoid it.)
+- Offscreen Vader awareness may be useful.
+- Boss interest should probably be bounded.
+- Explicit player ability intent should probably outrank Vader, at least
+  temporarily.
+- Ordinary combat aimed at Vader may already align with Vader interest on its
+  own — check before adding anything.
+- **Movement AWAY from Vader while fighting him is an intentional conflict** and
+  is the case Phase 3 has to resolve.
+- Vader's attack state may eventually justify contextual weighting, but only if
+  evidence supports it.
+- FORCE PULL may deserve relationship-aware framing.
+- SABER THROW may deserve lane awareness.
+- Afterimages must not individually drag the camera.
+- Large numbers of minions must not masquerade as boss interest.
+- No continuous dynamic zoom unless handset evidence later justifies it.
+- The mobile safe-area guarantee is preserved regardless — `_clampSafeArea`
+  already guards the FINAL target, so a new interest inherits that protection
+  without restating it.
+
+---
+
 ## 11. State as of this handover
 
-Everything is committed, pushed and deployed; `FRIX` is level with the dev
-branch `claude/death-star-visual-pilot-olbbqx`. `origin/main` is unrelated and
-unused — Pages builds from `FRIX` only.
+Everything is committed, pushed and deployed. **`§0` carries the current branch
+and refs** — this line used to name a dev branch and went stale twice, and a
+summary that can go stale is worse than a pointer. `origin/main` is unrelated
+and unused; Pages builds from `FRIX` only.
+
+The list below is HISTORY, newest first, and stops well short of the camera
+work — `§0` is the state of play.
 
 **Recently completed** (most recent first):
 
