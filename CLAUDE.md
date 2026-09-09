@@ -528,9 +528,11 @@ asserts separately that the ceiling is not reached.
   because `BulletGroup.fire` re-asserts its group's texture on every recycle, so
   a red bolt in the green pool is either re-textured after the fact — which
   silently resizes its hitbox — or leaks red into the next trooper's shot.
-- **ONE SABER, ONE OWNER — `_saberOwner` is the truth of it, and `_saberAway`
-  is only where the SPRITE is.** They are two different instants and that gap
-  WAS the bug: SABER THROW commits in its ANTICIPATE beat and does not set
+- **ONE SABER, ONE EXCLUSIVE CLAIMANT AT A TIME — HUMAN-APPROVED AND FROZEN 🔒.**
+  `_saberOwner` is the truth of it, and `_saberAway`
+  is only where the SPRITE is. `_saberAway` answers *where is the blade*;
+  `_saberOwner` answers *which system holds its exclusive claim*. They are two
+  different instants and that gap WAS the bug: SABER THROW commits in its ANTICIPATE beat and does not set
   `_saberAway` until ACT, 700ms later, so for that whole beat an
   "is it in his hand right now" test said yes about a blade that was already
   spoken for. DEFLECTION's tell is 500ms and fits inside it — the guard opened,
@@ -542,18 +544,21 @@ asserts separately that the ceiling is not reached.
   `needsSaber: true` and `_castBossMove` refuses it — rolling the rotation back,
   so a deferral costs no cadence. FORCE PULL and FORCE PUSH declare nothing,
   which is what keeps FORCE PULL + DEFLECTION legal WITHOUT an exclusion rule.
-  **Do not add a `if (activeMove === 'saberthrow')` anywhere**: a future move
-  that takes the blade has one thing to do, claim it. SABER THROW
-  detaches `weaponSprite` and flies it across the room; while `_saberAway` is set
-  Vader is physically unarmed. DEFLECTION shipped ignoring it: the reflect clock
-  fired, the guard opened, and he parried bolts with a blade that was 500px
-  away and still spinning. The scheduler now separates DUE from ACTIVE —
-  `_reflectPending` is owed, `_reflectClaimed` is announced and reserved, and
-  `Boss.canOpenGuard()` (`hasSaber() && !isGuarding()`) is the one gate. The
-  clock still resets at the due moment, so a deferral costs no cadence, and the
-  tell goes up on the frame the blade is caught. Do not write
-  `if (saberThrow) return` anywhere: the flag is the general contract, and a
-  future move that takes the blade only has to set it.
+  **Do not add a `if (activeMove === 'saberthrow')` anywhere, and never reduce
+  this to pairwise exclusions**: a future move that takes the blade has one thing
+  to do, claim it. **DO NOT "SIMPLIFY" THE TRANSFER BACK TO ACT** — that is the
+  approved bug. The approved consumers are SABER THROW, SABER COMBO, VANISH SLASH
+  and DEFLECTION, and nothing here moves without NEW human play evidence.
+  SABER THROW detaches `weaponSprite` and flies it across the room; while
+  `_saberAway` is set Vader is physically unarmed. DEFLECTION shipped ignoring
+  even that: the reflect clock fired, the guard opened, and he parried bolts with
+  a blade that was 500px away and still spinning. The scheduler separates DUE
+  from ACTIVE — `_reflectPending` is owed, `_reflectClaimed` is announced and
+  reserved, and `Boss.canOpenGuard()` (`hasSaber() && !isGuarding()`) is the one
+  gate. The clock still resets at the due moment, so a deferral costs no cadence,
+  and the tell goes up on the frame the blade is caught. `claimSaber` /
+  `releaseSaber` are idempotent and a non-owner release is a no-op, so a
+  cancelled claimant cannot take the blade back off its successor.
 - **DEFLECTION is a STANCE that owns Vader's saber.** While `Boss.isGuarding()`
   is true — the reflect window, or a caught super still in his hands — no
   scripted move and no state-machine attack may START (`_castBossMove`,

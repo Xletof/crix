@@ -53,15 +53,19 @@ demonstrated no framing failure for FORCE PULL, SABER THROW, CHARGE, SLAM,
 DEFLECTION or attack-aware zoom. It reopens only from NEW human gameplay
 evidence of an actual framing failure — never speculatively.
 
-### THE NEXT OPEN THING IS NOT THE CAMERA
+### THE SABER OWNERSHIP INVARIANT IS HUMAN-APPROVED AND FROZEN 🔒
 
-**DEFLECTION was observed starting while SABER THROW still physically owned the
-saber**, repeatedly, during the approved handset fight. **DIAGNOSED AND FIXED —
-`§22` — AWAITING HANDSET VALIDATION.** The blade now has an authoritative owner
-(`Boss._saberOwner`) that transfers when the throw COMMITS rather than when the
-sprite detaches 700ms later, and every genuinely saber-dependent state reads it.
-Nothing about DEFLECTION, SABER THROW, cadence or FORCE PULL compatibility
-moved. It is not closed until a human plays it.
+**ONE PHYSICAL SABER → ONE EXCLUSIVE CLAIMANT AT A TIME.** The DEFLECTION /
+SABER THROW overlap reported off the approved Phase 3A.1 fight is **CLOSED** —
+handset play confirmed no overlap outbound, none at turnaround, none on the
+return, and DEFLECTION resuming naturally once the blade is physically back.
+`§22` is the record and carries the invariant, the lifecycle and the root cause.
+
+**`_saberAway` and `_saberOwner` ANSWER DIFFERENT QUESTIONS, AND THAT IS THE
+APPROVED SHAPE.** Possession (*where is the blade*) is not exclusive claim
+(*which system has the blade's future*). The claim transfers when the throw
+COMMITS, not when the sprite detaches 700ms later. **Moving it back to ACT
+recreates the original bug** — `§22` says why, in the arithmetic.
 
 ### THE FOUR-ARENA ENVIRONMENT PILOT IS COMPLETE. ALL FOUR ROOMS ARE FROZEN 🔒
 
@@ -112,18 +116,19 @@ detention), which costs two full clears to reach.
 - **No further Detention polish pass is queued.** There is no open art item in
   any of the four arenas.
 
-### OPEN GAMEPLAY BUG — DEFLECTION opened while SABER THROW still owned the blade
+### CLOSED GAMEPLAY BUG — DEFLECTION opened while SABER THROW still owned the blade
 
 **Observed on handset during the approved Phase 3A.1 Vader fight, on multiple
 occasions.** The DEFLECTION stance began while SABER THROW still physically
 owned/carried the saber — the one-saber/one-owner invariant `CLAUDE.md`
 describes (`_saberAway`, `hasSaber()`, `canOpenGuard()`) did not hold in play.
 
-**FIXED IN `§22`, AWAITING HANDSET VALIDATION.** Root cause: possession and
-ownership were the same field, and they are not the same instant — the throw
-commits 700ms before `_saberAway` is set, and DEFLECTION's 500ms tell fits
-inside that gap. Left below as the brief it was written as; `§22` is what
-happened.
+**CLOSED. FIXED IN `§22` AND HUMAN-APPROVED 🔒.** Root cause: possession and
+exclusive claim were the same field, and they are not the same moment — the
+throw commits 700ms before `_saberAway` is set, and DEFLECTION's 500ms tell fits
+inside that gap. The brief it was written as is kept below because its
+constraints still hold for anything that touches the blade; `§22` is what
+happened and is the authoritative record.
 
 **THE INVARIANT IS ONE PHYSICAL SABER → ONE OWNER AT A TIME.** Do NOT reduce
 this to a `SaberThrow vs Deflection` pairwise exclusion — that is the shape of
@@ -6093,10 +6098,37 @@ reopens only from new human gameplay evidence of an actual framing failure.
 
 ---
 
-## 22. ONE SABER, ONE OWNER — the throw/DEFLECTION ownership bug. **FIXED, AWAITING HANDSET VALIDATION**
+## 22. ONE SABER, ONE OWNER — the throw/DEFLECTION ownership bug. **HUMAN-APPROVED / FROZEN 🔒**
 
 The bug reported in `§0`: during the approved Phase 3A.1 fight, DEFLECTION
 opened while SABER THROW still had the blade in the air, repeatedly.
+
+### THE HANDSET VERDICT — APPROVED, AND THE INVARIANT IS NOW FROZEN
+
+> No overlap observed. DEFLECTION waits through SABER THROW's committed wind-up
+> and physical flight, then resumes naturally after the saber returns.
+
+Confirmed in play: no overlap outbound, none at turnaround, none on the return;
+DEFLECTION resumes under its own existing cadence once the blade is physically
+back; SABER COMBO and the other saber-dependent states never invent a second
+usable blade; FORCE PULL behaviour remains good; no stuck saber and no delayed
+return.
+
+**THE APPROVED INVARIANT IS: ONE PHYSICAL SABER → ONE EXCLUSIVE CLAIMANT AT A
+TIME.** The two fields answer different questions and are deliberately NOT the
+same thing:
+
+| field | question it answers |
+|---|---|
+| `_saberAway` | where is the physical saber — is it away from Vader? |
+| `_saberOwner` | which system holds the exclusive gameplay claim to it? |
+
+During SABER THROW's ANTICIPATE beat Vader can still visibly hold the blade, the
+throw has already committed to using it, `_saberOwner` is already
+`'saberthrow'`, and no other saber-dependent action may begin. **Do not
+"simplify" the transfer back to ACT. That is the original bug.** The rules below
+are how the system works and how it breaks; none of them is an invitation to
+tune it, and nothing here moves without NEW human play evidence.
 
 ### THE ROOT CAUSE, IN ONE LINE
 
@@ -6158,6 +6190,17 @@ A refusal **rolls the rotation back** and `_tickNemesisMoves` retries in 400ms,
 so a deferred saber move is the next one out. Same doctrine as DEFLECTION's own
 clock: a deferral costs no cadence.
 
+The approved consumer set is therefore **SABER THROW, SABER COMBO, VANISH SLASH**
+(declared) **and DEFLECTION** (through `canOpenGuard() → hasSaber()`). A future
+saber-dependent action consumes the same invariant — it does not get a rule of
+its own, and **this must never be rewritten as pairwise exclusions**.
+
+**FORCE PULL + DEFLECTION REMAINS APPROVED AND DESIRABLE 🔒.** FORCE PULL does
+not compete for the blade, so it is untouched by the invariant by construction.
+Never add a generic "DEFLECTION cannot overlap another move" rule, a
+scheduler-wide exclusion, or a FORCE PULL / DEFLECTION ban. The invariant applies
+only to systems that genuinely compete for the same physical blade.
+
 ### WHAT THE WATCHDOG IS FOR
 
 A claim is made at COMMIT and released at PHYSICAL RETURN — two clocks. If a
@@ -6171,6 +6214,22 @@ returned early when `weaponSprite` went inactive **without removing itself**, so
 a Vader who died mid-throw left a timer ticking for the rest of the run (the
 deadline cutoff that would have removed it sits *after* that early return).
 
+### THE CLEANUP CONTRACT, AND THE FOUR THINGS THAT MUST NEVER BE TRUE
+
+`claimSaber(by)` and `releaseSaber(by)` are both idempotent, and a release from
+a non-owner is a no-op rather than a theft — so a cancelled claimant cannot take
+the blade back off its successor. Cancellation restores the claim with the
+blade; the flight's safety cutoff restores it if the catch never happens; the
+death / inactive-weapon path removes the flight timer; and the watchdog heals an
+orphaned claim **without ever disturbing a live one**.
+
+There must never be:
+
+- `_saberOwner === 'vader'` while a live thrown blade still owns the action;
+- `_saberOwner === 'saberthrow'` after the authoritative return;
+- two simultaneous authoritative saber users;
+- a permanently unowned blade after a cancellation or a death.
+
 ### VALIDATION
 
 `tests/diag-saber-ownership.mjs` — an 11-point sweep walking the reflect clock
@@ -6182,7 +6241,9 @@ still opens in every trial — deferred to the return, not lost. `smoke-deflect`
 (73), `smoke-boss-moves` (18), `smoke-vader` (116), `smoke-readability` (19) and
 `smoke-moves` (34) all pass, and the build is clean.
 
-**Not closed.** A green suite closes nothing here; this needs handset play.
+**Closed on handset play, not on the suite** — the suite is what stops it
+regressing. `tests/diag-saber-ownership.mjs` is the instrument to re-run if
+anything ever touches the blade's lifecycle again.
 
 ## 11. State as of this handover
 
