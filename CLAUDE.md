@@ -132,20 +132,29 @@ asserts separately that the ceiling is not reached.
   touch controls. `physics.world.setBounds` is still exactly the room and must
   stay that way.
 
-  **THE PLAYER-INTENT CAMERA IS HUMAN-APPROVED AND FROZEN 🔒.** Phases 1, 2A, 2B
-  and 2C all closed on handset play; `HANDOVER.md` §12-§15 are the records and
-  §16 is the freeze, the intent hierarchy and the Phase 3 boundary. Every value
-  in `CAMERA` is a handset verdict now — the notes below describe how the camera
-  works and how it breaks, and **none of them is an invitation to tune it.**
-  `CAMERA.zoomBreathe` is 0: fixed zoom, through all four passes.
+  **THE WHOLE CAMERA IS HUMAN-APPROVED AND FROZEN 🔒 — DEVELOPMENT IS CLOSED.**
+  Six passes, all closed on handset play: 1, 2A, 2B, 2C (the player-intent
+  camera) and 3A.1 + 3A.2 (the two Vader terms). **`HANDOVER.md` §21 is the
+  authoritative final state** — the semantic model, the complete frozen tuning
+  and what may reopen it; §12-§20 are how each pass got there and are history.
+  Every value in `CAMERA` is a handset verdict — the notes below describe how
+  the camera works and how it breaks, and **none of them is an invitation to
+  tune it.** `CAMERA.zoomBreathe` is 0: fixed zoom, through all six passes.
 
-  **PHASE 3A IS BUILT AND IS A CANDIDATE, NOT APPROVED.** It is an
-  EXTERNAL-INTEREST layer added on top, not another general camera pass, and it
-  ADAPTS to this camera: **the frozen player camera may not be retuned to make
-  Vader integration easier.** Not one frozen value moved for it. The frozen
-  stack reopens only on new human gameplay evidence, a real regression, or a
-  conflict demonstrably caused by the new layer itself. `HANDOVER.md` §18 is
-  the record and the tuning table.
+  **THE SEMANTIC MODEL, AND THE ONE DISTINCTION THAT MUST NOT BE MERGED:**
+  movement is where my body is going; ordinary combat is where the fight is;
+  an explicit ability is where I am deliberately committing next; the passive
+  gaze is WHO the encounter is about when it is quiet; and the guardrail
+  PRESERVES the player-Vader relationship when the composition would otherwise
+  lose him. **GAZE IS PRESENCE, GUARDRAIL IS PRESERVATION** — two terms, two
+  filters, two caps, two sets of gates. Merging them, in code or in prose, is
+  the single change that would undo this system.
+
+  **PHASE 3B IS NOT STARTED AND IS NOT JUSTIFIED.** The long approved Vader
+  fight showed no framing failure for FORCE PULL, SABER THROW, CHARGE, SLAM,
+  DEFLECTION or attack-aware zoom. Do not start attack-specific camera work
+  speculatively; it reopens only from NEW human gameplay evidence of an actual
+  framing failure.
 - **VADER IS AN INTEREST SIGNAL, NOT THE OWNER OF THE CAMERA, AND THE
   GUARDRAIL SOLVES COMPOSITION NEED RATHER THAN THE RELATIONSHIP.** There is no
   midpoint and no distance term driving its strength — those are lock-on

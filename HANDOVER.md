@@ -10,15 +10,17 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-09-08. HEAD is `claude/vader-threat-awareness-jv6kns`. Pages
+*Updated 2026-09-09. HEAD is `claude/vader-threat-awareness-jv6kns`. Pages
 builds only from `FRIX`, so the live build is whatever `FRIX` points at: check
 `git rev-parse HEAD origin/FRIX` rather than trusting a hash written here, and
 `git rev-parse --abbrev-ref HEAD` for the branch name. This line has now named a
 stale branch twice — trust the command, fix the line.*
 
-### THE PLAYER-INTENT CAMERA IS COMPLETE, HUMAN-APPROVED AND FROZEN 🔒
+### THE CAMERA IS COMPLETE, HUMAN-APPROVED AND FROZEN 🔒
 
-Four passes, all closed on handset play, and they are ONE system:
+**All six passes closed on handset play. Camera development is CLOSED.**
+`§21` is the authoritative final state — the semantic model, the complete
+frozen tuning, and what may and may not reopen it. Read that one.
 
 | phase | what it added | record |
 |---|---|---|
@@ -26,46 +28,38 @@ Four passes, all closed on handset play, and they are ONE system:
 | 2A | lateral movement-intent lead, the X/Y asymmetry, the weighted settle | `§13` |
 | 2B | ability intent — Super/melee preview and committed-cast continuity | `§14` |
 | 2C | ordinary combat intent from recent resolved shot directions | `§15` |
+| 3A.1 | the Vader relationship guardrail — do not let player intent cheaply lose him | `§19` |
+| 3A.2 | the passive Vader gaze — who the encounter is about, during quiet moments | `§20` |
 
-**`§16` is the authoritative state**: the verdict, the intent hierarchy, the
-complete frozen tuning table, what the freeze covers, and where every instrument
-lives. Read that one, not the four pass records, unless you need the reasoning
-behind a specific number.
+*(`§16` is the player-intent freeze, `§17` the original Phase 3 brief and `§18`
+the first 3A build the handset rejected as too weak. All three are history now;
+`§21` supersedes them as the state.)*
 
-The hierarchy, which is the thing to understand first — **explicit ability
-commitment › ordinary combat intent › movement intent**, then the combined
-ceiling, the deadzone, the safe-area clamp, the framing rect and the spring. The
-motion solver is not one of those intents and never learns what it is chasing.
+**THE SEMANTIC MODEL, WHICH IS THE THING TO UNDERSTAND FIRST:**
 
-**Every value in `CAMERA` is a handset verdict now.** `CLAUDE.md`'s camera notes
-describe how it works and how it breaks; none of them is an invitation to tune
-it. It reopens only on new human gameplay evidence, a real regression, or a
-conflict demonstrably caused by a new layer.
+> movement — where my body is going
+> ordinary combat — where the active fight is happening
+> explicit ability — where I am deliberately committing next
+> **passive boss gaze — who the important encounter subject is, when it is quiet**
+> **boss guardrail — preserve the player–Vader relationship when the composition would otherwise lose him**
+> → safe-area / framing legality → the spring
 
-### PHASE 3A IS BUILT AND IS AWAITING A HANDSET VERDICT
+**GAZE IS PRESENCE. GUARDRAIL IS PRESERVATION.** They are two jobs, two terms,
+two filters and two caps, and merging them in code or in prose is the mistake
+that would undo this. Every value in `CAMERA` is a handset verdict.
 
-**Vader / major-threat awareness** — a bounded EXTERNAL-INTEREST layer on top of
-the frozen camera. **`§18` is the record**: the one idea (it solves COMPOSITION
-NEED, not the relationship — if Vader is already visible it contributes exactly
-zero), the tuning table, thirteen measured stations and the four answers.
-`§17` is the original brief and is now history.
+**PHASE 3B IS NOT STARTED AND IS NOT JUSTIFIED.** The long approved Vader fight
+demonstrated no framing failure for FORCE PULL, SABER THROW, CHARGE, SLAM,
+DEFLECTION or attack-aware zoom. It reopens only from NEW human gameplay
+evidence of an actual framing failure — never speculatively.
 
-**NOT ONE FROZEN VALUE MOVED FOR IT**, and it is a CANDIDATE — not approved,
-and nothing about it may be called closed until the human has played it.
-**Do not start an attack-specific Phase 3B**: there is no evidence for one yet.
+### THE NEXT OPEN THING IS NOT THE CAMERA
 
-**`§19` (the relationship guardrail) is HUMAN-APPROVED AND FROZEN 🔒** —
-*"Vader feels anchored in the fight now, but my movement camera still feels
-like mine."* It does not reopen.
-
-**`§20` IS THE OPEN CANDIDATE**: Phase 3A.2, the passive Vader gaze — a small
-bounded bias toward him during quiet locomotion, because the approved
-guardrail's idle correction was smaller than `dzX` and therefore landed as
-nothing at all. Not approved; the dial is `bossGazeX`.
-
-**Open gameplay bug, NOT a camera one and not touched here**: DEFLECTION was
-observed opening while SABER THROW still owned the blade. See the section above.
-
+**DEFLECTION was observed starting while SABER THROW still physically owned the
+saber**, repeatedly, during the approved handset fight. OPEN and UNDIAGNOSED —
+recorded in its own section below, deliberately outside the camera closeout. It
+is a one-saber/one-owner LIFECYCLE question, not a pairwise
+`SaberThrow vs Deflection` exclusion.
 
 ### THE FOUR-ARENA ENVIRONMENT PILOT IS COMPLETE. ALL FOUR ROOMS ARE FROZEN 🔒
 
@@ -123,12 +117,27 @@ occasions.** The DEFLECTION stance began while SABER THROW still physically
 owned/carried the saber — the one-saber/one-owner invariant `CLAUDE.md`
 describes (`_saberAway`, `hasSaber()`, `canOpenGuard()`) did not hold in play.
 
-**NOT DIAGNOSED AND NOT FIXED** — recorded here deliberately, out of the camera
-pass that observed it. It is a Vader gameplay invariant bug, not a camera bug,
-and it is scheduled AFTER the camera handset gate. The scheduler was rebuilt
-once for exactly this failure (DUE vs ACTIVE, `_reflectPending` /
-`_reflectClaimed`), so the fix starts by asking which of those gates the throw
-is slipping past rather than by adding a new one.
+**OPEN / UNDIAGNOSED.** Recorded deliberately outside the camera closeout: it
+is a Vader gameplay invariant bug, not a camera bug. The camera is closed; this
+is the next task.
+
+**THE INVARIANT IS ONE PHYSICAL SABER → ONE OWNER AT A TIME.** Do NOT reduce
+this to a `SaberThrow vs Deflection` pairwise exclusion — that is the shape of
+fix that leaves the next saber-dependent state to rediscover the same hole. The
+investigation is about authoritative saber OWNERSHIP and LIFECYCLE:
+
+- while SABER THROW owns the physical blade, DEFLECTION must not claim or use a
+  hand saber, and neither may any other state that needs Vader's held blade;
+- when the blade physically returns, ownership returns to Vader and
+  saber-dependent actions become eligible again.
+
+The scheduler was rebuilt once for exactly this failure (DUE vs ACTIVE,
+`_reflectPending` / `_reflectClaimed`, `canOpenGuard()`), so start by asking
+which of those gates the throw is slipping past rather than by adding a new one.
+
+**Do NOT change** FORCE PULL + DEFLECTION compatibility (approved and
+desirable), DEFLECTION tuning, SABER THROW tuning, Vader move cadence or the
+boss scheduler's timing while fixing it.
 
 ### Genuinely open technical debt
 
@@ -5583,13 +5592,14 @@ EASIER.** Phase 3 adapts to the camera, not the other way round.
 
 ---
 
-## 18. CAMERA PHASE 3A — VADER AWARENESS. **CANDIDATE, NOT APPROVED.**
+## 18. CAMERA PHASE 3A — VADER AWARENESS. **SUPERSEDED — rejected as too weak, see §19.**
 
 Built on `claude/vader-threat-awareness-jv6kns` against the frozen §16 camera.
 **NOT ONE FROZEN VALUE MOVED.** The `CAMERA` block gained ten new keys and lost
 none; `_solveLead`, `_solveAim`, `_solveAbility`, `_solveTarget`,
 `_clampSafeArea`, `_clampTarget`, `_spring` and `_solveMotion` are byte-for-byte
-what the handset approved. Awaiting handset play.
+what the handset approved. **This build was REJECTED as too weak — `§19` is
+what replaced it.** Kept for the diagnosis, not as the state.
 
 ### THE ONE IDEA
 
@@ -5761,12 +5771,12 @@ that has not teleported yet."*
 
 ---
 
-## 19. CAMERA PHASE 3A.1 — the Vader relationship guardrail. **CANDIDATE.**
+## 19. CAMERA PHASE 3A.1 — the Vader relationship guardrail. **HUMAN-APPROVED / FROZEN 🔒**
 
 **Handset verdict on 3A: smooth, harmless to the player camera, and TOO WEAK.**
 Ordinary left/right movement could shed Vader almost for free; the layer read as
 an occasional edge correction rather than a second weight. 3A.1 answers exactly
-that and changes nothing else. Awaiting handset play.
+that and changes nothing else. **APPROVED on handset and FROZEN** — see `§21`.
 
 ### THE DIAGNOSIS, IN THE REAL GEOMETRY
 
@@ -5868,7 +5878,11 @@ asked where it can be answered.
 
 ---
 
-## 20. CAMERA PHASE 3A.2 — the passive Vader gaze. **CANDIDATE.**
+## 20. CAMERA PHASE 3A.2 — the passive Vader gaze. **HUMAN-APPROVED / FROZEN 🔒**
+
+**Closed on handset play**: *"when walking plainly, the camera now subtly
+acknowledges Vader like a soft enemy/boss lock, without becoming Vader's
+camera."* All six intended transitions passed. `§21` is the final state.
 
 **Phase 3A.1 is HUMAN-APPROVED and FROZEN 🔒** — *"Vader feels anchored in the
 fight now, but my movement camera still feels like mine."* Strafing dynamic,
@@ -5957,6 +5971,121 @@ static inputs still settle to 0 reversals and 0.00px spread. 8. **`bossGazeX`.**
 zero. **B.** Yes — the movement travel measured larger, not smaller. **C.** The
 split is clean and structural: gaze = presence (separation-driven, quiet-gated,
 yields), guardrail = preservation (deficit-driven, survives everything).
+
+---
+
+## 21. THE CAMERA — COMPLETE, HUMAN-APPROVED AND FROZEN 🔒
+
+**Six passes, all closed on handset play. Camera development is CLOSED.** This
+section is the authoritative state; `§12`-`§20` are how each pass got there and
+are history. Nothing here reopens without NEW human gameplay evidence.
+
+### THE FINAL VERDICT
+
+> *"Vader feels anchored in the fight, but my movement camera still feels like
+> mine."*
+>
+> *"When walking plainly, the camera now subtly acknowledges Vader like a soft
+> enemy/boss lock, without becoming Vader's camera."*
+
+All six intended 3A.2 behaviours passed on the handset: the frame looks toward
+Vader while standing still; walking still feels like the player's; repeated
+left/right walking has no elastic-leash feel; opening fire hands over naturally
+to the approved combat camera; stopping fire returns the gaze with no visible
+mode switch; and Super/melee aimed away stays authoritative.
+
+### THE SEMANTIC MODEL
+
+```
+  movement            where my body is going
+  ordinary combat     where the active fight is happening
+  explicit ability    where I am deliberately committing next
+  passive boss gaze   WHO the important encounter subject is, when it is quiet
+  boss guardrail      PRESERVE the player-Vader relationship when the
+                      composition would otherwise lose him
+        v
+  safe-area / framing legality  ->  the spring
+```
+
+**GAZE IS PRESENCE. GUARDRAIL IS PRESERVATION.** Separate terms, separate
+filters, separate caps, separate gates. The gaze is separation-driven,
+quiet-gated and yields to the guardrail; the guardrail is deficit-driven and
+survives everything except an explicit ability. **Merging these two concepts —
+in code or in prose — is the single change that would undo this system.**
+
+The player still owns the frame. The motion solver is not one of these intents
+and never learns what it is chasing; three passes added entirely new interests
+and `_spring` never changed a line.
+
+### THE COMPLETE FROZEN TUNING — `CAMERA`, `src/config.js`
+
+| key | value | phase |
+|---|---|---|
+| `anchorX` / `anchorY` | 0.50 / 0.44 | 1 |
+| `dzX` / `dzUp` / `dzDown` | 60 / 100 / 80 | 2A / 1 |
+| `stiffnessX` / `stiffnessY` | 19.5 / 13.5 | 2A / 1 |
+| `maxLag` | 190 | 1 |
+| `padNorth` / `padSide` / `southClearance` | 100 / 120 / 40 | 1 |
+| `padSouthMin` / `padSouthMax` | 140 / 400 (derives 372) | 1 |
+| `leadX` / `leadY` | 220 / **0** | 2A |
+| `leadAttackMs` / `leadReleaseMs` / `leadDashMult` | 130 / 260 / 1.35 | 2A |
+| `abilityLeadX` / `abilityLeadY` | 260 / 150 | 2B |
+| `abilityAttackMs` / `abilityReleaseMs` | 90 / 220 | 2B |
+| `abilitySuperHoldMs` | 320 | 2B |
+| `abilityMeleeHoldMs` / `abilityMeleeTailMs` / `abilityMeleeMaxMs` | 420 / 260 / 1200 | 2B |
+| `abilityMoveKeep` | **0** | 2B |
+| `aimMemoryMs` / `aimShotsForFull` | 700 / 3 | 2C |
+| `aimLeadX` / `aimLeadY` / `aimMoveKeep` | 200 / 120 / 0.25 | 2C |
+| `leadCombinedMax` | 260 | 2C |
+| `bossMarginX` / `bossMarginY` / `bossGuardMargin` | 150 / 130 / 20 | 3A.1 |
+| `bossPreserve` / `bossSoftShare` | **0.5** / 0.45 | 3A.1 |
+| `bossLeadX` / `bossLeadY` / `bossLeadMax` | 220 / 140 / 240 | 3A.1 |
+| `bossFarStart` / `bossFarEnd` | 1100 / 1700 | 3A.1 |
+| `bossAttackMs` / `bossReleaseMs` / `bossAbilityKeep` | 240 / 460 / **0** | 3A.1 |
+| `bossGazeX` / `bossGazeY` | 70 / 45 | 3A.2 |
+| `bossGazeNear` / `bossGazeFull` | 120 / 380 | 3A.2 |
+| `bossGazeAimKeep` | 0.25 | 3A.2 |
+| `bossGazeAttackMs` / `bossGazeReleaseMs` | 520 / 700 | 3A.2 |
+| `zoomBreathe` | **0** — fixed zoom, through all six passes | 1 |
+| `debug` | false (`?camdbg=1` / DEBUG -> CAM DBG) | 1 |
+
+### WHAT THE FREEZE COVERS
+
+Phase 1 — the mobile-safe viewport, framing overscan decoupled from collision
+bounds, the derived south padding, the above-centre anchor, the deadzone
+architecture, the two-solver split, and fixed zoom.
+Phase 2A — the lateral movement lead, the X/Y asymmetry, the weighted settle,
+`leadY: 0`.
+Phase 2B — ability intent from the telegraphs' own vectors, preview framing,
+committed-direction continuity, and the safe-area clamp on the final target.
+Phase 2C — combat intent from resolved shot directions, the accumulator that
+filters auto-aim switching, and the movement residue beneath it.
+Phase 3A.1 — the deficit-answering relationship guardrail, its two boundaries,
+`bossPreserve`'s elasticity, the far fade, and the VANISH authority semantics
+(`bodyAuthoritative` belongs to the MOVE; alpha is never positional authority).
+Phase 3A.2 — the separation-driven passive gaze and all four of its gates.
+Throughout — afterimages and minions never contribute to either boss term;
+`scene.boss` is the only Vader; the safe area is the final authority; fixed zoom.
+
+### PHASE 3B IS NOT STARTED AND IS NOT JUSTIFIED
+
+The long approved Vader fight demonstrated **no** framing failure for FORCE
+PULL, SABER THROW, CHARGE, SLAM, DEFLECTION or attack-aware zoom. Attack-specific
+camera work is not currently warranted and must not be started speculatively. It
+reopens only from new human gameplay evidence of an actual framing failure.
+
+### WHERE THE INSTRUMENTS ARE
+
+| file | what it answers |
+|---|---|
+| `tests/smoke-camera.mjs` (in `run-all`) | every structural claim, all six passes |
+| `tests/diag-camera-baseline.mjs` | the station audit — walls and corners, four arenas |
+| `tests/diag-camera-motion.mjs` | jitter, oscillation, lag, settle, room transitions |
+| `tests/diag-camera-lateral.mjs` | world visible ahead during travel |
+| `tests/diag-camera-ability.mjs` | Super/melee preview, cast continuity, cancel, priority |
+| `tests/diag-camera-aim.mjs` | combat intent across ten real combat cases |
+| `tests/diag-camera-boss.mjs` | both boss terms — guardrail stations, gaze stations, VANISH, oscillation |
+| `docs/evidence/camera-phase1/`, `-phase2a/`, `-phase2b/`, `-phase2c/` | overlay frames |
 
 ---
 
