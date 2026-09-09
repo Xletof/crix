@@ -56,10 +56,12 @@ evidence of an actual framing failure — never speculatively.
 ### THE NEXT OPEN THING IS NOT THE CAMERA
 
 **DEFLECTION was observed starting while SABER THROW still physically owned the
-saber**, repeatedly, during the approved handset fight. OPEN and UNDIAGNOSED —
-recorded in its own section below, deliberately outside the camera closeout. It
-is a one-saber/one-owner LIFECYCLE question, not a pairwise
-`SaberThrow vs Deflection` exclusion.
+saber**, repeatedly, during the approved handset fight. **DIAGNOSED AND FIXED —
+`§22` — AWAITING HANDSET VALIDATION.** The blade now has an authoritative owner
+(`Boss._saberOwner`) that transfers when the throw COMMITS rather than when the
+sprite detaches 700ms later, and every genuinely saber-dependent state reads it.
+Nothing about DEFLECTION, SABER THROW, cadence or FORCE PULL compatibility
+moved. It is not closed until a human plays it.
 
 ### THE FOUR-ARENA ENVIRONMENT PILOT IS COMPLETE. ALL FOUR ROOMS ARE FROZEN 🔒
 
@@ -117,9 +119,11 @@ occasions.** The DEFLECTION stance began while SABER THROW still physically
 owned/carried the saber — the one-saber/one-owner invariant `CLAUDE.md`
 describes (`_saberAway`, `hasSaber()`, `canOpenGuard()`) did not hold in play.
 
-**OPEN / UNDIAGNOSED.** Recorded deliberately outside the camera closeout: it
-is a Vader gameplay invariant bug, not a camera bug. The camera is closed; this
-is the next task.
+**FIXED IN `§22`, AWAITING HANDSET VALIDATION.** Root cause: possession and
+ownership were the same field, and they are not the same instant — the throw
+commits 700ms before `_saberAway` is set, and DEFLECTION's 500ms tell fits
+inside that gap. Left below as the brief it was written as; `§22` is what
+happened.
 
 **THE INVARIANT IS ONE PHYSICAL SABER → ONE OWNER AT A TIME.** Do NOT reduce
 this to a `SaberThrow vs Deflection` pairwise exclusion — that is the shape of
@@ -6088,6 +6092,97 @@ reopens only from new human gameplay evidence of an actual framing failure.
 | `docs/evidence/camera-phase1/`, `-phase2a/`, `-phase2b/`, `-phase2c/` | overlay frames |
 
 ---
+
+## 22. ONE SABER, ONE OWNER — the throw/DEFLECTION ownership bug. **FIXED, AWAITING HANDSET VALIDATION**
+
+The bug reported in `§0`: during the approved Phase 3A.1 fight, DEFLECTION
+opened while SABER THROW still had the blade in the air, repeatedly.
+
+### THE ROOT CAUSE, IN ONE LINE
+
+**A move can be committed to taking the saber long before it physically takes
+it, and the possession flag could not see that.** `_saberAway` — which
+`hasSaber()`, `canOpenGuard()` and the weapon block all read — is set in SABER
+THROW's **ACT** beat, 700ms after the cast. For the whole ANTICIPATE beat the
+blade is genuinely in his hand while the move that is going to throw it is
+already running and is not going to be talked out of it.
+
+DEFLECTION's tell is 500ms. So a reflect clock coming due inside the first
+~200ms of that wind-up passed `canOpenGuard()` (true: the blade was in his
+hand), reserved the blade, resolved its tell **before** ACT fired, opened the
+guard — and then ACT threw the saber out of the open guard's hand. The window
+is 2400ms and the flight is 1.5-3s, so he spent effectively all of it parrying
+bolts with a weapon several hundred pixels away. **The scheduler's DUE-vs-ACTIVE
+rebuild was not slipped past; it asked the right question at the right moment
+and got a true answer that stopped being true 200ms later.**
+
+Measured, pre-fix, on `tests/diag-saber-ownership.mjs`: **24 sampled frames of
+an open DEFLECTION with the blade up to 648px away**, and — the deterministic
+half — **67 frames across an 11-trial sweep in which a committed throw's blade
+was still claimable** by a saber-dependent state.
+
+### THE FIX IS AN OWNERSHIP INVARIANT, NOT A PAIRWISE EXCLUSION
+
+`Boss._saberOwner` is the one authoritative answer to *whose is the blade*:
+`'vader'`, or the id of whatever holds it. `_saberAway` keeps its old job and
+says only where the **sprite** is — the two are different instants, which is
+the entire bug, so they are now different fields.
+
+| transition | when | mechanism |
+|---|---|---|
+| VADER → THROW | the throw **commits** (its ANTICIPATE beat) | `b.claimSaber('saberthrow')` |
+| THROW → VADER | the blade **physically arrives** | `b.releaseSaber('saberthrow')` at the catch |
+| THROW → VADER | flight cancelled, or the flight's own safety cutoff | the same call, idempotent |
+
+`releaseSaber` restores ownership and possession **together** (`_saberOwner` and
+`_saberAway`), because a release that left one of them set is exactly the drift
+the second field would otherwise reintroduce. A release from a claimant that no
+longer owns the blade is a no-op rather than a theft.
+
+`hasSaber()` gained one term: `_saberOwner === 'vader'`. Every consumer of the
+contract — `canOpenGuard()`, and therefore DEFLECTION's tell, its claim and its
+re-check after the windup — is correct for free.
+
+### THE SECOND CONSUMER, AND WHY IT IS DECLARED RATHER THAN LISTED
+
+The throw's flight can outlive its own move (`actMs * 3` cutoff against a
+2900ms script), so once the handle reached `done` a SABER COMBO or a VANISH
+SLASH could start on a blade that was still in the air. Moves now declare
+`needsSaber: true` in the registry — `saberthrow`, `sabercombo`, `vanishslash`
+— and `GameScene._castBossMove` refuses one whose blade is not Vader's.
+**FORCE PULL and FORCE PUSH declare nothing, and that is the whole reason
+FORCE PULL + DEFLECTION stays legal**: an exclusion rule between two moves
+would have had to carve them out by name.
+
+A refusal **rolls the rotation back** and `_tickNemesisMoves` retries in 400ms,
+so a deferred saber move is the next one out. Same doctrine as DEFLECTION's own
+clock: a deferral costs no cadence.
+
+### WHAT THE WATCHDOG IS FOR
+
+A claim is made at COMMIT and released at PHYSICAL RETURN — two clocks. If a
+claimant were ever torn down between them, nobody would release the blade and
+every saber-dependent state Vader has would retire silently with no test
+failing. `Boss.preUpdate` heals it: blade physically in his hand, no move
+running to want it → release. It names no move.
+
+Adjacent, found in the same audit and fixed with it: the flight's 16ms loop
+returned early when `weaponSprite` went inactive **without removing itself**, so
+a Vader who died mid-throw left a timer ticking for the rest of the run (the
+deadline cutoff that would have removed it sits *after* that early return).
+
+### VALIDATION
+
+`tests/diag-saber-ownership.mjs` — an 11-point sweep walking the reflect clock
+across the throw's whole wind-up, plus the regression cases (cancellation,
+second consumers, FORCE PULL, the return, the watchdog) and a **60s free run
+with nothing silenced**. A/B'd both ways: pre-fix it exits 1 naming the
+semantic failure (67 claimable frames), post-fix everything is 0 and DEFLECTION
+still opens in every trial — deferred to the return, not lost. `smoke-deflect`
+(73), `smoke-boss-moves` (18), `smoke-vader` (116), `smoke-readability` (19) and
+`smoke-moves` (34) all pass, and the build is clean.
+
+**Not closed.** A green suite closes nothing here; this needs handset play.
 
 ## 11. State as of this handover
 

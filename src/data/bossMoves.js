@@ -44,6 +44,9 @@ export function announceMove(scene, name, color) {
 export const BOSS_MOVES = [
   {
     id: 'sabercombo',
+    // He swings the blade three times. It has to be in his hand — see
+    // `needsSaber` on SABER THROW and the gate in `GameScene._castBossMove`.
+    needsSaber: true,
     name: 'SABER COMBO',
     minPhase: 1,
     // His DEFAULT attack, and the reason he now has a reason to be at saber
@@ -163,6 +166,7 @@ export const BOSS_MOVES = [
     id: 'saberthrow',
     name: 'SABER THROW',
     minPhase: 1,
+    needsSaber: true,
     everyMs: 9000,
     anticipateMs: 700,
     actMs: 1500,
@@ -173,6 +177,15 @@ export const BOSS_MOVES = [
 
     anticipate(scene, b, h) {
       const p = scene.player;
+      // ── THE BLADE IS SPOKEN FOR FROM HERE ─────────────────────────────
+      // Not from `act`. `act` is when the sprite detaches; THIS is when the
+      // throw becomes a fact — the move is running and nothing cancels it in
+      // the ordinary course of the fight, so for the next 700ms the blade is
+      // in his hand and is not his to lend. DEFLECTION's tell is 500ms, so a
+      // guard that qualified on the old possession-only test opened just
+      // before the saber left and then spent the rest of its 2400ms window
+      // deflecting bolts with a weapon 600px away. That is the handset report.
+      b.claimSaber?.('saberthrow');
       h.angle = Math.atan2(p.y - b.y, p.x - b.x);
       b.body?.setVelocity(0, 0);
       raiseWeapon(scene, b, 300);
@@ -214,6 +227,8 @@ export const BOSS_MOVES = [
       const w = b.weaponSprite;
       if (!w?.active) return;
       b.setMovePose?.('thrust');
+      // POSSESSION, not ownership — the sprite leaves his hand here and the
+      // weapon block stops writing it. Ownership already left in `anticipate`.
       b._saberAway = true;
       b._noMelee = true;
       const from = { x: b.x, y: b.y };
@@ -278,7 +293,14 @@ export const BOSS_MOVES = [
         loop: true,
         callback: () => {
           const s = h.blade;
-          if (!w.active || !b.active || s.home) return;
+          // NOTHING IS COMING TO CATCH IT. A Vader who dies or withdraws
+          // mid-flight destroys `weaponSprite`, and this used to return early
+          // on that and keep looping at 16ms for the rest of the run — the
+          // deadline cutoff below is unreachable once the sprite is gone,
+          // because it sits after this line. Ownership is not stranded either
+          // way (a dead boss is a destroyed boss), but the timer was.
+          if (!w.active || !b.active || !b.alive) { h.fly?.remove(false); return; }
+          if (s.home) return;
           // REAL elapsed time, not a fixed 16ms. The timer fires once per frame
           // whatever the frame rate, so a hardcoded dt made the blade fly at a
           // third speed on a slow machine — the throw's whole trip took three
@@ -287,9 +309,11 @@ export const BOSS_MOVES = [
           const now = scene.time.now;
           if (now > h.flyDeadline) {          // never leak a looping timer
             s.home = true;
-            b._saberAway = false;
-            b._noMelee = false;
             if (w.active) { w.x = b.x; w.y = b.y; }
+            // Possession and ownership come back together — the blade is in
+            // his hand as of this line, so it is his as of this line.
+            b.releaseSaber('saberthrow');
+            b._noMelee = false;
             h.fly?.remove(false);
             return;
           }
@@ -341,7 +365,9 @@ export const BOSS_MOVES = [
             if (Math.hypot(w.x - b.x, w.y - b.y) < 26) {
               // Caught. THIS is what ends the flight, not the clock.
               s.home = true;
-              b._saberAway = false;
+              // THE AUTHORITATIVE RETURN. Not the end of the act beat, not the
+              // end of the move — this line, where the blade arrives.
+              b.releaseSaber('saberthrow');
               b._noMelee = false;
               scene.fx?.saberSweep?.(b.x, b.y, b._aim || 0, 80, 1);
               scene.fx?.burst?.(b.x, b.y, 'red', 10);
@@ -383,7 +409,9 @@ export const BOSS_MOVES = [
       h?.fly?.remove(false);
       h?.hitTimer?.remove(false);
       if (h?.blade) h.blade.home = true;
-      b._saberAway = false;
+      // The blade is put back into his hand below, so ownership goes with it.
+      // Idempotent: a cancel after the catch releases nothing it does not own.
+      b.releaseSaber('saberthrow');
       b._noMelee = false;
       b.setMovePose?.(null);
       const w = b.weaponSprite;
@@ -511,6 +539,10 @@ export const BOSS_MOVES = [
 
   {
     id: 'vanishslash',
+    // The slash on arrival is the blade. FORCE PULL and FORCE PUSH declare
+    // nothing here on purpose: they do not compete for the saber, which is why
+    // FORCE PULL + DEFLECTION is a legal (and approved) combination.
+    needsSaber: true,
     name: 'VANISH',
     // OFF THE ROTATION. `bossMovesFor` excludes anything flagged `reactive`;
     // Boss.preUpdate casts this directly when the player bursts him down. It

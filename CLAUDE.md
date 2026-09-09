@@ -528,8 +528,23 @@ asserts separately that the ceiling is not reached.
   because `BulletGroup.fire` re-asserts its group's texture on every recycle, so
   a red bolt in the green pool is either re-textured after the fact — which
   silently resizes its hitbox — or leaks red into the next trooper's shot.
-- **ONE SABER, ONE OWNER — and `_saberAway` is the truth of it.** SABER THROW
-  detaches `weaponSprite` and flies it across the room; while that flag is set
+- **ONE SABER, ONE OWNER — `_saberOwner` is the truth of it, and `_saberAway`
+  is only where the SPRITE is.** They are two different instants and that gap
+  WAS the bug: SABER THROW commits in its ANTICIPATE beat and does not set
+  `_saberAway` until ACT, 700ms later, so for that whole beat an
+  "is it in his hand right now" test said yes about a blade that was already
+  spoken for. DEFLECTION's tell is 500ms and fits inside it — the guard opened,
+  ACT threw the saber out of it, and he parried for the rest of a 2400ms window
+  with a weapon 648px away. Measured; `HANDOVER.md` §22. Ownership now transfers
+  on COMMIT (`claimSaber`) and returns on PHYSICAL ARRIVAL (`releaseSaber`, which
+  restores possession with it, and is idempotent on every exit the flight has).
+  `hasSaber()` reads ownership; a move that needs the blade declares
+  `needsSaber: true` and `_castBossMove` refuses it — rolling the rotation back,
+  so a deferral costs no cadence. FORCE PULL and FORCE PUSH declare nothing,
+  which is what keeps FORCE PULL + DEFLECTION legal WITHOUT an exclusion rule.
+  **Do not add a `if (activeMove === 'saberthrow')` anywhere**: a future move
+  that takes the blade has one thing to do, claim it. SABER THROW
+  detaches `weaponSprite` and flies it across the room; while `_saberAway` is set
   Vader is physically unarmed. DEFLECTION shipped ignoring it: the reflect clock
   fired, the guard opened, and he parried bolts with a blade that was 500px
   away and still spinning. The scheduler now separates DUE from ACTIVE —

@@ -172,6 +172,20 @@ export class Boss extends Enemy {
     // saber. See `_tickMechanics` and `hasSaber`.
     this._reflectPending  = false;   // owed, waiting for the blade to come back
     this._reflectClaimed  = false;   // tell is up, blade reserved, guard not open
+
+    // ── ONE PHYSICAL SABER, ONE OWNER — THE AUTHORITATIVE FIELD ──────────
+    //
+    // `_saberAway` says where the SPRITE is; this says WHOSE the blade is, and
+    // the two are not the same instant. A throw is committed 700ms before it
+    // detaches anything: the move is running, it cannot be talked out of it,
+    // and the blade is already spoken for — but `_saberAway` is still false,
+    // so an instantaneous "is it in his hand right now" check said yes and the
+    // DEFLECTION guard opened into a hand that was about to be empty.
+    //
+    // Ownership therefore transfers on COMMIT and returns on PHYSICAL RETURN.
+    // 'vader' or the id of whatever holds it; see `claimSaber`/`releaseSaber`.
+    this._saberOwner = 'vader';
+    this._saberAway  = false;
     this._blackoutEvery   = 0;
     this._blackoutT       = 0;
     this._afterimageEvery = 0;
@@ -458,6 +472,21 @@ export class Boss extends Enemy {
     const ratio = this.hp / this.hpMax;
     if (this.phase < 3 && ratio <= BOSS.phase3) this.enterPhase(3);
     else if (this.phase < 2 && ratio <= BOSS.phase2) this.enterPhase(2);
+
+    // ── A CLAIM MAY NOT OUTLIVE ITS CLAIMANT ─────────────────────────────
+    // Every claimant releases on its own exits, so this should be unreachable.
+    // But a claim is made at COMMIT and released at PHYSICAL RETURN, and those
+    // are two different clocks — if a claimant is ever torn down between them
+    // (a scene stopped mid-beat, a timer that never fires) nobody is coming to
+    // release it, and a permanently unowned blade retires every saber-dependent
+    // state he has, silently, with no test failing. So: the blade is physically
+    // in his hand and no move is running to want it — heal, idempotently. It
+    // names no move and asks nothing about which one claimed it.
+    if (this._saberOwner !== 'vader' && !this._saberAway
+        && (!this._activeMove || this._activeMove.cancelled
+            || this._activeMove.phase === 'done')) {
+      this.releaseSaber(this._saberOwner);
+    }
 
     const player = this.scene.player;
     if (!player || !player.alive) { this.setVelocity(0, 0); return; }
@@ -1179,7 +1208,46 @@ export class Boss extends Enemy {
    * behaviour, which costs him offence for nothing.
    */
   hasSaber() {
-    return this.alive && !this._saberAway && !!this.weaponSprite?.active;
+    return this.alive && this._saberOwner === 'vader'
+      && !this._saberAway && !!this.weaponSprite?.active;
+  }
+
+  /**
+   * Take the one physical saber.
+   *
+   * Called by whatever is about to make the blade stop being his — today only
+   * SABER THROW, at the beat it COMMITS rather than at the beat the sprite
+   * leaves. Idempotent, and it refuses to hand the blade to a second claimant:
+   * there is one saber, so a claim while someone else holds it is a bug in the
+   * caller and returning false is how the caller finds out.
+   *
+   * @param {string} by  claimant id, anything but 'vader'
+   * @returns {boolean}  true if the claim is now held by `by`
+   */
+  claimSaber(by) {
+    if (!by || by === 'vader') return false;
+    if (this._saberOwner !== 'vader' && this._saberOwner !== by) return false;
+    this._saberOwner = by;
+    return true;
+  }
+
+  /**
+   * Give the one physical saber back.
+   *
+   * The blade is in his hand again: ownership and possession are restored
+   * together, because a release that left `_saberAway` set would be exactly
+   * the drift this field exists to remove. Idempotent, and safe to call from
+   * every exit a claimant has — the catch, the flight's safety cutoff and the
+   * cancel path all reach it, and the second and third calls do nothing.
+   *
+   * A release from someone who no longer owns the blade is a no-op rather than
+   * a theft, so a cancelled claimant cannot take it back off its successor.
+   */
+  releaseSaber(by) {
+    if (by && by !== this._saberOwner) return false;
+    this._saberOwner = 'vader';
+    this._saberAway = false;
+    return true;
   }
 
   /**

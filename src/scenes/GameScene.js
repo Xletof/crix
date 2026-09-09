@@ -6056,6 +6056,23 @@ export class GameScene extends Phaser.Scene {
     const id = forcedId || pool[(b._moveIdx = ((b._moveIdx ?? -1) + 1) % pool.length)];
     const move = bossMoveById(id);
     if (!move) return null;
+    // ── ONE SABER, ONE OWNER — THE ELIGIBILITY HALF ────────────────────────
+    //
+    // A move that physically swings or throws Vader's blade may only start
+    // while the blade is HIS. `Boss.hasSaber()` is the whole test: it reads
+    // ownership, not a move id, so a future move that takes the saber has one
+    // thing to do (claim it) and every consumer of this gate is correct for
+    // free. FORCE PULL and FORCE PUSH declare no `needsSaber` and are never
+    // touched by it — that is why FORCE PULL + DEFLECTION stays legal.
+    //
+    // The rotation is ROLLED BACK on a refusal so a deferred saber move is the
+    // next one out rather than being skipped: same doctrine as DEFLECTION's
+    // DUE-vs-ACTIVE clock, where a deferral costs no cadence. `_tickNemesisMoves`
+    // retries in 400ms, so the move he was owed arrives shortly after the blade.
+    if (move.needsSaber && !b.hasSaber?.()) {
+      if (!forcedId) b._moveIdx = (b._moveIdx - 1 + pool.length) % pool.length;
+      return null;
+    }
 
     const handle = runMove(this, b, {
       id: move.id,
