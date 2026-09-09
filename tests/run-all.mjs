@@ -35,6 +35,7 @@ const TESTS = [
   'smoke-depth',
   'smoke-dialogue',
   'smoke-duel',
+  'smoke-encounters',
   'smoke-endless',
   'smoke-flight',
   'smoke-hangar',

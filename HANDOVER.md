@@ -167,6 +167,17 @@ boss scheduler's timing while fixing it.
   nobody has.
 - Dormant code from the game's two earlier shapes is still in the tree — §9.
 
+### PHASE A OF "THE ROSTER" IS SHIPPED AS A CANDIDATE — NOT APPROVED
+
+**Encounter composition (`src/data/encounters.js`) is on `FRIX` and awaiting a
+handset verdict.** Six authored archetypes over the existing six enemies, a
+per-arena plan chosen by GEOMETRY, three sector bands, and a gate relationship
+per encounter. `§10ac` is the record: the measured A/B (mean wave-to-wave
+separation 0.24 → 0.51, minimum 0.01 → 0.08), the six open handset questions,
+and the two engine traps it found. **Nothing in it is frozen and every number
+is a dial.** No Champion work, no new enemies, no Nemesis changes — Nemesis is
+operational and untouched by design.
+
 ### The recommended next area of work
 
 **PHASE 3 — Vader / major-threat camera awareness — is the chosen next task;
@@ -4715,6 +4726,201 @@ are the rules that produced that, and they are what a fifth room would inherit
 
 Nothing in the environment. The NavGrid large-actor clearance disagreement
 remains DEFERRED ENGINE DEBT and was deliberately not fixed — §0 records it.
+
+---
+
+## 10ac. THE ROSTER, PHASE A — encounter composition. **CANDIDATE — NOT APPROVED**
+
+**Status: shipped to `FRIX` for handset evaluation. NOT human-approved. Nothing
+in it is frozen and every number in `src/data/encounters.js` is a proposal.**
+
+### The problem, measured rather than asserted
+
+The four arenas are frozen, genuinely distinct spaces, and they **fought
+identically**. A wave was `count / maxAlive / spawnRate` plus five CUMULATIVE
+PROBABILITY mix fields, and those mixes are near-identical across the game:
+`shooterMix` is 0.24-0.28 in every arena, `bomberMix` 0.15 in three,
+`swarmlingMix` 0.10-0.15 in all four. Driving the real `_rollEnemyType` 600
+times per room/wave (`tests/diag-encounter-ab.mjs`) gives the baseline:
+
+| | grunt | shooter | shielded | sniper | bomber | swarmling |
+|---|---|---|---|---|---|---|
+| hangar w1 | 62% | 22% | — | — | — | 16% |
+| hangar w2 | 63% | 22% | — | — | — | 15% |
+| corridor w2 | 32% | 29% | — | 13% | 16% | 11% |
+| detention w2 | 24% | 26% | 14% | 12% | 14% | 10% |
+| detention w3 | 22% | 26% | 16% | 11% | 14% | 11% |
+
+**Mean pairwise separation across all nine ordinary waves: 0.24, with a MINIMUM
+of 0.01** — two waves in the shipped game are the same fight to within a
+rounding error. Cross-arena only, it is 0.31. That is the "Sector 14 is Sector 2
+with coefficients" complaint stated in numbers, and it was never about the
+coefficients: it is that there was only ever one wave.
+
+### What Phase A is
+
+`src/data/encounters.js` — a literal table. **Six archetypes, no framework, no
+DSL, no parser, no callback, no director.** An encounter is four ideas:
+
+- **`lead`** — an ORDERED, GUARANTEED opening. This is the entire difference
+  between composition and a re-weighted mix: VANGUARD puts shields down FIRST
+  and the guns behind them, every single time.
+- **`fill`** — the pool the rest of the budget draws from. Weighting is
+  expressed by REPEATING an id, deliberately, so there is no second syntax for
+  weights and no numbers to keep in sync with the list.
+- **`gate`** — `any` / `single` / `split` / `spread`. The spatial relationship.
+  `split` is the two most OPPOSED gates the room has, computed from the room's
+  own gate list.
+- **`countMult` / `maxAliveMult` / `spawnRateMult`** — count, cap and cadence
+  as ONE relationship, because pressure is half of what makes a fight a
+  different fight.
+
+`fill: null` (MIXED ASSAULT) falls through to the room's own mix roll — the
+control, and literally the old code path.
+
+| archetype | gate | the question it asks |
+|---|---|---|
+| MIXED ASSAULT | any | the general fight — the room, without a thesis |
+| VANGUARD | single | break the facing, or go around it |
+| SNIPER NEST | spread | crossing the open floor is now a decision |
+| SWARM TIDE | split | make space and keep it |
+| BOMBER RUN | single | the floor is being taken away from you |
+| CROSSFIRE | split | there is no direction that is safe |
+
+### The plan is per-arena BY GEOMETRY
+
+This is the half that matters and it is not a distribution.
+
+- **HANGAR** — open operational deck, west spawn to east exit, room to kite.
+  Displacement and body pressure read best where there is floor to be pushed
+  across: BOMBER RUN and SWARM TIDE, with a shield line advancing over open
+  deck in the later bands.
+- **REACTOR JUNCTION** — the only square room, objective dead centre, and its
+  **west and east gates are diametrically opposed THROUGH the crossing**
+  (1200px apart, the widest pair it has). You cannot hold the middle against
+  both, so CROSSFIRE is the composition this room was already shaped for; a
+  VANGUARD down one feeder lane is its other native question.
+- **DETENTION** — `walls` is completely EMPTY, and its own design note calls it
+  a floor you are meant to be visible while crossing. SNIPER NEST is the literal
+  statement of that. Its widest gate pair is N/S at x=800, directly opposed
+  across the middle of the walk, which is CROSSFIRE's second home.
+
+Bands are three literals — `early` (≤4), `mid` (≤12), `late` — and the arena's
+list is indexed by `waveIdx % list.length`, so a ROOM is a sequence of different
+fights and the same room at the same band is reproducible. **A handset verdict
+has to be about a fight the player can go back and meet again.**
+
+### The result
+
+| | mean separation | min | cross-arena mean |
+|---|---|---|---|
+| current build | 0.24 | **0.01** | 0.31 |
+| Phase A, sector 1 | 0.51 | 0.08 | 0.51 |
+| Phase A, sector 20 | 0.58 | 0.02 | 0.55 |
+
+The sector-20 minimum of 0.02 is the SAME archetype appearing in two arenas —
+the metric measures composition only and gives no credit for gate geometry, so
+a CROSSFIRE in the junction (W/E through the centre) and one in detention (N/S
+across the escort floor) score as identical when they are not. The bar is
+deliberately harder than the claim.
+
+### The engine side is one method and four fields
+
+`GameScene._resolveEncounter` is the whole of it. **Every exit leaves the old
+path intact**: a null encounter clears the queue and the gate plan,
+`_nextEncounterType` falls back to `_rollEnemyType`, `_nextEncounterGate`
+returns null. That is what makes the layer removable and why the boss room and
+the duel wave need no special-casing downstream.
+
+- **THE BOSS ROOM HAS NO ENTRY IN THE PLAN**, so `encounterFor` returns null and
+  `vader`'s two escort waves run exactly the code they ran before. Asserted in
+  both directions by `smoke-encounters`.
+- **The duel wave is refused by the caller** (`wave.miniBoss`). `_beginDuel`
+  spends the whole budget up front and sweeps the floor; there is nothing to
+  compose. **Nemesis is untouched by this pass in every other respect too.**
+- **A preferred gate NEVER overrides the 400px safety.** A player who walks over
+  and camps the door gets the ordinary far-gate picker for that one spawn.
+- **Sector scaling is untouched** and still runs underneath everything.
+
+### Two traps this pass found
+
+- **`_applySectorScaling` computes a `count` that NOTHING READS.** It sets
+  `out.count = round(out.count * (1 + s*0.12))` on `arenaCfg`, but the drip has
+  always tested `wave.count` — the raw authored wave object. So **the enemy
+  COUNT per wave has never scaled with the sector**; only `maxAlive`,
+  `spawnRate`, `eliteChance`, hp and speed ever did. Measured, not reasoned.
+  **This pass did NOT fix it.** Routing the drip to the scaled value would be a
+  2.56x difficulty spike at sector 14 arriving inside a handset test whose whole
+  question is "does composition create tactics?", and a confounded A/B is worth
+  less than no A/B. `_waveCount` now carries the budget so the composition layer
+  can scale it; pointing that field at `cfg.count` is a one-line change and a
+  separate, deliberate balance decision.
+- **A SWARMLING SPAWN EVENT IS A PACK OF 4-6 BODIES**, and the drip's
+  `living < maxAlive` gate is checked BEFORE the pack lands. So a
+  swarmling-heavy composition authored at high `maxAlive` overshoots the cap by
+  a whole pack. SWARM TIDE runs the LOWEST cap in the table (0.55x) for exactly
+  this reason — the volume is already in the pack size.
+
+### Readability is authored in the DATA, not asserted in a test
+
+Three exclusions are baked into the pools, and two of them were found by the
+structural test rather than by taste:
+
+- **No sniper alongside bomber.** An 800ms windup plus a locked beam and a
+  155px blast are two different urgent reads; together they are one unreadable
+  screen.
+- **No sniper in CROSSFIRE.** Its pool was `[shooter, shooter, grunt, sniper]`
+  and it scored **0.17 against SNIPER NEST** — the same wave under two names —
+  while a 12-event roll put FOUR snipers on detention's coverless floor. The
+  surviving distinction is cleaner than the one that failed: CROSSFIRE is
+  SHOOTERS from two bearings, SNIPER NEST is SNIPERS from every bearing.
+- **No shooter in SNIPER NEST.** Same catch, other direction: with shooters in
+  the pool a low-sniper roll came out as grunts-and-shooters, which IS
+  CROSSFIRE. A shooter also holds 380px and fires fast, so it occupies the
+  sniper's slot while asking none of the commitment the windup asks for.
+
+**None of that is a smoke-test assertion, because none of it is objective.**
+What `smoke-encounters` does assert is structure — valid ids, legal gate modes,
+bounded multipliers, the boss room's absence, the lead being guaranteed AND
+ordered, `split` really being the widest pair, live wiring, sector scaling still
+running — plus one discriminator: **no two archetypes may resolve to the same
+composition.** That check failed twice on real authoring faults before it
+passed, which is the only reason it is worth having.
+
+### Findings for the future Champion work
+
+- **The roster's most overrepresented verb is "walk at the player and shoot".**
+  grunt, shooter and shielded are one behaviour at three ranges and three hp
+  values; four of the six archetypes above lean on that stack because it is what
+  the roster mostly is.
+- **THE MISSING VERB IS ZONE CONTROL THAT PERSISTS.** Every threat the six own
+  is a body or a projectile — kill it or dodge it and the floor is yours again.
+  Nothing in the roster takes ground and KEEPS it, so no composition can ask
+  "where are you allowed to stand for the next ten seconds". BOMBER RUN is the
+  closest and it is still momentary: the blast resolves and the deck is clean.
+  The nemesis MINEFIELD move is the only thing in the codebase that does this,
+  and it is locked inside a system that appears once every three or four
+  sectors.
+- **A second missing verb is a threat that must be answered rather than
+  outlasted.** Vader's DEFLECTION is the only mechanic in the game that changes
+  the player's VERB; nothing at wave scale does.
+- Every archetype above resolves to "shoot the thing" as its answer, at
+  different ranges and pressures. That is a real ceiling on what composition
+  alone can reach, and it is the strongest argument in this pass for what a
+  Champion should be.
+
+### What remains to handset-test
+
+1. Are the six identities recognisable IN PLAY, not on paper?
+2. SWARM TIDE's pack-vs-cap interaction — is the tide dense enough to be a tide
+   and bounded enough to be readable?
+3. VANGUARD's single gate — does a shield line actually read as a facing worth
+   flanking, or does it just stack in a doorway?
+4. CROSSFIRE appears in all three arenas in the late band, at different wave
+   indices. Is that a signature or a repetition?
+5. The pressure multipliers (`countMult` / `maxAliveMult` / `spawnRateMult`) are
+   authored, not measured. Every one of them is a handset dial.
+6. Does the early band still teach the room before it starts asking questions?
 
 ---
 

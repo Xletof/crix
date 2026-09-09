@@ -727,6 +727,41 @@ asserts separately that the ceiling is not reached.
   shipped. The blackout pocket also TRACKS THE PLAYER, because the game camera
   clamps at the arena bounds and a screen-locked pocket strands them up to ~270px
   horizontally and ~508px vertically outside their own sight radius.
+- **WAVES ARE COMPOSED NOW, AND `src/data/encounters.js` IS THE TABLE.** It is a
+  DATA LAYER, not a framework — six archetypes, each an ordered guaranteed
+  `lead`, a `fill` pool (weighted by REPEATING an id, never by a number), a
+  `gate` mode and three pressure multipliers. **If it ever needs a callback, a
+  condition or a parser it has failed its brief; the answer is to stop, not to
+  grow a grammar.** `GameScene._resolveEncounter` is the whole engine side and
+  **every exit leaves the old path intact**: null encounter → `_rollEnemyType`
+  and the ordinary far-gate picker, which is exactly the pre-Phase-A code.
+  **PHASE A IS A CANDIDATE, NOT APPROVED** — `HANDOVER.md` §10ac, and every
+  number in the table is a handset dial until a verdict says otherwise.
+- **THE BOSS ROOM IS EXCLUDED BY ABSENCE, NOT BY A BRANCH.** `vader` has no
+  entry in `ENCOUNTER_PLAN`, so `encounterFor` returns null and its escort waves
+  run untouched; the duel wave is refused by the caller on `wave.miniBoss`.
+  `smoke-encounters` pins the boss room's absence in both directions. Do not
+  "tidy" this into an `if (roomSpec.boss)` — absence is what makes the layer
+  removable.
+- **A COMPOSITION'S PREFERRED GATE NEVER BEATS THE 400px SAFETY.** `spawnAtGate`
+  takes an optional gate, and uses it only if it is ≥400px from the player;
+  otherwise that one spawn falls back to the ordinary picker. A player who walks
+  over to camp a single-gate encounter's door must not get a trooper on top of
+  them.
+- **`_applySectorScaling` COMPUTES A `count` THAT NOTHING READS, AND THAT IS A
+  LIVE BUG WE ARE CARRYING DELIBERATELY.** It scales `out.count` on `arenaCfg`,
+  but the drip has always tested the raw authored `wave.count` — so **enemy
+  COUNT per wave has never scaled with the sector.** Only `maxAlive`,
+  `spawnRate`, `eliteChance`, hp and speed ever did. Phase A did NOT fix it:
+  pointing the drip at the scaled value is a 2.56x spike at sector 14, which
+  inside a handset test asking "does composition create tactics?" is a
+  confounded A/B. `_waveCount` carries the budget now, so the fix is one line
+  and is a separate, deliberate balance decision.
+- **A SWARMLING SPAWN EVENT IS A PACK OF 4-6 BODIES, AND THE CAP IS CHECKED
+  BEFORE IT LANDS.** `living < cfg.maxAlive` gates the drip, then
+  `_spawnSwarmlingPack` drops `packMin..packMax` at once — measured live at 9
+  alive against a cap of 6. Any swarmling-heavy composition must run a LOWER
+  cap, not a higher one; the volume is already in the pack.
 - **An upgrade's `apply` can run more than once.** `pickThree` falls back to the
   FULL pool once fewer than three cards are untaken, so past ~sector 13 cards
   repeat. Effects take an `s` scale and must be written as magnitudes

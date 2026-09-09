@@ -16,6 +16,7 @@ import { attachFX, SFX, startMusic, duckMusic, duckSfx, stopMusic, isLowQuality 
 import { setMusicPhase, setBossPhase, tickDirector, musicSampleDue, resetDirector } from '../systems/musicDirector.js';
 import { ROOMS } from '../data/rooms.js';
 import { perimeterOpenings } from '../data/mapUtils.js';
+import { encounterFor, buildSpawnQueue, pickGates } from '../data/encounters.js';
 import { CameraDirector } from '../systems/CameraDirector.js';
 import { rollNemesis, traitLine } from '../data/nemesis.js';
 import {
@@ -162,6 +163,11 @@ export class GameScene extends Phaser.Scene {
     this._wave         = null;
     this._waveIdx      = 0;
     this._wavePhase    = null;
+    this._waveCount    = 0;     // the drip's budget — see _resolveEncounter
+    this._encounter    = null;  // authored composition for this wave, or null
+    this._spawnQueue   = null;
+    this._gatePlan     = null;
+    this._gateStep     = 0;
     this._lastLiving   = -1;
     this._comboCount   = 0;
     this._lastKillTime = -99999;
@@ -885,6 +891,7 @@ export class GameScene extends Phaser.Scene {
     this._wave       = wave;
     // drip/roll/elite all read this merged object
     this.arenaCfg    = this._applySectorScaling(this._applyModifier({ ...this._roomArenaCfg, ...wave }));
+    this._resolveEncounter(wave);
     // Wipe the baked blood/scorch from the previous wave — each wave (and each
     // new room/sector, since those start at wave 0) begins on a clean floor.
     this.decalRT?.clear();
@@ -5370,14 +5377,14 @@ export class GameScene extends Phaser.Scene {
     if (this._wavePhase === 'spawning') {
       // Drip this wave's budget, capped at the concurrent maxAlive.
       this._waveDripMs += delta;
-      if (this._waveSpawned < wave.count &&
+      if (this._waveSpawned < this._waveCount &&
           this._waveDripMs >= cfg.spawnRate &&
           living < cfg.maxAlive) {
         this._waveDripMs = 0;
-        this.spawnAtGate(this._rollEnemyType());
+        this.spawnAtGate(this._nextEncounterType(), this._nextEncounterGate());
         this._waveSpawned++;
       }
-      if (this._waveSpawned >= wave.count) this._wavePhase = 'clearing';
+      if (this._waveSpawned >= this._waveCount) this._wavePhase = 'clearing';
     } else if (this._wavePhase === 'clearing') {
       // Budget spent — wait for the arena to be swept clean.
       if (living === 0) {
@@ -5813,7 +5820,7 @@ export class GameScene extends Phaser.Scene {
       });
 
     // Budget spent: no drip for the duration.
-    this._waveSpawned = wave.count;
+    this._waveSpawned = this._waveCount;
     this._wavePhase = 'clearing';
 
     const e = this._spawnMiniBoss();
@@ -6290,6 +6297,71 @@ export class GameScene extends Phaser.Scene {
     }, 0);
   }
 
+  // ── ENCOUNTER COMPOSITION ────────────────────────────────────────────────
+  //
+  // Resolve the authored encounter for this wave and pre-build its spawn list.
+  // `src/data/encounters.js` carries the table and the reasoning; this method
+  // is the whole of the engine side, and it is deliberately the only place
+  // that knows the layer exists.
+  //
+  // EVERY EXIT LEAVES THE OLD PATH INTACT. A null encounter clears the queue
+  // and the gate plan, `_nextEncounterType` falls back to `_rollEnemyType` and
+  // `_nextEncounterGate` returns null, which is exactly the code that ran
+  // before this existed. That is what makes the layer removable, and it is why
+  // the boss room and the duel wave need no special-casing downstream.
+  _resolveEncounter(wave) {
+    // `wave.count` stays the authority for the drip, unchanged. It is lifted
+    // into a field only so an encounter can scale it — see the note in
+    // HANDOVER about `_applySectorScaling` computing a `count` nothing reads.
+    this._waveCount   = wave.count;
+    this._encounter   = null;
+    this._spawnQueue  = null;
+    this._gatePlan    = null;
+    this._gateStep    = 0;
+
+    // A duel wave spends its whole budget up front and sweeps the floor, so
+    // there is nothing for a composition to compose. The boss room is excluded
+    // by having no entry in the plan at all.
+    if (wave.miniBoss) return;
+
+    const enc = encounterFor(this.roomSpec?.id, this._waveIdx, this.sector || 1);
+    if (!enc) return;
+
+    this._encounter = enc;
+    const cfg = this.arenaCfg;
+
+    // count / maxAlive / cadence move TOGETHER. A composition that only
+    // changed which enemies arrive would still deliver them at one pressure,
+    // and pressure is half of what makes a fight feel like a different fight.
+    this._waveCount = Math.max(2, Math.round(wave.count * (enc.countMult ?? 1)));
+    cfg.maxAlive    = Math.max(3, Math.round(cfg.maxAlive * (enc.maxAliveMult ?? 1)));
+    cfg.spawnRate   = Math.max(220, Math.round(cfg.spawnRate * (enc.spawnRateMult ?? 1)));
+
+    this._spawnQueue = buildSpawnQueue(enc, this._waveCount, this.rng.waves);
+    this._gatePlan   = pickGates(enc.gate, this.roomSpec?.gates, this.rng.waves);
+
+    this.events.emit('encounter-set', enc);
+  }
+
+  /** The next type this wave owes, or the room's ordinary roll. */
+  _nextEncounterType() {
+    const q = this._spawnQueue;
+    if (q?.length) return q.shift();
+    // Past the authored budget — a terminal surge, or a wave whose cap let it
+    // outrun its list. Keep the encounter's identity rather than reverting to
+    // the room soup mid-fight.
+    const fill = this._encounter?.fill;
+    if (fill?.length) return this.rng.waves.pick(fill);
+    return this._rollEnemyType();
+  }
+
+  /** The gate this encounter wants next, or null for the ordinary picker. */
+  _nextEncounterGate() {
+    const plan = this._gatePlan;
+    if (!plan?.length) return null;
+    return plan[this._gateStep++ % plan.length];
+  }
+
   _rollEnemyType() {
     const c = this.arenaCfg || {};
     const r = this.rng.waves.rand();
@@ -6320,7 +6392,7 @@ export class GameScene extends Phaser.Scene {
         if (!this.arenaActive) return;
         // Surges may briefly exceed the drip cap, but never runaway.
         if (this._livingEnemyCount() >= cfg.maxAlive + 4) return;
-        this.spawnAtGate(this._rollEnemyType());
+        this.spawnAtGate(this._nextEncounterType(), this._nextEncounterGate());
       });
     }
   }
@@ -6329,7 +6401,7 @@ export class GameScene extends Phaser.Scene {
   // player (else the farthest), telegraph it with a pulsing red ring for
   // 600ms, then spawn with a burst. Falls back to the legacy random-edge
   // picker for rooms without gates.
-  spawnAtGate(type) {
+  spawnAtGate(type, preferred = null) {
     const spec = this.roomSpec;
     if (!spec) return;
     const gates = spec.gates;
@@ -6341,7 +6413,13 @@ export class GameScene extends Phaser.Scene {
       ? farEnough
       : [gates.reduce((a, b) =>
           Math.hypot(a.x - px, a.y - py) >= Math.hypot(b.x - px, b.y - py) ? a : b)];
-    const gate = pool[Phaser.Math.Between(0, pool.length - 1)];
+    // An encounter may ask for a SPECIFIC gate — that is how a composition gets
+    // a front, or two opposed bearings. It never overrides the 400px safety:
+    // a player who walks over and camps the door gets the ordinary picker for
+    // that one spawn rather than a trooper materialising on top of them.
+    const gate = (preferred && Math.hypot(preferred.x - px, preferred.y - py) >= 400)
+      ? preferred
+      : pool[Phaser.Math.Between(0, pool.length - 1)];
     const gx = gate.x + Phaser.Math.Between(-24, 24);
     const gy = gate.y + Phaser.Math.Between(-24, 24);
 
