@@ -113,3 +113,53 @@ export function parseDuelParams(params) {
     sector: Number.isFinite(sector) ? sector : null,
   };
 }
+
+// ── Encounter test harness ─────────────────────────────────────────────────
+//
+// PHASE A INSTRUMENTATION, and nothing else. The encounter table
+// (`src/data/encounters.js`) authors six tactical identities, and the human has
+// no way to tell which one is running or to ask for a specific one: a wave's
+// archetype is chosen from the arena and the sector band, so seeing CROSSFIRE
+// in the junction and then CROSSFIRE in detention means playing sectors and
+// hoping. That is the same friction `?duel=` exists to remove, one system
+// along.
+//
+//   ?encdbg=1              the overlay on, selection starts at AUTO
+//   ?encdbg=crossfire      the overlay on, that archetype pre-selected
+//   &room=detention        start in that arena instead of the hangar
+//   &sector=8              start at that sector, so the BAND is the one you want
+//
+// Module scope for the same reason `godMode` is: `PauseScene._restart()` builds
+// a fresh Game scene, and a flag on the scene would switch itself off exactly
+// when you least want it to.
+//
+// TWO PROPERTIES THIS MUST NEVER LOSE, both asserted by `smoke-encdbg`:
+//   - with the flag ABSENT nothing changes, at all. No overlay, no forcing, no
+//     extra pointer exclusion, and `encounterFor` decides every wave.
+//   - the force only ever SUBSTITUTES for an encounter the real resolver
+//     already returned. It cannot manufacture one, so the boss room and the
+//     duel wave stay outside it by the same absence that protects them in
+//     production rather than by a second rule that could drift.
+let encDebug = false;
+let encForce = null;   // archetype id, or null = AUTO (the authored plan decides)
+
+export function isEncDebug() { return encDebug; }
+export function setEncDebug(v) { encDebug = !!v; }
+export function getEncForce() { return encForce; }
+export function setEncForce(id) { encForce = id || null; }
+
+/** Parse `?encdbg` into `{ on, force, room, sector }`, or null when absent. */
+export function parseEncDebugParams(params) {
+  if (!params.has('encdbg')) return null;
+  const raw = (params.get('encdbg') || '').trim();
+  const sector = parseInt(params.get('sector') || '', 10);
+  return {
+    on: true,
+    // '1', '' and 'on' all mean "overlay only, no forcing". Anything else is
+    // taken as an archetype id and VALIDATED by the caller against the real
+    // table — a typo must fall back to AUTO rather than force a null archetype.
+    force: (raw && raw !== '1' && raw !== 'on') ? raw : null,
+    room: params.get('room') || null,
+    sector: Number.isFinite(sector) ? sector : null,
+  };
+}

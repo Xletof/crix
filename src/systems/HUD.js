@@ -6,6 +6,8 @@ import { DashButton } from './DashButton.js';
 import { MeleeButton } from './MeleeButton.js';
 import { HackMinigame } from './HackMinigame.js';
 import { getControl } from './controlLayout.js';
+import { isEncDebug, getEncForce, setEncForce } from './debug.js';
+import { ENCOUNTERS } from '../data/encounters.js';
 import { ROOMS } from '../data/rooms.js';
 import { SFX } from './FX.js';
 
@@ -300,6 +302,8 @@ export class HUDScene extends Phaser.Scene {
     // Pause button — top-right play-area corner (right half, excluded from the
     // fire stick's claim region so tapping it never starts an aim drag).
     this._buildPauseButton();
+    // PHASE A TEST HARNESS. Built only under `?encdbg` — see systems/debug.js.
+    if (isEncDebug()) this._buildEncounterDebug();
 
     // Joysticks
     const moveL = getControl('moveStick');
@@ -321,7 +325,11 @@ export class HUDScene extends Phaser.Scene {
           // Optional chaining: the stick is constructed before the buttons, so
           // before meleeButton exists this correctly falls through to "claim".
           && !this.meleeButton?.containsPoint(pointer.x, pointer.y)
-          && !this._overPauseBtn(pointer.x, pointer.y);
+          && !this._overPauseBtn(pointer.x, pointer.y)
+          // Debug only: the strip does not exist without `?encdbg`, and this
+          // returns false immediately when it does not, so ordinary play
+          // pays one null check and changes in no other way.
+          && !this._overEncBtn(pointer.x, pointer.y);
       },
       onStart: () => this.gameScene?.player?.setAimInput({ x: 0, y: 0, force: 0 }),
       onMove: (v) => {
@@ -741,6 +749,142 @@ export class HUDScene extends Phaser.Scene {
     });
   }
 
+  // ── PHASE A ENCOUNTER TEST HARNESS (debug only) ──────────────────────────
+  //
+  // Nothing in this block is constructed unless `?encdbg` is on the URL, so the
+  // production HUD is byte-identical without it. It is instrumentation for one
+  // question — do the six authored encounter archetypes read as different
+  // fights? — and it answers it in two passes: with the label ON you learn what
+  // each one IS, then with the flag OFF you find out whether the composition
+  // says so by itself. THE LABEL IS THE GROUND TRUTH, NOT A FEATURE: there is
+  // deliberately no production title card, because a fight that only reads
+  // because its name is printed across the screen has communicated nothing.
+  //
+  // WHY IT LIVES ON SCREEN AND NOT ON THE DEBUG CARD. The debug card is
+  // 1168px tall on a 1280px viewport with CLOSE already inside a few px of its
+  // border, so three more rows do not fit; and more importantly the selection
+  // has to be changeable between waves without leaving the fight, which a modal
+  // that pauses Game and HUD cannot be. Room selection DOES reuse the card —
+  // LOAD REACTOR JUNCTION / LOAD DETENTION BLOCK already exist and already go
+  // through `GameScene.loadRoom`.
+  //
+  // THE BUTTONS SIT IN THE RIGHT HALF ON PURPOSE. The move stick claims the
+  // whole left half with no exclusion hook at all; the fire stick claims the
+  // right half but takes a `shouldClaim`, which is how the pause button already
+  // lives there. A button on the left would be unblockable without teaching the
+  // move stick about exclusions, which is a change to a control the player
+  // uses. The text label is not interactive, so it can sit top-left freely.
+  _buildEncounterDebug() {
+    // AUTO first: the authored plan, with the label still on. It is the only
+    // way to watch the real per-arena selection happen and is the state the
+    // overlay starts in unless `?encdbg=<id>` said otherwise.
+    this._encIds = [null, ...Object.keys(ENCOUNTERS)];
+    const cur = getEncForce();
+    this._encSel = Math.max(0, this._encIds.indexOf(ENCOUNTERS[cur] ? cur : null));
+
+    // A BACKING PLATE, because the label shares its corner with the objective
+    // banner. `loadRoom` schedules that hint on a delay and it is drawn centred
+    // and wide, so on a 720px viewport it reaches the left edge and lands
+    // straight across the diagnostic — photographed doing exactly that, over
+    // the room/sector line and the refusal message, which are the two lines
+    // worth reading. Fixed size rather than fitted to the text: the string
+    // changes every wave and a plate that resized with it would flicker.
+    this.add.graphics().setDepth(47)
+      .fillStyle(0x000000, 0.55).fillRoundedRect(8, 88, 248, 80, 6);
+
+    this.encText = this.add.text(12, 94, '', {
+      fontFamily: FONTS.body, fontSize: '15px',
+      color: '#ffb040', stroke: '#000000', strokeThickness: 4, lineSpacing: 3,
+    }).setOrigin(0, 0).setDepth(48).setAlpha(0.92);
+
+    const BW = 150, BH = 46, bx = VIEW.width - 82;
+    this._encBtns = [];
+    const mk = (y, label, onTap) => {
+      const g = this.add.graphics().setDepth(47);
+      g.fillStyle(0x000000, 0.5); g.fillRoundedRect(bx - BW / 2 + 2, y - BH / 2 + 3, BW, BH, 8);
+      g.fillStyle(0x1a1206, 0.92); g.fillRoundedRect(bx - BW / 2, y - BH / 2, BW, BH, 8);
+      g.lineStyle(2.5, 0xff9020, 0.85); g.strokeRoundedRect(bx - BW / 2, y - BH / 2, BW, BH, 8);
+      this.add.text(bx, y, label, {
+        fontFamily: FONTS.body, fontSize: '19px', fontStyle: 'bold',
+        color: '#ffc060', letterSpacing: 2,
+      }).setOrigin(0.5).setDepth(48);
+      const z = this.add.zone(bx, y, BW, BH).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      z.on('pointerdown', onTap);
+      this._encBtns.push({ x: bx, y, w: BW, h: BH });
+    };
+
+    mk(196, '\u2039 PREV', () => this._encCycle(-1));
+    mk(250, 'NEXT \u203a', () => this._encCycle(1));
+    mk(304, 'REPLAY', () => this._encReplay());
+
+    // Desktop convenience only. The primary validation is a phone, so the
+    // buttons above are the real control and these are never the only way in.
+    this.input.keyboard?.on('keydown-COMMA', () => this._encCycle(-1));
+    this.input.keyboard?.on('keydown-PERIOD', () => this._encCycle(1));
+    this.input.keyboard?.on('keydown-SLASH', () => this._encReplay());
+
+    this._encMsg = '';
+    this._encMsgUntil = 0;
+    this._refreshEncLabel();
+  }
+
+  /**
+   * Change the SELECTED archetype. It does not touch the wave already running.
+   *
+   * That is the honest contract and the label states it: an encounter's queue,
+   * gate plan and pressure are all resolved once at `_startWave`, so changing
+   * the selection mid-wave and pretending it applied would show a composition
+   * the player is not actually fighting. REPLAY is what makes it immediate;
+   * otherwise it lands on the next wave.
+   */
+  _encCycle(dir) {
+    if (!this._encIds) return;
+    const n = this._encIds.length;
+    this._encSel = (this._encSel + dir + n) % n;
+    setEncForce(this._encIds[this._encSel]);
+    SFX.uiClick?.();
+    this._refreshEncLabel();
+  }
+
+  _encReplay() {
+    const gs = this.gameScene;
+    if (!gs?._debugReplayWave) return;
+    const why = gs._debugReplayWave();
+    SFX.uiClick?.();
+    // A refusal has to be visible on the phone — there is no console on the
+    // deployed build, which is the whole reason DebugScene ships in production.
+    this._encMsg = why ? `REFUSED: ${why}` : 'REPLAYED';
+    this._encMsgUntil = this.time.now + 1800;
+    this._refreshEncLabel();
+  }
+
+  /** Diagnostic text. Rebuilt only when the string actually changes. */
+  _refreshEncLabel() {
+    if (!this.encText || !this.gameScene?._encDebugState) return;
+    const st = this.gameScene._encDebugState();
+    const sel = this._encIds?.[this._encSel];
+    const selName = sel ? (ENCOUNTERS[sel]?.name ?? sel) : 'AUTO (authored plan)';
+    const msg = (this._encMsgUntil > this.time.now && this._encMsg) ? this._encMsg
+      : (st.boss ? 'boss room — harness inactive'
+        : st.duel ? 'duel wave — harness inactive' : '');
+    const txt = [
+      `SEL \u25b8 ${selName}`,
+      `NOW   ${st.running ?? '\u2014'}`,
+      `${st.room} \u00b7 S${st.sector} ${st.band} \u00b7 W${st.wave}/${st.waves}`,
+      msg,
+    ].filter(Boolean).join('\n');
+    if (txt !== this._encTxt) { this._encTxt = txt; this.encText.setText(txt); }
+  }
+
+  _overEncBtn(px, py) {
+    const list = this._encBtns;
+    if (!list) return false;
+    for (const b of list) {
+      if (Math.abs(px - b.x) <= b.w / 2 && Math.abs(py - b.y) <= b.h / 2) return true;
+    }
+    return false;
+  }
+
   _overPauseBtn(px, py) {
     const b = this._pauseBtn;
     if (!b) return false;
@@ -919,6 +1063,11 @@ export class HUDScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    // Polled rather than event-driven: the label has to follow a room change, a
+    // sector cycled from the debug card and a wave advance, and one read of
+    // already-computed fields beats three event subscriptions that could each
+    // be forgotten. Guarded on the flag, so ordinary play does not reach it.
+    if (this._encBtns) this._refreshEncLabel();
     const p = this.gameScene?.player;
     if (p && p.ammoTimers.length > 0) {
       this.refreshAmmo();

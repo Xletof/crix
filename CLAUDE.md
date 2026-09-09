@@ -762,6 +762,44 @@ asserts separately that the ceiling is not reached.
   `_spawnSwarmlingPack` drops `packMin..packMax` at once — measured live at 9
   alive against a cap of 6. Any swarmling-heavy composition must run a LOWER
   cap, not a higher one; the volume is already in the pack.
+- **`?encdbg=1` IS THE PHASE A ENCOUNTER TEST HARNESS, AND ITS FIRST PROPERTY IS
+  THAT IT DOES NOT EXIST WITHOUT THE FLAG.** No overlay is constructed, no
+  pointer area is taken off the fire stick, and a force left set from an earlier
+  run is IGNORED — `_resolveEncounter` only consults it under `isEncDebug()`.
+  `smoke-encdbg` checks every one of those as a PAIR (absent without the flag,
+  present with it), because "the overlay appears" passes just as happily on a
+  build that shows it to every player.
+  Grammar: `?encdbg=1` overlay only, `?encdbg=crossfire` pre-selects an
+  archetype, `&room=detention` and `&sector=8` start the run there so one
+  bookmark is one test case. An unknown archetype id falls back to AUTO.
+- **THE FORCE SUBSTITUTES; IT NEVER MANUFACTURES.** `_resolveEncounter` asks the
+  real `encounterFor` first and returns on null, and only then swaps in the
+  forced archetype. So the boss room and the duel wave stay outside the harness
+  by the SAME ABSENCE that protects them in production, not by a second guard
+  that could drift out of step with the first. `smoke-encdbg` forces an
+  archetype hard and asserts the boss room and the duel wave still resolve to
+  nothing. Do not "improve" this into an explicit `if (roomSpec.boss)`.
+- **A DEBUG BUTTON MUST LIVE IN THE RIGHT HALF OF THE SCREEN.** The move stick
+  claims the whole LEFT half with no `shouldClaim` hook at all; the fire stick
+  claims the right half and takes one, which is how the pause button already
+  lives there. A left-half button would be unblockable without teaching the move
+  stick about exclusions — a change to a control the player actually uses.
+  `_overEncBtn` joins `_overPauseBtn` in that list, and `smoke-encdbg` asserts no
+  exclusion point falls in the left half.
+- **`DebugScene._skipWave` LEAVES `arenaActive` FALSE.** `_clearWave` sets it
+  false and only `loadRoom` ever sets it true, so SKIP WAVE starts a wave the
+  spawner is switched off for. Pre-existing; noted, not fixed. Any new debug
+  path that restarts a wave must assert `arenaActive = true` itself —
+  `_debugReplayWave` does.
+- **A DEBUG WAVE SWEEP USES `_destroyEnemyFully`, NOT `damage()`.** Killing
+  through the damage path pays score for enemies nobody fought and fires every
+  volatile/bomber death blast across the arena at the moment the replay is
+  trying to establish its read — the same reason `_beginDuel` DISMISSES trash
+  instead of killing it. The known cost is that `RoomManager.aliveEnemies` is
+  not decremented and drifts UPWARD, which is the safe direction: its only job
+  is to emit `room-cleared` at zero, and the wave machine reads
+  `_livingEnemyCount()` rather than that counter. Never drive that counter to
+  zero in a sweep — that fires `room-cleared` and completes the room.
 - **An upgrade's `apply` can run more than once.** `pickThree` falls back to the
   FULL pool once fewer than three cards are untaken, so past ~sector 13 cards
   repeat. Effects take an `s` scale and must be written as magnitudes

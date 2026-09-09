@@ -4909,6 +4909,65 @@ passed, which is the only reason it is worth having.
   alone can reach, and it is the strongest argument in this pass for what a
   Champion should be.
 
+### THE TEST HARNESS — `?encdbg=1`
+
+Phase A shipped with no way to tell which archetype was running or to ask for a
+specific one, which made it unevaluable: a wave's identity is chosen from the
+arena and the sector band, so comparing CROSSFIRE in the junction against
+CROSSFIRE in detention meant playing sectors and hoping. `?encdbg` is the same
+answer `?duel=` was for nemeses, one system along.
+
+```
+?encdbg=1                                overlay on, selection starts at AUTO
+?encdbg=crossfire                        overlay on, that archetype pre-selected
+?encdbg=sniperNest&room=detention&sector=8    one bookmark = one test case
+```
+
+**On screen:** a three-line amber label top-left (SELECTED archetype, the one
+actually RUNNING, then room · sector · band · wave), and three buttons stacked
+under the pause button — `‹ PREV`, `NEXT ›`, `REPLAY`. Desktop also gets
+`,` `.` `/`. Room selection reuses the debug card's existing
+LOAD REACTOR JUNCTION / LOAD DETENTION BLOCK / LOAD VADER CHAMBER buttons.
+
+**Four properties, all asserted by `smoke-encdbg` as PAIRS** (absent without the
+flag, present with it — "the overlay appears" passes just as happily on a build
+that shows it to every player):
+
+- **Without the flag nothing exists.** No overlay object, no screen area taken
+  off the fire stick, and a force left set from a previous run is ignored.
+- **The force SUBSTITUTES, it never MANUFACTURES.** `_resolveEncounter` asks the
+  real `encounterFor` first and returns on null, then swaps. So the boss room
+  and the duel wave stay out by the same ABSENCE that protects them in
+  production rather than by a second guard that could drift. The test forces an
+  archetype hard in the Vader chamber and on detention's duel wave and asserts
+  both still resolve to nothing.
+- **Forcing uses the real runtime.** `REPLAY` goes through `_startWave`, so the
+  wave re-resolves, rebuilds its queue from the archetype's authored lead,
+  re-picks its gates and drips through the production spawner. Nothing is
+  simulated; the test checks the live queue's opening against the table's lead.
+- **The buttons are in the RIGHT half.** The move stick claims the whole left
+  half with no `shouldClaim` hook; the fire stick takes one, which is how the
+  pause button already lives there. `_overEncBtn` joins `_overPauseBtn`.
+
+**Selection does not touch the wave already running**, and the label says so by
+printing SEL and NOW separately: an encounter's queue, gates and pressure are
+resolved once at `_startWave`, so applying a change mid-wave would show a
+composition the player is not fighting. REPLAY is what makes it immediate;
+otherwise it lands on the next wave.
+
+**Two engine notes this turned up.** `DebugScene._skipWave` leaves
+`arenaActive` false (`_clearWave` clears it and only `loadRoom` restores it), so
+it starts a wave the spawner is off for — pre-existing, noted, not fixed;
+`_debugReplayWave` asserts the flag itself. And the replay sweep uses
+`_destroyEnemyFully` rather than `damage()`, because the damage path pays score
+and detonates every volatile/bomber corpse at the moment the replay is
+establishing its read. The cost is `RoomManager.aliveEnemies` drifting upward,
+which is the safe direction — driving it to zero would emit `room-cleared`.
+
+**No encounter content changed in this pass.** The table, the compositions, the
+gate rules, the bands, the pressure multipliers and the plan are byte-identical
+to `6215779`.
+
 ### What remains to handset-test
 
 1. Are the six identities recognisable IN PLAY, not on paper?

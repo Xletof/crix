@@ -16,7 +16,7 @@ import { attachFX, SFX, startMusic, duckMusic, duckSfx, stopMusic, isLowQuality 
 import { setMusicPhase, setBossPhase, tickDirector, musicSampleDue, resetDirector } from '../systems/musicDirector.js';
 import { ROOMS } from '../data/rooms.js';
 import { perimeterOpenings } from '../data/mapUtils.js';
-import { encounterFor, buildSpawnQueue, pickGates } from '../data/encounters.js';
+import { encounterFor, buildSpawnQueue, pickGates, ENCOUNTERS, bandFor } from '../data/encounters.js';
 import { CameraDirector } from '../systems/CameraDirector.js';
 import { rollNemesis, traitLine } from '../data/nemesis.js';
 import {
@@ -26,6 +26,7 @@ import {
 import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.js';
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
+  isEncDebug, getEncForce,
 } from '../systems/debug.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { moveById } from '../data/nemesisMoves.js';
@@ -417,7 +418,17 @@ export class GameScene extends Phaser.Scene {
 
     // ── Start the run ──────────────────────────────────────────────────────
     this.cameras.main.fadeIn(300, 0, 0, 0);
-    this.time.delayedCall(200, () => this.loadRoom(ROOMS[0]));
+    // `?encdbg` may name a starting room and sector so one bookmark is one test
+    // case. Both are read ONLY under the debug flag and both fall back to the
+    // production start (`ROOMS[0]`, sector 1) on anything unrecognised — an
+    // unknown room id must not strand the run in no arena at all.
+    let startRoom = ROOMS[0];
+    if (isEncDebug()) {
+      const st = this.registry.get('encdbgStart') || {};
+      if (st.room) startRoom = ROOMS.find((r) => r.id === st.room) || startRoom;
+      if (st.sector > 0) this.sector = st.sector;
+    }
+    this.time.delayedCall(200, () => this.loadRoom(startRoom));
     // `?duel=` — drop straight into a nemesis fight. Armed here rather than in
     // loadRoom so it polls for a live player instead of racing the room load;
     // see _armDebugDuel and systems/debug.js.
@@ -6324,8 +6335,16 @@ export class GameScene extends Phaser.Scene {
     // by having no entry in the plan at all.
     if (wave.miniBoss) return;
 
-    const enc = encounterFor(this.roomSpec?.id, this._waveIdx, this.sector || 1);
-    if (!enc) return;
+    const natural = encounterFor(this.roomSpec?.id, this._waveIdx, this.sector || 1);
+    // THE DEBUG FORCE SUBSTITUTES; IT NEVER MANUFACTURES. `natural` being null
+    // is the production answer for the boss room and for any unplanned arena,
+    // and returning here on it is what keeps those outside the harness by the
+    // same ABSENCE that protects them in play — not by a second rule that could
+    // drift out of step with the first. A forced id is validated against the
+    // real table, so a stale or mistyped one falls back to the authored plan.
+    if (!natural) return;
+    const forced = isEncDebug() ? ENCOUNTERS[getEncForce()] : null;
+    const enc = forced || natural;
 
     this._encounter = enc;
     const cfg = this.arenaCfg;
@@ -6341,6 +6360,73 @@ export class GameScene extends Phaser.Scene {
     this._gatePlan   = pickGates(enc.gate, this.roomSpec?.gates, this.rng.waves);
 
     this.events.emit('encounter-set', enc);
+  }
+
+  /**
+   * DEBUG ONLY — replay the current wave with whatever archetype is selected.
+   *
+   * Returns null on success, or a short reason string the overlay prints. The
+   * reason is a return value rather than a thrown error because the caller is
+   * a button on a phone: a refusal has to be visible on screen, not in a
+   * console nobody can open on the deployed build.
+   *
+   * It goes through `_startWave`, which is the REAL entry point — same one the
+   * breather uses — so the replayed wave re-resolves its encounter, rebuilds
+   * its queue, re-picks its gates and drips through the production spawner.
+   * Nothing here simulates a wave.
+   *
+   * THREE REFUSALS, and they are the safety of the whole harness: no debug
+   * flag, a boss room, or a duel wave. The first two are what stop this being
+   * reachable in ordinary play; the third is because `_beginDuel` spends the
+   * whole budget up front and sweeps the floor, so there is no wave to replay.
+   *
+   * The sweep uses `_destroyEnemyFully` rather than `damage()` on purpose.
+   * Killing through the damage path would pay score for enemies nobody fought
+   * and fire every volatile/bomber death blast across the arena at the exact
+   * moment the replay is trying to establish its read — the same reason
+   * `_beginDuel` dismisses trash instead of killing it. The known cost is that
+   * `RoomManager.aliveEnemies` is not decremented, so it drifts UPWARD; that is
+   * the safe direction (its only job is to emit `room-cleared` at zero, which
+   * a high count can only delay, and the wave machine reads
+   * `_livingEnemyCount()` rather than that counter). `_clearField` on the debug
+   * card already accepts exactly this trade.
+   */
+  _debugReplayWave() {
+    if (!isEncDebug()) return 'debug off';
+    if (this.roomSpec?.boss) return 'boss room';
+    const waves = this._roomArenaCfg?.waves;
+    const idx = this._waveIdx ?? 0;
+    const wave = waves?.[idx];
+    if (!wave) return 'no wave';
+    if (wave.miniBoss) return 'duel wave';
+
+    this.enemies.getChildren().slice().forEach((e) => this._destroyEnemyFully(e));
+    this.hostileBullets.forEach((g) => g?.getChildren().forEach((b) => b.kill?.()));
+    this.clearTelegraphs?.();
+    // `_clearWave` on the debug card leaves `arenaActive` false and nothing
+    // turns it back on outside `loadRoom` — so a replay that did not assert it
+    // would start a wave the spawner is switched off for, and read as the
+    // harness doing nothing at all.
+    this.arenaActive = true;
+    this._startWave(idx);
+    return null;
+  }
+
+  /** DEBUG ONLY — what the overlay prints. Pure read, no side effects. */
+  _encDebugState() {
+    const waves = this._roomArenaCfg?.waves;
+    const wave = waves?.[this._waveIdx ?? 0];
+    return {
+      selected: getEncForce(),                       // null = AUTO
+      running: this._encounter?.name ?? null,
+      room: this.roomSpec?.name ?? '—',
+      sector: this.sector || 1,
+      band: bandFor(this.sector || 1),
+      wave: (this._waveIdx ?? 0) + 1,
+      waves: waves?.length ?? 0,
+      boss: !!this.roomSpec?.boss,
+      duel: !!wave?.miniBoss,
+    };
   }
 
   /** The next type this wave owes, or the room's ordinary roll. */

@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import {
   setDialogueMuted, setDuelRequest, parseDuelParams, setHitstopMuted, setMoveNamesMuted,
+  setEncDebug, setEncForce, parseEncDebugParams,
 } from '../systems/debug.js';
+import { ENCOUNTERS } from '../data/encounters.js';
 import { CAMERA } from '../config.js';
 
 export class BootScene extends Phaser.Scene {
@@ -30,6 +32,18 @@ export class BootScene extends Phaser.Scene {
     if (params.has('camdbg')) CAMERA.debug = true;
 
     setDuelRequest(parseDuelParams(params));
+
+    // `?encdbg=1` raises the Phase A encounter test overlay — see
+    // systems/debug.js for the grammar. `room` and `sector` are read here so a
+    // whole test case ("CROSSFIRE in detention at sector 8") is one bookmark on
+    // the handset. An unknown archetype id falls back to AUTO rather than
+    // forcing something the table does not contain.
+    const enc = parseEncDebugParams(params);
+    if (enc) {
+      setEncDebug(true);
+      setEncForce(enc.force && ENCOUNTERS[enc.force] ? enc.force : null);
+      this.registry.set('encdbgStart', { room: enc.room, sector: enc.sector });
+    }
 
     this.scene.start('Preload');
   }
