@@ -167,16 +167,29 @@ boss scheduler's timing while fixing it.
   nobody has.
 - Dormant code from the game's two earlier shapes is still in the tree — §9.
 
-### PHASE A OF "THE ROSTER" IS SHIPPED AS A CANDIDATE — NOT APPROVED
+### THE ROSTER, PHASE A — ENCOUNTER IDENTITY IS HUMAN-APPROVED AND FROZEN 🔒
 
-**Encounter composition (`src/data/encounters.js`) is on `FRIX` and awaiting a
-handset verdict.** Six authored archetypes over the existing six enemies, a
-per-arena plan chosen by GEOMETRY, three sector bands, and a gate relationship
-per encounter. `§10ac` is the record: the measured A/B (mean wave-to-wave
-separation 0.24 → 0.51, minimum 0.01 → 0.08), the six open handset questions,
-and the two engine traps it found. **Nothing in it is frozen and every number
-is a dial.** No Champion work, no new enemies, no Nemesis changes — Nemesis is
-operational and untouched by design.
+**Handset play closed it.** The verdict: the authored archetypes feel very good,
+each has a recognisable tactical identity, and after learning them with the
+debug labels the human can identify them during normal Endless **with the
+labels off** — so encounter identity is genuinely encoded in COMPOSITION rather
+than in UI text, which was the whole thesis. The six-enemy roster proved
+sufficient to create meaningfully different fights.
+
+`§10ac` is the record. **Do not retune the approved compositions**, the gate
+rules, the sector bands or the pressure multipliers without NEW handset
+evidence. `?encdbg=1` stays as the evaluation harness.
+
+### THE ROSTER, PHASE B — THE FIRST CHAMPION IS A CANDIDATE, NOT APPROVED
+
+**The INTERDICTOR is on `FRIX` behind `?champdbg=1` and awaiting a handset
+verdict.** `§10ad` is the record. It is the vertical slice for the intended
+replacement of the Nemesis as the player-facing special enemy — one authored
+machine, its own sheet, two authored moves, a persistent zone-control verb the
+six ordinary enemies could not produce, and its own audio. **Normal Endless
+spawns none**, nothing about the Nemesis has changed, and nothing here is
+frozen. Do not build a second Champion and do not start the Nemesis migration
+until this one passes.
 
 ### The recommended next area of work
 
@@ -4980,6 +4993,165 @@ to `6215779`.
 5. The pressure multipliers (`countMult` / `maxAliveMult` / `spawnRateMult`) are
    authored, not measured. Every one of them is a handset dial.
 6. Does the early band still teach the room before it starts asking questions?
+
+---
+
+## 10ad. THE ROSTER, PHASE B — THE FIRST CHAMPION. **CANDIDATE — NOT APPROVED**
+
+**Status: shipped to `FRIX` behind `?champdbg=1` for handset evaluation. NOT
+human-approved, not frozen, and every number in `CHAMPION` is a proposal.**
+
+### The hole it is built for
+
+Phase A's own closing finding, measured rather than asserted: every threat the
+six ordinary enemies own is a BODY or a PROJECTILE. Kill it or dodge it and the
+floor is yours again. So no encounter composition — however well authored — can
+ask *where are you allowed to stand for the next five seconds*. Composition gave
+the roster a grammar; it could not add a verb.
+
+**THE INTERDICTOR IS THAT VERB.** A slow siege machine whose entire threat is
+spatial.
+
+### What it is, and what it deliberately is not
+
+| | |
+|---|---|
+| id / sheet | `interdictor` / `champ-interdictor` — its own 28x28x33 sheet, shared with nothing |
+| body | Ø60, between the Ø44 rank and file and Vader's Ø112 |
+| hp | 1400 — four and a bit grunts. **Not** a sponge |
+| speed | 118 — the slowest thing on the floor, below the shielded's 140 |
+| ordinary attack | **NONE.** It does not shoot at all |
+| moves | exactly two |
+
+- **Not an elite.** `_makeElite` is hp x2.5, scale x1.4 and a gold tint — the
+  same enemy, larger, which is precisely the "special enlarged normal enemy" the
+  human rejected. The Champion takes none of that path.
+- **Not a Nemesis.** No generated name, no traits, no regalia, no grudge, no
+  ledger, no duel bar, no dialogue, and none of the fourteen Nemesis moves.
+- **Not a mini-boss.** Two moves, no ordinary attack, no room lockout, no bar.
+
+### THE SIZE IS DERIVED, NOT PICKED
+
+`NavGrid.build` inflates a body rect by a fixed 23px per side, so a Ø60 body
+needs 60 + 46 = **106px** of gap — well inside the junction's authored 160px
+lane, which was itself derived for Vader. **Anywhere Vader can walk, this can
+walk**, and `smoke-champion` asserts that arithmetic rather than trusting it.
+The navigation debt is carried, not tripped over.
+
+### The two moves, as a semantic pair
+
+**INTERDICT — the space claim.** A 900ms wind-up on the machine (the mast rears,
+the emitter lights, the hull settles), a world-anchored lane telegraph aimed at
+the player's position **at the start of the wind-up**, then a persistent seam:
+460 x 52, 5.5s, growing out of the pylon over 260ms, 90 damage per 460ms of
+contact. Cadence 10s, **one seam per Champion, always** — a new one retires the
+old, so the claimed floor is bounded however long the fight runs.
+
+- **A LINE, NOT A DISC, AND THAT IS THE DESIGN.** These arenas are lanes, a
+  crossing and an escort floor. A disc is something you walk around; a line is a
+  side you have to choose. Measured live, one seam claims **0.55% of the arena**
+  time-weighted and is present for **50% of frames** — a small, constantly
+  moving cut rather than a floor that is covered.
+- Aimed at cast, never re-aimed at release: the wind-up is therefore a real
+  window and stepping off the line beats it outright.
+
+**PURGE — the punish.** The obvious counter to a floor seam is to stand *on* the
+machine that draws it. This closes that answer: a 620ms telegraphed radial burst,
+r190, 160 damage, 620 knockback — and it is **conditional**, eligible only inside
+240px. Measured: at a 425px standoff it fired **zero** times in 32 seconds; with
+the player held on top of the machine it fired **three** times in 16.
+
+### The model
+
+**IT IS NOT A HUMANOID, and that is the whole silhouette decision.** All six
+ordinary enemies are troopers — a helmet over shoulders, differing by palette
+and a shield arc. A seventh trooper, even a big violet one, is the rejected
+concept in a new colour. This is WIDE, LOW, on splayed outrigger feet, with a
+TALL OFF-CENTRE MAST carrying a wide emitter yoke. Asymmetric, because symmetry
+is most of what makes a shape read as a person.
+
+**THE FIRST BUILD WAS INVISIBLE, AND A SCREENSHOT IS WHAT FOUND IT.** It was
+painted from the Imperial family's BOTTOM end (`impDark`/`impMid`/`impGrey`,
+#14161c to #2e3038) and photographed as an unidentifiable dark blob on a
+#212328 hangar deck: the whole silhouette was there and none of it was visible.
+Same family as the shuttle borrowing `imp*`'s TOP end and coming out lighter
+than the deck, in the other direction. **Place the ladder against the DECK, not
+inside a palette family** — top plates two steps above it, body one, underside
+black. A stormtrooper is white and Vader is black; a mid-grey machine sits
+between the two things it must not be confused with.
+
+### Violet, by elimination
+
+Green is enemy bullet colour and would read as incoming fire. Crimson is Vader,
+the SABER THROW lane and every telegraph. Amber is the arenas' emergency power.
+Cyan is their screens. Violet is the one hue not already spoken for, and it is
+used on the model's shoulder stripes and emitter, the telegraph outline, the
+seam and the ground ring — one claim, said four times. `Telegraph` drags any
+authored colour's FILL back toward danger anyway, so the zone still reads as a
+threat while the outline and shimmer stay the Champion's own.
+
+### NO BANNER, and that is a quality decision
+
+Vader's moves announce themselves by name. This one must not. The Champion's
+claim is that the model, the wind-up and the effect explain the mechanic on
+their own — a move that only reads because its name is printed across the screen
+has communicated nothing, which is the question `?nonames=1` exists to ask about
+Vader. A Champion starts where Vader had to be argued to.
+
+### The seam's four readings, each a construction
+
+`src/systems/Hazard.js`. **WHERE IT CAME FROM** — it grows out of the pylon, one
+body-radius in front of the machine (started at the centre, the near anchor is
+drawn under a 112px sprite: the same shape as the console whose light was drawn
+beneath the console). **WHEN IT BEGAN** — the growth, and `contains()` honours
+it, so during those 260ms the far end genuinely does not hurt yet. **WHAT IT
+COVERS** — two bright ANCHOR POSTS. A painted mark has no ends; a placed object
+does. **WHEN IT ENDS** — the last 1100ms visibly fails: the core thins, the
+shimmer runs faster and the whole seam strobes before collapsing.
+
+The spill is five bands, **widest faintest** — an even alpha across a stack of
+glow shapes puts a legible edge on screen, which is the saber halo's lesson at a
+different scale.
+
+### THE BUG THE TEST FOUND, and it is a general one
+
+**A CANCELLED MOVE HANDLE IS NOT A CLAIM, AND `_castChampionMove` TREATED IT AS
+ONE.** `MoveScript.cancel()` deliberately does not clear `actor._activeMove`
+(only the `done` path does), so a handle interrupted mid-wind-up sits on the
+actor for ever with `phase: 'anticipate'`. A scheduler testing the phase alone
+therefore refuses every future cast and **the Champion goes permanently inert
+after its first interruption.** `smoke-champion` cancels a move and then asserts
+the next one still lands, which is what caught it. This is the same rule
+`CameraDirector._bossFramable` already follows for the same field — and
+**`_castNemesisMove` still has the untreated version**, which is a live latent
+bug in the legacy system, left alone in this pass on purpose.
+
+### Debug harness
+
+`?champdbg=1` injects exactly ONE Champion per ordinary wave, into the real
+Phase A encounter. Combine it with the Phase A harness so a whole case is one
+bookmark:
+
+```
+?champdbg=1&encdbg=crossfire&room=detention&sector=8
+```
+
+The overlay's label gains a `CHAMP` line counting what is **alive**, not what
+was injected. **Normal Endless spawns none** — there is no entry in any
+encounter pool, no branch in `_rollEnemyType` and no chance roll, so the
+production path *cannot* produce one rather than being unlikely to.
+
+### What remains to handset-test
+
+1. Is it identifiable from silhouette alone, in a crowd, at handset scale?
+2. Is INTERDICT understandable with no debug text?
+3. Does the seam change where the player stands, or is it just avoided?
+4. Is it a priority target because of behaviour rather than hp?
+5. Does it stay readable inside CROSSFIRE / SWARM TIDE / SNIPER NEST pressure?
+6. Is PURGE's 240px trigger the right distance?
+7. Does a no-ordinary-attack Champion feel restrained, or inert?
+8. Do the FX read as materially more polished than the Nemesis's?
+9. Is it clearly below Vader and clearly above the ordinary six?
 
 ---
 

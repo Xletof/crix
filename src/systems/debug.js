@@ -163,3 +163,21 @@ export function parseEncDebugParams(params) {
     sector: Number.isFinite(sector) ? sector : null,
   };
 }
+
+// ── Champion vertical slice ────────────────────────────────────────────────
+//
+// `?champdbg=1` injects exactly ONE Champion into each ordinary wave, into the
+// real Phase A encounter — real room, real authored queue, real ordinary
+// enemies, one real Champion standing in it. Combine it with the encounter
+// harness so a whole test case is one bookmark:
+//
+//   ?champdbg=1&encdbg=crossfire&room=detention&sector=8
+//
+// NORMAL ENDLESS SPAWNS NO CHAMPION. This flag is the only path to one — there
+// is no entry in any encounter pool, no branch in `_rollEnemyType` and no
+// chance roll anywhere — so the production build cannot produce one rather than
+// being merely unlikely to. `smoke-champion` asserts that in both directions.
+let champDebug = false;
+
+export function isChampDebug() { return champDebug; }
+export function setChampDebug(v) { champDebug = !!v; }

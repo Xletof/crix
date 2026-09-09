@@ -5,6 +5,7 @@ import {
   paintPlayer,
   paintGrunt,
   paintShooter,
+  paintInterdictor,
   paintBoss,
   paintConsole,
   paintConsolePedestal,
@@ -82,6 +83,8 @@ export class PreloadScene extends Phaser.Scene {
     paintPlayer(this);
     paintGrunt(this);
     paintShooter(this);
+    // PHASE B CANDIDATE — the first Champion. See CHAMPION in config.js.
+    paintInterdictor(this);
     paintBoss(this);
     // Nemesis bodies — 32x32, purpose-drawn for the size they actually render
     // at. See the note above paintNemesisSheet for why the trooper art could
@@ -231,6 +234,7 @@ export class PreloadScene extends Phaser.Scene {
       { key: 'nembrute', tex: 'nem-brute' },
       { key: 'nemdemo',  tex: 'nem-demo' },
       { key: 'nemmarks', tex: 'nem-marks' },
+      { key: 'interdictor', tex: 'champ-interdictor' },
     ];
 
     for (const c of chars) {
@@ -295,6 +299,7 @@ export class PreloadScene extends Phaser.Scene {
       { key: 'nembrute', tex: 'nem-brute' },
       { key: 'nemdemo',  tex: 'nem-demo' },
       { key: 'nemmarks', tex: 'nem-marks' },
+      { key: 'interdictor', tex: 'champ-interdictor' },
     ];
     for (const c of posed) {
       poseDirs.forEach((dirName, di) => {

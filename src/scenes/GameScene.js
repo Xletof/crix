@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, ENDLESS, FONTS, HUDCFG, VIEW, DEPTH, LIGHTSOUT, CAMERA, bossMechanicsFor, bossMechanicById } from '../config.js';
+import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, ENDLESS, FONTS, HUDCFG, VIEW, DEPTH, LIGHTSOUT, CAMERA, bossMechanicsFor, bossMechanicById, CHAMPION } from '../config.js';
 import { EnvLight } from '../systems/EnvLight.js';
 import { consoleEmissives, CONSOLE_KIT } from '../data/consoleKit.js';
 import { Player } from '../entities/Player.js';
@@ -26,9 +26,12 @@ import {
 import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.js';
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
-  isEncDebug, getEncForce,
+  isEncDebug, getEncForce, isChampDebug,
 } from '../systems/debug.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
+import { attachHazards } from '../systems/Hazard.js';
+import { Champion } from '../entities/Champion.js';
+import { championMoveById } from '../data/champions.js';
 import { moveById } from '../data/nemesisMoves.js';
 
 // First nemesis move lands 2s in, not a full `everyMs` later — see
@@ -238,6 +241,10 @@ export class GameScene extends Phaser.Scene {
     // each one owning a timer, so a paused or torn-down scene stops them all —
     // the same reason Vader's mechanic clocks live on him.
     attachTelegraphs(this);
+    // Persistent hazards — the Champion's seams. Same lifecycle shape as the
+    // telegraphs above and swept by the same room teardown, because a damaging
+    // region that survives its room is the worst failure the class can have.
+    attachHazards(this);
 
     // ── Player ─────────────────────────────────────────────────────────────
     this.player = new Player(this, 200, 200);
@@ -903,6 +910,10 @@ export class GameScene extends Phaser.Scene {
     // drip/roll/elite all read this merged object
     this.arenaCfg    = this._applySectorScaling(this._applyModifier({ ...this._roomArenaCfg, ...wave }));
     this._resolveEncounter(wave);
+    // DEBUG ONLY, and a no-op without `?champdbg=1`. Placed after the encounter
+    // resolves so the Champion arrives INTO the authored composition rather
+    // than instead of it.
+    this._maybeInjectChampion(wave);
     // Wipe the baked blood/scorch from the previous wave — each wave (and each
     // new room/sector, since those start at wave 0) begins on a clean floor.
     this.decalRT?.clear();
@@ -952,6 +963,11 @@ export class GameScene extends Phaser.Scene {
     // this method is about to destroy, and its timers would otherwise fire into
     // the next room — which is how a sector inherits a blackout.
     this._clearLightsOut();
+    // Seams before telegraphs, and before the enemies that own them: a
+    // Champion's `die()` retires its own, but a room change destroys the actor
+    // outright, so the scene has to be able to sweep one whose author is
+    // already gone. Idempotent at both ends.
+    this.clearHazards?.();
     // Telegraphs first. They are owned by their caster, so destroying enemies
     // sweeps most of them — but a zone whose caster already died is held only
     // by the scene list, and one surviving a room change is a red circle
@@ -4058,6 +4074,7 @@ export class GameScene extends Phaser.Scene {
     this._tickArena(delta);
     this._tickNemesis(delta);
     this.tickTelegraphs(delta);
+    this.tickHazards(delta);
     this._tickNemesisMoves(delta);
 
     // Health orbs
@@ -5930,6 +5947,99 @@ export class GameScene extends Phaser.Scene {
    * Nothing here decides what a move DOES, which is what keeps adding a fifth
    * move a data change rather than a scene change.
    */
+  /**
+   * Spawn one Champion. DEBUG-ONLY reachable for now — see `_maybeInjectChampion`.
+   *
+   * Goes through the real enemy pipeline: the same group, the same wall
+   * collider, the same `RoomManager` registration and the same nav grid every
+   * ordinary enemy uses, so what is being evaluated is what would ship. The
+   * only thing that differs is the class.
+   */
+  spawnChampion(x, y, def = CHAMPION.interdictor) {
+    const c = new Champion(this, x, y, def, { behavior: 'swarm', alerted: true });
+    c.coverRegistry = this.coverRegistry;
+    this.enemies.add(c);
+    this.physics.add.collider(c, this.walls);
+    this.roomManager.registerEnemy();
+    this.events.emit('champion-spawned', c);
+    return c;
+  }
+
+  /**
+   * Cast a Champion move through the SAME four-beat contract as everything else.
+   *
+   * `runMove` throws if a script has no ACT phase, which is the guard that
+   * stops a move being a telegraph with an enemy standing next to it. The
+   * handle is forwarded to `onCancel` for the same reason the nemesis path
+   * needs it: `MoveScript.cancel` sweeps anything on the handle with a
+   * `destroy()`, and a barrier is retired by the actor rather than by the
+   * handle, so the two cleanups are separate and both idempotent.
+   */
+  _castChampionMove(e, id) {
+    const move = championMoveById(id);
+    if (!move || !this.player?.alive) return null;
+    // ONE AT A TIME — BUT A CANCELLED MOVE IS NOT A CLAIM.
+    //
+    // `MoveScript.cancel()` deliberately does NOT clear `actor._activeMove`
+    // (only the `done` path does), so a handle interrupted mid-wind-up sits on
+    // the actor for ever with `phase: 'anticipate'`. Testing the phase alone
+    // therefore refuses every future cast and the Champion goes permanently
+    // inert after its first interruption — caught by `smoke-champion`, which
+    // cancels a move and then asserts the next one still lands. This is the
+    // same rule `CameraDirector._bossFramable` follows for the same field, and
+    // the nemesis path at `_castNemesisMove` still has the untreated version.
+    const active = e._activeMove;
+    if (active && !active.cancelled && active.phase !== 'done') return null;
+
+    const handle = runMove(this, e, {
+      id: move.id,
+      anticipateMs: move.anticipateMs,
+      actMs: move.actMs,
+      recoverMs: move.recoverMs,
+      anticipate: (sc, actor, h) => move.anticipate?.(sc, actor, h),
+      act: (sc, actor, h) => move.act(sc, actor, h),
+      impact: (sc, actor, h) => move.impact?.(sc, actor, h),
+      recover: (sc, actor, h) => move.recover?.(sc, actor, h),
+      onCancel: (sc, actor, h) => { actor._champCharge = 0; move.onCancel?.(sc, actor, h); },
+    });
+    handle.move = move;
+    return handle;
+  }
+
+  /**
+   * DEBUG ONLY — put exactly one Champion into the wave that just started.
+   *
+   * NORMAL ENDLESS SPAWNS NO CHAMPION. There is no entry for it in any
+   * encounter's pool, no branch in `_rollEnemyType` and no chance roll
+   * anywhere: the ONLY way one reaches the floor is this method, and it returns
+   * immediately without the flag. That is the same shape the encounter debug
+   * force uses — the production path is not merely unlikely to produce one, it
+   * cannot.
+   *
+   * It rides `_startWave` rather than a timer so the Champion arrives with the
+   * real encounter: real room, real authored queue, real ordinary enemies at
+   * their real cadence, one real Champion standing in it. There is no separate
+   * arena and nothing is simulated.
+   */
+  _maybeInjectChampion(wave) {
+    if (!isChampDebug()) return null;
+    if (wave?.miniBoss || this.roomSpec?.boss) return null;
+    if (this.enemies.getChildren().some((e) => e.alive && e.isChampion)) return null;
+    // At a gate, like everything else, and never inside the 400px safety the
+    // ordinary spawner keeps. A Champion materialising on the player would make
+    // its first INTERDICT unreadable through no fault of the design.
+    const g = this._nextEncounterGate() || this.roomSpec?.gates?.[0];
+    const px = this.player?.x ?? 0, py = this.player?.y ?? 0;
+    let x = g?.x ?? px, y = g?.y ?? py;
+    if (Math.hypot(x - px, y - py) < 400) {
+      const gates = this.roomSpec?.gates || [];
+      const far = gates.reduce((a, b) => (
+        Math.hypot(a.x - px, a.y - py) >= Math.hypot(b.x - px, b.y - py) ? a : b), gates[0] || { x, y });
+      x = far.x; y = far.y;
+    }
+    return this.spawnChampion(x, y);
+  }
+
   _castNemesisMove(e, forcedId = null) {
     const id = forcedId || (e._moveIds.length
       ? e._moveIds[(e._moveIdx = ((e._moveIdx ?? -1) + 1) % e._moveIds.length)]
@@ -6259,6 +6369,19 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // ── CHAMPION moves ────────────────────────────────────────────────────
+    // A SEPARATE loop from the nemesis one above, on purpose. The nemesis
+    // rotation is one clock cycling a list; a Champion runs two independent
+    // clocks, one of which is conditional on the player having closed, and
+    // folding it into the rotation would have made PURGE fire at a player who
+    // is nowhere near it. Ticked here with everything else so a Champion killed
+    // mid-wind-up takes its pending move with it.
+    for (const e of this.enemies.getChildren()) {
+      if (!e.alive || !e.isChampion) continue;
+      const due = e.dueMove(delta);
+      if (due) this._castChampionMove(e, due);
+    }
+
     this._tickTraitTells(delta);
 
     // Afterimages hold Vader's silhouette. The grunt AI they ride on swaps
@@ -6426,6 +6549,9 @@ export class GameScene extends Phaser.Scene {
       waves: waves?.length ?? 0,
       boss: !!this.roomSpec?.boss,
       duel: !!wave?.miniBoss,
+      // Counted live off the enemy group, never off what was injected.
+      champions: this.enemies.getChildren().filter((e) => e.alive && e.isChampion).length,
+      champion: this.enemies.getChildren().find((e) => e.alive && e.isChampion)?.def?.name ?? '\u2014',
     };
   }
 

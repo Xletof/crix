@@ -1653,6 +1653,95 @@ export function bossMechanicsFor(n) {
   return ids.map(bossMechanicById).filter(Boolean);
 }
 
+// ── CHAMPIONS ───────────────────────────────────────────────────────────────
+//
+// PHASE B, AND A CANDIDATE. The Champion is the intended replacement for the
+// Nemesis as the player-facing special enemy; this is one vertical slice built
+// to prove the quality bar, not a system to populate yet.
+//
+// WHY THIS ONE EXISTS, in the words of the finding that produced it: every
+// threat the six ordinary enemies own is a body or a projectile, so no
+// encounter composition can ask WHERE ARE YOU ALLOWED TO STAND. Phase A gave
+// the roster a grammar; the Interdictor is meant to add a verb.
+//
+// IT IS NOT A MINI-BOSS, and three numbers say so rather than a comment: two
+// moves, no ordinary attack at all, and an hp pool a little over four grunts.
+// The priority comes from what it is DOING. A Champion the player kills first
+// because it takes a long time to kill is the thing the human rejected about
+// the Nemesis, restated.
+export const CHAMPION = {
+  interdictor: {
+    id: 'interdictor',
+    name: 'INTERDICTOR',
+    tex: 'champ-interdictor',
+    anim: 'interdictor',
+    // Ø60. Between the Ø44 rank and file and Vader's Ø112, and DERIVED against
+    // the navigation debt rather than picked: `NavGrid.build` inflates a body
+    // rect by 23px per side, so a Ø60 body needs 60 + 46 = 106px of gap, well
+    // inside the junction's authored 160px lane (which was itself derived for
+    // Ø112). Anywhere Vader can walk, this can walk. Do not raise it without
+    // re-deriving that.
+    radius: 30,
+    // Four and a bit grunts (320). Meaningfully above the line and nowhere near
+    // the Nemesis's 6x-plus-traits. Elite is x2.5 of an archetype; this is its
+    // own number because a Champion is not an upgraded trooper.
+    hp: 1400,
+    // SLOWER THAN EVERYTHING, including the shielded's 140. A siege piece walks.
+    // It is also what makes the seam readable: a controller that could keep pace
+    // with the player would be redrawing the floor faster than the floor can be
+    // read.
+    speed: 118,
+    // It advances to here and then holds. Inside this it stops closing, which
+    // is what stops a no-ranged-attack unit from simply walking into the player
+    // and shoving them around the room.
+    holdRange: 430,
+    // THE IDENTITY COLOUR, and it is chosen by ELIMINATION. Green is enemy
+    // bullet colour and reads as incoming fire. Crimson is Vader, the SABER
+    // THROW lane and every telegraph. Amber is the arenas' emergency power.
+    // Cyan is their screens. Violet is the one hue in this game that is not
+    // already spoken for, and `Telegraph` drags any authored colour's FILL back
+    // toward danger anyway, so the zone still reads as a threat while the
+    // outline and the shimmer stay the Champion's own.
+    color: 0xb060ff,
+
+    // ── INTERDICT — the space claim ────────────────────────────────────────
+    // A LINE, not a disc, and that is the whole design. These arenas are lanes,
+    // a crossing and an escort floor; a disc is something you walk around, a
+    // line is a side you have to choose. It is aimed at the player's position
+    // when the wind-up STARTS, so the wind-up is genuinely the window to leave
+    // — and it is anchored to the WORLD, so it stays where it was put.
+    interdict: {
+      everyMs: 10000,        // one seam at a time, and 4.5s of clean floor between
+      anticipateMs: 900,     // long, and long on purpose: this is a placement
+      actMs: 320,
+      recoverMs: 900,
+      laneLen: 460,
+      laneWidth: 52,
+      lifeMs: 5500,
+      growMs: 260,           // it grows OUT of the pylon; the far end is late
+      warnMs: 1100,          // and visibly fails before it goes
+      tickDamage: 90,        // 9% of the pool. A tax for crossing, not a kill.
+      tickMs: 460,
+    },
+
+    // ── PURGE — the punish ─────────────────────────────────────────────────
+    // The obvious counter to a floor seam is to stand ON the machine that drew
+    // it, where it cannot draw another one usefully. This is what costs. It
+    // fires ONLY inside `range`, so a player keeping their distance never sees
+    // it — the move exists to close one answer, not to add damage.
+    purge: {
+      everyMs: 6500,
+      range: 240,            // slightly outside the zone, so closing is the tell
+      anticipateMs: 620,
+      actMs: 240,
+      recoverMs: 1000,
+      radius: 190,
+      damage: 160,
+      knockback: 620,
+    },
+  },
+};
+
 export const MODIFIERS = {
   frenzy:     { id: 'frenzy',     name: 'FRENZY',      color: '#ff5030', speedMult: 1.28, spawnRateMult: 0.8 },
   eliteGuard: { id: 'eliteGuard', name: 'ELITE GUARD', color: '#ffd040', eliteChance: 0.35 },

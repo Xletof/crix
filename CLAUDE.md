@@ -735,8 +735,11 @@ asserts separately that the ceiling is not reached.
   grow a grammar.** `GameScene._resolveEncounter` is the whole engine side and
   **every exit leaves the old path intact**: null encounter → `_rollEnemyType`
   and the ordinary far-gate picker, which is exactly the pre-Phase-A code.
-  **PHASE A IS A CANDIDATE, NOT APPROVED** — `HANDOVER.md` §10ac, and every
-  number in the table is a handset dial until a verdict says otherwise.
+  **PHASE A IS HUMAN-APPROVED AND FROZEN 🔒** — handset play confirmed the
+  archetypes are identifiable from composition alone WITH THE DEBUG LABELS OFF,
+  which was the whole thesis. `HANDOVER.md` §10ac. The compositions, the gate
+  rules, the sector bands and the pressure multipliers do not move without NEW
+  handset evidence.
 - **THE BOSS ROOM IS EXCLUDED BY ABSENCE, NOT BY A BRANCH.** `vader` has no
   entry in `ENCOUNTER_PLAN`, so `encounterFor` returns null and its escort waves
   run untouched; the duel wave is refused by the caller on `wave.miniBoss`.
@@ -800,6 +803,48 @@ asserts separately that the ceiling is not reached.
   is to emit `room-cleared` at zero, and the wave machine reads
   `_livingEnemyCount()` rather than that counter. Never drive that counter to
   zero in a sweep — that fires `room-cleared` and completes the room.
+- **THE FIRST CHAMPION IS A CANDIDATE — `HANDOVER.md` §10ad.** The INTERDICTOR
+  is the intended replacement for the Nemesis as the player-facing special
+  enemy, shipped as one vertical slice behind `?champdbg=1`. **Normal Endless
+  spawns none**: no entry in any encounter pool, no branch in `_rollEnemyType`,
+  no chance roll — the production path CANNOT produce one. Nemesis is untouched
+  and stays that way until this passes a handset. Do not build a second
+  Champion, do not start the migration, do not add regular enemies.
+- **A CANCELLED MOVE HANDLE IS NOT A CLAIM, AND A SCHEDULER THAT FORGETS THAT
+  GOES INERT FOR THE REST OF THE ROOM.** `MoveScript.cancel()` deliberately does
+  not clear `actor._activeMove` (only the `done` path does), so an interrupted
+  handle sits on the actor for ever with `phase: 'anticipate'`. Any "one move at
+  a time" gate must test `!handle.cancelled && phase !== 'done'`, never the
+  phase alone. `_castChampionMove` does; **`_castNemesisMove` does NOT and is a
+  live latent bug** in the legacy system, left alone on purpose. Same rule
+  `CameraDirector._bossFramable` follows for the same field.
+- **A PERSISTENT HAZARD HAS ONE OWNER AND THREE INDEPENDENT SWEEPS.**
+  `src/systems/Hazard.js` mirrors `Telegraph`'s lifecycle: `spawnBarrier` /
+  `tickHazards` / `clearHazards`. A seam is retired by the NEXT cast (one per
+  Champion, always), by the Champion's `die()`/`destroy()`, and by
+  `_clearRoomEntities`. All three are idempotent because none can know about the
+  others. **A damaging region that outlives the machine that drew it is worse
+  than no hazard** — the same reason a telegraph that outlives its attack is
+  worse than none.
+- **THE SEAM IS A LINE, NOT A DISC, AND THE SHAPE IS THE HIT TEST.**
+  `Barrier.contains()` runs the arithmetic the renderer draws, growth included —
+  during the 260ms grow the far end genuinely does not hurt yet. Never draw one
+  shape and resolve another. It is a line because these arenas are lanes, a
+  crossing and an escort floor: a disc is walked around, a line is a side you
+  have to choose.
+- **AN ENEMY PAINTED FROM A PALETTE FAMILY'S BOTTOM END IS INVISIBLE ON THIS
+  DECK.** The Champion's first build used `impDark`/`impMid`/`impGrey` (#14161c
+  to #2e3038) and photographed as an unidentifiable dark blob on the #212328
+  hangar deck — the whole silhouette present and none of it readable. Place an
+  actor's value ladder against the DECK, not inside a family: top plates two
+  steps above it, body one, underside black. Troopers are white and Vader is
+  black; anything new sits between the two things it must not be confused with.
+  Same family as the shuttle borrowing `imp*`'s TOP end, in the other direction.
+- **A CHAMPION GETS NO BANNER, AND THAT IS A QUALITY DECISION.** Vader's moves
+  announce themselves by name; a Champion's must not. The claim is that the
+  model, the wind-up and the effect explain the mechanic on their own — a move
+  that only reads because its name is printed across the screen has
+  communicated nothing, which is exactly what `?nonames=1` exists to ask.
 - **An upgrade's `apply` can run more than once.** `pickThree` falls back to the
   FULL pool once fewer than three cards are untaken, so past ~sector 13 cards
   repeat. Effects take an `s` scale and must be written as magnitudes

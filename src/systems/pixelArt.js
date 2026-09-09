@@ -6618,3 +6618,214 @@ export function paintNemesisMarksman(scene, key = 'nem-marks') {
     },
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHAMPION — THE INTERDICTOR
+//
+// IT IS NOT A HUMANOID, AND THAT IS THE WHOLE SILHOUETTE DECISION. All six
+// ordinary enemies are troopers: a 20x20 helmet-over-shoulders shape that
+// differs between archetypes by palette and by a shield arc. Making the
+// Champion a seventh trooper — even a big gold one — is exactly the "special
+// enlarged normal enemy" the human rejected about the Nemesis. So the read has
+// to come from the SHAPE, before any colour, tint or attack: this thing is
+// WIDE, LOW, LEGLESS at the top and carries a TALL OFF-CENTRE MAST. At handset
+// scale that reads as machinery among people at a glance.
+//
+// 28x28 at scale 4 = a 112px sprite over a Ø60 body. That ratio (1.87) is the
+// grunt's (80px over Ø44 = 1.82) — the art may not promise more mass than the
+// collider has, which is the same rule that froze the console kit's footprint.
+//
+// THE MAST IS THE FUNCTION. Everything the Interdictor does comes out of the
+// emitter head on top of it: the wind-up lights it, the seam grows from it, and
+// the anchor posts on the floor are the same violet. Model, attack and effect
+// are one claim, said three times.
+//
+// A NOTE ON THE ROUND FORMS. This game cannot say a big smooth pixel circle —
+// its edge lands somewhere different against the grid at every bearing and
+// reads as a low-resolution approximation (the hero machine came back from
+// review as exactly that). The hull is therefore a FACETED octagonal drum built
+// from horizontals, verticals and 45-degree cuts, with the only true circles
+// small: the emitter lens at r=2 and the vents at r=1.
+const CHAMP_W = 28, CHAMP_H = 28, CHAMP_FRAMES = 33;
+
+export function paintInterdictor(scene, key = 'champ-interdictor') {
+  const ss = new SpriteSheet(scene, key, CHAMP_W, CHAMP_H, CHAMP_FRAMES, 4);
+  const C = PAL;
+  const VIO = '#b060ff';
+  const VIO_HOT = '#e0c0ff';
+  const VIO_DEEP = '#5a2090';
+
+  /**
+   * @param f      frame index
+   * @param bob    vertical rock of the hull, in logical px
+   * @param dir    'front' | 'back' | 'side'
+   * @param hurt   white flash
+   * @param pose   null | 'raise' | 'thrust' | 'recoil'
+   * @param charge 0..1 — how lit the emitter is
+   */
+  function drawUnit(f, bob = 0, dir = 'front', hurt = false, pose = null, charge = 0) {
+    ss.frame(f);
+    // Poses drive the MAST rather than a limb, because the mast is what acts.
+    // `raise` rears it up and back, `thrust` drives it down and forward (the
+    // frame the seam leaves on), `recoil` leaves it slumped and open — which is
+    // the beat that has to look punishable, since RECOVER is what turns a dodge
+    // into a decision.
+    const mastDy = pose === 'raise' ? -2 : pose === 'thrust' ? 1 : pose === 'recoil' ? 3 : 0;
+    const mastDx = pose === 'raise' ? -1 : pose === 'thrust' ? 2 : pose === 'recoil' ? -2 : 0;
+    const lit = pose === 'raise' ? Math.max(charge, 0.75)
+      : pose === 'thrust' ? 1 : pose === 'recoil' ? 0.15 : charge;
+
+    // ── VALUE, AND IT IS THE WHOLE READ ───────────────────────────────────
+    // The first build painted this from `impDark`/`impMid`/`impGrey` — the
+    // Imperial family's BOTTOM end, #14161c to #2e3038 — and photographed as an
+    // unidentifiable dark blob on a #212328 hangar deck: the silhouette work
+    // was all there and none of it was visible. Same family as the shuttle
+    // borrowing `imp*`'s TOP end and coming out lighter than the deck, in the
+    // other direction.
+    //
+    // The ladder is now placed against the DECK rather than inside a palette
+    // family: top plates two clear steps above it, body one, underside black.
+    // A stormtrooper is white and Vader is black, so a mid-grey machine sits
+    // between the two things it must not be confused with.
+    const top  = hurt ? '#ffffff' : C.impSheen;    // #7a7c80 — catches the north light
+    const face = hurt ? '#ffffff' : C.impSilver;   // #5a5c62 — the plate body
+    const side = hurt ? C.impSheen : C.impGrey;    // #2e3038 — turned away
+    const deep = hurt ? C.impSilver : C.impDark;
+    const trim = hurt ? '#ffffff' : C.metalLight;
+
+    const hy = 13 + bob;          // hull centre row
+
+    // ── OUTRIGGER FEET ────────────────────────────────────────────────────
+    // Two heavy pads, splayed to the full width of the canvas and BELOW the
+    // hull. They are the widest thing in the sprite and the reason the base
+    // reads as planted machinery rather than as legs.
+    const footY = hy + 7;
+    for (const fx of [1, 21]) {
+      ss.rect(fx, footY, 6, 4, deep);
+      ss.hline(footY, fx, fx + 5, face);
+      ss.hline(footY + 1, fx, fx + 5, side);
+      ss.hline(footY + 3, fx, fx + 5, C.black);
+      ss.px(fx + 1, footY, trim);
+    }
+    // Angled struts, hull down to pad, as 45-degree steps.
+    ss.px(6, hy + 4, side); ss.px(5, hy + 5, side); ss.px(4, hy + 6, deep);
+    ss.px(21, hy + 4, side); ss.px(22, hy + 5, side); ss.px(23, hy + 6, deep);
+
+    // ── HULL: a faceted, chamfered drum ───────────────────────────────────
+    // Four straight sides and four 45-degree cuts. No curve: a big smooth pixel
+    // circle has no stable stair pattern in this game's grid and reads as a
+    // low-resolution approximation, which is the verdict the hero machine came
+    // back with. Wide and LOW — 18 across, 9 tall.
+    ss.hline(hy - 5, 9, 18, side);              // chamfer, top
+    ss.hline(hy - 4, 7, 20, top);
+    ss.hline(hy - 3, 6, 21, top);
+    ss.hline(hy - 2, 5, 22, face);
+    ss.hline(hy - 1, 5, 22, face);
+    ss.hline(hy,     5, 22, face);
+    ss.hline(hy + 1, 5, 22, side);
+    ss.hline(hy + 2, 6, 21, side);
+    ss.hline(hy + 3, 7, 20, deep);
+    ss.hline(hy + 4, 9, 18, C.black);           // chamfer, bottom — contact shade
+    // A hard specular lip along the leading edge, so the top plane is a plane.
+    ss.hline(hy - 4, 9, 16, trim);
+    // Plate seams: three at irregular spacing. An unbroken plate is what makes
+    // the broken ones read as joins — six even ones would read as a dial.
+    ss.vline(8, hy - 3, hy + 2, side);
+    ss.vline(13, hy - 4, hy + 3, side);
+    ss.vline(19, hy - 3, hy + 2, side);
+
+    // ── THE IDENTITY STRIPES ──────────────────────────────────────────────
+    // Two violet indicator bars on the shoulders. At 1x the emitter lens alone
+    // is three pixels and disappears into the crowd; these are what make the
+    // Champion's colour legible on the BODY before it does anything.
+    ss.hline(hy - 2, 6, 8, lit > 0.5 ? VIO_HOT : VIO);
+    ss.hline(hy - 2, 19, 21, lit > 0.5 ? VIO_HOT : VIO);
+
+    // ── DIRECTIONAL FACE ──────────────────────────────────────────────────
+    if (dir === 'front') {
+      ss.rect(10, hy, 8, 3, C.black);
+      ss.hline(hy + 1, 11, 16, deep);
+      ss.px(12, hy + 1, VIO); ss.px(15, hy + 1, VIO);
+    } else if (dir === 'back') {
+      ss.rect(10, hy - 1, 8, 4, deep);
+      ss.hline(hy - 1, 10, 17, side);
+      for (const vx of [11, 13, 15, 17]) ss.vline(vx, hy, hy + 2, C.black);
+    } else {
+      // Side: the drum's profile, the intake on one flank and the mast collar
+      // on the other, so the two flanks are not mirror images.
+      ss.rect(6, hy - 1, 6, 4, deep);
+      ss.hline(hy - 1, 6, 11, side);
+      ss.px(7, hy + 1, VIO);
+      ss.rect(16, hy - 2, 6, 5, face);
+      ss.hline(hy - 2, 16, 21, top);
+      ss.hline(hy + 2, 16, 21, C.black);
+    }
+
+    // ── THE MAST ──────────────────────────────────────────────────────────
+    // OFF CENTRE BY FOUR, and braced on one side only. A centred mast leaves
+    // the unit bilaterally symmetric — which every trooper already is — and
+    // symmetry is most of what makes a shape read as a person. The asymmetry is
+    // the single strongest thing in this silhouette.
+    const mx = (dir === 'side' ? 12 : 18) + mastDx;
+    const mTop = hy - 12 + mastDy;
+    // Shaft: five wide, not three. At 1x a 3px stick is a scratch.
+    ss.rect(mx - 2, mTop + 3, 5, hy - 5 - mTop, side);
+    ss.vline(mx - 2, mTop + 3, hy - 5, face);
+    ss.vline(mx + 2, mTop + 3, hy - 5, C.black);
+    ss.vline(mx, mTop + 3, hy - 5, deep);
+    // The brace: one diagonal strut back to the hull, on one side only.
+    for (let i = 0; i < 4; i++) ss.px(mx - 3 - i, hy - 4 - i + 4, deep);
+    // Two collars up the shaft.
+    ss.hline(mTop + 6, mx - 3, mx + 3, trim);
+    ss.hline(mTop + 10, mx - 3, mx + 3, face);
+
+    // ── EMITTER HEAD: a wide yoke ─────────────────────────────────────────
+    // The distinctive top of the silhouette, and deliberately WIDER than the
+    // shaft so the profile is an anvil rather than a post. This is the one
+    // place the violet lives brightly, and it BRIGHTENS with the charge — the
+    // body sprite never rotates, so this is the only thing that can carry the
+    // anticipation on the machine itself rather than only on the floor.
+    ss.rect(mx - 4, mTop, 9, 3, face);
+    ss.hline(mTop, mx - 4, mx + 4, top);
+    ss.hline(mTop + 2, mx - 4, mx + 4, C.black);
+    ss.px(mx - 4, mTop + 1, deep); ss.px(mx + 4, mTop + 1, deep);
+    // Downswept prongs at both ends of the yoke.
+    ss.px(mx - 5, mTop + 1, side); ss.px(mx - 5, mTop + 2, deep);
+    ss.px(mx + 5, mTop + 1, side); ss.px(mx + 5, mTop + 2, deep);
+
+    const lensCore = lit > 0.66 ? VIO_HOT : lit > 0.2 ? VIO : VIO_DEEP;
+    ss.rect(mx - 2, mTop + 1, 5, 1, lensCore);
+    ss.px(mx, mTop, lit > 0.5 ? '#ffffff' : lensCore);
+    if (lit > 0.5) {
+      ss.px(mx - 3, mTop + 1, VIO); ss.px(mx + 3, mTop + 1, VIO);
+      ss.px(mx, mTop - 1, VIO);
+    }
+    if (lit > 0.9) {
+      // Full charge throws a short arc between the prongs — the frame the seam
+      // leaves on, and the one that has to look like a discharge.
+      ss.px(mx - 4, mTop - 1, VIO_HOT); ss.px(mx + 4, mTop - 1, VIO_HOT);
+      ss.px(mx - 2, mTop - 2, VIO); ss.px(mx + 2, mTop - 2, VIO);
+      ss.px(mx, mTop - 3, VIO_HOT);
+    }
+  }
+
+  // Frame layout is the SHARED ACTOR CONTRACT — 0-7 front, 8-15 back, 16-23
+  // side (idle, six walk, fire), then 24-32 the three poses per facing. The
+  // arithmetic is `POSE_BASE + facingIndex * 3 + poseIndex` and PreloadScene
+  // derives every anim key from it, so this order is not negotiable.
+  //
+  // The walk is a two-step ROCK, not a stride: it has no legs to cycle, and a
+  // heavy machine settling on alternate outriggers is what the six frames say.
+  const ROCK = [0, -1, 0, 1, 0, -1];
+  const dirs = ['front', 'back', 'side'];
+  dirs.forEach((d, di) => {
+    const base = di * 8;
+    drawUnit(base, 0, d, false, null, 0.25);                 // idle: a low pilot glow
+    ROCK.forEach((b, i) => drawUnit(base + 1 + i, b, d, false, null, 0.25));
+    drawUnit(base + 7, 0, d, false, null, 0.85);             // "fire": head lit
+  });
+  const poses = ['raise', 'thrust', 'recoil'];
+  dirs.forEach((d, di) => poses.forEach((p, pi) => drawUnit(24 + di * 3 + pi, 0, d, false, p)));
+
+  ss.finish();
+}

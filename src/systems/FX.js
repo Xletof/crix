@@ -464,6 +464,38 @@ export function __fxDebug() {
 }
 
 export const SFX = {
+  // ── CHAMPION: THE INTERDICTOR ─────────────────────────────────────────
+  // Three cues, and they are deliberately MACHINE rather than weapon: a
+  // capacitor winding, a hard fusing snap, and a discharge. Nothing in the
+  // game's existing palette says "industrial plant" — blasters are bright
+  // square zaps and Vader is low sawtooth — so the Champion is identifiable by
+  // ear before it is on screen, which matters on a portrait phone where it can
+  // be arriving from off frame.
+  //
+  // ON A PHONE, SPECTRUM BEATS GAIN. Handset speakers have almost no output
+  // below ~400Hz, so the recognisable part of each cue is carried by the upper
+  // partial; the low body is there for a desktop and costs nothing when it is
+  // inaudible. The saber hum was inaudible on mobile for exactly the opposite
+  // choice.
+  champCharge() {
+    // Rising, not falling — everything else in the game slides DOWN. A rise is
+    // unambiguously "something is being loaded".
+    tone({ freq: 320, type: 'sawtooth', dur: 0.42, gain: 0.10, slide: 520 });
+    tone({ freq: 940, type: 'square', dur: 0.40, gain: 0.055, slide: 760, vary: 0.05 });
+  },
+  champSeam() {
+    // The fusing snap: a hard transient plus a short bright tail, so the moment
+    // the seam exists has an edge in the mix as well as on the floor.
+    noise({ dur: 0.16, gain: 0.20, hp: 900 });
+    tone({ freq: 1500, type: 'square', dur: 0.10, gain: 0.13, slide: -520 });
+    tone({ freq: 210, type: 'sawtooth', dur: 0.30, gain: 0.16, slide: -70 });
+  },
+  champPurge() {
+    noise({ dur: 0.26, gain: 0.24, hp: 420 });
+    tone({ freq: 620, type: 'sawtooth', dur: 0.22, gain: 0.18, slide: -420 });
+    tone({ freq: 1250, type: 'square', dur: 0.09, gain: 0.09, slide: -700, delay: 0.02 });
+  },
+
   // Mandalorian blaster — snappy high-pitched zap (Star Wars blaster feel)
   shoot() {
     tone({ freq: 1400, type: 'square', dur: 0.05, gain: 0.16, slide: -900, vary: 0.12 });

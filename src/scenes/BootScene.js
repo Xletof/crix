@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
   setDialogueMuted, setDuelRequest, parseDuelParams, setHitstopMuted, setMoveNamesMuted,
-  setEncDebug, setEncForce, parseEncDebugParams,
+  setEncDebug, setEncForce, parseEncDebugParams, setChampDebug,
 } from '../systems/debug.js';
 import { ENCOUNTERS } from '../data/encounters.js';
 import { CAMERA } from '../config.js';
@@ -44,6 +44,10 @@ export class BootScene extends Phaser.Scene {
       setEncForce(enc.force && ENCOUNTERS[enc.force] ? enc.force : null);
       this.registry.set('encdbgStart', { room: enc.room, sector: enc.sector });
     }
+
+    // `?champdbg=1` injects one Champion into each ordinary wave — the Phase B
+    // vertical slice. Debug only; normal Endless spawns none.
+    if (params.has('champdbg')) setChampDebug(true);
 
     this.scene.start('Preload');
   }

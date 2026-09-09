@@ -6,7 +6,7 @@ import { DashButton } from './DashButton.js';
 import { MeleeButton } from './MeleeButton.js';
 import { HackMinigame } from './HackMinigame.js';
 import { getControl } from './controlLayout.js';
-import { isEncDebug, getEncForce, setEncForce } from './debug.js';
+import { isEncDebug, getEncForce, setEncForce, isChampDebug } from './debug.js';
 import { ENCOUNTERS } from '../data/encounters.js';
 import { ROOMS } from '../data/rooms.js';
 import { SFX } from './FX.js';
@@ -303,7 +303,9 @@ export class HUDScene extends Phaser.Scene {
     // fire stick's claim region so tapping it never starts an aim drag).
     this._buildPauseButton();
     // PHASE A TEST HARNESS. Built only under `?encdbg` — see systems/debug.js.
-    if (isEncDebug()) this._buildEncounterDebug();
+    // Either flag raises it: `?champdbg=1` on its own still needs a way to
+    // confirm the Champion is actually on the floor.
+    if (isEncDebug() || isChampDebug()) this._buildEncounterDebug();
 
     // Joysticks
     const moveL = getControl('moveStick');
@@ -790,7 +792,7 @@ export class HUDScene extends Phaser.Scene {
     // worth reading. Fixed size rather than fitted to the text: the string
     // changes every wave and a plate that resized with it would flicker.
     this.add.graphics().setDepth(47)
-      .fillStyle(0x000000, 0.55).fillRoundedRect(8, 88, 248, 80, 6);
+      .fillStyle(0x000000, 0.55).fillRoundedRect(8, 88, 258, 98, 6);
 
     this.encText = this.add.text(12, 94, '', {
       fontFamily: FONTS.body, fontSize: '15px',
@@ -867,10 +869,17 @@ export class HUDScene extends Phaser.Scene {
     const msg = (this._encMsgUntil > this.time.now && this._encMsg) ? this._encMsg
       : (st.boss ? 'boss room — harness inactive'
         : st.duel ? 'duel wave — harness inactive' : '');
+    // The Champion line is only printed under `?champdbg`, and it reports what
+    // is actually alive rather than what was injected — a Champion the player
+    // has killed must stop being listed, or the label is lying about the floor.
+    const champ = isChampDebug()
+      ? `CHAMP ${st.champions > 0 ? `${st.champion} x${st.champions}` : '\u2014 (none alive)'}`
+      : '';
     const txt = [
       `SEL \u25b8 ${selName}`,
       `NOW   ${st.running ?? '\u2014'}`,
       `${st.room} \u00b7 S${st.sector} ${st.band} \u00b7 W${st.wave}/${st.waves}`,
+      champ,
       msg,
     ].filter(Boolean).join('\n');
     if (txt !== this._encTxt) { this._encTxt = txt; this.encText.setText(txt); }
