@@ -815,16 +815,65 @@ asserts separately that the ceiling is not reached.
   check** — `smoke-champion` asserts the Champion is the slowest thing on the
   floor. A test that pins a mistake is worse than no test.
   The TECHNOLOGY is sound and reusable: `Hazard.js`, the `?champdbg` harness,
-  `smoke-champion`'s structure and the cancelled-handle fix all stay. Phase B is
-  back at a combat-design gate. Normal Endless still spawns no Champion — no
+  `smoke-champion`'s structure and the cancelled-handle fix all stay. Its honest
+  future is an EMPLACEMENT — a terminal-defence turret or a deployable — where
+  `holdRange` stops being a bug. Normal Endless still spawns no Champion — no
   encounter pool entry, no `_rollEnemyType` branch, no chance roll — and Nemesis
   is still untouched.
-- **THE HARROWER IS THE ACTIVE CHAMPION CANDIDATE — `HANDOVER.md` §10ae.**
-  `?champdbg=1` spawns it; `?champdbg=interdictor` reaches the rejected one for
-  a side-by-side. Phase B.1 is FOUR VERBS — MOVE, PASS, WAKE, BANK — and no
-  signature attacks at all. **There is no `holdRange` and no stop condition
-  anywhere in `Harrower.js`**, by design: standing still is the failure the
-  concept exists against. Normal Endless spawns neither candidate.
+- **THE HARROWER IS HUMAN-REJECTED ❌ TOO — `HANDOVER.md` §10ae.** Handset
+  play: *"the first was a stationary bot and now this one looks like a sliding
+  skateboard bot."* DO NOT TUNE IT — not speed, not the pass planner, not the
+  wake, not `bankPunish`. `?champdbg=1` still spawns it and
+  `?champdbg=interdictor` the other one; **normal Endless spawns neither.** Its
+  honest future is a light vehicle or an environmental moving hazard, not a
+  combatant. The TECHNOLOGY is sound and stays: `Hazard.js`, the pass planner's
+  window trimming, the displacement-measured watchdog, `smoke-harrower`.
+- **BOTH CHAMPIONS FAILED ON CATEGORY, NOT ON NUMBERS, AND THE CAUSE IS ONE
+  LINE: I DESIGNED A MECHANIC AND THEN LOOKED FOR A BODY TO PUT IT IN.**
+  `HANDOVER.md` §10af is the two-candidate post-mortem and the doctrine.
+  Opposite theses — one that never moves, one that never stops — rejected in
+  the same word, *bot*. In both, the content was on the FLOOR and the actor was
+  its emitter; the body was then drawn to make the floor effect plausible,
+  which is how a Champion became an emplacement and then a craft. Apply the
+  DELETION TEST at design time: remove the actor and keep the effect — if the
+  fight barely changes, it is a hazard wearing a healthbar.
+- **A CHAMPION IS A CHARACTER, NOT A DEVICE — bipedal, humanoid, armed, and a
+  COMBATANT FROM THE FIRST BUILD.** Phase B.1 shipped four verbs and no attacks
+  on the theory that movement had to stand alone; a thing that cannot shoot
+  back cannot demonstrate that it is an opponent. The minimum viable Champion
+  is not the minimum viable MECHANIC. **The zone-control requirement is
+  DROPPED** — it was an invented constraint and it produced both failures.
+- **MOVEMENT MUST READ AS DECISION, AND "PERCENTAGE OF THE FIGHT IN MOTION" IS
+  NOT EVIDENCE OF PRESENCE.** `diag-harrower` measured 81% moving, 8 passes per
+  44s, worst stationary interval under 435ms — every bar cleared, actor
+  rejected. Constant-speed translation along a pre-validated line is what a
+  vehicle does, however fast. Approach, hesitate, commit, reposition is what a
+  person does.
+- **THE VISUAL / FANTASY GATE COMES FIRST, AND 1x IS THE ACCEPTANCE
+  AUTHORITY.** No entity file, no move, no test, no deploy for any Champion
+  until a human has approved a concept sheet at GAMEPLAY SCALE on a real arena
+  floor, beside the grunt, the shooter, the player and Vader. The enlarged view
+  is art inspection only. Two full implementations died at a handset on a
+  question that costs one picture to answer. **The IMPERIAL SHOCK CAPTAIN is at
+  that gate now**: concept sheet under `docs/evidence/champion-reset/`, no
+  `ShockCaptain.js`, no runtime path, nothing in `src/` importing the painter.
+- **A NEW ACTOR SITS BETWEEN THE TWO THINGS IT MUST NOT BE CONFUSED WITH, AND
+  ITS LADDER IS PLACED AGAINST THE DECK.** Troopers are cool white (`#dcdce8`),
+  Vader near-black (`#12121a`), the deck `#212328`. The Shock Captain concept's
+  first build was `#2e3038` and photographed as a second dark blob standing
+  next to Vader — technically between the two, visually one of them. Armour
+  three steps above the deck, top planes four. Same rule the arenas already
+  carry for props.
+- **AN ACTOR IS A HIGH-ANGLE TOP-DOWN FIGURE: DOME, SHOULDERS, CHEST, THREE
+  ROWS OF BOOT.** Vader is 40x40 with a 16px helmet dome; the grunt is 20x20
+  with an 11px one; the dome is built as a real circle graded north-to-south,
+  and the boots are three rows at the SOUTH edge. The first Shock Captain
+  concept ignored that and stacked horizontal colour bands, which photographed
+  as a machine rather than a man. **AND NO WEAPON IS EVER PAINTED INTO A BODY
+  SHEET** — every armed actor carries a separate `weaponSprite` overlay painted
+  EAST-facing at origin `(0.15, 0.5)`. A rifle baked into the body is a second
+  author for the same object, and it photographed as a pale slab across the
+  chest with the weapon out-reading the man.
 - **A `Wake` IS EMITTED, A `Barrier` IS PLACED.** Both live in `Hazard.js` and
   share `spawnBarrier`/`spawnWake`/`tickHazards`/`clearHazards`. A wake is ONE
   object holding a polyline, not N segments — a trail built from separately

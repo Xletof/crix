@@ -180,32 +180,43 @@ sufficient to create meaningfully different fights.
 rules, the sector bands or the pressure multipliers without NEW handset
 evidence. `?encdbg=1` stays as the evaluation harness.
 
-### THE ROSTER, PHASE B — THE INTERDICTOR IS **HUMAN-REJECTED** ❌
+### THE CHAMPION PROGRAM IS STOPPED AT A VISUAL GATE — BOTH CANDIDATES REJECTED ❌
 
-**Handset play rejected it as the Champion quality bar.** The verdict: almost
-stationary, dies to one Super or a few shots, far too slow, and too weak to be
-interesting even as an ordinary enemy. It plays as a **hazard carrier rather
-than an elite combatant** — the floor effect is the content and the Champion is
-merely its emitter.
+**INTERDICTOR and HARROWER are both HUMAN-REJECTED, and the second verdict was
+about the CATEGORY, not the candidate.** Two designs built on opposite
+mechanical theses — one that never moves, one that never stops — came back in
+the same word: *bot*.
 
-**The concept failed; the technology did not.** `MoveScript`, `Telegraph`,
-`Hazard.js`'s `Barrier`, the `?champdbg` harness and `smoke-champion` are all
-sound and reusable. `§10ad` carries the post-mortem — read it before designing
-the next one, because four of its seven causes are design errors I could have
-caught with arithmetic and one of them I froze into a passing test.
+> *"The Champion is almost stationary, dies extremely easily to one Super / a
+> few shots, is far too slow, and feels too weak even to qualify as an
+> interesting normal enemy."* — the Interdictor
+>
+> *"How are these Champions? The first was a stationary bot and now this one
+> looks like a sliding skateboard bot. This is not what I was expecting or
+> asking for."* — the Harrower
 
-### THE ROSTER, PHASE B.1 — THE HARROWER IS A CANDIDATE, NOT APPROVED
+**`§10af` is the record**: the seven causes, the Champion doctrine that came out
+of them, and the third candidate's concept sheet. Read it before proposing
+anything in this tier. The short version: both designs started from a MECHANIC
+and found a body for it afterwards, so both produced a delivery device; the
+floor effect was the content and the actor was its emitter; and the gates ran
+in the wrong order — two full implementations died at a handset on a question
+that costs a picture to answer.
 
-**The second Champion candidate is on `FRIX` behind `?champdbg=1`.** Concept
-gate only: four verbs — MOVE, PASS, WAKE, BANK — and no signature attacks at
-all, because if those four are not compelling alone then attacks would only hide
-it. `§10ae` is the record, the measurements and the four bugs it found.
+**THE VISUAL / FANTASY GATE IS NOW FIRST, AND IT IS A HUMAN GATE.** No entity
+file, no move, no test and no deploy for any Champion until a human has looked
+at a 1x concept sheet on a real arena floor and said *YES, THAT LOOKS LIKE A
+CHAMPION*. The third candidate — **the IMPERIAL SHOCK CAPTAIN**, bipedal,
+humanoid, armed, crested helmet, blue visor, one bone command pauldron — is at
+exactly that gate. Concept sheet only, under `docs/evidence/champion-reset/`;
+there is no `ShockCaptain.js` and no runtime path of any kind.
 
-Measured across all three ordinary arenas: **81% of the fight moving**, 8 passes
-per 44s, worst unintended stationary interval 83-435ms, one hazard object at a
-time, clean teardown on death and room change. `?champdbg=interdictor` still
-reaches the rejected candidate for a side-by-side. Normal Endless spawns
-neither.
+**The technology from both failures is sound and stays**: `MoveScript`,
+`Telegraph`, `Hazard.js` (`Barrier` and `Wake`), the `?champdbg` harness,
+`smoke-champion`'s structure and the cancelled-handle fix. Both rejected actors
+stay in the tree, reachable only behind `?champdbg`; **normal Endless spawns
+neither** and Nemesis is untouched. Do not tune either of them — the problem
+was never in their numbers.
 
 ### The recommended next area of work
 
@@ -5242,10 +5253,17 @@ fight.
 
 ---
 
-## 10ae. THE ROSTER, PHASE B.1 — THE HARROWER. **CANDIDATE — NOT APPROVED**
+## 10ae. THE ROSTER, PHASE B.1 — THE HARROWER. **HUMAN-REJECTED** ❌
 
-**Status: shipped to `FRIX` behind `?champdbg=1` for handset evaluation. Not
-approved, not frozen, and every number is provisional.**
+**Status: HUMAN-REJECTED on handset play — *"this one looks like a sliding
+skateboard bot"*. Reachable only behind `?champdbg=1`; normal Endless spawns
+it nowhere. `§10af` is the two-candidate post-mortem and supersedes this
+section as the state — read that first. Everything below is how it was built
+and what it measured, kept because the TECHNOLOGY is sound and reusable and
+because four of its bugs are traps that will arrive again.**
+
+**It is not a Champion candidate any more.** Its honest future, if it has one,
+is a light vehicle or an environmental moving hazard — not a combatant.
 
 ### The inversion
 
@@ -5347,6 +5365,232 @@ to a vehicle, not to a precedent.
 8. **Junction has the shortest usable runs**, as the design predicted. Weak
    enough to exclude from future encounter eligibility?
 9. `hp: 5200` is an OBSERVATION BUDGET, not balance — see the note in `config.js`.
+
+---
+
+## 10af. THE CHAMPION PROGRAM RESET — two rejections, one cause. **DESIGN GATE**
+
+**Status: BOTH Champion candidates are HUMAN-REJECTED ❌. No Champion is in
+development. The program is stopped at a VISUAL / FANTASY gate and does not
+resume until a human says, of a picture, "YES, THAT LOOKS LIKE A CHAMPION."**
+
+### THE TWO VERDICTS, VERBATIM
+
+> **INTERDICTOR** — *"The Champion is almost stationary, dies extremely easily
+> to one Super / a few shots, is far too slow, and feels too weak even to
+> qualify as an interesting normal enemy."*
+
+> **HARROWER** — *"How are these Champions? The first was a stationary bot and
+> now this one looks like a sliding skateboard bot. This is not what I was
+> expecting or asking for."*
+
+The second verdict is the important one, because it is not about the Harrower.
+It is about the CATEGORY. Two candidates, built on opposite mechanical theses —
+one that never moves, one that never stops — came back rejected in the same
+words: *bot*. The thing being rejected is not a tuning value and was never
+reachable by tuning.
+
+| | INTERDICTOR | HARROWER |
+|---|---|---|
+| what it is | a stationary emitter | a moving craft |
+| what it does | places a `Barrier` seam | emits a `Wake` behind it |
+| reads as | a hazard carrier | a sliding skateboard bot |
+| verdict | ❌ rejected | ❌ rejected |
+| technology | sound, kept | sound, kept |
+| concept | dead | dead |
+
+**Both are still in the tree, and both stay there.** Normal Endless spawns
+neither — no encounter-pool entry, no `_rollEnemyType` branch, no chance roll.
+`?champdbg=interdictor` and `?champdbg=1` (Harrower) still reach them. Nothing
+about Nemesis was touched by either.
+
+**Stop calling either of them a Champion candidate.** Their honest future, if
+they have one, is a different category:
+
+- **INTERDICTOR → an EMPLACEMENT.** A stationary thing that denies ground is a
+  fine terminal-defence turret or a deployable an enemy sets up. It was never a
+  combatant, and as an emplacement its `holdRange` stops being a bug.
+- **HARROWER → a LIGHT VEHICLE or an ENVIRONMENTAL HAZARD.** A craft that
+  crosses the arena on a schedule is a good moving hazard and a plausible
+  vehicle for something else to ride. It was never a person.
+
+Neither salvage is scheduled and neither is a Champion.
+
+### THE POST-MORTEM — seven causes, and they are one cause
+
+**A. I DESIGNED A MECHANIC AND THEN LOOKED FOR A BODY TO PUT IT IN.** Both
+briefs I wrote to myself start from a VERB — "persistent zone control",
+"movement whose hazard is a consequence of moving" — and the actor was chosen
+afterwards as the cheapest thing that could perform it. That order produces a
+delivery device every time. A Champion is a CHARACTER that fights; the mechanic
+is what the character does, not what the character is for.
+
+**B. THE EFFECT BECAME THE CONTENT.** In both candidates the thing on screen
+that mattered was on the FLOOR — a seam, a wake — and the actor was its emitter.
+`§10ad` already recorded this ("a hazard placed by a stationary actor belongs to
+the FLOOR, not to the enemy") and the Harrower did not escape it; it only made
+the floor mark follow the emitter around. **If the actor were deleted and the
+effect kept, would the fight change much?** For both candidates the honest
+answer was no.
+
+**C. THE BODY FOLLOWED THE EFFECT.** Having chosen a floor effect, I drew the
+shape that made the effect plausible: a squat emplacement for a seam, a low
+rotating craft for a wake. Neither is a fighter and neither could have been. The
+Harrower even took a documented EXEMPTION from the house rule that body sprites
+never rotate — legitimate for a vehicle, and that exemption is exactly the
+evidence that I had drawn a vehicle.
+
+**D. I MEASURED MOVEMENT AND CALLED IT PRESENCE.** `diag-harrower` reported 81%
+of the fight moving, 8 passes per 44s, worst unintended stationary interval
+83-435ms. Every number cleared its bar and the actor was rejected anyway,
+because none of those numbers is about combat. *Moving* is not *fighting*.
+There was no measurement anywhere of THREAT, of the player's response, or of
+whether the thing looked like an opponent — the three things the verdict was
+actually about.
+
+**E. TRANSLATION IS NOT LOCOMOTION.** The Harrower slides along a planned chord
+at a constant speed, on rails it computed in advance. A person moving is a
+person DECIDING: approach, hesitate, commit, reposition, press. Constant-speed
+translation along a pre-validated line is what a vehicle does, and it reads as
+one however fast it goes. *"Sliding skateboard bot"* is a precise description of
+translation without intent.
+
+**F. I REMOVED BASELINE COMBAT ON PURPOSE AND CALLED IT DISCIPLINE.** Phase B.1
+was deliberately FOUR VERBS with no attacks, on the theory that if movement was
+not compelling alone, attacks would only hide it. That is a good rule for
+polishing a fighter and a fatal one for establishing a category: a thing with no
+attacks cannot demonstrate that it is a combatant, and a human asked to judge
+"is this a Champion" was shown something that could not shoot back. The
+minimum viable Champion is not the minimum viable MECHANIC — it must fight from
+the first frame it is shown to anyone.
+
+**G. THE GATES RAN IN THE WRONG ORDER.** Both candidates went
+concept → implementation → measurement → handset, and both died at the handset
+on a question that costs a picture to answer: *does this look like a Champion?*
+Two full implementation passes, four real bugs found and fixed, two smoke
+suites written, two deploys — and every one of those was downstream of a
+question nobody had asked yet. **The visual / fantasy gate is now FIRST.**
+
+### THE CHAMPION DOCTRINE — what a Champion is, from here on
+
+These are the rules that came out of two rejections. They are about the
+CATEGORY, not about any one design.
+
+1. **A CHAMPION IS A CHARACTER, NOT A DEVICE.** It is bipedal, humanoid, armed
+   and identifiable as a person under armour. The player must be able to say
+   *who* that is, not *what* that is.
+2. **IT IS A COMBATANT FIRST.** Baseline weapon pressure exists from the first
+   build — it shoots, it closes, it can kill you with the ordinary thing it
+   does. Signature moves are what make it memorable; ordinary combat is what
+   makes it an opponent. Never ship the signature without the baseline again.
+3. **THE ACTOR IS THE CONTENT; ANY FLOOR EFFECT IS EVIDENCE OF IT.** Apply the
+   deletion test at design time: remove the actor, keep the effect — if the
+   fight barely changes, the design is a hazard wearing a healthbar.
+4. **MOVEMENT MUST READ AS DECISION.** Approach, hesitate, commit, reposition.
+   A constant-speed traversal along a pre-planned line is a vehicle, whatever
+   it is drawn as. "Percentage of the fight in motion" is not evidence of
+   presence and must never be cited as if it were.
+5. **THE ZONE-CONTROL REQUIREMENT IS DROPPED.** It was an invented constraint
+   from the Phase B brief, it produced both failures, and nothing about the
+   roster needs it. A Champion may control space; it is not required to.
+6. **THE VISUAL / FANTASY GATE COMES FIRST, AND IT IS A HUMAN GATE.** Before
+   any entity file, any move, any test: a concept sheet at GAMEPLAY SCALE on a
+   real arena floor, beside the grunt, the shooter, the player and Vader. No
+   gameplay code exists until a human has approved the picture.
+7. **1x IS THE ACCEPTANCE AUTHORITY.** The enlarged view is for art inspection
+   only. Everything that matters — is it a person, is it bigger than the rank
+   and file, is it not Vader, can I find it in a crowd — is decided at the size
+   it will actually be played at, on the deck it will actually stand on, under
+   the real HUD inset.
+8. **IT SITS BETWEEN THE TWO THINGS IT MUST NOT BE.** Troopers are cool white
+   (`#dcdce8`); Vader is near-black (`#12121a`). A Champion belongs to neither
+   end. The same rule the arenas already carry for props, applied to an actor.
+9. **A CHAMPION GETS NO BANNER.** Unchanged from `§10ad`, and it is a quality
+   bar: if the model, the wind-up and the effect do not explain the mechanic on
+   their own, the mechanic has communicated nothing. `?nonames=1` is the check.
+
+### THE THIRD CANDIDATE — THE IMPERIAL SHOCK CAPTAIN (concept only)
+
+**Nothing is implemented. There is no `ShockCaptain.js`, no move, no config
+entry, no test and no runtime path.** What exists is a concept sheet and the
+throwaway painter that produced it, under `docs/evidence/champion-reset/`.
+
+**The fantasy.** A line officer of the garrison — the one who gives the troopers
+their orders, wearing the same war as they do and better equipment. He is the
+rank above the enemies already in the room, which is what makes him legible
+without a banner: the player has met his soldiers.
+
+**The read, and the four things that carry it at 1x:**
+
+- **A HELMET DOME WITH A CREST.** Built the way every actor here is built — a
+  real circle graded north-to-south, with the bone rank ridge drawn INSIDE the
+  dome. A crest standing proud of the helmet was tried and photographed as an
+  aerial, or a bun.
+- **A NARROW LUMINOUS VISOR SLIT, ELECTRIC BLUE.** The only strong small light
+  above the shoulders, and the single fastest identification in the frame. Blue
+  is chosen BY ELIMINATION: green is enemy bullet colour, crimson is Vader and
+  every telegraph, amber is arena emergency power, cyan is screens.
+- **ONE BONE COMMAND PAULDRON, NEVER MIRRORED.** The silhouette is asymmetric
+  on purpose; it is the only warm value in the frame and the only thing on the
+  body that breaks left-right symmetry.
+- **A KAMA, NOT A CAPE.** Mass below the chest without borrowing Vader's
+  silhouette.
+- **FOUR ROWS OF LEG AND A FOUR-PIXEL GAP** — greave over boot, not a boot cap.
+  It is the fastest BIPED read there is, and it is the difference this tier
+  exists on: neither rejected candidate had legs at all. An earlier build spent
+  three rows on boots alone and the lower body fused with the kama into one
+  dark mass.
+
+A compact power/thruster pack sits on his back, which seen from above is NORTH
+of the torso and mostly UNDER the helmet — it shows as two dark wings either
+side of the dome and throws a small blue flare on the wind-up and the strafe.
+An earlier build put two lit nozzles ABOVE the head and they read as antennae,
+or as a second pair of eyes competing with the visor.
+
+**The value ladder is placed against the DECK**, per the arena rule: armour
+three steps above `#212328`, top planes four. A first build painted him at
+`#2e3038` and he photographed as a second dark blob standing next to Vader —
+technically between the two, visually one of them.
+
+**Scale: 28x28 logical at x4 = 112x112**, against grunt 80, player 96, Vader
+160. Bigger than the rank and file, bigger than the player, unmistakably below
+the boss.
+
+**The weapon is a SEPARATE OVERLAY** (22x8, east-facing, origin `(0.15, 0.5)`),
+exactly as every armed actor in this game carries one. An earlier concept
+painted the rifle into the body sheet, which is a second author for the same
+object and also produced a pale slab lying across his chest — the weapon
+out-reading the man carrying it.
+
+**The evidence:**
+
+| file | what it is |
+|---|---|
+| `v2-house-grammar/1x-row-labeled.png` | **the acceptance frame.** grunt / shooter / player / captain / Vader at 1x on the real hangar deck, one foot line, real HUD, real lighting |
+| `v2-house-grammar/1x-row-clean.png` | the same frame with the labels off |
+| `v2-house-grammar/1x-crowd.png` | the question a row cannot answer — can he be found inside an ordinary wave |
+| `v2-house-grammar/poses.png` | twelve poses at 3x, art inspection only |
+| `v1-rejected-bars/` | the FIRST concept, kept as the matched pair: stacked horizontal bars, no dome, no limbs, a floating pauldron and a rifle baked into the body |
+
+**The two open questions the concept does not settle**, both flagged rather
+than quietly decided:
+
+1. The sheet is twelve poses because "armour intact" IS the front idle; all
+   thirteen requested views are covered. A real sheet would be the 33-frame
+   actor contract (`POSE_BASE + facingIndex * 3 + poseIndex`), which is an
+   implementation decision, not a concept one.
+2. The `broken` state changes the SILHOUETTE (the pauldron shears to a stub and
+   sparks). That is a deliberate claim that armour damage is visible, and it
+   implies a mechanic that does not exist yet. It is drawn because the brief
+   asked for it, not because the mechanic is decided.
+
+**The rig is throwaway and is NOT wired into the game.**
+`docs/evidence/champion-reset/concept-captain.js` defines
+`window.__paintCaptain` and is injected into a page by
+`docs/evidence/champion-reset/shot-captain.mjs`. Nothing in `src/` imports
+either, `paintCaptain` is not in `pixelArt.js`, and `PreloadScene` does not know
+they exist.
+
 
 ---
 
