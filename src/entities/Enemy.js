@@ -92,6 +92,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     // Animation
     this._animPrefix   = texture;
+    // Opt-out from the default idle/walk/fire selection in `preUpdate`. Only an
+    // actor whose sheet is not the stock 33-frame contract sets this.
+    this._ownsAnim     = false;
     this._fireAnimTimer = 0;
     this.recoilT        = 0;
 
@@ -452,6 +455,22 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this._aim = Math.atan2(ty - this.y, tx - this.x);
   }
 
+  /**
+   * WHICH THIRD OF THE SHEET THIS ACTOR IS SHOWING, from its aim.
+   *
+   * Body sprites never rotate here, so a facing is one of three painted
+   * directions plus a horizontal flip for west. Extracted so an actor that
+   * drives its own animation (see `_ownsAnim`) resolves the facing the same way
+   * the default selector does rather than keeping a second copy that can drift.
+   */
+  _facingSuffix() {
+    const deg = Phaser.Math.RadToDeg(this._aim);
+    if (deg >= -45 && deg <= 45) return { dir: 'side', flipX: false };   // East
+    if (deg > 45 && deg < 135) return { dir: 'front', flipX: false };    // South
+    if (deg >= 135 || deg <= -135) return { dir: 'side', flipX: true };  // West
+    return { dir: 'back', flipX: false };                                // North
+  }
+
   _stopAndFace(tx, ty) {
     this.setVelocity(0, 0);
     this._facePoint(tx, ty);
@@ -747,40 +766,40 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const isMoving  = speedSq > 200;
     const prefix    = this._animPrefix;
 
-    let dirSuffix = 'front';
-    let flipX = false;
-    const deg = Phaser.Math.RadToDeg(this._aim);
-    if (deg >= -45 && deg <= 45) {
-      dirSuffix = 'side';
-      flipX = false; // facing East
-    } else if (deg > 45 && deg < 135) {
-      dirSuffix = 'front';
-      flipX = false; // facing South
-    } else if (deg >= 135 || deg <= -135) {
-      dirSuffix = 'side';
-      flipX = true;  // facing West
-    } else {
-      dirSuffix = 'back';
-      flipX = false; // facing North
-    }
-
+    const { dir: dirSuffix, flipX } = this._facingSuffix();
     this.setFlipX(flipX);
 
-    let animKey = `${prefix}-idle-${dirSuffix}`;
-    // A scripted move owns the pose while it runs. Without this the AI reselects
-    // walk/idle every frame and an attack animation cannot survive one tick.
-    if (this._performing && this._moveAnim) {
-      animKey = `${prefix}-${this._moveAnim}-${dirSuffix}`;
-      if (!this.scene.anims.exists(animKey)) animKey = `${prefix}-idle-${dirSuffix}`;
-    } else if (this._fireAnimTimer > 0) {
-      this._fireAnimTimer -= delta;
-      animKey = `${prefix}-fire-${dirSuffix}`;
-    } else if (isMoving) {
-      animKey = `${prefix}-walk-${dirSuffix}`;
-    }
+    // ── AN ACTOR MAY OWN ITS OWN ANIMATION ────────────────────────────────
+    //
+    // Everything above this line is presentation every actor needs. The
+    // selection below is the DEFAULT one — idle / walk / fire / move-pose off a
+    // 33-frame sheet — and an actor whose sheet is a different shape has to be
+    // able to decline it rather than fight it. The Shock Captain's is: it
+    // carries a two-frame breathing idle, a lateral strafe cycle and a
+    // brace/fire/recoil arc its combat states drive directly, and if both
+    // selectors ran, each would overwrite the other's key EVERY FRAME and
+    // `play()` would restart the animation on every tick — a body that is
+    // permanently on frame 0 of something.
+    //
+    // Default false, so nothing that existed before this flag can see it.
+    if (!this._ownsAnim) {
+      let animKey = `${prefix}-idle-${dirSuffix}`;
+      // A scripted move owns the pose while it runs. Without this the AI
+      // reselects walk/idle every frame and an attack animation cannot survive
+      // one tick.
+      if (this._performing && this._moveAnim) {
+        animKey = `${prefix}-${this._moveAnim}-${dirSuffix}`;
+        if (!this.scene.anims.exists(animKey)) animKey = `${prefix}-idle-${dirSuffix}`;
+      } else if (this._fireAnimTimer > 0) {
+        this._fireAnimTimer -= delta;
+        animKey = `${prefix}-fire-${dirSuffix}`;
+      } else if (isMoving) {
+        animKey = `${prefix}-walk-${dirSuffix}`;
+      }
 
-    if (this.anims.currentAnim?.key !== animKey) {
-      this.play(animKey);
+      if (this.anims.currentAnim?.key !== animKey) {
+        this.play(animKey);
+      }
     }
 
     // Recoil scale + lean animations (all relative to _baseScale)

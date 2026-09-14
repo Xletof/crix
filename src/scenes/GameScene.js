@@ -32,6 +32,7 @@ import { attachTelegraphs } from '../systems/Telegraph.js';
 import { attachHazards } from '../systems/Hazard.js';
 import { Champion } from '../entities/Champion.js';
 import { Harrower } from '../entities/Harrower.js';
+import { ShockCaptain } from '../entities/ShockCaptain.js';
 import { championMoveById } from '../data/champions.js';
 import { moveById } from '../data/nemesisMoves.js';
 
@@ -232,6 +233,14 @@ export class GameScene extends Phaser.Scene {
     // (`setCircle(this.width / 2)`), and this one's radius is 44 against an
     // ordinary bolt's 9.
     this.bossSuperOrbs      = new BulletGroup(this, 'boss-force-orb');
+    // A FOURTH HOSTILE POOL, for the same reason the third exists.
+    // `BulletGroup.fire` re-asserts its group's texture on every recycle, so a
+    // blue Captain bolt in the green trooper pool is either re-textured after
+    // the fact — which silently resizes its hitbox, because `Bullet.fire` sizes
+    // the body from the TEXTURE — or leaks blue into the next trooper's shot.
+    // It joins `hostileBullets` below, which is what stops the split being six
+    // places to remember.
+    this.captainBullets     = new BulletGroup(this, 'bullet-captain');
 
     // ── Grenades group ─────────────────────────────────────────────────────
     this.grenades = this.physics.add.group();
@@ -1036,6 +1045,7 @@ export class GameScene extends Phaser.Scene {
      ...this.playerFragBullets.getChildren(),
      ...this.enemyBullets.getChildren(),
      ...this.deflectedBullets.getChildren(),
+     ...this.captainBullets.getChildren(),
      ...this.bossSuperOrbs.getChildren()].forEach((b) => { if (b.active) b.kill(); });
     // ...and park the returned super's wake. Killing the orb stops it being
     // drawn, but the sampled positions behind it are room coordinates, and a
@@ -3977,6 +3987,32 @@ export class GameScene extends Phaser.Scene {
     SFX.enemyShoot();
   }
 
+  /**
+   * THE SHOCK CAPTAIN'S HEAVY ROUND.
+   *
+   * Its own pool, its own texture and its own muzzle. `mx`/`my` are computed by
+   * the Captain from the weapon overlay's real position plus the overlay's own
+   * measured length, so THE BOLT AND THE FLASH LEAVE THE SAME PLACE — the
+   * failure that made the returned super detach from a motionless Vader, and
+   * the one thing no amount of particles can cover.
+   *
+   * Not `fireShooter`: that funnels into the green trooper pool, which would
+   * re-texture this bolt on recycle and silently resize its hitbox.
+   */
+  fireCaptainBolt(captain, mx, my, angle) {
+    const d = captain.def;
+    this.captainBullets.fire(mx, my, angle, d.bulletSpeed, d.bulletDamage, d.bulletRange,
+      { owner: 'enemy' });
+    // The flash is at the BARREL and shaped like the weapon: a tight braced
+    // fan, not the trooper's spray and not Vader's molten crimson. ABOVE THE
+    // FIRER, not on the flat 27 the nemesis weapons use — actors Y-sort, and on
+    // a Ø56 body with a 75px barrel a southward shot puts the muzzle 15px past
+    // the sprite's own bottom edge, so at depth 27 nearly the whole flash is
+    // drawn behind the man firing it.
+    this.fx?.weaponMuzzle?.(mx, my, angle, d.color, 'heavy', captain.y + 2);
+    SFX.enemyShoot('lance');
+  }
+
   bossSpawnMinions() {
     for (let i = 0; i < BOSS.spawnCount; i++) {
       this.time.delayedCall(i * 120, () => this.spawnEnemyRandom('grunt'));
@@ -4136,6 +4172,7 @@ export class GameScene extends Phaser.Scene {
     this.handleBulletWallHits(this.playerFragBullets, false);
     this.handleBulletWallHits(this.enemyBullets, false);
     this.handleBulletWallHits(this.deflectedBullets, false);
+    this.handleBulletWallHits(this.captainBullets, false);
     this.handleBulletWallHits(this.bossSuperOrbs, true);
     this._tickSuperOrbs(delta);
 
@@ -4402,7 +4439,7 @@ export class GameScene extends Phaser.Scene {
    * count at which "remember to add it in both places" stops working.
    */
   get hostileBullets() {
-    return [this.enemyBullets, this.deflectedBullets, this.bossSuperOrbs];
+    return [this.enemyBullets, this.deflectedBullets, this.bossSuperOrbs, this.captainBullets];
   }
 
   handleEnemyBulletsVsPlayer() {
@@ -5957,14 +5994,17 @@ export class GameScene extends Phaser.Scene {
    * only thing that differs is the class.
    */
   spawnChampion(x, y, which = getChampWhich()) {
-    // ONE ENTRY POINT, TWO CANDIDATES. The Harrower is the active one; the
-    // rejected Interdictor is reachable only through `?champdbg=interdictor`,
-    // for a side-by-side. It is kept rather than deleted because the post-mortem
-    // is more useful next to the thing it is about — but it is no longer what
-    // the flag produces, and nothing in production reaches either.
-    const c = which === 'interdictor'
-      ? new Champion(this, x, y, CHAMPION.interdictor, { behavior: 'swarm', alerted: true })
-      : new Harrower(this, x, y, { behavior: 'swarm', alerted: true });
+    // ONE ENTRY POINT, THREE CANDIDATES, AND ONLY ONE OF THEM IS LIVE. The
+    // SHOCK CAPTAIN is the active one; the Interdictor and the Harrower are
+    // both human-rejected (`HANDOVER.md` §10af) and reachable only through an
+    // explicit `?champdbg=interdictor` / `?champdbg=harrower`, for a
+    // side-by-side. They are kept rather than deleted because the post-mortem
+    // is more useful next to the things it is about — but neither is what the
+    // flag produces, and nothing in production reaches any of the three.
+    const spec = { behavior: 'swarm', alerted: true };
+    const c = which === 'interdictor' ? new Champion(this, x, y, CHAMPION.interdictor, spec)
+      : which === 'harrower' ? new Harrower(this, x, y, spec)
+        : new ShockCaptain(this, x, y, spec);
     c.coverRegistry = this.coverRegistry;
     this.enemies.add(c);
     this.physics.add.collider(c, this.walls);

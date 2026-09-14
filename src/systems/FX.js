@@ -3063,9 +3063,23 @@ export function attachFX(scene) {
      *
      * `kind` picks the shape; the colour comes from the weapon.
      */
-    weaponMuzzle(x, y, angle, color = 0xffdd80, kind = 'spray') {
+    /**
+     * `depth` defaults to the flat 27 every nemesis weapon has always used.
+     *
+     * THAT DEFAULT IS UNDER THE WHOLE ACTOR BAND — actors Y-sort, so a body at
+     * world y 700 draws at depth 700 and a flash at 27 is behind it. It has
+     * been survivable because a nemesis muzzle sits ~26px from a Ø44 body and
+     * most of the fan clears the sprite. It stops being survivable on a Ø56
+     * body with a 75px barrel firing SOUTH: the muzzle is 15px past the sprite's
+     * own bottom edge, so nearly the whole flash is drawn behind the man firing
+     * it. Same shape as the console whose light was drawn beneath the console —
+     * ask where the light LANDS, in pixels.
+     *
+     * Anything that knows its firer passes `firer.y + 2`.
+     */
+    weaponMuzzle(x, y, angle, color = 0xffdd80, kind = 'spray', depth = 27) {
       if (lowQuality) return;
-      const g = scene.add.graphics().setDepth(27).setBlendMode(Phaser.BlendModes.ADD);
+      const g = scene.add.graphics().setDepth(depth).setBlendMode(Phaser.BlendModes.ADD);
       const fan = (len, wide, alpha) => {
         g.fillStyle(color, alpha);
         g.beginPath();
@@ -3099,6 +3113,18 @@ export function attachFX(scene) {
         g.moveTo(Math.cos(perp) * 11, Math.sin(perp) * 11);
         g.lineTo(-Math.cos(perp) * 11, -Math.sin(perp) * 11);
         g.strokePath();
+      } else if (kind === 'heavy') {
+        // THE SHOCK CAPTAIN'S REPEATER. Between the scattergun's cone and the
+        // lance's needle: a short braced fan with a white-hot core and a couple
+        // of sparks thrown forward, because the round is heavy and aimed rather
+        // than sprayed. Deliberately SMALL — it fires three times in under half
+        // a second and anything bigger stacks into a wall of light over the man
+        // the whole design is about.
+        fan(34, 0.17, 0.8);
+        fan(20, 0.09, 0.95);
+        g.fillStyle(0xffffff, 0.85);
+        g.fillCircle(Math.cos(angle) * 7, Math.sin(angle) * 7, 3.5);
+        this.burstDir(x, y, 'white', 3, angle, 56);
       } else {
         // Repeater: small and tight. It fires three times, so anything big
         // would stack into a wall of light.

@@ -180,43 +180,41 @@ sufficient to create meaningfully different fights.
 rules, the sector bands or the pressure multipliers without NEW handset
 evidence. `?encdbg=1` stays as the evaluation harness.
 
-### THE CHAMPION PROGRAM IS STOPPED AT A VISUAL GATE — BOTH CANDIDATES REJECTED ❌
+### THE CHAMPION TIER — THE SHOCK CAPTAIN CLEARS THE VISUAL GATE ✅
 
-**INTERDICTOR and HARROWER are both HUMAN-REJECTED, and the second verdict was
-about the CATEGORY, not the candidate.** Two designs built on opposite
-mechanical theses — one that never moves, one that never stops — came back in
-the same word: *bot*.
+**Two candidates were rejected on CATEGORY before this one.** INTERDICTOR and
+HARROWER — one that never moved, one that never stopped — came back from the
+handset in the same word, *bot*. `§10af` is the two-candidate post-mortem, the
+seven causes and the Champion doctrine that came out of them. The short version:
+both started from a MECHANIC and found a body for it afterwards, so both
+produced a delivery device whose content was on the floor; and the gates ran in
+the wrong order, so two full implementations died on a question that costs one
+picture to answer.
 
-> *"The Champion is almost stationary, dies extremely easily to one Super / a
-> few shots, is far too slow, and feels too weak even to qualify as an
-> interesting normal enemy."* — the Interdictor
->
-> *"How are these Champions? The first was a stationary bot and now this one
-> looks like a sliding skateboard bot. This is not what I was expecting or
-> asking for."* — the Harrower
+**THE IMPERIAL SHOCK CAPTAIN'S VISUAL / FANTASY GATE IS HUMAN-APPROVED ✅** —
+*"I like the design of this. If supplied with good, crisp animations and effects
+it could be very good."* Bipedal, humanoid, armed, crested helmet, narrow blue
+visor, one asymmetric bone command pauldron, kama, separated legs, a two-handed
+heavy repeater. `§10ag` records the approval and its reasons, and the two known
+weaknesses kept as polish notes (arm separation; the rifle's specific outline).
 
-**`§10af` is the record**: the seven causes, the Champion doctrine that came out
-of them, and the third candidate's concept sheet. Read it before proposing
-anything in this tier. The short version: both designs started from a MECHANIC
-and found a body for it afterwards, so both produced a delivery device; the
-floor effect was the content and the actor was its emitter; and the gates ran
-in the wrong order — two full implementations died at a handset on a question
-that costs a picture to answer.
+**THE COMBATANT GATE IS A CANDIDATE AND IS NOT APPROVED.** Phase B.2 is
+MOVEMENT + RIFLE + a one-shot REACTIVE ARMOUR layer and nothing else — no
+signature ability, no variants, no progression, no wave integration, no Nemesis
+replacement. It asks one question: *is the Shock Captain already a good
+combatant with just those three?* If the answer is no, a signature move would
+only hide it, which is exactly what Phase B.1 proved from the other direction.
 
-**THE VISUAL / FANTASY GATE IS NOW FIRST, AND IT IS A HUMAN GATE.** No entity
-file, no move, no test and no deploy for any Champion until a human has looked
-at a 1x concept sheet on a real arena floor and said *YES, THAT LOOKS LIKE A
-CHAMPION*. The third candidate — **the IMPERIAL SHOCK CAPTAIN**, bipedal,
-humanoid, armed, crested helmet, blue visor, one bone command pauldron — is at
-exactly that gate. Concept sheet only, under `docs/evidence/champion-reset/`;
-there is no `ShockCaptain.js` and no runtime path of any kind.
+`?champdbg=1` spawns it; `?champdbg=harrower` / `?champdbg=interdictor` still
+reach the two rejected prototypes for a side-by-side, and anything unrecognised
+falls back to the Captain. **NORMAL ENDLESS SPAWNS NONE** — no encounter-pool
+entry, no `_rollEnemyType` branch, no chance roll — and Nemesis is untouched.
+`smoke-captain` (38 checks) asserts that in both directions.
 
-**The technology from both failures is sound and stays**: `MoveScript`,
-`Telegraph`, `Hazard.js` (`Barrier` and `Wake`), the `?champdbg` harness,
-`smoke-champion`'s structure and the cancelled-handle fix. Both rejected actors
-stay in the tree, reachable only behind `?champdbg`; **normal Endless spawns
-neither** and Nemesis is untouched. Do not tune either of them — the problem
-was never in their numbers.
+**THE VISUAL / FANTASY GATE IS PERMANENTLY FIRST NOW, AND IT IS A HUMAN GATE.**
+No entity file, no move, no test and no deploy for any future Champion until a
+human has looked at a 1x concept sheet on a real arena floor and said so.
+Evidence for both gates is under `docs/evidence/champion-reset/`.
 
 ### The recommended next area of work
 
@@ -5591,6 +5589,261 @@ than quietly decided:
 either, `paintCaptain` is not in `pixelArt.js`, and `PreloadScene` does not know
 they exist.
 
+
+---
+
+## 10ag. THE IMPERIAL SHOCK CAPTAIN — the visual gate passes, the combatant gate opens
+
+**VISUAL / FANTASY GATE: HUMAN-APPROVED ✅.** **COMBATANT GATE: CANDIDATE — NOT
+APPROVED.** The third Champion candidate is the first to clear the gate that
+killed the other two, and it cleared it on a picture rather than on a build.
+
+### THE VERDICT
+
+> *"I like the design of this. If supplied with good, crisp animations and
+> effects it could be very good."*
+
+Recorded as approved, and recorded with its reasons so a later pass cannot
+quietly undo one of them:
+
+- it reads as a CHARACTER, not a device;
+- visibly ARMED, with a two-handed weapon carried rather than mounted;
+- humanoid and bipedal — separated legs with a gap, which neither rejected
+  candidate had at all;
+- distinct from an ordinary trooper without merely being scaled up: the
+  asymmetric bone command pauldron, the crested helmet, the kama and the rifle
+  make the silhouette, and deleting the size difference leaves it still not a
+  trooper;
+- above the rank and file and below Vader in the same frame;
+- the human explicitly likes the design.
+
+**THE TWO KNOWN WEAKNESSES ARE POLISH NOTES, NOT BLOCKERS**, and they are
+recorded so they are not rediscovered as news:
+
+1. **Arm separation.** The off-side arm is one block and the command side is the
+   pauldron's own wrap; at 1x the arms are the least legible part of the body.
+   Motion helps — the arm now swings with the leg phase and travels through the
+   brace/fire/recoil arc — but it is still the weakest limb.
+2. **The rifle's SHAPE.** It reads unmistakably as a heavy gun from its carry
+   silhouette and its length; its specific outline is less legible than the
+   rest. Identified as a gun, not as a *particular* gun.
+
+**The human also sees future variation through textures, armour treatments,
+accent/palette changes and equipment.** Prepared for, not built — see
+§ *variation*, below.
+
+### THE MODEL, PROMOTED INTO THE RUNTIME
+
+`paintShockCaptain` in `src/systems/pixelArt.js`, in the same house grammar as
+every other actor: a high-angle top-down figure — helmet DOME at the north edge,
+shoulders below it and wider, chest panel, then four rows of leg at the south.
+Vader is 40x40 with a 16px dome, the grunt 20x20 with an 11px one, this is
+**28x30 with a 12px one**.
+
+**THE TWO EXTRA ROWS ARE EMPTY FOOTING, NOT MORE FIGURE.** The approved concept
+was 28x28, and at that height `SpriteSheet.rect` silently CLIPPED the leading
+boot on the two widest walk frames — *the cycle's biggest step was the one with a
+foot missing*, which is a walk that reads worse the harder it tries. The drawn
+body is unchanged; the rows exist so a real stride has somewhere to land.
+
+**THE VALUE LADDER IS PLACED AGAINST THE DECK**, not inside a palette family:
+armour three steps above `#212328`, top planes four. Troopers are cool white
+(`#dcdce8`), Vader near-black (`#12121a`). The concept's first build was
+`#2e3038` and photographed as a second dark blob standing next to Vader.
+
+**1x SIZES, MEASURED:** grunt 80, player 96, **Captain 112x120**, Vader 160.
+Body Ø56, which is DERIVED rather than picked: `NavGrid.build` inflates a body
+rect by 23px per side, so Ø56 needs 102px of gap — inside the junction's
+authored 160px lane, which was itself derived for Vader's Ø112. **Anywhere Vader
+can walk, the Captain can walk.**
+
+**NO WEAPON IS PAINTED INTO THE BODY.** `paintCaptainRifle` is a separate 22x8
+overlay on the east-facing / origin `(0.15, 0.5)` contract every armed actor
+here uses. `CAPTAIN_MUZZLE_PX` is derived from the overlay's own dimensions
+(`22 * 4 * 0.85`) and is read by BOTH the bolt spawn and the muzzle flash, so
+the effect and the projectile cannot leave from different places — the
+disagreement that made the returned super detach from a motionless Vader.
+
+### THE SHEET IS 51 FRAMES, NOT 33, AND EVERY DIFFERENCE IS THE BRIEF
+
+    dir * 14 + 0   idle A       1   idle B (breath)
+                2..7 walk 1..6
+                8   brace       9   fire      10  recoil    11  stagger
+               12   strafe A   13   strafe B
+    42 + dir*3 + p  raise / thrust / recover   (hooks only — no ability exists)
+
+- **IDLE IS TWO FRAMES.** Every other actor here idles on a single frame, which
+  is a frozen body between actions. An elite that stands perfectly still between
+  bursts reads as a prop. Two frames at 3fps is breathing, not bobbing.
+- **STRAFE IS ITS OWN CYCLE.** Playing the forward walk while the body travels
+  sideways swings the feet fore-and-aft AGAINST the direction of travel, which
+  is the sliding read both rejected candidates died of. A lateral step widens
+  and narrows the stance instead.
+- **BRACE / FIRE / RECOIL ARE THREE SEPARATE BODIES.** An earlier build
+  separated brace from fire by one pixel of arm and they photographed as the
+  same frame — which makes a burst a muzzle flash over a static pose. They are
+  now three different shoulder heights, three leans and three arm positions, and
+  the visor lights ONLY on the frame the shot leaves.
+- **THE LEADING FOOT IS LIGHTER.** Two identically-toned blocks swapping places
+  read as one shape wobbling. The near foot catching more light is what makes
+  the swap legible as a STEP.
+- **THE FEET DO NOT BOB.** The ground line is a constant, not derived from the
+  torso: deriving it made the whole stance rise and fall with the walk bob,
+  which is a body hovering rather than a body whose weight shifts.
+
+### `_ownsAnim` — AN ACTOR MAY DECLINE THE DEFAULT SELECTOR
+
+`Enemy.preUpdate` picks idle / walk / fire / move-pose off the stock 33-frame
+contract. An actor whose sheet is a different shape has to be able to DECLINE
+that rather than fight it: if both selectors ran, each would overwrite the
+other's key every frame and `play()` would restart the animation on every tick —
+a body permanently on frame 0 of something. `_ownsAnim` defaults false, so
+nothing that existed before the flag can see it, and `_facingSuffix()` is
+extracted so the two paths resolve a facing the same way rather than keeping a
+second copy that can drift.
+
+### THE COMBAT LOOP IS FIVE NAMED REASONS
+
+`src/entities/ShockCaptain.js`. Every state is something a player could say out
+loud about what the Captain is doing:
+
+    ADVANCE      too far to shoot, closing to the near edge of the band
+    GIVE GROUND  crowded — backing off down the bearing, still facing you
+    STRAFE       in the band, changing the firing angle
+    BRACE        planted, weapon up
+    BURST        firing
+    RECOVER      settling
+    STAGGER      a real blow landed
+
+**The engagement band is DERIVED from the portrait viewport**, not invented:
+`holdMin` 300 / `holdMax` 520, because the camera shows ~720x1196 with an 84px
+HUD inset, so a Captain beyond ~520px is frequently off screen and one inside
+~300px is in the player's face. A burst may interrupt a reposition the moment
+the shot is available, which is what keeps him dangerous while moving rather
+than a unit that walks, stops, shoots, walks.
+
+**THERE IS NO PLANNER.** `_solvePosition` asks three questions in order — too
+far, too close, otherwise where is a better angle — and picks a point.
+`HANDOVER.md` §10af records what building a pass planner, a path validator and a
+chord solver first actually cost.
+
+**HE ALWAYS FACES THE FIGHT.** Facing is aim, and aim is what the animation
+selector reads, so a lateral step keeps the body square to the player instead of
+turning into the direction of travel. That difference is exactly *moving
+sideways while staying combat-ready* versus skating.
+
+### THE HEAVY BURST
+
+Visible brace (380ms), three deliberate rounds at 190ms, crisp recoil, 520ms
+recovery, then he moves; 2100ms floor between bursts. **Aim is snapshotted per
+ROUND, not per burst** — three rounds all flying at where the player was 600ms
+ago is a burst that cannot hit a moving target, and three that home is not a
+burst at all.
+
+**A FOURTH HOSTILE POOL.** `captainBullets`, because `BulletGroup.fire`
+re-asserts its group's texture on every recycle: a blue Captain bolt in the
+green trooper pool is either re-textured after the fact — which silently resizes
+its hitbox, since `Bullet.fire` sizes the body from the TEXTURE — or leaks blue
+into the next trooper's shot. It joins `hostileBullets`, which is what stops the
+split being six places to remember. `bulletSpeed` is 600, deliberately **under
+`Bullet.fire`'s 620 tracer-stretch clamp**, so the hitbox is exactly the texture
+width.
+
+FX: `weaponMuzzle`'s new `'heavy'` kind — a short braced fan with a white-hot
+core and three forward sparks, between the scattergun's cone and the lance's
+needle, and deliberately SMALL because it fires three times in half a second and
+anything bigger stacks into a wall of light over the man the design is about.
+The weapon kick is applied AFTER `Enemy.preUpdate` has placed the overlay: that
+block rewrites the weapon's x/y from the aim every frame, so a tween on those
+numbers is a second author that loses.
+
+### DURABILITY: TWO LAYERS, AND THE SECOND IS THE POINT
+
+    hp 2600   armour 1800   armourTake 0.85   armourSpill 0.55
+
+The Interdictor's 1400 was 0.47 of ONE Super's 3000 raw, so the first casual
+Super deleted the concept before its behaviour could be seen. **A bigger pool is
+the wrong answer to that** — it buys observation time by making every bullet
+feel weaker, which is the "spongey" failure.
+
+So: a reactive layer that absorbs a concentrated commitment, breaks visibly, and
+never comes back. **`armourSpill` is what stops it being a damage wall** —
+overkill past the layer carries through to the body at that fraction, so a Super
+BREAKS the armour AND hurts in the same instant, which is the qualitative result
+the brief asks for. There is no second layer and no regeneration in this gate.
+
+**THE BREAK IS TWO TEXTURES, NOT ONE TINT** — the same contract the hero prop's
+dark state holds, and for the same reason: a recolour says *the same thing,
+dimmer*, and what has to read here is that a piece of him is GONE.
+`champ-captain-broken` shears the command pauldron to a stub, exposes the plate
+under it, sparks the shear and dims the visor. `_breakArmour` swaps the texture
+AND the animation prefix (`captain` → `captainbrk`), so every key already
+playing keeps working.
+
+### STAGGER IS BOUNDED, AND NEVER A STUN-LOCK
+
+`Enemy.damage` sets `_staggerMs = 90` on EVERY hit, and an actor that
+early-returns on that field is stun-locked by chip fire — **4305ms motionless,
+measured on the Harrower**, which was the Interdictor's failure arriving through
+a different door. The Captain does not yield on that field at all. It reacts to
+a REAL blow instead: `staggerMinDamage` 260, one visible stagger per
+`staggerCooldownMs` 1600, lasting 260ms, and the loop resumes on the frame it
+ends. `smoke-captain` fires 24 chip hits and asserts the loop kept running.
+
+### WHAT WAS MEASURED — a live 14s loop, `tests/shot-captain.mjs`
+
+    states       advance 75 · brace 25 · burst 59 · recover 23 · strafe 22
+    transitions  advance -> brace -> burst -> recover -> advance -> strafe ->
+                 brace -> burst -> recover -> advance -> strafe -> advance -> ...
+    shots        12 (four bursts of three)
+    animations   idle, walk, strafe, brace, fire, recoil — all three facings
+
+**THAT LAST LINE IS THE ONE THAT MATTERS, AND THE TRAVEL FIGURE IS NOT A KPI.**
+`§10af` rule 4 stands: percentage-in-motion is not evidence of presence, and
+nothing here optimises for it. The distance is printed because a diagnostic
+should print what it saw, not because a number is a target.
+
+### VARIATION — PREPARED, NOT BUILT
+
+`CAPTAIN_PALETTE` names its roles semantically — armour base / highlight / lit /
+deep, rank plate, visor, weapon emissive, damage — and `paintShockCaptain` takes
+a `palette` override, so a future variant is a palette swap rather than a second
+painter. **There is exactly ONE Shock Captain and it is the reference
+identity.** No colourways ship. Later variation must carry gameplay meaning; the
+Champion tier is not going to become rainbow elites, and the colour semantics
+already spoken for elsewhere (green = enemy bullets, crimson = Vader and every
+telegraph, amber = arena emergency power, cyan = screens, violet = the rejected
+Interdictor) are not available to repurpose.
+
+### WHAT IS DELIBERATELY NOT BUILT
+
+No BREACH STEP. No SUPPRESSIVE SWEEP. No signature ability of any kind, no
+progression, no variants, no wave integration, no Nemesis replacement. The pose
+assets for a future wind-up exist (frames 42-50, on the house `raise`/`thrust`/
+`recover` contract) because the sheet is painted once and a later move must not
+have to repaint it — §13 of the brief allows the assets and forbids the ability.
+
+**THIS GATE ASKS ONE QUESTION: is the Shock Captain already a good combatant
+with just MOVEMENT, a RIFLE and a DEFENSIVE LAYER?** If the answer is no, a
+signature move would only hide it — which is exactly what Phase B.1 proved from
+the other direction, by shipping four verbs and no attacks at all.
+
+### THE HARNESS
+
+`?champdbg=1` injects exactly one Shock Captain into each ordinary wave, into
+the real Phase A encounter. Combine it with the encounter harness so a whole
+test case is one bookmark:
+
+    ?champdbg=1&encdbg=crossfire&room=detention&sector=8
+
+`?champdbg=harrower` and `?champdbg=interdictor` still reach the two rejected
+prototypes for a side-by-side, and **anything unrecognised falls back to the
+Captain rather than to a rejected one** — a rejected prototype left as the
+default is how a handset session ends up reviewing the wrong actor.
+
+**NORMAL ENDLESS SPAWNS NONE.** No encounter-pool entry, no `_rollEnemyType`
+branch, no chance roll: the only path is `_maybeInjectChampion`, which returns
+immediately without the flag. `smoke-captain` asserts that in both directions.
 
 ---
 

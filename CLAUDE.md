@@ -854,9 +854,87 @@ asserts separately that the ceiling is not reached.
   until a human has approved a concept sheet at GAMEPLAY SCALE on a real arena
   floor, beside the grunt, the shooter, the player and Vader. The enlarged view
   is art inspection only. Two full implementations died at a handset on a
-  question that costs one picture to answer. **The IMPERIAL SHOCK CAPTAIN is at
-  that gate now**: concept sheet under `docs/evidence/champion-reset/`, no
-  `ShockCaptain.js`, no runtime path, nothing in `src/` importing the painter.
+  question that costs one picture to answer. **The IMPERIAL SHOCK CAPTAIN
+  PASSED that gate** — `HANDOVER.md` §10ag — and only then got a runtime.
+- **THE SHOCK CAPTAIN'S VISUAL GATE IS HUMAN-APPROVED ✅; ITS COMBATANT GATE IS
+  NOT — `HANDOVER.md` §10ag.** Phase B.2 is MOVEMENT + RIFLE + a one-shot
+  REACTIVE ARMOUR layer and nothing else. Do not add a signature ability, a
+  variant, a colourway, wave integration or a Nemesis replacement until the
+  handset says the ordinary combatant is already worth fighting — a signature
+  move added now would only hide the answer, which is what Phase B.1 proved
+  from the other direction. `?champdbg=1` spawns it; **normal Endless still
+  spawns no Champion of any kind.** The approved silhouette (helmet dome +
+  crest, narrow luminous visor, ONE asymmetric bone pauldron, reinforced chest,
+  kama, separated legs, compact back pack, two-handed rifle) is not open to
+  redesign during implementation; pixel refinements are allowed only where
+  animation needs clearer limb separation.
+- **AN ACTOR MAY DECLINE THE DEFAULT ANIMATION SELECTOR, AND THE CAPTAIN DOES.**
+  `Enemy.preUpdate` picks idle/walk/fire/move-pose off the stock 33-frame
+  contract; `_ownsAnim` (default false) turns that half off for an actor whose
+  sheet is a different shape. **If both selectors run they overwrite each
+  other's key every frame and `play()` restarts the animation on every tick** —
+  a body permanently on frame 0 of something. `_facingSuffix()` is extracted so
+  both paths resolve a facing from one implementation.
+- **THE CAPTAIN'S SHEET IS 51 FRAMES AND EVERY DIFFERENCE FROM THE STOCK 33 IS
+  A REQUIREMENT.** IDLE IS TWO FRAMES (every other actor idles on one, which is
+  a frozen body — an elite that stands perfectly still between bursts reads as a
+  prop). STRAFE IS ITS OWN CYCLE (playing the forward walk while travelling
+  sideways swings the feet AGAINST the direction of travel, which is the
+  sliding read both rejected candidates died of). BRACE / FIRE / RECOIL are
+  three separate bodies — an earlier build separated brace from fire by one
+  pixel of arm and they photographed as the same frame, which makes a burst a
+  muzzle flash over a static pose. Frames 42-50 are pose HOOKS for a future
+  signature and no ability reads them.
+- **THE FEET DO NOT BOB, AND THE LEADING FOOT IS LIGHTER.** Deriving the leg
+  ground line from the torso made the whole stance rise and fall with the walk
+  bob — a body hovering rather than a body whose weight shifts — and it pushed
+  the leading boot off the bottom of the canvas, where `SpriteSheet.rect`
+  silently CLIPPED it: **the cycle's biggest step was the one with a foot
+  missing.** Two identically-toned boots swapping places also read as one shape
+  wobbling; the near foot catching more light is what makes the swap a STEP.
+  The Captain is 28x30 rather than 28x28 for exactly this, and the two extra
+  rows are empty footing, not more figure.
+- **A MUZZLE FLASH AT THE FLAT DEPTH 27 IS DRAWN UNDER THE ACTOR BAND.** Actors
+  Y-sort, so a body at world y 700 draws at depth 700. It has been survivable
+  for nemesis weapons because their muzzle sits ~26px from a Ø44 body; it stops
+  being survivable on a Ø56 body with a 75px barrel firing SOUTH, where the
+  muzzle is 15px past the sprite's own bottom edge and nearly the whole flash is
+  behind the man firing it. `weaponMuzzle` takes an optional `depth`; anything
+  that knows its firer passes `firer.y + 2`. Same shape as the console whose
+  light was drawn beneath the console — **ask where the light LANDS, in pixels.**
+- **THE CAPTAIN'S DURABILITY IS TWO LAYERS AND `armourSpill` IS WHAT STOPS THE
+  SECOND BEING A WALL.** The Interdictor's 1400hp was 0.47 of ONE Super, so the
+  first casual Super deleted the concept before its behaviour could be seen — and
+  a bigger pool is the WRONG answer to that, because it buys observation time by
+  making every bullet feel weaker (the "spongey" failure). Overkill past the
+  armour carries through to the body at `armourSpill`, so a Super breaks the
+  layer AND hurts in the same instant. The break is TWO TEXTURES, not a tint
+  (`champ-captain-broken` shears the pauldron and dims the visor), on the hero
+  prop's contract: a recolour says "the same thing, dimmer" and what must read
+  is that a piece of him is GONE. One layer, no regeneration, no second phase.
+- **THE CAPTAIN DOES NOT YIELD ON `_staggerMs`, AND THAT IS THE POINT.**
+  `Enemy.damage` sets it to 90 on EVERY hit, so `if (this._staggerMs > 0)
+  return;` is a stun-lock by chip fire — 4305ms motionless, measured on the
+  Harrower. It reacts to a REAL blow instead: above `staggerMinDamage`, once per
+  `staggerCooldownMs`, for a bounded `staggerMs`, and the loop resumes on the
+  frame it ends.
+- **A CAPTAIN BOLT NEEDS ITS OWN POOL, AND ITS SPEED IS UNDER 620 ON PURPOSE.**
+  `captainBullets` is the FOURTH hostile pool: `BulletGroup.fire` re-asserts its
+  group's texture on every recycle, so a blue bolt in the green trooper pool is
+  either re-textured after the fact (silently resizing its hitbox, because
+  `Bullet.fire` sizes the body from the TEXTURE) or leaks blue into the next
+  trooper's shot. It is in `hostileBullets`, which is what stops the split being
+  six places to remember. `bulletSpeed: 600` sits under `Bullet.fire`'s
+  `clamp(speed / 620, 1, 2.2)` tracer stretch, so the hitbox is exactly the
+  texture width.
+- **A TEST MUST NAME THE CANDIDATE IT TESTS, AND MUST READ THE ACTOR RATHER
+  THAN THE FLAG.** `smoke-harrower` rode `?champdbg=1` and silently changed
+  subject the moment the active candidate did. And a dynamic
+  `import('/src/systems/debug.js')` inside `page.evaluate` can hand back a
+  SECOND module instance carrying the authored defaults — `getChampWhich()`
+  answered 'captain' while the sprite on the floor was plainly a Harrower.
+  `spawnChampion` with no explicit id resolves the real default through the real
+  code path, and its texture cannot lie.
 - **A NEW ACTOR SITS BETWEEN THE TWO THINGS IT MUST NOT BE CONFUSED WITH, AND
   ITS LADDER IS PLACED AGAINST THE DECK.** Troopers are cool white (`#dcdce8`),
   Vader near-black (`#12121a`), the deck `#212328`. The Shock Captain concept's

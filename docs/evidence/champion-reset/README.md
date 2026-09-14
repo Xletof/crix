@@ -37,3 +37,30 @@ seams, the `EnvLight` emissive layer, the sector tint and the HUD's own 84px top
 inset are all the live hangar. The camera is PLACED, not followed (the scene is
 paused first, so the director cannot overwrite the scroll) — the matched-pair
 rule from `§10y`.
+
+---
+
+## PHASE B.2 — the combatant gate (`b2/`)
+
+The visual gate passed; `HANDOVER.md` `§10ag` is the record. These are RUNTIME
+frames at 1x, not sprite strips — an animation approved off a zoomed sheet is an
+animation nobody has actually seen.
+
+    npm run dev            # in one shell
+    node tests/shot-captain.mjs b2
+
+| frame | what it shows |
+|---|---|
+| `01-idle-in-crowd` | the breathing idle inside an ordinary wave — findability |
+| `02-walk` / `03-strafe` | locomotion: the forward cycle, and the lateral step that is NOT it |
+| `04-brace` / `05-fire` / `06-recoil` | the burst as an arc the shoulder performs |
+| `11-muzzle-flash` | the flash caught with the tween clock frozen, at the barrel |
+| `07-heavy-hit` | a real blow staggers; chip fire does not |
+| `08-armour-break` / `09-damaged-state` | the layer breaking, and the persistent damaged body |
+| `10-damaged-in-crowd` | the damaged silhouette still findable in a fight |
+| `12-intact-vs-broken` | the matched pair — the claim is about a DIFFERENCE |
+
+The arena is quieted at every station and ONLY the arena: the drip and other
+enemies' fire are off, because a trooper bolt crossing the frame and a damage
+number over the subject are not evidence about the subject. The Captain's body,
+pose, facing, weapon and FX are whatever the live code produces.

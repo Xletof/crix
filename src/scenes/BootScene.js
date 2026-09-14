@@ -49,8 +49,9 @@ export class BootScene extends Phaser.Scene {
     // vertical slice. Debug only; normal Endless spawns none.
     if (params.has('champdbg')) {
       setChampDebug(true);
-      // `?champdbg=interdictor` reaches the rejected candidate for a side-by-
-      // side; anything else (including `1`) is the active one.
+      // `?champdbg=interdictor` / `?champdbg=harrower` reach the two rejected
+      // candidates for a side-by-side; anything else (including `1`) is the
+      // active one, the SHOCK CAPTAIN.
       setChampWhich(params.get('champdbg'));
     }
 

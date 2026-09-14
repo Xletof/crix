@@ -10,6 +10,11 @@
 //
 //   NO ACCIDENTAL INTERDICTOR STATE — outside its own bounded bank, the craft
 //   must never settle into a long stationary standoff.
+// NOTE — THE CANDIDATE IS NAMED EXPLICITLY, ON PURPOSE. `?champdbg=1` spawns
+// whatever the ACTIVE Champion candidate is, and that is now the Shock Captain
+// (`HANDOVER.md` §10ag); the Harrower is human-rejected and reachable only by
+// id. A test that rides the default is a test that silently changes subject the
+// next time the default does.
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 
 const BASE = 'http://localhost:5173/';
@@ -38,7 +43,7 @@ async function run(query, fn) {
 }
 
 // ── 1. Identity and body ───────────────────────────────────────────────────
-const id = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(async () => {
+const id = await run('?nodlg=1&champdbg=harrower', async (page) => page.evaluate(async () => {
   const { HARROWER, BOSS } = await import('/src/config.js');
   const gs = window.game.scene.getScene('Game');
   const { setGodMode } = await import('/src/systems/debug.js');
@@ -72,7 +77,7 @@ check(id.bodyR * 2 < id.bossR * 2, 'and it is smaller than the boss', `${id.body
 check(!id.hasWeapon, 'it carries no weapon — Phase B.1 has no signature attacks at all', '');
 
 // ── 2. The loop: it does not stand still ───────────────────────────────────
-const loop = await run('?nodlg=1&champdbg=1&encdbg=crossfire&room=hangar&sector=6', async (page) => {
+const loop = await run('?nodlg=1&champdbg=harrower&encdbg=crossfire&room=hangar&sector=6', async (page) => {
   await page.evaluate(async () => {
     const { setGodMode } = await import('/src/systems/debug.js');
     setGodMode(true);
@@ -114,7 +119,7 @@ check(loop.maxPts <= 64, 'the wake stays inside its segment cap', `${loop.maxPts
 check(loop.maxWake < 1300, 'and its length is bounded — a trail, never a cage', `${Math.round(loop.maxWake)}px`);
 
 // ── 3. The wake: caused by movement, and drawn where it hurts ──────────────
-const wake = await run('?nodlg=1&champdbg=1&room=hangar&sector=6', async (page) => page.evaluate(async () => {
+const wake = await run('?nodlg=1&champdbg=harrower&room=hangar&sector=6', async (page) => page.evaluate(async () => {
   const { HARROWER } = await import('/src/config.js');
   const { setGodMode } = await import('/src/systems/debug.js');
   setGodMode(true);
@@ -166,7 +171,7 @@ check(wake.geom?.justOutside === false && wake.geom?.farOff === false,
   'AND NOTHING ELSE — the shape is the hit test', JSON.stringify(wake.geom));
 
 // ── 4. Cleanup, in every direction ─────────────────────────────────────────
-const clean = await run('?nodlg=1&champdbg=1&room=hangar&sector=6', async (page) => page.evaluate(async () => {
+const clean = await run('?nodlg=1&champdbg=harrower&room=hangar&sector=6', async (page) => page.evaluate(async () => {
   const { ROOMS } = await import('/src/data/rooms.js');
   const { setGodMode } = await import('/src/systems/debug.js');
   setGodMode(true);
@@ -216,7 +221,7 @@ check(off.dbg === false && off.seen === 0,
 check(off.injected === null, 'and the injector refuses without the flag', `${off.injected}`);
 
 // ── 6. Frozen neighbours ───────────────────────────────────────────────────
-const frozen = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(async () => {
+const frozen = await run('?nodlg=1&champdbg=harrower', async (page) => page.evaluate(async () => {
   const { ENCOUNTERS, ENCOUNTER_PLAN } = await import('/src/data/encounters.js');
   const { NEMESIS_MOVES, KITS } = await import('/src/data/nemesisMoves.js');
   const { ROOMS } = await import('/src/data/rooms.js');

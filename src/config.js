@@ -1670,6 +1670,107 @@ export function bossMechanicsFor(n) {
 // because it takes a long time to kill is the thing the human rejected about
 // the Nemesis, restated.
 export const CHAMPION = {
+  // ── THE IMPERIAL SHOCK CAPTAIN — PHASE B.2 ────────────────────────────────
+  //
+  // The third candidate and the first to clear the VISUAL/FANTASY gate
+  // (`HANDOVER.md` §10ag). The two before it were rejected on CATEGORY: both
+  // started from a mechanic and found a body for it afterwards, so both
+  // produced a delivery device whose content was on the floor. This one starts
+  // from a character — an Imperial line officer, bipedal, armed, who fights
+  // with a rifle — and the numbers below serve that and nothing else.
+  //
+  // THIS GATE IS MOVEMENT + RIFLE + ARMOUR AND NOTHING ELSE. No signature
+  // ability. If the ordinary combatant is not already worth fighting then a
+  // signature move would only hide it, which is exactly what Phase B.1 proved
+  // in the other direction.
+  //
+  // EVERY NUMBER IS PROVISIONAL and chosen against the player's own constants
+  // rather than against a balance target. Handset review decides them.
+  captain: {
+    id: 'captain',
+    name: 'SHOCK CAPTAIN',
+    tex: 'champ-captain',
+    texBroken: 'champ-captain-broken',
+    anim: 'captain',
+    animBroken: 'captainbrk',
+    // Ø56. One step under Vader's Ø112 and well over the Ø44 rank and file, and
+    // DERIVED against the navigation debt rather than picked: `NavGrid.build`
+    // inflates a body rect by 23px per side, so Ø56 needs 56 + 46 = 102px of
+    // gap — inside the junction's authored 160px lane, which was itself derived
+    // for Ø112. Anywhere Vader can walk, this can walk.
+    radius: 28,
+    // ── DURABILITY: TWO LAYERS, AND THE SECOND IS THE POINT ─────────────────
+    // The Interdictor's 1400 was 0.47 of ONE Super's 3000 raw, so the first
+    // casual Super deleted the concept before its behaviour could be seen. A
+    // bigger pool is the wrong answer to that — it buys observation time by
+    // making every bullet feel weaker, which is the "spongey" failure.
+    //
+    // So: a reactive armour layer that ABSORBS a concentrated commitment,
+    // breaks visibly, and never comes back. `armourSpill` is what stops it
+    // being a damage wall — overkill past the layer carries through to the body
+    // at that fraction, so a Super BREAKS the armour AND hurts, which is the
+    // qualitative result the brief asks for.
+    hp: 2600,
+    armour: 1800,
+    armourSpill: 0.55,
+    // Chip fire is meant to feel productive against the layer, not free: while
+    // the armour holds, damage to it is scaled by this. Above 1 would make
+    // shooting the armour better than shooting the body, which is nonsense.
+    armourTake: 0.85,
+    // Between the shooter's 190 and the grunt's 230. An elite infantryman moves
+    // like infantry — deliberately NOT "fast because Champions should be fast",
+    // which is a design property masquerading as a requirement.
+    speed: 205,
+    // ── THE ENGAGEMENT BAND ────────────────────────────────────────────────
+    // Derived from the portrait viewport, not invented: the game camera shows
+    // ~720x1196 with an 84px HUD inset, so a Captain beyond ~520px of the
+    // player is frequently off screen and one inside ~300px is in their face.
+    // He seeks the band and, once inside it, never freezes — he strafes.
+    holdMin: 300,
+    holdMax: 520,
+    // How far a single reposition commits before it is re-solved. Short enough
+    // that he reacts, long enough that each move reads as one decision rather
+    // than as jitter.
+    strafeMs: [900, 1500],
+    advanceMs: 1400,
+    giveGroundMs: 800,
+    // He changes side roughly this often while strafing, so a player cannot
+    // learn one lead and hold it.
+    sideSwapChance: 0.35,
+    // ── THE HEAVY BURST ────────────────────────────────────────────────────
+    // A TRAINED ELITE'S RHYTHM, not a hose and not the ordinary shooter with a
+    // bigger number. Visible brace, three deliberate rounds, crisp recoil,
+    // recovery — then he moves. The gaps are what make it read as aimed.
+    braceMs: 380,
+    burstRounds: 3,
+    burstGapMs: 190,
+    recoverMs: 520,
+    fireEveryMs: 2100,      // floor between bursts, measured from the last round
+    bulletSpeed: 600,       // under `Bullet.fire`'s 620 tracer-stretch clamp, so
+                            // the hitbox is exactly the texture width
+    bulletDamage: 105,
+    bulletRange: 760,
+    // He will not open fire outside this: a burst the player cannot see coming
+    // from off screen is not a tell, it is a surprise.
+    fireRange: 620,
+    // ── STAGGER: BOUNDED, AND NEVER A STUN-LOCK ────────────────────────────
+    // `Enemy.damage` sets `_staggerMs = 90` on EVERY hit, and an actor that
+    // early-returns on it is stun-locked by chip fire — measured at 4305ms
+    // motionless on the Harrower, which is the Interdictor's failure arriving
+    // through a different door. A Captain reacts to a REAL blow and ignores the
+    // rest: one visible stagger per cooldown, above a damage threshold, and the
+    // combat loop resumes on the frame it ends.
+    staggerMinDamage: 260,
+    staggerMs: 260,
+    staggerCooldownMs: 1600,
+    // THE IDENTITY COLOUR. Electric blue, chosen by ELIMINATION: green is enemy
+    // bullet colour, crimson is Vader and every telegraph, amber is the arenas'
+    // emergency power, cyan is their screens, violet was spent on the rejected
+    // Interdictor. It is the visor, the weapon core, the bolt and the ground
+    // ring, so all four say the same thing.
+    color: 0x4fc3ff,
+  },
+
   interdictor: {
     id: 'interdictor',
     name: 'INTERDICTOR',

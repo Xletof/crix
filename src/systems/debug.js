@@ -178,15 +178,24 @@ export function parseEncDebugParams(params) {
 // chance roll anywhere — so the production build cannot produce one rather than
 // being merely unlikely to. `smoke-champion` asserts that in both directions.
 //
-// `?champdbg=1` injects the ACTIVE candidate, which is the HARROWER. The
-// rejected Interdictor is kept in the tree but is no longer what the flag
-// spawns — `?champdbg=interdictor` is the only way to reach it, and exists
-// solely so the two can be put side by side when judging the new one.
+// `?champdbg=1` injects the ACTIVE candidate, which is the SHOCK CAPTAIN. The
+// Interdictor and the Harrower are both HUMAN-REJECTED (`HANDOVER.md` §10af)
+// and are kept in the tree only so the post-mortem sits next to the thing it is
+// about; `?champdbg=interdictor` and `?champdbg=harrower` are the only ways to
+// reach them, for a side-by-side when judging the new one.
+//
+// THE DEFAULT MATTERS. A rejected prototype left as what the flag produces is
+// how a handset session ends up reviewing the wrong actor — so the default is
+// the candidate under test, and anything unrecognised falls back to it rather
+// than to a rejected one.
+const CHAMP_CANDIDATES = ['captain', 'harrower', 'interdictor'];
 let champDebug = false;
-let champWhich = 'harrower';
+let champWhich = 'captain';
 
 export function isChampDebug() { return champDebug; }
 export function setChampDebug(v) { champDebug = !!v; }
-/** Which candidate the flag spawns: 'harrower' (active) or 'interdictor'. */
+/** Which candidate the flag spawns: 'captain' (active), 'harrower' or 'interdictor'. */
 export function getChampWhich() { return champWhich; }
-export function setChampWhich(v) { champWhich = v === 'interdictor' ? 'interdictor' : 'harrower'; }
+export function setChampWhich(v) {
+  champWhich = CHAMP_CANDIDATES.includes(v) ? v : 'captain';
+}

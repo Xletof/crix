@@ -29,6 +29,7 @@ const TESTS = [
   'smoke-camera',
   'smoke-champion',
   'smoke-harrower',
+  'smoke-captain',
   'smoke-boost',
   'smoke-cluster',
   'smoke-controls',

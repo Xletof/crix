@@ -1462,6 +1462,418 @@ export function paintShooter(scene, key = 'shooter') {
 // ── BOSS: Darth Vader (40×40, 4 frames) — NO ROTATION ─────────────────────
 // Massive cape spreading south, dome at top, weapon (saber) is a separate
 // rotating overlay sprite — body itself is static aside from walk/idle.
+// ── THE IMPERIAL SHOCK CAPTAIN ──────────────────────────────────────────────
+//
+// PHASE B.2. The approved concept sheet, promoted into the runtime pipeline.
+// `docs/evidence/champion-reset/` is the sheet the human approved and
+// `HANDOVER.md` §10af is why the two previous candidates are not here.
+//
+// DRAWN IN THE HOUSE GRAMMAR, WHICH IS THE WHOLE REASON IT READS AS A PERSON:
+// a high-angle top-down figure — helmet DOME at the north edge, shoulders below
+// it and wider, a chest panel, then four rows of leg at the south edge. Vader is
+// 40x40 with a 16px dome, the grunt 20x20 with an 11px one, and this is 28x28
+// with a 12px one. The first concept stacked horizontal colour bands instead and
+// photographed as a machine.
+//
+// 28x28 logical at scale 4 = 112x112. Grunt 80, player 96, Vader 160 — 1.4x the
+// rank and file, unmistakably below the boss.
+//
+// THE VALUE LADDER IS PLACED AGAINST THE DECK (#212328), not inside a palette
+// family: armour three steps above it, top planes four. Troopers are cool white
+// and Vader is near-black; a Champion sits between the two things it must not be
+// confused with. An earlier build used #2e3038 and photographed as a second dark
+// blob standing next to Vader.
+//
+// NO WEAPON IS PAINTED INTO THE BODY. `paintCaptainRifle` is a separate overlay
+// on the same east-facing / origin (0.15, 0.5) contract every armed actor here
+// uses. A rifle baked into the sheet is a second author for the same object.
+//
+// ── THE FRAME LAYOUT IS ITS OWN, AND THAT IS DELIBERATE ─────────────────────
+// The stock actor contract is 33 frames (idle, 6 walk, fire per facing, plus 9
+// poses) and its IDLE IS ONE FRAME — a frozen body. This sheet is 51:
+//
+//   dir * 14 + 0    idle A          1   idle B (breath)
+//               2..7 walk 1..6
+//               8    brace          9   fire        10  recoil    11  stagger
+//               12   strafe A       13  strafe B
+//   42 + dir*3 + p   raise / thrust / recover  (hooks for a future signature)
+//
+// The two extra IDLE frames and the two STRAFE frames are the Phase B.2 brief:
+// an elite must not freeze between bursts, and a lateral step must not be the
+// forward walk cycle played sideways — legs swinging fore-and-aft while the body
+// travels laterally is the "sliding" read the two rejected candidates died of.
+export const CAPTAIN_PALETTE = {
+  // SEMANTIC ROLES, so a future variant is a palette swap rather than a second
+  // painter. Prepared, not used: there is exactly one Shock Captain and it is
+  // the reference identity (`HANDOVER.md` §10ag).
+  black: '#08080c', deep: '#1e2028', body: '#3e4048', plate: '#5a5c62',
+  lit: '#7a7c80', trim: '#9a9c9e',
+  rank: '#c6c0b0', rankHi: '#e6e0d0', rankLo: '#8c8678',
+  visor: '#4fc3ff', visorHot: '#dcf2ff', visorDim: '#1a4763',
+  emissive: '#4fc3ff', emissiveHot: '#dcf2ff',
+  damage: '#ffd27a', white: '#ffffff',
+};
+
+export const CAPTAIN_FRAMES = {
+  perDir: 14,
+  idleA: 0, idleB: 1, walk: 2, brace: 8, fire: 9, recoil: 10, stagger: 11,
+  strafeA: 12, strafeB: 13,
+  poseBase: 42,
+  total: 51,
+};
+
+export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
+  const P = { ...CAPTAIN_PALETTE, ...(opts.palette || {}) };
+  const BROKEN = !!opts.broken;
+  // 28 WIDE, 30 TALL. The two extra rows are EMPTY FOOTING at the south edge,
+  // not more figure: the drawn body is unchanged from the approved concept and
+  // the rows exist so a real stride has somewhere to land. An earlier build was
+  // 28x28 and `SpriteSheet.rect` silently CLIPPED the leading boot on the two
+  // widest walk frames — the cycle's biggest step was the one with a foot
+  // missing, which is a walk that reads worse the harder it tries.
+  const W = 28, H = 30;
+  const ss = new SpriteSheet(scene, key, W, H, CAPTAIN_FRAMES.total, 4);
+
+  // A black rim is what makes a plate sit ON something rather than beside it.
+  const rim = (x, y, w, h) => {
+    ss.hline(y - 1, x, x + w - 1, P.black); ss.hline(y + h, x, x + w - 1, P.black);
+    ss.vline(x - 1, y, y + h - 1, P.black); ss.vline(x + w, y, y + h - 1, P.black);
+  };
+
+  /**
+   * ONE BODY, FOUR CHANNELS.
+   *
+   * `bob` (vertical), `lean` (along the facing axis), `sh` (shoulder height) and
+   * the leg phase — exactly the channels `drawVader` and `drawTrooper` use,
+   * because at 28px nothing finer survives. Everything a pose says, it says
+   * through those four and through where the boots land.
+   */
+  function draw(f, dir, pose, legPhase = 0) {
+    ss.frame(f);
+    const back = dir === 'back';
+    const side = dir === 'side';
+    const hurt = pose === 'stagger';
+    const breath = pose === 'idleB';
+
+    const bob = pose === 'fire' ? 1 : pose === 'recoil' ? 2 : pose === 'brace' ? 1
+      : hurt ? 2 : pose === 'thrust' ? 1 : pose === 'raise' ? -2
+      : (legPhase === 0 ? 0 : (Math.abs(legPhase) === 2 ? 1 : 0));
+    const lean = pose === 'fire' ? 2 : pose === 'recoil' ? -3 : pose === 'brace' ? 1
+      : hurt ? -2 : pose === 'thrust' ? 2 : pose === 'raise' ? -1 : 0;
+    // Shoulder height is the clearest tell a body this small has, and it is what
+    // carries the whole brace -> fire -> recoil -> settle arc. THE THREE MUST
+    // NOT BE NEIGHBOURS: an earlier build separated brace from fire by one
+    // pixel of arm and they photographed as the same frame, which makes a burst
+    // a muzzle flash over a static pose — exactly what §5 of the brief forbids.
+    const sh = pose === 'brace' ? -2 : pose === 'fire' ? 1 : pose === 'recoil' ? 3
+      : hurt ? 1 : pose === 'raise' ? -2 : breath ? -1 : 0;
+
+    const cx = 14;
+    const cy = 8 + bob + lean;
+    const sy = 14 + bob + sh;
+    const ty = 14 + bob;
+    const bone = BROKEN ? P.rankLo : P.rank;
+    const flare = pose === 'raise' || pose === 'strafeA' || pose === 'strafeB';
+
+    // ── THE PACK ──────────────────────────────────────────────────────────
+    // A compact power assembly on his back. Seen from above that is NORTH of
+    // the torso and mostly UNDER the helmet, so it is drawn first and shows as
+    // two dark wings either side of the dome. Lit nozzles ABOVE the head read
+    // as antennae, or as a second pair of eyes competing with the visor.
+    if (!side) {
+      ss.rect(cx - 7, ty - 3, 14, 3, P.deep);
+      ss.hline(ty - 3, cx - 7, cx + 6, P.body);
+      rim(cx - 7, ty - 3, 14, 3);
+      ss.px(cx - 7, ty - 2, flare ? P.emissive : P.black);
+      ss.px(cx + 6, ty - 2, flare ? P.emissive : P.black);
+      if (flare) { ss.px(cx - 8, ty - 2, P.emissiveHot); ss.px(cx + 7, ty - 2, P.emissiveHot); }
+    } else {
+      ss.rect(cx - 6, ty - 3, 6, 3, P.deep);
+      ss.hline(ty - 3, cx - 6, cx - 1, P.body);
+      rim(cx - 6, ty - 3, 6, 3);
+      ss.px(cx - 7, ty - 2, flare ? P.emissive : P.black);
+    }
+
+    // ── HELMET DOME ───────────────────────────────────────────────────────
+    // A real circle at r = 6, graded north to south, with black side rims. A
+    // squashed ellipse plus a full-width crown row photographs as a BUCKET.
+    for (let dy = -5; dy <= 5; dy++) {
+      const w = Math.round(Math.sqrt(36 - dy * dy));
+      const tone = dy <= -4 ? P.lit : dy === -3 ? P.plate : dy >= 4 ? P.deep : P.body;
+      ss.hline(cy + dy, cx - w, cx + w - 1, tone);
+    }
+    ss.vline(cx - 6, cy - 2, cy + 2, P.black);
+    ss.vline(cx + 5, cy - 2, cy + 2, P.black);
+    ss.hline(cy - 6, cx - 3, cx + 2, P.black);
+    ss.hline(cy + 6, cx - 3, cx + 2, P.black);
+    ss.hline(cy - 3, cx - 5, cx + 4, P.plate);
+    ss.px(cx - 4, cy - 3, P.lit); ss.px(cx + 3, cy - 3, P.lit);
+
+    // THE CREST — a bone rank ridge along the crown, drawn INSIDE the dome. A
+    // crest standing proud of the helmet is an aerial on a robot, or a bun.
+    if (!side) {
+      ss.rect(cx - 1, cy - 5, 2, back ? 8 : 5, bone);
+      ss.hline(cy - 5, cx - 1, cx, P.rankHi);
+      ss.vline(cx - 2, cy - 4, cy - 1, P.black);
+      ss.vline(cx + 1, cy - 4, cy - 1, P.black);
+    } else {
+      // In profile the crest is a FIN along the crown, not a cap over it: a
+      // full-width bone slab on top of a side head photographs as a white hat.
+      ss.rect(cx - 3, cy - 5, 5, 2, bone);
+      ss.hline(cy - 5, cx - 3, cx + 1, P.rankHi);
+      ss.hline(cy - 3, cx - 3, cx + 1, P.black);
+    }
+
+    if (!back && !side) {
+      // Brow, then a wide luminous visor slit — the only strong small light
+      // above the shoulders and the fastest identification in the frame.
+      ss.hline(cy, cx - 5, cx + 4, P.black);
+      const vis = hurt ? P.white : BROKEN ? P.visorDim : P.visor;
+      ss.hline(cy + 1, cx - 5, cx + 4, vis);
+      ss.hline(cy + 2, cx - 4, cx + 3, vis);
+      ss.px(cx - 5, cy + 1, P.visorHot); ss.px(cx + 4, cy + 1, P.visorHot);
+      // ONLY ON THE FRAME THE SHOT LEAVES. Lit on the brace as well and the two
+      // frames stop being distinguishable at 1x, where the visor is the first
+      // thing the eye finds.
+      if (pose === 'fire' || pose === 'raise') {
+        ss.hline(cy + 1, cx - 5, cx + 4, P.visorHot);
+        ss.hline(cy + 2, cx - 4, cx + 3, P.visorHot);
+      }
+      ss.hline(cy + 3, cx - 3, cx + 2, P.black);
+      ss.hline(cy + 4, cx - 2, cx + 1, P.black);
+      ss.px(cx - 4, cy + 4, P.plate); ss.px(cx + 3, cy + 4, P.plate);
+    } else if (side) {
+      ss.rect(cx + 2, cy, 4, 3, P.black);
+      ss.px(cx + 5, cy + 1, BROKEN ? P.visorDim : P.visor);
+      ss.px(cx + 6, cy + 1, P.visorHot);
+      ss.hline(cy + 3, cx - 3, cx + 2, P.deep);
+    } else {
+      ss.hline(cy + 1, cx - 4, cx + 3, P.deep);
+      ss.hline(cy + 4, cx - 3, cx + 2, P.black);
+    }
+
+    // ── TORSO ─────────────────────────────────────────────────────────────
+    // Drawn BEFORE the pauldron so the two are one mass rather than a plate
+    // hovering beside a body.
+    if (!side) {
+      ss.rect(cx - 5, ty, 10, 8, P.body);
+      ss.hline(ty, cx - 5, cx + 4, P.lit);
+      ss.hline(ty + 1, cx - 5, cx + 4, P.plate);
+      ss.hline(ty + 7, cx - 5, cx + 4, P.deep);
+      rim(cx - 5, ty, 10, 8);
+      if (!back) {
+        // THE CHEST IS DARK, AND THAT IS WHAT MAKES THE PAULDRON ASYMMETRIC. A
+        // bone rank band here sat at the pauldron's height and tone and the two
+        // fused into one pale bar straight across the shoulders — the loudest
+        // mark on the body and perfectly symmetrical. Bone appears exactly
+        // twice: the crest on the centreline and ONE shoulder.
+        ss.rect(cx - 3, ty + 2, 6, 5, P.body);
+        ss.hline(ty + 2, cx - 3, cx + 2, P.lit);
+        ss.hline(ty + 3, cx - 3, cx + 2, P.deep);
+        ss.hline(ty + 6, cx - 3, cx + 2, P.black);
+        rim(cx - 3, ty + 2, 6, 5);
+        ss.rect(cx - 1, ty + 4, 2, 2, BROKEN ? P.visorDim : P.emissive);
+        ss.px(cx - 1, ty + 4, P.emissiveHot);
+        if (BROKEN) { ss.px(cx - 4, ty + 6, P.damage); ss.px(cx + 3, ty + 3, P.damage); }
+      } else {
+        ss.vline(cx - 1, ty + 1, ty + 6, P.deep); ss.vline(cx, ty + 1, ty + 6, P.deep);
+        ss.hline(ty + 4, cx - 4, cx + 3, P.plate);
+      }
+    } else {
+      ss.rect(cx - 4, ty, 8, 8, P.body);
+      ss.hline(ty, cx - 4, cx + 3, P.plate);
+      rim(cx - 4, ty, 8, 8);
+      ss.vline(cx + 3, ty + 1, ty + 6, P.deep);
+      ss.px(cx + 3, ty + 4, BROKEN ? P.visorDim : P.emissive);
+    }
+
+    // ── SHOULDERS ─────────────────────────────────────────────────────────
+    // ASYMMETRIC BY CONSTRUCTION — one bone COMMAND PAULDRON, one small dark
+    // plate, never a mirror. The rank marks run ACROSS: two vertical notches on
+    // a pale plate are two eye sockets and the pauldron photographed as a SKULL.
+    if (!side) {
+      const px0 = back ? cx + 4 : cx - 10;
+      if (!BROKEN) {
+        ss.rect(px0, sy, 6, 6, bone);
+        ss.hline(sy, px0 + 1, px0 + 4, P.rankHi);
+        ss.hline(sy + 5, px0, px0 + 5, P.rankLo);
+        rim(px0, sy, 6, 6);
+        ss.px(px0, sy, P.black); ss.px(px0 + 5, sy, P.black);
+        ss.px(px0, sy + 5, P.black); ss.px(px0 + 5, sy + 5, P.black);
+        ss.hline(sy + 2, px0 + 1, px0 + 3, P.rankLo);
+        ss.hline(sy + 3, px0 + 1, px0 + 2, P.rankLo);
+        ss.rect(px0 + 1, sy + 6, 4, 2, P.rankLo);   // it wraps over the arm
+        rim(px0 + 1, sy + 6, 4, 2);
+      } else {
+        // ARMOUR BROKEN — the pauldron is sheared to a stub and the plate under
+        // it is exposed. THE SILHOUETTE CHANGES, which is the point of a
+        // breakable layer; a recolour would not be one.
+        ss.rect(px0 + 2, sy + 1, 4, 4, P.plate);
+        ss.hline(sy + 1, px0 + 2, px0 + 5, P.lit);
+        rim(px0 + 2, sy + 1, 4, 4);
+        ss.px(px0 + 1, sy + 2, P.rankLo); ss.px(px0 + 1, sy + 4, P.rankLo);
+        // Sparks on the SHEAR, not floating beside it. Drawn one pixel off the
+        // exposed plate's own edge so they read as coming out of the break.
+        ss.px(px0 + 1, sy, P.damage); ss.px(px0 + 2, sy + 5, P.damage);
+      }
+      const qx = back ? cx - 10 : cx + 4;
+      ss.rect(qx, sy + 2, 6, 5, P.body);
+      ss.hline(sy + 2, qx, qx + 5, P.plate);
+      rim(qx, sy + 2, 6, 5);
+      // Arms. Without them the shoulders are cargo, not limbs — and the arm is
+      // the one place brace / fire / recoil can be told apart at a glance.
+      const ao = pose === 'brace' ? 1 : pose === 'fire' ? 3 : pose === 'recoil' ? -2
+        : pose === 'strafeA' ? 1 : pose === 'strafeB' ? -1
+          : legPhase === 1 ? 1 : legPhase === 2 ? 2 : legPhase === -1 ? -1
+            : legPhase === -2 ? -2 : 0;
+      ss.rect(qx + 1 + ao, sy + 7, 4, 3, P.body);
+      ss.hline(sy + 7, qx + 1 + ao, qx + 4 + ao, P.plate);
+      rim(qx + 1 + ao, sy + 7, 4, 3);
+    } else {
+      ss.rect(cx - 7, sy + 1, 4, 5, P.deep);
+      rim(cx - 7, sy + 1, 4, 5);
+      if (!BROKEN) {
+        // NARROWER THAN THE FRONT PAULDRON. Seen edge-on a shoulder plate is
+        // foreshortened; at the front view's width it fills the profile and the
+        // head stops being the biggest thing in the frame.
+        ss.rect(cx - 5, sy, 5, 6, bone);
+        ss.hline(sy, cx - 5, cx - 1, P.rankHi);
+        ss.hline(sy + 5, cx - 5, cx - 1, P.rankLo);
+        rim(cx - 5, sy, 5, 6);
+        ss.hline(sy + 2, cx - 4, cx - 2, P.rankLo);
+        ss.hline(sy + 3, cx - 4, cx - 3, P.rankLo);
+      } else {
+        ss.rect(cx - 3, sy + 1, 5, 4, P.plate);
+        ss.hline(sy + 1, cx - 3, cx + 1, P.lit);
+        rim(cx - 3, sy + 1, 5, 4);
+        ss.px(cx - 4, sy + 2, P.damage);
+      }
+      const ao = pose === 'brace' || pose === 'fire' ? 1 : 0;
+      ss.rect(cx + ao, sy + 6, 5, 3, P.body);
+      ss.hline(sy + 6, cx + ao, cx + 4 + ao, P.plate);
+      rim(cx + ao, sy + 6, 5, 3);
+    }
+
+    // ── KAMA ──────────────────────────────────────────────────────────────
+    // A short armoured skirt: mass below the chest without borrowing Vader's
+    // cape. It flares on a wind-up and pulls in on a recovery, so the
+    // silhouette breathes with the attack.
+    const ky = ty + 8;
+    const sp = pose === 'raise' ? 1 : pose === 'recoil' ? -1 : 0;
+    ss.rect(cx - 6 - sp, ky, 12 + sp * 2, 2, P.deep);
+    ss.hline(ky, cx - 6 - sp, cx + 5 + sp, P.body);
+    rim(cx - 6 - sp, ky, 12 + sp * 2, 2);
+    if (!back && !side) { ss.px(cx - 1, ky + 1, P.plate); ss.px(cx, ky + 1, P.plate); }
+
+    // ── LEGS ──────────────────────────────────────────────────────────────
+    // FOUR ROWS AND A FOUR-PIXEL GAP: greave over boot, not a boot cap. The
+    // fastest BIPED read there is, and the thing neither rejected candidate had.
+    // THE FEET ARE ON THE FLOOR, SO THEY DO NOT BOB. `gy` is a constant, not
+    // `ky + 2`: deriving the ground line from the torso made the whole stance
+    // rise and fall with the walk bob, which is a body hovering rather than a
+    // body whose weight shifts — and it is what pushed the leading boot off the
+    // bottom of the canvas. The bob belongs to everything ABOVE the ankles.
+    const gy = 24;
+    let lx = cx - 6, ly = gy, rx = cx + 2, ry = gy;
+    if (side) { lx = cx - 5; rx = cx + 1; }
+    // A WALK IS THE FEET, and the feet must travel in OPPOSITE directions by
+    // enough to see. An earlier build stepped 1-2px and the six frames
+    // photographed as one: at 112px on a phone a one-pixel stride is nothing,
+    // and a body whose feet do not visibly alternate is a body being MOVED.
+    // The stride is fore-and-aft first (that is what a step is, seen from
+    // above) with a small lateral component so the stance opens and closes.
+    if (legPhase === 1) { lx -= 2; ly -= 1; rx += 2; ry += 1; }
+    else if (legPhase === 2) { lx -= 3; ly -= 2; rx += 3; ry += 2; }
+    else if (legPhase === -1) { lx += 2; ly += 1; rx -= 2; ry -= 1; }
+    else if (legPhase === -2) { lx += 3; ly += 2; rx -= 3; ry -= 2; }
+    // A LATERAL STEP IS NOT A FORWARD ONE. The forward cycle swings the feet
+    // fore-and-aft; played while the body travels sideways that is the
+    // "sliding" read both rejected candidates died of. The strafe frames widen
+    // and narrow the stance instead, which is what stepping sideways looks like
+    // from above.
+    if (pose === 'strafeA') { lx -= 2; rx += 2; }
+    else if (pose === 'strafeB') { lx -= 1; rx += 1; ly += 1; ry += 1; }
+    else if (pose === 'brace' || pose === 'raise') { lx -= 1; rx += 1; }
+    else if (hurt) { lx -= 2; ly += 1; rx += 2; ry -= 1; }
+    // THE LEADING FOOT IS LIGHTER. Two identically-toned blocks swapping places
+    // read as one shape wobbling; the near (southern) foot catching more light
+    // is what makes the swap legible as a STEP rather than as jitter.
+    const leg = (x, y, lead) => {
+      ss.rect(x, y, 4, 2, lead ? P.plate : P.body);
+      ss.hline(y, x, x + 3, lead ? P.lit : P.plate);
+      ss.rect(x, y + 2, 4, 2, P.deep); ss.hline(y + 3, x, x + 3, P.black);
+      ss.vline(x - 1, y, y + 3, P.black); ss.vline(x + 4, y, y + 3, P.black);
+    };
+    leg(lx, ly, ly > ry); leg(rx, ry, ry > ly);
+
+    // The hit flash is ONE row plus the visor, not a white bar across the chest:
+    // two rows at 112px is a white block where the body should be, and the
+    // frame stops being a body reacting.
+    if (hurt) ss.hline(ty + 4, cx - 3, cx + 2, P.white);
+  }
+
+  // Six walk frames per facing, on the grunt's own phase sequence so the cycle
+  // reads the same way every other actor here does.
+  const WALK = [1, 2, 1, -1, -2, -1];
+  ['front', 'back', 'side'].forEach((dir, di) => {
+    const o = di * CAPTAIN_FRAMES.perDir;
+    draw(o + 0, dir, 'idleA', 0);
+    draw(o + 1, dir, 'idleB', 0);
+    WALK.forEach((p, i) => draw(o + 2 + i, dir, null, p));
+    draw(o + 8, dir, 'brace', 0);
+    draw(o + 9, dir, 'fire', 0);
+    draw(o + 10, dir, 'recoil', 0);
+    draw(o + 11, dir, 'stagger', 0);
+    draw(o + 12, dir, 'strafeA', 0);
+    draw(o + 13, dir, 'strafeB', 0);
+    // Hooks for a future signature action. Drawn now because the sheet is
+    // painted once and a later move that needs a wind-up pose must not have to
+    // repaint it — §13 of the brief allows the assets and forbids the ability.
+    ['raise', 'thrust', 'recover'].forEach((p, pi) => {
+      draw(CAPTAIN_FRAMES.poseBase + di * 3 + pi, dir, p === 'recover' ? 'recoil' : p, 0);
+    });
+  });
+
+  ss.finish();
+}
+
+/**
+ * THE CAPTAIN'S HEAVY REPEATER — a weapon overlay, on the standard contract.
+ *
+ * 22x8 at scale 4, painted EAST-facing with the held end LEFT and mounted at
+ * origin (0.15, 0.5) like every other overlay, so the existing orbit maths in
+ * `Enemy.preUpdate` applies unchanged. Heavier than the E-11 the rank and file
+ * carry (18x8), with a blue core line tying it to the visor.
+ *
+ * DARKER THAN THE ARMOUR, ALWAYS. Painted in the body's own mid-greys it
+ * photographs at 1x as a pale slab laid across his chest — the weapon
+ * out-reading the man carrying it.
+ */
+export function paintCaptainRifle(scene, key = 'wpn-captain', palette = null) {
+  const P = { ...CAPTAIN_PALETTE, ...(palette || {}) };
+  const c = new PixelCanvas(scene, key, 22, 8, 4);
+  c.rect(0, 2, 3, 4, P.deep);
+  c.hline(2, 0, 2, P.body); c.hline(5, 0, 2, P.black);
+  c.rect(3, 1, 7, 5, P.deep);
+  c.hline(1, 3, 9, P.body); c.hline(5, 3, 9, P.black);
+  c.rect(5, 3, 4, 1, P.emissive); c.px(5, 3, P.emissiveHot);
+  c.rect(7, 6, 3, 2, P.deep); c.hline(7, 7, 9, P.black);
+  c.rect(10, 2, 10, 2, P.deep);
+  c.hline(2, 10, 19, P.body); c.hline(4, 10, 19, P.black);
+  c.px(12, 1, P.body); c.px(16, 1, P.body);
+  c.px(20, 2, P.plate); c.px(21, 2, P.emissiveHot);
+  c.finish();
+}
+
+// WHERE THE MUZZLE IS, IN PIXELS, and derived rather than guessed.
+//
+// The overlay is 22 logical px at scale 4 = 88px long, mounted at origin 0.15,
+// so its barrel tip sits 0.85 * 88 = 74.8px ahead of the mount along the aim.
+// Anything that draws a flash or spawns a bolt reads THIS, so the effect and
+// the projectile cannot leave from different places — the failure that made the
+// returned super detach from a motionless Vader.
+export const CAPTAIN_MUZZLE_PX = 22 * 4 * 0.85;
+
 export function paintBoss(scene, key = 'boss') {
   // 36 frames, not 24: the last twelve are ATTACK POSES.
   //

@@ -7,6 +7,9 @@ import {
   paintShooter,
   paintInterdictor,
   paintHarrower,
+  paintShockCaptain,
+  paintCaptainRifle,
+  CAPTAIN_FRAMES,
   paintBoss,
   paintConsole,
   paintConsolePedestal,
@@ -89,6 +92,14 @@ export class PreloadScene extends Phaser.Scene {
     // PHASE B.1 CANDIDATE — the Harrower. Driven frame-by-frame by its actor
     // rather than through `anims`, so it registers no animation keys.
     paintHarrower(this);
+    // THE SHOCK CAPTAIN — TWO SHEETS, NOT ONE TINT. `champ-captain-broken` is
+    // the same 51 frames with the command pauldron sheared to a stub and the
+    // visor dead, because armour breaking has to change the SILHOUETTE: a
+    // recolour says "the same thing, dimmer", which is the read this layer
+    // exists to avoid. Same contract as the hero prop's second texture.
+    paintShockCaptain(this, 'champ-captain');
+    paintShockCaptain(this, 'champ-captain-broken', { broken: true });
+    paintCaptainRifle(this, 'wpn-captain');
     paintBoss(this);
     // Nemesis bodies — 32x32, purpose-drawn for the size they actually render
     // at. See the note above paintNemesisSheet for why the trooper art could
@@ -176,6 +187,11 @@ export class PreloadScene extends Phaser.Scene {
     paintBolt(this, 'bullet',        PAL.boltRed,        PAL.boltRedGlow,   14);
     paintSuperSlug(this, 'bullet-super');
     paintBolt(this, 'bullet-enemy',  PAL.boltGreen,      PAL.boltGreenGlow, 14);
+    // THE SHOCK CAPTAIN'S ROUND — longer and electric blue, so it is legible as
+    // "the heavy one" in a frame that also has green trooper fire in it. Its
+    // own texture because its own POOL: a blue bolt recycled through the green
+    // group is re-textured on the next fire, which silently resizes its hitbox.
+    paintBolt(this, 'bullet-captain', PAL.bactaLight,     PAL.bactaMid,      18);
     paintMissile(this, 'frag-missile');
     paintForceOrb(this, 'boss-force-orb');
 
@@ -317,6 +333,74 @@ export class PreloadScene extends Phaser.Scene {
         });
       });
     }
+    // ── THE SHOCK CAPTAIN'S OWN ANIMATION SET ────────────────────────
+    //
+    // NOT THE STOCK 33-FRAME CONTRACT, and the differences are the Phase B.2
+    // brief rather than decoration. Its sheet is 14 frames per facing:
+    //
+    //   IDLE is TWO frames. Every other actor here idles on a single frame, so
+    //   it is a frozen body between actions; an elite that stands perfectly
+    //   still between bursts reads as a prop. Two frames at 3fps is breathing,
+    //   not bobbing.
+    //
+    //   STRAFE is its own two-frame cycle. Playing the forward walk while the
+    //   body travels sideways swings the feet fore-and-aft against the
+    //   direction of travel, which is the SLIDING read both rejected Champion
+    //   candidates died of. A lateral step widens and narrows the stance.
+    //
+    //   BRACE / FIRE / RECOIL are three separate frames driven by the combat
+    //   states, so a shot is an arc the shoulder performs rather than a muzzle
+    //   flash over an idle pose.
+    //
+    // Registered TWICE, once per durability state: `captain` reads the intact
+    // sheet and `captainbrk` the broken one, so `_breakArmour` swaps a texture
+    // and a prefix and every key it already plays keeps working.
+    for (const c of [
+      { key: 'captain', tex: 'champ-captain' },
+      { key: 'captainbrk', tex: 'champ-captain-broken' },
+    ]) {
+      ['front', 'back', 'side'].forEach((dirName, di) => {
+        const o = di * CAPTAIN_FRAMES.perDir;
+        this.anims.create({
+          key: `${c.key}-idle-${dirName}`,
+          frames: [{ key: c.tex, frame: o + CAPTAIN_FRAMES.idleA },
+            { key: c.tex, frame: o + CAPTAIN_FRAMES.idleB }],
+          frameRate: 3, repeat: -1,
+        });
+        this.anims.create({
+          key: `${c.key}-walk-${dirName}`,
+          frames: [0, 1, 2, 3, 4, 5].map((i) => ({ key: c.tex, frame: o + CAPTAIN_FRAMES.walk + i })),
+          frameRate: 12, repeat: -1,
+        });
+        this.anims.create({
+          key: `${c.key}-strafe-${dirName}`,
+          frames: [{ key: c.tex, frame: o + CAPTAIN_FRAMES.strafeA },
+            { key: c.tex, frame: o + CAPTAIN_FRAMES.strafeB }],
+          frameRate: 7, repeat: -1,
+        });
+        for (const [name, idx] of [
+          ['brace', CAPTAIN_FRAMES.brace], ['fire', CAPTAIN_FRAMES.fire],
+          ['recoil', CAPTAIN_FRAMES.recoil], ['stagger', CAPTAIN_FRAMES.stagger],
+        ]) {
+          this.anims.create({
+            key: `${c.key}-${name}-${dirName}`,
+            frames: [{ key: c.tex, frame: o + idx }],
+            frameRate: 12, repeat: -1,
+          });
+        }
+        // Hooks for a future signature action, on the house pose contract so
+        // `setMovePose` works the day one is authored. The assets are allowed
+        // by §13 of the brief; the ability is not, and there is none.
+        ['raise', 'thrust', 'recover'].forEach((poseName, pi) => {
+          this.anims.create({
+            key: `${c.key}-${poseName}-${dirName}`,
+            frames: [{ key: c.tex, frame: CAPTAIN_FRAMES.poseBase + di * 3 + pi }],
+            frameRate: 10, repeat: 0,
+          });
+        });
+      });
+    }
+
     // Enraged strike, frames 33-35. Vader only — nothing else has phases.
     poseDirs.forEach((dirName, di) => {
       this.anims.create({
