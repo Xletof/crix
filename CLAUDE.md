@@ -819,6 +819,51 @@ asserts separately that the ceiling is not reached.
   back at a combat-design gate. Normal Endless still spawns no Champion — no
   encounter pool entry, no `_rollEnemyType` branch, no chance roll — and Nemesis
   is still untouched.
+- **THE HARROWER IS THE ACTIVE CHAMPION CANDIDATE — `HANDOVER.md` §10ae.**
+  `?champdbg=1` spawns it; `?champdbg=interdictor` reaches the rejected one for
+  a side-by-side. Phase B.1 is FOUR VERBS — MOVE, PASS, WAKE, BANK — and no
+  signature attacks at all. **There is no `holdRange` and no stop condition
+  anywhere in `Harrower.js`**, by design: standing still is the failure the
+  concept exists against. Normal Endless spawns neither candidate.
+- **A `Wake` IS EMITTED, A `Barrier` IS PLACED.** Both live in `Hazard.js` and
+  share `spawnBarrier`/`spawnWake`/`tickHazards`/`clearHazards`. A wake is ONE
+  object holding a polyline, not N segments — a trail built from separately
+  spawned pieces photographs as disconnected floor rectangles appearing under a
+  sprite. It is sampled by DISTANCE (`wakeStepPx`), never per frame, for the
+  same reason the returned super's remnants are. `_segW(age)` is used by the
+  renderer AND by `contains()`, so the drawing and the hit test cannot drift.
+- **GATE A LOOP ON CAPABILITY, NEVER ON CLASS.** The Champion move-tick loop
+  called `dueMove` on everything `isChampion`; the Harrower schedules nothing,
+  so it threw every frame — and because that loop runs inside `update()`, the
+  abort **took the rest of the frame with it**, hazards included. It presented
+  as the new actor being broken. `typeof e.dueMove !== 'function'` is the guard.
+- **A COMMITTED CRAFT MUST NOT INHERIT THE INFANTRY STAGGER RETURN.**
+  `if (this._staggerMs > 0) return;` opens nearly every actor and is correct for
+  a body that should slide when hit. On the Harrower it halted the whole loop
+  while ordinary fire kept refreshing the timer and `Enemy.preUpdate` damped the
+  velocity underneath: **4305ms motionless inside a "pass"** — the rejected
+  Interdictor's failure arriving through a different door. A pass cannot be
+  chip-interrupted; the BANK is where the craft is interruptible, and it takes
+  `bankPunish` extra damage there. You cannot stop the run, you punish the turn.
+- **NEVER MEASURE THE COMMAND YOU JUST WROTE.** The Harrower's grind watchdog
+  read `body.velocity` immediately after `_drive()` had set it, so it measured
+  its own instruction and could never fire — detention ground for 2603ms with
+  the guard nominally in place. Measure real displacement per frame, divided by
+  dt. Same family as "a refused call reads exactly like a failed one".
+- **A PASS IS VALIDATED ON THE PLANNED CHORD AND FLOWN FROM WHERE THE CRAFT
+  ACTUALLY IS.** Those differ by up to `alignTol`, which is enough to clip cover
+  the true lane cleared. The lane is re-laid through the real position at ACCEL,
+  so the promise and the flight are the same line.
+- **A PASS THE CAMERA CANNOT SHOW IS NOT A CROSSING.** Chords clipped to the
+  whole arena ran 1172px against a ~720px viewport and only **35% of a pass was
+  ever on screen**. `maxPassLen` plus `_trimToWindow` centre the run on the
+  player's neighbourhood. Any arena-scale movement design has this problem.
+- **THE HARROWER ROTATES, AND THAT IS A NARROW EXEMPTION.** Body sprites never
+  rotate here because rotating a HUMANOID produces the upside-down-sprite bug; a
+  top-down CRAFT rotated to its heading is correct and is how every vehicle in
+  the genre works. It is painted east-facing (the weapon-overlay convention) and
+  driven by `setFrame` rather than `anims`, so it registers no animation keys.
+  The exemption is for a vehicle, not a precedent.
 - **A CHAMPION IS NOT A HAZARD WITH HP.** Position, movement, BASELINE THREAT,
   signature pressure, response to the player closing or retreating, survival and
   a vulnerability window have to form ONE loop. The first candidate had two of

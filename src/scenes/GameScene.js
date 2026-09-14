@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, ENDLESS, FONTS, HUDCFG, VIEW, DEPTH, LIGHTSOUT, CAMERA, bossMechanicsFor, bossMechanicById, CHAMPION } from '../config.js';
+import { PLAYER, ENEMY, BOSS, HEALTH_ORB, WEAPONS, ARENA, MODIFIERS, SCORE, ENDLESS, FONTS, HUDCFG, VIEW, DEPTH, LIGHTSOUT, CAMERA, bossMechanicsFor, bossMechanicById, CHAMPION, HARROWER } from '../config.js';
 import { EnvLight } from '../systems/EnvLight.js';
 import { consoleEmissives, CONSOLE_KIT } from '../data/consoleKit.js';
 import { Player } from '../entities/Player.js';
@@ -26,11 +26,12 @@ import {
 import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.js';
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
-  isEncDebug, getEncForce, isChampDebug,
+  isEncDebug, getEncForce, isChampDebug, getChampWhich,
 } from '../systems/debug.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { attachHazards } from '../systems/Hazard.js';
 import { Champion } from '../entities/Champion.js';
+import { Harrower } from '../entities/Harrower.js';
 import { championMoveById } from '../data/champions.js';
 import { moveById } from '../data/nemesisMoves.js';
 
@@ -5955,8 +5956,15 @@ export class GameScene extends Phaser.Scene {
    * ordinary enemy uses, so what is being evaluated is what would ship. The
    * only thing that differs is the class.
    */
-  spawnChampion(x, y, def = CHAMPION.interdictor) {
-    const c = new Champion(this, x, y, def, { behavior: 'swarm', alerted: true });
+  spawnChampion(x, y, which = getChampWhich()) {
+    // ONE ENTRY POINT, TWO CANDIDATES. The Harrower is the active one; the
+    // rejected Interdictor is reachable only through `?champdbg=interdictor`,
+    // for a side-by-side. It is kept rather than deleted because the post-mortem
+    // is more useful next to the thing it is about — but it is no longer what
+    // the flag produces, and nothing in production reaches either.
+    const c = which === 'interdictor'
+      ? new Champion(this, x, y, CHAMPION.interdictor, { behavior: 'swarm', alerted: true })
+      : new Harrower(this, x, y, { behavior: 'swarm', alerted: true });
     c.coverRegistry = this.coverRegistry;
     this.enemies.add(c);
     this.physics.add.collider(c, this.walls);
@@ -6378,6 +6386,14 @@ export class GameScene extends Phaser.Scene {
     // mid-wind-up takes its pending move with it.
     for (const e of this.enemies.getChildren()) {
       if (!e.alive || !e.isChampion) continue;
+      // CAPABILITY, NOT CLASS. Not every Champion has a scripted move kit — the
+      // Harrower's whole Phase B.1 vocabulary is movement, and it schedules
+      // nothing. Testing `isChampion` alone threw `dueMove is not a function`
+      // every frame, and because this loop runs inside `update()` that abort
+      // took the REST OF THE FRAME with it: hazards stopped ticking, and the
+      // symptom presented as the new actor being broken rather than as this
+      // line being wrong.
+      if (typeof e.dueMove !== 'function') continue;
       const due = e.dueMove(delta);
       if (due) this._castChampionMove(e, due);
     }

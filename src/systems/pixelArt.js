@@ -6829,3 +6829,148 @@ export function paintInterdictor(scene, key = 'champ-interdictor') {
 
   ss.finish();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHAMPION — THE HARROWER (Phase B.1 prototype silhouette)
+//
+// NOT FINAL ART, BUT NOT A RECTANGLE. The concept gate is asking whether a
+// moving combat machine reads as one, and that cannot be judged off a
+// placeholder box — but it also must not be judged off a week of pixel work on
+// a design that might fail. This is enough to answer the fantasy question and
+// no more.
+//
+// **IT IS DRAWN EAST-FACING AND IT ROTATES, WHICH IS AN EXEMPTION FROM THIS
+// PROJECT'S ONE NON-OBVIOUS ARCHITECTURAL RULE.** Body sprites never rotate:
+// every actor carries a separate `weaponSprite` that orbits it, because
+// rotating a HUMANOID produces the upside-down-sprite bug. A craft is the case
+// that rule was never about — a top-down vehicle rotated to its heading is
+// CORRECT, and it is how every vehicle in every top-down game works. The
+// exemption is narrow and load-bearing: without it a craft's heading would have
+// to come from three facing frames, and a vehicle that crosses the screen
+// east-to-west has to LOOK like it is going east. Painted barrel-along-+X, the
+// same convention every weapon overlay already uses.
+//
+// The silhouette carries the fantasy before any wake exists:
+//   WIDE and LOW          128x80 — the only actor in the game wider than tall
+//   HOVERING              the hull sits in the upper rows and the lower rows
+//                         are EMPTY, so the ground shadow shows through as a
+//                         visible air gap. Nothing else in CRIX has one.
+//   FORWARD-BIASED        mass ahead of centre, a raked nose, a tapering tail
+//   TWO TRAILING VANES    swept back off the tail, and they are where the wake
+//                         comes from, so the model explains the mechanic
+//   ORIENTED              a bright nose and dark exhaust ends: front and back
+//                         are never ambiguous even at a glance
+const HRW_W = 32, HRW_H = 20, HRW_FRAMES = 7;
+
+// Frame indices, named because the actor drives them by hand rather than
+// through an `anims` key — see the rotation exemption above.
+export const HARROWER_FRAMES = {
+  cruise: 0, cruiseB: 1, pass: 2, passB: 3, bank: 4, bankB: 5, decel: 6,
+};
+
+export function paintHarrower(scene, key = 'champ-harrower') {
+  const ss = new SpriteSheet(scene, key, HRW_W, HRW_H, HRW_FRAMES, 4);
+  const C = PAL;
+  const VIO = '#b060ff';
+  const VIO_HOT = '#e8d0ff';
+  const VIO_DEEP = '#5a2090';
+
+  /**
+   * @param f     frame
+   * @param lift  vertical bob of the whole hull (the hover idle)
+   * @param heat  0..1 — how energised the vanes and repulsor are
+   * @param roll  -1..1 — the bank, expressed as an asymmetric vane/hull shift
+   */
+  function draw(f, lift = 0, heat = 0.25, roll = 0) {
+    ss.frame(f);
+    // VALUE PLACED AGAINST THE DECK, not inside a palette family. The
+    // Interdictor was painted from the Imperial bottom end and photographed as
+    // an unidentifiable dark blob on a #212328 deck; this sits two steps above
+    // it on the lit planes and goes black underneath.
+    const top = C.impSheen;      // #7a7c80
+    const face = C.impSilver;    // #5a5c62
+    const side = C.impGrey;      // #2e3038
+    const deep = C.impDark;
+    const trim = C.metalLight;
+
+    // The hull occupies rows 3..13 and NOTHING is drawn below row 14. That
+    // empty band is the air gap — the single strongest hover cue available at
+    // this size, and the reason the ground shadow reads as separate.
+    const cy = 8 + lift;
+
+    // ── TAIL VANES ────────────────────────────────────────────────────────
+    // Swept back and outward off the tail, asymmetric under roll so a bank is
+    // legible from the silhouette alone. These are the wake's stated source.
+    const vTop = cy - 5 + Math.round(roll * 1.5);
+    const vBot = cy + 5 + Math.round(roll * 1.5);
+    for (const [vy, dir] of [[vTop, -1], [vBot, 1]]) {
+      ss.rect(1, vy, 7, 2, side);
+      ss.hline(vy, 1, 7, face);
+      ss.px(0, vy + (dir < 0 ? 0 : 1), deep);
+      // Emitter tip — the brightest thing on the craft when it is committed.
+      const tipC = heat > 0.7 ? VIO_HOT : heat > 0.3 ? VIO : VIO_DEEP;
+      ss.rect(1, vy, 2, 2, tipC);
+      if (heat > 0.7) { ss.px(0, vy, VIO); ss.px(0, vy + 1, VIO); }
+    }
+    // Spine joining the vanes to the hull, so they are mounted rather than
+    // floating beside it.
+    ss.rect(7, cy - 2, 4, 5, deep);
+    ss.hline(cy - 2, 7, 10, side);
+
+    // ── HULL: a raked wedge, mass forward ─────────────────────────────────
+    // Built from horizontals and 45-degree cuts. No curve: a big smooth pixel
+    // circle has no stable stair pattern against this grid and reads as a
+    // low-resolution approximation.
+    ss.hline(cy - 4, 14, 24, side);
+    ss.hline(cy - 3, 11, 27, top);
+    ss.hline(cy - 2, 9, 28, top);
+    ss.hline(cy - 1, 8, 29, face);
+    ss.hline(cy,     8, 30, face);          // the nose reaches furthest here
+    ss.hline(cy + 1, 8, 29, face);
+    ss.hline(cy + 2, 9, 28, side);
+    ss.hline(cy + 3, 11, 27, deep);
+    ss.hline(cy + 4, 14, 24, C.black);      // underside, in shade
+    // Specular along the leading upper plane — one light, from the north.
+    ss.hline(cy - 3, 15, 25, trim);
+    // Panel seams: three, at irregular spacing. An unbroken plate is what makes
+    // the broken ones read as joins.
+    ss.vline(16, cy - 3, cy + 3, side);
+    ss.vline(21, cy - 3, cy + 3, side);
+    ss.vline(25, cy - 2, cy + 2, side);
+
+    // ── CANOPY / SENSOR ───────────────────────────────────────────────────
+    // Forward and off the centreline, so the craft is not mirror-symmetric.
+    ss.rect(19, cy - 2, 5, 3, deep);
+    ss.hline(cy - 2, 19, 23, C.black);
+    ss.px(21, cy - 1, heat > 0.7 ? VIO_HOT : VIO);
+    ss.px(22, cy - 1, VIO_DEEP);
+
+    // ── NOSE ──────────────────────────────────────────────────────────────
+    // The bright end. Front and back must never be ambiguous on a thing whose
+    // whole identity is which way it is going.
+    ss.px(30, cy, trim);
+    ss.px(29, cy - 1, trim); ss.px(29, cy + 1, trim);
+    ss.px(31, cy, '#ffffff');
+
+    // ── REPULSOR ──────────────────────────────────────────────────────────
+    // A thin violet underline beneath the hull, sitting in the air gap. It is
+    // the hover tell and it brightens with the commitment, so even a craft seen
+    // side-on across a crowded room says whether it is setting up or running.
+    const rC = heat > 0.7 ? VIO : VIO_DEEP;
+    ss.hline(cy + 6, 13, 25, rC);
+    if (heat > 0.7) {
+      ss.hline(cy + 7, 15, 23, VIO_DEEP);
+      ss.px(19, cy + 7, VIO); ss.px(20, cy + 7, VIO);
+    }
+  }
+
+  draw(HARROWER_FRAMES.cruise, 0, 0.25, 0);
+  draw(HARROWER_FRAMES.cruiseB, 1, 0.30, 0);
+  draw(HARROWER_FRAMES.pass, 0, 1.0, 0);
+  draw(HARROWER_FRAMES.passB, -1, 0.85, 0);
+  draw(HARROWER_FRAMES.bank, 0, 0.55, -1);
+  draw(HARROWER_FRAMES.bankB, 1, 0.55, 1);
+  draw(HARROWER_FRAMES.decel, 0, 0.7, 0);
+
+  ss.finish();
+}

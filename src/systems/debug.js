@@ -177,7 +177,16 @@ export function parseEncDebugParams(params) {
 // is no entry in any encounter pool, no branch in `_rollEnemyType` and no
 // chance roll anywhere — so the production build cannot produce one rather than
 // being merely unlikely to. `smoke-champion` asserts that in both directions.
+//
+// `?champdbg=1` injects the ACTIVE candidate, which is the HARROWER. The
+// rejected Interdictor is kept in the tree but is no longer what the flag
+// spawns — `?champdbg=interdictor` is the only way to reach it, and exists
+// solely so the two can be put side by side when judging the new one.
 let champDebug = false;
+let champWhich = 'harrower';
 
 export function isChampDebug() { return champDebug; }
 export function setChampDebug(v) { champDebug = !!v; }
+/** Which candidate the flag spawns: 'harrower' (active) or 'interdictor'. */
+export function getChampWhich() { return champWhich; }
+export function setChampWhich(v) { champWhich = v === 'interdictor' ? 'interdictor' : 'harrower'; }

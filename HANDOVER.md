@@ -194,9 +194,18 @@ sound and reusable. `§10ad` carries the post-mortem — read it before designin
 the next one, because four of its seven causes are design errors I could have
 caught with arithmetic and one of them I froze into a passing test.
 
-**Phase B is back at a combat-design gate.** No tuning, no second attempt, no
-implementation until a concept is chosen. The code stays in the tree behind its
-debug flag; normal Endless is unaffected either way.
+### THE ROSTER, PHASE B.1 — THE HARROWER IS A CANDIDATE, NOT APPROVED
+
+**The second Champion candidate is on `FRIX` behind `?champdbg=1`.** Concept
+gate only: four verbs — MOVE, PASS, WAKE, BANK — and no signature attacks at
+all, because if those four are not compelling alone then attacks would only hide
+it. `§10ae` is the record, the measurements and the four bugs it found.
+
+Measured across all three ordinary arenas: **81% of the fight moving**, 8 passes
+per 44s, worst unintended stationary interval 83-435ms, one hazard object at a
+time, clean teardown on death and room change. `?champdbg=interdictor` still
+reaches the rejected candidate for a side-by-side. Normal Endless spawns
+neither.
 
 ### The recommended next area of work
 
@@ -5230,6 +5239,114 @@ signature pressure, response, survival and vulnerability have to form ONE loop.
 The first candidate had two of the seven and shipped anyway, because each piece
 was individually defensible and nothing checked whether they added up to a
 fight.
+
+---
+
+## 10ae. THE ROSTER, PHASE B.1 — THE HARROWER. **CANDIDATE — NOT APPROVED**
+
+**Status: shipped to `FRIX` behind `?champdbg=1` for handset evaluation. Not
+approved, not frozen, and every number is provisional.**
+
+### The inversion
+
+The Interdictor was a stationary emitter whose floor hazard became the content
+(`§10ad`). The Harrower makes the hazard a CONSEQUENCE of movement: the wake is
+emitted from the travelled path above `wakeMinSpeed`, so **no movement, no
+wake** — a property of the construction, not a promise. There is no `holdRange`
+and no stop condition anywhere in `Harrower.js`; the only near-still beat is the
+bounded bank, which is the designed vulnerability window.
+
+### Phase B.1 is four verbs
+
+MOVE, PASS, WAKE, BANK. No SWEEP, no RUNDOWN PASS, no projectile, no melee, no
+shield, no armour phase. The loop is
+`ALIGN → ACCEL → PASS → DECEL → BANK → ALIGN`.
+
+### The pass planner
+
+A pass is a CHORD of the arena, trimmed to a window centred on its closest
+approach to the player, validated clear of every body in `this.walls` before it
+is promised. It is aimed to pass NEAR the player (`focusNear` 110 / `focusFar`
+300), never through them: a line that always bisects the player is a homing
+attack drawn as a road. The bearing is frozen at ACCEL and never re-aimed.
+
+**`pass: 560` is derived, not proposed.** The player walks 380 and dashes 950,
+so it out-runs a walk and never a dash — the same contract the approved returned
+super holds: *too fast to race, fair enough to evade.*
+
+### Measured, all three ordinary arenas, 44s each
+
+| | hangar | detention | junction |
+|---|---|---|---|
+| moving | 81% | 81% | 81% |
+| worst UNINTENDED still | 83ms | 435ms | 335ms |
+| passes completed | 8 | 8 | 8 |
+| mean pass distance | ~900px | ~830px | ~1060px |
+| pass frames on screen | 46% | 60% | 53% |
+| wake length (max) | 880px | 858px | 880px |
+| live hazard objects | 1 | 1 | 1 |
+| cleanup (death / room) | 0 / 0 | 0 / 0 | 0 / 0 |
+
+### FOUR BUGS, AND TWO OF THEM WERE IN MY OWN INSTRUMENTS
+
+**1. `dueMove is not a function`, every frame.** The Champion move-tick loop
+gated on `isChampion` and called `dueMove` on everything. The Harrower schedules
+nothing, so it threw — and because that loop runs inside `update()`, the abort
+**took the rest of the frame with it**, hazards included. It presented as the
+new actor being broken. Gate on the CAPABILITY, never on the class.
+
+**2. Only 35% of a pass was on screen.** Chords clipped to the whole arena ran
+1172px against a ~720px viewport. A crossing the player cannot see is not a
+crossing. `maxPassLen` (940) plus `_trimToWindow` centres the run on the player's
+neighbourhood: 35% → ~53%.
+
+**3. THE STAGGER RETURN STOOD IT STILL — the rejected candidate's failure
+arriving through a different door.** Every other actor opens with
+`if (this._staggerMs > 0) return;`, which is correct for infantry. Copied here it
+halted the whole loop while ordinary player fire kept refreshing the timer and
+`Enemy.preUpdate` damped the velocity underneath: **up to 4305ms motionless
+inside a "pass"**. A Champion whose identity is movement was being stood still by
+a pistol. The loop now runs regardless and re-asserts velocity, so a pass cannot
+be chip-interrupted. **The craft is interruptible in the BANK, where it is
+stopped anyway and takes `bankPunish`** — you cannot stop the run, you punish the
+turn.
+
+**4. THE GRIND WATCHDOG MEASURED ITS OWN COMMAND.** It read `body.velocity`
+*after* `_drive()` had just written it, so it could never fire, and detention
+ground for 2603ms with the guard nominally in place. It measures real
+displacement per frame now. Related: the lane was validated on the planned chord
+but flown from wherever ALIGN stopped, up to `alignTol` (60px) off it — enough to
+clip cover the true lane cleared. The lane is re-laid through the real position
+at ACCEL.
+
+**And one bug that was only in the instrument:** the first run reported a 1037ms
+"stall", which was the 850ms bank bleeding into ALIGN. The diagnostic now
+excludes the designed stops. *A surprising measurement means the instrument is
+wrong* keeps being true.
+
+### The rotation exemption, and why it is legitimate
+
+**Body sprites never rotate in this project** — rotating a humanoid produces the
+upside-down-sprite bug, which is why every actor carries a separate
+`weaponSprite`. A top-down CRAFT rotated to its heading is correct, and is how
+every vehicle in the genre works. The Harrower is painted east-facing (the same
+convention the weapon overlays use) and driven frame-by-frame rather than through
+`anims`, so it registers no animation keys. The exemption is narrow: it applies
+to a vehicle, not to a precedent.
+
+### What remains to handset-test
+
+1. Can it be found immediately among ordinary enemies?
+2. Does it read as a moving combat machine before the wake matters?
+3. Do the passes feel intentional rather than random pathing?
+4. Is the wake causally attached — the vehicle's exhaust, not floor rectangles?
+5. Does the bank naturally say "there, that is when I hit it"?
+6. Readable through CROSSFIRE and SWARM TIDE?
+7. **ALIGN is 27-41% of the loop** — is repositioning at cruise interesting, or
+   is it dead time between the parts that matter?
+8. **Junction has the shortest usable runs**, as the design predicted. Weak
+   enough to exclude from future encounter eligibility?
+9. `hp: 5200` is an OBSERVATION BUDGET, not balance — see the note in `config.js`.
 
 ---
 

@@ -42,7 +42,10 @@ async function run(query, fn) {
 }
 
 // ── 1. Identity, body and navigability ─────────────────────────────────────
-const ident = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(async () => {
+// The Interdictor is no longer what `?champdbg=1` spawns — it is REJECTED and
+// reachable only for a side-by-side. These checks pin the rejected actor's
+// structure so the post-mortem stays verifiable, nothing more.
+const ident = await run('?nodlg=1&champdbg=interdictor', async (page) => page.evaluate(async () => {
   const { CHAMPION, ENEMY, BOSS } = await import('/src/config.js');
   const gs = window.game.scene.getScene('Game');
   const { setGodMode } = await import('/src/systems/debug.js');
@@ -85,11 +88,14 @@ check(ident.needsGap <= 160,
 check(ident.bodyR * 2 < ident.bossR * 2, 'and it is smaller than the boss', `${ident.bodyR * 2} vs ${ident.bossR * 2}`);
 check(ident.hp > ident.gruntHp * 3 && ident.hp < ident.gruntHp * 6,
   'durable, but nowhere near sponge territory', `${ident.hp} vs grunt ${ident.gruntHp}`);
-check(ident.speed <= ident.slowest, 'it is the slowest thing on the floor', `${ident.speed} vs ${ident.slowest}`);
+// REMOVED: `speed <= every ordinary enemy`. That was a DESIGN PROPERTY pinned
+// as an invariant, it was wrong, and a green check protected it all the way to
+// a handset rejection — `HANDOVER.md` §10ad. A test may assert behaviour; it may
+// not assert taste.
 check(!ident.hasWeapon, 'IT CARRIES NO WEAPON — its threat is spatial, not a projectile', '');
 
 // ── 2. The move: telegraph precedes effect, and the effect is placed ────────
-const seam = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(async () => {
+const seam = await run('?nodlg=1&champdbg=interdictor', async (page) => page.evaluate(async () => {
   const { CHAMPION } = await import('/src/config.js');
   const { setGodMode } = await import('/src/systems/debug.js');
   setGodMode(true);
@@ -162,7 +168,7 @@ check(seam.bounds?.justOutside === false && seam.bounds?.pastEnd === false
   'AND IT COVERS NOTHING ELSE — the shape is the hit test', JSON.stringify(seam.bounds));
 
 // ── 3. Lifecycle: expiry, death, cancel, room change ────────────────────────
-const life = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(async () => {
+const life = await run('?nodlg=1&champdbg=interdictor', async (page) => page.evaluate(async () => {
   const { CHAMPION } = await import('/src/config.js');
   const { setGodMode } = await import('/src/systems/debug.js');
   const { ROOMS } = await import('/src/data/rooms.js');
@@ -273,7 +279,7 @@ check(off.poolMentions === 0, 'and no encounter pool can name one', `${off.poolM
 check(off.injected === null, 'the injector itself refuses without the flag', `${off.injected}`);
 
 // ── 5. Frozen neighbours: Phase A, Nemesis and the boss room ───────────────
-const frozen = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(async () => {
+const frozen = await run('?nodlg=1&champdbg=interdictor', async (page) => page.evaluate(async () => {
   const { ENCOUNTERS, ENCOUNTER_PLAN } = await import('/src/data/encounters.js');
   const { NEMESIS_MOVES, KITS } = await import('/src/data/nemesisMoves.js');
   const { ROOMS } = await import('/src/data/rooms.js');
@@ -314,7 +320,7 @@ check(frozen.nemMoves === 14 && frozen.nemKits === 5,
   `${frozen.nemMoves}/${frozen.nemKits}`);
 
 // ── 6. With the flag: exactly one, in the real encounter ───────────────────
-const on = await run('?nodlg=1&champdbg=1&encdbg=vanguard', async (page) => page.evaluate(async () => {
+const on = await run('?nodlg=1&champdbg=interdictor&encdbg=vanguard', async (page) => page.evaluate(async () => {
   const gs = window.game.scene.getScene('Game');
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   gs._startWave(0);

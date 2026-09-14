@@ -1742,6 +1742,101 @@ export const CHAMPION = {
   },
 };
 
+// ── THE HARROWER — PHASE B.1 CONCEPT GATE ───────────────────────────────────
+//
+// The second Champion candidate, and the answer to why the first one failed.
+// The INTERDICTOR (below, human-rejected) was a stationary emitter whose floor
+// hazard became the content; the Harrower inverts that relationship by making
+// the hazard a CONSEQUENCE of movement. No movement, no wake — which is a
+// structural guarantee rather than a promise, because the wake is emitted from
+// the travelled path and nothing else can produce one.
+//
+// PHASE B.1 IS FOUR VERBS AND NOTHING ELSE: MOVE, PASS, WAKE, BANK. No
+// signature attacks, no projectile, no melee, no shield. If those four are not
+// compelling on their own then adding attacks would only hide it, and the
+// concept should be reported as failed rather than rescued.
+//
+// EVERY NUMBER HERE IS PROVISIONAL. They are starting points chosen against the
+// player's own constants, not balance — see `hp` in particular.
+export const HARROWER = {
+  id: 'harrower',
+  name: 'HARROWER',
+  tex: 'champ-harrower',
+
+  // Ø56. Inside the Ø112 the junction's 160px lane was derived for, so it
+  // navigates anywhere Vader does; `NavGrid` inflates a body rect by 23px per
+  // side, so this needs 56 + 46 = 102px of gap.
+  radius: 28,
+
+  // ── THE OBSERVATION BUDGET, NOT A BALANCE NUMBER ───────────────────────
+  // The Interdictor's 1400 was 0.47 of ONE Super's 3000 raw damage, so its loop
+  // could never be watched. A concept gate has to survive long enough to be
+  // JUDGED: a full cycle is roughly align 1.2s + pass 1.4s + bank 0.9s ≈ 3.5s,
+  // and five cycles is ~18 seconds of sustained attention. Against a pistol
+  // landing maybe 300-750 dmg/sec on a crossing target plus one absorbed Super,
+  // 5200 buys that and no more. It is deliberately NOT the answer to "it dies
+  // too fast" — the real survivability is meant to come from motion, exposure
+  // and the bank rhythm, and that is Phase B.2's question. Do not read this as
+  // the shipped pool.
+  hp: 5200,
+
+  // ── SPEEDS, DERIVED AGAINST THE PLAYER ────────────────────────────────
+  // The player walks 380 and dashes 950 for 240ms. `pass` sits between: fast
+  // enough that walking beside it is not an option, slow enough that a dash
+  // always clears it. That is the same contract the approved returned super
+  // holds — too fast to race, fair enough to evade — and it is the reason a
+  // pass can be committed and still be fair.
+  cruise: 300,            // above a grunt's 230, below a swarmling's 310
+  pass: 560,              // 1.47x the player's walk, 0.59x their dash
+  accelMs: 380,           // the wind-up is the acceleration; it is visible
+  decelMs: 260,
+
+  // ── THE BANK ──────────────────────────────────────────────────────────
+  // The price of committing, and the first vulnerability window. It is NOT
+  // cosmetic: the craft is slow, side-on and takes extra damage, every single
+  // pass, which is what makes the loop teach itself.
+  bankMs: 850,
+  bankPunish: 1.5,        // read by Enemy.damage through punishMultiplier()
+  bankYawRate: 3.4,       // rad/s — the visible turn through the bank
+
+  // ── PASS GEOMETRY ─────────────────────────────────────────────────────
+  // A pass is a CHORD of the arena, not a lunge at the player. Short hops read
+  // as pathing; a traversal reads as a decision.
+  minPassLen: 520,        // anything shorter is not a pass, it is a nudge
+  // ── AND A CEILING, WHICH THE FIRST MEASUREMENT ADDED ──────────────────
+  // Chords clipped to the whole arena ran 1172px on average, and the camera
+  // shows roughly 720x896 of a 1600px room: measured, only **35% of a pass was
+  // ever on screen**. A crossing the player cannot see is not a crossing. The
+  // chord is now TRIMMED to a window centred on its closest approach to the
+  // player, so the visible part of the arena gets the pass instead of the far
+  // corner. Long enough to still read as a traversal, short enough to be
+  // watched.
+  maxPassLen: 940,
+  passMargin: 90,         // inset from the world bounds for entry/exit
+  clearance: 34,          // extra room the chord must have from any solid body
+  // The chord is aimed to pass NEAR the player rather than through them: a line
+  // that always bisects the player is a homing attack drawn as a road.
+  focusNear: 110,
+  focusFar: 300,
+  alignTol: 60,           // how close to the entry point counts as aligned
+  bearingChange: 0.7,     // rad — a new pass must differ from the last one
+
+  // ── THE WAKE ──────────────────────────────────────────────────────────
+  // Emitted only above `wakeMinSpeed`, which is between cruise and pass, so
+  // setup movement leaves nothing and only a COMMITTED pass carves.
+  wakeMinSpeed: 420,
+  wakeWidth: 40,
+  wakeLifeMs: 1600,
+  wakeStepPx: 22,         // sampled by DISTANCE, never by frame — a wake
+                          // sampled per frame has a frame-rate-dependent length
+  wakeDamage: 70,
+  wakeTickMs: 420,
+  wakeMaxPoints: 64,      // 64 x 22px caps the trail near 1400px; at 560px/s
+                          // and a 1.6s life it self-limits near 900px anyway
+
+  color: 0xb060ff,
+};
+
 export const MODIFIERS = {
   frenzy:     { id: 'frenzy',     name: 'FRENZY',      color: '#ff5030', speedMult: 1.28, spawnRateMult: 0.8 },
   eliteGuard: { id: 'eliteGuard', name: 'ELITE GUARD', color: '#ffd040', eliteChance: 0.35 },

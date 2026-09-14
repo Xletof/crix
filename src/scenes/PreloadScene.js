@@ -6,6 +6,7 @@ import {
   paintGrunt,
   paintShooter,
   paintInterdictor,
+  paintHarrower,
   paintBoss,
   paintConsole,
   paintConsolePedestal,
@@ -85,6 +86,9 @@ export class PreloadScene extends Phaser.Scene {
     paintShooter(this);
     // PHASE B CANDIDATE — the first Champion. See CHAMPION in config.js.
     paintInterdictor(this);
+    // PHASE B.1 CANDIDATE — the Harrower. Driven frame-by-frame by its actor
+    // rather than through `anims`, so it registers no animation keys.
+    paintHarrower(this);
     paintBoss(this);
     // Nemesis bodies — 32x32, purpose-drawn for the size they actually render
     // at. See the note above paintNemesisSheet for why the trooper art could
