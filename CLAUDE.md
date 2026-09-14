@@ -803,13 +803,28 @@ asserts separately that the ceiling is not reached.
   is to emit `room-cleared` at zero, and the wave machine reads
   `_livingEnemyCount()` rather than that counter. Never drive that counter to
   zero in a sweep — that fires `room-cleared` and completes the room.
-- **THE FIRST CHAMPION IS A CANDIDATE — `HANDOVER.md` §10ad.** The INTERDICTOR
-  is the intended replacement for the Nemesis as the player-facing special
-  enemy, shipped as one vertical slice behind `?champdbg=1`. **Normal Endless
-  spawns none**: no entry in any encounter pool, no branch in `_rollEnemyType`,
-  no chance roll — the production path CANNOT produce one. Nemesis is untouched
-  and stays that way until this passes a handset. Do not build a second
-  Champion, do not start the migration, do not add regular enemies.
+- **THE INTERDICTOR IS HUMAN-REJECTED ❌ — `HANDOVER.md` §10ad.** Handset play
+  called it almost stationary, dead to one Super, far too slow and too weak to
+  be an interesting ordinary enemy: **a hazard carrier, not an elite
+  combatant.** DO NOT TUNE IT — not hp, not speed, not damage, not cooldowns,
+  not the beam, not more purple. The problem is not in the numbers, and four of
+  the seven causes were checkable with arithmetic: it STOPS at `holdRange` by
+  construction, PURGE's 240px trigger sits inside a 430px hold so it could
+  almost never fire (zero casts in 32s, measured), and 1400hp is 0.47 of ONE
+  Super's 3000 raw damage. **I also froze one of those errors into a passing
+  check** — `smoke-champion` asserts the Champion is the slowest thing on the
+  floor. A test that pins a mistake is worse than no test.
+  The TECHNOLOGY is sound and reusable: `Hazard.js`, the `?champdbg` harness,
+  `smoke-champion`'s structure and the cancelled-handle fix all stay. Phase B is
+  back at a combat-design gate. Normal Endless still spawns no Champion — no
+  encounter pool entry, no `_rollEnemyType` branch, no chance roll — and Nemesis
+  is still untouched.
+- **A CHAMPION IS NOT A HAZARD WITH HP.** Position, movement, BASELINE THREAT,
+  signature pressure, response to the player closing or retreating, survival and
+  a vulnerability window have to form ONE loop. The first candidate had two of
+  those seven and shipped anyway, because every piece was individually
+  defensible and nothing asked whether they added up to a fight. A hazard placed
+  by a stationary actor belongs to the FLOOR, not to the enemy.
 - **A CANCELLED MOVE HANDLE IS NOT A CLAIM, AND A SCHEDULER THAT FORGETS THAT
   GOES INERT FOR THE REST OF THE ROOM.** `MoveScript.cancel()` deliberately does
   not clear `actor._activeMove` (only the `done` path does), so an interrupted

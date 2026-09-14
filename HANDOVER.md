@@ -180,16 +180,23 @@ sufficient to create meaningfully different fights.
 rules, the sector bands or the pressure multipliers without NEW handset
 evidence. `?encdbg=1` stays as the evaluation harness.
 
-### THE ROSTER, PHASE B — THE FIRST CHAMPION IS A CANDIDATE, NOT APPROVED
+### THE ROSTER, PHASE B — THE INTERDICTOR IS **HUMAN-REJECTED** ❌
 
-**The INTERDICTOR is on `FRIX` behind `?champdbg=1` and awaiting a handset
-verdict.** `§10ad` is the record. It is the vertical slice for the intended
-replacement of the Nemesis as the player-facing special enemy — one authored
-machine, its own sheet, two authored moves, a persistent zone-control verb the
-six ordinary enemies could not produce, and its own audio. **Normal Endless
-spawns none**, nothing about the Nemesis has changed, and nothing here is
-frozen. Do not build a second Champion and do not start the Nemesis migration
-until this one passes.
+**Handset play rejected it as the Champion quality bar.** The verdict: almost
+stationary, dies to one Super or a few shots, far too slow, and too weak to be
+interesting even as an ordinary enemy. It plays as a **hazard carrier rather
+than an elite combatant** — the floor effect is the content and the Champion is
+merely its emitter.
+
+**The concept failed; the technology did not.** `MoveScript`, `Telegraph`,
+`Hazard.js`'s `Barrier`, the `?champdbg` harness and `smoke-champion` are all
+sound and reusable. `§10ad` carries the post-mortem — read it before designing
+the next one, because four of its seven causes are design errors I could have
+caught with arithmetic and one of them I froze into a passing test.
+
+**Phase B is back at a combat-design gate.** No tuning, no second attempt, no
+implementation until a concept is chosen. The code stays in the tree behind its
+debug flag; normal Endless is unaffected either way.
 
 ### The recommended next area of work
 
@@ -4996,10 +5003,25 @@ to `6215779`.
 
 ---
 
-## 10ad. THE ROSTER, PHASE B — THE FIRST CHAMPION. **CANDIDATE — NOT APPROVED**
+## 10ad. THE ROSTER, PHASE B — THE FIRST CHAMPION. **HUMAN-REJECTED** ❌
 
-**Status: shipped to `FRIX` behind `?champdbg=1` for handset evaluation. NOT
-human-approved, not frozen, and every number in `CHAMPION` is a proposal.**
+**Status: REJECTED on handset as the Champion quality bar.** Not approved, not
+frozen, and not to be tuned — the problem is not in the numbers. The post-mortem
+is at the END of this section; the design description below is kept because it
+is what failed, and a rejected concept described accurately is worth more than
+one quietly deleted.
+
+**The human's verdict, verbatim in substance:** almost stationary; dies
+extremely easily to one Super or a few shots; far too slow; too weak even to
+qualify as an interesting normal enemy. Wants a substantially better model,
+better attacks, better FX, much more combat presence and a more ambitious
+special-enemy vision.
+
+**WHAT IS NOT CONDEMNED:** the technology. `MoveScript`'s four beats,
+`Telegraph`, `Hazard.js`'s `Barrier`, the `?champdbg` injection harness and
+`smoke-champion`'s 37 structural checks are all sound and all reusable. The
+cancelled-handle bug this pass found is a real fix and stays. **Tests proved
+correctness; the handset proved the design failed, and human evidence wins.**
 
 ### The hole it is built for
 
@@ -5141,17 +5163,73 @@ was injected. **Normal Endless spawns none** — there is no entry in any
 encounter pool, no branch in `_rollEnemyType` and no chance roll, so the
 production path *cannot* produce one rather than being unlikely to.
 
-### What remains to handset-test
+### THE POST-MORTEM — seven causes, and the arithmetic was available
 
-1. Is it identifiable from silhouette alone, in a crowd, at handset scale?
-2. Is INTERDICT understandable with no debug text?
-3. Does the seam change where the player stands, or is it just avoided?
-4. Is it a priority target because of behaviour rather than hp?
-5. Does it stay readable inside CROSSFIRE / SWARM TIDE / SNIPER NEST pressure?
-6. Is PURGE's 240px trigger the right distance?
-7. Does a no-ordinary-attack Champion feel restrained, or inert?
-8. Do the FX read as materially more polished than the Nemesis's?
-9. Is it clearly below Vader and clearly above the ordinary six?
+**1. IT STOPS. `Champion.preUpdate` is `if (dist > holdRange) navigate; else
+setVelocity(0, 0)`.** Once it reaches 430px it is motionless by construction,
+and the player orbits at a roughly constant range, so in real play it never
+moves again. "Almost stationary" is not an impression — it is one `else` branch.
+
+**2. SPEED 118 AGAINST A 380 PLAYER IS NOT SLOW, IT IS ABSENT.** It cannot
+close, cannot cut off, cannot follow and cannot threaten by approach. Worse, I
+asserted `speed <= min(every ordinary enemy)` in `smoke-champion` — **a design
+error frozen into a passing check.** A test that pins a mistake is worse than no
+test.
+
+**3. PURGE COULD ALMOST NEVER FIRE.** Its range is 240 and the Champion holds at
+430, so it never closes inside its own trigger: only the PLAYER walking in can
+arm it. Measured in `diag-champion`: **zero casts in 32 seconds** at a normal
+standoff. Half the kit was dormant by construction, and the diagnostic reported
+it as the design working.
+
+**4. 1400 HP IS LESS THAN HALF OF ONE SUPER.** The Super is 5 x 600 = **3000
+raw**, before `dmgMult` — 2.1x the entire pool at multiplier 1.0, and ~6x by
+sector 8. Broken Wings alone is 320/320/700 = 1340 ≈ the whole pool. The combat
+loop could not be experienced because the Champion did not survive one
+commitment. This was checkable with a calculator and was not checked.
+
+**5. THE SEAM BECAME THE CONTENT.** Anchored, static, 460x52, in a 1600x1400
+arena — **0.55% of the floor, measured**. A static line in a room a 380-speed
+player crosses in three seconds is walked around, not reasoned about. Meanwhile
+it is the only thing on screen that moves or glows, so attention goes to the
+graphic and the emitter standing behind it is scenery. **A hazard placed by a
+stationary actor belongs to the floor, not to the enemy.**
+
+**6. THE SILHOUETTE PROMISES A STATIONARY INSTALLATION, AND IT KEPT THAT
+PROMISE.** Squat drum, outrigger feet, dorsal mast: that is a deployable, an
+emplacement, a generator. It is a well-executed drawing of the wrong thing —
+the model was honest about a design that was wrong. Feet that splay to plant
+cannot also say "this hunts you".
+
+**7. NO BASELINE THREAT AT ALL.** "It does not shoot" was written down as
+restraint. Combined with (1), (2) and (3) it means that for roughly eight
+seconds out of every ten the Champion is a stationary object doing nothing. Two
+moves is a correct budget; two moves and *nothing in between* is not a
+combatant.
+
+### What is salvageable, and for what
+
+- **`Hazard.js` / `Barrier`** — sound, tested, and the right primitive. Its
+  failure was that a STATIONARY actor placed it. Attach it to something moving
+  and the same class becomes a wake.
+- **The `?champdbg` harness, `smoke-champion`, the cancelled-handle fix** — keep
+  all of it. The harness is how the next concept gets evaluated in a real
+  encounter on the first day rather than the tenth.
+- **The Interdictor MODEL** — genuinely good art for the wrong role. It reads as
+  a deployable installation, so file it as one: a terminal-defence unit, an
+  environmental turret, or something a future Champion *deploys*. Do not rebuild
+  the next Champion around it because the sprite already exists.
+- **The violet identity colour** — unclaimed by any approved system, chosen by
+  elimination against bullet green, Vader crimson, emergency amber and screen
+  cyan. That reasoning survives the concept that spent it.
+
+### The rule this cost
+
+**A CHAMPION IS NOT A HAZARD WITH HP.** Body, movement, baseline threat,
+signature pressure, response, survival and vulnerability have to form ONE loop.
+The first candidate had two of the seven and shipped anyway, because each piece
+was individually defensible and nothing checked whether they added up to a
+fight.
 
 ---
 
