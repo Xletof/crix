@@ -94,3 +94,65 @@ authority; a crop exists because judging a six-pixel ember by squinting at a
 `14` and `14b` are half a second apart on purpose: the sustained half is
 intermittent by design, so a single shutter can land between vents and report a
 working effect as absent.
+
+---
+
+## PHASE B.2.2 — pressure, deterioration, truth, and the first signature (`b22/`)
+
+Four handset findings on the deployed B.2.1 build, plus the Arc Grenade.
+`HANDOVER.md` `§10ai` is the record. **CANDIDATE — not approved.**
+
+    npm run dev
+    node tests/shot-captain-b22.mjs b22               # every frame below
+    node tests/diag-damage-truth.mjs                  # the `0` bug, before and after
+    node tests/diag-captain-pressure.mjs still|line|hold|reverse
+
+| frame | what it shows |
+|---|---|
+| `01-healthy` | the reference: clean armour, stable visor, no smoke, no shorts |
+| `02-armour-break` | the moment — and the damage number reading **2295**, where the shipped build printed 485 |
+| `03-damaged-body` | the always-true mark: one asymmetric scorch on the side that lost its plate |
+| `04-damaged-short` | a short circuit, held open for the shutter |
+| `05-critical` | the second failure site, on the opposite flank, and near-continuous venting |
+| `06-critical-short-to-rifle` | the one effect that says the WEAPON is compromised |
+| `07-critical-visor-flicker` | the visor cannot hold |
+| `08-critical-in-crowd` | **the restraint check** — still identifiable with six other bodies over the same square metre |
+| `09-grenade-windup` | the `raise` pose, rifle dropped. The pose hooks painted in B.2, finally spent |
+| `10-grenade-in-flight` | a real travelling object with altitude, its shadow on the deck, and the landing ring already drawn |
+| `11-grenade-arming` | landed, not yet live: the charge ring contracting onto the casing |
+| `12-arc-field-live` | the field, on a dark deck, under the DARKNESS modifier |
+| `13-field-and-captain` | **the frame that carries the whole signature** — the player caught inside it and the Captain firing into the space it made |
+| `14-arc-field-failing` | the last 520ms, visibly failing, so the player can spend it |
+| `15-burst-three-leads` | three rounds in the air at once: ESTABLISH, LEAD, BRACKET as three different answers |
+| `16`/`17`/`18-INSPECTION-x3-*` | **NOT THE REVIEW.** x3, for reading the shape of the scorch and the arcs while authoring them |
+
+**THE x3 FRAMES ARE NAMED SO THEY CANNOT BE MISTAKEN FOR EVIDENCE.** `§10af`:
+1x on a real arena floor is the acceptance authority, and an effect approved off
+a zoomed frame is an effect nobody has seen. Everything numbered 01-15 is 1x.
+
+**THE FIRST BUILD OF THE x3 STATIONS PHOTOGRAPHED EMPTY DECK.** A zoomed camera
+does not transform like an unzoomed one — `scrollX` is the top-left in UNZOOMED
+world units, so `(x - scrollX) * zoom` put the subject at (1080, 1878) on a
+720x1280 page. After `centerOn` the subject IS the viewport centre, and the
+viewport is inset by the HUD's top bar.
+
+### `diag-captain-pressure` — and the three ways it lies
+
+`<=48px` is "would have hit", and it is an ORDERING rather than an absolute:
+closest approach is sampled at ~14fps against a 600px/s bolt, so the bolt jumps
+~43px between samples and a stationary player — whom he cannot fail to hit —
+measures a 44px median miss. The same noise is in every mode and in every build,
+which is what keeps a before/after honest.
+
+| player policy | before | after |
+|---|---|---|
+| standing still | 12/15 | 16/21 |
+| holding a lateral direction (orbit) | **0/21** | **9/21** |
+| holding a lateral direction (straight line) | — | **7/21** |
+| reversing every 700ms | 2/12 | 5/21 |
+
+It also cannot measure AIM through COVER — bolts died on crates a third of the
+way out and rounds 2 and 3 appeared to over-lead by 180px, so it clears `walls`
+— and a patrol that walks to the arena wall measures a RETREAT rather than a
+strafe, because a 600px/s bolt chasing a 380px/s player never arrives however
+well it was aimed.
