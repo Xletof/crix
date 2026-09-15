@@ -917,6 +917,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.dashRechargeTimer = 0;
     }
 
+    // ── ENVIRONMENTAL DRAG, READ AND CLEARED ONCE PER FRAME ─────────────────
+    // Consumed by the walk branch below. It is read HERE, above the whole
+    // dash / lunge / stagger / walk chain, so the reset happens on every frame
+    // the player exists — a value left standing through a 300ms hurt-stagger
+    // would then be applied on the frame control came back, from ground the
+    // player had already left.
+    const drag = this._envDrag ?? 1;
+    this._envDrag = 1;
+
     if (this.isDashing) {
       if (isNaN(this.dashTimer) || !isFinite(this.dashTimer)) {
         this.dashTimer = 0;
@@ -964,8 +973,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       // the joystick. Snapping instantly to top speed reads as "dragging a
       // picture"; ramping over ~3 frames reads as weight.
       const dt    = delta / 1000;
-      const tx    = this._moveTargetX || 0;
-      const ty    = this._moveTargetY || 0;
+      // ── ENVIRONMENTAL DRAG ───────────────────────────────────────────────
+      // Ground that slows you down, written fresh by whatever is holding the
+      // player THIS frame and consumed here. DELIBERATELY NOT `moveMult`:
+      // that is the permanent upgrade multiplier and upgrades compound, so a
+      // field that scaled it and failed to restore it — on a death, a room
+      // change, two overlapping fields — would cripple the run for ever. This
+      // cannot leak, because nothing persists it: the only write is per-frame
+      // and the read resets it. Absent means 1, so a build with no such ground
+      // in it behaves identically.
+      const tx    = (this._moveTargetX || 0) * drag;
+      const ty    = (this._moveTargetY || 0) * drag;
       const vx    = this.body.velocity.x;
       const vy    = this.body.velocity.y;
       const dx    = tx - vx;

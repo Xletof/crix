@@ -214,6 +214,15 @@ const seq = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(async
   c.hp = c.hpMax * c.def.lowHealthFrac + 150;
   const spill = 400;                     // -> 400 * armourSpill to the body
   c.damage(c.armour / c.def.armourTake + spill, null);
+  // THE SCHEDULED GAP IS THE CONTRACT; THE OBSERVED ONE IS A FRAME-RATE
+  // READING. `_punctuate` stamps each glyph with an `at` exactly
+  // `punctSpacingMs` apart, and `_tickPunctuation` then fires each on the first
+  // frame at or past it — so at ~10fps the SECOND can be observed up to a whole
+  // frame late and the FIRST up to a whole frame late too, and the difference
+  // between them lands anywhere in a ±110ms band. Measured at 294ms against a
+  // 340ms floor on a slow container, which is the fixed-sleep trap wearing yet
+  // another costume: it was reading the machine, not the queue.
+  const queued = c._punctQueue.map((q) => Math.round(q.at));
   // POLL ON THE GAME'S OWN CLOCK, NOT ON WALL TIME. The spacing is 340ms of
   // `_clock`, and `_clock` only advances when the scene steps — this harness
   // runs at ~9fps under load, so a flat 1400ms wall-clock wait reported the
@@ -222,14 +231,16 @@ const seq = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(async
   for (let i = 0; i < 60 && c._punctQueue.length; i++) await wait(100);
   const timersAfter = gs.time.getActiveEvents?.()?.length ?? gs.time._active?.length ?? -1;
   const gap = at.length >= 2 ? at[1][1] - at[0][1] : -1;
-  return { at, gap, spacing: c.def.punctSpacingMs, timersBefore, timersAfter, alive: c.alive,
+  return { at, gap, queued, queuedGap: queued.length >= 2 ? queued[1] - queued[0] : -1,
+    spacing: c.def.punctSpacingMs, timersBefore, timersAfter, alive: c.alive,
     fxLeft: c._reactFx.length, queueLeft: c._punctQueue.length };
 }));
 check(seq.at.length === 2,
   'one over-committed hit produces BOTH transitions', JSON.stringify(seq.at));
-check(seq.gap >= seq.spacing * 0.9,
-  'and they are SEQUENCED, never in the same frame',
-  `${seq.gap}ms apart vs ${seq.spacing}ms floor`);
+check(seq.queuedGap >= seq.spacing,
+  'and they are SEQUENCED, never in the same frame — the SCHEDULED gap is the '
+  + 'contract, because the observed one is a frame-rate reading',
+  `scheduled ${seq.queuedGap}ms vs ${seq.spacing}ms floor (observed ${seq.gap}ms)`);
 check(seq.timersAfter <= seq.timersBefore,
   'THE REACTION LAYER SCHEDULES NO TIMERS — the queue is data, so there is '
   + 'nothing to cancel on death', `${seq.timersBefore} -> ${seq.timersAfter}`);

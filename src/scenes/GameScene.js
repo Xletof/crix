@@ -2994,7 +2994,14 @@ export class GameScene extends Phaser.Scene {
       this.fx.shake(phase >= 3 ? 0.022 : 0.015, 300);
       this.cameras.main.flash(180, 255, 60, 60, true); // flash red
     });
-    this._on('enemy-hit', (enemy, amount) => {
+    this._on('enemy-hit', (enemy, amount, feedback) => {
+      // ── WHAT THE PLAYER IS TOLD ────────────────────────────────────────
+      // `amount` is what the body was asked for; `feedback.shown` is what
+      // DURABILITY actually lost, which on an actor with an armour layer in
+      // front of it is a different number and on everything else is the same
+      // one. IF REAL DURABILITY DECREASED, THIS MAY NOT SAY ZERO.
+      const shown = feedback ? feedback.shown : amount;
+      const shownColor = feedback?.color ?? null;
       this.fx.hitFlash(enemy);
       // Hurt-frame swap: jump to the "hurt" texture frame (frame 3 in the
       // 4-frame sheet) for ~140ms, then let the AI's anim system reclaim it.
@@ -3015,7 +3022,10 @@ export class GameScene extends Phaser.Scene {
       const head = enemy._headroom?.() ?? enemy.cfg.radius;
 
       // CRIT callout on big hits — one-shot territory for most enemies.
-      const crit = amount >= 400;
+      // Judged on the DISPLAYED figure, so a hit whose weight went into an
+      // armour layer is called at the size the player was just shown rather
+      // than at the size the body happened to receive.
+      const crit = shown >= 400;
       if (crit) {
         // ONE "CRIT!" PER CONTACT AREA — area, not enemy.
         //
@@ -3045,11 +3055,18 @@ export class GameScene extends Phaser.Scene {
           this._critLabel.at = now;
         }
         this.fx.damageNumber(enemy.x + 18, enemy.y - head,
-          Math.round(amount), '#ff8020', 'minor');
+          Math.round(shown), shownColor ?? '#ff8020', 'minor');
         // Super hits far from the player shake much less than close ones.
         this.fx.shake(0.005 * this._superShakeFalloff(enemy), 70);
-      } else {
-        this.fx.damageNumber(enemy.x, enemy.y - head, Math.round(amount));
+      } else if (Math.round(shown) > 0) {
+        // A NUMBER ONLY WHERE THERE IS A NUMBER TO TELL. If nothing was
+        // removed the flash, the burst and the sound still say the shot
+        // landed; printing `0` over that would be the same lie in a smaller
+        // font. Nothing in the roster produces this today — `armourTake` is
+        // above zero and every weapon does damage — so it is a guard against
+        // the next immune or blocking layer, not a live branch.
+        this.fx.damageNumber(enemy.x, enemy.y - head, Math.round(shown),
+          shownColor ?? '#ffffff');
         // Chipping a tank (elite or just high-HP): the old 0.002 shake was
         // invisible (and now scaled down further). Give it a real visible bite —
         // a bright impact ring — so hitting armor reads as landing, not whiffing.
@@ -4001,8 +4018,12 @@ export class GameScene extends Phaser.Scene {
    */
   fireCaptainBolt(captain, mx, my, angle) {
     const d = captain.def;
-    this.captainBullets.fire(mx, my, angle, d.bulletSpeed, d.bulletDamage, d.bulletRange,
-      { owner: 'enemy' });
+    // RETURNED, so an instrument can follow the round it just watched leave the
+    // barrel. Measuring pressure means asking how close each bolt came to the
+    // player, and a fire call that hands back nothing forces a rig to guess
+    // which object in the pool was the one it caused.
+    const bolt = this.captainBullets.fire(mx, my, angle, d.bulletSpeed, d.bulletDamage,
+      d.bulletRange, { owner: 'enemy' });
     // The flash is at the BARREL and shaped like the weapon: a tight braced
     // fan, not the trooper's spray and not Vader's molten crimson. ABOVE THE
     // FIRER, not on the flat 27 the nemesis weapons use — actors Y-sort, and on
@@ -4011,6 +4032,7 @@ export class GameScene extends Phaser.Scene {
     // drawn behind the man firing it.
     this.fx?.weaponMuzzle?.(mx, my, angle, d.color, 'heavy', captain.y + 2);
     SFX.enemyShoot('lance');
+    return bolt;
   }
 
   bossSpawnMinions() {

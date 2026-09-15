@@ -76,7 +76,7 @@ const before = await page.evaluate(() => {
 });
 
 // Tap each control. Layout mirrors DebugScene.create().
-const cx = 360, half = 152, row = 62;
+const cx = 360, half = 152, row = 56;   // MIRRORS DebugScene.create(); see the note there
 const cardY = 1280 * 0.03;
 let y = cardY + 96;
 const pos = {};
@@ -102,6 +102,15 @@ pos.vaderN = [cx - half, y]; pos.spawnVader = [cx + half, y]; y += row;
 pos.loadChamber = [cx, y]; y += row;          // full width
 pos.loadJunction = [cx, y]; y += row;         // full width
 pos.loadDetention = [cx, y]; y += row;        // full width
+// THE CHAMPION STATE TRIGGERS. Added in B.2.1 and B.2.2 and NOT mirrored here
+// at the time, which is precisely the failure this file's own comment above
+// warns about: the walk is by COORDINATE, so three unmirrored rows moved CLOSE
+// 276px down the card and every check below it reported a feature as broken —
+// `debug panel did not close`, `game did not resume`, `CLEAR FIELD left 0
+// nemesis`. It reproduced identically on the pre-change tree, which is what
+// proved it was this file and not the scene.
+pos.champHit = [cx - half, y]; pos.champBreak = [cx + half, y]; y += row;
+pos.champLow = [cx - half, y]; pos.champNade = [cx + half, y]; y += row;
 pos.sector = [cx - half, y]; pos.clearField = [cx + half, y]; y += row;
 pos.forceMove = [cx, y]; y += row + 12;
 pos.close = [cx, y];

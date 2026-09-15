@@ -68,6 +68,8 @@ export const CAP = {
   BURST: 'burst',           // firing
   RECOVER: 'recover',       // settling after the burst
   STAGGER: 'stagger',       // a real blow landed
+  WINDUP: 'windup',         // reaching for the Arc Grenade
+  THROW: 'throw',           // releasing it
 };
 
 export class ShockCaptain extends Enemy {
@@ -133,9 +135,25 @@ export class ShockCaptain extends Enemy {
     this._clock = 0;               // local ms, so nothing reads wall time
     this._wearSmokeT = 0;
     this._wearSparkT = 0;
-    this._embers = null;           // the one PERSISTENT mark; see `_drawEmbers`
     this._wearFlickerT = 0;
     this._flickerHold = 0;
+    // ── B.2.2: THE DETERIORATION LAYER ─────────────────────────────────────
+    // `_wound` is the dark, always-true half (scorch, hot remnant) and
+    // `_arcGfx` the electrical half, which is entirely event-driven. Both are
+    // redrawn every frame from the live body position, so neither can be
+    // stranded where he used to be, and both are in `_reactFx` so both die with
+    // him. See `_drawDamage` for why the persistent mark is a stain and not a
+    // light.
+    this._wound = null;
+    this._arcGfx = null;
+    this._arcT = 0;                // next short-circuit event
+    this._arcHold = 0;             // how long the current one is still drawn
+    this._arcToRifle = false;
+    // ── B.2.2: THE ARC GRENADE ────────────────────────────────────────────
+    // ONE live grenade at a time and one cooldown, opened late so the signature
+    // is never the first thing he does.
+    this._nade = null;
+    this._nadeCd = def.grenade.firstDelayMs;
     // Reacquire: LOS is sampled every frame, and a loss shorter than
     // `acquireLostMs` is a doorway rather than a break.
     this._hadLos = true;
@@ -173,9 +191,14 @@ export class ShockCaptain extends Enemy {
   damage(amount, knockbackVec = null) {
     if (!this.alive) return;
     let toBody = amount;
+    // WHAT THE LAYER ACTUALLY ATE, kept so the number the player reads can be
+    // built from real removals rather than from the request. See
+    // `_damageFeedback`.
+    let armourRemoved = 0;
     if (!this.armourBroken && this.armour > 0) {
       const taken = amount * this.def.armourTake;
       if (taken < this.armour) {
+        armourRemoved = taken;
         this.armour -= taken;
         toBody = 0;
         this.scene.fx?.burstDir?.(
@@ -183,12 +206,14 @@ export class ShockCaptain extends Enemy {
           knockbackVec ? Math.atan2(knockbackVec.y, knockbackVec.x) : this._aim, 40,
         );
       } else {
+        armourRemoved = this.armour;
         const over = (taken - this.armour) / this.def.armourTake;
         this.armour = 0;
         toBody = over * this.def.armourSpill;
         this._breakArmour();
       }
     }
+    this._fbArmour = armourRemoved;
     // A REAL BLOW STAGGERS; CHIP FIRE DOES NOT. `Enemy.damage` sets
     // `_staggerMs = 90` on every hit, and an actor that yields on that field is
     // stun-locked by ordinary fire — 4305ms motionless, measured on the
@@ -218,6 +243,46 @@ export class ShockCaptain extends Enemy {
       this.scene.fx?.burstDir?.(this.x, this.y - 12, 'white', 5, -Math.PI / 2, 90);
       this.scene.events.emit('champion-low-health', this);
     }
+  }
+
+  /**
+   * ONE TRUTHFUL NUMBER PER HIT.
+   *
+   * THE BUG THIS EXISTS AGAINST: `Enemy.damage` emits the hit event with the
+   * number it was asked to take off the BODY, and while the reactive layer
+   * holds, that number is zero — so a Captain whose armour bar was visibly
+   * draining printed `0 0 0` over his own head. A human called it out on a
+   * handset and they were right: it is not a rendering nit, it is the game
+   * telling the player their shots did nothing while it took their damage.
+   * Measured on the shipped build, a 120-damage round removed 102 points of
+   * durability and rendered `0`, and a Super that removed 2285 rendered 485.
+   *
+   * THE LAW IS: IF REAL DURABILITY DECREASED, FEEDBACK MAY NOT SAY ZERO.
+   * One number, not two — armour removed plus body removed. A spill hit is
+   * still ONE event to the player, and two overlapping labels on the frame the
+   * armour breaks is exactly the soup the punctuation queue exists to avoid;
+   * the break FX is what says a layer transition happened, and it says it far
+   * better than a second integer could.
+   *
+   * THE COLOUR IS THE SEMANTIC. Blue while the layer is doing the work — his
+   * own defensive colour, the same one the armour bar and the threat ring are
+   * painted in — and the ordinary hit colour the moment any of it reaches the
+   * body. So "this is being absorbed" and "this is hurting him" are told apart
+   * at a glance without a second label, and the frame the armour breaks is the
+   * frame the number changes colour.
+   *
+   * `bodyRemoved` is what the pool ACTUALLY moved by, punish multiplier and
+   * lethal clamp included, because it is measured across the subtraction.
+   * `_fbArmour` is raw: the layer is deliberately outside the punish window,
+   * which is existing behaviour and not this pass's to change.
+   */
+  _damageFeedback(bodyRemoved) {
+    const armour = this._fbArmour || 0;
+    this._fbArmour = 0;
+    return {
+      shown: armour + bodyRemoved,
+      color: (bodyRemoved <= 0 && armour > 0) ? '#7fd4ff' : null,
+    };
   }
 
   /**
@@ -268,15 +333,26 @@ export class ShockCaptain extends Enemy {
     // SCALE. This is a plate failing, not a boss phase: no screen flash, no
     // white-out, nothing that stops the player reading the fight around him.
     const fx = this.scene.fx;
-    // 1. the crack: a hard white ring at his own depth, tight.
+    // 1. the crack: a hard white ring at his own depth, tight, and his own blue
+    //    a beat behind it — the plate failing, then its power letting go. TWO
+    //    rings rather than one is what makes the break electrical rather than
+    //    merely loud, which is the whole "I cracked him" read §4 asks for.
     fx?.impactRing?.(this.x, this.y, 0xffffff, this.y + 3);
+    fx?.impactRing?.(this.x, this.y, this.def.color, this.y + 3);
     // 2. the shards, thrown FROM the shoulder that lost its plate and AWAY from
     //    it, so the debris says which piece went.
     const away = this._aim + Math.PI * (this._facingSuffix().flipX ? 0.35 : -0.35);
     fx?.burstDir?.(this.x, this.y - 8, 'white', 14, away, 70);
     fx?.burstDir?.(this.x, this.y - 8, 'yellow', 8, away, 130);
-    // 3. the discharge — his own electric blue, briefly, over the break.
-    this._discharge(220);
+    // 3. the discharge — his own electric blue, over the break. Longer than the
+    //    first build's 220ms: at ~1.4 frames on a slow machine that beat could
+    //    be missed entirely, and this is the one moment the electrical identity
+    //    has the stage to itself.
+    this._discharge(340);
+    // 3b. and a FRACTURE — four arcs thrown out along the shear, drawn once at
+    //     full strength. The discharge crawls over him; this says the break has
+    //     a direction.
+    this._fracture(away);
     // 4. the flinch. A real body reaction: the stagger pose and its cooldown,
     //    taken deliberately rather than waiting for the damage threshold.
     this._enter(CAP.STAGGER, this.def.staggerMs);
@@ -297,6 +373,38 @@ export class ShockCaptain extends Enemy {
   // cancel on death and nothing that can fire into a destroyed scene. Tweens
   // are attached to objects held in `_reactFx`, and `_clearReactions` kills
   // both halves.
+
+  /**
+   * THE SHEAR, DRAWN ONCE.
+   *
+   * Four blue-white arcs thrown along the bearing the plate went, fading over
+   * ~260ms. It uses `_reactFx` and the `_tick` closure contract the discharge
+   * uses, so it is redrawn from his LIVE position and cannot be stranded on the
+   * spot he was standing when he broke.
+   */
+  _fracture(ang) {
+    if (!this.scene?.add) return;
+    const g = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    g.setDepth(this.y + 6);
+    this._reactFx.push(g);
+    const started = this._clock;
+    const MS = 260;
+    g._tick = () => {
+      const u = (this._clock - started) / MS;
+      if (u >= 1 || !this.alive) { this._dropFx(g); g.destroy(); return; }
+      g.clear();
+      g.setDepth(this.y + 6);
+      const a = 1 - u;
+      const st = this._site(0);
+      for (let i = 0; i < 4; i++) {
+        const th = ang + (i - 1.5) * 0.34;
+        const len = 26 + i * 5;
+        this._bolt(g, st.x, st.y,
+          st.x + Math.cos(th) * len, st.y + Math.sin(th) * len,
+          10, i % 2 ? 2.5 : 1.5, i % 2 ? 0xffffff : this.def.color, a * 0.9);
+      }
+    };
+  }
 
   /**
    * Queue one glyph. SEQUENCED, NEVER SIMULTANEOUS.
@@ -388,99 +496,195 @@ export class ShockCaptain extends Enemy {
   }
 
   /**
-   * SUSTAINED DAMAGE — small, intermittent, and never a particle blanket.
+   * ── SUSTAINED DAMAGE: AN ELECTRICALLY DAMAGED SHOCK UNIT ─────────────────
    *
-   * He fights inside CROSSFIRE and SWARM TIDE, with player FX and damage
-   * numbers over the same square metre, so the sustained half has to be almost
-   * nothing per event and merely PRESENT over time. Three independent slow
-   * clocks rather than one: a single emitter at any rate reads as a machine
-   * ticking, three unrelated ones read as a body failing.
+   * WHAT THIS REPLACES, AND WHY. B.2.1 carried two symmetrical orange embers, a
+   * puff and a spark — and the handset verdict was that it did not communicate
+   * "mechanically damaged and breaking down" at all: it read as an actor with
+   * two status lights on. The embers were the right INSTINCT (something has to
+   * be true in every frame, or a still and a glance both catch nothing) and the
+   * wrong FORM: symmetrical, round, coloured and pulsing is the vocabulary of a
+   * designed-in indicator, which is exactly what a player decodes it as.
    *
-   * ARMOUR BROKEN gets the sparks. LOW HEALTH adds smoke and a visor that
-   * cannot hold. Both together is still three small things.
+   * THE THREE PROPERTIES THE REPLACEMENT HAS AND THE EMBERS DID NOT:
+   *
+   *   ASYMMETRIC   one failure site, on the side that actually lost its plate,
+   *                and a second on the OPPOSITE flank only once the body itself
+   *                is failing. Nothing here is mirrored, because damage is not.
+   *   PHYSICAL     the always-true mark is a dark SCORCH — a stain with an
+   *                irregular outline that does not pulse, because a burn does
+   *                not breathe. It is the half a still frame catches, and the
+   *                half that cannot be mistaken for a lamp.
+   *   ELECTRICAL   his own blue-white current shorting across the break, and it
+   *                is ENTIRELY EVENT-DRIVEN: a 130ms snap every second or so,
+   *                never a loop. Unstable is the read, and a continuous arc is
+   *                the opposite of unstable.
+   *
+   * Orange survives only as a thin remnant of hot metal at the break, well
+   * under the electrical in weight. He is a SHOCK Captain; he should fail like
+   * one.
+   *
+   * THE LADDER IS TWO RUNGS AND IT IS NOT A PHASE SYSTEM. ARMOUR BROKEN opens
+   * site one, the vent and the occasional short. CRITICAL opens site two, makes
+   * the smoke near-continuous, shortens the gap between shorts, destabilises
+   * the visor and lets the current jump to the rifle housing. Nothing in either
+   * rung touches speed, damage, cadence or the state machine, and
+   * `smoke-captain-state` pins that.
    */
   _tickWear(delta) {
     if (!this.alive) return;
     const fx = this.scene.fx;
     const d = this.def;
-    const roll = (lo, hi) => Phaser.Math.Between(lo, hi);
-    if (this.armourBroken) {
-      this._wearSparkT -= delta;
-      if (this._wearSparkT <= 0) {
-        this._wearSparkT = roll(d.wearSparkMs[0], d.wearSparkMs[1]);
-        // At the shear, not at his centre: the sparks have to come from the
-        // piece that is missing or they are just decoration on a sprite.
-        const side = this._facingSuffix().flipX ? 1 : -1;
-        fx?.burstDir?.(this.x + side * 16, this.y - 10, 'yellow', 2,
-          this._aim + Math.PI * 0.5 * side, 60);
-      }
-    }
-    if (this._lowHealthFired) {
+    const roll = (r) => Phaser.Math.Between(r[0], r[1]);
+    const crit = this._lowHealthFired;
+    if (this.armourBroken || crit) {
+      // SMOKE FROM THE SITE, NOT FROM HIS CENTRE. A vent at the body's middle
+      // is a smoke machine; one at the hole is evidence.
       this._wearSmokeT -= delta;
       if (this._wearSmokeT <= 0) {
-        this._wearSmokeT = roll(d.wearSmokeMs[0], d.wearSmokeMs[1]);
+        this._wearSmokeT = roll(crit ? d.wearSmokeCriticalMs : d.wearSmokeMs);
+        const st = this._site(0);
         // `ventSmoke`, not `smokeTrail`. The missile trail's particle is darker
         // than the deck and lives 420ms, and one of them on a body photographs
         // as nothing — measured. This one is lighter than the floor, rises, and
         // is drawn above the actor band instead of behind the actor.
-        fx?.ventSmoke?.(this.x + roll(-8, 8), this.y - roll(6, 18), 2);
+        fx?.ventSmoke?.(st.x + Phaser.Math.Between(-5, 5), st.y, crit ? 3 : 2);
       }
+      // THE SHORT CIRCUIT. An EVENT with a held tail, not a state: the gap is
+      // re-rolled every time so it never finds a rhythm, which is what keeps it
+      // reading as a fault rather than as a blinker.
+      this._arcT -= delta;
+      if (this._arcT <= 0) {
+        this._arcT = roll(crit ? d.arc.criticalMs : d.arc.brokenMs);
+        this._arcHold = d.arc.holdMs;
+        this._arcToRifle = crit && Math.random() < d.arc.rifleJumpChance;
+        SFX.captainShort?.();
+        if (crit) {
+          const st = this._site(Math.random() < 0.5 ? 0 : 1);
+          fx?.burstDir?.(st.x, st.y, 'white', 2, this._aim + Math.PI, 50);
+        }
+      }
+      if (this._arcHold > 0) this._arcHold -= delta;
+      // THE VISOR CANNOT HOLD, and at critical it holds a good deal less.
       this._wearFlickerT -= delta;
       if (this._wearFlickerT <= 0) {
-        this._wearFlickerT = roll(d.wearFlickerMs[0], d.wearFlickerMs[1]);
+        this._wearFlickerT = roll(crit ? d.wearFlickerCriticalMs : d.wearFlickerMs);
         this._flickerHold = d.wearFlickerHoldMs;
       }
     }
     if (this._flickerHold > 0) this._flickerHold -= delta;
-    this._drawEmbers();
+    this._drawDamage();
   }
 
   /**
-   * THE ONE THING THAT IS ALWAYS TRUE.
+   * WHERE HE IS BROKEN, in world pixels, on the body's own facing.
    *
-   * Everything else in the sustained half is an EVENT — a puff, a spark, a
-   * flicker — and an event is only visible for the fraction of the time it is
-   * running. A player glancing at him, or a still frame, catches none of them:
-   * the first build's low-health state photographed as an undamaged Captain,
-   * which is the whole failure this layer exists against ("if the glyph is the
-   * only thing that ever said damaged, the damage was UI").
+   * Site 0 is the shoulder that lost the command pauldron — the sheared side,
+   * so the damage is where the silhouette says it is. Site 1 is the opposite
+   * flank and opens only at critical, which is what makes the deterioration
+   * read as spreading rather than as brightening.
    *
-   * So one small persistent mark, breathing rather than blinking: an ember at
-   * the shear where the pauldron went, and a second on the chest once the body
-   * itself is failing. Six pixels of dull heat — restrained enough that a
-   * damaged Captain still reads as a Captain, present enough that he never
-   * reads as a fresh one.
-   *
-   * It is NOT arena amber and it is not Vader's crimson: a low, desaturated
-   * ember with a white core, which is what hot damaged metal looks like and is
-   * not a colour any system in this game has claimed.
+   * BOTH SIT BELOW THE HELMET. The visor is the fastest identification on this
+   * body and nothing may crowd it — the same rule that removed the third ember.
    */
-  _drawEmbers() {
+  _site(i) {
+    const side = this._facingSuffix().flipX ? 1 : -1;
+    return i === 0
+      ? { x: this.x + side * 18, y: this.y - 11 }
+      : { x: this.x - side * 11, y: this.y + 5 };
+  }
+
+  /** A jagged polyline. Shared by the crawl, the plate arcs and the rifle jump. */
+  _bolt(g, ax, ay, bx, by, jitter, width, color, alpha) {
+    g.lineStyle(width, color, alpha);
+    g.beginPath();
+    g.moveTo(ax, ay);
+    for (let i = 1; i < 4; i++) {
+      const t = i / 4;
+      g.lineTo(ax + (bx - ax) * t + (Math.random() - 0.5) * jitter,
+        ay + (by - ay) * t + (Math.random() - 0.5) * jitter);
+    }
+    g.lineTo(bx, by);
+    g.strokePath();
+  }
+
+  /**
+   * THE TWO HALVES, DRAWN FROM THE LIVE BODY EVERY FRAME.
+   *
+   * `_wound` is NORMAL-blended and dark: it takes light away, which is what a
+   * burn does and what no additive effect can do. `_arcGfx` is ADD and carries
+   * only the current. Keeping them on separate objects is not tidiness — an
+   * additive scorch is a bright patch, and a normal-blended arc on a dark deck
+   * is a grey scribble.
+   */
+  _drawDamage() {
     const want = this.armourBroken || this._lowHealthFired;
     if (!want) {
-      if (this._embers) { this._dropFx(this._embers); this._embers.destroy(); this._embers = null; }
+      for (const k of ['_wound', '_arcGfx']) {
+        if (this[k]) { this._dropFx(this[k]); this[k].destroy(); this[k] = null; }
+      }
       return;
     }
-    if (!this._embers) {
+    if (!this._wound) {
       if (!this.scene?.add) return;
-      this._embers = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
-      this._reactFx.push(this._embers);
+      this._wound = this.scene.add.graphics();
+      this._arcGfx = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+      this._reactFx.push(this._wound, this._arcGfx);
     }
-    const g = this._embers;
-    g.clear();
-    g.setDepth(this.y + 5);
-    const side = this._facingSuffix().flipX ? 1 : -1;
-    const pulse = (phase) => 0.44 + 0.32 * (0.5 + 0.5 * Math.sin(this._clock / 260 + phase));
-    const ember = (x, y, r, a) => {
-      g.fillStyle(0xff8a3a, a * 0.30); g.fillCircle(x, y, r + 3);
-      g.fillStyle(0xff8a3a, a * 0.75); g.fillCircle(x, y, r);
-      g.fillStyle(0xffd9a0, a);        g.fillCircle(x, y, r * 0.45);
-    };
-    if (this.armourBroken) ember(this.x + side * 17, this.y - 10, 5, pulse(0));
-    // TWO MARKS, NOT THREE, AND BOTH BELOW THE HELMET. A third at `y - 20` sat
-    // against the visor, which is the fastest identification on the body and
-    // the one thing a reaction may not crowd.
-    if (this._lowHealthFired) ember(this.x - side * 7, this.y + 2, 4.5, pulse(2.1));
+    const w = this._wound, g = this._arcGfx;
+    w.clear(); g.clear();
+    w.setDepth(this.y + 5);
+    g.setDepth(this.y + 6);
+
+    const crit = this._lowHealthFired;
+    const sites = crit ? [this._site(0), this._site(1)] : [this._site(0)];
+    const a = this.def.arc.scorchAlpha;
+
+    // SIZED AGAINST THE SPRITE, NOT AGAINST A FEELING. He is 112px wide on
+    // screen; the first build used r=6, which is a ten-pixel blot on a
+    // hundred-and-twelve-pixel body — about a tenth of his width, and it
+    // photographed as nothing at 1x. A damaged plate has to be a fifth of the
+    // torso to read as a hole rather than as dirt.
+    for (let i = 0; i < sites.length; i++) {
+      const st = sites[i];
+      const r = i === 0 ? 11 : 8;
+      // THE SCORCH — three overlapping discs at deliberately unequal offsets.
+      // One disc is a dot; three is a blot, and a blot has an outline the eye
+      // reads as burnt material. It does NOT pulse.
+      w.fillStyle(0x08090c, a);
+      w.fillCircle(st.x, st.y, r);
+      w.fillCircle(st.x - r * 0.72, st.y + r * 0.34, r * 0.64);
+      w.fillCircle(st.x + r * 0.58, st.y + r * 0.48, r * 0.52);
+      w.fillStyle(0x1a1d23, a * 0.8);
+      w.fillCircle(st.x + r * 0.22, st.y - r * 0.42, r * 0.56);
+      // THE HOT REMNANT — two small irregular points of cooling metal, dim and
+      // deliberately NOT centred on the scorch. This is all that is left of the
+      // orange: it is evidence of heat, not an indicator light.
+      g.fillStyle(0xff7a2a, 0.40);
+      g.fillCircle(st.x + r * 0.34, st.y + r * 0.26, r * 0.30);
+      g.fillStyle(0xffc089, 0.30);
+      g.fillCircle(st.x - r * 0.46, st.y - r * 0.12, r * 0.20);
+    }
+
+    // ── THE CURRENT. Only while an event is being held. ────────────────────
+    if (this._arcHold > 0) {
+      const u = this._arcHold / this.def.arc.holdMs;   // 1 -> 0 across the snap
+      for (const st of sites) {
+        this._bolt(g, st.x - 14, st.y - 6, st.x + 14, st.y + 6, 10, 2.5, 0xffffff, 0.9 * u);
+        this._bolt(g, st.x - 10, st.y + 9, st.x + 15, st.y - 5, 11, 2,
+          this.def.color, 0.85 * u);
+        g.fillStyle(0xffffff, 0.95 * u);
+        g.fillCircle(st.x, st.y, 3.4);
+      }
+      // THE JUMP TO THE RIFLE. The one effect that says the WEAPON is
+      // compromised, and the reason it is rationed: a body arcing to its own
+      // gun every second would be a light show, and once in three shorts at
+      // critical is a fault.
+      if (this._arcToRifle && this.weaponSprite) {
+        this._bolt(g, sites[0].x, sites[0].y, this.weaponSprite.x, this.weaponSprite.y,
+          14, 2, this.def.color, 0.7 * u);
+      }
+    }
   }
 
   /**
@@ -504,7 +708,8 @@ export class ShockCaptain extends Enemy {
   /** Nothing this actor started may outlive it. */
   _clearReactions() {
     this._punctQueue.length = 0;
-    this._embers = null;
+    this._wound = null;
+    this._arcGfx = null;
     this._reactFx.slice().forEach((o) => {
       this.scene?.tweens?.killTweensOf(o);
       o.destroy?.();
@@ -560,10 +765,48 @@ export class ShockCaptain extends Enemy {
     // STRAFE — perpendicular, at the distance he already has. Occasionally he
     // changes side, so a player cannot learn one lead and hold it for a fight.
     if (Math.random() < this.def.sideSwapChance) this._side *= -1;
+    // ── HE KNOWS WHERE HIS OWN FIELD IS ───────────────────────────────────
+    // §21, and deliberately the smallest version of it that is true: NOT a
+    // tactical director, NOT a threat map. One fact — while the field is live,
+    // take the side that puts the player BETWEEN him and it, so backing away
+    // from his rifle is backing toward electrified ground. That is the whole
+    // "rifle and grenade are one fighter's two tools" loop, and it is four
+    // lines because anything larger would be a second AI.
+    if (this._nade?.live) {
+      const want = Math.atan2(this._nade.y - p.y, this._nade.x - p.x) + Math.PI;
+      const cur = toPlayer + Math.PI;                 // bearing player -> captain
+      // Stepping along `toPlayer + 90` rotates that bearing NEGATIVE, so the
+      // side that closes a positive gap is -1. Written out because it reads
+      // like a sign error either way round.
+      this._side = Phaser.Math.Angle.Wrap(want - cur) > 0 ? -1 : 1;
+    }
     const perp = toPlayer + Math.PI / 2 * this._side;
     const step = 190;
-    this._target = this._clampPoint(this.x + Math.cos(perp) * step, this.y + Math.sin(perp) * step);
+    this._target = this._avoidField(
+      this._clampPoint(this.x + Math.cos(perp) * step, this.y + Math.sin(perp) * step));
     this._enter(CAP.STRAFE, Phaser.Math.Between(this.def.strafeMs[0], this.def.strafeMs[1]));
+  }
+
+  /**
+   * DO NOT WALK INTO YOUR OWN GRENADE.
+   *
+   * A destination inside the live field is pushed radially out past it, plus a
+   * standoff. It is applied to every reposition target rather than to the
+   * navigation, because a Captain who refused to CROSS his own field would
+   * freeze whenever it landed between him and where he wanted to be — and an
+   * elite stepping through his own electricity for half a second on the way
+   * somewhere is a man in a hurry, where standing in it is a man who does not
+   * understand his own equipment.
+   */
+  _avoidField(t) {
+    const f = this._nade;
+    if (!f?.live) return t;
+    const keep = f.radius + this.def.grenade.standoff;
+    const dx = t.x - f.x, dy = t.y - f.y;
+    const d = Math.hypot(dx, dy);
+    if (d >= keep) return t;
+    const a = d > 1 ? Math.atan2(dy, dx) : this._aim + Math.PI;
+    return this._clampPoint(f.x + Math.cos(a) * keep, f.y + Math.sin(a) * keep);
   }
 
   /** May he open a burst from here, right now? */
@@ -571,6 +814,58 @@ export class ShockCaptain extends Enemy {
     return this._fireCd <= 0
       && dist <= this.def.fireRange
       && this._hasLOS(this.x, this.y, p.x, p.y);
+  }
+
+  /**
+   * MAY HE THROW? ONE AT A TIME, AND NEVER AS THE OPENING BEAT.
+   *
+   * The rifle is the baseline and the grenade is a tool, so the gates are
+   * deliberately strict: a cooldown long enough that the field is gone for most
+   * of it, no second grenade while one is live, a range band in which the throw
+   * is a real read rather than a panic lob, and line of sight — he has to be
+   * able to see the movement he is predicting.
+   */
+  _canThrow(p, dist) {
+    const g = this.def.grenade;
+    return this._nadeCd <= 0
+      && (!this._nade || this._nade.dead)
+      && dist >= g.minRange && dist <= g.maxRange
+      && this._hasLOS(this.x, this.y, p.x, p.y);
+  }
+
+  /**
+   * THE RELEASE FRAME.
+   *
+   * Called at the START of `CAP.THROW` — the body has already spent
+   * `windupMs` reaching for it, and this is the beat the arm comes over. The
+   * lead is solved HERE and not at the wind-up, so the prediction reads the
+   * movement the player is committing to at the moment of release rather than
+   * the movement they had half a second ago.
+   *
+   * WHERE IT GOES: the player's likely CONTINUATION, on the same fairness rule
+   * as the burst — current velocity, bounded horizon, bounded displacement. A
+   * grenade aimed at their feet is a hit-or-miss; one aimed at where they are
+   * trying to go is a question about their route, which is what §15 asks for.
+   */
+  _throwGrenade(p) {
+    const g = this.def.grenade;
+    const v = p.body?.velocity;
+    const h = g.leadMs / 1000;
+    let lx = (v?.x ?? 0) * h, ly = (v?.y ?? 0) * h;
+    const m = Math.hypot(lx, ly);
+    if (m > g.leadMaxPx) { lx = lx / m * g.leadMaxPx; ly = ly / m * g.leadMaxPx; }
+    const t = this._clampPoint(p.x + lx, p.y + ly);
+    // It leaves from the HAND, not from the actor's centre: the throw has to
+    // start where the arm is, or the object appears out of his chest.
+    const off = this._facingSuffix().flipX ? -14 : 14;
+    this._nade = this.scene.spawnArcGrenade?.({
+      ...g, x: this.x + off, y: this.y - 10, tx: t.x, ty: t.y, owner: this,
+    }) ?? null;
+    this._nadeCd = g.cooldownMs;
+    SFX.captainThrow?.();
+    this.scene.fx?.burstDir?.(this.x + off, this.y - 10, 'white', 3,
+      Math.atan2(t.y - this.y, t.x - this.x), 60);
+    this.scene.events.emit('champion-arc-grenade', this, this._nade);
   }
 
   preUpdate(time, delta) {
@@ -587,6 +882,8 @@ export class ShockCaptain extends Enemy {
     if (this._staggerCd > 0) this._staggerCd -= delta;
     if (this._impactGlyphCd > 0) this._impactGlyphCd -= delta;
     if (this._acquireCd > 0) this._acquireCd -= delta;
+    if (this._nadeCd > 0) this._nadeCd -= delta;
+    if (this._nade?.dead) this._nade = null;
     if (this._shotFlashMs > 0) this._shotFlashMs -= delta;
     if (this._wKick > 0) this._wKick = Math.max(0, this._wKick - delta * 0.09);
     this._tickPunctuation();
@@ -622,6 +919,23 @@ export class ShockCaptain extends Enemy {
         if (this._stateMs <= 0) this._solvePosition(p);
         break;
 
+      case CAP.WINDUP:
+        // REACHING FOR IT. Planted, because a man throwing a grenade plants —
+        // and because the plant is what makes the wind-up readable as a
+        // DIFFERENT commitment from a brace, which is also planted but which
+        // holds the rifle up rather than dropping it.
+        this.setVelocity(0, 0);
+        if (this._stateMs <= 0) {
+          this._enter(CAP.THROW, this.def.grenade.throwMs);
+          this._throwGrenade(p);
+        }
+        break;
+
+      case CAP.THROW:
+        this.setVelocity(0, 0);
+        if (this._stateMs <= 0) this._enter(CAP.RECOVER, this.def.grenade.recoverMs);
+        break;
+
       case CAP.BRACE:
         this.setVelocity(0, 0);
         if (this._stateMs <= 0) {
@@ -654,13 +968,18 @@ export class ShockCaptain extends Enemy {
         // MOVING. The reason is already chosen; this is only the execution.
         // `_navigatePath` rather than a straight line, so a Ø56 body that meets
         // cover walks round it instead of grinding on it.
-        const speed = this._cap === CAP.GIVE_GROUND ? this.cfg.speed * 0.86 : this.cfg.speed;
+        const speed = this._cap === CAP.GIVE_GROUND
+          ? this.cfg.speed * this.def.giveGroundSpeedMult : this.cfg.speed;
         const t = this._target;
         const left = t ? this._navigatePath(t.x, t.y, speed, delta) : 0;
-        // A burst may interrupt a reposition the moment the shot is available —
-        // that is what keeps him dangerous while moving rather than a unit that
-        // walks, stops, shoots, walks.
-        if (this._canFire(p, dist)) {
+        // THE GRENADE OUTRANKS THE RIFLE WHEN IT IS AVAILABLE, and it is
+        // available about once every nine seconds. Checked first for exactly
+        // that reason: a tool on a long cooldown that loses every race to a
+        // 1.9s weapon is a tool that never comes out.
+        if (this._canThrow(p, dist)) {
+          this._enter(CAP.WINDUP, this.def.grenade.windupMs);
+          this.setVelocity(0, 0);
+        } else if (this._canFire(p, dist)) {
           this._enter(CAP.BRACE, this.def.braceMs);
           this.setVelocity(0, 0);
         } else if (this._stateMs <= 0 || !t || left < 40) {
@@ -717,6 +1036,54 @@ export class ShockCaptain extends Enemy {
   }
 
   /**
+   * WHERE HE THINKS THEY ARE GOING, BOUNDED TWICE.
+   *
+   * MEASURED FIRST, AND THE MEASUREMENT IS WHY THIS EXISTS. Against a player
+   * holding one lateral direction, `diag-captain-pressure` recorded 21 bolts
+   * and not one inside 48px — median miss 145-166px — while a standing player
+   * took 12 of 15 inside 48px. The burst punished standing still and nothing
+   * else, which is the handset's "too easily dodged by continuing lateral
+   * movement" restated as a number.
+   *
+   * `lead` is a FRACTION OF A FULL INTERCEPT SOLUTION: 0 is where they are now,
+   * 1 is where they will be when the round arrives if they do not change their
+   * mind, and above 1 is the continuation past that. The three rounds of a
+   * burst ask three different questions with it.
+   *
+   * IT IS FAIR BY CONSTRUCTION, AND THAT IS NOT A CLAIM — IT IS THREE FACTS:
+   *   - it reads only the velocity the player HAS RIGHT NOW. No input buffer,
+   *     no history, no intent, nothing the Captain could not see.
+   *   - the extrapolation is bounded in TIME (`leadHorizonMs`) and in SPACE
+   *     (`leadMaxPx`), so a long shot cannot become a long guess.
+   *   - and the round is an ordinary projectile from the moment it leaves the
+   *     barrel: it is never retargeted, never homed and never hitscan. The
+   *     player makes the prediction wrong by changing plan, and that is the
+   *     whole skill interaction.
+   */
+  _predict(p, lead) {
+    if (!lead) return { x: p.x, y: p.y };
+    // FROM THE MUZZLE, NOT FROM HIS CENTRE. The round starts ~75px down the
+    // barrel, and solving the flight time from the body centre overestimates it
+    // by that much — measured, that was a 25% over-lead: at a 380px engagement
+    // the solver wanted 256px of lead where the player actually travelled 186.
+    // It made every coefficient below a lie about what it meant, because "1.0"
+    // was not a full intercept solution but a quarter past one.
+    const dist = Math.max(40,
+      Math.hypot(p.x - this.x, p.y - this.y) - CAPTAIN_MUZZLE_PX);
+    const travel = Math.min(dist / this.def.bulletSpeed,
+      this.def.leadHorizonMs / 1000);
+    const v = p.body?.velocity;
+    let lx = (v?.x ?? 0) * travel * lead;
+    let ly = (v?.y ?? 0) * travel * lead;
+    const m = Math.hypot(lx, ly);
+    if (m > this.def.leadMaxPx) {
+      lx = lx / m * this.def.leadMaxPx;
+      ly = ly / m * this.def.leadMaxPx;
+    }
+    return { x: p.x + lx, y: p.y + ly };
+  }
+
+  /**
    * THE BODY PERFORMS THE SHOT.
    *
    * The bolt leaves the MUZZLE, and so does the flash: both read
@@ -729,7 +1096,13 @@ export class ShockCaptain extends Enemy {
     // Aim is snapshotted per ROUND, not per burst: three rounds that all fly at
     // the player's position from 600ms ago is a burst that cannot hit a moving
     // target, and three that home is not a burst at all.
-    const ang = Math.atan2(p.y - this.y, p.x - this.x);
+    //
+    // ── B.2.2: ESTABLISH, LEAD, BRACKET ───────────────────────────────────
+    // `_round` counts DOWN from `burstRounds` and is decremented by the caller
+    // AFTER this returns, so the round index is `burstRounds - _round`.
+    const shot = this.def.burstRounds - this._round;
+    const aimAt = this._predict(p, this.def.burstLead[shot] ?? 0);
+    const ang = Math.atan2(aimAt.y - this.y, aimAt.x - this.x);
     this._aim = ang;
     const w = this.weaponSprite;
     const mx = (w?.x ?? this.x) + Math.cos(ang) * CAPTAIN_MUZZLE_PX;
@@ -758,6 +1131,11 @@ export class ShockCaptain extends Enemy {
     let key;
     switch (this._cap) {
       case CAP.STAGGER: key = `${pre}-stagger-${dir}`; break;
+      // THE POSE HOOKS, FINALLY USED. Frames 42-50 were painted in B.2 and
+      // reserved for "a future signature action"; the Arc Grenade is it, and it
+      // reaches for one with `raise` and comes over the top with `thrust`.
+      case CAP.WINDUP:  key = `${pre}-raise-${dir}`; break;
+      case CAP.THROW:   key = `${pre}-thrust-${dir}`; break;
       case CAP.BRACE:   key = `${pre}-brace-${dir}`; break;
       case CAP.BURST:
         // BRACE -> FLASH -> RECOIL -> back to brace, per round. The muzzle
@@ -799,7 +1177,12 @@ export class ShockCaptain extends Enemy {
     // while he sets himself and rides back out as the burst runs, so the
     // preparation is visible on the WEAPON as well as on the shoulder — at 1x
     // the rifle is a bigger shape than the arm holding it.
-    const want = this._cap === CAP.BRACE ? -5 : 0;
+    // THE RIFLE COMES DOWN FOR THE THROW. He cannot be holding it up and
+    // throwing at the same time, and at 1x the rifle is a bigger shape than the
+    // arm — so if it stays braced through the wind-up, the wind-up reads as a
+    // brace with an odd pose rather than as a different action.
+    const want = this._cap === CAP.BRACE ? -5
+      : (this._cap === CAP.WINDUP || this._cap === CAP.THROW) ? -13 : 0;
     this._wSet += (want - this._wSet) * 0.35;
     const off = this._wKick - this._wSet;
     if (Math.abs(off) < 0.01) return;
@@ -834,10 +1217,24 @@ export class ShockCaptain extends Enemy {
     g.fillRect(bx, by, w * (this.armour / this.armourMax), h);
   }
 
+  /**
+   * HIS DEATH TAKES HIS OWN FIELD WITH IT.
+   *
+   * The same contract the Barrier holds and for the same reason: a damaging
+   * region that outlives the machine that drew it is worse than no hazard.
+   * `ArcGrenade.destroy` is idempotent and `clearHazards` sweeps the same
+   * object on a room change, so all three routes can fire in any order.
+   */
+  _dropGrenade() {
+    this._nade?.destroy?.();
+    this._nade = null;
+  }
+
   die(...args) {
     this._armourBar?.destroy();
     this._armourBar = null;
     this._clearReactions();
+    this._dropGrenade();
     return super.die(...args);
   }
 
@@ -845,6 +1242,7 @@ export class ShockCaptain extends Enemy {
     this._armourBar?.destroy();
     this._armourBar = null;
     this._clearReactions();
+    this._dropGrenade();
     return super.destroy(...args);
   }
 }

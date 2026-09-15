@@ -202,18 +202,29 @@ reactive armour and `armourSpill`, the anti-stunlock behaviour, debug-only
 injection, and Phase A. `§10ah` lists it; do not reopen any of it without a real
 regression forcing the issue.
 
-**PHASE B.2.1 — COMBAT PERSONALITY — IS A CANDIDATE AND IS NOT APPROVED.** The
-Captain had mechanical states and did not visibly EXPERIENCE them. The state
-language runs on one rule: **SYMBOL = TRANSITION, BODY / FX = SUSTAINED STATE.**
-Four glyphs (armour break, low health, major hit, target reacquire), each fired
-by authoritative gameplay state; the body then carries the consequence — a
-sheared pauldron, a dead visor, embers, venting smoke. It is **not** a phase
-system: a damaged Captain fights with identical speed, damage and cadence, and
-`smoke-captain-state` asserts exactly that.
+**THE TRANSITION LANGUAGE SURVIVED HANDSET REVIEW; THE SUSTAINED HALF DID NOT.**
+B.2.1's rule still stands — **SYMBOL = TRANSITION, BODY / FX = SUSTAINED
+STATE** — and the four glyphs (armour break, low health, major hit, target
+reacquire), each fired by authoritative gameplay state, are kept. What was
+rejected is what the BODY was carrying afterwards: two symmetrical orange embers
+read as *an actor with two status lights*, not as a machine coming apart.
 
-**Still no signature ability, no variants, no Nemesis replacement. Normal
-Endless spawns no Champion of any kind.** `?champdbg=1` spawns the Captain;
-DEBUG carries three state triggers that drive the real `damage()` path.
+**PHASE B.2.2 IS THE CURRENT CANDIDATE AND IS NOT APPROVED — `§10ai`.** It
+answers four handset findings and adds the first signature ability:
+
+| finding | answer |
+|---|---|
+| floating `0` while durability fell | a real bug, diagnosed first. `Enemy.damage` emitted the BODY figure, which is zero while the armour holds. Feedback is now the durability actually removed, blue while the layer eats it |
+| sustained damage unreadable | rebuilt ASYMMETRIC / PHYSICAL / ELECTRICAL — one failure site with a non-pulsing dark scorch, blue-white shorts as events, a second site at critical |
+| too sluggish / passive | measured at 48% stationary and 619ms from burst end to moving; now 331-366ms, speed 205 → 250. **The engagement band is untouched** |
+| rifle too easy to evade | measured at **0 of 21 bolts inside 48px** of a laterally-moving player. Each round now ESTABLISHES, LEADS and BRACKETS on bounded current velocity; 9 of 21 after |
+| — | **ARC GRENADE**, the first signature: a physically thrown object with flight, arming and a bounded electrical field that pressures escape space |
+
+**Still no SECOND signature, no variants, no colourways, no Nemesis
+replacement. Normal Endless spawns no Champion of any kind.** `?champdbg=1`
+spawns the Captain; DEBUG carries four triggers — BIG HIT / BREAK / LOW HEALTH
+drive the real `damage()` path, and ARC GRENADE READY clears the cooldown and
+lets the real AI decide.
 
 ### The recommended next area of work
 
@@ -6074,6 +6085,313 @@ they are ~180 lines in its own file.
 already breathes on two frames, and slowing it means touching `anims.timeScale`,
 which reaches every animation the actor plays including the burst — a cadence
 change smuggled in as a mood. The embers carry the persistent read instead.
+
+---
+
+## 10ai. THE SHOCK CAPTAIN, PHASE B.2.2 — pressure, deterioration, truth, and the first signature. **CANDIDATE — NOT APPROVED**
+
+Handset play on the deployed B.2.1 build kept the character and rejected four
+specific things about it. This pass answers all four and adds the first
+signature ability. **It is a CANDIDATE until a human plays it.**
+
+### The verdict that opened this
+
+> the Shock Captain remains the correct Champion concept … keep the model, the
+> humanoid elite category, the heavy rifle fantasy, the reactive armour, the
+> bipedal walk/strafe foundation, the medium-range role, and the grawlix as
+> brief transition language
+
+and then, as findings:
+
+1. the sustained damage state does not read clearly;
+2. he feels too sluggish / too passive;
+3. the baseline rifle is too easily dodged by simply continuing lateral movement;
+4. floating damage sometimes shows `0 0 0` while durability is visibly falling.
+
+Plus a direction: he should feel **swift, solid, responsive, aggressive and
+space-pressuring**, and his failure should be electrical — shorts, smoke,
+buzzing, crisp mechanical deterioration.
+
+### (4) FIRST: THE `0` WAS REAL, AND IT WAS STRUCTURAL
+
+**Diagnosed before anything else was touched**, because everything downstream is
+balance work on top of a number the player cannot trust.
+`tests/diag-damage-truth.mjs` drove one hit at a time through the real
+`damage()` path — the same call `GameScene`'s bullet collision makes — and
+captured at `fx.damageNumber`, which is the only place that knows what the
+player was actually shown. On the shipped build:
+
+| case | raw | durability removed | printed |
+|---|---|---|---|
+| chip / armour only | 40 | **34** | `0` |
+| round / armour only | 120 | **102** | `0` |
+| exact break | 200 | **142** | `52` |
+| body only | 260 | 260 | `260` |
+| SPILL — super over-commit | 3000 | **2285** | `485` |
+| lethal | 4000 | **210** | `4000` |
+
+**THE CAUSE.** `Enemy.damage` emits `enemy-hit` with the number it was asked to
+take off the BODY. `ShockCaptain.damage` intercepts first, lets the armour eat
+the hit and hands the parent `toBody`, which is **zero** while the layer holds.
+So the renderer printed a perfectly truthful-looking lie. It is not a rendering
+nit: the game was telling the player their shots did nothing at the exact moment
+it was taking their damage. The other three rows are the same defect in
+disguise — the printed figure was always *body* damage, so a break printed the
+spill and a killing blow printed the request.
+
+**THE LAW: IF REAL DURABILITY DECREASED, FEEDBACK MAY NOT SAY ZERO.**
+
+`Enemy.damage` now measures what the pool ACTUALLY moved by (`hpBefore - hp`,
+so the punish multiplier and the lethal clamp are both inside it) and emits a
+third argument — an optional feedback claim produced by `_damageFeedback`.
+**Default null, and the handler falls back to `amount`**, so every ordinary
+enemy is byte-for-byte unchanged; only an actor that owns a second durability
+layer implements the hook. `smoke-captain-damage` asserts that absence directly.
+
+**ONE NUMBER, NOT TWO.** A spill hit is one event to the player, and two
+overlapping labels on the frame the armour breaks is the same soup the
+punctuation queue exists to prevent. The figure is armour removed plus body
+removed; the break FX is what says a layer transition happened, and it says it
+far better than a second integer could.
+
+**THE COLOUR IS THE SEMANTIC.** Blue (`#7fd4ff`) while the layer is doing the
+work — his own defensive colour, the one the armour bar and the threat ring are
+already painted in — and the ordinary hit colour the moment any of it reaches
+the body. So *absorbed* and *hurting* are told apart at a glance with no second
+label, and the frame the armour breaks is the frame the number changes colour.
+
+**A/B'd against the build it replaces**: 4 of the 9 checks in
+`smoke-captain-damage` fail on the shipped tree, including the reported defect
+verbatim. A check that passes on the bug is decoration.
+
+### (2) MOBILITY — A HEAVY BODY WITH A FAST BRAIN
+
+**Measured before tuned.** `tests/diag-captain-pressure.mjs`, on the shipped
+build: **stationary 48% of the fight**, **619ms from the end of a burst to
+moving again**, median speed **205px/s** against a player's 380.
+
+He was not reading as a heavy soldier. He was reading as a slow one, and those
+are different things. The distinction the fix runs on is the brief's own:
+**BODY = SOLID, DECISION-MAKING = FAST.**
+
+| | was | now | why |
+|---|---|---|---|
+| `speed` | 205 | 250 | still two thirds of the player's walk |
+| `recoverMs` | 520 | 240 | the 619ms statue; a settle, not a cooldown |
+| `braceMs` | 380 | 300 | |
+| `burstGapMs` | 190 | 165 | |
+| `advanceMs` | 1400 | 900 | a commit that outlived its situation |
+| `strafeMs` | 900-1500 | 640-1080 | |
+| `giveGroundMs` | 800 | 620 | |
+| give-ground speed | ×0.86 | ×1 | he was SLOWEST the moment he was rushed |
+| `fireEveryMs` | 2100 | 1900 | |
+
+Measured after: **burst end → moving 331-366ms** across every movement policy.
+
+**THE ENGAGEMENT BAND IS UNTOUCHED.** `holdMin`/`holdMax` are in the approved
+foundation and this pass does not reopen them.
+
+**NO THRUSTER STEP WAS BUILT.** §9 allowed a short equipment-assisted step *if
+improved acceleration and strafe did not already solve it*. They did, and the
+step carries the exact risk the Harrower was rejected for — so it is the
+cheapest available escalation if the handset still says sluggish, and it is
+deliberately not spent yet.
+
+### (3) THE ELITE BURST — ESTABLISH, LEAD, BRACKET
+
+**The handset finding, as a number.** Against a player holding one lateral
+direction, `diag-captain-pressure` recorded **21 bolts and not one inside 48px**
+— median miss 145-166px. Against a player standing still, 12 of 15 landed inside
+48px. **The burst punished standing still and nothing else.**
+
+**THE FIX IS AIM, NOT DAMAGE.** A dangerous miss is still a miss, and raising
+`bulletDamage` only makes the one mistake that already gets punished hurt more.
+Each round now asks a different question:
+
+| round | lead | asks |
+|---|---|---|
+| 1 ESTABLISH | 0.15 | essentially where you are — the readable opener, and the shot that makes the next two legible as leads |
+| 2 LEAD | 0.85 | modestly short of a full intercept: holding the line walks into it |
+| 3 BRACKET | 1.35 | past the intercept, into the continuation — *keep going and I have you* |
+
+**FAIR BY CONSTRUCTION, WHICH IS THREE FACTS RATHER THAN A CLAIM:** it reads
+only the velocity the player has right now (no input buffer, no history, nothing
+the Captain could not see); the extrapolation is bounded in time
+(`leadHorizonMs` 900) and in space (`leadMaxPx` 300); and the round is an
+ordinary projectile from the instant it leaves the barrel — never retargeted,
+never homed, never hitscan. **The player makes the prediction wrong by changing
+their mind, and that is the whole skill interaction.**
+
+**ONE CORRECTNESS BUG FOUND BY MEASURING.** The flight time was solved from the
+Captain's CENTRE, and the round starts ~75px down the barrel — a 25% over-lead.
+At a 380px engagement the solver wanted 256px of lead where the player actually
+travelled 186. It made every coefficient a lie about what it meant: "1.0" was
+not a full intercept solution but a quarter past one. It solves from the muzzle
+now. **And `leadMaxPx` was 260, which BOUND at ordinary range** — rounds 2 and 3
+were both clamped to the same number, so the difference between LEAD and BRACKET
+did not exist in play. A cap that binds in normal play is not a bound, it is the
+aim.
+
+**RESULT, same harness, 21 bolts per policy** (`<=48px` is "would have hit"):
+
+| player policy | before | after |
+|---|---|---|
+| standing still | 12/15 (80%) | 16/21 (76%) |
+| holding a lateral direction (orbit) | **0/21 (0%)** | **9/21 (43%)** |
+| holding a lateral direction (straight line) | — | **7/21 (33%)** |
+| reversing every 700ms | 2/12 (17%) | 5/21 (24%) |
+
+Holding one direction stopped being free; changing your mind still works.
+
+### (1) THE SUSTAINED DAMAGE LANGUAGE, REBUILT
+
+**WHAT B.2.1 GOT WRONG, AND IT IS NOT WHAT IT LOOKS LIKE.** The embers were the
+right INSTINCT — something must be true in every frame, or a still and a glance
+both catch nothing, which is the lesson `§10ah` was built on — and the wrong
+FORM. **Symmetrical, round, coloured and pulsing is the vocabulary of a
+designed-in indicator**, so that is what a player decodes it as: an actor with
+two status lights, not a machine coming apart.
+
+The replacement keeps the instinct and changes all three properties:
+
+- **ASYMMETRIC.** One failure site, on the side that actually lost its plate. A
+  second opens on the opposite flank only once the body itself is failing, so
+  the deterioration reads as SPREADING rather than as brightening. Nothing is
+  mirrored, because damage is not.
+- **PHYSICAL.** The always-true mark is a dark **scorch** — three overlapping
+  discs at deliberately unequal offsets, so it has the irregular outline the eye
+  reads as burnt material. **It does not pulse**, because a burn does not
+  breathe, and making it breathe is how the ember became a lamp. It is drawn
+  NORMAL-blended: it takes light away, which no additive effect can do.
+- **ELECTRICAL.** His own blue-white current shorting across the break, and it
+  is **entirely event-driven** — a 130ms snap every second or so, the gap
+  re-rolled each time so it never finds a rhythm. *Unstable* is the read, and a
+  continuous arc is the opposite of unstable.
+
+Orange survives only as two small irregular points of cooling metal at the
+break, well under the electrical in weight. He is a SHOCK Captain; he should
+fail like one.
+
+**THE LADDER IS TWO RUNGS AND IT IS NOT A PHASE SYSTEM.**
+
+| rung | what opens |
+|---|---|
+| healthy | clean armour, stable visor, no smoke, no shorts |
+| ARMOUR BREAK | white ring → blue ring → shards → 340ms discharge → a four-arc fracture along the shear → deliberate flinch → `#!` |
+| damaged body | site one: scorch, hot remnant, vent smoke every ~600ms, a short every ~1.4s, visor flicker |
+| critical | `#?!`, then site two opens; smoke every ~320ms, shorts every ~560ms, the visor much less stable, and one short in three jumps to the rifle housing |
+
+Nothing in either rung touches speed, damage, cadence or the state machine.
+`smoke-captain-state` measures a fresh and a badly damaged Captain and pins
+identical speed, damage and median in-burst gap.
+
+### THE FIRST SIGNATURE — THE ARC GRENADE
+
+**IT EXISTS TO SOLVE ONE STATED PROBLEM:** the player can orbit through open
+floor indefinitely and answer rifle pressure with distance. The rifle asks a
+question about the next second; **the grenade asks one about the next patch of
+ground.** It complements the rifle and never replaces it — one throw per nine
+seconds, against a 1.9s weapon.
+
+**IT IS ONE OBJECT WITH FOUR PHASES, AND THAT IS A LIFECYCLE DECISION BEFORE IT
+IS A DESIGN ONE.** A thrown thing that spawns a separate field on landing is two
+objects with two owners and two ways to be orphaned, and *a damaging region that
+outlives the machine that drew it is worse than no hazard*. One object is
+reachable by the three sweeps that already exist — expiry, the Champion's own
+death, and `clearHazards` on a room change — and every one of them is
+idempotent because none can know about the others.
+
+| phase | ms | `contains` |
+|---|---|---|
+| FLIGHT — a real travelling object with real altitude, drawn above the actor band with its shadow on the deck | 620 | **false** |
+| ARM — landed, casing on the floor, a charge ring contracting onto it at an accelerating blink | 520 | **false** |
+| FIELD — the electrical patch | 1900 | **true** inside `radius` |
+| WARN — the last 520ms of FIELD, visibly failing so the player can spend it | | true |
+
+**IT IS THROWN, PHYSICALLY.** `CAP.WINDUP` (the `raise` pose, rifle dropped) →
+`CAP.THROW` (the `thrust` pose, and the grenade leaves on that frame) →
+recover. **The pose hooks painted in B.2 and reserved for "a future signature
+action" are what this uses** — frames 42-50, finally spent.
+
+**THE SHAPE IS THE HIT TEST, as everywhere else in `Hazard.js`.** The boundary
+is fourteen jagged arcs whose jitter runs **INWARD ONLY** from the true radius,
+with a thin honest ring drawn at that radius underneath them — so the painted
+edge can never claim ground the hit test does not own. A player who reads the
+bright edge and stands one pixel outside it is safe, and `smoke-arcgrenade`
+walks a ring two pixels out at eight bearings on every live frame.
+
+**WHY IT IS NOT A RED DISC.** Red is Vader, the saber lane and every telegraph.
+This is his electric blue with white cores, told apart from the arenas' cyan
+screens by being ANIMATED and on the FLOOR, and from his own body damage by
+scale and anchoring: **his failures are small, actor-attached and intermittent;
+this is large, world-attached and deliberate.** Same technological family,
+different semantic scale.
+
+**SPACE DENIAL FIRST, DAMAGE SECOND.** A 46-damage tick every 420ms and a ×0.62
+movement drag while inside. **No stun, no root, no repeated control loss
+anywhere in it** — the painful outcome has to come from *choosing* to stand in
+electrified ground, never from losing the controls.
+
+**THE DRAG CANNOT LEAK, AND `moveMult` IS NOT IT.** `moveMult` is the permanent
+upgrade multiplier and upgrades compound, so a field that scaled it and failed to
+restore it — on a death, a room change, two overlapping fields — would cripple a
+run for ever. `Player.preUpdate` reads `_envDrag`, applies it and **resets it to
+1 in the same breath**; the only write is per-frame, from the field. Nothing
+persists it, so nothing can leak it, and a build with no such ground behaves
+identically. `smoke-arcgrenade` asserts both halves.
+
+**HE KNOWS WHERE HIS OWN FIELD IS — and deliberately the smallest version of
+that which is true.** Not a tactical director. Two facts: a reposition target
+inside the field is pushed radially out past it plus a standoff; and while it is
+live he takes the strafe side that puts the player BETWEEN him and it, so backing
+away from his rifle is backing toward electrified ground. That is the whole
+"rifle and grenade are one fighter's two tools" loop, and it is four lines
+because anything larger would be a second AI. He will still CROSS his own field
+on the way somewhere — a Captain who refused would freeze whenever it landed
+between him and his destination, and an elite stepping through his own
+electricity for half a second is a man in a hurry where standing in it is a man
+who does not understand his equipment.
+
+### Debug
+
+`?champdbg=1` still spawns him. DEBUG now carries **CHAMP: ARC GRENADE READY**
+alongside BIG HIT / BREAK / LOW HEALTH. It clears the cooldown and nothing else
+— the decision, the range gate, the LOS gate, the wind-up and the lead are all
+still the Captain's, so what the human watches is what a player would be shown.
+A button that called `_throwGrenade` directly would photograph a throw no player
+could ever cause.
+
+### What was NOT built
+
+No second signature. No Champion variants, no colourways. Nemesis untouched.
+**Normal Endless still spawns no Champion of any kind.** No general
+status-effect framework — the drag is four lines in `Player.preUpdate` and the
+deterioration is inside the Captain's own file.
+
+### Instrument bugs found in this pass, all of them mine
+
+- **A fixed sleep is not the only frame-rate meter.** Closest approach is
+  sampled on `postupdate` at ~14fps against a 600px/s bolt, so the bolt jumps
+  ~43px between samples and a stationary player — whom he cannot fail to hit —
+  measures a 44px median miss. The buckets are an ORDERING, never an absolute.
+- **A pressure rig cannot measure aim through cover.** The first build ran in a
+  furnished hangar; bolts died on crates a third of the way out, so their
+  "closest approach" was a point they passed mid-flight and rounds 2 and 3
+  appeared to over-lead by 180px. It clears `walls` now.
+- **A patrol that walks to the wall measures a retreat, not a strafe.** The
+  straight-line policy originally held one world bearing until the arena edge:
+  the player crossed the room, the Captain spent 18 of 24 seconds chasing, and
+  the three bursts he opened were fired into walls. It patrols a 440px band and
+  re-derives each leg perpendicular — because simply REVERSING keeps the bearing
+  fixed while the Captain moves, so within a few legs "lateral" has become
+  "straight away from him", and a 600px/s bolt chasing a 380px/s player never
+  arrives however well it was aimed. Misses larger than `leadMaxPx` can even
+  displace an aim point are what gave that away.
+- **An immortality stub measures the wrong thing on a lethal hit.** Stubbing
+  `die` to keep one actor alive down a whole damage ladder puts hp back ABOVE
+  where it started on the killing blow, so the rig reported "0 removed" and
+  called a correct build a liar. The lethal case gets a real actor and a real
+  death.
 
 ---
 

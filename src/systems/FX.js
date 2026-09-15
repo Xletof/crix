@@ -514,6 +514,43 @@ export const SFX = {
     noise({ dur: 0.07, gain: 0.16, hp: 1100 });
     tone({ freq: 320, type: 'sawtooth', dur: 0.13, gain: 0.13, slide: -170 });
   },
+  /**
+   * ── THE ARC GRENADE, IN FOUR BEATS ──────────────────────────────────────
+   * Built from the same two synths everything else here uses. Restrained on
+   * purpose: the field lives ~1.9s and a loop under it would be the "damaged
+   * Captain audio is continuously annoying" failure §6 warns about, so the
+   * field SPEAKS TWICE — once when it opens and once when it fails — and the
+   * tick is a small crack tied to actually being hurt.
+   */
+  captainThrow() {
+    noise({ dur: 0.10, gain: 0.11, hp: 900 });                        // the effort
+    tone({ freq: 420, type: 'square', dur: 0.09, gain: 0.09, slide: -180 });
+  },
+  arcGrenadeLand() {
+    tone({ freq: 240, type: 'sine', dur: 0.10, gain: 0.14, slide: -90 });
+    noise({ dur: 0.06, gain: 0.10, hp: 1400 });
+  },
+  arcFieldOpen() {
+    tone({ freq: 880, type: 'sawtooth', dur: 0.22, gain: 0.13, slide: 380 });
+    noise({ dur: 0.26, gain: 0.13, hp: 1800 });
+    tone({ freq: 2400, type: 'square', dur: 0.07, gain: 0.07, slide: -900, delay: 0.04 });
+  },
+  arcFieldTick() {
+    noise({ dur: 0.05, gain: 0.09, hp: 2200 });
+    tone({ freq: 1500, type: 'square', dur: 0.05, gain: 0.06, slide: -600, vary: 0.2 });
+  },
+  arcFieldClose() {
+    tone({ freq: 700, type: 'sawtooth', dur: 0.16, gain: 0.08, slide: -520 });
+  },
+  /**
+   * A SHORT CIRCUIT ON A BREAKING BODY. Thin, dry and very quiet — it has to
+   * sit under the rifle and under whatever the player is doing, and it fires
+   * every second or so on a critical Captain.
+   */
+  captainShort() {
+    noise({ dur: 0.05, gain: 0.055, hp: 2600 });
+    tone({ freq: 1900, type: 'square', dur: 0.04, gain: 0.035, slide: -820, vary: 0.25 });
+  },
   champPurge() {
     noise({ dur: 0.26, gain: 0.24, hp: 420 });
     tone({ freq: 620, type: 'sawtooth', dur: 0.22, gain: 0.18, slide: -420 });

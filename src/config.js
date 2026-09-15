@@ -1717,10 +1717,21 @@ export const CHAMPION = {
     // the armour holds, damage to it is scaled by this. Above 1 would make
     // shooting the armour better than shooting the body, which is nonsense.
     armourTake: 0.85,
-    // Between the shooter's 190 and the grunt's 230. An elite infantryman moves
-    // like infantry — deliberately NOT "fast because Champions should be fast",
-    // which is a design property masquerading as a requirement.
-    speed: 205,
+    // ── PHASE B.2.2: A HEAVY BODY WITH A FAST BRAIN ────────────────────────
+    // 205 was between the shooter's 190 and the grunt's 230, on the reasoning
+    // that an elite infantryman moves like infantry. Handset play disagreed
+    // with the RESULT, not the reasoning — "too sluggish / passive" — and the
+    // measurement backed it: `diag-captain-pressure` clocked him STATIONARY
+    // 48% of the fight, 619ms from the end of a burst to moving again, at a
+    // median 205px/s against a player's 380. He was not reading as a heavy
+    // soldier, he was reading as a slow one, and those are different things.
+    //
+    // 250 is still two thirds of the player's walk and still the slowest thing
+    // that can pressure them, so the body stays heavy. What actually changed
+    // the FEEL is the four timings below: the decision is fast, the body is
+    // not. THE ENGAGEMENT BAND IS UNTOUCHED — `holdMin`/`holdMax` are in the
+    // approved foundation and this pass does not reopen them.
+    speed: 250,
     // ── THE ENGAGEMENT BAND ────────────────────────────────────────────────
     // Derived from the portrait viewport, not invented: the game camera shows
     // ~720x1196 with an 84px HUD inset, so a Captain beyond ~520px of the
@@ -1731,9 +1742,17 @@ export const CHAMPION = {
     // How far a single reposition commits before it is re-solved. Short enough
     // that he reacts, long enough that each move reads as one decision rather
     // than as jitter.
-    strafeMs: [900, 1500],
-    advanceMs: 1400,
-    giveGroundMs: 800,
+    // SHORTER COMMITS. 1400ms of advance is one decision that outlives the
+    // situation that caused it: the player has crossed the room by the time it
+    // is re-solved. These are long enough that a move still reads as a
+    // decision and short enough that he answers the fight he is in.
+    strafeMs: [640, 1080],
+    advanceMs: 900,
+    giveGroundMs: 620,
+    // GIVING GROUND IS NOT A RETREAT AND MUST NOT LOOK LIKE ONE. It used to run
+    // at 0.86 of his speed, so the one moment the player rushes him was the one
+    // moment he was slowest. He backs off at full pace now, still facing them.
+    giveGroundSpeedMult: 1,
     // He changes side roughly this often while strafing, so a player cannot
     // learn one lead and hold it.
     sideSwapChance: 0.35,
@@ -1741,11 +1760,16 @@ export const CHAMPION = {
     // A TRAINED ELITE'S RHYTHM, not a hose and not the ordinary shooter with a
     // bigger number. Visible brace, three deliberate rounds, crisp recoil,
     // recovery — then he moves. The gaps are what make it read as aimed.
-    braceMs: 380,
+    braceMs: 300,
     burstRounds: 3,
-    burstGapMs: 190,
-    recoverMs: 520,
-    fireEveryMs: 2100,      // floor between bursts, measured from the last round
+    burstGapMs: 165,
+    // THE 619ms STATUE. `recoverMs` was 520 and the whole of it was spent with
+    // the velocity pinned at zero, so the end of every burst was two thirds of
+    // a second in which nothing about him could be pressured or pressuring.
+    // It is a settle, not a cooldown: the recoil pose bleeds into the idle and
+    // he is moving again in a quarter of a second.
+    recoverMs: 240,
+    fireEveryMs: 1900,      // floor between bursts, measured from the last round
     bulletSpeed: 600,       // under `Bullet.fire`'s 620 tracer-stretch clamp, so
                             // the hitbox is exactly the texture width
     bulletDamage: 105,
@@ -1753,6 +1777,46 @@ export const CHAMPION = {
     // He will not open fire outside this: a burst the player cannot see coming
     // from off screen is not a tell, it is a surprise.
     fireRange: 620,
+    // ── THE ELITE BURST — ESTABLISH, LEAD, BRACKET ─────────────────────────
+    //
+    // MEASURED FIRST. Against a player holding ONE lateral direction,
+    // `diag-captain-pressure` recorded 21 bolts and NOT ONE inside 48px of
+    // them — median miss 145-166px. Against a player standing still, 12 of 15
+    // landed inside 48px. So the burst punished standing still and nothing
+    // else, which is the handset's "too easily dodged by simply continuing
+    // lateral movement" stated as a number.
+    //
+    // THE FIX IS AIM, NOT DAMAGE. A dangerous miss is still a miss, and raising
+    // `bulletDamage` would only make the one shape of mistake that already gets
+    // punished hurt more. Each round of the burst asks a different question:
+    //
+    //   ROUND 1  ESTABLISH — essentially where they are. The readable opener,
+    //            and the shot that makes the next two legible as leads.
+    //   ROUND 2  LEAD — modestly short of a full intercept solution. Holding
+    //            the line walks into it; breaking it does not.
+    //   ROUND 3  BRACKET — past the intercept, into the continuation. This is
+    //            the round that says "keep going and I have you".
+    //
+    // A full intercept solution is 1.0. Nothing here is above 1.35 and the
+    // whole thing is bounded twice over, because THE PLAYER MUST BE ABLE TO
+    // MAKE IT WRONG: it reads the velocity they have RIGHT NOW, extrapolates
+    // it for a bounded horizon, and the round is an ordinary projectile from
+    // the moment it leaves the barrel. Reversing, cutting the angle, dashing or
+    // stopping all defeat it. That is the skill interaction, and it is why this
+    // is prediction rather than aimbot: it is beaten by changing your mind.
+    burstLead: [0.15, 0.85, 1.35],
+    // Never extrapolate further ahead than this, whatever the range says. At
+    // 620px the flight is over a second and a second of straight-line
+    // assumption is a guess, not a read.
+    leadHorizonMs: 900,
+    // And never displace the aim point further than this, whatever the horizon
+    // says. A bound the player can learn: the bracket is always inside a body
+    // length or two of where they were going. It sits deliberately ABOVE what
+    // the bracket asks for at ordinary range (~261px at a 380px engagement) —
+    // a cap that binds in normal play is not a bound, it is the aim, and while
+    // it was 260 rounds 2 and 3 were both clamped to the same number and the
+    // difference between LEAD and BRACKET did not exist.
+    leadMaxPx: 300,
     // ── STAGGER: BOUNDED, AND NEVER A STUN-LOCK ────────────────────────────
     // `Enemy.damage` sets `_staggerMs = 90` on EVERY hit, and an actor that
     // early-returns on it is stun-locked by chip fire — measured at 4305ms
@@ -1817,6 +1881,110 @@ export const CHAMPION = {
     // `acquireLostMs` is a doorway, not a break.
     acquireLostMs: 700,
     acquireCooldownMs: 2600,
+
+    // ── PHASE B.2.2 — AN ELECTRICALLY DAMAGED SHOCK UNIT ───────────────────
+    //
+    // WHAT B.2.1 GOT WRONG. The sustained half was two symmetrical orange
+    // embers plus intermittent smoke and sparks, and the handset could not tell
+    // what it meant: it read as an actor with two status lights on, not as a
+    // machine coming apart. The transition language (the glyphs) survived that
+    // review; this did not.
+    //
+    // THE REPLACEMENT IS ASYMMETRIC, PHYSICAL AND ELECTRICAL — one failure site
+    // on the side that actually lost its plate, carried by a dark SCORCH that a
+    // still frame always catches, with the character's own blue-white current
+    // shorting across it. Orange is demoted to a thin remnant of hot metal at
+    // the break; it is no longer the thing that says "damaged". A Shock Captain
+    // should fail like a Shock Captain.
+    //
+    // THE RULE FROM B.2.1 STILL HOLDS AND IS THE REASON THE SCORCH EXISTS:
+    // every event-based effect is invisible most of the time. A puff every
+    // 600ms and an arc every second are both EVENTS, and a player glancing at
+    // him catches neither — so something must be true in every frame.
+    //
+    // A SECOND FAILURE SITE opens at critical, on the opposite flank, and that
+    // is the whole "phase" — it is a deterioration ladder, not a stat change.
+    // Nothing below touches speed, damage, cadence or the state machine.
+    arc: {
+      // How long one short-circuit event is drawn for. Short: a snap, not a
+      // lightning loop. §5 — "electrical events should feel unstable".
+      holdMs: 130,
+      // Gap between events. Broken armour crackles occasionally; a critical
+      // Captain is shorting constantly enough that it reads as failure.
+      brokenMs: [820, 1900],
+      criticalMs: [300, 820],
+      // At critical the arc sometimes jumps from the body to the rifle
+      // housing, which is the one effect that says the WEAPON is compromised.
+      rifleJumpChance: 0.34,
+      // The scorch is the always-true mark. It does not pulse: a stain does
+      // not breathe, and making it breathe is how it became a status light
+      // the first time.
+      scorchAlpha: 0.9,
+    },
+    // Smoke is now a property of the failure SITE, not of the actor's centre,
+    // and it becomes near-continuous at critical without ever becoming a cloud.
+    wearSmokeCriticalMs: [230, 420],
+    wearFlickerCriticalMs: [520, 1100],
+
+    // ── THE FIRST SIGNATURE: THE ARC GRENADE ───────────────────────────────
+    //
+    // IT EXISTS TO SOLVE ONE PROBLEM, STATED IN THE BRIEF: the player can orbit
+    // through open floor indefinitely and answer rifle pressure with distance.
+    // The rifle asks a question about the next second; the grenade asks one
+    // about the next patch of ground. It does not replace the rifle and it must
+    // never out-rate it — this is a tool, and a tool used every four seconds is
+    // a weapon.
+    //
+    // IT IS THROWN, PHYSICALLY. Wind-up, release, a real object travelling with
+    // altitude, a landing, an arming tell, then the field. Nothing appears on
+    // the floor from nowhere: the player can watch the man and know what is
+    // coming, which is the difference between a signature and a spawn.
+    grenade: {
+      // Slow enough that the rifle is unmistakably the baseline. Measured from
+      // the THROW, so the field's own life is inside this budget.
+      cooldownMs: 9000,
+      firstDelayMs: 4200,     // never on the opening beat of an encounter
+      // He will not throw outside this, and not at a target he cannot see.
+      minRange: 220,
+      maxRange: 680,
+      // The chain. `windupMs` is the reach-and-prepare, `throwMs` the release;
+      // both are body poses, and the grenade leaves on the release frame.
+      windupMs: 420,
+      throwMs: 180,
+      recoverMs: 220,
+      // Flight. A real travelling object with a real arc, sized so the player
+      // has time to read where it is going after it is already in the air.
+      flightMs: 620,
+      arcPx: 96,              // peak altitude of the throw
+      // Landed, not yet live. THE TELL. Long enough to leave, short enough that
+      // standing still is not free.
+      armMs: 520,
+      // Live. §18's 1.5-2.5s class, at the short end: it is tactical pressure,
+      // not a wall, and the breathing room after it expires is part of the loop.
+      fieldMs: 1900,
+      warnMs: 520,            // the visible failure at the end of that life
+      radius: 132,
+      // SPACE DENIAL FIRST, DAMAGE SECOND. The painful outcome has to come from
+      // CHOOSING to stand in electrified ground, never from losing the controls
+      // — so there is no stun, no root and no repeated control loss anywhere in
+      // this. A tick and a drag, and the player walks out whenever they like.
+      damage: 46,
+      tickMs: 420,
+      // Movement penalty while inside. Restrained on purpose: 0.62 is felt and
+      // is not a trap. It is written fresh every frame by the field and
+      // consumed by `Player.preUpdate`, so it cannot leak or accumulate.
+      dragMult: 0.62,
+      // Where he throws it. Bounded prediction of where the player is trying to
+      // CONTINUE, on the same fairness rule as the burst: current velocity,
+      // bounded horizon, beaten by changing plan.
+      leadMs: 620,
+      leadMaxPx: 300,
+      // He knows where his own field is. Not a tactical director — two small
+      // facts: do not walk into it, and prefer an angle that keeps the player
+      // near it. See `ShockCaptain._avoidField`.
+      standoff: 40,           // extra clearance he keeps outside the radius
+      color: 0x4fc3ff,
+    },
   },
 
   interdictor: {

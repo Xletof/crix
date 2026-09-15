@@ -61,7 +61,10 @@ export class DebugScene extends Phaser.Scene {
     // of the old bottom edge, so a new row without this would push it outside
     // the card's own border. And once more for LOAD REACTOR JUNCTION, and
     // once more again for LOAD DETENTION BLOCK.
-    const cardW = 620, cardH = 1168;
+    // 1210, NOT 1168. The card ends at `cardY + cardH` and CLOSE now sits at
+    // 1212; at 1168 the exit button hung half over its own border. The ceiling
+    // is the 1280-tall viewport, and at cardY 38 this leaves a 32px margin.
+    const cardW = 620, cardH = 1210;
     const cardX = cx - cardW / 2, cardY = VIEW.height * 0.03;
     g.fillStyle(0x0c101d, 0.9);
     g.fillRoundedRect(cardX, cardY, cardW, cardH, 16);
@@ -75,7 +78,13 @@ export class DebugScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     let y = cardY + 96;
-    const row = 62;        // tighter than the pause menu's 92 — more controls to fit
+    // 56, NOT 62. MEASURED, NOT PICKED: the card is 1168 tall from y 38, so it
+    // ends at 1206, and at a 62px pitch the panel had grown to put FORCE MOVE,
+    // ARENA and CLOSE at 1296-1370 — outside the card AND off a 1280-tall
+    // screen. `smoke-debug` walks this panel BY COORDINATE and mirrors this
+    // number; changing one without the other taps empty card and reads as
+    // "the feature is broken".
+    const row = 56;        // tighter than the pause menu's 92 — more controls to fit
     const half = 152;      // x offset for the two-column rows
 
     const heading = (text) => {
@@ -201,7 +210,16 @@ export class DebugScene extends Phaser.Scene {
     this._button(cx - half, y, 'CHAMP: BIG HIT', () => this._champHit(), 280);
     this._button(cx + half, y, 'CHAMP: BREAK', () => this._champBreak(), 280);
     y += row;
-    this._button(cx, y, 'CHAMP: LOW HEALTH', () => this._champLow(), 420);
+    // TWO PER ROW, AND THE CARD IS WHY. Four full-width triggers put CLOSE at
+    // screen y 1370 on a 1280-tall phone — measured — so the panel's own exit
+    // was off the bottom of the device. A debug control the human cannot
+    // reach is worse than one that does not exist.
+    this._button(cx - half, y, 'CHAMP: LOW HEALTH', () => this._champLow(), 280);
+    // §25 — the human has to be able to watch the signature several times
+    // without restarting a run. This only clears the COOLDOWN: the throw still
+    // has to be chosen by the real AI, at a real range, with real line of
+    // sight, so what you watch is what a player would be shown.
+    this._button(cx + half, y, 'CHAMP: GRENADE', () => this._champNade(), 280);
     y += row;
 
     this.sectorBtn = this._button(cx - half, y, this._sectorLabel(), () => {
@@ -436,6 +454,23 @@ export class DebugScene extends Phaser.Scene {
     const line = c.hpMax * (c.def?.lowHealthFrac ?? 0.3);
     c.hp = Math.min(c.hp, line + 140);
     c.damage(200, null);
+    this._close();
+  }
+
+  /**
+   * ARM THE SIGNATURE, DO NOT CAST IT.
+   *
+   * Zeroing the cooldown and dropping a live field is the whole of it — the
+   * decision, the range gate, the line-of-sight gate, the wind-up and the lead
+   * are all still the Captain's. A debug button that called `_throwGrenade`
+   * directly would photograph a throw no player could ever cause.
+   */
+  _champNade() {
+    const c = this._champ();
+    if (!c) return;
+    c._nadeCd = 0;
+    c._nade?.destroy?.();
+    c._nade = null;
     this._close();
   }
 

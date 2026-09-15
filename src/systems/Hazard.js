@@ -32,6 +32,7 @@
 //                       collapses back into the anchors. An effect that simply
 //                       stops has told the player nothing.
 import Phaser from 'phaser';
+import { SFX } from './FX.js';
 
 export const HAZARD_DEPTH = 11;   // under TELEGRAPH_DEPTH (12): a live seam must
                                   // never draw over the warning for the NEXT attack.
@@ -444,6 +445,328 @@ export class Wake {
 }
 
 /**
+ * ── THE ARC GRENADE ─────────────────────────────────────────────────────────
+ *
+ * THE SHOCK CAPTAIN'S FIRST SIGNATURE, and it is ONE object with four phases
+ * rather than a projectile plus a hazard. That is a lifecycle decision before
+ * it is a design one: a thrown thing that spawns a separate field on landing is
+ * two objects with two owners and two ways to be orphaned, and "a damaging
+ * region that outlives the machine that drew it is worse than no hazard". One
+ * object is reachable by the three sweeps that already exist — the Champion's
+ * own death, `clearHazards` on room change, and expiry — and each of them is
+ * idempotent because none can know about the others.
+ *
+ *   FLIGHT  a real travelling object with real altitude, drawn above the actor
+ *           band with its shadow on the deck below it. `contains` is FALSE.
+ *   ARM     landed, casing on the floor, a charge tell that accelerates.
+ *           Still FALSE: the ground does not hurt before it is live.
+ *   FIELD   the electrical patch. `contains` is true inside `radius`.
+ *   WARN    the last `warnMs` of FIELD, visibly failing so the player can spend
+ *           it. An effect that simply stops has told them nothing.
+ *
+ * THE SHAPE IS THE HIT TEST, as everywhere else in this file. The boundary is
+ * drawn as jagged arcs whose jitter runs INWARD ONLY from the true radius, and
+ * a thin honest ring is drawn at that radius underneath them — so the painted
+ * edge can never claim ground the hit test does not own. A player who reads the
+ * bright edge and stands one pixel outside it is safe, which is the entire
+ * contract.
+ *
+ * WHY IT IS NOT A RED DISC. Red is Vader, the saber lane and every telegraph;
+ * this is Shock Captain technology and is painted in his own electric blue with
+ * white cores. It is told apart from the arenas' cyan screens by being ANIMATED
+ * and on the FLOOR — a screen is a still rectangle on a wall — and from his own
+ * body damage by scale and anchoring: his failures are small, actor-attached
+ * and intermittent, this is large, world-attached and deliberate. Same
+ * technological family, different semantic scale.
+ */
+export class ArcGrenade {
+  /**
+   * @param {Phaser.Scene} scene
+   * @param {object} spec {x, y, tx, ty, ...CHAMPION.captain.grenade, owner}
+   */
+  constructor(scene, spec) {
+    this.scene = scene;
+    // The THROW point and the LANDING point. `x`/`y` are the landing point from
+    // the first frame, because that is what the Captain's own avoidance and
+    // every test need to reason about, and because the flight position is
+    // derived rather than stored.
+    this.x0 = spec.x; this.y0 = spec.y;
+    this.x = spec.tx; this.y = spec.ty;
+    this.radius = spec.radius ?? 132;
+    this.flightMs = spec.flightMs ?? 620;
+    this.arcPx = spec.arcPx ?? 96;
+    this.armMs = spec.armMs ?? 520;
+    this.fieldMs = spec.fieldMs ?? 1900;
+    this.warnMs = spec.warnMs ?? 520;
+    this.damage = spec.damage ?? 46;
+    this.tickMs = spec.tickMs ?? 420;
+    this.dragMult = spec.dragMult ?? 0.62;
+    this.color = spec.color ?? 0x4fc3ff;
+    this.owner = spec.owner ?? null;
+
+    this.age = 0;
+    this.dead = false;
+    this._cool = 0;
+    this._crawl = [];          // interior arcs, re-rolled on their own clock
+    this._crawlT = 0;
+    this._armed = false;       // one-shot: the activation beat has played
+    this._landed = false;
+
+    this.floorGfx = scene.add.graphics().setDepth(HAZARD_DEPTH);
+    this.edgeGfx = scene.add.graphics().setDepth(HAZARD_DEPTH + 1)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    // THE THROWN OBJECT FLIES OVER THE ROOM. A flying thing at the flat hazard
+    // depth is drawn under every actor, which is the one thing a projectile the
+    // player is supposed to watch may not be. Its SHADOW stays on the deck.
+    this.shadowGfx = scene.add.graphics().setDepth(HAZARD_DEPTH - 1);
+    this.airGfx = scene.add.graphics().setDepth(2001);
+  }
+
+  /** 'flight' | 'arm' | 'field' | 'dead'. */
+  get phase() {
+    if (this.dead) return 'dead';
+    if (this.age < this.flightMs) return 'flight';
+    if (this.age < this.flightMs + this.armMs) return 'arm';
+    return 'field';
+  }
+
+  /** How long the field has been live, ms. Negative before it is. */
+  get _fieldAge() { return this.age - this.flightMs - this.armMs; }
+
+  /** 1 while healthy, ramping to 0 across the final `warnMs`. */
+  get _integrity() {
+    const left = this.fieldMs - this._fieldAge;
+    if (left >= this.warnMs) return 1;
+    return Math.max(0, left / this.warnMs);
+  }
+
+  /** Is it live and dangerous right now? Nothing else may ask 'phase'. */
+  get live() { return !this.dead && this.phase === 'field'; }
+
+  /**
+   * THE HIT TEST. A disc, and only while the field is live — the thrown object
+   * hurts nobody and the arming casing hurts nobody. The renderer's boundary is
+   * drawn from this same radius with inward-only jitter, so painted and
+   * resolved cannot drift.
+   */
+  contains(px, py) {
+    if (!this.live) return false;
+    return Math.hypot(px - this.x, py - this.y) <= this.radius;
+  }
+
+  update(delta) {
+    if (this.dead) return false;
+    this.age += delta;
+    if (this._fieldAge >= this.fieldMs) { this.destroy(); return false; }
+
+    const ph = this.phase;
+    if (ph !== 'flight' && !this._landed) {
+      this._landed = true;
+      this.airGfx?.clear();
+      this.shadowGfx?.clear();
+      SFX.arcGrenadeLand?.();
+    }
+    if (ph === 'field' && !this._armed) {
+      this._armed = true;
+      SFX.arcFieldOpen?.();
+      this.scene.fx?.impactRing?.(this.x, this.y, this.color, HAZARD_DEPTH + 2);
+      this.scene.events?.emit?.('arc-field-live', this);
+    }
+
+    this._draw(delta);
+
+    // ── Contact ───────────────────────────────────────────────────────────
+    // A cooldown rather than a per-frame tick, for the reason `Barrier` states:
+    // per-frame damage makes the cost of a decision depend on the machine's
+    // frame rate. The DRAG is per-frame and that is correct — it is a condition
+    // of the ground, not an event, and it is written fresh every frame and
+    // consumed by `Player.preUpdate`, so it cannot accumulate or leak.
+    const p = this.scene.player;
+    this._cool -= delta;
+    if (p?.alive && this.live && this.contains(p.x, p.y)) {
+      p._envDrag = Math.min(p._envDrag ?? 1, this.dragMult);
+      if (this._cool <= 0) {
+        this._cool = this.tickMs;
+        p.damage(this.damage, Math.atan2(p.y - this.y, p.x - this.x));
+        this.scene.fx?.burst?.(p.x, p.y, 'white', 4);
+        SFX.arcFieldTick?.();
+      }
+    }
+    return true;
+  }
+
+  /** A jagged polyline between two points, drawn into `g`. */
+  _bolt(g, ax, ay, bx, by, jitter, width, color, alpha) {
+    const segs = 4;
+    g.lineStyle(width, color, alpha);
+    g.beginPath();
+    g.moveTo(ax, ay);
+    for (let i = 1; i < segs; i++) {
+      const t = i / segs;
+      g.lineTo(
+        ax + (bx - ax) * t + (Math.random() - 0.5) * jitter,
+        ay + (by - ay) * t + (Math.random() - 0.5) * jitter,
+      );
+    }
+    g.lineTo(bx, by);
+    g.strokePath();
+  }
+
+  _draw(delta) {
+    const ph = this.phase;
+    this.floorGfx.clear();
+    this.edgeGfx.clear();
+
+    if (ph === 'flight') {
+      this.airGfx.clear();
+      this.shadowGfx.clear();
+      const u = this.age / this.flightMs;
+      const gx = this.x0 + (this.x - this.x0) * u;
+      const gy = this.y0 + (this.y - this.y0) * u;
+      // A parabola, so the object rises and FALLS. A straight line with a
+      // shadow under it is a slide; the fall is what says it is coming down
+      // here rather than passing over.
+      const alt = Math.sin(Math.PI * u) * this.arcPx;
+      // The shadow is the landing promise: it is on the deck the whole time and
+      // it arrives exactly where the field will open.
+      this.shadowGfx.fillStyle(0x000000, 0.34 - 0.14 * (alt / this.arcPx));
+      this.shadowGfx.fillEllipse(gx, gy, 20, 10);
+      const ax = gx, ay = gy - alt;
+      const spin = this.age * 0.02;
+      this.airGfx.fillStyle(0x0d1116, 1);
+      this.airGfx.fillCircle(ax, ay, 7);
+      this.airGfx.lineStyle(2, this.color, 0.9);
+      this.airGfx.strokeCircle(ax, ay, 7);
+      this.airGfx.fillStyle(0xffffff, 0.85);
+      this.airGfx.fillCircle(ax + Math.cos(spin) * 3, ay + Math.sin(spin) * 3, 2.4);
+      // A short live spark off the casing: it is armed and it is obvious.
+      if (Math.random() < 0.6) {
+        this._bolt(this.airGfx, ax, ay,
+          ax + (Math.random() - 0.5) * 22, ay + (Math.random() - 0.5) * 22,
+          6, 1.5, this.color, 0.7);
+      }
+      // A FAINT LANDING MARK from the moment it is in the air. Not a telegraph
+      // ring — it claims nothing and damages nothing — but the player is
+      // entitled to know where the thing they can see flying is going to land.
+      this.floorGfx.lineStyle(1.5, this.color, 0.16 + 0.12 * u);
+      this.floorGfx.strokeCircle(this.x, this.y, this.radius * (0.55 + 0.45 * u));
+      return;
+    }
+
+    // Grounded: the casing sits at the centre for the rest of its life.
+    const t = this.age / 1000;
+    if (ph === 'arm') {
+      const u = (this.age - this.flightMs) / this.armMs;
+      // THE TELL, AND IT ACCELERATES. A constant blink says "something is
+      // here"; one that speeds up says "and it is about to happen".
+      const rate = 3 + u * u * 16;
+      const blink = 0.5 + 0.5 * Math.sin(t * rate * Math.PI * 2);
+      this.floorGfx.fillStyle(this.color, 0.05 + 0.10 * u);
+      this.floorGfx.fillCircle(this.x, this.y, this.radius * u * 0.9);
+      // A charge ring that CONTRACTS onto the casing — the energy gathering in,
+      // so the moment it arrives is the moment the field goes out.
+      this.edgeGfx.lineStyle(2 + 2 * blink, this.color, 0.30 + 0.5 * blink);
+      this.edgeGfx.strokeCircle(this.x, this.y, this.radius * (1 - u * 0.62));
+      this.edgeGfx.lineStyle(1.5, this.color, 0.22);
+      this.edgeGfx.strokeCircle(this.x, this.y, this.radius);
+    } else {
+      const integ = this._integrity;
+      // ── THE FLOOR: ionised deck, not a painted danger disc ───────────────
+      // MEASURED AGAINST THE ROOM, NOT PICKED. The first build was 0.40 of
+      // `#0a1a26` with a 0.09 wash, and photographed on a hangar deck under the
+      // DARKNESS modifier as a soft blue-grey blob — present, and not legibly
+      // dangerous. On a deck that is already `#212328` and can be tinted toward
+      // black by a room modifier, a hazard has to carry its own contrast.
+      this.floorGfx.fillStyle(0x071620, 0.62 * integ);
+      this.floorGfx.fillCircle(this.x, this.y, this.radius);
+      this.floorGfx.fillStyle(this.color, 0.16 * integ);
+      this.floorGfx.fillCircle(this.x, this.y, this.radius * 0.74);
+      this.floorGfx.fillStyle(this.color, 0.10 * integ);
+      this.floorGfx.fillCircle(this.x, this.y, this.radius * 0.42);
+
+      // ── THE BOUNDARY: jagged, and it never reaches past the real radius ──
+      // The honest ring first, so the true edge is legible even on the frames
+      // the jitter happens to pull the arcs well inside it.
+      const strobe = integ < 1 ? (0.45 + 0.55 * Math.sin(t * 34)) : 1;
+      this.edgeGfx.lineStyle(2, this.color, 0.55 * integ * strobe);
+      this.edgeGfx.strokeCircle(this.x, this.y, this.radius);
+      const arcs = 16;
+      for (let i = 0; i < arcs; i++) {
+        const a0 = (i / arcs) * Math.PI * 2 + t * 0.6;
+        const a1 = a0 + (Math.PI * 2 / arcs) * 0.82;
+        // INWARD ONLY. `r0`/`r1` are never above `this.radius`, which is what
+        // makes the painted edge a promise the hit test can keep.
+        const r0 = this.radius - Math.random() * 12;
+        const r1 = this.radius - Math.random() * 12;
+        this._bolt(this.edgeGfx,
+          this.x + Math.cos(a0) * r0, this.y + Math.sin(a0) * r0,
+          this.x + Math.cos(a1) * r1, this.y + Math.sin(a1) * r1,
+          9, 3, i % 3 === 0 ? 0xffffff : this.color,
+          (0.7 + 0.3 * Math.random()) * integ * strobe);
+        // A NODE where two arcs meet. A boundary drawn only as lines reads as a
+        // sketch; the bright points are what make it read as a circuit closing
+        // around a patch of floor — and they sit exactly ON the radius, which
+        // is the edge the hit test uses.
+        if (i % 2 === 0) {
+          this.edgeGfx.fillStyle(0xffffff, 0.75 * integ * strobe);
+          this.edgeGfx.fillCircle(this.x + Math.cos(a0) * this.radius,
+            this.y + Math.sin(a0) * this.radius, 2.4);
+        }
+      }
+
+      // ── THE INTERIOR: crawling current, re-rolled on its own clock ───────
+      // Per-frame randomisation at 60fps is a strobe and at 15fps is a
+      // different effect entirely; a fixed re-roll interval reads the same on
+      // both, which is the frame-rate lesson this project keeps relearning.
+      this._crawlT -= delta;
+      if (this._crawlT <= 0) {
+        this._crawlT = 70;
+        this._crawl.length = 0;
+        const n = 3 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < n; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const b = a + (Math.random() - 0.5) * 2.4;
+          const ra = Math.random() * this.radius * 0.8;
+          const rb = Math.random() * this.radius * 0.8;
+          this._crawl.push([Math.cos(a) * ra, Math.sin(a) * ra,
+            Math.cos(b) * rb, Math.sin(b) * rb]);
+        }
+      }
+      for (const c of this._crawl) {
+        this._bolt(this.edgeGfx, this.x + c[0], this.y + c[1],
+          this.x + c[2], this.y + c[3], 12, 2, 0xffffff, 0.52 * integ);
+      }
+    }
+
+    // The casing, on the deck, for arm and field alike. THE SOURCE IS VISIBLE:
+    // a field with nothing at its centre is a painted mark, and a placed object
+    // is what makes it a thing a machine put there.
+    this.floorGfx.fillStyle(0x0d1116, 1);
+    this.floorGfx.fillCircle(this.x, this.y, 9);
+    this.floorGfx.lineStyle(2.5, this.color, 1);
+    this.floorGfx.strokeCircle(this.x, this.y, 9);
+    this.edgeGfx.fillStyle(this.color, 0.5);
+    this.edgeGfx.fillCircle(this.x, this.y, 7);
+    this.edgeGfx.fillStyle(0xffffff, 0.9);
+    this.edgeGfx.fillCircle(this.x, this.y, 3.4);
+  }
+
+  destroy() {
+    if (this.dead) return;
+    this.dead = true;
+    if (this._landed) {
+      this.scene?.fx?.ventSmoke?.(this.x, this.y, 2);
+      SFX.arcFieldClose?.();
+    }
+    this.floorGfx?.destroy();
+    this.edgeGfx?.destroy();
+    this.shadowGfx?.destroy();
+    this.airGfx?.destroy();
+    this.floorGfx = this.edgeGfx = this.shadowGfx = this.airGfx = null;
+  }
+}
+
+/**
  * Install the hazard list on a scene, mirroring `attachTelegraphs`.
  *
  * The sweep matters as much as the spawn: a hazard that survives its room is a
@@ -468,6 +791,15 @@ export function attachHazards(scene) {
     const w = new Wake(scene, spec);
     live.push(w);
     return w;
+  };
+
+  // Same list, same tick, same sweep, and for the same reason the wake is here:
+  // this is a damaging region on the floor, and every damaging region in this
+  // game must be reachable by `clearHazards`.
+  scene.spawnArcGrenade = (spec) => {
+    const g = new ArcGrenade(scene, spec);
+    live.push(g);
+    return g;
   };
 
   scene.tickHazards = (delta) => {

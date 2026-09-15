@@ -864,18 +864,106 @@ asserts separately that the ceiling is not reached.
   engagement band, advance / give ground / strafe, the three-round burst, the
   two-layer reactive armour and `armourSpill`, and the anti-stunlock behaviour.
   The notes below are how it works and how it breaks; **none of them is an
-  invitation to tune it.** Still NO signature ability, NO variants, NO
-  colourways, NO Nemesis replacement — and **normal Endless spawns no Champion
-  of any kind.**
-- **PHASE B.2.1 IS THE STATE LANGUAGE AND IT IS A CANDIDATE — `HANDOVER.md`
-  §10ah.** ONE RULE: **SYMBOL = TRANSITION, BODY / FX = SUSTAINED STATE.** A
-  glyph lives a few hundred ms to say something CHANGED and is then gone;
-  everything that must stay true is carried by the actor. **A glyph that
-  lingers is a status icon, and a status icon is UI standing in the world.**
-  Four glyphs, no more: armour break, low health, major hit, target reacquire.
-  **IT IS NOT A PHASE SYSTEM** — nothing in it touches fire rate, speed, damage
-  or the state machine, and `smoke-captain-state` measures a fresh and a badly
-  damaged Captain and pins identical speed, damage and median burst gap.
+  invitation to tune it.** Still NO variants, NO colourways, NO Nemesis
+  replacement — and **normal Endless spawns no Champion of any kind.**
+  **B.2.2 CHANGED HIS TIMINGS AND HIS SPEED, ON A HANDSET FINDING, AND DID NOT
+  TOUCH THE BAND.** `speed` 205 → 250, `recoverMs` 520 → 240, and the
+  give-ground multiplier 0.86 → 1 (he was at his SLOWEST the one moment the
+  player rushed him). `holdMin`/`holdMax` are in the frozen list and stayed
+  there. **THERE IS ONE SIGNATURE NOW — THE ARC GRENADE — AND THERE IS NO
+  SECOND ONE.**
+- **THE STATE LANGUAGE'S ONE RULE SURVIVED HANDSET REVIEW AND ITS SUSTAINED
+  HALF DID NOT — `HANDOVER.md` §10ah, §10ai.** **SYMBOL = TRANSITION, BODY / FX
+  = SUSTAINED STATE.** A glyph lives a few hundred ms to say something CHANGED
+  and is then gone; everything that must stay true is carried by the actor. **A
+  glyph that lingers is a status icon, and a status icon is UI standing in the
+  world.** Four glyphs, no more: armour break, low health, major hit, target
+  reacquire. **IT IS NOT A PHASE SYSTEM** — nothing in it touches fire rate,
+  speed, damage or the state machine, and `smoke-captain-state` measures a fresh
+  and a badly damaged Captain and pins identical speed, damage and median burst
+  gap. **PHASE B.2.2 (§10ai) IS THE CURRENT CANDIDATE** and is not approved.
+- **IF REAL DURABILITY DECREASED, THE FEEDBACK MAY NOT SAY ZERO.** `Enemy.damage`
+  emits `enemy-hit` with the number it was asked to take off the BODY, and on an
+  actor with a layer in FRONT of the body that number is zero — so a Shock
+  Captain whose armour bar was visibly draining printed `0 0 0` over his own
+  head, and a human caught it on a handset. It was never a rendering nit: the
+  game was telling the player their shots did nothing at the moment it was
+  taking their damage. The same defect printed `485` for a Super that removed
+  2285 and `4000` for a killing blow that removed 210 — **the figure was always
+  BODY damage.** `_damageFeedback(bodyRemoved)` is the hook, it returns ONE
+  number (armour removed + body removed) and a colour, and it is **opt-in by
+  absence**: null means the handler falls back to `amount`, so every ordinary
+  enemy is untouched. Never print two overlapping labels for one hit — the
+  break FX is what says a layer transition happened.
+- **`amount` IS A REQUEST; `hpBefore - hp` IS A REMOVAL.** A killing blow asks
+  for more than the pool holds and a punish window multiplies on the way in, so
+  any label built from the argument is wrong at both ends. Measure across the
+  subtraction.
+- **SYMMETRICAL, ROUND, COLOURED AND PULSING IS THE VOCABULARY OF A STATUS
+  LIGHT, WHATEVER YOU MEANT BY IT.** B.2.1's two orange embers were the right
+  INSTINCT — something must be true in every frame or a still and a glance both
+  catch nothing — and the wrong FORM, and the handset decoded them as equipment
+  indicators rather than as damage. The replacement keeps the instinct: ONE
+  ASYMMETRIC failure site on the side that actually lost its plate, a second on
+  the opposite flank only at critical, an always-true dark SCORCH (three
+  overlapping discs at unequal offsets, NORMAL-blended so it takes light away,
+  and it **does not pulse** — a burn does not breathe), and blue-white shorts
+  that are **entirely event-driven**, 130ms at a re-rolled interval so they
+  never find a rhythm. A continuous arc is the opposite of unstable.
+- **A CAP THAT BINDS IN NORMAL PLAY IS NOT A BOUND, IT IS THE AIM.** The burst's
+  `leadMaxPx` was 260 and rounds 2 and 3 both clamped to it, so LEAD and BRACKET
+  were the same shot. Same family: solve a lead's flight time from the MUZZLE,
+  not the body centre — 75px of barrel is a 25% over-lead, and it makes every
+  coefficient a lie about what it means.
+- **PREDICTION IS FAIR WHEN IT IS BEATEN BY CHANGING YOUR MIND.** The Captain's
+  burst reads only the velocity the player HAS RIGHT NOW, bounded in time
+  (`leadHorizonMs`) and space (`leadMaxPx`), and every round is an ordinary
+  projectile that is never retargeted after firing. Measured: holding one
+  lateral direction went from 0 of 21 bolts inside 48px to 9 of 21, standing
+  still stayed ~76%, and reversing stayed ~24%. **Do not fix an evadable attack
+  by raising its damage** — a dangerous miss is still a miss.
+- **THE ARC GRENADE IS ONE OBJECT WITH FOUR PHASES, AND THAT IS A LIFECYCLE
+  DECISION BEFORE IT IS A DESIGN ONE.** FLIGHT → ARM → FIELD → WARN, in
+  `Hazard.js`, on the same list `Barrier` and `Wake` are on. A thrown thing that
+  spawns a SEPARATE field on landing is two objects with two owners and two ways
+  to be orphaned. `contains` is false until the field is live — the flight hurts
+  nobody and the arming casing hurts nobody — and the boundary's jagged arcs
+  jitter **INWARD ONLY** from the true radius, so the painted edge can never
+  claim ground the hit test does not own.
+- **A FIELD MAY NEVER TOUCH `player.moveMult`.** That is the permanent upgrade
+  multiplier and upgrades COMPOUND, so a slow that scaled it and failed to
+  restore it — on a death, a room change, two overlapping fields — would cripple
+  a run for ever. `Player.preUpdate` reads `_envDrag`, applies it and resets it
+  to 1 in the same breath; the only write is per-frame, from whatever is holding
+  the player. Nothing persists it, so nothing can leak it. And the painful
+  outcome comes from CHOOSING to stand in it: a tick and a drag, never a stun,
+  a root or repeated control loss.
+- **A CHAMPION MUST UNDERSTAND ITS OWN TOOL, IN THE SMALLEST VERSION OF THAT
+  WHICH IS TRUE.** Two facts, four lines, no tactical director: a reposition
+  target inside his own live field is pushed radially out past it, and while it
+  is live he takes the strafe side that puts the PLAYER between him and it. He
+  is still allowed to CROSS it — a Captain who refused would freeze whenever it
+  landed between him and where he was going, and an elite stepping through his
+  own electricity for half a second is a man in a hurry where standing in it is
+  a man who does not understand his equipment.
+- **A CLOSEST-APPROACH SAMPLER IS A FRAME-RATE METER TOO.** `diag-captain-pressure`
+  samples on `postupdate` at ~14fps against a 600px/s bolt, so the bolt jumps
+  ~43px between samples and a STATIONARY player — whom he cannot fail to hit —
+  measures a 44px median miss. Read its buckets as an ORDERING between policies
+  and builds, never as absolutes. Two more ways that rig lied: it cannot measure
+  AIM through COVER (bolts died on crates a third of the way out and rounds 2
+  and 3 appeared to over-lead by 180px), and a patrol that walks to the arena
+  wall measures a RETREAT rather than a strafe (a 600px/s bolt chasing a
+  380px/s player never arrives, however well it was aimed).
+- **AN IMMORTALITY STUB MEASURES THE WRONG THING ON A LETHAL HIT.** Stubbing
+  `die` to keep one actor alive down a whole damage ladder puts hp back ABOVE
+  where it started on the killing blow, so the rig reports "0 removed" and calls
+  a correct build a liar. Give the lethal case a real actor and a real death.
+- **A SEQUENCING CHECK MUST READ THE SCHEDULE, NOT THE OBSERVATION.** The
+  punctuation queue stamps each glyph exactly `punctSpacingMs` apart and fires
+  each on the first frame at or past its stamp — so at ~10fps the observed gap
+  lands anywhere in a ±110ms band and measured 294ms against a 340ms floor.
+  Assert on the queued `at` values.
 - **EVERY REACTION READS AUTHORITATIVE STATE, AND THE MAJOR HIT REUSES THE
   STAGGER THRESHOLD.** Armour from `armour` crossing zero, low health from the
   body pool crossing `lowHealthFrac` DOWNWARD, the major hit from

@@ -179,7 +179,13 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (this._punishMs > 0) amount *= (this._punishMult || 1);
 
     const wasPatrolling = this.state === ST.PATROL || this.state === ST.SUSPICIOUS;
+    // WHAT WAS ACTUALLY REMOVED, not what was asked for. A killing blow asks
+    // for more than the pool holds, and `amount` is the request — the only
+    // number a feedback label may be built from is the difference the pool
+    // actually moved by.
+    const hpBefore = this.hp;
     this.hp = Math.max(0, this.hp - amount);
+    const bodyRemoved = hpBefore - this.hp;
     if (knockbackVec) {
       // A PLANTED actor barely moves. Knockback is added to velocity and enemy
       // bodies have no drag, so a single bullet during a wind-up used to send a
@@ -216,7 +222,19 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       }
     }
 
-    this.scene.events.emit('enemy-hit', this, amount);
+    // ── FEEDBACK TRUTH ─────────────────────────────────────────────────────
+    // The third argument is the DISPLAY claim, and it exists because `amount`
+    // is not always it. An actor with a durability layer in front of its body
+    // removes real durability on a hit that never touches `hp`, and the handler
+    // printing `Math.round(amount)` then prints a truthful-looking `0` over a
+    // bar that is visibly draining — which is what shipped on the Shock
+    // Captain and what a human called out on a handset.
+    //
+    // Default is null and the handler falls back to `amount`, so every ordinary
+    // enemy is byte-for-byte unchanged: only an actor that OWNS a second layer
+    // has anything to correct, and only it implements the hook.
+    this.scene.events.emit('enemy-hit', this, amount,
+      this._damageFeedback ? this._damageFeedback(bodyRemoved) : null);
     if (killed) this.die();
   }
 

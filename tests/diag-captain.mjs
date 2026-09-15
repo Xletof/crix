@@ -135,7 +135,8 @@ const out = await page.evaluate(async () => {
     ...L, chip, durMs: T(), alive: c.alive,
     hp: Math.round(c.hp), hpMax: c.hpMax, broken: c.armourBroken,
     lowFired: c._lowHealthFired,
-    fxLeft: c._reactFx.length, queueLeft: c._punctQueue.length, embers: !!c._embers,
+    fxLeft: c._reactFx.length, queueLeft: c._punctQueue.length,
+    wound: !!c._wound, arcGfx: !!c._arcGfx,
   };
 });
 
@@ -148,6 +149,6 @@ console.log(`  sustained     smoke puffs ${out.smoke} (${per10s(out.smoke)}/10s)
 // One owned object is expected to remain while he is alive and damaged: the
 // ember Graphics is the PERSISTENT half of the state language and is redrawn
 // every frame. Anything above that is a leak.
-console.log(`  owned FX      peak ${out.fxPeak} live, queue peak ${out.queuePeak}, left at end ${out.fxLeft} (embers=${out.embers}) / queue ${out.queueLeft}`);
+console.log(`  owned FX      peak ${out.fxPeak} live, queue peak ${out.queuePeak}, left at end ${out.fxLeft} (wound=${out.wound}, arc=${out.arcGfx}) / queue ${out.queueLeft}`);
 console.log(`  final         hp ${out.hp}/${out.hpMax} · broken ${out.broken} · lowFired ${out.lowFired} · alive ${out.alive}\n`);
 await browser.close();
