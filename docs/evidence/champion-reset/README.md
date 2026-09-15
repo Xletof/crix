@@ -156,3 +156,26 @@ way out and rounds 2 and 3 appeared to over-lead by 180px, so it clears `walls`
 — and a patrol that walks to the arena wall measures a RETREAT rather than a
 strafe, because a 600px/s bolt chasing a 380px/s player never arrives however
 well it was aimed.
+
+---
+
+## THE COMBAT-ECONOMY AUDIT — an instrument, not a balance pass (`captel/`)
+
+`HANDOVER.md` `§10aj`. **Nothing was balanced.** B.2.3 polish is paused until
+the human brings back handset runs.
+
+    npm run dev
+    node tests/smoke-captel.mjs     # 22 structural checks, no balance assertions
+    node tests/shot-captel.mjs      # the two panel states, at 1x
+
+Play it at **`?champdbg=1&captel=1`**.
+
+| frame | what it shows |
+|---|---|
+| `01-live-ticker` | the fight, with the one-liner — and `2 CAPTAINS — tracking 1`, which the encounter overlay's own `CHAMP SHOCK CAPTAIN x2` confirms |
+| `02-summary-card` | the card after he dies: clear of the harness buttons above it and the touch controls below |
+
+**THE CARD'S TOP IS DERIVED, NOT PICKED.** The first build sat at camera y 116 —
+screen 200 — and printed straight through the encounter harness's PREV / NEXT /
+REPLAY buttons, because the Game camera is inset by the HUD's top bar and a
+screen coordinate is therefore not a camera one.

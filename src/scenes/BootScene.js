@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import {
   setDialogueMuted, setDuelRequest, parseDuelParams, setHitstopMuted, setMoveNamesMuted,
   setEncDebug, setEncForce, parseEncDebugParams, setChampDebug, setChampWhich,
+  setCapTel,
 } from '../systems/debug.js';
 import { ENCOUNTERS } from '../data/encounters.js';
 import { CAMERA } from '../config.js';
@@ -54,6 +55,11 @@ export class BootScene extends Phaser.Scene {
       // active one, the SHOCK CAPTAIN.
       setChampWhich(params.get('champdbg'));
     }
+
+    // `?captel=1` turns on the Captain combat-economy telemetry — a separate
+    // flag from `champdbg` on purpose, because most Champion reviews are not
+    // about numbers and should not have a panel over them. Observation only.
+    if (params.has('captel')) setCapTel(true);
 
     this.scene.start('Preload');
   }

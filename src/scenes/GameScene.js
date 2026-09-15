@@ -26,10 +26,11 @@ import {
 import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.js';
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
-  isEncDebug, getEncForce, isChampDebug, getChampWhich,
+  isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel,
 } from '../systems/debug.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { attachHazards } from '../systems/Hazard.js';
+import { attachCaptainTelemetry } from '../systems/CaptainTelemetry.js';
 import { Champion } from '../entities/Champion.js';
 import { Harrower } from '../entities/Harrower.js';
 import { ShockCaptain } from '../entities/ShockCaptain.js';
@@ -255,6 +256,12 @@ export class GameScene extends Phaser.Scene {
     // telegraphs above and swept by the same room teardown, because a damaging
     // region that survives its room is the worst failure the class can have.
     attachHazards(this);
+    // ── CAPTAIN COMBAT-ECONOMY TELEMETRY — `?captel=1` ────────────────────
+    // NOT CONSTRUCTED WITHOUT THE FLAG. No container, no listeners, no panel
+    // and no `postupdate` hook exist in a normal run, which is the same shape
+    // `?encdbg=1` holds and the same property `smoke-captel` asserts: absence,
+    // not a disabled feature. It is observation only and changes no value.
+    if (isCapTel()) attachCaptainTelemetry(this);
 
     // ── Player ─────────────────────────────────────────────────────────────
     this.player = new Player(this, 200, 200);
@@ -1752,7 +1759,9 @@ export class GameScene extends Phaser.Scene {
       }
 
       hitSet.add(e);
+      this._dmgSrc = 'melee';
       e.damage(dmg, { x: kbx, y: kby });
+      this._dmgSrc = null;
       // The slam's stun is the top-down stand-in for Riven's knockup. damage()
       // sets a 90ms stagger; widen it so the slam buys a real reset window.
       // Applied after, since damage() writes _staggerMs itself.
@@ -3444,6 +3453,7 @@ export class GameScene extends Phaser.Scene {
     const by = this.player.y + Math.sin(angle) * (PLAYER.radius + 14);
     const spread = Phaser.Math.DegToRad(PLAYER.superSpreadDeg);
     const half   = (PLAYER.superPellets - 1) / 2;
+    let pellets = 0;
     for (let i = 0; i < PLAYER.superPellets; i++) {
       const a = angle + (i - half) * (spread / Math.max(1, PLAYER.superPellets - 1));
       const b = this.playerSuperBullets.fire(bx, by, a, PLAYER.superSpeed, PLAYER.superDamage * this.player.dmgMult, PLAYER.superRange,
@@ -3456,7 +3466,12 @@ export class GameScene extends Phaser.Scene {
       // makes the pellets visibly fat with a provably identical hitbox.
       // Verified by asserting body.width / radius parity in the smoke test.
       b?.setScale(1, 1.9);
+      if (b) pellets++;
     }
+    // THE REAL COUNT, not `superPellets`. `BulletGroup.fire` returns null on an
+    // exhausted pool, so the authored number is what was ASKED for and this is
+    // what left the muzzle. Nothing listens without `?captel=1`.
+    this.events.emit('player-super-blast', pellets, angle);
     // Big blast bloom — the super no longer shares the pistol's little flash.
     this.fx.superMuzzleFlash(bx, by, angle);
     // Heavy spark spray in the blast direction — shotgun grit, not a laser puff.
@@ -3906,7 +3921,9 @@ export class GameScene extends Phaser.Scene {
       // it just layers underneath. The emit is synchronous, so a plain flag
       // around the call is exact — no timing window to get wrong.
       this._suppressHitSfx = true;
+      this._dmgSrc = 'secondary';
       t.damage(b.damage, { x: Math.cos(a) * kb, y: Math.sin(a) * kb });
+      this._dmgSrc = null;
       this._suppressHitSfx = false;
       this.player?.onHitLanded?.();
       this.player?.addSuperHit?.();
@@ -4183,10 +4200,10 @@ export class GameScene extends Phaser.Scene {
     this._updateTakedownTarget();
 
     // Bullets
-    this.handleBulletEnemyHits(this.playerBullets, false);
-    this.handleBulletEnemyHits(this.playerRifleBullets, false);
-    this.handleBulletEnemyHits(this.playerSuperBullets, true);
-    this.handleBulletEnemyHits(this.playerFragBullets, false);
+    this.handleBulletEnemyHits(this.playerBullets, false, 'primary');
+    this.handleBulletEnemyHits(this.playerRifleBullets, false, 'secondary');
+    this.handleBulletEnemyHits(this.playerSuperBullets, true, 'super');
+    this.handleBulletEnemyHits(this.playerFragBullets, false, 'secondary');
     this.handleEnemyBulletsVsPlayer();
     this.handleBulletWallHits(this.playerBullets, false);
     this.handleBulletWallHits(this.playerRifleBullets, false);
@@ -4284,7 +4301,16 @@ export class GameScene extends Phaser.Scene {
 
   // ── Collision helpers ─────────────────────────────────────────────────────
 
-  handleBulletEnemyHits(group, isSuper) {
+  /**
+   * @param {string} src DEBUG ATTRIBUTION ONLY — which player system owns these
+   *   bullets, carried so telemetry can attribute REAL durability removal by
+   *   source instead of guessing it from a damage magnitude. It is set and
+   *   cleared synchronously around `e.damage()`, exactly as `_superHitCtx` and
+   *   `_suppressHitSfx` already are, because `damage()` emits `enemy-hit`
+   *   inline and there is therefore no timing window to get wrong. Nothing in
+   *   gameplay reads it.
+   */
+  handleBulletEnemyHits(group, isSuper, src = 'other') {
     const bullets  = group.getChildren();
     const enemies  = this.enemies.getChildren();
     for (const b of bullets) {
@@ -4414,7 +4440,9 @@ export class GameScene extends Phaser.Scene {
           // with the enemy's distance — a super wiping a spread-out crowd was
           // ringing the camera on every far kill.
           this._superHitCtx = isSuper && b.owner === 'player';
+          this._dmgSrc = b.owner === 'player' ? src : 'other';
           e.damage(b.damage, kbVec);
+          this._dmgSrc = null;
           this._superHitCtx = false;
           // Super pellets are piercing, so the explosion below (gated on
           // !b.piercing) never fires for them — a super punching through a

@@ -956,6 +956,7 @@ export class ShockCaptain extends Enemy {
         if (this._round <= 0 && this._roundGap <= 0) {
           this._enter(CAP.RECOVER, this.def.recoverMs);
           this._fireCd = this.def.fireEveryMs;
+          this.scene.events.emit('champion-burst-complete', this);
         }
         break;
 
@@ -982,6 +983,16 @@ export class ShockCaptain extends Enemy {
         } else if (this._canFire(p, dist)) {
           this._enter(CAP.BRACE, this.def.braceMs);
           this.setVelocity(0, 0);
+          // ── TELEMETRY TAPS ────────────────────────────────────────────────
+          // Three emits, and nothing in the game listens to any of them: the
+          // Captain combat-economy instrument (`?captel=1`) needs to know
+          // whether he gets to PERFORM HIS KIT before an aggressive player
+          // removes him, and an external observer sampling `_cap` on
+          // `postupdate` can miss a state that opens and closes inside one
+          // frame. BEGUN is the BRACE — the commitment a player can see — so
+          // "he started to shoot and died" and "he never tried" are different
+          // rows. No value, cooldown or transition below is affected by them.
+          this.scene.events.emit('champion-burst-begin', this);
         } else if (this._stateMs <= 0 || !t || left < 40) {
           this._solvePosition(p);
         }
@@ -1108,6 +1119,7 @@ export class ShockCaptain extends Enemy {
     const mx = (w?.x ?? this.x) + Math.cos(ang) * CAPTAIN_MUZZLE_PX;
     const my = (w?.y ?? this.y) + Math.sin(ang) * CAPTAIN_MUZZLE_PX;
     this.scene.fireCaptainBolt?.(this, mx, my, ang);
+    this.scene.events.emit('champion-round-fired', this);
     this._shotFlashMs = 110;
     // A HEAVIER KICK THAN THE FIRST BUILD, and it is the kick that reads at 1x
     // inside a crowded wave — the muzzle flash is over in 95ms and competes

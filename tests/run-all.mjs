@@ -33,6 +33,7 @@ const TESTS = [
   'smoke-captain-state',
   'smoke-captain-damage',
   'smoke-arcgrenade',
+  'smoke-captel',
   'smoke-boost',
   'smoke-cluster',
   'smoke-controls',

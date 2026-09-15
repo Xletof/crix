@@ -882,6 +882,52 @@ asserts separately that the ceiling is not reached.
   speed, damage or the state machine, and `smoke-captain-state` measures a fresh
   and a badly damaged Captain and pins identical speed, damage and median burst
   gap. **PHASE B.2.2 (§10ai) IS THE CURRENT CANDIDATE** and is not approved.
+- **DO NOT BALANCE THE CAPTAIN AGAINST THE WORD "SUPER" — `HANDOVER.md` §10aj.**
+  "He survives two or three Supers" only means something if a Super is scarce,
+  and in real play it can be used about once a second, which makes it closer to
+  high-power secondary fire than to an ultimate. **B.2.3 POLISH IS PAUSED** and
+  no hp, armour, rifle, model or ability change is to be made until the human
+  brings back A/B/C runs from `?champdbg=1&captel=1`. The order is: measure how
+  fast and by what means a real player kills him, then decide where Champion
+  sits in the hierarchy, then choose a survivability mechanism. **HP COMES
+  LAST.**
+- **`?champdbg=1&captel=1` IS AN INSTRUMENT AND CHANGES NOTHING.** Separate from
+  `champdbg` on purpose — most Champion reviews are not about numbers. With
+  `captel` absent nothing is constructed: no container, no listeners, no
+  `postupdate` hook, no panel, which `smoke-captel` checks by WALKING THE
+  DISPLAY LIST rather than by asking whether the module ran. It also snapshots
+  `CHAMPION.captain`, every player damage input and a live actor's hp/armour/
+  speed with the flag on and off and requires them byte-identical: an
+  instrument that perturbs the thing it measures is worse than no instrument.
+  And it takes NO POINTER AREA — a tappable panel needs an exclusion point on
+  the fire stick, which alters the controls of the run being measured.
+- **ATTRIBUTION IS CARRIED, NEVER INFERRED FROM A MAGNITUDE.** `GameScene` sets
+  `_dmgSrc` synchronously around each player damage call — the same idiom
+  `_superHitCtx` and `_suppressHitSfx` already use, and exact because
+  `Enemy.damage` emits `enemy-hit` INLINE, so there is no window between the tag
+  and the read. A source guessed from a number gets worse every time the numbers
+  move. Reconcile the attributed total against
+  `starting durability - ending durability` ACROSS THE LETHAL BLOW, which is
+  where a request and a removal differ most.
+- **`isChampion` IS NOT "THE CAPTAIN I AM MEASURING".** `?champdbg=1` injects
+  one Champion per WAVE, so two can stand on the floor at once. A probe measured
+  four grenades thrown and two attributed while fields counted all four, because
+  the field event had no owner filter and the damage listener tested
+  `isChampion` instead of `enemy === session.actor`. Filter on the ACTOR, and
+  tell the human when there is more than one — it changes how every hit rate
+  should be read.
+- **AN `attach*` THAT REGISTERS SCENE LISTENERS MUST REMOVE ALL OF THEM.**
+  `create()` runs again on a restart (`PauseScene._restart`) and `scene.events`
+  survives it, so tidying only the obvious `postupdate` hook leaves a full
+  second set of handlers behind and doubles every counter from the second run
+  on. Remember each listener at registration and sweep them on `shutdown` AND
+  `destroy`. Same family as the `postupdate` handler closed over a dead boss.
+- **A SCREEN COORDINATE IS NOT A GAME-CAMERA COORDINATE, and an overlay that
+  forgets it prints through another overlay.** The Game camera is inset by
+  `HUDCFG.topBarHeight`; the encounter harness's PREV / NEXT / REPLAY buttons
+  live in the HUD scene at screen y 196/250/304. The telemetry panel at camera
+  y 116 photographed straight through all three. DERIVE the top from the thing
+  it has to clear.
 - **IF REAL DURABILITY DECREASED, THE FEEDBACK MAY NOT SAY ZERO.** `Enemy.damage`
   emits `enemy-hit` with the number it was asked to take off the BODY, and on an
   actor with a layer in FRONT of the body that number is zero — so a Shock

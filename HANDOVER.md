@@ -223,8 +223,21 @@ answers four handset findings and adds the first signature ability:
 **Still no SECOND signature, no variants, no colourways, no Nemesis
 replacement. Normal Endless spawns no Champion of any kind.** `?champdbg=1`
 spawns the Captain; DEBUG carries four triggers — BIG HIT / BREAK / LOW HEALTH
-drive the real `damage()` path, and ARC GRENADE READY clears the cooldown and
-lets the real AI decide.
+drive the real `damage()` path, and CHAMP: GRENADE clears the cooldown and lets
+the real AI decide.
+
+**B.2.3 POLISH IS PAUSED, AND THE NEXT THING IS A MEASUREMENT — `§10aj`.**
+Balance thinking had reached "the Captain survives two or three Supers", and
+that sentence only means something if a Super is scarce: in real play it can be
+used roughly once a second, so surviving three of them may describe three
+seconds. **`?champdbg=1&captel=1`** is the instrument — real Super cadence, real
+durability removed per source, and whether the Captain gets to perform his kit
+before an aggressive player removes him. **It changes NOTHING**
+(`smoke-captel` snapshots the whole config on and off) and no balance response
+is to be made until the human brings back A/B/C handset runs. `§10aj` also
+records, WITHOUT implementing any of it, the Regular → Elite → Champion →
+Commander → Vader hierarchy and the rule that Captain placement stays AUTHORED
+(no `championChance`, no random spawning).
 
 ### The recommended next area of work
 
@@ -6392,6 +6405,149 @@ deterioration is inside the Captain's own file.
   where it started on the killing blow, so the rig reported "0 removed" and
   called a correct build a liar. The lethal case gets a real actor and a real
   death.
+
+---
+
+## 10aj. THE CAPTAIN COMBAT-ECONOMY AUDIT — an instrument, not a balance pass
+
+**NOTHING WAS BALANCED. `CHAMPION.captain` is byte-identical**, and
+`smoke-captel` asserts it by snapshotting the whole config, every player damage
+input and a freshly spawned actor's live hp/armour/speed with the flag on and
+off. B.2.3 polish is PAUSED — no rifle corridor, no damaged-model rebuild, no
+Arc Grenade rebuild, no hp, no armour, no tactical step, no second signature, no
+variants, no Endless integration.
+
+### The question that stopped the polish pass
+
+Balance thinking had reached *"the Captain survives two or three Supers"* — and
+that sentence only means something if a Super is scarce. In real handset play it
+can be used roughly once a second, which makes it closer to **high-power
+secondary fire** than to an ultimate; "survives three of them" may therefore
+describe three seconds. **The name is not evidence.** So: measure what a real
+player actually does, and measure whether the Captain gets to perform his kit
+before they finish him.
+
+The Super itself is untouched — not its damage, not its charge rate, not its
+cadence, not its Vader / DEFLECTION interactions.
+
+### `?champdbg=1&captel=1`
+
+A SEPARATE flag from `champdbg` on purpose: most Champion reviews are not about
+numbers and should not have a panel over them. **With `captel` absent nothing is
+constructed** — no container, no listeners, no `postupdate` hook, no panel. That
+is absence rather than a disabled feature, the same property `?encdbg=1` holds,
+and `smoke-captel` checks it by walking the display list rather than by asking
+whether the module ran.
+
+### Attribution is CARRIED, never inferred
+
+A damage source guessed from a magnitude is a guess that gets worse every time
+the numbers move. `GameScene` sets `_dmgSrc` synchronously around each player
+damage call — the same idiom `_superHitCtx` and `_suppressHitSfx` already use,
+and it is **exact** because `Enemy.damage` emits `enemy-hit` inline, so there is
+no timing window between the tag and the read. Five sources: primary, secondary
+(rifle + cluster), super, melee, other.
+
+**And it counts REAL durability, not requested damage.** This is the B.2.2
+damage-truth semantics doing the job they were built for: `amount` is what was
+ASKED for, which is zero while the armour holds and four figures too large on a
+killing blow. Every figure is armour actually removed plus body actually
+removed. `smoke-captel` reconciles the attributed total against
+`starting durability - ending durability` across a ladder that includes the
+lethal blow, because the lethal blow is exactly where a request and a removal
+differ most.
+
+### What it records, per Captain
+
+| group | fields |
+|---|---|
+| time | spawn, first damage, armour break, critical, death; time spent intact / broken / critical |
+| durability | armour max, hp max, armour removed, body removed |
+| player output | primary shots, secondary shots, cluster throws, melee casts, **Super casts**, **Super pellets that really left the muzzle** |
+| landed on HIM | hits and real durability removed, per source |
+| Super cadence | every cast timestamp → median / min interval, casts per 10s and per 30s, damage per cast (avg and best) |
+| **Captain output** | bursts begun, bursts completed, rounds fired, grenades thrown, fields activated |
+
+**BURSTS BEGUN IS THE BRACE** — the commitment a player can see — so "he started
+to shoot and died" and "he never tried" are different rows. That distinction is
+§11's whole point: *1 burst, 0 grenades, dead in 3.2s* would prove the Champion
+does not exist as designed, and the card has to be able to say it.
+
+### Three things the instrument itself got wrong, all found by probing
+
+- **`arc-field-live` had no owner filter.** `?champdbg=1` injects one Champion
+  per WAVE, so two Captains stand on the floor at once — a probe measured four
+  grenades thrown and two attributed, while fields counted all four. Damage had
+  the same hole: it tested `isChampion` rather than `enemy === S.actor`, so the
+  subject was being credited with damage spent on somebody else. The panel now
+  says **`2 CAPTAINS — tracking 1`** when it is not alone, because that changes
+  how every hit rate on it should be read.
+- **The attach leaked its own listeners.** `create()` runs again on a restart
+  and `scene.events` survives it, so an attach that only tidied its `postupdate`
+  hook would leave a full second set behind and double every counter from the
+  second run on. Every listener is remembered and removed.
+- **The panel printed straight through the encounter overlay's PREV / NEXT /
+  REPLAY buttons.** Those are laid out in `HUD.js` at screen y 196/250/304, and
+  the Game camera is INSET by the HUD's top bar — so a screen coordinate is not
+  a camera one. The panel's top is now DERIVED from the lowest of those buttons
+  rather than picked.
+
+### The readout
+
+A **live one-liner** during the fight (`CAP 7.0s · SUP 4 · 3476 dmg`), throttled
+to 4Hz because re-laying a string every frame is real work inside the fight this
+is supposed to leave alone; the **full card** when the Captain is gone, which is
+the moment there is anything to read. A dashboard over a live fight is a
+different experiment.
+
+**IT TAKES NO POINTER AREA.** A tappable panel would need an exclusion point on
+the fire stick — a change to a control the player is using DURING the run being
+measured, which is an instrument altering its own experiment. It resets on the
+next Captain, on a replay and on a reload.
+
+### One figure is approximate, and only one
+
+Damage is bucketed under the most recent Super cast, and at the cadence this
+exists to measure, pellets from an earlier cast land after a newer one is
+pressed. **The total, the hit counts and the intervals are exact**; read the
+per-cast average as an estimate and the best-cast figure as a lower bound.
+
+### Recorded, NOT implemented — the decision context
+
+**THE HIERARCHY.** Regular → Elite → Champion/Captain → Commander/Lieutenant →
+Vader.
+
+- **ELITE** is still `hp x2.5 + scale + gold tint + the same AI`, and that is not
+  the intended final tier. The direction is that elites inherit some of the
+  Captain's **combat COMPETENCE** — decision cadence, purposeful strafe, better
+  give-ground, firing discipline — **without** his signature ability, his
+  reactive armour phase or his state kit. Not touched in this pass.
+- **CAPTAIN / CHAMPION** is a rare AUTHORED encounter anchor: unique model,
+  signature ability, head-level hp presentation, no boss bar, normally one at a
+  time, not every wave.
+- **COMMANDER / LIEUTENANT** is a future handcrafted non-Vader miniboss that may
+  reuse the Captain's technology — movement, animation, damage states,
+  throwables, state language, ability architecture — but must be a bespoke
+  character rather than **Captain × huge hp**.
+
+**PLACEMENT IS AUTHORED AND `championChance` DOES NOT EXIST.** No random Captain
+spawning is to be introduced. The direction is placement through the Phase A
+grammar (VANGUARD + Captain, CROSSFIRE + Captain, an increasing but still
+authored presence in later sector bands, perhaps none in SWARM compositions).
+Planning context only; nothing integrated.
+
+### The three runs this instrument exists for
+
+| | instruction | question |
+|---|---|---|
+| **A NATURAL** | play normally, Super whenever you naturally would, do not focus him | what is his lifespan inside actual gameplay? |
+| **B FOCUS KILL** | the instant he appears, kill him as fast as you actually can | what is the minimum practical human kill time? |
+| **C NO-SUPER** | fight him aggressively, no Super on him | how much of the fragility is Super throughput specifically? |
+| *(D PRESSURED)* | a real CROSSFIRE or VANGUARD, survive first and him second | how long does he live when the wave demands attention? |
+
+**NO DESIRED TTK IS DECIDED, IN CODE OR IN PROSE.** The human brings the numbers
+back and the hierarchy decision comes before the survivability mechanism — and
+**hp comes last**.
 
 ---
 

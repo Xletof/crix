@@ -199,3 +199,31 @@ export function getChampWhich() { return champWhich; }
 export function setChampWhich(v) {
   champWhich = CHAMP_CANDIDATES.includes(v) ? v : 'captain';
 }
+
+// ── Captain combat-economy telemetry ────────────────────────────────────────
+//
+// `?champdbg=1&captel=1`. A SEPARATE, EXPLICIT flag, deliberately not folded
+// into `champdbg`: the Champion harness is for PLAYING the actor and this is
+// for MEASURING a fight, and a measurement overlay that appears whenever the
+// actor does would be in the way of every review that is not about numbers.
+//
+// WHY IT EXISTS. Balance thinking had reached "the Captain survives 2-3
+// Supers", and that sentence is only meaningful if a Super is scarce. In real
+// handset play the Super can be used roughly once a second, which makes it
+// closer to high-power secondary fire than to an ultimate — so "survives three
+// of them" may describe three seconds. This instrument answers the question
+// with numbers instead of with the word: how often does a real player actually
+// fire it, how much of the Captain's REAL durability does each one remove, and
+// does the Captain get to perform his kit before he is gone.
+//
+// IT IS OBSERVATION ONLY. It changes no damage, no hp, no armour, no cooldown,
+// no AI, no spawn composition and no Super cadence — `smoke-captel` asserts
+// that the tuning is byte-identical with the flag on and off, because an
+// instrument that perturbs the thing it measures is worse than no instrument.
+//
+// With the flag ABSENT nothing is constructed, nothing is listened to and
+// nothing is drawn.
+let capTel = false;
+
+export function isCapTel() { return capTel; }
+export function setCapTel(v) { capTel = !!v; }

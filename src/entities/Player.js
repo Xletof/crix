@@ -420,6 +420,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const grn = new Grenade(this.scene, bx, by, Math.cos(dir) * spd, Math.sin(dir) * spd);
     this.scene.grenades?.add(grn);
     SFX.shootSuper();
+    // The cluster was the one player attack with no fire event, so a telemetry
+    // instrument could see its DAMAGE and never its USE. Nothing listens
+    // without `?captel=1`.
+    this.scene.events.emit('player-fire-cluster', dir);
     this.scene.events.emit('secondary-ammo-changed');
     if (this.secondaryAmmo <= 0) this._equipNothing();
     return true;
