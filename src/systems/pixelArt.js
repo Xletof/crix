@@ -1522,6 +1522,112 @@ export const CAPTAIN_FRAMES = {
   total: 51,
 };
 
+// ── COMBAT PUNCTUATION — the grawlix set ────────────────────────────────────
+//
+// SYMBOL = TRANSITION, BODY = SUSTAINED STATE. These are the transition half:
+// a glyph exists for a few hundred milliseconds to announce that something
+// CHANGED, and then it is gone. Anything that has to remain true about the
+// actor is carried by the actor — smoke, sparks, a dead visor, a sheared
+// pauldron. A glyph that stays is a status icon, and a status icon is UI.
+//
+// NOT TEXT. Rendering `#?!` in the HUD font over an enemy puts a piece of the
+// interface into the world; these are authored pixel forms in the same
+// vocabulary as everything else here — chunky, black-outlined, no curves the
+// grid cannot say.
+//
+// THEY ARE PAINTED IN THE CAPTAIN'S OWN BONE, not in a new colour. Crimson is
+// Vader and every telegraph, green is enemy bullet colour, amber is arena
+// emergency power, cyan is screens: a reaction glyph has no business spending
+// any of those, and bone is already the Champion's rank plate, so the
+// punctuation reads as belonging to him.
+export function paintGrawlix(scene) {
+  const BONE = '#e6e0d0', HOT = '#ffffff', EDGE = '#08080c';
+
+  // One shared shape library, so a glyph is composed rather than hand-drawn
+  // twice. Each returns its own width so a cluster can be laid out by walking.
+  const S = {
+    hash(put, ox) {
+      // THE STROKES ARE SPACED FOR THEIR OWN OUTLINE. An earlier build put the
+      // verticals 2px apart with full-height fills and the black surround
+      // MERGED through every gap: the glyph photographed as a dark slab with
+      // bone shapes cut out of it, which is the opposite of punctuation. Two-
+      // pixel bars with three-pixel gaps, and single-pixel crossbars.
+      for (let y = 0; y <= 8; y++) {
+        const slant = y >= 5 ? 1 : 0;              // a lean, so it is not a grid
+        put(ox + 2 + slant, y); put(ox + 3 + slant, y);
+        put(ox + 7 + slant, y); put(ox + 8 + slant, y);
+      }
+      for (let x = 0; x <= 10; x++) { put(ox + x, 2); put(ox + x, 6); }
+      return 12;
+    },
+    bang(put, ox) {
+      for (let y = 0; y <= 5; y++) { put(ox, y); put(ox + 1, y); }
+      put(ox, 7); put(ox + 1, 7); put(ox, 8); put(ox + 1, 8);
+      return 4;
+    },
+    query(put, ox) {
+      [[1, 0], [2, 0], [3, 0], [4, 1], [4, 2], [3, 3], [2, 3], [2, 4], [2, 5],
+        [2, 7], [2, 8], [3, 7], [3, 8], [0, 1]].forEach(([x, y]) => put(ox + x, y));
+      return 6;
+    },
+    star(put, ox) {
+      // The impact mark. Radial rather than typographic: a hit is a burst, and
+      // a letter here would read as speech.
+      for (let y = 0; y <= 8; y++) { put(ox + 4, y); }
+      for (let x = 0; x <= 8; x++) { put(ox + x, 4); }
+      for (let i = 1; i <= 3; i++) {
+        put(ox + 4 - i, 4 - i); put(ox + 4 + i, 4 + i);
+        put(ox + 4 - i, 4 + i); put(ox + 4 + i, 4 - i);
+      }
+      return 10;
+    },
+  };
+
+  /**
+   * Paint one glyph cluster.
+   *
+   * THE OUTLINE IS DRAWN BY OFFSETTING THE WHOLE FORM, not per stroke: a black
+   * pass at the eight neighbours and then the fill on top. A glyph that has to
+   * read against a hangar deck, a dark cell wall AND a muzzle flash cannot rely
+   * on the background, and a one-pixel outline applied per stroke leaves gaps
+   * everywhere two strokes meet.
+   */
+  const glyph = (key, parts, scale = 3) => {
+    const marks = [];
+    let w = 0;
+    const measure = (x, y) => marks.push([x, y]);
+    parts.forEach((p) => { w += S[p](measure, w) + 1; });
+    const W = w + 1, H = 11;
+    const c = new PixelCanvas(scene, key, W, H, scale);
+    const at = new Set(marks.map(([x, y]) => `${x},${y + 1}`));
+    for (const m of at) {
+      const [x, y] = m.split(',').map(Number);
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!at.has(`${x + dx},${y + dy}`)) c.px(x + dx, y + dy, EDGE);
+        }
+      }
+    }
+    for (const m of at) {
+      const [x, y] = m.split(',').map(Number);
+      c.px(x, y, BONE);
+    }
+    // A hot top edge, so the form has a light on it rather than being flat ink.
+    for (const m of at) {
+      const [x, y] = m.split(',').map(Number);
+      if (!at.has(`${x},${y - 1}`)) c.px(x, y, HOT);
+    }
+    c.finish();
+  };
+
+  // FOUR, AND NO MORE. Every one of them is a different EVENT; a fifth would be
+  // a vocabulary the player has to learn rather than read.
+  glyph('glyph-break', ['hash', 'bang']);          // the armour gives
+  glyph('glyph-rage', ['hash', 'query', 'bang']);  // he is in trouble
+  glyph('glyph-impact', ['star']);                 // that one landed
+  glyph('glyph-alert', ['bang']);                  // he has the line again
+}
+
 export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
   const P = { ...CAPTAIN_PALETTE, ...(opts.palette || {}) };
   const BROKEN = !!opts.broken;

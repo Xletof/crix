@@ -121,7 +121,15 @@ const seam = await run('?nodlg=1&champdbg=interdictor', async (page) => page.eva
   };
 
   // AFTER act: exactly one hazard.
-  await wait(def.interdict.anticipateMs + 500);
+  //
+  // POLL FOR THE BEAT, DO NOT SLEEP FOR IT. `anticipateMs + 500` was generous
+  // on the machine this was written on and stopped being generous on a slower
+  // one — every seam check then failed with `hazards: 0` while the move was
+  // still in its wind-up, on a build where a direct probe showed the seam
+  // landing perfectly well a moment later. A fixed sleep against a Phaser
+  // TimerEvent in a ~9-20fps harness is a frame-rate meter, which is the
+  // trap `tests/README.md` opens with; waiting for the CONDITION cannot drift.
+  for (let i = 0; i < 80 && gs._hazards.length === 0; i++) await wait(100);
   const b = gs._hazards[0];
   const after = { hazards: gs._hazards.length, len: b?.len, width: b?.width };
 
@@ -182,7 +190,11 @@ const life = await run('?nodlg=1&champdbg=interdictor', async (page) => page.eva
     if (!c) c = gs.spawnChampion(gs.player.x + 420, gs.player.y);
     c._activeMove?.cancel?.();
     gs._castChampionMove(c, 'interdict');
-    await wait(def.interdict.anticipateMs + 600);
+    // POLL FOR THE SEAM, DO NOT SLEEP FOR IT — same reason as the act-beat wait
+    // above. `anticipateMs + 600` returned BEFORE the hazard existed on a
+    // slower machine, so `gs._hazards[0]` was `undefined` and every lifecycle
+    // check downstream reported a perfectly working seam as broken.
+    for (let i = 0; i < 80 && gs._hazards.length === 0; i++) await wait(100);
     return c;
   };
 

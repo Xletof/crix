@@ -856,18 +856,92 @@ asserts separately that the ceiling is not reached.
   is art inspection only. Two full implementations died at a handset on a
   question that costs one picture to answer. **The IMPERIAL SHOCK CAPTAIN
   PASSED that gate** — `HANDOVER.md` §10ag — and only then got a runtime.
-- **THE SHOCK CAPTAIN'S VISUAL GATE IS HUMAN-APPROVED ✅; ITS COMBATANT GATE IS
-  NOT — `HANDOVER.md` §10ag.** Phase B.2 is MOVEMENT + RIFLE + a one-shot
-  REACTIVE ARMOUR layer and nothing else. Do not add a signature ability, a
-  variant, a colourway, wave integration or a Nemesis replacement until the
-  handset says the ordinary combatant is already worth fighting — a signature
-  move added now would only hide the answer, which is what Phase B.1 proved
-  from the other direction. `?champdbg=1` spawns it; **normal Endless still
-  spawns no Champion of any kind.** The approved silhouette (helmet dome +
-  crest, narrow luminous visor, ONE asymmetric bone pauldron, reinforced chest,
-  kama, separated legs, compact back pack, two-handed rifle) is not open to
-  redesign during implementation; pixel refinements are allowed only where
-  animation needs clearer limb separation.
+- **THE SHOCK CAPTAIN'S COMBATANT FOUNDATION IS HUMAN-APPROVED AND FROZEN 🔒 —
+  `HANDOVER.md` §10ag, §10ah.** Frozen: the silhouette (helmet dome + crest,
+  narrow luminous visor, ONE asymmetric bone pauldron, reinforced chest, kama,
+  separated legs, compact back pack, two-handed rifle), the 112x120 hierarchy,
+  the walk and strafe cycles, the brace → fire → recoil structure, the 300-520
+  engagement band, advance / give ground / strafe, the three-round burst, the
+  two-layer reactive armour and `armourSpill`, and the anti-stunlock behaviour.
+  The notes below are how it works and how it breaks; **none of them is an
+  invitation to tune it.** Still NO signature ability, NO variants, NO
+  colourways, NO Nemesis replacement — and **normal Endless spawns no Champion
+  of any kind.**
+- **PHASE B.2.1 IS THE STATE LANGUAGE AND IT IS A CANDIDATE — `HANDOVER.md`
+  §10ah.** ONE RULE: **SYMBOL = TRANSITION, BODY / FX = SUSTAINED STATE.** A
+  glyph lives a few hundred ms to say something CHANGED and is then gone;
+  everything that must stay true is carried by the actor. **A glyph that
+  lingers is a status icon, and a status icon is UI standing in the world.**
+  Four glyphs, no more: armour break, low health, major hit, target reacquire.
+  **IT IS NOT A PHASE SYSTEM** — nothing in it touches fire rate, speed, damage
+  or the state machine, and `smoke-captain-state` measures a fresh and a badly
+  damaged Captain and pins identical speed, damage and median burst gap.
+- **EVERY REACTION READS AUTHORITATIVE STATE, AND THE MAJOR HIT REUSES THE
+  STAGGER THRESHOLD.** Armour from `armour` crossing zero, low health from the
+  body pool crossing `lowHealthFrac` DOWNWARD, the major hit from
+  `staggerMinDamage` — there is no second definition of "a big hit" and no
+  parallel state kept only for effects. A killing blow announces NOTHING: a
+  corpse does not say it is hurt, and the glyph queued by the same hit goes
+  with it. Discovered because a probe killed its own subject.
+- **EVERY EVENT-BASED EFFECT IS INVISIBLE MOST OF THE TIME, WHICH IS WHY THE
+  CAPTAIN CARRIES EMBERS.** The first low-health build was a puff every ~1.2s, a
+  spark every ~2s and a 90ms visor flicker, and it photographed as an
+  UNDAMAGED Captain — a still frame, and a player glancing at him, catch none of
+  them. `_drawEmbers` is the one mark that is ALWAYS TRUE: two small pulsing
+  embers, breathing rather than blinking. **If the glyph is the only thing that
+  ever said "damaged", the damage was UI.**
+- **`smokeTrail` IS THE MISSILE TRAIL AND IS THE WRONG EMITTER FOR A DAMAGED
+  BODY.** `missileSmoke` is `#3a3a44` at 0.45 alpha for 420ms — DARKER than the
+  `#212328` deck — and it works only because a missile lays dozens along a path.
+  One on a body is a dark speck. `fx.ventSmoke` / the `damageSmoke` emitter is
+  lighter than the deck, lives 1100ms and drifts upward. Its tint and alpha were
+  set by MEASURING against the deck value, not picked: at 0.5 over `#76767f` the
+  emitter was provably running and the effect was provably invisible.
+- **A PARTICLE EMITTER DEFAULTS TO DEPTH 0, UNDER THE WHOLE ACTOR BAND.** So
+  smoke emitted at a body's shoulder is drawn BEHIND that body and is invisible
+  exactly where it matters. `damageSmoke` sits at 1900 — above the band, below
+  `DEPTH.AIR` — which is the same flat-constant debt the draw-order note
+  already records, not a new convention.
+- **PUNCTUATION IS SEQUENCED, NEVER SIMULTANEOUS.** A Super over-committed into
+  a full-armour Captain breaks the layer AND crosses the health line in the same
+  call; two glyphs in one frame is soup and neither reads. `punctSpacingMs` is
+  the floor and the second simply waits. The queue is **DATA ticked on the
+  actor's own `_clock` in `preUpdate`, never `time.delayedCall`** — so there is
+  nothing to cancel on death, nothing that can fire into a destroyed scene, and
+  a paused scene cannot advance it.
+- **A GLYPH GOES OFF THE CENTRELINE AND CLEAR OF THE VISOR.** `fx.damageNumber`
+  spawns at `(x, y - 40)` and rises straight up, and the frame that causes a
+  reaction is exactly the frame that prints a number — so a mark over the helmet
+  shares a column with every hit label. And the visor is the fastest
+  identification on the body: nothing may crowd it, which is why the third
+  low-health ember was removed.
+- **A GLYPH'S STROKES ARE SPACED FOR ITS OWN OUTLINE.** It must read on a hangar
+  deck, a dark cell wall and a muzzle flash, so it carries a black surround —
+  and with 2px gaps that surround MERGES and the glyph photographs as a dark
+  slab with bone shapes cut out of it. Two-pixel bars, three-pixel gaps,
+  single-pixel crossbars. Painted in the Captain's own BONE, never a new colour:
+  crimson is Vader, green is bullets, amber is emergency power, cyan is screens.
+- **TARGET REACQUIRE WAS MEASURED BEFORE IT WAS BUILT.** In a real CROSSFIRE and
+  VANGUARD the Captain holds line of sight ~85% of frames and loses it about
+  twice per 22s for 0.5-3.4s, and in 21-34 of those frames he was READY TO FIRE
+  AND COULD NOT — a real engagement relationship, not an aim angle wobbling. A
+  break shorter than `acquireLostMs` is a doorway; `acquireCooldownMs` bounds
+  the rate. **Do not add a cosmetic flourish to AI state that does not exist —
+  probe it first.**
+- **THE DEBUG STATE TRIGGERS DRIVE THE REAL `damage()` PATH.** DEBUG → CHAMP:
+  BIG HIT / BREAK / LOW HEALTH size their numbers from the actor's own config
+  and invoke no reaction directly, so what you are looking at is what a player
+  would cause. They are no-ops with no Champion on the floor, which is the same
+  absence that keeps the actor out of production.
+- **A FIXED SLEEP AGAINST A PHASER TIMER IS A FRAME-RATE METER, AND IT WENT OFF
+  IN `smoke-champion`.** Its seam checks waited `anticipateMs + 500`, which was
+  generous on the machine they were written on and stopped being generous on a
+  slower one: seven checks failed with `hazards: 0` while a direct probe showed
+  the seam landing perfectly well a moment later, and the same too-short wait in
+  the helper made `_hazards[0]` `undefined` for every lifecycle check
+  downstream. **Poll for the CONDITION.** A/B against the stashed build before
+  believing any suite failure — this one reproduced identically on the committed
+  tree, which is what proved it was the instrument.
 - **AN ACTOR MAY DECLINE THE DEFAULT ANIMATION SELECTOR, AND THE CAPTAIN DOES.**
   `Enemy.preUpdate` picks idle/walk/fire/move-pose off the stock 33-frame
   contract; `_ownsAnim` (default false) turns that half off for an actor whose

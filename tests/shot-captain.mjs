@@ -56,6 +56,29 @@ const pause = (on) => page.evaluate((f) => {
   if (f) gs.scene.pause(); else gs.scene.resume();
 }, on);
 const shot = async (n) => { writeFileSync(`${OUT}/${n}.png`, await page.screenshot()); console.log('  ', n); };
+// A CROP OF THE 1x FRAME, NOT A ZOOM. The full portrait frame is the acceptance
+// authority and stays the deliverable; this is the same pixels, cut to the
+// square the reaction happens in, because judging a six-pixel ember by squinting
+// at a 720x1280 screenshot is how a sustained state gets approved while being
+// invisible. Nothing is scaled.
+const crop = async (n, w = 320, h = 320) => {
+  // THE SUBJECT MOVES BETWEEN THE SETUP AND THE SHUTTER — the scene runs for
+  // ~380ms across a reaction station and he walks. A fixed crop centre
+  // photographed empty deck. Solve for where he actually IS, through the same
+  // camera maths the game uses: the viewport is inset by the HUD's top bar.
+  const at = await page.evaluate(() => {
+    const gs = window.game.scene.getScene('Game');
+    const c = window.__cap;
+    if (!c?.scene) return null;
+    const cam = gs.cameras.main;
+    return { x: c.x - cam.scrollX, y: c.y - cam.scrollY + cam.y };
+  });
+  if (!at) return;
+  const x = Math.max(0, Math.min(720 - w, Math.round(at.x - w / 2)));
+  const y = Math.max(0, Math.min(1280 - h, Math.round(at.y - h / 2)));
+  writeFileSync(`${OUT}/${n}.png`, await page.screenshot({ clip: { x, y, width: w, height: h } }));
+  console.log('  ', n, '(crop)');
+};
 
 // ── THE ACTOR, IN THE REAL PIPELINE ───────────────────────────────────────
 // `spawnChampion` is the production-shaped path: same group, same wall
@@ -183,21 +206,65 @@ await station('06-recoil', new Function(`
   c2._cap = 'burst'; c2._shotFlashMs = 30; c2._wKick = 12; c2._round = 2; c2._roundGap = 160;
 `), 0);
 
-await station('07-heavy-hit', new Function(`
-  ${place}
-  gs.player.setPosition(700, 980);
-  c.setPosition(700, 620); c.setVelocity(0,0);
-  c._staggerCd = 0;
-  c.damage(900, { x: 0, y: -260 });
-`), 120);
+// ── THE REACTIONS ─────────────────────────────────────────────────────────
+// FREEZING THE TWEEN CLOCK FIRST DESTROYS THE THING IT IS MEANT TO PHOTOGRAPH,
+// and that cost a round. `11-muzzle-flash` works that way because the flash is
+// drawn at full alpha and then tweened OUT — stopping time preserves it. Every
+// reaction here is the opposite shape: the glyph is created at alpha 0 and
+// tweens IN over 90ms, and the discharge draws nothing until its first
+// `preUpdate`. With `tweens.timeScale = 0` the first frame is an invisible
+// glyph and an empty Graphics, which is exactly what the first sheet showed.
+//
+// So: drive the REAL damage path with the scene RUNNING, let the pop land, and
+// pause at ~160ms — after the glyph has arrived and while the 220ms discharge
+// is still on screen. `scene.pause()` stops the tween manager with everything
+// else, so the frame holds. Nothing is invoked directly; each station crosses
+// the same threshold a player would.
+const reaction = async (name, fire, settleMs = 160) => {
+  await page.evaluate(() => window.game.scene.getScene('Game').scene.resume());
+  await page.waitForTimeout(220);
+  await page.evaluate(fire);
+  if (settleMs) await page.waitForTimeout(settleMs);
+  await page.evaluate(() => {
+    const gs = window.game.scene.getScene('Game');
+    gs.cameras.main.resetFX();
+    gs._sectorTint?.setAlpha(0);
+    window.game.scene.getScene('HUD')?.hud?.banner?.setAlpha(0);
+    gs.scene.pause();
+  });
+  await page.waitForTimeout(250);
+  await shot(name);
+  await crop(`${name}-crop`);
+};
 
-await station('08-armour-break', new Function(`
-  ${place}
-  gs.player.setPosition(700, 980);
-  c.setPosition(700, 620); c.setVelocity(0,0);
-  c.armour = 120; c._staggerCd = 9999;
-  c.damage(3000, { x: 0, y: -120 });
-`), 100);
+const stage = `
+  const gs = window.game.scene.getScene('Game');
+  const c = window.__cap;
+  gs.arenaActive = false;
+  gs.enemies.getChildren().slice().forEach((e) => { if (e !== c) gs._destroyEnemyFully(e); });
+  gs.hostileBullets.forEach((g) => g.getChildren().forEach((b) => b.active && b.kill()));
+  gs.player.setPosition(700, 980); gs.player.hp = gs.player.hpMax;
+  c.setPosition(700, 620); c.setVelocity(0, 0);
+  c._aim = Math.PI / 2;
+  gs.cameras.main.stopFollow?.();
+  gs.cameras.main.setScroll(700 - gs.cameras.main.width / 2, 800 - gs.cameras.main.height / 2);
+`;
+
+await reaction('07-major-hit', new Function(`
+  ${stage}
+  c._staggerCd = 0; c._impactGlyphCd = 0; c._punctFreeAt = 0;
+  c.damage(c.def.staggerMinDamage * 1.6, { x: 0, y: -280 });
+`));
+
+await reaction('08-armour-break', new Function(`
+  ${stage}
+  c.armour = c.armourMax; c.armourBroken = false;
+  c.setTexture('champ-captain'); c._animPrefix = 'captain';
+  c._staggerCd = 0; c._punctFreeAt = 0;
+  // Overkill, so the SPILL path runs too — the break a Super causes, not a
+  // special case sized to look good.
+  c.damage(c.armour / c.def.armourTake + 900, { x: 0, y: -160 });
+`));
 
 await station('09-damaged-state', new Function(`
   ${place}
@@ -295,8 +362,114 @@ await page.evaluate(() => {
 await page.waitForTimeout(300);
 await shot('12-intact-vs-broken');
 
+// ── 13. THE LOW-HEALTH TRANSITION ─────────────────────────────────────────
+await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  gs.scene.resume(); gs.tweens.timeScale = 1; gs.physics.world.resume();
+  gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
+  gs.arenaActive = false;
+  gs.player.setPosition(700, 980); gs.player.hp = gs.player.hpMax;
+  const c = gs.spawnChampion(700, 620, 'captain');
+  window.__cap = c;
+  c._aim = Math.PI / 2;
+  c.armour = 1; c._staggerCd = 9999;
+  c.damage(600, null);                       // take the layer off first
+});
+await page.waitForTimeout(600);
+await reaction('13-low-health-moment', () => {
+  const gs = window.game.scene.getScene('Game');
+  const c = window.__cap;
+  c.setPosition(700, 620); c.setVelocity(0, 0); c._aim = Math.PI / 2;
+  gs.arenaActive = false;
+  gs.cameras.main.stopFollow?.();
+  gs.cameras.main.setScroll(700 - gs.cameras.main.width / 2, 800 - gs.cameras.main.height / 2);
+  // One ordinary hit ACROSS the line, not a flag set behind the mechanic.
+  c._punctFreeAt = 0;
+  c.hp = c.hpMax * c.def.lowHealthFrac + 120;
+  c.damage(200, null);
+});
+
+// ── 14. AND WHAT REMAINS AFTER THE SYMBOL IS GONE ─────────────────────────
+// THE WHOLE CLAIM OF THIS LAYER IS HERE. If the glyph is the only thing that
+// ever said "damaged", then the damage was UI. Let the transition finish, then
+// photograph him doing nothing in particular.
+await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  gs.scene.resume(); gs.tweens.timeScale = 1; gs.physics.world.resume();
+  const c = window.__cap;
+  c._cap = 'brace'; c._stateMs = 9e9; c._fireCd = 9e9;
+  c.setPosition(700, 620); c.setVelocity(0, 0); c._aim = Math.PI / 2;
+});
+// Long enough that no punctuation survives and a smoke puff has landed.
+await page.waitForTimeout(2400);
+await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  const c = window.__cap;
+  c.setPosition(700, 620); c.setVelocity(0, 0);
+  gs.cameras.main.stopFollow?.();
+  gs.cameras.main.setScroll(700 - gs.cameras.main.width / 2, 800 - gs.cameras.main.height / 2);
+  gs.cameras.main.resetFX();
+  window.game.scene.getScene('HUD')?.hud?.banner?.setAlpha(0);
+  gs.scene.pause();
+});
+await page.waitForTimeout(250);
+await shot('14-low-health-sustained');
+await crop('14-low-health-sustained-crop');
+// TWICE, HALF A SECOND APART. The sustained half is deliberately intermittent —
+// a vent every 0.4-0.8s against an 1100ms lifespan — so a single shutter can
+// land between puffs and report a working effect as absent. Two frames is the
+// honest way to photograph something that is present over TIME.
+await page.evaluate(() => window.game.scene.getScene('Game').scene.resume());
+await page.waitForTimeout(520);
+await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  const c = window.__cap;
+  c.setPosition(700, 620); c.setVelocity(0, 0);
+  gs.cameras.main.stopFollow?.();
+  gs.cameras.main.setScroll(700 - gs.cameras.main.width / 2, 800 - gs.cameras.main.height / 2);
+  gs.cameras.main.resetFX();
+  window.game.scene.getScene('HUD')?.hud?.banner?.setAlpha(0);
+  gs.scene.pause();
+});
+await page.waitForTimeout(250);
+await crop('14b-low-health-sustained-crop');
+
+// ── 15. AND IN THE CLUTTER IT HAS TO SURVIVE ──────────────────────────────
+await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  gs.scene.resume(); gs.tweens.timeScale = 1; gs.physics.world.resume();
+  const c = window.__cap;
+  gs.arenaActive = false;
+  gs.player.setPosition(640, 1000);
+  c.setPosition(700, 640); c.setVelocity(0, 0); c._aim = Math.PI / 2;
+  [[430, 560], [570, 490], [880, 530], [980, 690], [520, 770], [900, 830]].forEach(([x, y], i) => {
+    const e = gs.spawnEnemyAt(i % 2 ? 'shooter' : 'grunt', x, y);
+    if (e) { e.fireCd = 1e9; e.state = 1; }
+  });
+});
+await page.waitForTimeout(1400);
+await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  const c = window.__cap;
+  c.setPosition(700, 640); c.setVelocity(0, 0);
+  c._staggerCd = 0; c._impactGlyphCd = 0; c._punctFreeAt = 0;
+  c.damage(c.def.staggerMinDamage * 1.5, { x: 0, y: -240 });
+  gs.cameras.main.stopFollow?.();
+  gs.cameras.main.setScroll(700 - gs.cameras.main.width / 2, 800 - gs.cameras.main.height / 2);
+});
+await page.waitForTimeout(170);
+await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  gs.cameras.main.resetFX();
+  window.game.scene.getScene('HUD')?.hud?.banner?.setAlpha(0);
+  gs.scene.pause();
+});
+await page.waitForTimeout(250);
+await shot('15-reaction-in-crowd');
+
 const state = await page.evaluate(() => {
-  const c = window.__pair ? window.__pair[1] : window.__cap;
+  const c = window.__cap;
+  if (!c?.scene) return { note: 'subject retired' };
   return { hp: Math.round(c.hp), hpMax: c.hpMax, armour: Math.round(c.armour),
     broken: c.armourBroken, prefix: c._animPrefix, tex: c.texture.key,
     anim: c.anims.currentAnim?.key };

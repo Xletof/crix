@@ -64,3 +64,33 @@ The arena is quieted at every station and ONLY the arena: the drip and other
 enemies' fire are off, because a trooper bolt crossing the frame and a damage
 number over the subject are not evidence about the subject. The Captain's body,
 pose, facing, weapon and FX are whatever the live code produces.
+
+---
+
+## PHASE B.2.1 — combat personality (`b21/`)
+
+The combatant foundation is human-approved and frozen; `HANDOVER.md` `§10ah` is
+the record. This pass adds the STATE LANGUAGE, on one rule:
+
+> **SYMBOL = TRANSITION. BODY / FX = SUSTAINED STATE.**
+
+    npm run dev
+    node tests/shot-captain.mjs b21        # frames
+    node tests/diag-captain.mjs crossfire hangar   # the loop, measured
+
+| frame | what it shows |
+|---|---|
+| `07-major-hit` | a blow big enough to move him — the same threshold the stagger uses |
+| `08-armour-break` | the moment: ring, shards, discharge, flinch, `#!` |
+| `13-low-health-moment` | `#?!`, beside the damage number rather than under it |
+| `14` / `14b-low-health-sustained` | **the claim of the whole layer** — the symbol is gone and the body still says damaged |
+| `15-reaction-in-crowd` | and it survives the clutter it has to live in |
+| `*-crop` | the same 1x pixels cut to the square the reaction happens in — nothing is scaled |
+
+**THE CROPS ARE NOT ZOOMS.** The full portrait frame stays the acceptance
+authority; a crop exists because judging a six-pixel ember by squinting at a
+720x1280 screenshot is how a sustained state gets approved while being invisible.
+
+`14` and `14b` are half a second apart on purpose: the sustained half is
+intermittent by design, so a single shutter can land between vents and report a
+working effect as absent.

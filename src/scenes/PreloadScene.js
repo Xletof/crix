@@ -9,6 +9,7 @@ import {
   paintHarrower,
   paintShockCaptain,
   paintCaptainRifle,
+  paintGrawlix,
   CAPTAIN_FRAMES,
   paintBoss,
   paintConsole,
@@ -100,6 +101,10 @@ export class PreloadScene extends Phaser.Scene {
     paintShockCaptain(this, 'champ-captain');
     paintShockCaptain(this, 'champ-captain-broken', { broken: true });
     paintCaptainRifle(this, 'wpn-captain');
+    // COMBAT PUNCTUATION. Four glyphs, each a different EVENT — see
+    // `paintGrawlix`. They are transition markers with a lifetime measured in
+    // hundreds of milliseconds, never status icons.
+    paintGrawlix(this);
     paintBoss(this);
     // Nemesis bodies — 32x32, purpose-drawn for the size they actually render
     // at. See the note above paintNemesisSheet for why the trooper art could

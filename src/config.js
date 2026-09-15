@@ -1769,6 +1769,54 @@ export const CHAMPION = {
     // Interdictor. It is the visor, the weapon core, the bolt and the ground
     // ring, so all four say the same thing.
     color: 0x4fc3ff,
+
+    // ── COMBAT PERSONALITY — PHASE B.2.1 ───────────────────────────────────
+    //
+    // SYMBOL = TRANSITION, BODY = SUSTAINED STATE. Everything below is one of
+    // those two halves and nothing is both: a glyph exists for a few hundred ms
+    // to say something CHANGED and is then gone, and anything that has to stay
+    // true about him is carried by the actor. A glyph that lingers is a status
+    // icon, and a status icon is UI standing in the world.
+    //
+    // IT IS NOT A PHASE SYSTEM. Nothing here touches fire rate, speed, damage
+    // or the move set. A low-health Captain LOOKS pressured and fights exactly
+    // the same — turning this into a berserk phase is a separate decision that
+    // has not been made.
+    //
+    // A downward crossing of the BODY pool, fired once. Independent of the
+    // armour: the layer can break at full health and he can reach this with the
+    // layer already gone.
+    lowHealthFrac: 0.30,
+    // Transitions are SEQUENCED, never simultaneous. Two glyphs in one frame is
+    // effect soup and neither reads; the second waits this long.
+    punctSpacingMs: 340,
+    punctRiseMs: 620,
+    // The MAJOR HIT reaction rides the stagger threshold that already exists
+    // (`staggerMinDamage`) rather than inventing a second definition of "big".
+    // Its GLYPH has its own, longer floor: the stagger may fire every 1.6s
+    // under heavy fire and a mark that often is punctuation becoming weather.
+    impactGlyphMs: 3200,
+    // ── SUSTAINED DAMAGE — small and intermittent, by construction ─────────
+    // MEASURED, not guessed: at [900, 1600] a still frame caught a puff about
+    // one time in six and the damaged state photographed as an undamaged one.
+    // A WISP, NOT A PUFF SCHEDULE. At [900, 1600] a still frame caught smoke
+    // about one time in six and the damaged state photographed as an undamaged
+    // one. Two particles every ~600ms against an 1100ms lifespan keeps three or
+    // four in the air at once — which is a body venting, and is still nowhere
+    // near the continuous cloud §9 forbids.
+    wearSmokeMs: [420, 780],
+    wearSparkMs: [900, 1900],
+    wearFlickerMs: [1500, 2800],
+    wearFlickerHoldMs: 90,
+    // ── TARGET REACQUIRE ──────────────────────────────────────────────────
+    // MEASURED BEFORE IT WAS BUILT. In a real CROSSFIRE and a real VANGUARD the
+    // Captain holds line of sight ~85% of frames and loses it about twice per
+    // 22s, for 0.5-3.4s at a time — and in 21-34 of those frames it was ready to
+    // fire and could not, which is a genuine engagement relationship being lost
+    // and regained rather than an aim angle wobbling. A loss shorter than
+    // `acquireLostMs` is a doorway, not a break.
+    acquireLostMs: 700,
+    acquireCooldownMs: 2600,
   },
 
   interdictor: {

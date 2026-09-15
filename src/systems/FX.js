@@ -490,6 +490,30 @@ export const SFX = {
     tone({ freq: 1500, type: 'square', dur: 0.10, gain: 0.13, slide: -520 });
     tone({ freq: 210, type: 'sawtooth', dur: 0.30, gain: 0.16, slide: -70 });
   },
+  /**
+   * THE SHOCK CAPTAIN'S ARMOUR GIVING WAY.
+   *
+   * A plate failing, not a weapon firing and not a boss phase: a hard ceramic
+   * crack, a short electrical discharge behind it, and a low body thump so the
+   * moment has weight as well as brightness. Carried by its UPPER partials —
+   * handset speakers have almost no output below ~400Hz, so the crack has to
+   * live where the phone can actually reproduce it.
+   */
+  captainArmourBreak() {
+    noise({ dur: 0.09, gain: 0.26, hp: 1600 });                       // the crack
+    tone({ freq: 2100, type: 'square', dur: 0.07, gain: 0.12, slide: -1300 });
+    tone({ freq: 1150, type: 'sawtooth', dur: 0.20, gain: 0.10, slide: -640, delay: 0.03 });
+    noise({ dur: 0.22, gain: 0.10, hp: 700, delay: 0.04 });           // the discharge
+    tone({ freq: 160, type: 'sine', dur: 0.24, gain: 0.16, slide: -60 });
+  },
+  /**
+   * A blow big enough to move him. Short and dull — it is a body reaction, and
+   * it must not compete with the shot that caused it.
+   */
+  captainHeavyHit() {
+    noise({ dur: 0.07, gain: 0.16, hp: 1100 });
+    tone({ freq: 320, type: 'sawtooth', dur: 0.13, gain: 0.13, slide: -170 });
+  },
   champPurge() {
     noise({ dur: 0.26, gain: 0.24, hp: 420 });
     tone({ freq: 620, type: 'sawtooth', dur: 0.22, gain: 0.18, slide: -420 });
@@ -1841,6 +1865,36 @@ export function attachFX(scene) {
       quantity: 0,
       emitting: false,
     }),
+    // ── DAMAGE SMOKE — NOT THE MISSILE TRAIL ───────────────────────────────
+    //
+    // `missileSmoke` is #3a3a44 at 0.45 alpha for 420ms, and it works because a
+    // missile lays DOZENS of them along a path. One of those on a damaged actor
+    // is a dark speck on a #212328 deck for four tenths of a second: the first
+    // build of the Shock Captain's low-health state used it and photographed as
+    // nothing at all. This one is lighter than the deck, lives twice as long and
+    // drifts UPWARD, so a single puff is legible on its own.
+    //
+    // DEPTH 1900, which is the flat-constant debt the draw-order note already
+    // records: particles default to 0, under the whole y-sorted actor band, so
+    // smoke emitted at a body's shoulder is drawn BEHIND that body and is
+    // invisible exactly where it matters. Above the band and below `DEPTH.AIR`
+    // is the honest compromise until that debt is paid properly.
+    damageSmoke: scene.add.particles(0, 0, 'spark', {
+      lifespan: 1100,
+      speed: { min: 8, max: 24 },
+      angle: { min: 236, max: 304 },        // up, with a spread
+      scale: { start: 1.5, end: 0.25 },
+      // MEASURED AGAINST THE DECK, NOT PICKED. At 0.5 alpha over #76767f a live
+      // puff was two 24px particles sitting a hair above the #212328 floor
+      // value and could not be told from it in a still frame — the emitter was
+      // provably running and the effect was provably invisible. Lighter and a
+      // little more opaque is still a wisp: two particles at a time, gone in
+      // 1.1s, against an actor 112px wide.
+      alpha: { start: 0.62, end: 0 },
+      tint: [0x8e8e98, 0xb0b0ba],
+      quantity: 0,
+      emitting: false,
+    }).setDepth(1900),
     // Ambient floor motes — slow-drifting airborne particulate emitted across
     // the visible viewport. Kills the "static board" flatness without needing
     // a new parallax background layer. Drift direction = global wind.
@@ -1915,6 +1969,17 @@ export function attachFX(scene) {
     smokeTrail(x, y) {
       if (lowQuality) return;
       this.missileSmoke.emitParticleAt(x, y, 1);
+    },
+
+    /**
+     * A damaged machine venting. Deliberately a HANDFUL per call rather than a
+     * stream: the sustained half of a state language has to be small per event
+     * and merely PRESENT over time, because this actor fights inside CROSSFIRE
+     * with player FX and damage numbers over the same square metre.
+     */
+    ventSmoke(x, y, n = 3) {
+      if (lowQuality) return;
+      this.damageSmoke.emitParticleAt(x, y, n);
     },
 
     // Bright sparkle burst when grabbing a pickup — flings 12 yellow specks.

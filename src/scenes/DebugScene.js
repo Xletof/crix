@@ -186,6 +186,24 @@ export class DebugScene extends Phaser.Scene {
     this._button(cx, y, 'LOAD DETENTION BLOCK', () => this._loadDetention(), 420);
     y += row;
 
+    // ── CHAMPION STATE TRIGGERS — debug-only, and they MANUFACTURE NOTHING ──
+    //
+    // The Phase B.2.1 reactions fire on real thresholds: the armour crossing
+    // zero, the body pool crossing its fraction, a hit big enough to stagger.
+    // Reaching those honestly on a phone costs minutes per look, which is the
+    // same round trip that shipped Vader mistuned twice. These buttons drive
+    // the REAL `damage()` path with real numbers — no reaction is invoked
+    // directly and no state is set behind the mechanic's back, so what you are
+    // looking at is what a player would cause.
+    //
+    // They are no-ops with no Champion on the floor, and there is no Champion
+    // on the floor without `?champdbg=1`.
+    this._button(cx - half, y, 'CHAMP: BIG HIT', () => this._champHit(), 280);
+    this._button(cx + half, y, 'CHAMP: BREAK', () => this._champBreak(), 280);
+    y += row;
+    this._button(cx, y, 'CHAMP: LOW HEALTH', () => this._champLow(), 420);
+    y += row;
+
     this.sectorBtn = this._button(cx - half, y, this._sectorLabel(), () => {
       this._cycleSector();
       this._syncLabels();
@@ -372,6 +390,55 @@ export class DebugScene extends Phaser.Scene {
    * sector IS choosing the encounter — his hp, his intake cap and which
    * mechanics he has all follow from that one number.
    */
+  /** The living Champion, or null. One lookup, three buttons. */
+  _champ() {
+    return this.gs?.enemies?.getChildren().find((e) => e.alive && e.isChampion) ?? null;
+  }
+
+  /**
+   * A blow over the stagger threshold, through the real damage path.
+   *
+   * Sized from the actor's own `staggerMinDamage` rather than a literal, so it
+   * stays a "major hit" if that number ever moves.
+   */
+  _champHit() {
+    const c = this._champ();
+    if (!c) return;
+    const a = c._aim ?? 0;
+    const amt = (c.def?.staggerMinDamage ?? 260) * 1.4;
+    c.damage(amt, { x: Math.cos(a + Math.PI) * 220, y: Math.sin(a + Math.PI) * 220 });
+    this._close();
+  }
+
+  /**
+   * Enough to take the armour off in one commitment, with overkill — so the
+   * SPILL path runs too and the break is the one a Super would cause rather
+   * than a special case.
+   */
+  _champBreak() {
+    const c = this._champ();
+    if (!c || c.armourBroken) return;
+    const need = (c.armour / (c.def?.armourTake ?? 1)) + 900;
+    c.damage(need, null);
+    this._close();
+  }
+
+  /**
+   * Put the body one ordinary hit above the low-health line and then land it,
+   * so the CROSSING happens rather than the flag being set. If the armour is
+   * still up it is taken off first — the line is a body threshold and the layer
+   * would otherwise eat the hit.
+   */
+  _champLow() {
+    const c = this._champ();
+    if (!c) return;
+    if (!c.armourBroken) this._champBreak();
+    const line = c.hpMax * (c.def?.lowHealthFrac ?? 0.3);
+    c.hp = Math.min(c.hp, line + 140);
+    c.damage(200, null);
+    this._close();
+  }
+
   _spawnVader() {
     if (!this.gs?.spawnBoss) return;
     const p = this._player();

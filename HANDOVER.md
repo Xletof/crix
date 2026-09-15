@@ -180,41 +180,40 @@ sufficient to create meaningfully different fights.
 rules, the sector bands or the pressure multipliers without NEW handset
 evidence. `?encdbg=1` stays as the evaluation harness.
 
-### THE CHAMPION TIER — THE SHOCK CAPTAIN CLEARS THE VISUAL GATE ✅
+### THE SHOCK CAPTAIN — COMBATANT FOUNDATION HUMAN-APPROVED / FROZEN 🔒
 
-**Two candidates were rejected on CATEGORY before this one.** INTERDICTOR and
-HARROWER — one that never moved, one that never stopped — came back from the
-handset in the same word, *bot*. `§10af` is the two-candidate post-mortem, the
-seven causes and the Champion doctrine that came out of them. The short version:
-both started from a MECHANIC and found a body for it afterwards, so both
-produced a delivery device whose content was on the floor; and the gates ran in
-the wrong order, so two full implementations died on a question that costs one
-picture to answer.
+**Two candidates were rejected on CATEGORY before this one** — INTERDICTOR and
+HARROWER, one that never moved and one that never stopped, both returned in the
+same word, *bot*. `§10af` is the two-candidate post-mortem, the seven causes and
+the Champion doctrine. The short version: both began from a MECHANIC and found a
+body for it afterwards, and the gates ran in the wrong order.
 
-**THE IMPERIAL SHOCK CAPTAIN'S VISUAL / FANTASY GATE IS HUMAN-APPROVED ✅** —
-*"I like the design of this. If supplied with good, crisp animations and effects
-it could be very good."* Bipedal, humanoid, armed, crested helmet, narrow blue
-visor, one asymmetric bone command pauldron, kama, separated legs, a two-handed
-heavy repeater. `§10ag` records the approval and its reasons, and the two known
-weaknesses kept as polish notes (arm separation; the rifle's specific outline).
+**THE VISUAL / FANTASY GATE PASSED (`§10ag`), THEN THE COMBAT GATE PASSED
+(`§10ah`).** Handset review: it reads as a Champion, the silhouette survives real
+waves, the movement reads as locomotion rather than sliding, the strafe works,
+brace/burst/recoil is readable, it is dangerous with no signature ability, the
+reactive armour buys enough time to experience the fight, and it is
+*dramatically better than both rejected prototypes*.
 
-**THE COMBATANT GATE IS A CANDIDATE AND IS NOT APPROVED.** Phase B.2 is
-MOVEMENT + RIFLE + a one-shot REACTIVE ARMOUR layer and nothing else — no
-signature ability, no variants, no progression, no wave integration, no Nemesis
-replacement. It asks one question: *is the Shock Captain already a good
-combatant with just those three?* If the answer is no, a signature move would
-only hide it, which is exactly what Phase B.1 proved from the other direction.
+**WHAT IS FROZEN** — the silhouette, the 112x120 hierarchy, the walk and strafe
+cycles, the brace → fire → recoil structure, the 300-520 engagement band, the
+advance / give ground / strafe logic, the three-round burst, the two-layer
+reactive armour and `armourSpill`, the anti-stunlock behaviour, debug-only
+injection, and Phase A. `§10ah` lists it; do not reopen any of it without a real
+regression forcing the issue.
 
-`?champdbg=1` spawns it; `?champdbg=harrower` / `?champdbg=interdictor` still
-reach the two rejected prototypes for a side-by-side, and anything unrecognised
-falls back to the Captain. **NORMAL ENDLESS SPAWNS NONE** — no encounter-pool
-entry, no `_rollEnemyType` branch, no chance roll — and Nemesis is untouched.
-`smoke-captain` (38 checks) asserts that in both directions.
+**PHASE B.2.1 — COMBAT PERSONALITY — IS A CANDIDATE AND IS NOT APPROVED.** The
+Captain had mechanical states and did not visibly EXPERIENCE them. The state
+language runs on one rule: **SYMBOL = TRANSITION, BODY / FX = SUSTAINED STATE.**
+Four glyphs (armour break, low health, major hit, target reacquire), each fired
+by authoritative gameplay state; the body then carries the consequence — a
+sheared pauldron, a dead visor, embers, venting smoke. It is **not** a phase
+system: a damaged Captain fights with identical speed, damage and cadence, and
+`smoke-captain-state` asserts exactly that.
 
-**THE VISUAL / FANTASY GATE IS PERMANENTLY FIRST NOW, AND IT IS A HUMAN GATE.**
-No entity file, no move, no test and no deploy for any future Champion until a
-human has looked at a 1x concept sheet on a real arena floor and said so.
-Evidence for both gates is under `docs/evidence/champion-reset/`.
+**Still no signature ability, no variants, no Nemesis replacement. Normal
+Endless spawns no Champion of any kind.** `?champdbg=1` spawns the Captain;
+DEBUG carries three state triggers that drive the real `damage()` path.
 
 ### The recommended next area of work
 
@@ -5844,6 +5843,237 @@ default is how a handset session ends up reviewing the wrong actor.
 **NORMAL ENDLESS SPAWNS NONE.** No encounter-pool entry, no `_rollEnemyType`
 branch, no chance roll: the only path is `_maybeInjectChampion`, which returns
 immediately without the flag. `smoke-captain` asserts that in both directions.
+
+---
+
+## 10ah. THE SHOCK CAPTAIN — the combatant foundation freezes, and gets a state language
+
+**COMBATANT FOUNDATION: HUMAN-APPROVED / FROZEN 🔒.**
+**COMBAT PERSONALITY (Phase B.2.1): CANDIDATE — NOT APPROVED.**
+
+### THE VERDICT ON THE FOUNDATION
+
+Handset combat review closed the Phase B.2 build: it reads as a Champion, the
+silhouette survives real waves, the movement reads as locomotion rather than
+sliding, the lateral strafe works, brace/burst/recoil is readable, it is
+dangerous with no signature ability, the repositioning is credible, the reactive
+armour buys enough time to experience the fight, and it is *dramatically better
+than both rejected prototypes*.
+
+**WHAT IS FROZEN.** Do not reopen any of it without a real regression forcing
+the issue:
+
+- the approved silhouette — helmet dome + crest, narrow luminous visor, ONE
+  asymmetric bone command pauldron, reinforced chest, kama, separated legs,
+  compact back pack, two-handed heavy rifle;
+- the 1x hierarchy: 112x120 against grunt 80, player 96, Vader 160;
+- the dedicated walk cycle and the dedicated strafe cycle;
+- the brace -> fire -> recoil body structure;
+- the 300-520 medium-range engagement concept and the advance / give ground /
+  strafe logic;
+- the three-round heavy burst;
+- the two-layer reactive-armour survivability and `armourSpill`;
+- the anti-stunlock behaviour;
+- debug-only Champion injection, and Phase A encounters.
+
+**Still no signature ability. Still no variants. Still no Nemesis
+replacement. Normal Endless still spawns no Champion of any kind.**
+
+### WHAT WAS MISSING — mechanical states without character reaction
+
+The Captain HAD states and did not visibly EXPERIENCE them. The correction is a
+state language, on one rule:
+
+> **SYMBOL = TRANSITION. BODY / FX = SUSTAINED STATE.**
+
+A glyph lives a few hundred milliseconds to announce that something CHANGED and
+is then gone. Everything that has to stay true about him is carried by the
+actor. A glyph that lingers is a status icon, and a status icon is UI standing
+in the world.
+
+**IT IS NOT A PHASE SYSTEM.** Nothing in this pass touches fire rate, speed,
+damage or the state machine; `smoke-captain-state` measures a fresh and a badly
+damaged Captain and asserts identical speed, identical damage and the same
+median in-burst gap. A low-health Captain LOOKS pressured and fights exactly the
+same. Making that a berserk phase is a separate decision that has not been made.
+
+### THE VOCABULARY — four glyphs, and no more
+
+`paintGrawlix` in `pixelArt.js`. Authored pixel forms, never text in the HUD
+font: rendering `#?!` in a UI typeface over an enemy puts a piece of the
+interface into the world.
+
+| glyph | event | source of truth |
+|---|---|---|
+| `#!` | the armour gives | `armour` crossing zero |
+| `#?!` | he is in trouble | body hp crossing `lowHealthFrac` downward |
+| burst | that one landed | the SAME threshold the stagger uses |
+| `!` | he has the line again | real line of sight, regained |
+
+**PAINTED IN THE CAPTAIN'S OWN BONE**, not a new colour. Crimson is Vader and
+every telegraph, green is enemy bullet colour, amber is arena emergency power,
+cyan is screens; bone is already his rank plate, so the punctuation reads as
+belonging to him.
+
+**THE STROKES ARE SPACED FOR THEIR OWN OUTLINE.** A glyph has to read against a
+hangar deck, a dark cell wall and a muzzle flash, so it carries a black
+surround — and the first build put the hash verticals two pixels apart with
+full-height fills, so that surround MERGED through every gap and the glyph
+photographed as a dark slab with bone shapes cut out of it. Two-pixel bars,
+three-pixel gaps, single-pixel crossbars.
+
+**OFF THE CENTRELINE, DELIBERATELY.** `fx.damageNumber` spawns at `(x, y - 40)`
+and rises straight up, and the frame that causes a reaction is exactly the frame
+that also prints a number. The glyph is pushed to the side and held lower than
+the label's arc so the two read as two things.
+
+### THE SUSTAINED HALF — and the failure it was built against
+
+**EVERY EVENT-BASED EFFECT IS INVISIBLE MOST OF THE TIME.** The first build's
+low-health state was a smoke puff every ~1.2s, a spark every ~2s and a 90ms
+visor flicker — and it photographed as an *undamaged* Captain, because a still
+frame (and a player glancing at him) catches none of them. If the glyph is the
+only thing that ever said "damaged", the damage was UI.
+
+So there is **one mark that is always true**: `_drawEmbers`. Two small pulsing
+embers — one at the shear where the pauldron went, one on the body once the
+health line is crossed — six pixels of dull heat, breathing rather than
+blinking. Restrained enough that a damaged Captain still reads as a Captain,
+present enough that he never reads as a fresh one. Not arena amber and not
+Vader's crimson: a low, desaturated ember with a white core, which is what hot
+damaged metal looks like and is a colour no system here has claimed.
+
+Around it, three independent slow clocks rather than one — a single emitter at
+any rate reads as a machine ticking; three unrelated ones read as a body
+failing:
+
+    armour broken   sparks at the shear, every 0.9-1.9s
+    low health      a venting wisp every 0.4-0.8s, and a visor that cannot hold
+    both            still three small things
+
+**`smokeTrail` IS THE WRONG EMITTER AND `ventSmoke` EXISTS BECAUSE OF IT.**
+`missileSmoke` is `#3a3a44` at 0.45 alpha for 420ms — DARKER than the `#212328`
+deck — and it works for a missile because a missile lays dozens of them along a
+path. One of those on a body is a dark speck for four tenths of a second.
+`damageSmoke` is lighter than the deck, lives 1100ms and drifts upward, so a
+single puff is legible on its own.
+
+**AND IT IS DRAWN AT DEPTH 1900, WHICH IS THE FLAT-CONSTANT DEBT AGAIN.**
+Particles default to depth 0, under the whole y-sorted actor band — so smoke
+emitted at a body's shoulder is drawn BEHIND that body and is invisible exactly
+where it matters. Above the band and below `DEPTH.AIR` is the honest compromise
+until that debt is paid properly.
+
+### THE ARMOUR BREAK — five things, in the order they physically happen
+
+The mechanic was already right; what it lacked was weight. All of it is ACTOR
+SCALE — this is a plate failing, not a boss phase, so there is no screen flash
+and nothing that stops the player reading the fight around him.
+
+1. a hard white ring at his own depth, tight;
+2. shards thrown FROM the shoulder that lost its plate and AWAY from it, so the
+   debris says which piece went;
+3. a short electrical discharge in his own blue — one Graphics, redrawn each
+   frame from his LIVE position, so it cannot be stranded where he used to be;
+4. the flinch: the stagger pose and its cooldown, taken deliberately rather than
+   waiting for the damage threshold to happen to be met;
+5. the punctuation, last, on the sequencing queue.
+
+Plus `SFX.captainArmourBreak` — a ceramic crack, a discharge behind it and a low
+body thump, carried by its upper partials because handset speakers have almost
+no output below ~400Hz.
+
+### SEQUENCING — two marks in one frame is soup
+
+A Super over-committed into a full-armour Captain breaks the layer AND crosses
+the health line in the SAME call. `punctSpacingMs` (340) is the floor between
+glyphs and the second simply waits; `smoke-captain-state` fires exactly that hit
+and asserts both arrive, in order, that far apart.
+
+**A KILLING BLOW ANNOUNCES NOTHING.** Found by that probe killing its own
+subject: a corpse must not say it is hurt, and the glyph queued by the same hit
+goes with it.
+
+### TARGET REACQUIRE — measured before it was built
+
+The brief's own instruction was not to manufacture AI state for a flourish, so
+the question was answered with an instrument first. In a real CROSSFIRE and a
+real VANGUARD the Captain holds line of sight **~85% of frames** and loses it
+**about twice per 22 seconds**, for **0.5-3.4s** at a time — and in **21-34** of
+those frames he was READY TO FIRE AND COULD NOT. That is a genuine engagement
+relationship being lost and regained, not an aim angle wobbling, so the
+transition is real and earns a mark. Two gates keep it from becoming noise: a
+break shorter than `acquireLostMs` (700) is a doorway rather than a loss, and
+`acquireCooldownMs` (2600) bounds the rate whatever the geometry does.
+
+### NO TIMERS, AND ONE OWNER
+
+The punctuation queue is DATA ticked in `preUpdate` on the actor's own `_clock`,
+not `time.delayedCall`. There is nothing to cancel on death, nothing that can
+fire into a destroyed scene, and a paused scene cannot advance it.
+`_clearReactions` kills the attached objects and their tweens together, and runs
+from `die()`, `destroy()` and the dead branch of `preUpdate`.
+`smoke-captain-state` tears the room down mid-flight — with a glyph still rising
+and the ember Graphics being redrawn every frame — and asserts nothing survives.
+
+### THE RIFLE POLISH
+
+- **the kick is 19, not 14**, and it is the kick that reads at 1x inside a
+  crowded wave: the muzzle flash is over in 95ms and competes with everything
+  else on screen, where the weapon travelling backwards lasts through the whole
+  gap to the next round;
+- **the brace is a CARRY, not a pose** — the weapon is pulled IN toward the body
+  while he sets himself and rides back out as the burst runs, so the preparation
+  is visible on the WEAPON as well as on the shoulder. At 1x the rifle is a
+  bigger shape than the arm holding it.
+
+Cadence untouched: `braceMs`, `burstRounds`, `burstGapMs`, `recoverMs` and
+`fireEveryMs` are exactly the approved numbers.
+
+### THE HANDSET TRIGGERS
+
+DEBUG carries three buttons: **CHAMP: BIG HIT**, **CHAMP: BREAK**, **CHAMP: LOW
+HEALTH**. Every one drives the REAL `damage()` path with real numbers sized from
+the actor's own config — no reaction is invoked directly and no state is set
+behind the mechanic's back, so what you are looking at is what a player would
+cause. They are no-ops with no Champion on the floor, and there is no Champion
+on the floor without `?champdbg=1`.
+
+### WHAT WAS MEASURED — `tests/diag-captain.mjs`, three archetypes
+
+| | crossfire/hangar | swarmTide/detention | vanguard/junction |
+|---|---|---|---|
+| duration | 55s | 57s | 56s |
+| armour / low / reacquire | 1 / 1 / 1 | 1 / 1 / 2 | 1 / 1 / 1 |
+| glyphs | 6 (1.1 / 10s) | 7 (1.2 / 10s) | 6 (1.1 / 10s) |
+| owned FX peak | 2 | 3 | 3 |
+| queue peak | 1 | 1 | 1 |
+
+**~1.1 glyphs per ten seconds** across all three, with the queue demonstrably
+sequencing. One owned object remains while he is alive and damaged — the ember
+Graphics, which is the persistent half — and that is the expected floor, not a
+leak.
+
+**THE MEASURED ACTOR IS MADE IMMORTAL, EXPLICITLY.** Clamping hp in the sampler
+is not enough: a 620 hit lands between frames and `Enemy.damage` calls `die()`
+before any clamp can run, so the run kept ending at ~13s with the sustained
+state unobserved. `die` is stubbed, which is the same choice `diag-encounter`
+makes for the player and carries the same caveat — **it measures behaviour over
+time and never fight length.**
+
+### WHAT IS DELIBERATELY NOT HERE
+
+No BREACH STEP, no SUPPRESSIVE SWEEP, no signature ability. No aggression
+mechanics at low health. No variants and no colourways — `CAPTAIN_PALETTE` still
+names its roles semantically so a future variant is a palette swap, and the base
+Captain remains the reference identity. No generic status-effect framework, no
+new UI system, no reusable emotion engine: the Captain owns its reactions and
+they are ~180 lines in its own file.
+
+**Heavier idle breathing at low health was considered and dropped.** The idle
+already breathes on two frames, and slowing it means touching `anims.timeScale`,
+which reaches every animation the actor plays including the burst — a cadence
+change smuggled in as a mood. The embers carry the persistent read instead.
 
 ---
 
