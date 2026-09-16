@@ -53,6 +53,11 @@ function blankSession(cap, now) {
     superDmg: [],           // real durability removed, bucketed per cast
     // what the Captain did
     acts: { burstsBegun: 0, burstsDone: 0, rounds: 0, grenades: 0, fields: 0 },
+    // ── S1: THE TACTICAL STEP ─────────────────────────────────────────────
+    // The whole question S1 asks is whether MOVEMENT lowers the human focus
+    // test's ~70% pellet connection without any special resistance, so the
+    // steps have to be countable next to the pellet hit rate on the same card.
+    steps: { done: 0, reasons: {}, dist: [], at: [] },
     // how long he spent in each durability state
     tIntact: 0, tBroken: 0, tCritical: 0,
     _lastTick: now,
@@ -152,6 +157,16 @@ export function attachCaptainTelemetry(scene) {
   // credited to the subject. This was the bug the probe above found: fields had
   // no owner filter and counted 4 where the same Captain threw 2.
   on('arc-field-live', (n) => { if (S?.live && n?.owner === S.actor) S.acts.fields++; });
+  // COMPLETED steps, with the reason and the REAL displacement. `_beginStep`
+  // emits once the destination has passed its geometry check, so a step the
+  // arena refused is correctly absent rather than counted as an intention.
+  on('champion-step', (c, reason, reach) => {
+    if (!S?.live || c !== S.actor) return;
+    S.steps.done++;
+    S.steps.reasons[reason] = (S.steps.reasons[reason] || 0) + 1;
+    S.steps.dist.push(reach);
+    S.steps.at.push(now());
+  });
 
   // ── LIFECYCLE ────────────────────────────────────────────────────────────
   // ONE SESSION AT A TIME, and a new Captain retires the old one whatever
@@ -256,6 +271,14 @@ export function attachCaptainTelemetry(scene) {
     // bottom of a long card is a row that gets cropped out of a screenshot.
     L.push(`OUTPUT  ${sess.acts.burstsDone}/${sess.acts.burstsBegun} bursts · ${sess.acts.rounds} rounds`
       + ` · ${sess.acts.grenades} nade · ${sess.acts.fields} field`);
+    const st = sess.steps;
+    const stGaps = [];
+    for (let i = 1; i < st.at.length; i++) stGaps.push(st.at[i] - st.at[i - 1]);
+    const stG = stats(stGaps);
+    const stD = stats(st.dist);
+    L.push(`STEPS   ${st.done}`
+      + (st.done ? ` · ${Math.round(stD.mean)}px avg · ${stG ? `${Math.round(stG.med)}ms apart` : 'once'}` : '')
+      + (st.done ? `\n  ${Object.entries(st.reasons).map(([k, v]) => `${k} ${v}`).join(' · ')}` : ''));
     L.push('');
     L.push(`SUPER  ${sess.shots.superCasts} casts · ${sess.shots.superPellets} pellets`);
     L.push(`  hits ${sess.hits.super} (${pct(sess.hits.super, sess.shots.superPellets)})`

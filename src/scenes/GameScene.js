@@ -3079,7 +3079,18 @@ export class GameScene extends Phaser.Scene {
         // Chipping a tank (elite or just high-HP): the old 0.002 shake was
         // invisible (and now scaled down further). Give it a real visible bite —
         // a bright impact ring — so hitting armor reads as landing, not whiffing.
-        if (enemy._elite || (enemy.hpMax || 0) >= 500) this.fx.impactRing(enemy.x, enemy.y, 0xffd8a0);
+        //
+        // NOT WHEN THE ACTOR SPEAKS FOR ITSELF. An armour-only hit — which the
+        // feedback claim identifies, because only a layered actor produces one
+        // — is already answered AT THE CONTACT POINT by that actor's own
+        // absorption. Firing this as well puts a generic amber ring at the body
+        // CENTRE on the same frame, which is two authors for one event and
+        // pulls the eye away from the localized response that carries the
+        // meaning. Every ordinary elite and high-hp enemy is unaffected: none
+        // of them produces a feedback claim at all.
+        if ((enemy._elite || (enemy.hpMax || 0) >= 500) && !shownColor) {
+          this.fx.impactRing(enemy.x, enemy.y, 0xffd8a0);
+        }
       }
       this.fx.burst(enemy.x, enemy.y, 'red', crit ? 8 : 4);
       // A cluster munition plays its own explosion at the detonation site, so

@@ -179,3 +179,39 @@ Play it at **`?champdbg=1&captel=1`**.
 screen 200 — and printed straight through the encounter harness's PREV / NEXT /
 REPLAY buttons, because the Game camera is inset by the HUD's top bar and a
 screen coordinate is therefore not a camera one.
+
+---
+
+## S1 — survivability, footwork, armour identity (`s1/`)
+
+`HANDOVER.md` `§10ak`. **CANDIDATE — not approved.** Nothing here was decided by
+a bot: four human handset runs produced the diagnosis, and the harness had
+called him comfortable while a human erased him in 4.7 seconds.
+
+    npm run dev
+    node tests/smoke-captain-step.mjs    # 24 structural checks, no TTK assertions
+    node tests/shot-captain-s1.mjs       # the frames below
+
+Play it at **`?champdbg=1&captel=1`**.
+
+| frame | what it shows |
+|---|---|
+| `01-step-plant` | **the beat that makes it footwork** — planted in the brace body, weight set |
+| `02-step-travel` | the strafe cycle and the blue impulse he pushed off from |
+| `03-step-settle` | back into a combat posture, firing resumes |
+| `04-absorb-light` | a pistol round: the small localized response |
+| `05-absorb-heavy` | a Super pellet from the side — on the plate that met it, not at his centre |
+| `06-absorb-volley` | five pellets in one frame, on five plates, capped at four |
+| `07-armour-overload` | **the absorption language FAILING** — this is the break |
+| `08-after-break` | and the grammar has changed, because the layer is gone |
+| `09-INSPECTION-x3-absorb` | **NOT THE REVIEW.** x3, for reading the shape while authoring it |
+
+**THE STEP IS PHOTOGRAPHED AS A SEQUENCE ON PURPOSE.** A single frame of a body
+in motion is indistinguishable from a body sliding; plant, travel and settle
+next to each other is the only way to see that it is footwork rather than a
+Harrower skateboard.
+
+**THE THRUST WAS INVISIBLE IN THE FIRST BUILD OF THIS RIG.** `_stepThrust`
+builds a Graphics whose `_tick` closure does the drawing, and `_tick` does not
+run until the next `preUpdate` — so pausing on the frame the impulse is created
+photographs an empty object. Same trap that cost B.2.1 a whole reaction sheet.

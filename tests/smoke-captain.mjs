@@ -309,13 +309,22 @@ const clean = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(asy
   // after a room change measures the debug injector, not the teardown. The
   // question is whether THIS instance survives, so hold the instance.
   const survivor = () => gs.enemies.getChildren().includes(c);
+  // AND THE SAME DISCIPLINE FOR ITS ROUNDS, which this check did not apply and
+  // should have. A pooled bullet is RECYCLED, so counting how many are active
+  // after the room change counts the NEW Captain's fire as well as the dead
+  // one's leftovers — it passed only while the fresh injection happened not to
+  // shoot inside the window, which is a timing accident rather than a claim.
+  // `_gen` is the identity a recycled `Bullet` carries for exactly this.
+  const oldBolts = gs.captainBullets.getChildren()
+    .filter((b) => b.active).map((b) => ({ b, gen: b._gen }));
   gs.loadRoom(ROOMS.find((r) => r.id === 'detention'));
   await wait(2400);
   return {
     firedBefore, hadBar, afterDeath,
     oldSurvives: survivor(),
     oldActive: !!c.active,
-    boltsAfterRoom: gs.captainBullets.getChildren().filter((b) => b.active).length,
+    oldBoltCount: oldBolts.length,
+    boltsAfterRoom: oldBolts.filter((o) => o.b.active && o.b._gen === o.gen).length,
   };
 }));
 check(clean.hadBar, 'the armour layer has its own readout while it is intact');

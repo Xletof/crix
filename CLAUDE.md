@@ -891,6 +891,68 @@ asserts separately that the ceiling is not reached.
   fast and by what means a real player kills him, then decide where Champion
   sits in the hierarchy, then choose a survivability mechanism. **HP COMES
   LAST.**
+- **HUMAN HANDSET COMBAT IS THE BALANCE AUTHORITY, AND THE BOT IS NOT.** The
+  harness called the Shock Captain comfortable while a human erased him in
+  **4.7 seconds** — it plays materially slower and uses the Super far less
+  aggressively than a person. Never write "the bot says TTK is 11.3s, therefore
+  approved". Automated probes may verify step geometry, cooldowns, layer
+  arithmetic and cleanup; they may NOT hold an opinion about how long a fight
+  should last, and no smoke test in `§10ak` asserts a TTK.
+- **THE CAPTAIN IS NOT GENERALLY UNDER-DURABLE — HE IS SPECIFICALLY TOO EASY TO
+  ERASE UNDER CONCENTRATED SUPER PRESSURE, `HANDOVER.md` §10ak.** The same
+  actor completed 9 of 10 bursts and threw 3 grenades over ~25s against a player
+  who refused the Super, and 1 burst and zero grenades against one who did not.
+  **S1 is durability 4400 → 5300 (almost all BODY), a tactical step, and an
+  armour identity — and deliberately NO Super resistance**, so the handset can
+  say whether those two were enough. Do not add a Super multiplier, pellet
+  reduction, burst resistance, per-hit cap, damage gate, armour recharge or
+  immunity window; S2 reopens that only on evidence that S1 was not enough.
+- **PUT DURABILITY IN THE BODY, NOT IN THE LAYER.** The armour break is the
+  player's reward and has to stay reachable inside ONE committed Super — a
+  pellet removes 510 armour at `armourTake`, so 1900 falls to four connecting
+  pellets. Inflating the layer produces "I used several Supers and only finally
+  got through his shield", which is worse than the problem it solves.
+- **A CHAMPION MAY NEVER READ THE PLAYER'S ATTACK INPUT.** The tactical step is
+  triggered by combat RELATIONSHIPS that were true before the player decided
+  anything — crowded, blocked, post-burst, exploiting its own field — and never
+  by `superAiming`, `superAim`, `superCharge`, `player-fire-super` or a pellet
+  in flight. A body that sidestepped the button press is an unloseable coin flip
+  wearing the costume of skill. Prove it TWICE: grep the actor for every
+  identifier that could express the state (it cannot branch on what it cannot
+  name), and fire real Supers at it while asserting no step follows a cast.
+- **THE PLANT IS WHAT MAKES A STEP FOOTWORK.** Without it the body simply
+  acquires velocity, which is the sliding read both rejected Champions died of.
+  70ms planted in the brace body, then the travel on the STRAFE cycle — the
+  existing lateral gait, and the only one whose feet agree with sideways
+  movement. And move it with VELOCITY, never a tween or a teleport, so the wall
+  collider stays underneath and a wrong destination costs a stop rather than a
+  body inside a console. Validate the destination with `_hasLOS` — the same
+  arithmetic his firing already trusts — rather than building a second planner.
+- **A CAP ON AN EFFECT WILL BE FULL AT THE MOMENT THAT EFFECT MATTERS MOST.**
+  The absorption cap exists so a five-pellet Super is not five blooms; the
+  armour BREAK is caused by a heavy volley almost by definition, so the cap was
+  full on the exact frame the overload wanted to draw and it rendered NOTHING.
+  The one response that must never be suppressed is exempt, and it clears the
+  in-flight ones first.
+- **ONE AUTHOR PER HIT.** The `enemy-hit` handler fires a generic amber impact
+  ring at the body CENTRE for any high-hp enemy. On an actor that answers a hit
+  AT THE CONTACT POINT that is two authors for one event, and the generic one
+  pulls the eye off the localized response carrying the meaning. It is
+  suppressed when the actor speaks for itself — identified by the B.2.2 feedback
+  claim, so every ordinary elite is untouched.
+- **`delete` A TEST STUB, NEVER `= undefined`.** An immortality stub is an OWN
+  property shadowing the prototype method; assigning undefined leaves the shadow
+  and `damage()` calls it — "this.die is not a function", which reads like a
+  game bug and is entirely the rig's.
+- **NEVER ZERO A COOLDOWN AND THEN MEASURE THE SPACING IT CONTROLS.** A rig
+  forced `_stepCd = 0` to make a step happen sooner, then read a 200ms gap
+  against a 2800ms cooldown and reported a correct build as a skater. Exclude
+  everything the rig forced, or do not force it.
+- **A POOLED BULLET IS RECYCLED, SO COUNTING ACTIVE ONES IS NOT A LEAK TEST.**
+  `smoke-captain`'s room-change sweep counted every live Captain bolt afterwards
+  — including the freshly injected Captain's — and passed only while that one
+  happened not to shoot inside the window. Hold the IDENTITY (`_gen`), the same
+  way the check beside it already held the actor's.
 - **`?champdbg=1&captel=1` IS AN INSTRUMENT AND CHANGES NOTHING.** Separate from
   `champdbg` on purpose — most Champion reviews are not about numbers. With
   `captel` absent nothing is constructed: no container, no listeners, no

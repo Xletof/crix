@@ -226,7 +226,20 @@ spawns the Captain; DEBUG carries four triggers — BIG HIT / BREAK / LOW HEALTH
 drive the real `damage()` path, and CHAMP: GRENADE clears the cooldown and lets
 the real AI decide.
 
-**B.2.3 POLISH IS PAUSED, AND THE NEXT THING IS A MEASUREMENT — `§10aj`.**
+**S1 IS THE CURRENT CANDIDATE — `§10ak`.** The telemetry came back and the
+diagnosis is precise: he is NOT generally under-durable, he is specifically too
+easy to erase under concentrated Super pressure. A focused human removed him in
+**4.7s** with 2 casts and 7 of 10 pellets connecting, and he threw **no
+grenade**; a player who refused the Super left him relevant for ~25s and 9 of 10
+bursts. So S1 is three things and deliberately not a fourth: **durability 4400 →
+5300, almost all of it body**; a **150px tactical step** on a 2800ms cooldown
+that never reads the player's Super; and **reactive armour with an identity** —
+a localized hot-to-white-blue absorption at the real contact point, whose
+failure IS the break. **NO Super resistance of any kind**, held back so the
+handset can say whether durability and movement were enough. S2 reopens armour
+mechanics only if a focused Captain still dies in 4-5s.
+
+**B.2.3 POLISH IS PAUSED, AND THE INSTRUMENT THAT PROVED WHY IS `§10aj`.**
 Balance thinking had reached "the Captain survives two or three Supers", and
 that sentence only means something if a Super is scarce: in real play it can be
 used roughly once a second, so surviving three of them may describe three
@@ -6548,6 +6561,203 @@ Planning context only; nothing integrated.
 **NO DESIRED TTK IS DECIDED, IN CODE OR IN PROSE.** The human brings the numbers
 back and the hierarchy decision comes before the survivability mechanism — and
 **hp comes last**.
+
+---
+
+## 10ak. THE SHOCK CAPTAIN, S1 — survivability, footwork, and armour with an identity. **CANDIDATE — NOT APPROVED**
+
+Four human handset runs, through `?champdbg=1&captel=1`, produced the first
+balance evidence this Champion has ever had. **B.2.3 polish stays paused.**
+
+### The evidence, and the diagnosis it forces
+
+| run | TTK | Super | Captain got to do |
+|---|---|---|---|
+| natural 1 | ~13.8s | 9 casts, 3601 dmg, **82%** | 2/4 bursts, 7 rounds, 1 grenade |
+| natural 2 | ~10.3s | 8 casts, 3956 dmg, **90%** | 2/3 bursts, 9 rounds, 1 grenade |
+| **FOCUS KILL** | **~4.7s** | 2 casts, 7 of 10 pellets, 3917 dmg, **89%** | 1/2 bursts, 6 rounds, **0 grenades** |
+| primary-heavy | ~25s relevant | primary 3303, **75%** | **9/10 bursts, 27 rounds, 3 grenades, 3 fields** |
+
+**HE IS NOT GENERALLY UNDER-DURABLE. HE IS SPECIFICALLY TOO EASY TO ERASE
+UNDER CONCENTRATED SUPER PRESSURE.** The same actor, against a player who
+refused the Super, performed nearly his whole kit for twenty-five seconds. Under
+focus he never threw a grenade at all. A bigger pool is the wrong answer to
+that, and so is a Super multiplier — S1 deliberately ships neither.
+
+**AND THE BOT WAS WRONG.** The harness called him comfortable while a human
+removed him in 4.7 seconds. `HUMAN HANDSET COMBAT IS THE BALANCE AUTHORITY` is
+now a rule in `CLAUDE.md`, and no smoke test in this pass asserts a TTK.
+
+### A. Durability: 4400 → 5300, and almost all of it in the body
+
+| | was | now |
+|---|---|---|
+| armour | 1800 | **1900** |
+| body hp | 2600 | **3400** |
+| total | 4400 | **5300** (+20.5%) |
+
+**WHY NOT IN THE ARMOUR.** The break is the player's reward and it has to stay
+reachable inside one committed Super. A pellet is `superDamage` 600 raw, which
+removes 510 armour at `armourTake`, so 1900 still falls to four connecting
+pellets of a single cast. Inflating the layer would produce *"I used several
+Supers and only finally got through his shield"*, which is the one outcome §7
+forbids. The body is where time can be bought without making the player's
+biggest commitment feel refused.
+
+**THE ARITHMETIC IS OTHERWISE UNTOUCHED.** `armourTake` and `armourSpill` are
+the same numbers, and `smoke-captain-step` measures both ratios through the real
+`damage()` path rather than reading them back out of the config that set them.
+**There is no Super multiplier, pellet reduction, burst resistance, per-hit cap,
+damage gate, armour recharge or immunity window** — the same raw damage removes
+the same durability whatever fired it, asserted directly. S1 exists to find out
+what durability and movement do ON THEIR OWN.
+
+`lowHealthFrac` is the one figure written as a fraction of the pool, so critical
+moved 780 → 1020 and is still 30%. That is the `vanishHpFrac` trap arriving
+somewhere harmless — checked, not assumed.
+
+### B. The tactical step
+
+B.2.2 declined to build one because improved acceleration had answered "too
+sluggish". The focus test changed the question: he presents a stable humanoid
+target a player can align on, and **70% of their pellets connected.** This
+lowers that through movement rather than hit points.
+
+- **150px**, a **70ms plant** then a **200ms travel**, on a **2800ms cooldown**,
+  first available 1.5s after he arrives.
+- **The plant is what makes it footwork.** Without it the body simply acquires
+  velocity, which is the sliding read both rejected Champions died of. The
+  travel plays the **strafe** cycle — the existing lateral gait, and the only
+  one whose feet agree with sideways movement.
+- **Velocity, not a tween or a teleport**, so the wall collider is still
+  underneath and a wrong destination costs a short stop rather than a body in a
+  console.
+- **No i-frames. No damage change. No invulnerability.**
+
+**IT NEVER READS THE PLAYER'S SUPER, AND THAT IS PROVED TWICE.** Statically, by
+grepping the actor for `superAiming`, `superAim`, `superCharge`,
+`player-fire-super`, `playerSuperBullets`, `tryFireSuper`, `superReady` and
+`isSuper` — if it cannot name the state it cannot branch on it. Dynamically, by
+firing **six real Supers at him from a comfortable distance and asserting not
+one step followed a cast.** A Captain that sidestepped the button press would be
+an unloseable coin flip wearing the costume of skill, and it would make the
+whole S1 measurement answer a different question.
+
+**FOUR REASONS, ALL COMBAT GEOMETRY, AND ALL FOUR MEASURED FIRING:**
+
+| reason | when | measured (40s each) |
+|---|---|---|
+| `close` | the player pushed inside 82% of `holdMin` | 10 hangar / 8 detention |
+| `postburst` | a commitment is spent; change the angle | 1 / 3 |
+| `blocked` | ready to fire, in range, **no line** for 300ms | 0 / **2** |
+| `field` | his own Arc Field is live; take the better side | **1** / 0 |
+
+§11 says use only the reasons that improve behaviour. `blocked` fired zero times
+in an open hangar and twice in detention, which is exactly where LOS breaks
+live — it is measured B.2.1 state (ready and unable, 21-34 frames at a time),
+not a supposition. Rate came out ~19 steps/min against a harness player who
+closes on a 7-second schedule, so roughly five in a fifteen-second fight.
+**`cooldownMs` is the handset dial.**
+
+**THE INTERRUPT CONTRACT (§14).** Reachable ONLY from the moving states —
+ADVANCE, GIVE GROUND, STRAFE, and the frame RECOVER hands back to them. So it
+can happen *before* a brace and *after* a burst, and it can never cancel a
+grenade already committed to, a burst already firing, a brace already set, or a
+stagger. Those are authoritative action beats and a step that ate one would be
+animation soup.
+
+**GEOMETRY.** The destination is clamped to the arena, pushed out of his own
+live field, re-measured after the clamp (a step that clamps to 8px is a twitch,
+not a step) and validated with `_hasLOS` — **the same line-of-sight arithmetic
+his firing already trusts**, run against the destination instead of the player.
+No second planner. A refused step does not spend the cooldown and does not read
+as a pause.
+
+### C. Reactive armour, as something that happens to a suit
+
+The layer was a hidden second health bar with three white particles at the
+actor's **centre** — the blue-sticker failure, and it told the player nothing
+about where they hit him or why their damage was not landing.
+
+**THE CHAIN, AND THE ORDER IS THE MEANING:** a hot hostile impact mark at the
+**real contact point** → converting to a white-blue absorption bloom → a
+dispersal along conduction paths that run **across the plate**, not outward,
+fading into his own electric blue.
+
+The contact point is real: `knockbackVec` carries the projectile's flight
+direction, so the response lands on the plate that met the shot. Three pellets
+of one Super arrive on three different plates and produce three separate
+responses, which is what "several short conduction paths" is supposed to look
+like. A strong hit gets a bigger bloom, four paths instead of two, and a small
+plate flinch. **No damage reduction anywhere — implementing anti-Super balance
+inside an FX pass would make the handset A/B meaningless.**
+
+**THE BREAK NOW BEGINS AS THE ABSORPTION FAILING.** The suit tries to eat this
+one too, at full strength from three plates at once, and cannot — then the
+fracture. That is what turns *"his armour broke"* into *"I overloaded his
+armour"*. After it, the intact-armour vocabulary is never used again **by
+construction**: `_absorbHit` is only reachable from the branch where
+`armour > 0`, so the grammar changes because the layer is gone rather than
+because a flag says so.
+
+### Three bugs this pass found
+
+- **The overload was suppressed by the volley that caused it.** The absorption
+  cap exists so five pellets in one frame are not five blooms — and the break is
+  caused by a heavy volley almost by definition, so the cap was full at the exact
+  moment the most important absorption in the fight wanted to draw. Measured:
+  **nothing rendered on the break frame.** The overload is exempt and clears the
+  in-flight responses first, so the failure is the only thing on the body.
+- **Two authors for one hit.** The `enemy-hit` handler fires a generic amber
+  impact ring at the body CENTRE for any high-hp enemy, which on an armour-only
+  hit now competed with the localized response that carries the meaning. It is
+  suppressed when the actor speaks for itself — identified by the B.2.2 feedback
+  claim, so every ordinary elite is untouched.
+- **`smoke-captain` counted the wrong bullets.** Its room-change sweep counted
+  every active Captain bolt afterwards, including the freshly injected
+  Captain's — it applied "hold the instance" to the actor and not to its rounds,
+  and passed only while the new Captain happened not to shoot inside the window.
+  It tracks `_gen` identity now.
+
+### Rig lessons worth keeping
+
+- **`delete`, not `= undefined`**, when removing an immortality stub: assigning
+  undefined leaves an own property shadowing the prototype and `damage()` calls
+  it — *"this.die is not a function"*, which reads like a game bug and is
+  entirely the rig's.
+- **A `_tick` Graphics draws nothing until its first `preUpdate`**, so pausing on
+  the frame an effect is created photographs an empty object. The step's thrust
+  impulse was invisible for exactly this reason — the same trap that cost B.2.1
+  a whole reaction sheet.
+- **Do not zero a cooldown and then measure the spacing it controls.** The rig
+  forced `_stepCd = 0` to make a step happen sooner and then read a 200ms gap
+  against a 2800ms cooldown, calling a correct build a skater.
+- **A fixed `setScroll` is wrong for a station that applies knockback.** The
+  overload frame photographed the subject half under the harness overlay.
+
+### What S1 does NOT contain
+
+No Super resistance of any kind — **held back deliberately so the handset can
+say whether durability and movement were enough.** No suppression-corridor
+rifle, no directional damaged-model rebuild, no Arc Grenade visual rebuild, no
+second signature, no variants, no Endless integration, no elite work, no
+Commander tier.
+
+**S2 REOPENS REACTIVE ARMOUR MECHANICS ONLY IF** a focused Captain still
+reliably dies around 4-5s with 5300 durability and the step. Not before, and it
+is not pre-built.
+
+### The comparison to make
+
+| | before S1 | after |
+|---|---|---|
+| focused TTK | 4.7s | ? |
+| Super casts | 2 | ? |
+| pellet connection | **70%** | ? |
+| real Super damage | 3917 | ? |
+| tactical steps | — | ? |
+| grenade before death | **0** | ? |
+| bursts completed | 1/2 | ? |
 
 ---
 

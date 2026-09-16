@@ -1710,8 +1710,38 @@ export const CHAMPION = {
     // being a damage wall — overkill past the layer carries through to the body
     // at that fraction, so a Super BREAKS the armour AND hurts, which is the
     // qualitative result the brief asks for.
-    hp: 2600,
-    armour: 1800,
+    // ── S1 SURVIVABILITY, FROM REAL HANDSET EVIDENCE ───────────────────────
+    //
+    // 2600 + 1800 = 4400 durability points, and four human runs said that is
+    // not generally too little — it is specifically too little against
+    // CONCENTRATED SUPER PRESSURE. A focused human removed him in 4.7s with 2
+    // casts and 7 connecting pellets, 89% of all damage; a primary-heavy run
+    // that refused the Super kept him relevant for ~25s and let him complete
+    // 9 of 10 bursts and throw 3 grenades. The same actor, two orders of
+    // magnitude apart in how much of his kit he got to perform.
+    //
+    // SO THE ANSWER IS NOT A BIGGER POOL, IT IS A MODEST ONE PLUS MOVEMENT.
+    // 3400 + 1900 = 5300, a 20.5% increase, and almost all of it in the BODY.
+    //
+    // WHY NOT IN THE ARMOUR. The break is the player's reward and it has to
+    // stay reachable inside one committed Super — a pellet is `superDamage`
+    // 600 raw, which removes 510 armour at `armourTake`, so 1900 still falls
+    // to four connecting pellets of a single cast. Inflating the layer instead
+    // would produce "I used several Supers and only finally got through his
+    // shield", which is the one outcome §7 forbids. The body is where time can
+    // be bought without making the player's biggest commitment feel refused.
+    //
+    // NOTHING ELSE ABOUT THE ARITHMETIC MOVES: `armourTake` and `armourSpill`
+    // are untouched, and there is NO Super multiplier, pellet reduction, burst
+    // resistance, per-hit cap or immunity window anywhere — S1 exists to
+    // measure what durability and movement do ON THEIR OWN.
+    //
+    // `lowHealthFrac` is the one figure written as a fraction of the pool, so
+    // the critical threshold moves with it (780 -> 1020) and stays 30%. That
+    // is the `vanishHpFrac` trap arriving in a place where it is harmless —
+    // checked, not assumed.
+    hp: 3400,
+    armour: 1900,
     armourSpill: 0.55,
     // Chip fire is meant to feel productive against the layer, not free: while
     // the armour holds, damage to it is scaled by this. Above 1 would make
@@ -1925,6 +1955,77 @@ export const CHAMPION = {
     // and it becomes near-continuous at critical without ever becoming a cloud.
     wearSmokeCriticalMs: [230, 420],
     wearFlickerCriticalMs: [520, 1100],
+
+    // ── S1: REACTIVE ARMOUR HAS AN IDENTITY ────────────────────────────────
+    //
+    // The layer was a hidden second health bar with a three-particle burst at
+    // the actor's CENTRE — which is the "blue particle sticker over the
+    // Captain" failure, and it told the player nothing about WHY their damage
+    // was not landing. The armour should read as an exosuit EATING the shot:
+    // a hot hostile impact at the real contact point, converting to white-blue
+    // absorption, dispersing a short way ACROSS the plate, and gone.
+    //
+    // PRESENTATION ONLY. `armourTake` and `armourSpill` are untouched and S1
+    // adds no resistance of any kind — implementing anti-Super balance quietly
+    // inside an FX pass is the one thing that would make the handset A/B
+    // meaningless.
+    absorb: {
+      ms: 260,                  // one absorption's whole life
+      // Scales the bloom and the number of conduction paths. A pellet and a
+      // pistol round should not look alike.
+      bigHit: 260,              // at or above this it is a STRONG response
+      // 32, not 26: at 1x the Captain is 112px and a 26px crawl was a bright
+      // point rather than a dispersal. Still under a third of his width — §18
+      // forbids a bubble, and the claim is a plate conducting, not a shield.
+      reach: 32,                // how far the current crawls across the plate
+      maxLive: 4,               // concurrent absorptions; a Super is 5 pellets
+                                // in one frame and five blooms is soup
+    },
+
+    // ── S1: THE TACTICAL STEP ──────────────────────────────────────────────
+    //
+    // IT IS FOOTWORK, NOT A MOVE. Not a signature, not an offensive dash, not
+    // a Harrower pass, not a teleport and NOT a Super dodge. B.2.2 declined to
+    // build one because improved acceleration had answered "too sluggish"; the
+    // human focus test changed the question. He presents a stable humanoid
+    // target that a player can align on and dump repeated pellets into, and
+    // 70% of them connected. This reduces that connection rate through
+    // MOVEMENT rather than through hit points.
+    //
+    // THE FAIRNESS RULE IS ABSOLUTE: IT NEVER READS THE PLAYER'S SUPER INPUT.
+    // Not `superAiming`, not `superAim`, not `superCharge`, not the
+    // `player-fire-super` event, not a bullet in flight. A Captain that
+    // sidestepped the button press would be an unloseable coin flip dressed as
+    // skill. Every trigger below is a COMBAT RELATIONSHIP that was true before
+    // the player decided anything, and `smoke-captain-step` greps this actor
+    // for every one of those identifiers as well as probing it live.
+    step: {
+      // 150px is about two and a half body widths — enough to leave a firing
+      // solution, far short of a traversal. Tuned from runtime evidence.
+      distance: 150,
+      // THE PLANT IS WHAT MAKES IT FOOTWORK. Without it the body simply
+      // acquires velocity, which is the sliding read both rejected Champions
+      // died of. Short enough that it is a reaction, not a wind-up.
+      plantMs: 70,
+      travelMs: 200,
+      // A MEANINGFUL ELITE ACTION, NOT PERPETUAL SKATING. Over a 10-15s fight
+      // this is a handful of steps. The handset question is "that guy is
+      // sharp", never "why is he constantly dashing".
+      cooldownMs: 2800,
+      firstDelayMs: 1500,
+      // ── THE FOUR ELIGIBLE REASONS, all combat geometry ────────────────
+      // CLOSE: the player has pushed inside the band he wants to hold.
+      closeFrac: 0.82,          // of `holdMin`
+      // BLOCKED: ready to fire, in range, and no line — MEASURED in B.2.1 as a
+      // real state he sits in for 21-34 frames at a time, not a supposition.
+      blockedMs: 300,
+      // POST-BURST: change the firing angle after a commitment, sometimes.
+      postBurstChance: 0.5,
+      // FIELD: while his own Arc Field is live, take the side that puts the
+      // player between him and it — the same exploitation `_solvePosition`
+      // already does at walking pace, taken at a step.
+      fieldChance: 0.6,
+    },
 
     // ── THE FIRST SIGNATURE: THE ARC GRENADE ───────────────────────────────
     //

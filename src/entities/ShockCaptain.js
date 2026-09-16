@@ -70,6 +70,7 @@ export const CAP = {
   STAGGER: 'stagger',       // a real blow landed
   WINDUP: 'windup',         // reaching for the Arc Grenade
   THROW: 'throw',           // releasing it
+  STEP: 'step',             // S1: a short assisted reposition — footwork
 };
 
 export class ShockCaptain extends Enemy {
@@ -154,6 +155,13 @@ export class ShockCaptain extends Enemy {
     // is never the first thing he does.
     this._nade = null;
     this._nadeCd = def.grenade.firstDelayMs;
+    // ── S1: THE TACTICAL STEP ─────────────────────────────────────────────
+    this._stepCd = def.step.firstDelayMs;
+    this._stepPlantMs = 0;       // the plant beat, before the impulse
+    this._stepVx = 0; this._stepVy = 0;
+    this._stepReason = null;
+    this._stepFrom = null;        // for the telemetry's displacement figure
+    this._blockedMs = 0;          // ready to fire, in range, and no line
     // Reacquire: LOS is sampled every frame, and a loss shorter than
     // `acquireLostMs` is a doorway rather than a break.
     this._hadLos = true;
@@ -201,10 +209,9 @@ export class ShockCaptain extends Enemy {
         armourRemoved = taken;
         this.armour -= taken;
         toBody = 0;
-        this.scene.fx?.burstDir?.(
-          this.x, this.y, 'white', 3,
-          knockbackVec ? Math.atan2(knockbackVec.y, knockbackVec.x) : this._aim, 40,
-        );
+        // THE SUIT ATE IT. Not three particles at his centre — an absorption
+        // at the REAL contact point. See `_absorbHit`.
+        this._absorbHit(amount, knockbackVec);
       } else {
         armourRemoved = this.armour;
         const over = (taken - this.armour) / this.def.armourTake;
@@ -286,6 +293,118 @@ export class ShockCaptain extends Enemy {
   }
 
   /**
+   * ── REACTIVE ARMOUR, AS SOMETHING THAT HAPPENS TO A SUIT ────────────────
+   *
+   * WHAT THIS REPLACES. While the layer held, a hit produced three white
+   * particles at the actor's CENTRE — the "blue particle sticker over the
+   * Captain" failure exactly. It told the player nothing about where they hit
+   * him and nothing about why their damage was not landing, so the armour read
+   * as a hidden second health bar rather than as equipment.
+   *
+   * THE CHAIN, AND THE ORDER IS THE MEANING:
+   *   1. a hot, hostile impact mark at the real contact point — the incoming
+   *      energy, in the colour of a threat
+   *   2. converting to a white-blue ABSORPTION bloom — the suit taking it
+   *   3. dispersing along conduction paths that run ACROSS the plate, not
+   *      outward, fading into his own electric blue
+   *
+   * The transformation is the claim: threat energy enters, the armour
+   * neutralises it. Painted in CRIX's own vocabulary — hard strokes, no
+   * gradients, no bubble.
+   *
+   * WHERE THE HIT IS. `knockbackVec` carries the projectile's flight
+   * direction, so the contact point is on the NEAR side of the body, back
+   * along that bearing. That is a real coordinate rather than a decoration:
+   * three pellets of one Super arrive on three different plates and produce
+   * three separate responses, which is the "several short conduction paths"
+   * a strong hit is supposed to look like.
+   *
+   * IT IS PRESENTATION AND NOTHING ELSE. No damage reduction, no resistance,
+   * no cap. S1 exists to measure durability and movement on their own, and
+   * hiding a mitigation inside an FX pass would make that measurement a lie.
+   */
+  _absorbHit(amount, knockbackVec, force = false) {
+    if (!this.scene?.add || !this.alive) return;
+    const A = this.def.absorb;
+    // A SUPER IS FIVE PELLETS IN ONE FRAME and five full blooms is soup. Past
+    // the cap the newest simply does not draw — the four that do are already
+    // saying "this was a heavy volley", and the armour bar says the rest.
+    //
+    // THE OVERLOAD IS EXEMPT, AND IT HAS TO BE. The break is caused by a heavy
+    // volley almost by definition, so the cap was full at the exact moment the
+    // most important absorption in the fight wanted to draw — measured, the
+    // overload rendered NOTHING on the break frame. `force` clears the
+    // in-flight responses first, so the failure is the only thing on the body
+    // rather than the fifth thing competing with four fading ones.
+    const liveFx = this._reactFx.filter((o) => o._absorb);
+    if (force) {
+      liveFx.forEach((o) => { this._dropFx(o); o.destroy(); });
+    } else if (liveFx.length >= A.maxLive) return;
+    const ang = knockbackVec
+      ? Math.atan2(knockbackVec.y, knockbackVec.x) : this._aim + Math.PI;
+    // Back along the flight path: the plate that met the shot.
+    const r = this.def.radius * 0.62;
+    const hx = this.x - Math.cos(ang) * r;
+    const hy = this.y - Math.sin(ang) * r - 4;
+    const big = amount >= A.bigHit;
+    const paths = big ? 4 : 2;
+    // The conduction runs PERPENDICULAR to the impact — across the armour,
+    // the way current spreads through a plate, not out into the air.
+    const across = ang + Math.PI / 2;
+    const seeds = [];
+    for (let i = 0; i < paths; i++) {
+      const th = across + (i % 2 ? Math.PI : 0) + (Math.random() - 0.5) * 0.9;
+      seeds.push({ th, len: (big ? 1 : 0.7) * A.reach * (0.7 + Math.random() * 0.6) });
+    }
+
+    const g = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    g._absorb = true;
+    g.setDepth(this.y + 7);
+    this._reactFx.push(g);
+    const started = this._clock;
+    const ms = A.ms * (big ? 1.25 : 1);
+    // The offset is held relative to the BODY, so the response travels with
+    // him — an absorption stranded on the spot he was standing is a spark in
+    // the air, and he is moving during most of them.
+    const ox = hx - this.x, oy = hy - this.y;
+    g._tick = () => {
+      const u = (this._clock - started) / ms;
+      if (u >= 1 || !this.alive) { this._dropFx(g); g.destroy(); return; }
+      g.clear();
+      g.setDepth(this.y + 7);
+      const x = this.x + ox, y = this.y + oy;
+      // ── 1. IMPACT: hot and hostile, and over almost at once ─────────────
+      if (u < 0.22) {
+        const k = 1 - u / 0.22;
+        g.fillStyle(0xffd9a0, 0.85 * k);
+        g.fillCircle(x, y, (big ? 7 : 4.5) * (0.6 + 0.4 * k));
+        g.fillStyle(0xff8a3a, 0.5 * k);
+        g.fillCircle(x, y, (big ? 10 : 6.5) * (0.6 + 0.4 * k));
+      }
+      // ── 2. ABSORPTION: white-blue, rising as the heat dies ──────────────
+      const ab = Math.min(1, u / 0.3) * (1 - u);
+      g.fillStyle(0xffffff, 0.9 * ab);
+      g.fillCircle(x, y, (big ? 5.5 : 3.4) * (0.8 + 0.4 * ab));
+      g.fillStyle(this.def.color, 0.55 * ab);
+      g.fillCircle(x, y, (big ? 15 : 8.5) * (0.5 + 0.7 * u));
+      // ── 3. DISPERSAL: across the plate, and gone ────────────────────────
+      const spread = Math.min(1, u / 0.75);
+      for (const sd of seeds) {
+        const len = sd.len * spread;
+        if (len < 2) continue;
+        this._bolt(g, x, y,
+          x + Math.cos(sd.th) * len, y + Math.sin(sd.th) * len,
+          5, big ? 2 : 1.5,
+          u < 0.45 ? 0xffffff : this.def.color, (1 - u) * (big ? 0.95 : 0.75));
+      }
+    };
+    // A STRONG HIT MOVES THE PLATE. The body's own recoil, not a new system,
+    // and deliberately smaller than the `_majorHit` flinch so the two read as
+    // different sizes of event.
+    if (big) this.recoilT = Math.max(this.recoilT, 70);
+  }
+
+  /**
    * A BLOW BIG ENOUGH TO MOVE HIM.
    *
    * The stagger pose is already the read; this is what makes it LAND — sparks
@@ -333,6 +452,18 @@ export class ShockCaptain extends Enemy {
     // SCALE. This is a plate failing, not a boss phase: no screen flash, no
     // white-out, nothing that stops the player reading the fight around him.
     const fx = this.scene.fx;
+    // 0. THE OVERLOAD. S1: the break now begins as the absorption language
+    //    FAILING rather than as a separate event — the suit tries to eat this
+    //    one too, at full strength and from every plate at once, and cannot.
+    //    That is what turns "his armour broke" into "I overloaded his armour",
+    //    and it is the last frame the intact-armour vocabulary is ever used:
+    //    `_absorbHit` is only reachable from the branch where `armour > 0`, so
+    //    after this the grammar changes by CONSTRUCTION rather than by a flag.
+    for (let i = 0; i < 3; i++) {
+      const a = this._aim + Math.PI + (i - 1) * 0.8;
+      this._absorbHit(this.def.absorb.bigHit,
+        { x: Math.cos(a) * 100, y: Math.sin(a) * 100 }, i === 0);
+    }
     // 1. the crack: a hard white ring at his own depth, tight, and his own blue
     //    a beat behind it — the plate failing, then its power letting go. TWO
     //    rings rather than one is what makes the break electrical rather than
@@ -817,6 +948,146 @@ export class ShockCaptain extends Enemy {
   }
 
   /**
+   * ── THE TACTICAL STEP: SHOULD HE, AND WHY? ──────────────────────────────
+   *
+   * Returns a REASON STRING or null, and the reason is the whole design. Every
+   * one of them is a fact about the fight that was true before the player
+   * decided anything:
+   *
+   *   'close'     they pushed inside the band he wants to hold
+   *   'blocked'   he is ready to fire, in range, and has no line — measured in
+   *               B.2.1 as a real state he occupies for 21-34 frames at a time
+   *   'postburst' he has just spent a commitment and can change the angle
+   *   'field'     his own Arc Field is live and there is a better side of it
+   *
+   * IT NEVER READS THE PLAYER'S SUPER. Not `superAiming`, not `superAim`, not
+   * `superCharge`, not `player-fire-super`, not a pellet in flight. A Captain
+   * that sidestepped the button press would be an unloseable coin flip wearing
+   * the costume of skill, and it would make the whole S1 measurement a lie:
+   * the question is whether ORDINARY good footwork lowers a 70% pellet
+   * connection rate, and a build that dodged the input would answer a
+   * different one. `smoke-captain-step` greps this file for each of those
+   * identifiers and probes a live cast as well.
+   */
+  _stepReasonFor(p, dist) {
+    if (this._stepCd > 0) return null;
+    const d = this.def.step;
+    if (dist < this.def.holdMin * d.closeFrac) return 'close';
+    if (this._blockedMs >= d.blockedMs) return 'blocked';
+    if (this._wantPostBurstStep) return 'postburst';
+    if (this._nade?.live && Math.random() < d.fieldChance * 0.06) return 'field';
+    return null;
+  }
+
+  /**
+   * WHERE THE STEP GOES, AND WHETHER IT IS LEGAL.
+   *
+   * Direction comes from the reason — away from a crowding player, sideways
+   * for an angle change, toward the side of his own field that keeps the
+   * player pinned against it. Then it is VALIDATED, and refused rather than
+   * fudged if it cannot be: a step that ends inside a console or outside the
+   * arena is worse than no step.
+   *
+   * `_hasLOS` is the validation, and using it is the point — it is the same
+   * line-of-sight arithmetic his firing already trusts, run against the
+   * destination instead of the player. No second planner, no nav query, no new
+   * geometry: if he could shoot at that spot he can walk to it. The physics
+   * collider is still underneath as the backstop, so a wrong answer costs a
+   * short stop rather than a body in a wall.
+   */
+  _solveStep(p, reason) {
+    const d = this.def.step;
+    const toPlayer = Math.atan2(p.y - this.y, p.x - this.x);
+    const side = this._side || 1;
+    const candidates = [];
+    if (reason === 'close') {
+      // Back off and across, never straight back: straight back is a retreat
+      // and he does not turn away from the fight.
+      candidates.push(toPlayer + Math.PI * 0.72 * side, toPlayer + Math.PI * 0.72 * -side);
+    } else if (reason === 'field') {
+      // The same exploitation `_solvePosition` does at walking pace: take the
+      // side that puts the PLAYER between him and his own electricity.
+      const want = Math.atan2(this._nade.y - p.y, this._nade.x - p.x) + Math.PI;
+      const cur = toPlayer + Math.PI;
+      const s = Phaser.Math.Angle.Wrap(want - cur) > 0 ? -1 : 1;
+      candidates.push(toPlayer + Math.PI / 2 * s, toPlayer + Math.PI / 2 * -s);
+    } else {
+      // 'blocked' and 'postburst' both want a new firing angle, so both go
+      // lateral — the shortest path to a different relationship.
+      candidates.push(toPlayer + Math.PI / 2 * side, toPlayer + Math.PI / 2 * -side);
+    }
+    for (const ang of candidates) {
+      let t = this._clampPoint(this.x + Math.cos(ang) * d.distance,
+        this.y + Math.sin(ang) * d.distance);
+      t = this._avoidField(t);
+      // A clamp can pull the destination back onto the arena edge, so the
+      // reach is re-measured AFTER it — a step that clamps to 8px is not a
+      // step and should be refused rather than performed as a twitch.
+      const reach = Math.hypot(t.x - this.x, t.y - this.y);
+      if (reach < d.distance * 0.55) continue;
+      if (!this._hasLOS(this.x, this.y, t.x, t.y)) continue;
+      return { x: t.x, y: t.y, reach };
+    }
+    return null;
+  }
+
+  /** Commit: plant first, then the impulse. No i-frames, no damage change. */
+  _beginStep(p, reason, dest) {
+    const d = this.def.step;
+    this._enter(CAP.STEP, d.plantMs + d.travelMs);
+    this._stepPlantMs = d.plantMs;
+    this._stepReason = reason;
+    this._stepFrom = { x: this.x, y: this.y };
+    this._stepCd = d.cooldownMs;
+    this._wantPostBurstStep = false;
+    this._blockedMs = 0;
+    const ang = Math.atan2(dest.y - this.y, dest.x - this.x);
+    const speed = dest.reach / (d.travelMs / 1000);
+    this._stepVx = Math.cos(ang) * speed;
+    this._stepVy = Math.sin(ang) * speed;
+    this.setVelocity(0, 0);
+    this.scene.events.emit('champion-step', this, reason, dest.reach);
+  }
+
+  /**
+   * THE IMPULSE, AND IT COMES OUT OF THE PACK AND THE BOOTS.
+   *
+   * Drawn opposite the travel, so the thrust reads as the thing that caused
+   * the movement rather than as a trail following it. His own blue: this is
+   * the same equipment the visor, the bolt and the grenade are painted in, and
+   * an assisted step should look assisted.
+   */
+  _stepThrust(ang) {
+    const fx = this.scene.fx;
+    const back = ang + Math.PI;
+    fx?.burstDir?.(this.x + Math.cos(back) * 10, this.y + Math.sin(back) * 10 + 6,
+      'white', 5, back, 120);
+    if (!this.scene?.add) return;
+    const g = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    g.setDepth(this.y - 2);
+    this._reactFx.push(g);
+    const started = this._clock;
+    const MS = 220;
+    const ox = this.x, oy = this.y;
+    g._tick = () => {
+      const u = (this._clock - started) / MS;
+      if (u >= 1 || !this.alive) { this._dropFx(g); g.destroy(); return; }
+      g.clear();
+      g.setDepth(this.y - 2);
+      const a = (1 - u) * 0.8;
+      // A short cone of thrust at the ORIGIN, which stays put — the body
+      // leaves it behind, which is what says he pushed off from there.
+      for (let i = 0; i < 3; i++) {
+        const th = back + (i - 1) * 0.3;
+        const len = 16 + i * 4 + u * 14;
+        this._bolt(g, ox + Math.cos(back) * 8, oy + Math.sin(back) * 8 + 6,
+          ox + Math.cos(th) * len, oy + Math.sin(th) * len + 6,
+          6, i === 1 ? 2.5 : 1.5, i === 1 ? 0xffffff : this.def.color, a);
+      }
+    };
+  }
+
+  /**
    * MAY HE THROW? ONE AT A TIME, AND NEVER AS THE OPENING BEAT.
    *
    * The rifle is the baseline and the grenade is a tool, so the gates are
@@ -883,6 +1154,7 @@ export class ShockCaptain extends Enemy {
     if (this._impactGlyphCd > 0) this._impactGlyphCd -= delta;
     if (this._acquireCd > 0) this._acquireCd -= delta;
     if (this._nadeCd > 0) this._nadeCd -= delta;
+    if (this._stepCd > 0) this._stepCd -= delta;
     if (this._nade?.dead) this._nade = null;
     if (this._shotFlashMs > 0) this._shotFlashMs -= delta;
     if (this._wKick > 0) this._wKick = Math.max(0, this._wKick - delta * 0.09);
@@ -911,6 +1183,12 @@ export class ShockCaptain extends Enemy {
     if (this._fireCd > 0) this._fireCd -= delta;
     this._stateMs -= delta;
     this._tickAcquire(p, delta);
+    // READY TO FIRE, IN RANGE, AND NO LINE. The 'blocked' step reason, kept as
+    // a running clock rather than an instant so a doorway or a passing body is
+    // not a reason to move — the same distinction `acquireLostMs` draws.
+    if (this._fireCd <= 0 && dist <= this.def.fireRange
+        && !this._hasLOS(this.x, this.y, p.x, p.y)) this._blockedMs += delta;
+    else this._blockedMs = 0;
 
     switch (this._cap) {
       case CAP.STAGGER:
@@ -918,6 +1196,29 @@ export class ShockCaptain extends Enemy {
         // knockback it already has; the loop resumes the frame it expires.
         if (this._stateMs <= 0) this._solvePosition(p);
         break;
+
+      case CAP.STEP: {
+        // PLANT, THEN TRAVEL. The plant is what makes it footwork instead of a
+        // body acquiring velocity, and the impulse is spawned on the frame the
+        // plant ends so the thrust and the movement are the same event.
+        if (this._stepPlantMs > 0) {
+          this._stepPlantMs -= delta;
+          this.setVelocity(0, 0);
+          if (this._stepPlantMs <= 0) {
+            this._stepThrust(Math.atan2(this._stepVy, this._stepVx));
+          }
+        } else {
+          // Velocity, not a tween or a teleport — so the wall collider is
+          // still underneath and a destination check that was wrong costs a
+          // short stop rather than a body inside a console.
+          this.setVelocity(this._stepVx, this._stepVy);
+        }
+        if (this._stateMs <= 0) {
+          this.setVelocity(0, 0);
+          this._solvePosition(p);
+        }
+        break;
+      }
 
       case CAP.WINDUP:
         // REACHING FOR IT. Planted, because a man throwing a grenade plants —
@@ -956,6 +1257,10 @@ export class ShockCaptain extends Enemy {
         if (this._round <= 0 && this._roundGap <= 0) {
           this._enter(CAP.RECOVER, this.def.recoverMs);
           this._fireCd = this.def.fireEveryMs;
+          // INTENT, NOT A STEP. The commitment is over and he may want a new
+          // angle — but the step still has to pass its cooldown and its
+          // geometry check, so this only ever ASKS.
+          this._wantPostBurstStep = Math.random() < this.def.step.postBurstChance;
           this.scene.events.emit('champion-burst-complete', this);
         }
         break;
@@ -973,6 +1278,23 @@ export class ShockCaptain extends Enemy {
           ? this.cfg.speed * this.def.giveGroundSpeedMult : this.cfg.speed;
         const t = this._target;
         const left = t ? this._navigatePath(t.x, t.y, speed, delta) : 0;
+        // ── THE STEP'S INTERRUPT CONTRACT (§14) ──────────────────────────
+        // It is reachable ONLY from here — the moving states, ADVANCE, GIVE
+        // GROUND and STRAFE, plus the frame RECOVER hands back to them. It can
+        // therefore happen BEFORE a brace and AFTER a burst, and it can never
+        // cancel a grenade already committed to, a burst already firing, a
+        // brace already set, or a stagger. Those are authoritative action
+        // beats, and a step that ate one would be animation soup: the body
+        // would leave in the middle of a gesture the player is reading.
+        const stepWhy = this._stepReasonFor(p, dist);
+        if (stepWhy) {
+          const dest = this._solveStep(p, stepWhy);
+          if (dest) { this._beginStep(p, stepWhy, dest); break; }
+          // REFUSED, AND THE COOLDOWN IS NOT SPENT. Geometry said no, so he
+          // simply keeps doing what he was doing and may try again — a refused
+          // step must not read as a pause.
+          if (stepWhy === 'postburst') this._wantPostBurstStep = false;
+        }
         // THE GRENADE OUTRANKS THE RIFLE WHEN IT IS AVAILABLE, and it is
         // available about once every nine seconds. Checked first for exactly
         // that reason: a tool on a long cooldown that loses every race to a
@@ -1148,6 +1470,14 @@ export class ShockCaptain extends Enemy {
       // reaches for one with `raise` and comes over the top with `thrust`.
       case CAP.WINDUP:  key = `${pre}-raise-${dir}`; break;
       case CAP.THROW:   key = `${pre}-thrust-${dir}`; break;
+      // THE PLANT IS THE BRACE BODY — weight set, knees loaded — and the
+      // travel is the STRAFE cycle, which is the existing lateral gait and the
+      // only one whose feet agree with sideways movement. Playing the forward
+      // walk here would swing the legs against the direction of travel, which
+      // is precisely the sliding read both rejected Champions died of.
+      case CAP.STEP:
+        key = this._stepPlantMs > 0 ? `${pre}-brace-${dir}` : `${pre}-strafe-${dir}`;
+        break;
       case CAP.BRACE:   key = `${pre}-brace-${dir}`; break;
       case CAP.BURST:
         // BRACE -> FLASH -> RECOIL -> back to brace, per round. The muzzle
@@ -1167,6 +1497,9 @@ export class ShockCaptain extends Enemy {
     }
     // A state that has stopped moving must not keep playing a walk cycle —
     // feet stepping on the spot is the inverse of a body sliding without them.
+    // The STEP is deliberately absent from this list: its plant beat is
+    // stationary BY DESIGN and swapping it to an idle would delete the one
+    // frame that says he set his feet.
     const still = this.body && (this.body.velocity.x ** 2 + this.body.velocity.y ** 2) < 260;
     if (still && (this._cap === CAP.STRAFE || this._cap === CAP.ADVANCE || this._cap === CAP.GIVE_GROUND)) {
       key = `${pre}-idle-${dir}`;
@@ -1242,11 +1575,22 @@ export class ShockCaptain extends Enemy {
     this._nade = null;
   }
 
+  /** A step must not outlive the actor as a standing velocity or a stuck state. */
+  _endStep() {
+    this._stepPlantMs = 0;
+    this._stepVx = 0;
+    this._stepVy = 0;
+    this._stepReason = null;
+    if (this._cap === CAP.STEP) this._cap = CAP.ADVANCE;
+    if (this.body) this.setVelocity(0, 0);
+  }
+
   die(...args) {
     this._armourBar?.destroy();
     this._armourBar = null;
     this._clearReactions();
     this._dropGrenade();
+    this._endStep();
     return super.die(...args);
   }
 
@@ -1255,6 +1599,7 @@ export class ShockCaptain extends Enemy {
     this._armourBar = null;
     this._clearReactions();
     this._dropGrenade();
+    this._endStep();
     return super.destroy(...args);
   }
 }
