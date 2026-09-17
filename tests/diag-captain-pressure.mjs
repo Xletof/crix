@@ -1,7 +1,17 @@
 // DIAG — IS THE SHOCK CAPTAIN SLUGGISH, AND IS HIS BURST FREE TO WALK OUT OF?
 //
 //   node tests/diag-captain-pressure.mjs [mode]
-//        mode = hold (default) | line | reverse | still
+//        mode = hold (default) | line | reverse | still | stepstop | dash
+//
+// ── THE FIVE POLICIES ARE A FAIRNESS CONTRACT, NOT A HIT-COUNT LEADERBOARD ─
+// §26/§35. `still` and `line` should be PUNISHED — continuing is what the
+// corridor is suppressing. `reverse` and `dash` should be EFFECTIVE, because
+// the plan is snapshotted at the commitment and changing your mind after it
+// invalidates the whole burst. `stepstop` is the OLD EXPLOIT: under the
+// rejected three-point law a small step and a stop parked the player in the
+// uncovered gap between the establish shot and the lead, and it should no
+// longer reliably solve a whole burst. Do not tune for maximum hits — read the
+// ORDERING between the policies.
 //
 // Two handset findings, one instrument. §7 says audit the values before tuning
 // them and §13 says measure the cadence before touching it, so this prints:
@@ -83,6 +93,16 @@ const out = await page.evaluate(async ({ MODE, SECS }) => {
   let c = gs.enemies.getChildren().find((e) => e.alive && e.isChampion);
   if (!c) c = gs.spawnChampion(gs.player.x + 420, gs.player.y, 'captain');
   c.die = () => { c.hp = Math.max(c.hp, c.hpMax * 0.5); };
+  // ── STAGE THE ENGAGEMENT; DO NOT TIME THE WALK OVER ──────────────────────
+  // A wave-spawned Captain arrives wherever the gate dropped him. Measured, a
+  // `line` run spent most of its window at a MEDIAN SEPARATION OF 1137px
+  // against a `fireRange` of 620 — three commitments in sixteen seconds, and
+  // the rest of it a chase. Every figure the rig prints is then a statement
+  // about the approach: "stationary %" counts a man walking, and the bolt
+  // sample is too small for the per-round split to mean anything. Put him
+  // inside his own band and the same window buys a real sample.
+  c.setPosition(gs.player.x + 420, gs.player.y);
+  c.setVelocity(0, 0);
 
   const L = {
     frames: 0, dt: 0, stationary: 0, moving: 0,
@@ -96,26 +116,48 @@ const out = await page.evaluate(async ({ MODE, SECS }) => {
   // So record the aim point the solver produced and the player's REAL position
   // at the bolt's closest approach, and print the two displacements side by
   // side: `wanted` is how far ahead he led, `real` is how far they went.
-  const leads = [];
-  const realPredict = c._predict.bind(c);
-  c._predict = (p, lead) => {
-    const aim = realPredict(p, lead);
-    leads.push({ lead, px: p.x, py: p.y, ax: aim.x, ay: aim.y });
-    return aim;
+  //
+  // ── THE CORE FEEL PASS CHANGED WHAT THERE IS TO HOOK ────────────────────
+  // There is no per-round solver any more: `_planBurst` takes ONE snapshot at
+  // the commitment moment and every round is drawn from that plan. So the hook
+  // moved from `_predict` (gone) to the plan itself, and `wanted` is now the
+  // displacement from the corridor's ORIGIN — where the player was when he
+  // committed — to the point this round is suppressing.
+  const plans = [];
+  const realPlan = c._planBurst.bind(c);
+  c._planBurst = (p) => {
+    const pl = realPlan(p);
+    plans.push({
+      ox: pl.ox, oy: pl.oy, len: pl.len, rounds: pl.rounds,
+      pattern: pl.pattern, still: pl.still, px: p.x, py: p.y,
+    });
+    return pl;
+  };
+  const aims = [];
+  const realPoint = c._planPoint.bind(c);
+  c._planPoint = (i) => {
+    const a = realPoint(i);
+    aims.push(a);
+    return a;
   };
   const live = [];           // bolts in flight: { b, min, t0, dist0, travel }
   const realFire = gs.fireCaptainBolt.bind(gs);
   gs.fireCaptainBolt = (cap, mx, my, ang) => {
     const b = realFire(cap, mx, my, ang);
     const p = gs.player;
-    const lead = leads[leads.length - 1];
+    const aim = aims[aims.length - 1];
+    const pl = plans[plans.length - 1];
     live.push({
       b, min: Infinity, t0: performance.now(),
       dist0: Math.hypot(p.x - mx, p.y - my),
-      round: cap.def.burstRounds - cap._round + 1,
+      // `_planShot` has already been incremented by `_fireRound`, so this is
+      // the 1-based index of the round that just left.
+      round: cap._planShot,
+      plannedRounds: pl ? pl.rounds : 0,
+      pattern: pl ? pl.pattern : '?',
       px0: p.x, py0: p.y,
       pv: Math.hypot(p.body.velocity.x, p.body.velocity.y),
-      wanted: lead ? Math.hypot(lead.ax - lead.px, lead.ay - lead.py) : 0,
+      wanted: (aim && pl) ? Math.hypot(aim.x - pl.px, aim.y - pl.py) : 0,
       real: 0,
     });
     return b;
@@ -135,7 +177,35 @@ const out = await page.evaluate(async ({ MODE, SECS }) => {
     L.frames++; L.dt += dt;
 
     // ── drive the player on a fixed policy ────────────────────────────────
-    if (MODE !== 'still') {
+    if (MODE === 'stepstop') {
+      // THE OLD SWEET SPOT. A short lateral nudge, then a full stop, held long
+      // enough to sit out the rest of a burst — which is precisely the shape
+      // that beat the three-point solver by standing in the hole between its
+      // answers.
+      flip += dt;
+      if (flip > 900) { flip = 0; dir *= -1; }
+      if (flip < 190) {
+        const a = Math.atan2(p.y - c.y, p.x - c.x) + Math.PI / 2 * dir;
+        p.setMoveInput({ x: Math.cos(a), y: Math.sin(a), force: 1 });
+      } else {
+        p.setMoveInput({ x: 0, y: 0, force: 0 });
+      }
+    } else if (MODE === 'dash') {
+      // A HELD LINE, BROKEN BY A DASH THE MOMENT HE COMMITS. The trigger is the
+      // Captain's own plan appearing — which the player can see as a brace —
+      // and nothing about it is privileged: a human reads the same tell.
+      const a = Math.atan2(p.y - c.y, p.x - c.x) + Math.PI / 2 * dir;
+      p.setMoveInput({ x: Math.cos(a), y: Math.sin(a), force: 1 });
+      if (c._plan && !L._dashedThisBurst) {
+        L._dashedThisBurst = true;
+        dir *= -1;
+        const b = Math.atan2(p.y - c.y, p.x - c.x) + Math.PI / 2 * dir;
+        p.setMoveInput({ x: Math.cos(b), y: Math.sin(b), force: 1 });
+        p.tryDash?.();
+        L.dashes = (L.dashes || 0) + 1;
+      }
+      if (!c._plan) L._dashedThisBurst = false;
+    } else if (MODE !== 'still') {
       flip += dt;
       if (MODE === 'reverse' && flip > 700) { flip = 0; dir *= -1; }
       let a;
@@ -233,7 +303,17 @@ const out = await page.evaluate(async ({ MODE, SECS }) => {
     medRange: Math.round(med(L.dists)),
     bolts: L.bolts,
     wallTurns: L.wallTurns,
+    dashes: L.dashes || 0,
     cfgSpeed: c.cfg.speed,
+    // ── ONE PLAN PER COMMITMENT ────────────────────────────────────────────
+    // `plans` counts snapshots and `bolts` counts rounds. Under the rejected
+    // law there was one solve per round and these would be equal; under the
+    // corridor law a 5-round burst is ONE plan, so plans must be far fewer.
+    plans: plans.length,
+    planLens: plans.map((x) => x.rounds),
+    planPatterns: plans.reduce((m, x) => { m[x.pattern] = (m[x.pattern] || 0) + 1; return m; }, {}),
+    planStill: plans.filter((x) => x.still).length,
+    planLen: Math.round(plans.reduce((t, x) => t + x.len, 0) / Math.max(1, plans.length)),
   };
 }, { MODE, SECS });
 
@@ -248,11 +328,19 @@ console.log(`  state ms            ${JSON.stringify(out.states)}`);
 console.log(`  speed               median ${out.medSpeed} / peak ${out.maxSpeed} (cfg ${out.cfgSpeed})`);
 console.log(`  burst end -> moving ${out.medRecoverToMove}ms median  ${JSON.stringify(out.recoverToMoveMs)}`);
 console.log('');
+console.log('PLAN');
+console.log(`  plans / rounds      ${out.plans} plans -> ${b.length} rounds`
+  + `   (one plan per commitment, never one per round)`);
+console.log(`  burst lengths       ${JSON.stringify(out.planLens)}`);
+console.log(`  spray patterns      ${JSON.stringify(out.planPatterns)}`);
+console.log(`  corridor            ${out.planLen}px mean  ·  ${out.planStill} on a still target`);
+if (out.dashes) console.log(`  rig dashes          ${out.dashes}`);
+console.log('');
 console.log('PRESSURE');
 console.log(`  bolts fired         ${b.length}`);
 console.log(`  travel time         median ${b.length ? [...b].map((x) => x.travel).sort((a, c) => a - c)[b.length >> 1] : 0}ms`);
 console.log(`  closest approach    <=24px ${near(24)}   <=48px ${near(48)}   <=96px ${near(96)}   <=160px ${near(160)}`);
-for (const r of [1, 2, 3]) {
+for (const r of [1, 2, 3, 4, 5, 6]) {
   const rr = b.filter((x) => x.round === r);
   if (!rr.length) continue;
   const mins = rr.map((x) => x.min).sort((a, c) => a - c);

@@ -226,7 +226,26 @@ spawns the Captain; DEBUG carries four triggers — BIG HIT / BREAK / LOW HEALTH
 drive the real `damage()` path, and CHAMP: GRENADE clears the cooldown and lets
 the real AI decide.
 
-**S1 IS THE CURRENT CANDIDATE — `§10ak`.** The telemetry came back and the
+**THE CORE FEEL PASS IS THE CURRENT CANDIDATE — `§10al`.** S1 came back
+DIRECTIONALLY SUCCESSFUL: he is harder to erase, the human takes more risk and
+dies more often forcing the kill, and the reactive-armour absorption is liked.
+So **durability is FROZEN at 5300 and there is still NO Super resistance of any
+kind** — S2 is neither started nor justified. The limiting factor moved to CORE
+COMBAT FEEL, and this pass is three things: the **tactical step 150 → 200px**
+with a five-beat chain (plant + a rising suit preload → push-off → travel → a
+**catch on a new `land` frame** → settle) and an explicit priority list that
+puts AGGRESSIVE CLOSE PRESSURE first; the **weight language** — the whole-body
+scale squash that `Enemy.preUpdate` applied on every hit and every round DAMPED
+(it was the biggest single cause of the bounce and it is not in the sprite
+sheet at all), `bob` zeroed for every firing pose, the recoil moved up into the
+rifle and shoulders, and a firing base that holds through the whole commitment;
+and the **rifle**, where a fixed three rounds becomes a variable 3-6 and the
+per-round intercept solver is replaced by ONE COMMITTED CORRIDOR snapshotted at
+late brace. **B.2.3 is still paused** — directional damaged skins, model-level
+deterioration and the Arc Grenade art rebuild are all still required and were
+deliberately kept out of a movement and rifle pass.
+
+**S1 IS THE PASS BEFORE IT — `§10ak`.** The telemetry came back and the
 diagnosis is precise: he is NOT generally under-durable, he is specifically too
 easy to erase under concentrated Super pressure. A focused human removed him in
 **4.7s** with 2 casts and 7 of 10 pellets connecting, and he threw **no
@@ -6760,6 +6779,227 @@ is not pre-built.
 | bursts completed | 1/2 | ? |
 
 ---
+
+---
+
+## 10al. THE SHOCK CAPTAIN, CORE FEEL — footwork with a chain, a body with a base, and one burst as one decision. **CANDIDATE — NOT APPROVED**
+
+S1 came back from the handset DIRECTIONALLY SUCCESSFUL and precisely
+criticised. He is harder to erase; the human takes more risk and dies more
+often forcing the kill; the reactive-armour absorption is liked. So:
+
+**DURABILITY IS FROZEN AT 5300 AND THERE IS STILL NO SUPER RESISTANCE.** Not a
+multiplier, not a pellet reduction, not burst resistance, not a per-hit cap, not
+a damage gate, not armour recharge, not an immunity window. `armourTake` and
+`armourSpill` are untouched. S2 is not started and is not justified: the
+limiting factor moved, and this pass is where it moved to.
+
+The handset's remaining complaints were all about FEEL, and they were specific:
+
+| complaint | what it was |
+|---|---|
+| the step is too short | 150px, and the player could hold almost the same aim relationship straight through it |
+| the step looks under-authored | a plant, an impulse and a stop — no launch, no catch |
+| he does not deploy it when it matters | `close` fired at 0.82 of `holdMin` and `blocked` outranked `postburst` |
+| bouncy, elastic, floaty | see below — three separate causes, one of them not in the sprite sheet at all |
+| exactly three rounds every time | a script the player can count |
+| robotic / aimbot / Terminator aim | three independent point solutions, one per projectile |
+
+### The bounce had three causes and the biggest one was not the art
+
+MEASURED BY READING THE CODE THE ART SITS IN. `Enemy.preUpdate` owns a scale
+channel: a **sine wobble at ±10%** while `_staggerMs` runs, and a **12% shrink**
+while `recoilT` runs. `Enemy.damage` sets `_staggerMs = 90` on **EVERY HIT**,
+and `_fireRound` was setting `recoilT = 105` on **EVERY ROUND**. So a
+5300-durability Champion under sustained chip fire was a rubber sprite for the
+whole fight, and the man visibly shrank each time his own rifle went off. That
+is "the weapon makes the character hop" and "he jiggles constantly", and no
+amount of frame work could have fixed it.
+
+Both depths are TUNABLE FIELDS now (`_staggerScale`, `_recoilScale`) whose
+defaults are the shipped numbers, so every other actor in the game is
+byte-identical. The Captain asks for 0.025 and 0.035 — present, damped — and
+`_fireRound` no longer touches `recoilT` at all.
+
+The second cause was `bob`, a WHOLE-BODY vertical offset that carried the firing
+arc: brace 1, fire 1, recoil 2. It is now **zero for every firing pose**. The
+third was `lean`, which moved the HELMET ALONE by up to five pixels across a
+burst — a bobble head on a static torso. It is halved, and the chest and
+shoulders take half of what is left (`tl`), so the whole upper body leans and
+the boots take none of it.
+
+**WHAT REPLACED IT, BECAUSE "STOP MOVING" IS NOT AN ANSWER.** The recoil went UP
+the kinetic chain, which is where the brief puts it: most of it on the RIFLE (a
+separate overlay, `_wKick` 19 → 23), then the SHOULDERS (`sh` deepened — brace
+−2, fire 2, recoil 4, settle 1), then the upper torso. And the STANCE now widens
+to shoot (two pixels each way instead of one) and **holds that width through the
+entire commitment**: brace, fire, recoil and settle share one firing base, so
+the one thing in a burst that does not move is the thing standing on the deck.
+
+### 51 → 57 frames, and both new ones are about weight
+
+**`settle` (14)** — the between-rounds correction. A 3-6 round burst that
+returns to the full brace after every shot is one pose looped N times, and at
+six rounds that reads as a machine cycling. Settle is shoulders most of the way
+back but not all of it, so the body is still carrying the last round when the
+next one leaves. It is also the middle stage of a three-stage RECOVER (recoil →
+settle → idle), which is the damped return §15 asks for in place of a snap.
+
+**`land` (15)** — the tactical step's CATCH. Widest stance on the sheet, torso
+two pixels down into the legs, shoulders absorbing, kama pulled in. Before this
+frame a 200px displacement ended by switching the velocity off.
+
+`perDir` 14 → 16 and `poseBase` 42 → 48; everything reads `CAPTAIN_FRAMES`, so
+the sheet, the animation registration and the selector all moved together.
+
+### The tactical step, v2
+
+**150 → 200px**, the middle of the brief's 180-220 class. The chain is now five
+beats and every one of them is visible:
+
+| beat | ms | body | equipment |
+|---|---|---|---|
+| PLANT | 90 | brace frame — weight set, knees loaded | PRELOAD: blue-white charge across the pack, RISING (it builds into the launch, it does not fade) |
+| PUSH-OFF | — | — | five thrust strands at the ORIGIN he leaves behind, plus a flat deck scuff at the launch foot |
+| TRAVEL | 215 | strafe cycle — the only gait whose feet agree with lateral movement | TWO echoes, 130ms each, and nothing joining them |
+| CATCH | 120 | **`land`** — widest stance, torso down into it | a low FLAT ring on the deck and four sparks at the boots |
+| SETTLE | — | the combat loop resumes | — |
+
+**THE HARROWER IS THE NEGATIVE REFERENCE AND THE ECHO IS WHERE IT WOULD COME
+BACK.** Two discrete stamps of his own frame at positions he actually occupied,
+each dead in 130ms, with no line between them. They say "he was there a moment
+ago". A persistent trail would say "he is sliding", which is the word a handset
+already used to kill one Champion.
+
+**Cooldown is UNCHANGED at 2800ms.** This pass moves the distance, the
+presentation and the priorities; shortening the cooldown on top of all three
+would make it impossible to tell which of them the handset is answering.
+
+### The step's priority list, rewritten
+
+It was a chain of whichever test was written first. It is an explicit priority
+order now:
+
+1. **CLOSE — aggressive pressure.** The most important use by a distance and the
+   one the handset said he was missing. The band widened from 0.82 to **0.95 of
+   `holdMin`**, and a player who is still **CLOSING** (≥120px/s of approach,
+   measured from real displacement between frames) qualifies from 1.3× out.
+2. **POST-BURST** — 0.5 → **0.62**. A spent commitment is the natural moment to
+   relocate, and it is what stops "he empties a burst and stands where he was
+   already solved".
+3. **FIELD** — exploit the route his own grenade just closed.
+4. **BLOCKED** — LAST, and it waits **460ms** instead of 300. A step spent
+   walking round a console is a step not spent breaking a firing solution, and
+   ordinary navigation already solves a blocked line at walking pace.
+
+**IT STILL NEVER READS THE PLAYER'S SUPER.** Distance and approach rate were
+both true before the player decided anything this frame, and neither can express
+"they are about to fire". `smoke-captain-step` proves it twice, unchanged: a
+static grep of the actor for every identifier that could carry the state, and
+six real Supers fired at him with zero steps following a cast.
+
+### One burst is one tactical decision
+
+**THE PER-ROUND SOLVER IS GONE.** `_predict` no longer exists. B.2.2 solved an
+intercept per projectile — establish, lead, bracket — and it hit, and the
+handset called it robotic. It was also **exploitable in a way that is obvious
+once it is written down**: three point solutions leave the ground BETWEEN them
+uncovered, so a small step and a stop parked the player in the hole between the
+establish shot and the lead and beat the whole burst by standing still in the
+right place.
+
+At the **commitment moment** — late brace, `_stateMs <= braceMs * 0.42`,
+immediately before the first round — `_planBurst` reads the player ONCE and
+builds:
+
+- **A CORRIDOR, ANCHORED IN TIME.** Bearing = the movement they are committed
+  to. Its NEAR end is 0.6 of where round one would intercept and its FAR end is
+  1.15× past where the LAST round would, so one decision brackets the whole
+  arrival window. **THE FIRST CUT OF THIS GOT IT WRONG AND THE RIG CAUGHT IT**:
+  sized as "0.7 seconds of their travel starting where they are", the whole
+  corridor sat BEHIND a player the rounds take 1.3s to reach, and
+  `diag-captain-pressure line` measured **3 of 21 rounds inside 48px** —
+  continuing was the safe answer, which is exactly the failure B.2.2 existed to
+  fix, arriving through a new door. If they are moving under 40px/s the corridor
+  becomes a **74px fan ACROSS his own bearing, centred on them** — a route of
+  zero length is a point, and a soldier suppressing a point is simply shooting
+  at somebody who is not moving. Standing still is not safe.
+- **A LENGTH**, drawn from `burstRoundWeights` — 3:18, 4:32, 5:30, 6:20 — with
+  one mild context term (§19) that shifts the draw by at most one round: closer
+  than 62% of `fireRange` leans long, beyond it leans short.
+- **A SPRAY SHAPE**, one of four: `up` (near→far, **44**), `outward` (centre
+  then alternating out, 24), `sweepback` (up and part of the way back, 20 — the
+  one that covers the same ground twice), `down` (far→near, 12). `up` carries
+  the weight because its round order matches the order the rounds ARRIVE in, so
+  it is the shape that reads as walking fire along a route; the other three
+  trade some of that for covering the ground a player who slows, stops or
+  wobbles ends up on. That trade is where the cost of variation is paid.
+- **A SIDE BIAS**, ±22px, chosen once and held, opening 16% per round — which is
+  what lets the eye see him deliberately walking fire one way.
+- **EVERY ROUND'S IMPERFECTION, ROLLED UP FRONT.** ±(13 + 4.5 × round index).
+  Rolled here rather than at each shot so the rifle can traverse toward a point
+  that will not move under it.
+
+Then he suppresses that plan and **does not look again until the burst is
+over**. Nothing after `_planBurst` reads the player's position, velocity or
+heading. That is a structural fairness claim rather than a coefficient.
+
+**AND THE RIFLE WALKS.** Facing used to be re-solved to the player every frame,
+so between rounds the barrel snapped back onto them and then out to the next
+answer — which is precisely what "aimbot" looks like. Inside a brace or a burst
+the aim now eases toward the NEXT PLANNED POINT at `corridor.traverse` (0.22)
+and nowhere else, so the fire visibly traverses the corridor at a speed the eye
+can follow. **If the difference is only visible in debug vectors the design has
+failed** (§36); this is the line that makes it visible in the footage.
+
+The BURST animation follows it: fire → recoil → **correct** per round, the first
+frame of the commitment still the brace.
+
+### What this pass deliberately did not do
+
+No durability change. No Super resistance. No directional damaged skins, no
+model-level deterioration, no Arc Grenade art rebuild, no field polish — those
+are still required and still `B.2.3`. No second signature, no variants, no
+Endless integration, no elite upgrade, no Commander tier.
+
+### Evidence
+
+`docs/evidence/champion-reset/cf/` — **`captain-core-feel-1x.webm` is the
+evidence and the stills are its index.** §33/§34 are explicit that a step and a
+weight transfer are motion, and that this must not be reviewed against a
+vertical-pixel threshold. The stills carry the five step beats (plant+preload,
+push-off, travel, **catch**, settle) and the four poses of a firing base.
+
+### Tests, and what they are allowed to assert
+
+The five deterministic policies, 30s each, staged inside the engagement band —
+rounds landing within 48px, which at this sample rate is "would have hit":
+
+| policy | inside 48px | |
+|---|---|---|
+| `still` | **30 / 33 — 91%** | punished hardest, as §26 requires |
+| `stepstop` | 14 / 36 — 39% | **the old exploit is gone** — it used to be the safe answer |
+| `line` | 6 / 24 — 25% | pressured; see the confound |
+| `reverse` | 1 / 33 — 3% | changing your mind after the commitment works |
+| `dash` | **0 / 29 — 0%** | dashing out of the corridor works completely |
+
+**`line` UNDERSTATES ITSELF AND THE RIG PRINTS WHY.** It re-derives a
+perpendicular bearing every 440px to stay inside the band, which at 380px/s is a
+reversal roughly every 1.4s against a ~1.3s flight — so more than half its bolts
+have a rig-imposed reversal in the air, and under the corridor law a reversal
+invalidates the whole commitment BY DESIGN. Read the ORDERING, never the
+absolutes: closest approach is sampled at ~10fps against a 600px/s bolt, so a
+stationary player measures a ~44px median miss on a build that cannot miss them.
+
+`smoke-captain-rifle` is new and it protects TRUTH ONLY: one plan per
+commitment, a length inside 3-6 drawn exactly once, a spray shape chosen once,
+every round drawn from the committed plan, no round re-solving the player, no
+homing, and the corridor cleared when the burst ends. `smoke-captain-step`
+carries the new distance class and the catch beat. **No test asserts that the
+movement looks heavy, and no test asserts a TTK.** `diag-captain-pressure` gained
+two policies — `stepstop` (the old exploit) and `dash` — and prints the plan
+count beside the round count, because under the rejected law those two numbers
+were equal.
 
 ## 12. CAMERA PHASE 1 — a camera that frames the game
 

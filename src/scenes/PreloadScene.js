@@ -386,6 +386,10 @@ export class PreloadScene extends Phaser.Scene {
         for (const [name, idx] of [
           ['brace', CAPTAIN_FRAMES.brace], ['fire', CAPTAIN_FRAMES.fire],
           ['recoil', CAPTAIN_FRAMES.recoil], ['stagger', CAPTAIN_FRAMES.stagger],
+          // CORE FEEL PASS. `settle` is the between-rounds correction that
+          // keeps a 3-6 round burst from being one pose looped; `land` is the
+          // tactical step's catch, where he receives his own mass.
+          ['settle', CAPTAIN_FRAMES.settle], ['land', CAPTAIN_FRAMES.land],
         ]) {
           this.anims.create({
             key: `${c.key}-${name}-${dirName}`,

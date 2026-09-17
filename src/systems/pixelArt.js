@@ -1514,12 +1514,24 @@ export const CAPTAIN_PALETTE = {
   damage: '#ffd27a', white: '#ffffff',
 };
 
+// ── CORE FEEL PASS: 51 -> 57, AND BOTH NEW FRAMES ARE ABOUT WEIGHT ─────────
+//
+// SETTLE is the between-rounds correction. A 3-6 round burst that returns to
+// the full BRACE pose after every shot is one pose looped N times, and at six
+// rounds that reads as a machine cycling. Settle sits between recoil and brace:
+// the shoulders have come most of the way back but not all of it, so a long
+// burst has a rhythm — round, recoil, correct, round — instead of a repeat.
+//
+// LAND is the tactical step's CATCH. Deepest compression on the sheet: stance
+// at its widest, torso down into the legs, shoulders absorbing. Without it a
+// 200px displacement ends by switching the velocity off, which is exactly the
+// floaty read this pass exists to remove — he has to receive his own mass.
 export const CAPTAIN_FRAMES = {
-  perDir: 14,
+  perDir: 16,
   idleA: 0, idleB: 1, walk: 2, brace: 8, fire: 9, recoil: 10, stagger: 11,
-  strafeA: 12, strafeB: 13,
-  poseBase: 42,
-  total: 51,
+  strafeA: 12, strafeB: 13, settle: 14, land: 15,
+  poseBase: 48,
+  total: 57,
 };
 
 // ── COMBAT PUNCTUATION — the grawlix set ────────────────────────────────────
@@ -1661,25 +1673,62 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
     const hurt = pose === 'stagger';
     const breath = pose === 'idleB';
 
-    const bob = pose === 'fire' ? 1 : pose === 'recoil' ? 2 : pose === 'brace' ? 1
-      : hurt ? 2 : pose === 'thrust' ? 1 : pose === 'raise' ? -2
-      : (legPhase === 0 ? 0 : (Math.abs(legPhase) === 2 ? 1 : 0));
-    const lean = pose === 'fire' ? 2 : pose === 'recoil' ? -3 : pose === 'brace' ? 1
-      : hurt ? -2 : pose === 'thrust' ? 2 : pose === 'raise' ? -1 : 0;
-    // Shoulder height is the clearest tell a body this small has, and it is what
-    // carries the whole brace -> fire -> recoil -> settle arc. THE THREE MUST
-    // NOT BE NEIGHBOURS: an earlier build separated brace from fire by one
-    // pixel of arm and they photographed as the same frame, which makes a burst
-    // a muzzle flash over a static pose — exactly what §5 of the brief forbids.
-    const sh = pose === 'brace' ? -2 : pose === 'fire' ? 1 : pose === 'recoil' ? 3
-      : hurt ? 1 : pose === 'raise' ? -2 : breath ? -1 : 0;
+    // ── THE FOUR CHANNELS, REBALANCED FOR CONTROLLED WEIGHT ───────────────
+    //
+    // HANDSET VERDICT: bouncy, elastic, floaty, spring-loaded. The cause was
+    // `bob` — a WHOLE-BODY vertical offset — carrying the firing arc. Brace 1,
+    // fire 1, recoil 2 meant the entire 112px figure travelled up and down four
+    // times a second for the length of a burst, and the head carried a further
+    // five pixels of `lean` on top of it. That is a body hopping, not a body
+    // absorbing, and it is why a heavily armoured man read as light.
+    //
+    // THE FIX IS WHERE THE MOTION LIVES, NOT HOW MUCH THERE IS. `bob` is now
+    // ZERO for every firing pose: the ground line under a shooting Captain does
+    // not move. The recoil went UP the chain instead — into `sh` (shoulders),
+    // which is deliberately larger than it was, into a halved `lean` carried by
+    // the whole upper body rather than by the helmet alone, and into the rifle,
+    // which is a separate overlay and is where most of a recoil belongs.
+    //
+    // HE IS NOT STIFF. `bob` still compresses on the walk's loaded frames and
+    // goes deep on a real blow and on a landing — the body absorbs where a body
+    // would. What it no longer does is oscillate on its own.
+    const bob = pose === 'land' ? 2 : hurt ? 2
+      : pose === 'raise' ? -1
+        : (pose === 'fire' || pose === 'recoil' || pose === 'brace'
+          || pose === 'settle' || pose === 'thrust') ? 0
+          : (legPhase === 0 ? 0 : (Math.abs(legPhase) === 2 ? 1 : 0));
+    // LEAN IS ALONG THE FACING AXIS and it is halved from B.2.2: a recoil that
+    // threw the head back three pixels was the single loudest elastic motion on
+    // the sheet.
+    const lean = pose === 'fire' ? 1 : pose === 'recoil' ? -2 : pose === 'settle' ? -1
+      : pose === 'brace' ? 1 : pose === 'land' ? 1
+        : hurt ? -2 : pose === 'thrust' ? 2 : pose === 'raise' ? -1 : 0;
+    // Shoulder height is the clearest tell a body this small has, and it now
+    // carries the WHOLE brace -> fire -> recoil -> settle arc on its own. THE
+    // FOUR MUST NOT BE NEIGHBOURS: an earlier build separated brace from fire
+    // by one pixel of arm and they photographed as the same frame, which makes
+    // a burst a muzzle flash over a static pose.
+    const sh = pose === 'brace' ? -2 : pose === 'fire' ? 2 : pose === 'recoil' ? 4
+      : pose === 'settle' ? 1 : pose === 'land' ? 2
+        : hurt ? 1 : pose === 'raise' ? -2 : breath ? -1 : 0;
 
     const cx = 14;
     const cy = 8 + bob + lean;
-    const sy = 14 + bob + sh;
-    const ty = 14 + bob;
+    // THE LEAN IS AN UPPER-BODY LEAN, NOT A NOD. It used to move the helmet
+    // alone, which at 112px is a bobble head on a static torso — the chest and
+    // shoulders take half of it now (truncated toward zero, so a one-pixel lean
+    // stays in the head) and the FEET take none of it at all. That is the
+    // stable ground line: everything above the ankles leans into a shot and the
+    // boots stay where they were planted.
+    const tl = Math.trunc(lean * 0.5);
+    const sy = 14 + bob + sh + tl;
+    const ty = 14 + bob + tl;
     const bone = BROKEN ? P.rankLo : P.rank;
-    const flare = pose === 'raise' || pose === 'strafeA' || pose === 'strafeB';
+    // The pack vents on a wind-up, on a lateral step and on the CATCH — the
+    // landing is the moment the suit has just spent energy, so the nozzles
+    // showing it is the equipment explaining the movement.
+    const flare = pose === 'raise' || pose === 'strafeA' || pose === 'strafeB'
+      || pose === 'land';
 
     // ── THE PACK ──────────────────────────────────────────────────────────
     // A compact power assembly on his back. Seen from above that is NORTH of
@@ -1829,9 +1878,10 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
       // Arms. Without them the shoulders are cargo, not limbs — and the arm is
       // the one place brace / fire / recoil can be told apart at a glance.
       const ao = pose === 'brace' ? 1 : pose === 'fire' ? 3 : pose === 'recoil' ? -2
-        : pose === 'strafeA' ? 1 : pose === 'strafeB' ? -1
-          : legPhase === 1 ? 1 : legPhase === 2 ? 2 : legPhase === -1 ? -1
-            : legPhase === -2 ? -2 : 0;
+        : pose === 'settle' ? 0 : pose === 'land' ? -1
+          : pose === 'strafeA' ? 1 : pose === 'strafeB' ? -1
+            : legPhase === 1 ? 1 : legPhase === 2 ? 2 : legPhase === -1 ? -1
+              : legPhase === -2 ? -2 : 0;
       ss.rect(qx + 1 + ao, sy + 7, 4, 3, P.body);
       ss.hline(sy + 7, qx + 1 + ao, qx + 4 + ao, P.plate);
       rim(qx + 1 + ao, sy + 7, 4, 3);
@@ -1854,7 +1904,7 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
         rim(cx - 3, sy + 1, 5, 4);
         ss.px(cx - 4, sy + 2, P.damage);
       }
-      const ao = pose === 'brace' || pose === 'fire' ? 1 : 0;
+      const ao = pose === 'brace' || pose === 'fire' || pose === 'settle' ? 1 : 0;
       ss.rect(cx + ao, sy + 6, 5, 3, P.body);
       ss.hline(sy + 6, cx + ao, cx + 4 + ao, P.plate);
       rim(cx + ao, sy + 6, 5, 3);
@@ -1865,7 +1915,7 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
     // cape. It flares on a wind-up and pulls in on a recovery, so the
     // silhouette breathes with the attack.
     const ky = ty + 8;
-    const sp = pose === 'raise' ? 1 : pose === 'recoil' ? -1 : 0;
+    const sp = pose === 'raise' ? 1 : pose === 'recoil' ? -1 : pose === 'land' ? -1 : 0;
     ss.rect(cx - 6 - sp, ky, 12 + sp * 2, 2, P.deep);
     ss.hline(ky, cx - 6 - sp, cx + 5 + sp, P.body);
     rim(cx - 6 - sp, ky, 12 + sp * 2, 2);
@@ -1899,7 +1949,18 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
     // from above.
     if (pose === 'strafeA') { lx -= 2; rx += 2; }
     else if (pose === 'strafeB') { lx -= 1; rx += 1; ly += 1; ry += 1; }
-    else if (pose === 'brace' || pose === 'raise') { lx -= 1; rx += 1; }
+    // ── THE FIRING BASE (§14) ─────────────────────────────────────────────
+    // The stance WIDENS to shoot and holds that width through the whole
+    // commitment. It was one pixel each way, which at 112px is nothing, and a
+    // six-round burst over a narrow stance is a man shooting off his back foot.
+    // Brace, fire, recoil and settle all share it, so the base is the one thing
+    // in the burst that does NOT move — which is what makes everything above it
+    // read as absorbed rather than as bounce.
+    else if (pose === 'brace' || pose === 'fire' || pose === 'recoil'
+      || pose === 'settle' || pose === 'raise') { lx -= 2; rx += 2; }
+    // THE CATCH. Widest stance on the sheet, and the torso is already two
+    // pixels down into it: he has landed on both feet and is absorbing.
+    else if (pose === 'land') { lx -= 4; rx += 4; ly += 1; ry += 1; }
     else if (hurt) { lx -= 2; ly += 1; rx += 2; ry -= 1; }
     // THE LEADING FOOT IS LIGHTER. Two identically-toned blocks swapping places
     // read as one shape wobbling; the near (southern) foot catching more light
@@ -1932,6 +1993,8 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
     draw(o + 11, dir, 'stagger', 0);
     draw(o + 12, dir, 'strafeA', 0);
     draw(o + 13, dir, 'strafeB', 0);
+    draw(o + CAPTAIN_FRAMES.settle, dir, 'settle', 0);
+    draw(o + CAPTAIN_FRAMES.land, dir, 'land', 0);
     // Hooks for a future signature action. Drawn now because the sheet is
     // painted once and a later move that needs a wind-up pose must not have to
     // repaint it — §13 of the brief allows the assets and forbids the ability.

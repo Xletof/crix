@@ -60,6 +60,19 @@ const chain = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(asy
   let c = gs.enemies.getChildren().find((e) => e.alive && e.isChampion);
   if (!c) c = gs.spawnChampion(gs.player.x + 400, gs.player.y, 'captain');
   c.die = () => { c.hp = Math.max(c.hp, c.hpMax * 0.5); };
+  // ── PUT HIM IN THE BAND, AND DO NOT TIME THE CHASE ──────────────────────
+  // A wave-spawned Captain arrives wherever the gate put him, and this rig
+  // used to wait a FIXED 9 SECONDS for the real AI to decide to throw.
+  // Measured, the median separation over that window was 1231px against a
+  // `maxRange` of 680 — so the whole of it was spent WALKING, exactly ONE
+  // frame ever satisfied `_canThrow`, and whether the checks passed came down
+  // to how far away the wave happened to drop him. Three of the six
+  // downstream checks then read `phases: []` and reported a working grenade as
+  // absent. Same family as a fixed sleep against a Phaser timer: the rig was
+  // measuring the approach, not the signature. Stage the engagement instead,
+  // and wait on the CONDITION below rather than on a clock.
+  c.setPosition(gs.player.x + 430, gs.player.y);
+  c.setVelocity(0, 0);
 
   const L = {
     phases: [], states: [], thrown: 0, live: 0,
@@ -104,7 +117,14 @@ const chain = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(asy
   // cooldown and nothing else, so the throw that is measured is a throw a
   // player could have caused.
   c._nadeCd = 0;
-  await wait(9000);
+  // POLL FOR THE CONDITION, BOUNDED. The field's own life is 1900ms and the
+  // chain before it is ~1750ms, so this leaves room for a slow container
+  // without ever measuring one.
+  const deadline = performance.now() + 14000;
+  while (performance.now() < deadline && !(L.thrown && L.live && L.phases.includes('field'))) {
+    await wait(120);
+  }
+  await wait(400);
   gs.events.off('postupdate', hook);
 
   const g = nade;

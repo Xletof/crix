@@ -155,12 +155,37 @@ export class ShockCaptain extends Enemy {
     // is never the first thing he does.
     this._nade = null;
     this._nadeCd = def.grenade.firstDelayMs;
+    // ── CORE FEEL PASS: A BODY THAT ABSORBS RATHER THAN BOUNCES ───────────
+    // `Enemy.preUpdate` squashes the whole sprite on a sine while `_staggerMs`
+    // runs and shrinks it while `recoilT` does — and `Enemy.damage` sets
+    // `_staggerMs` on EVERY hit. On a Ø44 trooper taking three rounds that is a
+    // shove; on a 5300-durability Champion under sustained fire it is a body
+    // visibly jiggling for the entire fight, which is §16's complaint exactly.
+    // The reaction is not removed, it is DAMPED and moved: what a hit does to
+    // this actor is the localized armour absorption, the stagger state and the
+    // hit frame, none of which are a rubber sprite.
+    this._staggerScale = 0.025;
+    this._recoilScale = 0.035;
+
+    // ── CORE FEEL PASS: ONE BURST IS ONE TACTICAL DECISION ────────────────
+    // The plan is snapshotted ONCE, at the commitment moment, and every round
+    // of the burst is drawn from it. There is no per-round solver any more.
+    this._plan = null;
+    this._planShot = 0;
+
     // ── S1: THE TACTICAL STEP ─────────────────────────────────────────────
     this._stepCd = def.step.firstDelayMs;
     this._stepPlantMs = 0;       // the plant beat, before the impulse
+    this._stepCatchMs = 0;       // the catch beat, after it
     this._stepVx = 0; this._stepVy = 0;
     this._stepReason = null;
     this._stepFrom = null;        // for the telemetry's displacement figure
+    this._stepEchoT = 0;
+    // Closing RATE, not just distance. A player who is still coming is a
+    // collapse in progress; waiting until they have arrived is waiting until
+    // the firing solution they are building is already finished.
+    this._lastDist = null;
+    this._closing = 0;
     this._blockedMs = 0;          // ready to fire, in range, and no line
     // Reacquire: LOS is sampled every frame, and a loss shorter than
     // `acquireLostMs` is a doorway rather than a break.
@@ -837,6 +862,12 @@ export class ShockCaptain extends Enemy {
   }
 
   /** Nothing this actor started may outlive it. */
+  /** A committed corridor must not outlive the commitment that made it. */
+  _clearPlan() {
+    this._plan = null;
+    this._planShot = 0;
+  }
+
   _clearReactions() {
     this._punctQueue.length = 0;
     this._wound = null;
@@ -972,10 +1003,27 @@ export class ShockCaptain extends Enemy {
   _stepReasonFor(p, dist) {
     if (this._stepCd > 0) return null;
     const d = this.def.step;
+    // ── PRIORITY 1: AGGRESSIVE CLOSE PRESSURE (§7) ──────────────────────
+    // The most important use by a distance, and the handset says he was not
+    // taking it: the band widened from 0.82 of `holdMin` to 0.95, and a player
+    // who is still CLOSING qualifies from further out. Waiting until they have
+    // arrived is waiting until the firing solution they are building is
+    // already finished.
+    //
+    // IT IS THE RELATIONSHIP, NEVER THE BUTTON. Distance and approach rate were
+    // both true before the player decided anything this frame; neither can
+    // express "they are about to fire".
     if (dist < this.def.holdMin * d.closeFrac) return 'close';
-    if (this._blockedMs >= d.blockedMs) return 'blocked';
+    if (dist < this.def.holdMin * 1.3 && this._closing >= d.closingPxPerS) return 'close';
+    // ── PRIORITY 2: POST-BURST ANGLE CHANGE ────────────────────────────
     if (this._wantPostBurstStep) return 'postburst';
+    // ── PRIORITY 3: EXPLOIT HIS OWN FIELD ──────────────────────────────
     if (this._nade?.live && Math.random() < d.fieldChance * 0.06) return 'field';
+    // ── PRIORITY 4: BLOCKED LINE ───────────────────────────────────────
+    // LAST, and it waits longer than it did. A step spent walking round a
+    // console is a step not spent breaking the player's firing solution, and
+    // ordinary navigation already solves a blocked line at walking pace.
+    if (this._blockedMs >= d.blockedMs) return 'blocked';
     return null;
   }
 
@@ -1034,19 +1082,153 @@ export class ShockCaptain extends Enemy {
   /** Commit: plant first, then the impulse. No i-frames, no damage change. */
   _beginStep(p, reason, dest) {
     const d = this.def.step;
-    this._enter(CAP.STEP, d.plantMs + d.travelMs);
+    this._enter(CAP.STEP, d.plantMs + d.travelMs + d.catchMs);
     this._stepPlantMs = d.plantMs;
+    this._stepCatchMs = 0;
     this._stepReason = reason;
     this._stepFrom = { x: this.x, y: this.y };
+    this._stepBearing0 = Math.atan2(p.y - this.y, p.x - this.x);
+    this._stepDist0 = Math.hypot(p.x - this.x, p.y - this.y);
     this._stepCd = d.cooldownMs;
     this._wantPostBurstStep = false;
     this._blockedMs = 0;
+    this._stepEchoT = 0;
     const ang = Math.atan2(dest.y - this.y, dest.x - this.x);
     const speed = dest.reach / (d.travelMs / 1000);
     this._stepVx = Math.cos(ang) * speed;
     this._stepVy = Math.sin(ang) * speed;
     this.setVelocity(0, 0);
+    // THE SUIT ANSWERS BEFORE THE BODY MOVES. The preload runs inside the
+    // plant, so the equipment announces the launch a frame before it happens —
+    // which is what makes the push-off read as assisted rather than as a sprite
+    // acquiring velocity.
+    this._stepPreload(ang);
     this.scene.events.emit('champion-step', this, reason, dest.reach);
+  }
+
+  /**
+   * WHERE HIS BOOTS ARE, IN WORLD PIXELS.
+   *
+   * DERIVED FROM THE SPRITE, NOT PICKED. The body is 28x30 at scale 4 with a
+   * centred origin and the boots occupy the last few canvas rows, so the deck
+   * he is standing on is most of a half-height below his centre. Every step
+   * effect that claims to touch the FLOOR reads this: the first build drew them
+   * at `y + 6` and `y + 10`, which is his WAIST, and they photographed as light
+   * around his middle rather than as a man pushing off a deck.
+   */
+  _bootY() {
+    return this.y + (this.displayHeight ? this.displayHeight * 0.30 : 34);
+  }
+
+  /**
+   * PRELOAD — a short blue-white charge across the pack and the launching side,
+   * drawn for the length of the plant.
+   *
+   * POWERED ARMOUR ASSISTING A SIDESTEP, not a magic dash charging. It is
+   * short, it is small, and it is gone by the time he is moving: a preload the
+   * player has time to admire is a wind-up, and this is footwork.
+   */
+  _stepPreload(ang) {
+    if (!this.scene?.add) return;
+    const g = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    this._reactFx.push(g);
+    const started = this._clock;
+    const MS = this.def.step.plantMs + 40;
+    const back = ang + Math.PI;
+    g._tick = () => {
+      const u = (this._clock - started) / MS;
+      if (u >= 1 || !this.alive) { this._dropFx(g); g.destroy(); return; }
+      g.clear();
+      g.setDepth(this.y + 2);
+      // Rising, not fading: the charge builds into the push-off.
+      const a = 0.25 + u * 0.55;
+      const r = this.def.radius * 0.72;
+      // Two short bars on the pack, and a brightening point at the launch foot.
+      for (let i = -1; i <= 1; i += 2) {
+        const th = back + i * 0.55;
+        this._bolt(g, this.x + Math.cos(th) * r * 0.6, this.y + Math.sin(th) * r * 0.6 - 6,
+          this.x + Math.cos(th) * r, this.y + Math.sin(th) * r - 6,
+          3, 2, this.def.color, a);
+      }
+      // The launching foot brightening — at the DECK, and large enough to read
+      // at 1x against a hangar floor.
+      const fx0 = this.x + Math.cos(back) * r * 0.8;
+      const fy0 = this._bootY() + Math.sin(back) * r * 0.35;
+      g.fillStyle(this.def.color, a * 0.5);
+      g.fillCircle(fx0, fy0, 4 + u * 7);
+      g.fillStyle(0xffffff, a * 0.9);
+      g.fillCircle(fx0, fy0, 2 + u * 3.5);
+    };
+  }
+
+  /**
+   * THE CATCH — deck impact where he lands, and the body compresses into it.
+   *
+   * A 200px displacement that ends by switching the velocity off is the floaty
+   * read this whole pass exists to remove. The `land` frame does the body half;
+   * this is the deck half — a low, flat ring and a few sparks at the boots, so
+   * the stop has a place as well as a pose. Flat and wide on purpose: a tall
+   * bloom here would be a landing effect from a different game.
+   */
+  _stepCatchFx() {
+    const fx = this.scene.fx;
+    fx?.burstDir?.(this.x, this._bootY(), 'white', 5, Math.PI / 2, 80);
+    if (!this.scene?.add) return;
+    const g = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    this._reactFx.push(g);
+    const started = this._clock;
+    const MS = this.def.step.catchMs + 80;
+    const ox = this.x, oy = this._bootY();
+    g._tick = () => {
+      const u = (this._clock - started) / MS;
+      if (u >= 1 || !this.alive) { this._dropFx(g); g.destroy(); return; }
+      g.clear();
+      g.setDepth(oy - 4);
+      const a = (1 - u) * 0.8;
+      // STARTS BIG AND OPENS. A ring that begins at r=10 on a 112px body is
+      // eight percent of him and photographs as nothing at all — the same
+      // mistake the B.2.2 damage marks made at r=6.
+      const r = 26 + u * 34;
+      g.lineStyle(3, this.def.color, a);
+      // Flattened 5:1: it lies on the deck rather than standing in the air, and
+      // it can never be mistaken for the 96px threat circle he is wearing.
+      g.strokeEllipse(ox, oy, r * 2.2, r * 0.44);
+      g.lineStyle(1.5, 0xffffff, a * 0.9);
+      g.strokeEllipse(ox, oy, r * 1.2, r * 0.24);
+      // Two short scuffs kicked sideways out of the landing — the deck
+      // answering a body that arrived hard.
+      for (const sgn of [-1, 1]) {
+        this._bolt(g, ox + sgn * r * 0.5, oy,
+          ox + sgn * (r * 1.05 + u * 14), oy - 2, 3, 2, 0xffffff, a * 0.8);
+      }
+    };
+  }
+
+  /**
+   * A RESTRAINED SILHOUETTE ECHO — TWO, AND THEY ARE GONE IN 130ms.
+   *
+   * THE HARROWER IS THE NEGATIVE REFERENCE (§6). A persistent trail is what
+   * made a body read as a craft gliding, so this is deliberately not one: two
+   * discrete stamps of his own frame at the positions he actually occupied,
+   * each dying fast, with nothing joining them. They say "he was there a moment
+   * ago"; they must never say "he is sliding".
+   */
+  _stepEcho() {
+    if (!this.scene?.add || !this.texture) return;
+    const img = this.scene.add.image(this.x, this.y, this.texture.key, this.frame.name)
+      .setDepth(this.y - 3)
+      .setScale(this.scaleX, this.scaleY)
+      .setFlipX(this.flipX)
+      .setTint(0x8fd8ff)
+      .setAlpha(0.42)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this._reactFx.push(img);
+    const started = this._clock;
+    img._tick = () => {
+      const u = (this._clock - started) / 130;
+      if (u >= 1 || !this.alive) { this._dropFx(img); img.destroy(); return; }
+      img.setAlpha(0.42 * (1 - u));
+    };
   }
 
   /**
@@ -1067,23 +1249,42 @@ export class ShockCaptain extends Enemy {
     g.setDepth(this.y - 2);
     this._reactFx.push(g);
     const started = this._clock;
-    const MS = 220;
-    const ox = this.x, oy = this.y;
+    const MS = 240;
+    // THE DECK HE PUSHED OFF, not the air beside his waist.
+    const ox = this.x, oy = this._bootY();
     g._tick = () => {
       const u = (this._clock - started) / MS;
       if (u >= 1 || !this.alive) { this._dropFx(g); g.destroy(); return; }
       g.clear();
       g.setDepth(this.y - 2);
-      const a = (1 - u) * 0.8;
+      const a = (1 - u) * 0.9;
       // A short cone of thrust at the ORIGIN, which stays put — the body
-      // leaves it behind, which is what says he pushed off from there.
+      // leaves it behind, which is what says he pushed off from there. FIVE
+      // strands over 200px rather than three over 150: the displacement class
+      // went up and an impulse that did not go with it reads as the same small
+      // shove producing a longer slide, which is the Harrower again.
+      // ── DIRECTIONAL, NOT RADIAL ─────────────────────────────────────
+      // THE CAPTAIN ALREADY WEARS A 96px CYAN CIRCLE — the threat ring — so
+      // ANYTHING blue, round and near him merges into it and reads as a bubble.
+      // The first build spread five strands over ±0.26 rad and photographed as
+      // exactly that. These are three LONG, TIGHT streaks straight back down
+      // the travel axis: a shape the threat ring cannot be confused with, and
+      // the only shape that says which way he went.
       for (let i = 0; i < 3; i++) {
-        const th = back + (i - 1) * 0.3;
-        const len = 16 + i * 4 + u * 14;
-        this._bolt(g, ox + Math.cos(back) * 8, oy + Math.sin(back) * 8 + 6,
-          ox + Math.cos(th) * len, oy + Math.sin(th) * len + 6,
-          6, i === 1 ? 2.5 : 1.5, i === 1 ? 0xffffff : this.def.color, a);
+        const th = back + (i - 1) * 0.11;
+        const len = (78 - Math.abs(i - 1) * 22) + u * 30;
+        this._bolt(g, ox + Math.cos(back) * 12, oy + Math.sin(back) * 6,
+          ox + Math.cos(th) * len, oy + Math.sin(th) * len * 0.5,
+          6, i === 1 ? 4 : 2, i === 1 ? 0xffffff : this.def.color, a);
       }
+      // THE DECK ANSWERS. A flat scuff at the launch foot — the surface he
+      // pushed against, which is the difference between a footstep and a jet.
+      // 5:1 AND OFFSET DOWN THE TRAVEL AXIS: a ring centred on a body is a
+      // circle telegraph whatever colour it is, and a shield bubble is the one
+      // thing the reactive armour was deliberately not.
+      g.lineStyle(3, this.def.color, a * 0.9);
+      g.strokeEllipse(ox + Math.cos(back) * 16, oy + Math.sin(back) * 8,
+        100 + u * 50, 20 + u * 10);
     };
   }
 
@@ -1179,7 +1380,34 @@ export class ShockCaptain extends Enemy {
     // animation selector reads — so a lateral step keeps the body square to the
     // player instead of turning into the direction of travel. That difference
     // is exactly "moving sideways while staying combat-ready" versus skating.
-    this._aim = Math.atan2(p.y - this.y, p.x - this.x);
+    // ── FACING, AND THE ONE PLACE IT IS NOT THE PLAYER ────────────────────
+    // HE ALWAYS FACES THE FIGHT — except inside a firing commitment, where the
+    // rifle belongs to the PLAN. Re-facing the player every frame between
+    // rounds is the tracking read the corridor exists to remove: the barrel
+    // would snap back onto them and then out to the next solution, which is
+    // precisely what "aimbot" looks like. Inside a brace or a burst the aim
+    // eases toward the next planned point and nowhere else, so the fire
+    // visibly WALKS across the corridor at a speed the eye can follow.
+    const inCommit = this._plan
+      && (this._cap === CAP.BRACE || this._cap === CAP.BURST);
+    if (inCommit) {
+      const g = this._planPoint(this._planShot);
+      if (g) {
+        const want = Math.atan2(g.y - this.y, g.x - this.x);
+        this._aim += Phaser.Math.Angle.Wrap(want - this._aim)
+          * this.def.corridor.traverse;
+      }
+    } else {
+      this._aim = Math.atan2(p.y - this.y, p.x - this.x);
+    }
+    // CLOSING RATE. Measured from real displacement between frames, never from
+    // a velocity this actor just wrote — the Harrower's grind watchdog read its
+    // own instruction and could never fire.
+    if (this._lastDist != null && delta > 0) {
+      const rate = (this._lastDist - dist) / (delta / 1000);
+      this._closing += (rate - this._closing) * 0.18;
+    }
+    this._lastDist = dist;
     if (this._fireCd > 0) this._fireCd -= delta;
     this._stateMs -= delta;
     this._tickAcquire(p, delta);
@@ -1198,23 +1426,55 @@ export class ShockCaptain extends Enemy {
         break;
 
       case CAP.STEP: {
-        // PLANT, THEN TRAVEL. The plant is what makes it footwork instead of a
-        // body acquiring velocity, and the impulse is spawned on the frame the
-        // plant ends so the thrust and the movement are the same event.
+        // ── PLANT -> PUSH-OFF -> TRAVEL -> CATCH ─────────────────────────
+        // Four beats and every one of them is visible. The plant is what makes
+        // it footwork instead of a body acquiring velocity; the impulse is
+        // spawned on the frame the plant ends, so the thrust and the movement
+        // are the same event; and the CATCH is where he receives his own mass
+        // instead of the velocity simply being switched off.
+        const d = this.def.step;
         if (this._stepPlantMs > 0) {
           this._stepPlantMs -= delta;
           this.setVelocity(0, 0);
           if (this._stepPlantMs <= 0) {
             this._stepThrust(Math.atan2(this._stepVy, this._stepVx));
           }
-        } else {
+        } else if (this._stateMs > d.catchMs) {
           // Velocity, not a tween or a teleport — so the wall collider is
           // still underneath and a destination check that was wrong costs a
           // short stop rather than a body inside a console.
           this.setVelocity(this._stepVx, this._stepVy);
+          // TWO ECHOES ACROSS THE WHOLE TRAVEL, never a continuous trail.
+          this._stepEchoT -= delta;
+          if (this._stepEchoT <= 0) {
+            this._stepEchoT = d.travelMs / 2;
+            this._stepEcho();
+          }
+        } else {
+          // THE CATCH. The body is stopped and the legs absorb it — this is a
+          // real beat with its own frame, not the tail of the travel.
+          if (this._stepCatchMs <= 0) {
+            this._stepCatchMs = d.catchMs;
+            this.setVelocity(0, 0);
+            this._stepCatchFx();
+          }
+          this._stepCatchMs -= delta;
+          this.setVelocity(0, 0);
         }
         if (this._stateMs <= 0) {
           this.setVelocity(0, 0);
+          this._stepCatchMs = 0;
+          this.scene.events.emit('champion-step-end', this, {
+            reason: this._stepReason,
+            moved: this._stepFrom
+              ? Math.round(Math.hypot(this.x - this._stepFrom.x, this.y - this._stepFrom.y)) : 0,
+            distBefore: Math.round(this._stepDist0 ?? 0),
+            distAfter: Math.round(Math.hypot(p.x - this.x, p.y - this.y)),
+            bearingChange: this._stepBearing0 != null
+              ? Math.round(Math.abs(Phaser.Math.Angle.Wrap(
+                Math.atan2(p.y - this.y, p.x - this.x) - this._stepBearing0)) * 180 / Math.PI)
+              : 0,
+          });
           this._solvePosition(p);
         }
         break;
@@ -1239,9 +1499,20 @@ export class ShockCaptain extends Enemy {
 
       case CAP.BRACE:
         this.setVelocity(0, 0);
+        // ── THE COMMITMENT MOMENT (§22) ──────────────────────────────────
+        // ONE authoritative snapshot, at late brace, immediately before the
+        // first round. Late rather than at the top of the brace because 300ms
+        // of wind-up is 300ms in which the player is still deciding — reading
+        // them at the start of it would be reading a plan they have already
+        // abandoned by the time he shoots. After this instant nothing in the
+        // burst consults the player again.
+        if (!this._plan && this._stateMs <= this.def.braceMs * 0.42) {
+          this._planBurst(p);
+        }
         if (this._stateMs <= 0) {
+          if (!this._plan) this._planBurst(p);
           this._enter(CAP.BURST, 0);
-          this._round = this.def.burstRounds;
+          this._round = this._plan.rounds;
           this._roundGap = 0;
         }
         break;
@@ -1255,6 +1526,20 @@ export class ShockCaptain extends Enemy {
           this._roundGap = this.def.burstGapMs;
         }
         if (this._round <= 0 && this._roundGap <= 0) {
+          this.scene.events.emit('champion-burst-plan', this, {
+            rounds: this._plan?.rounds ?? 0,
+            pattern: this._plan?.pattern ?? null,
+            fired: this._planShot,
+            still: !!this._plan?.still,
+            len: Math.round(this._plan?.len ?? 0),
+            bearing: this._plan
+              ? Math.round(Math.atan2(this._plan.dy, this._plan.dx) * 180 / Math.PI) : 0,
+          });
+          // THE PLAN DIES WITH THE COMMITMENT. Nothing may carry a corridor
+          // into the next burst: a stale route is a prediction about a decision
+          // the player made seconds ago.
+          this._plan = null;
+          this._planShot = 0;
           this._enter(CAP.RECOVER, this.def.recoverMs);
           this._fireCd = this.def.fireEveryMs;
           // INTENT, NOT A STEP. The commitment is over and he may want a new
@@ -1369,51 +1654,178 @@ export class ShockCaptain extends Enemy {
   }
 
   /**
-   * WHERE HE THINKS THEY ARE GOING, BOUNDED TWICE.
+   * ── THE BURST PLAN: ONE SNAPSHOT, ONE CORRIDOR, ONE DECISION ─────────────
    *
-   * MEASURED FIRST, AND THE MEASUREMENT IS WHY THIS EXISTS. Against a player
-   * holding one lateral direction, `diag-captain-pressure` recorded 21 bolts
-   * and not one inside 48px — median miss 145-166px — while a standing player
-   * took 12 of 15 inside 48px. The burst punished standing still and nothing
-   * else, which is the handset's "too easily dodged by continuing lateral
-   * movement" restated as a number.
+   * WHAT THIS REPLACES. B.2.2 solved an intercept PER ROUND — round 1 at the
+   * player's current position, rounds 2 and 3 at two coefficients along a full
+   * solution. It hit, and the handset called it robotic, aimbot, Terminator.
+   * It was also exploitable in a way that is obvious once it is written down:
+   * three point solutions leave the ground BETWEEN them uncovered, so a small
+   * step and a stop parked the player in the gap between the establish shot and
+   * the lead and beat the whole burst by standing in a hole in the pattern.
    *
-   * `lead` is a FRACTION OF A FULL INTERCEPT SOLUTION: 0 is where they are now,
-   * 1 is where they will be when the round arrives if they do not change their
-   * mind, and above 1 is the continuation past that. The three rounds of a
-   * burst ask three different questions with it.
+   * WHAT THIS IS. At the commitment moment he reads the player ONCE: where they
+   * are, and the movement they are currently committed to. From those two facts
+   * he builds a CORRIDOR — an origin, a bearing, a length — draws a burst
+   * length and a spray shape, picks a side bias, and rolls every round's
+   * imperfection up front. Then he suppresses that corridor and does not look
+   * again until the burst is over.
    *
-   * IT IS FAIR BY CONSTRUCTION, AND THAT IS NOT A CLAIM — IT IS THREE FACTS:
-   *   - it reads only the velocity the player HAS RIGHT NOW. No input buffer,
-   *     no history, no intent, nothing the Captain could not see.
-   *   - the extrapolation is bounded in TIME (`leadHorizonMs`) and in SPACE
-   *     (`leadMaxPx`), so a long shot cannot become a long guess.
-   *   - and the round is an ordinary projectile from the moment it leaves the
-   *     barrel: it is never retargeted, never homed and never hitscan. The
-   *     player makes the prediction wrong by changing plan, and that is the
-   *     whole skill interaction.
+   * THE FAIRNESS IS STRUCTURAL, NOT A COEFFICIENT. Nothing after this function
+   * reads the player's position, velocity or heading, so reversing, dashing,
+   * cutting into cover or simply changing your mind all beat it — and they beat
+   * it by more the later in the burst they happen, which is the relationship
+   * §26 asks for. Continuing loses. Standing still also loses: a route of zero
+   * length is a point, so a stationary player produces a tight fan ACROSS his
+   * own bearing instead of a corridor, which is a soldier shooting at somebody
+   * who is not moving.
+   *
+   * AND EVERY ROUND IS STILL AN ORDINARY PROJECTILE. Fired at a fixed point,
+   * never retargeted, never homed, never hitscan.
    */
-  _predict(p, lead) {
-    if (!lead) return { x: p.x, y: p.y };
-    // FROM THE MUZZLE, NOT FROM HIS CENTRE. The round starts ~75px down the
-    // barrel, and solving the flight time from the body centre overestimates it
-    // by that much — measured, that was a 25% over-lead: at a 380px engagement
-    // the solver wanted 256px of lead where the player actually travelled 186.
-    // It made every coefficient below a lie about what it meant, because "1.0"
-    // was not a full intercept solution but a quarter past one.
-    const dist = Math.max(40,
-      Math.hypot(p.x - this.x, p.y - this.y) - CAPTAIN_MUZZLE_PX);
-    const travel = Math.min(dist / this.def.bulletSpeed,
-      this.def.leadHorizonMs / 1000);
+  _planBurst(p) {
+    const d = this.def;
+    const c = d.corridor;
+    const dist = Math.hypot(p.x - this.x, p.y - this.y);
     const v = p.body?.velocity;
-    let lx = (v?.x ?? 0) * travel * lead;
-    let ly = (v?.y ?? 0) * travel * lead;
-    const m = Math.hypot(lx, ly);
-    if (m > this.def.leadMaxPx) {
-      lx = lx / m * this.def.leadMaxPx;
-      ly = ly / m * this.def.leadMaxPx;
+    const vx = v?.x ?? 0, vy = v?.y ?? 0;
+    const sp = Math.hypot(vx, vy);
+
+    const rounds = this._drawBurstLength(dist);
+
+    let ox = p.x, oy = p.y, dx, dy, len;
+    // 40px/s is a drift, not a route — well under the player's 380 walk, so a
+    // genuine slow reposition still reads as a direction and a twitch does not.
+    const still = sp < 40;
+    if (still) {
+      // ACROSS HIS OWN BEARING, centred on them: a short band of suppressed
+      // ground rather than a route. Standing still must not be safe.
+      const b = Math.atan2(p.y - this.y, p.x - this.x) + Math.PI / 2;
+      dx = Math.cos(b); dy = Math.sin(b);
+      len = c.stillFanPx;
+      ox = p.x - dx * len / 2; oy = p.y - dy * len / 2;
+    } else {
+      dx = vx / sp; dy = vy / sp;
+      // ── THE ARRIVAL WINDOW ────────────────────────────────────────────
+      // FROM THE MUZZLE, NOT THE BODY CENTRE — 75px of barrel is a real
+      // fraction of a short engagement, and solving from the centre is the
+      // 25% over-lead B.2.2 already had to fix once.
+      const flight = Math.min(
+        Math.max(40, dist - CAPTAIN_MUZZLE_PX) / d.bulletSpeed,
+        d.leadHorizonMs / 1000);
+      // How much longer the LAST round of this commitment will be in the air
+      // than the first — the burst's own span, which is why a six-round
+      // commitment suppresses a longer stretch than a three-round one.
+      const span = (rounds - 1) * d.burstGapMs / 1000;
+      const near = sp * flight * c.nearFrac;
+      const far = Math.min(sp * (flight + span) * c.farPad, c.maxLead);
+      len = Phaser.Math.Clamp(far - near, c.minLen, c.maxLen);
+      ox = p.x + dx * near; oy = p.y + dy * near;
     }
-    return { x: p.x + lx, y: p.y + ly };
+
+    const pattern = this._pickWeighted(d.sprayWeights);
+    // ONE SIDE OF THE CORRIDOR, CHOSEN ONCE AND HELD. This is what lets the eye
+    // see him deliberately walking fire one way rather than scattering.
+    const bias = (Math.random() < 0.5 ? -1 : 1) * Math.random() * c.biasMaxPx;
+    // CONTROLLED IMPERFECTION, ROLLED UP FRONT. Per round, and growing with the
+    // round index — the group opens as the burst runs, which is recoil and is
+    // also why a six-round burst is not simply a better three-round one. Rolled
+    // HERE rather than at each shot so the rifle can traverse toward a point
+    // that will not move under it.
+    const jit = [];
+    for (let i = 0; i < rounds; i++) {
+      jit.push((Math.random() * 2 - 1) * (c.jitterPx + c.climbPx * i));
+    }
+    this._plan = { ox, oy, dx, dy, len, rounds, pattern, bias, jit, still };
+    this._planShot = 0;
+    return this._plan;
+  }
+
+  /** Weighted pick from a `[[value, weight], ...]` table. */
+  _pickWeighted(table) {
+    let total = 0;
+    for (const [, w] of table) total += w;
+    let r = Math.random() * total;
+    for (const [v, w] of table) { r -= w; if (r <= 0) return v; }
+    return table[table.length - 1][0];
+  }
+
+  /**
+   * HOW LONG THIS COMMITMENT IS, DRAWN ONCE.
+   *
+   * The authored distribution does the work; the context term is deliberately
+   * MILD and only ever shifts the draw by one round. §19 allows a little
+   * context and §20 forbids another system that computes the perfect answer —
+   * the value here is the VARIATION, not the cleverness.
+   */
+  _drawBurstLength(dist) {
+    const d = this.def;
+    let n = this._pickWeighted(d.burstRoundWeights);
+    if (dist < d.fireRange * d.burstCtxNearFrac) {
+      // Close, exposed, a stable relationship: lean on him.
+      if (Math.random() < 0.5) n += 1;
+    } else if (Math.random() < 0.4) {
+      // A long, marginal window: take the shorter commitment.
+      n -= 1;
+    }
+    return Phaser.Math.Clamp(n, d.burstRounds, d.burstRoundMax);
+  }
+
+  /**
+   * WHERE ALONG THE CORRIDOR ROUND `i` GOES — the spray shape.
+   *
+   * `t` is 0 at the origin (where the player was, or the near end of the fan)
+   * and 1 at the far end, where the route leads. Chosen once per burst and
+   * executed consistently: the player should be able to SEE which way he is
+   * walking the fire.
+   */
+  _sprayT(i, n, pattern) {
+    if (n <= 1) return 0.5;
+    const u = i / (n - 1);
+    switch (pattern) {
+      case 'down': return 1 - u;
+      case 'outward': {
+        // Centre first, then alternating out to both ends — the shape that
+        // covers the ground either side of where they were standing.
+        const steps = Math.ceil((n - 1) / 2) || 1;
+        const k = Math.ceil(i / 2) / steps;
+        return Phaser.Math.Clamp(0.5 + (i % 2 === 1 ? 1 : -1) * 0.5 * k, 0, 1);
+      }
+      case 'sweepback':
+        // Up the corridor, then part of the way back over ground he has
+        // already covered. The one pattern that hits the same stretch twice.
+        return u <= 0.6 ? u / 0.6 : 1 - ((u - 0.6) / 0.4) * 0.55;
+      case 'up':
+      default: return u;
+    }
+  }
+
+  /**
+   * THE AIM POINT FOR ONE ROUND OF THE COMMITTED PLAN.
+   *
+   * A pure function of the plan and the round index — it reads nothing live, so
+   * calling it every frame to traverse the rifle and calling it on the firing
+   * frame give the same answer. That is what stops the barrel drifting back
+   * onto the player between rounds, which would be the tracking read the
+   * corridor exists to remove.
+   */
+  _planPoint(i) {
+    const pl = this._plan;
+    if (!pl) return null;
+    const k = Phaser.Math.Clamp(i, 0, pl.rounds - 1);
+    const t = this._sprayT(k, pl.rounds, pl.pattern);
+    const ax = pl.ox + pl.dx * pl.len * t;
+    const ay = pl.oy + pl.dy * pl.len * t;
+    // The side bias is perpendicular to the route and opens slightly as the
+    // burst runs, along with the per-round imperfection already rolled.
+    const nx = -pl.dy, ny = pl.dx;
+    const off = pl.bias * (1 + k * 0.16) + (pl.jit[k] ?? 0);
+    // NOT CLAMPED TO THE ARENA. An aim point is a BEARING, not a destination —
+    // a round is an ordinary projectile and is perfectly entitled to fly into a
+    // wall. Clamping bent the committed line whenever the route ran toward an
+    // edge, which measured 142px off a corridor whose authored spread is 75,
+    // and a corridor that bends is no longer one decision.
+    return { x: ax + nx * off, y: ay + ny * off };
   }
 
   /**
@@ -1421,20 +1833,14 @@ export class ShockCaptain extends Enemy {
    *
    * The bolt leaves the MUZZLE, and so does the flash: both read
    * `CAPTAIN_MUZZLE_PX`, which is derived from the overlay's own dimensions, so
-   * the effect and the projectile cannot leave from different places. That
-   * disagreement is what made the returned super detach from a motionless
-   * Vader, and it is the one thing an FX pass cannot paper over.
+   * the effect and the projectile cannot leave from different places.
    */
   _fireRound(p) {
-    // Aim is snapshotted per ROUND, not per burst: three rounds that all fly at
-    // the player's position from 600ms ago is a burst that cannot hit a moving
-    // target, and three that home is not a burst at all.
-    //
-    // ── B.2.2: ESTABLISH, LEAD, BRACKET ───────────────────────────────────
-    // `_round` counts DOWN from `burstRounds` and is decremented by the caller
-    // AFTER this returns, so the round index is `burstRounds - _round`.
-    const shot = this.def.burstRounds - this._round;
-    const aimAt = this._predict(p, this.def.burstLead[shot] ?? 0);
+    // FROM THE PLAN, NEVER FROM THE PLAYER. `p` is still taken so a burst that
+    // somehow reaches this with no plan degrades to shooting at them rather
+    // than throwing; it is not consulted on any ordinary path.
+    const aimAt = this._planPoint(this._planShot) || { x: p.x, y: p.y };
+    this._planShot++;
     const ang = Math.atan2(aimAt.y - this.y, aimAt.x - this.x);
     this._aim = ang;
     const w = this.weaponSprite;
@@ -1442,15 +1848,15 @@ export class ShockCaptain extends Enemy {
     const my = (w?.y ?? this.y) + Math.sin(ang) * CAPTAIN_MUZZLE_PX;
     this.scene.fireCaptainBolt?.(this, mx, my, ang);
     this.scene.events.emit('champion-round-fired', this);
-    this._shotFlashMs = 110;
-    // A HEAVIER KICK THAN THE FIRST BUILD, and it is the kick that reads at 1x
-    // inside a crowded wave — the muzzle flash is over in 95ms and competes
-    // with everything else on screen, where the weapon travelling backwards
-    // lasts through the whole gap to the next round.
-    this._wKick = 19;
-    this.recoilT = 105;
+    this._shotFlashMs = 140;
+    // ── THE RECOIL IS IN THE RIFLE, NOT IN THE MAN ────────────────────────
+    // `recoilT` drives `Enemy.preUpdate`'s whole-body scale shrink, and setting
+    // it here is what made the entire 112px figure pulse on every round — the
+    // handset's "weapon makes the character hop". The kick is bigger than it
+    // was and it lives entirely on the weapon overlay; the shoulders carry the
+    // rest through the brace -> fire -> recoil -> settle frames.
+    this._wKick = 23;
   }
-
   /**
    * THE ANIMATION IS THE STATE, AND THE STATE IS A COMBAT REASON.
    *
@@ -1475,23 +1881,46 @@ export class ShockCaptain extends Enemy {
       // only one whose feet agree with sideways movement. Playing the forward
       // walk here would swing the legs against the direction of travel, which
       // is precisely the sliding read both rejected Champions died of.
+      // THE PLANT IS THE BRACE BODY — weight set, knees loaded — the travel is
+      // the STRAFE cycle (the existing lateral gait, and the only one whose
+      // feet agree with sideways movement), and the CATCH is the new `land`
+      // frame: widest stance on the sheet, torso down into the legs. Playing
+      // the forward walk on the travel would swing the legs against the
+      // direction of travel, which is the sliding read both rejected Champions
+      // died of; ending on the strafe frame would be a 200px displacement that
+      // simply stops, which is the floaty read this pass exists to remove.
       case CAP.STEP:
-        key = this._stepPlantMs > 0 ? `${pre}-brace-${dir}` : `${pre}-strafe-${dir}`;
+        key = this._stepPlantMs > 0 ? `${pre}-brace-${dir}`
+          : this._stateMs <= this.def.step.catchMs ? `${pre}-land-${dir}`
+            : `${pre}-strafe-${dir}`;
         break;
       case CAP.BRACE:   key = `${pre}-brace-${dir}`; break;
       case CAP.BURST:
-        // BRACE -> FLASH -> RECOIL -> back to brace, per round. The muzzle
-        // flash is not the animation; the shoulder is.
-        key = this._shotFlashMs > 60 ? `${pre}-fire-${dir}`
-          : this._shotFlashMs > 0 ? `${pre}-recoil-${dir}`
-            : `${pre}-brace-${dir}`;
+        // ── THE FIRING RHYTHM (§27) ──────────────────────────────────────
+        // FIRE -> RECOIL -> CORRECT, per round, and the CORRECT beat is why a
+        // six-round burst is not one pose looped six times. Returning to the
+        // full brace after every shot made a long burst read as a machine
+        // cycling; `settle` is shoulders most of the way back but not all of
+        // it, so the body is still carrying the last round when the next one
+        // leaves. The muzzle flash is not the animation; the shoulder is.
+        //
+        // The very first frame of the commitment is still the brace — he has
+        // not fired yet and must not already be recovering from something.
+        key = this._shotFlashMs > 95 ? `${pre}-fire-${dir}`
+          : this._shotFlashMs > 45 ? `${pre}-recoil-${dir}`
+            : this._planShot === 0 ? `${pre}-brace-${dir}`
+              : `${pre}-settle-${dir}`;
         break;
-      case CAP.RECOVER:
-        // Settle: the recoil pose bleeds back into the breathing idle rather
-        // than snapping, so the end of a burst has a shape.
-        key = this._stateMs > this.def.recoverMs * 0.45
-          ? `${pre}-recoil-${dir}` : `${pre}-idle-${dir}`;
+      case CAP.RECOVER: {
+        // DAMPED, NOT ELASTIC (§15). Three stages rather than two: the recoil
+        // is absorbed into the firing base, the base relaxes, and only then
+        // does he breathe. A two-stage recoil -> idle snap is the overshoot-
+        // and-bounce-back read; this one settles.
+        const u = this._stateMs / Math.max(1, this.def.recoverMs);
+        key = u > 0.6 ? `${pre}-recoil-${dir}`
+          : u > 0.25 ? `${pre}-settle-${dir}` : `${pre}-idle-${dir}`;
         break;
+      }
       case CAP.STRAFE: key = `${pre}-strafe-${dir}`; break;
       default:         key = `${pre}-walk-${dir}`; break;
     }
@@ -1578,6 +2007,7 @@ export class ShockCaptain extends Enemy {
   /** A step must not outlive the actor as a standing velocity or a stuck state. */
   _endStep() {
     this._stepPlantMs = 0;
+    this._stepCatchMs = 0;
     this._stepVx = 0;
     this._stepVy = 0;
     this._stepReason = null;
@@ -1589,6 +2019,7 @@ export class ShockCaptain extends Enemy {
     this._armourBar?.destroy();
     this._armourBar = null;
     this._clearReactions();
+    this._clearPlan();
     this._dropGrenade();
     this._endStep();
     return super.die(...args);
@@ -1598,6 +2029,7 @@ export class ShockCaptain extends Enemy {
     this._armourBar?.destroy();
     this._armourBar = null;
     this._clearReactions();
+    this._clearPlan();
     this._dropGrenade();
     this._endStep();
     return super.destroy(...args);

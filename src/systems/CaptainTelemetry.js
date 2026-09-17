@@ -57,7 +57,12 @@ function blankSession(cap, now) {
     // The whole question S1 asks is whether MOVEMENT lowers the human focus
     // test's ~70% pellet connection without any special resistance, so the
     // steps have to be countable next to the pellet hit rate on the same card.
-    steps: { done: 0, reasons: {}, dist: [], at: [] },
+    steps: { done: 0, reasons: {}, dist: [], at: [], moved: [], bearing: [], closed: [] },
+    // ── CORE FEEL PASS: DID THE COMMITMENT VARY, AND WHICH WAY DID HE WALK
+    // THE FIRE? Two cheap rows (§32). The video is still the authority; this
+    // only has to confirm the distribution is real and that the plan is drawn
+    // once per burst rather than per round.
+    bursts: { len: {}, pattern: {}, fired: 0, planned: 0, still: 0 },
     // how long he spent in each durability state
     tIntact: 0, tBroken: 0, tCritical: 0,
     _lastTick: now,
@@ -166,6 +171,27 @@ export function attachCaptainTelemetry(scene) {
     S.steps.reasons[reason] = (S.steps.reasons[reason] || 0) + 1;
     S.steps.dist.push(reach);
     S.steps.at.push(now());
+  });
+  // AND WHAT IT ACHIEVED. The planned reach is an intention; this is the real
+  // displacement after the wall collider had its say, plus the two figures
+  // that say whether the geometry actually changed — how much the Captain's
+  // bearing from the player moved, and how the range closed or opened.
+  on('champion-step-end', (c, d) => {
+    if (!S?.live || c !== S.actor || !d) return;
+    S.steps.moved.push(d.moved);
+    S.steps.bearing.push(d.bearingChange);
+    S.steps.closed.push(d.distAfter - d.distBefore);
+  });
+  // ONE PLAN PER COMMITMENT. `planned` counts the plans and `fired` the rounds
+  // they produced; a build that re-solved per round would show them equal.
+  on('champion-burst-plan', (c, d) => {
+    if (!S?.live || c !== S.actor || !d) return;
+    const b = S.bursts;
+    b.planned++;
+    b.fired += d.fired;
+    b.len[d.rounds] = (b.len[d.rounds] || 0) + 1;
+    if (d.pattern) b.pattern[d.pattern] = (b.pattern[d.pattern] || 0) + 1;
+    if (d.still) b.still++;
   });
 
   // ── LIFECYCLE ────────────────────────────────────────────────────────────
@@ -276,9 +302,18 @@ export function attachCaptainTelemetry(scene) {
     for (let i = 1; i < st.at.length; i++) stGaps.push(st.at[i] - st.at[i - 1]);
     const stG = stats(stGaps);
     const stD = stats(st.dist);
+    const stM = stats(st.moved);
+    const stB = stats(st.bearing);
     L.push(`STEPS   ${st.done}`
-      + (st.done ? ` · ${Math.round(stD.mean)}px avg · ${stG ? `${Math.round(stG.med)}ms apart` : 'once'}` : '')
-      + (st.done ? `\n  ${Object.entries(st.reasons).map(([k, v]) => `${k} ${v}`).join(' · ')}` : ''));
+      + (st.done ? ` · ${Math.round(stD.mean)}px plan · ${stM ? `${Math.round(stM.mean)}px real` : '—'}`
+        + ` · ${stG ? `${Math.round(stG.med)}ms apart` : 'once'}` : '')
+      + (st.done ? `\n  ${Object.entries(st.reasons).map(([k, v]) => `${k} ${v}`).join(' · ')}` : '')
+      + (stB ? `\n  bearing ${Math.round(stB.mean)}\u00b0 avg shift` : ''));
+    const bu = sess.bursts;
+    L.push(`BURSTS  ${bu.planned} plans · ${bu.fired} rounds`
+      + (bu.planned ? ` · ${bu.still} on a still target` : '')
+      + (bu.planned ? `\n  len ${Object.entries(bu.len).sort().map(([k, v]) => `${k}x${v}`).join(' ')}` : '')
+      + (bu.planned ? `\n  ${Object.entries(bu.pattern).map(([k, v]) => `${k} ${v}`).join(' · ')}` : ''));
     L.push('');
     L.push(`SUPER  ${sess.shots.superCasts} casts · ${sess.shots.superPellets} pellets`);
     L.push(`  hits ${sess.hits.super} (${pct(sess.hits.super, sess.shots.superPellets)})`

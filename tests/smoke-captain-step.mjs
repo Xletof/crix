@@ -298,7 +298,19 @@ const fxr = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(async
   const afterBreakStart = liveAbsorb();
   await wait(300);
   const brokeOnce = breaks;
-  await wait(700);
+
+  // ── DRAIN ON THE ACTOR'S OWN CLOCK, NEVER ON A SLEEP ────────────────────
+  // This used to be `await wait(700)` and it was a FRAME-RATE METER. Every
+  // absorption is scheduled on `_clock`, which advances by Phaser's `delta` —
+  // and Phaser CLAMPS delta, so on a slow container a second of wall time is a
+  // third of a second of game time. The break's three overload responses live
+  // 325ms, which put the sample exactly on that boundary: the check passed on
+  // a fast box and failed on a slow one, on this build and on the one before
+  // it, having measured the machine rather than the Captain. Advancing his own
+  // clock and ticking his own effects retires everything that is genuinely
+  // expired, deterministically, at any frame rate.
+  c._clock += 4000;
+  c._reactFx.slice().forEach((o) => o._tick?.());
 
   // POST-BREAK: ordinary hits must NOT speak the intact-armour language.
   const before = liveAbsorb();

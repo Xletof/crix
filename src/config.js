@@ -1791,7 +1791,23 @@ export const CHAMPION = {
     // bigger number. Visible brace, three deliberate rounds, crisp recoil,
     // recovery — then he moves. The gaps are what make it read as aimed.
     braceMs: 300,
+    // ── CORE FEEL PASS: CONTROLLED VARIABLE BURSTS ─────────────────────
+    // EXACTLY THREE ROUNDS EVERY TIME IS REJECTED. Handset: it reads as a
+    // script, and a player who has counted to three knows the exact frame the
+    // pressure ends. `burstRounds` is the FLOOR now, not the length, and one
+    // length is drawn per commitment from the weighted table below.
+    //
+    // IT IS STILL A HEAVY CONTROLLED RIFLE. Six is the ceiling and it is the
+    // rare pressure burst; the weight sits on four and five, so the weapon
+    // stays disciplined and the human simply cannot predict the last round.
     burstRounds: 3,
+    burstRoundMax: 6,
+    // [length, weight]. 3 is the snatched shot, 6 the committed suppression.
+    burstRoundWeights: [[3, 18], [4, 32], [5, 30], [6, 20]],
+    // Light context, and deliberately mild — §19. A burst opened with the
+    // player close and exposed runs longer; one opened at the edge of his range
+    // runs shorter. It shifts the DRAW, it does not choose the answer.
+    burstCtxNearFrac: 0.62,     // of `fireRange`: inside this, bias up one
     burstGapMs: 165,
     // THE 619ms STATUE. `recoverMs` was 520 and the whole of it was spent with
     // the velocity pinned at zero, so the end of every burst was two thirds of
@@ -1816,36 +1832,108 @@ export const CHAMPION = {
     // else, which is the handset's "too easily dodged by simply continuing
     // lateral movement" stated as a number.
     //
-    // THE FIX IS AIM, NOT DAMAGE. A dangerous miss is still a miss, and raising
-    // `bulletDamage` would only make the one shape of mistake that already gets
-    // punished hurt more. Each round of the burst asks a different question:
+    // B.2.2 FIXED THAT AND CREATED A NEW PROBLEM. Round 1 was solved at the
+    // player's CURRENT position, rounds 2 and 3 at two different points along a
+    // full intercept solution — three independent mathematical answers, one per
+    // projectile. It hit, and the handset called it what it was: robotic,
+    // aimbot, Terminator. It was also EXPLOITABLE, because three point
+    // solutions leave the ground BETWEEN them uncovered — a small step and a
+    // stop parked the player in the gap between the establish shot and the
+    // lead, and solved the whole burst by standing in a hole in the pattern.
     //
-    //   ROUND 1  ESTABLISH — essentially where they are. The readable opener,
-    //            and the shot that makes the next two legible as leads.
-    //   ROUND 2  LEAD — modestly short of a full intercept solution. Holding
-    //            the line walks into it; breaking it does not.
-    //   ROUND 3  BRACKET — past the intercept, into the continuation. This is
-    //            the round that says "keep going and I have you".
+    // ── ONE BURST IS ONE TACTICAL DECISION ─────────────────────────────────
     //
-    // A full intercept solution is 1.0. Nothing here is above 1.35 and the
-    // whole thing is bounded twice over, because THE PLAYER MUST BE ABLE TO
-    // MAKE IT WRONG: it reads the velocity they have RIGHT NOW, extrapolates
-    // it for a bounded horizon, and the round is an ordinary projectile from
-    // the moment it leaves the barrel. Reversing, cutting the angle, dashing or
-    // stopping all defeat it. That is the skill interaction, and it is why this
-    // is prediction rather than aimbot: it is beaten by changing your mind.
-    burstLead: [0.15, 0.85, 1.35],
-    // Never extrapolate further ahead than this, whatever the range says. At
-    // 620px the flight is over a second and a second of straight-line
-    // assumption is a guess, not a read.
+    // The per-round solver is GONE. At the commitment moment — late brace, one
+    // snapshot, `_planBurst` — he reads where the player is and the movement
+    // they are currently committed to, and builds ONE EXPECTED MOVEMENT
+    // CORRIDOR: an origin, a bearing, a length. Then he suppresses it.
+    //
+    // Every round of a 3-6 round burst belongs to that one plan. He does not
+    // re-read the player's velocity, position or heading again until the burst
+    // is over. That is the whole fairness claim and it is structural rather
+    // than a coefficient: a skilled soldier suppresses the route he thinks you
+    // are taking, and you beat him by not taking it.
+    //
+    // WHAT WINS AGAINST IT: reversing after the commitment, dashing, cutting
+    // into cover, or changing the plan in any way. What loses: continuing.
+    // Standing still loses too — a stationary target produces a tight fan on
+    // the spot instead of a corridor, because a route of zero length is a
+    // point, and a soldier suppressing a point is simply shooting at you.
+    corridor: {
+      // ── THE CORRIDOR IS ANCHORED IN TIME, NOT JUST IN SPACE ─────────────
+      // MEASURED, AND THE FIRST CUT OF THIS LAW GOT IT WRONG. A corridor sized
+      // as "0.7 seconds of their travel, starting where they are" is a claim
+      // about the next 0.7s — but at a 450px engagement a round is in the air
+      // for 1.3s and the burst itself runs another second, so the whole
+      // corridor sat BEHIND a player who never changed direction.
+      // `diag-captain-pressure line` measured 3 of 21 rounds inside 48px:
+      // continuing was the safe answer, which is the exact failure B.2.2
+      // existed to fix arriving through a new door.
+      //
+      // The corridor is now the stretch of route the burst's rounds will
+      // actually ARRIVE in. Its NEAR end is a fraction of where round one would
+      // intercept and its FAR end is past where the last round would, so the
+      // commitment brackets the whole arrival window in one decision.
+      //
+      // IT IS STILL NOT AN INTERCEPT SOLVER. It is one line, chosen once, from
+      // the velocity they had at the commitment moment, and every round is an
+      // ordinary projectile aimed at a fixed point on it. Reversing, dashing or
+      // stopping invalidates the entire corridor at a stroke — which is more
+      // than the per-round solver ever gave away, because that one re-read them
+      // on every shot.
+      nearFrac: 0.6,          // the near end, as a fraction of round one's intercept
+      farPad: 1.15,           // the far end, past the LAST round's intercept
+      minLen: 120,            // a slow drift is still a direction
+      // DELIBERATELY ABOVE WHAT NORMAL PLAY ASKS FOR. At 380px/s with a
+      // six-round burst the honest span is ~400px, and a cap that binds in
+      // normal play is not a bound, it is the aim — which is how B.2.2's
+      // `leadMaxPx` quietly made LEAD and BRACKET the same shot.
+      maxLen: 460,
+      // The one hard bound the player can learn: no round is ever suppressing
+      // ground further than this from where they were standing.
+      maxLead: 560,
+      // A still player: the corridor becomes a short band ACROSS his bearing,
+      // centred on them. Narrow enough that standing still is punished.
+      stillFanPx: 74,
+      // ── CONTROLLED IMPERFECTION ──────────────────────────────────────────
+      // He is skilled, not a ballistic computer, and these live INSIDE the
+      // plan rather than replacing it. Large random spread would make the fire
+      // ignorable; this keeps every round inside the corridor's own width.
+      jitterPx: 13,
+      // Recoil progression: the group opens slightly as the burst runs, which
+      // is also why a six-round burst is not simply a better three-round one.
+      climbPx: 4.5,
+      // ── PER-BURST BIAS ───────────────────────────────────────────────────
+      // One side of the corridor is favoured, chosen once and held for every
+      // round, so the eye can see him deliberately walking fire to one side.
+      biasMaxPx: 22,
+      // How far the aim eases toward the next planned point between rounds.
+      // This is what makes the fire visibly WALK: the rifle traverses the
+      // corridor instead of snapping to each solution.
+      traverse: 0.22,
+    },
+    // ── THE SPRAY FAMILY ───────────────────────────────────────────────────
+    // Four authored shapes, one drawn per burst and executed consistently.
+    // `t` runs 0 (the corridor's origin, where the player was) to 1 (the far
+    // end, where the route leads).
+    //   'up'      near -> far. Walking fire along the route ahead of them.
+    //   'down'    far -> near. Cutting off the continuation first.
+    //   'outward' centre, then alternating out to both ends.
+    //   'sweepback' up the corridor and part of the way back — long bursts
+    //               only, and it is the one that covers the same ground twice.
+    // WEIGHTED TOWARD `up`, and that is not arbitrary: it is the shape whose
+    // round order matches the order the rounds ARRIVE in, so it is the one that
+    // reads as walking fire along a route. The other three are deliberate
+    // variations that trade some of that against covering the ground a player
+    // who slows, stops or wobbles ends up on — the brief asks for variation and
+    // this is where its cost is paid.
+    sprayWeights: [['up', 44], ['outward', 24], ['sweepback', 20], ['down', 12]],
+    // Never extrapolate further ahead than this, whatever the range says.
+    // Retained for the ARC GRENADE's own bounded lead and for the corridor's
+    // length solve.
     leadHorizonMs: 900,
-    // And never displace the aim point further than this, whatever the horizon
-    // says. A bound the player can learn: the bracket is always inside a body
-    // length or two of where they were going. It sits deliberately ABOVE what
-    // the bracket asks for at ordinary range (~261px at a 380px engagement) —
-    // a cap that binds in normal play is not a bound, it is the aim, and while
-    // it was 260 rounds 2 and 3 were both clamped to the same number and the
-    // difference between LEAD and BRACKET did not exist.
+    // And never displace an aim point further than this, whatever the horizon
+    // says — the bound the player can learn, unchanged from B.2.2.
     leadMaxPx: 300,
     // ── STAGGER: BOUNDED, AND NEVER A STUN-LOCK ────────────────────────────
     // `Enemy.damage` sets `_staggerMs = 90` on EVERY hit, and an actor that
@@ -2000,31 +2088,56 @@ export const CHAMPION = {
     // the player decided anything, and `smoke-captain-step` greps this actor
     // for every one of those identifiers as well as probing it live.
     step: {
-      // 150px is about two and a half body widths — enough to leave a firing
-      // solution, far short of a traversal. Tuned from runtime evidence.
-      distance: 150,
+      // ── CORE FEEL PASS: 150 -> 200 ────────────────────────────────────
+      // 150px was about two and a half body widths and the handset verdict was
+      // that the player could hold almost the same aim relationship straight
+      // through it — a step that does not break a firing solution has not
+      // repositioned anybody. 200 is the middle of the brief's 180-220 class:
+      // it leaves the pellet cone, it opens a genuinely new angle, and it is
+      // still nowhere near traversal. A Ø56 body moving 200px has moved three
+      // and a half of itself.
+      distance: 200,
+      // ── THE PHYSICAL CHAIN: PLANT -> PRELOAD -> PUSH -> TRAVEL -> CATCH ──
       // THE PLANT IS WHAT MAKES IT FOOTWORK. Without it the body simply
       // acquires velocity, which is the sliding read both rejected Champions
-      // died of. Short enough that it is a reaction, not a wind-up.
-      plantMs: 70,
-      travelMs: 200,
-      // A MEANINGFUL ELITE ACTION, NOT PERPETUAL SKATING. Over a 10-15s fight
-      // this is a handful of steps. The handset question is "that guy is
-      // sharp", never "why is he constantly dashing".
+      // died of. 90ms, and the suit's preload runs inside it so the launch is
+      // ANNOUNCED by the equipment a frame before it happens.
+      plantMs: 90,
+      travelMs: 215,
+      // HE CATCHES HIS OWN MASS. The travel ends and the body absorbs the stop
+      // over this, on a dedicated compressed landing frame, before the combat
+      // loop resumes. Without it a 200px displacement ends by simply switching
+      // the velocity off, which is the floaty read the whole pass exists to
+      // remove.
+      catchMs: 120,
+      // A MEANINGFUL ELITE ACTION, NOT PERPETUAL SKATING. Unchanged at 2800:
+      // this pass changes the distance, the presentation and the priorities,
+      // and shortening the cooldown on top of all three would make it
+      // impossible to tell which of them the handset is reacting to.
       cooldownMs: 2800,
       firstDelayMs: 1500,
-      // ── THE FOUR ELIGIBLE REASONS, all combat geometry ────────────────
-      // CLOSE: the player has pushed inside the band he wants to hold.
-      closeFrac: 0.82,          // of `holdMin`
-      // BLOCKED: ready to fire, in range, and no line — MEASURED in B.2.1 as a
-      // real state he sits in for 21-34 frames at a time, not a supposition.
-      blockedMs: 300,
-      // POST-BURST: change the firing angle after a commitment, sometimes.
-      postBurstChance: 0.5,
-      // FIELD: while his own Arc Field is live, take the side that puts the
-      // player between him and it — the same exploitation `_solvePosition`
-      // already does at walking pace, taken at a step.
+      // ── THE REASONS, IN PRIORITY ORDER ────────────────────────────────
+      // Reordered on the handset verdict that he does not deploy it when it
+      // matters. The arbitration is now explicitly a priority list rather than
+      // a chain of whichever test happened to be written first.
+      //
+      // 1 CLOSE — AGGRESSIVE PRESSURE. The most important use by a distance:
+      //   the player has collapsed into the range where repeated pellets land
+      //   reliably, and that is the relationship the step exists to break.
+      //   Widened from 0.82 of `holdMin` to 0.95, plus a CLOSING test so he
+      //   answers a player who is still coming rather than waiting until they
+      //   have arrived.
+      closeFrac: 0.95,          // of `holdMin`
+      closingPxPerS: 120,       // approach rate that counts as a collapse
+      // 2 POST-BURST — a spent commitment is a natural moment to relocate, and
+      //   it stops "Captain empties a burst and stands where he was solved".
+      postBurstChance: 0.62,
+      // 3 FIELD — exploit the route his own grenade just closed.
       fieldChance: 0.6,
+      // 4 BLOCKED — real, measured, and the LOWEST priority: a step spent on
+      //   walking round a console is a step not spent on the player's face.
+      //   It also waits longer now before it qualifies.
+      blockedMs: 460,
     },
 
     // ── THE FIRST SIGNATURE: THE ARC GRENADE ───────────────────────────────

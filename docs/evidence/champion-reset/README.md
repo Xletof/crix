@@ -215,3 +215,78 @@ Harrower skateboard.
 builds a Graphics whose `_tick` closure does the drawing, and `_tick` does not
 run until the next `preUpdate` — so pausing on the frame the impulse is created
 photographs an empty object. Same trap that cost B.2.1 a whole reaction sheet.
+
+## CORE FEEL — the step as a chain, the body as a base, the burst as one decision (`cf/`)
+
+    npm run dev
+    node tests/shot-captain-cf.mjs       # the video and the frames below
+
+Play it at **`?champdbg=1&captel=1`**. `HANDOVER.md` `§10al`.
+
+**`captain-core-feel-1x.webm` IS THE EVIDENCE AND THE STILLS ARE ITS INDEX.**
+§33/§34 of the brief are explicit: a step and a weight transfer are MOTION, the
+review is at gameplay speed, and it must not be run against a vertical-pixel
+threshold. Twenty-two seconds of real combat at 1x with nothing forced — the
+player is driven on a simple lateral-then-close policy and every step, burst
+length and spray shape in the footage was chosen by the real solvers.
+
+| frame | what it shows |
+|---|---|
+| `01-plant-preload` | weight set in the brace body, and the suit already answering — the preload RISES into the launch rather than fading |
+| `02-pushoff` | five thrust strands at the ORIGIN he is leaving, plus the flat deck scuff at the launch foot |
+| `03-travel` | the strafe cycle, and at most two short echoes — never a trail |
+| `04-catch` | **the frame that did not exist before this pass** — widest stance on the sheet, torso down into the legs, a low flat ring on the deck |
+| `05-settle` | back into a combat posture |
+| `06-base-brace-crop` | the firing base is SET |
+| `07-base-fire-crop` | and it does not move — the shot is in the rifle and the shoulders |
+| `08-base-recoil-crop` | nor here |
+| `09-base-settle-crop` | the between-rounds correction, which is what keeps a six-round burst from being one pose looped |
+
+**READ 06-09 AT THE FEET.** The whole claim of the animation half is that the
+stance widens to shoot and then holds through brace, fire, recoil and settle —
+so the one thing in a burst that does not move is the thing standing on the
+deck, and everything above it reads as absorbed rather than bounced.
+
+**AND THE BIGGEST CAUSE OF THE BOUNCE IS NOT VISIBLE IN ANY FRAME.**
+`Enemy.preUpdate` squashed the whole sprite on a sine while `_staggerMs` ran —
+set on EVERY hit — and shrank it 12% while `recoilT` ran, which `_fireRound` was
+setting on EVERY round. A still cannot show a rubber sprite. The fix is a pair
+of tunable depths whose defaults are the shipped numbers, so no other actor
+moved; see `CLAUDE.md` and `§10al`.
+
+### `diag-captain-pressure` — five policies, and they are a contract
+
+    node tests/diag-captain-pressure.mjs <still|line|reverse|stepstop|dash> 30
+
+`still` and `line` should be PUNISHED, `reverse` and `dash` EFFECTIVE, and
+`stepstop` — the old exploit, where a small step and a stop parked the player in
+the uncovered gap between the establish shot and the lead — should no longer
+reliably solve a whole burst. **READ THE ORDERING BETWEEN POLICIES, NEVER THE
+ABSOLUTES**: closest approach is sampled on `postupdate` at ~10fps against a
+600px/s bolt, so a stationary player measures a ~44px median miss on a build
+that cannot fail to hit them.
+
+Measured on this build, 30-second runs, staged inside the engagement band —
+**rounds landing within 48px of the player**, which at this sample rate is
+"would have hit":
+
+| policy | inside 48px | verdict |
+|---|---|---|
+| `still` | **30 / 33 — 91%** | punished hardest, as §26 requires |
+| `stepstop` | 14 / 36 — 39% | **the old exploit is gone**; it used to be the safe answer |
+| `line` | 6 / 24 — 25% | pressured, and see the confound below |
+| `reverse` | 1 / 33 — 3% | changing your mind after the commitment works |
+| `dash` | **0 / 29 — 0%** | and dashing out of the corridor works completely |
+
+**AND `line` CARRIES A CONFOUND THE RIG PRINTS FOR YOU.** It re-derives a
+perpendicular bearing every 440px of travel to stay inside the engagement band,
+which at 380px/s is a reversal roughly every 1.4s — against a ~1.3s flight time,
+so more than half of its bolts have a rig-imposed reversal in the air. Under the
+corridor law a reversal invalidates the whole commitment BY DESIGN, so `line`
+systematically understates the danger of genuinely holding a direction.
+
+**THIS RIG FOUND A REAL BUG IN THE FIRST CUT OF THE CORRIDOR LAW.** Sized as
+"0.7 seconds of their travel, starting where they are", the corridor sat behind
+a player the rounds take 1.3s to reach: `line` measured 3 of 21 rounds inside
+48px, which is continuing being the SAFE answer — the exact failure B.2.2
+existed to fix. The corridor is anchored to the burst's own arrival window now.

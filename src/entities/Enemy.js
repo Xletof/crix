@@ -97,6 +97,16 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this._ownsAnim     = false;
     this._fireAnimTimer = 0;
     this.recoilT        = 0;
+    // ── HOW HARD THE BODY ITSELF REACTS, AS TWO TUNABLE DEPTHS ─────────────
+    // The scale channel below is the whole-body squash: a sine wobble while
+    // `_staggerMs` runs and a shrink while `recoilT` does. These were pixel
+    // literals, which meant EVERY actor bounced by the same fraction of its own
+    // size — fine on a Ø44 trooper and, measured on a Ø112 Champion under
+    // sustained chip fire, a body visibly jiggling for the whole fight. The
+    // defaults are the shipped numbers, so nothing here changes unless an actor
+    // deliberately asks for a damped one.
+    this._staggerScale  = 0.10;
+    this._recoilScale   = 0.12;
 
     // AI shared state — idle enemies (no patrol) still start PATROL (stand & scan).
     // Swarm-behavior enemies (arena/horde mode) and spec.alerted enemies boot
@@ -824,12 +834,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const bs = this._baseScale;
     if (this._staggerMs > 0) {
       const phase = (90 - this._staggerMs) * 0.22;
-      const w = Math.sin(phase) * 0.10;
+      const w = Math.sin(phase) * this._staggerScale;
       this.setScale(bs * (1 + w), bs * (1 - w));
       this.angle = 0;
     } else if (this.recoilT > 0) {
       this.recoilT -= delta;
-      this.setScale(bs * (1 - Math.max(0, this.recoilT / 80) * 0.12));
+      this.setScale(bs * (1 - Math.max(0, this.recoilT / 80) * this._recoilScale));
       this.angle = 0;
     } else if (this._performing) {
       // A move owns the scale channel too — `squash`, `appear` and

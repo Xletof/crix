@@ -866,6 +866,17 @@ asserts separately that the ceiling is not reached.
   The notes below are how it works and how it breaks; **none of them is an
   invitation to tune it.** Still NO variants, NO colourways, NO Nemesis
   replacement — and **normal Endless spawns no Champion of any kind.**
+  **THE CORE FEEL PASS (§10al) IS THE CURRENT CANDIDATE AND IS NOT APPROVED.**
+  It changed the tactical step (150 -> 200px, five beats, a new priority list),
+  the body's weight language (the whole-body squash, `bob`, `lean`, the firing
+  base, and two new frames — `settle` and `land`, 51 -> 57) and the rifle (a
+  fixed three rounds -> a variable 3-6, and the per-round solver replaced by one
+  committed corridor). **IT CHANGED NO DURABILITY AND ADDED NO SUPER
+  RESISTANCE** — 1900 armour + 3400 body = 5300 is frozen, `armourTake` and
+  `armourSpill` are untouched, and S2 is neither started nor justified.
+  **B.2.3 IS STILL PAUSED**: directional damaged skins, model-level
+  deterioration and the engineered Arc Grenade / field art are all still
+  required and are NOT to be mixed into a movement or rifle pass.
   **B.2.2 CHANGED HIS TIMINGS AND HIS SPEED, ON A HANDSET FINDING, AND DID NOT
   TOUCH THE BAND.** `speed` 205 → 250, `recoverMs` 520 → 240, and the
   give-ground multiplier 0.86 → 1 (he was at his SLOWEST the one moment the
@@ -953,6 +964,105 @@ asserts separately that the ceiling is not reached.
   — including the freshly injected Captain's — and passed only while that one
   happened not to shoot inside the window. Hold the IDENTITY (`_gen`), the same
   way the check beside it already held the actor's.
+- **THE BOUNCE WAS NOT IN THE SPRITE SHEET, AND THAT IS THE LESSON.**
+  `Enemy.preUpdate` owns a SCALE channel — a sine wobble at ±10% while
+  `_staggerMs` runs and a 12% shrink while `recoilT` does — and `Enemy.damage`
+  sets `_staggerMs` on EVERY HIT while `ShockCaptain._fireRound` was setting
+  `recoilT` on EVERY ROUND. Correct on a Ø44 trooper taking three shots;
+  measured on a 5300-durability Champion under sustained chip fire it is a
+  rubber sprite for the whole fight, and the man visibly shrank each time his
+  own rifle went off. **No amount of frame work could have fixed it**, and a
+  pass that only looked at the sheet would have concluded the art was wrong.
+  Both depths are TUNABLE FIELDS now (`_staggerScale`, `_recoilScale`) whose
+  defaults are the shipped numbers, so every other actor is byte-identical. Ask
+  which SYSTEM owns a motion before redrawing the thing that appears to make it.
+- **WEIGHT IS ABOUT WHERE THE MOTION LIVES, NOT HOW MUCH THERE IS.** "Solid"
+  does NOT mean magnetized feet, a locked pelvis or "heavy means slow" — the
+  brief says so explicitly and a minimum-vertical-pixels metric is the wrong
+  instrument. `bob` is a WHOLE-BODY vertical offset and it carried the Captain's
+  firing arc (brace 1, fire 1, recoil 2), so the entire 112px figure travelled
+  up and down four times a second; `lean` moved the HELMET ALONE by up to five
+  pixels, which is a bobble head on a static torso. `bob` is zero for every
+  firing pose now and the recoil went UP the chain — rifle first (a separate
+  overlay), then shoulders (`sh`, deliberately DEEPENED), then a halved `lean`
+  that the chest and shoulders take half of (`tl`) and the boots take none of.
+  **PLANT, TRANSFER, COMMIT, CATCH, SETTLE.**
+- **THE FIRING BASE IS THE ONE THING IN A BURST THAT DOES NOT MOVE.** The stance
+  widens to shoot (two pixels each way, not one) and holds that width through
+  brace, fire, recoil AND settle, so everything above it reads as absorbed
+  rather than bounced. A six-round burst over a narrow stance is a man shooting
+  off his back foot.
+- **A STEP WITHOUT A CATCH IS A TRANSLATION.** The Captain's step was plant →
+  impulse → stop, and the handset called 150px too short and visually weak. It
+  is 200px and FIVE beats: plant (90ms, brace body, with a RISING suit preload —
+  it builds into the launch, it does not fade), push-off (five thrust strands at
+  the ORIGIN he leaves behind plus a flat deck scuff), travel (215ms, strafe
+  cycle), CATCH (120ms on a dedicated `land` frame, with a low flat deck ring)
+  and settle. **The catch is the frame that did not exist**, and without it a
+  200px displacement ends by switching the velocity off.
+- **THE ECHO IS WHERE THE HARROWER COMES BACK.** Two discrete stamps of the
+  actor's own frame at positions he really occupied, 130ms each, with NOTHING
+  joining them. They say "he was there a moment ago". A persistent trail says
+  "he is sliding", which is the word a handset already used to kill a Champion.
+  Do not add a wake, a long glide, whole-body rotation or giant afterimages.
+- **CHANGE ONE THING PER HANDSET QUESTION.** The step's `cooldownMs` stayed at
+  2800 while the distance, the presentation AND the priorities all moved:
+  shortening it too would have made it impossible to tell which of the four the
+  next verdict is answering.
+- **A CHAMPION'S STEP PRIORITY IS A LIST, NOT WHICHEVER TEST WAS WRITTEN
+  FIRST.** CLOSE (aggressive pressure — the most important use by a distance,
+  0.95 of `holdMin` plus a CLOSING-RATE test so he answers a collapse in
+  progress) > POST-BURST > FIELD > BLOCKED. Blocked is LAST and waits 460ms: a
+  step spent walking round a console is a step not spent breaking the player's
+  firing solution, and ordinary navigation already solves a blocked line at
+  walking pace. Closing rate is measured from REAL DISPLACEMENT between frames,
+  never from a velocity the actor just wrote.
+- **ONE BURST IS ONE TACTICAL DECISION, AND THE PER-ROUND SOLVER IS GONE.**
+  B.2.2's ESTABLISH / LEAD / BRACKET solved an intercept PER PROJECTILE. It hit,
+  and the handset called it robotic, aimbot, Terminator — and it was
+  **exploitable in a way that is obvious once written down: three point
+  solutions leave the ground BETWEEN them uncovered**, so a small step and a
+  stop parked the player in the hole between the establish shot and the lead.
+  `_planBurst` now takes ONE snapshot at late brace — origin, bearing, length —
+  draws a burst length (3-6, authored weights, never uniform), a spray shape, a
+  side bias and every round's imperfection UP FRONT, and then nothing reads the
+  player's position, velocity or heading again until the burst is over. The
+  fairness is structural rather than a coefficient. `_predict` is DELETED, not
+  left unread — `smoke-captain-rifle` greps for it, on the same rule that
+  removed the camera's `teleports: true`.
+- **A STILL TARGET IS A ROUTE OF ZERO LENGTH, SO IT BECOMES A FAN.** Under the
+  corridor law a stationary player would otherwise be suppressed along a
+  direction they do not have. The plan degenerates to a 74px band ACROSS his own
+  bearing, centred on them — a soldier shooting at somebody who is not moving.
+  **Standing still must never become the safe answer to a new aiming law.**
+- **AN AIM POINT IS A BEARING, NOT A DESTINATION — DO NOT CLAMP IT TO THE
+  ARENA.** `_planPoint` clamped into bounds and that BENT the committed line
+  whenever the route ran toward an edge: measured at 142px off a corridor whose
+  authored spread is 75, which is the corridor law quietly not holding. A round
+  is an ordinary projectile and is entitled to fly into a wall.
+- **THE RIFLE MUST WALK, OR THE DIFFERENCE IS ONLY IN THE DEBUG VECTORS.**
+  Facing was re-solved to the player every frame, so between rounds the barrel
+  snapped back onto them and then out to the next answer — which is exactly what
+  aimbot looks like. Inside a brace or a burst the aim eases toward the NEXT
+  PLANNED POINT and nowhere else. If a new aiming law is invisible in gameplay
+  footage it has failed, however good its geometry is.
+- **A FIXED WINDOW AGAINST A CHASE IS THE FRAME-RATE TRAP IN A NEW COSTUME, AND
+  IT WAS IN THREE RIGS AT ONCE.** `smoke-arcgrenade` waited a flat 9s for the
+  real AI to throw while the median separation was **1231px against a
+  `maxRange` of 680** — exactly ONE frame in the window ever satisfied
+  `_canThrow`, three downstream checks read `phases: []`, and a working grenade
+  was reported as absent depending on where the wave happened to drop him.
+  `smoke-captain-rifle` measured three commitments in 26s for the same reason,
+  and `diag-captain-pressure` printed a `line` run at a 1137px median. **STAGE
+  THE ENGAGEMENT AND POLL FOR THE CONDITION.** A rig that has to walk somewhere
+  first is measuring the walk.
+- **DRAIN AN EFFECT ON THE ACTOR'S OWN CLOCK, NEVER ON A SLEEP.** The Captain's
+  reaction FX are scheduled on `_clock`, which advances by Phaser's CLAMPED
+  `delta` — so on a slow container a second of wall time is a third of a second
+  of game time. `smoke-captain-step` waited 700ms for three 325ms overload
+  responses to expire and the check therefore passed on a fast box and failed on
+  a slow one, on this build and the one before it. Advance `_clock` and tick the
+  effects directly; it is deterministic at any frame rate.
 - **`?champdbg=1&captel=1` IS AN INSTRUMENT AND CHANGES NOTHING.** Separate from
   `champdbg` on purpose — most Champion reviews are not about numbers. With
   `captel` absent nothing is constructed: no container, no listeners, no
@@ -1145,7 +1255,7 @@ asserts separately that the ceiling is not reached.
   other's key every frame and `play()` restarts the animation on every tick** —
   a body permanently on frame 0 of something. `_facingSuffix()` is extracted so
   both paths resolve a facing from one implementation.
-- **THE CAPTAIN'S SHEET IS 51 FRAMES AND EVERY DIFFERENCE FROM THE STOCK 33 IS
+- **THE CAPTAIN'S SHEET IS 57 FRAMES AND EVERY DIFFERENCE FROM THE STOCK 33 IS
   A REQUIREMENT.** IDLE IS TWO FRAMES (every other actor idles on one, which is
   a frozen body — an elite that stands perfectly still between bursts reads as a
   prop). STRAFE IS ITS OWN CYCLE (playing the forward walk while travelling
@@ -1153,8 +1263,11 @@ asserts separately that the ceiling is not reached.
   sliding read both rejected candidates died of). BRACE / FIRE / RECOIL are
   three separate bodies — an earlier build separated brace from fire by one
   pixel of arm and they photographed as the same frame, which makes a burst a
-  muzzle flash over a static pose. Frames 42-50 are pose HOOKS for a future
-  signature and no ability reads them.
+  muzzle flash over a static pose. SETTLE and LAND are the core feel pass: a
+  burst that returns to the full brace after every shot is ONE POSE LOOPED N
+  TIMES and at six rounds that reads as a machine cycling, and a 200px step that
+  ends by switching the velocity off has no catch. Frames 48-56 are pose HOOKS —
+  `raise` and `thrust` are the Arc Grenade's; `recover` is still unused.
 - **THE FEET DO NOT BOB, AND THE LEADING FOOT IS LIGHTER.** Deriving the leg
   ground line from the torso made the whole stance rise and fall with the walk
   bob — a body hovering rather than a body whose weight shifts — and it pushed
