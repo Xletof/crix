@@ -266,6 +266,50 @@ await beat('07-base-fire-crop', 140, 1);
 await beat('08-base-recoil-crop', 70, 1);
 await beat('09-base-settle-crop', 10, 1);
 
+// ── THE PISTON TEST, MEASURED RATHER THAN EYEBALLED ────────────────────────
+// §28 asks explicitly for the helmet's, the torso's and the boots' vertical
+// rhythm through a burst, and §29 forbids treating "zero vertical movement" as
+// the target. So this prints the sheet's own channels per pose instead of
+// asserting anything: what matters is that the per-round swing (fire ->
+// recoil -> settle) is small while the ONE-TIME commitment step (brace ->
+// fire) is not, which is a ratchet rather than a cycle. A human reads the
+// video for whether it feels absorbed.
+const chan = await page.evaluate(async () => {
+  const { CAPTAIN_FRAMES } = await import('/src/systems/pixelArt.js');
+  const c = window.__cap;
+  const tex = c.scene.textures.get('champ-captain');
+  const rows = {};
+  // Measure the painted silhouette of each pose frame directly: the topmost
+  // opaque row is the helmet crown and the bottom-most is the boot sole, which
+  // is the only honest way to ask "did the body move" about a sprite sheet.
+  const src = tex.getSourceImage();
+  const cv = document.createElement('canvas');
+  cv.width = src.width; cv.height = src.height;
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(src, 0, 0);
+  for (const [name, idx] of [['brace', CAPTAIN_FRAMES.brace], ['fire', CAPTAIN_FRAMES.fire],
+    ['recoil', CAPTAIN_FRAMES.recoil], ['settle', CAPTAIN_FRAMES.settle]]) {
+    const f = tex.get(idx);
+    const d = ctx.getImageData(f.cutX, f.cutY, f.cutWidth, f.cutHeight).data;
+    let top = -1, bot = -1;
+    for (let y = 0; y < f.cutHeight; y++) {
+      for (let x = 0; x < f.cutWidth; x++) {
+        if (d[(y * f.cutWidth + x) * 4 + 3] > 40) { if (top < 0) top = y; bot = y; break; }
+      }
+    }
+    rows[name] = { top, bot };
+  }
+  return rows;
+});
+const span = (a, b) => Math.abs(chan[a].top - chan[b].top);
+console.log('  helmet crown, in texture px (x4 on screen):',
+  JSON.stringify(Object.fromEntries(Object.entries(chan).map(([k, v]) => [k, v.top]))));
+console.log(`  commitment step brace->fire ${span('brace', 'fire')}px`
+  + `   ·   per-round swing fire->recoil ${span('fire', 'recoil')}px`
+  + `, recoil->settle ${span('recoil', 'settle')}px`);
+console.log('  boot sole:',
+  JSON.stringify(Object.fromEntries(Object.entries(chan).map(([k, v]) => [k, v.bot]))));
+
 await resume();
 await page.waitForTimeout(400);
 await page.close();

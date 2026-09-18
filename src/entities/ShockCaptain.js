@@ -1358,7 +1358,15 @@ export class ShockCaptain extends Enemy {
     if (this._stepCd > 0) this._stepCd -= delta;
     if (this._nade?.dead) this._nade = null;
     if (this._shotFlashMs > 0) this._shotFlashMs -= delta;
-    if (this._wKick > 0) this._wKick = Math.max(0, this._wKick - delta * 0.09);
+    // THE KICK BLEEDS SLOWLY INSIDE A COMMITMENT AND QUICKLY OUT OF ONE.
+    // Inside a burst the slow rate is what makes the ratchet in `_fireRound`
+    // hold — the barrel never gets all the way home between rounds. On the
+    // settle it comes back nearly twice as fast, so the rifle is home by the
+    // time the firing stance releases: damped mass, no overshoot, no spring.
+    if (this._wKick > 0) {
+      this._wKick = Math.max(0, this._wKick
+        - delta * (this._cap === CAP.BURST ? 0.09 : 0.17));
+    }
     this._tickPunctuation();
     this._tickWear(delta);
     this._reactFx.slice().forEach((o) => o._tick?.());
@@ -1724,17 +1732,28 @@ export class ShockCaptain extends Enemy {
     }
 
     const pattern = this._pickWeighted(d.sprayWeights);
-    // ONE SIDE OF THE CORRIDOR, CHOSEN ONCE AND HELD. This is what lets the eye
-    // see him deliberately walking fire one way rather than scattering.
-    const bias = (Math.random() < 0.5 ? -1 : 1) * Math.random() * c.biasMaxPx;
-    // CONTROLLED IMPERFECTION, ROLLED UP FRONT. Per round, and growing with the
-    // round index — the group opens as the burst runs, which is recoil and is
-    // also why a six-round burst is not simply a better three-round one. Rolled
-    // HERE rather than at each shot so the rifle can traverse toward a point
-    // that will not move under it.
+    // ONE SIDE OF THE CORRIDOR, CHOSEN ONCE AND HELD, and the per-round
+    // imperfection ROLLED UP FRONT — here rather than at each shot, so the
+    // rifle can traverse toward a point that will not move under it.
+    // ── AND IT IS BOUNDED AGAINST THE SWEEP'S OWN STEP ──────────────────
+    // §8: the noise may never be large enough for the spray to appear to
+    // reverse. It is already perpendicular-only, so it cannot move a round
+    // back along the corridor — but a sideways excursion comparable to the
+    // gap between consecutive rounds still reads as a wobble competing with
+    // the sweep. `step` is the along-axis distance between rounds, and the
+    // whole perpendicular excursion (constant bias INCLUDED) is held under
+    // 45% of it. A six-round burst has a tighter step than a three-round one
+    // and therefore gets a tighter group, which is the right way round.
+    const step = rounds > 1 ? len / (rounds - 1) : len;
+    const perpCap = Math.max(4, step * 0.45);
+    const bias = Phaser.Math.Clamp(
+      (Math.random() < 0.5 ? -1 : 1) * Math.random() * c.biasMaxPx,
+      -perpCap * 0.55, perpCap * 0.55);
+    const jitCap = Math.max(2, perpCap - Math.abs(bias));
     const jit = [];
     for (let i = 0; i < rounds; i++) {
-      jit.push((Math.random() * 2 - 1) * (c.jitterPx + c.climbPx * i));
+      const amp = Math.min(c.jitterPx + c.climbPx * i, jitCap);
+      jit.push((Math.random() * 2 - 1) * amp);
     }
     this._plan = { ox, oy, dx, dy, len, rounds, pattern, bias, jit, still };
     this._planShot = 0;
@@ -1772,32 +1791,35 @@ export class ShockCaptain extends Enemy {
   }
 
   /**
-   * WHERE ALONG THE CORRIDOR ROUND `i` GOES — the spray shape.
+   * WHERE ALONG THE CORRIDOR ROUND `i` GOES — ONE MONOTONIC SWEEP.
    *
-   * `t` is 0 at the origin (where the player was, or the near end of the fan)
-   * and 1 at the far end, where the route leads. Chosen once per burst and
-   * executed consistently: the player should be able to SEE which way he is
-   * walking the fire.
+   * `t` is 0 at the corridor's origin (where the player was) and 1 at the far
+   * end, where the route leads. There is exactly one free choice — which side
+   * the sweep STARTS on — and from there every round of the burst steps once,
+   * in one direction, from A to B:
+   *
+   *   3 rounds   A ..... mid ..... B
+   *   4 rounds   A ... 1/3 ... 2/3 ... B
+   *   6 rounds   A .. .. .. .. .. B
+   *
+   * MONOTONIC MEANS MONOTONIC (§6). No reversal, no A -> B -> A, no sweep out
+   * and back, no oscillation. The two patterns that could do any of that —
+   * `outward` and `sweepback` — are DELETED rather than de-weighted: they were
+   * 44% of bursts and they are the whole of what the handset saw as a rifle
+   * swinging back through ground it had already covered.
+   *
+   * THE EASE IS SPACING, NEVER DIRECTION. `sprayEase` blends the linear walk
+   * with a smoothstep, so the traversal softens at both ends without any step
+   * ever being negative — a smoothstep is monotonic on [0,1], so the sum of two
+   * monotonic curves at non-negative weights is monotonic too. That is a
+   * property of the construction, not a tuning that could drift.
    */
   _sprayT(i, n, pattern) {
     if (n <= 1) return 0.5;
     const u = i / (n - 1);
-    switch (pattern) {
-      case 'down': return 1 - u;
-      case 'outward': {
-        // Centre first, then alternating out to both ends — the shape that
-        // covers the ground either side of where they were standing.
-        const steps = Math.ceil((n - 1) / 2) || 1;
-        const k = Math.ceil(i / 2) / steps;
-        return Phaser.Math.Clamp(0.5 + (i % 2 === 1 ? 1 : -1) * 0.5 * k, 0, 1);
-      }
-      case 'sweepback':
-        // Up the corridor, then part of the way back over ground he has
-        // already covered. The one pattern that hits the same stretch twice.
-        return u <= 0.6 ? u / 0.6 : 1 - ((u - 0.6) / 0.4) * 0.55;
-      case 'up':
-      default: return u;
-    }
+    const e = this.def.sprayEase ?? 0;
+    const eased = u * (1 - e) + (u * u * (3 - 2 * u)) * e;
+    return pattern === 'far' ? 1 - eased : eased;
   }
 
   /**
@@ -1816,10 +1838,15 @@ export class ShockCaptain extends Enemy {
     const t = this._sprayT(k, pl.rounds, pl.pattern);
     const ax = pl.ox + pl.dx * pl.len * t;
     const ay = pl.oy + pl.dy * pl.len * t;
-    // The side bias is perpendicular to the route and opens slightly as the
-    // burst runs, along with the per-round imperfection already rolled.
+    // ── PERPENDICULAR ONLY, AND CONSTANT ────────────────────────────────
+    // The side bias is chosen once and HELD for the whole burst — it used to
+    // open 16% per round, which is a second motion running across the sweep,
+    // and two motions at once is what read as erratic. Everything here is
+    // perpendicular to the route, so nothing in this expression can move a
+    // round BACKWARD along the corridor: the A -> B progression is monotonic
+    // by construction rather than by a threshold.
     const nx = -pl.dy, ny = pl.dx;
-    const off = pl.bias * (1 + k * 0.16) + (pl.jit[k] ?? 0);
+    const off = pl.bias + (pl.jit[k] ?? 0);
     // NOT CLAMPED TO THE ARENA. An aim point is a BEARING, not a destination —
     // a round is an ordinary projectile and is perfectly entitled to fly into a
     // wall. Clamping bent the committed line whenever the route ran toward an
@@ -1852,10 +1879,19 @@ export class ShockCaptain extends Enemy {
     // ── THE RECOIL IS IN THE RIFLE, NOT IN THE MAN ────────────────────────
     // `recoilT` drives `Enemy.preUpdate`'s whole-body scale shrink, and setting
     // it here is what made the entire 112px figure pulse on every round — the
-    // handset's "weapon makes the character hop". The kick is bigger than it
-    // was and it lives entirely on the weapon overlay; the shoulders carry the
-    // rest through the brace -> fire -> recoil -> settle frames.
-    this._wKick = 23;
+    // handset's "weapon makes the character hop". It is not touched.
+    //
+    // THE KICK IS THE LARGEST DISPLACEMENT IN THE CHAIN (§13) AND IT RATCHETS.
+    // It used to be reset to a flat 23 per round, so the weapon fell all the
+    // way back to rest between shots and every round was the same complete
+    // gesture — six identical animations rather than one sustained commitment.
+    // It now keeps 55% of whatever is still standing and adds to it, so the
+    // barrel rides progressively further back through a long burst and only
+    // fully returns on the settle. Bounded, because a rifle that walked out of
+    // his hands over six rounds would be a different bug.
+    const last = this._plan && this._planShot >= this._plan.rounds;
+    // The final round is the strongest of the burst — §16's one firm close.
+    this._wKick = Math.min(38, this._wKick * 0.55 + (last ? 27 : 20));
   }
   /**
    * THE ANIMATION IS THE STATE, AND THE STATE IS A COMBAT REASON.

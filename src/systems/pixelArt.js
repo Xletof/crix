@@ -1697,18 +1697,42 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
         : (pose === 'fire' || pose === 'recoil' || pose === 'brace'
           || pose === 'settle' || pose === 'thrust') ? 0
           : (legPhase === 0 ? 0 : (Math.abs(legPhase) === 2 ? 1 : 0));
-    // LEAN IS ALONG THE FACING AXIS and it is halved from B.2.2: a recoil that
-    // threw the head back three pixels was the single loudest elastic motion on
-    // the sheet.
-    const lean = pose === 'fire' ? 1 : pose === 'recoil' ? -2 : pose === 'settle' ? -1
-      : pose === 'brace' ? 1 : pose === 'land' ? 1
-        : hurt ? -2 : pose === 'thrust' ? 2 : pose === 'raise' ? -1 : 0;
-    // Shoulder height is the clearest tell a body this small has, and it now
-    // carries the WHOLE brace -> fire -> recoil -> settle arc on its own. THE
-    // FOUR MUST NOT BE NEIGHBOURS: an earlier build separated brace from fire
-    // by one pixel of arm and they photographed as the same frame, which makes
-    // a burst a muzzle flash over a static pose.
-    const sh = pose === 'brace' ? -2 : pose === 'fire' ? 2 : pose === 'recoil' ? 4
+    // ── LEAN IS ALONG THE FACING AXIS, AND THE CAPTAIN FACES THE PLAYER ───
+    // WHICH IS WHY IT WAS STILL PUMPING HIM. He aims at the player, so the
+    // front and back views are the common ones — and in those, "along the
+    // facing axis" IS SCREEN-VERTICAL. `lean` therefore moved the helmet
+    // through +1, -2, -1 on every round, four times a second, which is the
+    // residual piston the handset still saw after `bob` was zeroed.
+    //
+    // THE FIRING COMMITMENT NOW HOLDS ONE LEAN. He sets into the weapon on the
+    // brace and STAYS there: fire, recoil and settle differ by at most one
+    // pixel, so the head barely reacts (§13 — "very small reaction only") and
+    // the per-round motion lives where §13 puts it, in the rifle and the arms.
+    // MEASURED, AND THE FIRST CUT OF THIS WAS STILL ONE PIXEL SHORT. Leaving
+    // `recoil` at 0 while its neighbours sat at 1 put the helmet crown through
+    // 12 -> 8 -> 12 TEXTURE pixels per round — four SCREEN pixels, four times a
+    // second, which is the piston surviving in the smallest form it can take.
+    // The lean is a COMMITMENT-LEVEL pose now: he sets into the weapon on the
+    // brace and every firing frame shares it, so the head moves ONCE when he
+    // commits and once when he releases, and not at all per round. The torso
+    // follows it through `tl` and is therefore equally still.
+    const lean = (pose === 'brace' || pose === 'fire' || pose === 'recoil'
+      || pose === 'settle' || pose === 'land') ? 1
+      : hurt ? -2 : pose === 'thrust' ? 2 : pose === 'raise' ? -1 : 0;
+    // ── SHOULDER HEIGHT IS A RATCHET NOW, NOT A CYCLE ─────────────────────
+    // It used to run brace -2 -> fire 2 -> recoil 4 -> settle 1, a SIX-PIXEL
+    // vertical swing repeated once per round — which at six rounds is six
+    // bounce animations in a row, exactly what §14 and §16 forbid. The big
+    // change happens ONCE, when he commits (brace -2 to fire +1), and the
+    // shoulders then stay LOADED for the whole burst: fire 1, recoil 2,
+    // settle 1. One pixel between rounds. He does not return to neutral
+    // between projectiles because he has not stopped shooting.
+    //
+    // WHAT REPLACED THE MOTION, because "hold still" is not an answer: the
+    // per-round difference moved into `ao` below — the ARM, which travels
+    // along the weapon axis rather than up and down — and into `_wKick` on the
+    // rifle overlay, which is the largest displacement of the three (§13).
+    const sh = pose === 'brace' ? -2 : pose === 'fire' ? 1 : pose === 'recoil' ? 2
       : pose === 'settle' ? 1 : pose === 'land' ? 2
         : hurt ? 1 : pose === 'raise' ? -2 : breath ? -1 : 0;
 
@@ -1877,7 +1901,12 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
       rim(qx, sy + 2, 6, 5);
       // Arms. Without them the shoulders are cargo, not limbs — and the arm is
       // the one place brace / fire / recoil can be told apart at a glance.
-      const ao = pose === 'brace' ? 1 : pose === 'fire' ? 3 : pose === 'recoil' ? -2
+      // ── THE ARM CARRIES THE PER-ROUND MOTION, ALONG THE WEAPON AXIS ────
+      // Deepened as the shoulder's vertical swing was taken out: fire 4 to
+      // recoil -3 is seven pixels of arm travel per round, and it is LATERAL
+      // within the sprite rather than vertical — the body absorbing recoil
+      // around its stance instead of pistoning through screen y (§12).
+      const ao = pose === 'brace' ? 1 : pose === 'fire' ? 4 : pose === 'recoil' ? -3
         : pose === 'settle' ? 0 : pose === 'land' ? -1
           : pose === 'strafeA' ? 1 : pose === 'strafeB' ? -1
             : legPhase === 1 ? 1 : legPhase === 2 ? 2 : legPhase === -1 ? -1

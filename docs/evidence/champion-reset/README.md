@@ -254,6 +254,33 @@ setting on EVERY round. A still cannot show a rubber sprite. The fix is a pair
 of tunable depths whose defaults are the shipped numbers, so no other actor
 moved; see `CLAUDE.md` and `§10al`.
 
+### CF.2 — the closeout refinement
+
+Handset play on CF.1 approved the step, the durability and the agility; two
+narrow defects were left, and both are visible in this folder's video.
+
+**THE SPRAY.** Four shapes became ONE MONOTONIC SWEEP with one free choice —
+which side it starts on. `outward` and `sweepback` were **non-monotonic by
+construction** (0.5 → 0.75 → 0.25 → 1 → 0, and out-and-back respectively) and
+were 44% of bursts. `smoke-captain-rifle` projects every round of a burst onto
+its own corridor axis and walks the projections in firing order: **−159px of
+backward travel on the shipped build, ≥ −8px now.** That check was A/B'd against
+`5e0ef94` and fails on it, which is what makes it a check rather than decoration.
+
+**THE FIRING PUMP.** `bob` was already zero for every firing pose, and the
+handset still saw it. The cause was `lean` — "along the facing axis", which for a
+Captain who AIMS AT THE PLAYER is screen-vertical in the common front and back
+views. Measured from the sheet's own silhouette, brace / fire / recoil / settle:
+
+    helmet crown   12  8  12   ->   12  12  12  12
+    boot sole     111 111 111  ->  111 111 111 111
+
+The rig prints those rows and asserts nothing about them: §29 is explicit that
+zero vertical movement is the wrong target, and a stiff Captain is a worse
+failure than a bouncy one. **Read 07/08/09 for where the motion went** — the
+rifle retracts, the arm travels seven pixels laterally, the shoulder moves one,
+and the head and the boots do not move at all.
+
 ### `diag-captain-pressure` — five policies, and they are a contract
 
     node tests/diag-captain-pressure.mjs <still|line|reverse|stepstop|dash> 30
@@ -277,6 +304,13 @@ Measured on this build, 30-second runs, staged inside the engagement band —
 | `line` | 6 / 24 — 25% | pressured, and see the confound below |
 | `reverse` | 1 / 33 — 3% | changing your mind after the commitment works |
 | `dash` | **0 / 29 — 0%** | and dashing out of the corridor works completely |
+
+Re-run after CF.2 — the ORDERING is what the contract requires, not the
+percentages: `still` **93%**, `stepstop` **26%**, `line` **18%** (56% inside
+96px), `reverse` **6%**, `dash` **0%**. `stepstop` and `line` both fell, because
+a monotonic sweep puts fewer rounds near the middle of a corridor than `outward`
+did. Neither was re-tuned: changing the corridor geometry in the same pass that
+simplified the spray would make the next handset verdict unreadable.
 
 **AND `line` CARRIES A CONFOUND THE RIG PRINTS FOR YOU.** It re-derives a
 perpendicular bearing every 440px of travel to stay inside the engagement band,

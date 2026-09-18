@@ -226,7 +226,19 @@ spawns the Captain; DEBUG carries four triggers — BIG HIT / BREAK / LOW HEALTH
 drive the real `damage()` path, and CHAMP: GRENADE clears the cooldown and lets
 the real AI decide.
 
-**THE CORE FEEL PASS IS THE CURRENT CANDIDATE — `§10al`.** S1 came back
+**THE CORE FEEL CLOSEOUT (CF.2) IS THE CURRENT CANDIDATE — `§10al`.** Handset
+play on CF.1 came back WORKING — much more agile, the tactical step producing
+genuinely good dodges including a whole Super dodged through real movement,
+aggressive focus substantially riskier, and a Wave 3 rush that killed the PLAYER.
+**Survivability is no longer the problem, so the step, the durability and the
+Arc Grenade are all frozen and untouched.** CF.2 is two narrow fixes only: the
+spray's four shapes collapse to **ONE MONOTONIC SWEEP** (two of the four were
+non-monotonic by construction and were 44% of bursts — measured at −159px of
+backward travel along a burst's own corridor), and the last of the vertical
+firing pump comes out of `lean`, which is screen-vertical precisely because the
+Captain faces the player. `§10al` carries both.
+
+**CF.1 IS THE PASS BEFORE IT — same `§10al`.** S1 came back
 DIRECTIONALLY SUCCESSFUL: he is harder to erase, the human takes more risk and
 dies more often forcing the kill, and the reactive-armour absorption is liked.
 So **durability is FROZEN at 5300 and there is still NO Super resistance of any
@@ -6961,6 +6973,103 @@ No durability change. No Super resistance. No directional damaged skins, no
 model-level deterioration, no Arc Grenade art rebuild, no field polish — those
 are still required and still `B.2.3`. No second signature, no variants, no
 Endless integration, no elite upgrade, no Commander tier.
+
+### The closeout refinement — CF.2
+
+Handset play on the first core-feel build came back **working**: much more agile,
+the tactical step producing genuinely good dodges (including a whole Super
+dodged through real movement), aggressive focus substantially riskier, and a
+Wave 3 rush that killed the PLAYER even though the Captain eventually died.
+Survivability is no longer the problem. Two narrow defects were left.
+
+**THE SPRAY HAD TOO MANY DEGREES OF FREEDOM.** Four shapes shipped, and two of
+them are NOT MONOTONIC BY CONSTRUCTION: `outward` walks 0.5 → 0.75 → 0.25 → 1
+→ 0, and `sweepback` goes out and comes part of the way back. Together they were
+**44% of bursts**. On a handset that is a rifle aiming one way, swinging back
+through ground it already covered, and correcting again — choreographed and
+erratic. **Measured on the shipped build: a worst backward step of −159px along
+the burst's own corridor, across 7 bursts.**
+
+The answer was fewer shapes, not more. What remains is one law with one free
+choice:
+
+> **ONE BURST = ONE CORRIDOR + ONE MONOTONIC SWEEP.**
+
+`near` opens at the corridor origin and walks out along the route; `far` opens at
+the far end and walks back down it. Both traverse the corridor **once, in one
+direction**. `t` is eased (45% smoothstep) so the spacing softens at the ends —
+and because a smoothstep is monotonic on [0,1], a non-negative blend of it with
+the linear walk **cannot** produce a negative step. That is a property of the
+construction, not a threshold.
+
+Everything else is bounded so it cannot compete with the sweep. The side bias is
+**constant for the whole burst** (it used to open 16% per round — a second motion
+running across the first, which is exactly what read as erratic), the jitter is
+**perpendicular only** so it can never move a round backward, and the whole
+perpendicular excursion — bias included — is capped at **45% of the along-axis
+step between consecutive rounds**. A six-round burst has a tighter step than a
+three-round one and therefore gets a tighter group, which is the right way round.
+
+**THE REMAINING VERTICAL PUMP WAS `lean`, AND THE REASON IS GEOMETRIC.** `bob`
+was already zero for every firing pose. But `lean` is "along the facing axis",
+and **the Captain faces the player** — so the front and back views are the common
+ones, and in those, along-the-facing-axis IS SCREEN-VERTICAL. It ran +1 / −2 / −1
+across fire / recoil / settle, moving the helmet crown **12 → 8 → 12 texture
+pixels, four SCREEN pixels, four times a second.**
+
+Three changes, all of them about WHERE the motion lives rather than how much
+there is:
+
+| channel | was | now | why |
+|---|---|---|---|
+| `lean` (head + half the torso) | 1 / −2 / −1 per round | **1, held for the whole commitment** | he sets into the weapon on the brace and the head moves ONCE when he commits and once when he releases |
+| `sh` (shoulders) | −2 → 2 → 4 → 1, a 6px swing per round | **−2 → 1 → 2 → 1** | a RATCHET, not a cycle: the big step happens once at commitment and the shoulders stay LOADED, one pixel between rounds |
+| `ao` (arm, along the weapon axis) | 3 / −2 | **4 / −3** | deepened as the vertical came out — seven pixels of arm travel per round, and it is LATERAL within the sprite |
+
+And the rifle, which §13 puts first in the chain, now **ratchets** too: `_wKick`
+keeps 55% of whatever is still standing and adds to it (capped at 38), so the
+barrel rides progressively further back through a long burst instead of falling
+home between every shot. It bleeds at 0.09/ms inside a burst and **0.17/ms
+outside one**, so it is home by the time the firing stance releases — damped
+mass, no overshoot, no spring. The last round of a burst kicks hardest (27
+against 20), which is §16's one firm close.
+
+**MEASURED FROM THE SHEET'S OWN SILHOUETTE**, across brace / fire / recoil /
+settle: helmet crown **12, 12, 12, 12**; boot sole **111, 111, 111, 111**. The
+head and the base do not move inside a firing commitment. Everything the eye
+sees is the rifle, the arms and one pixel of shoulder. `shot-captain-cf` prints
+those rows; **nothing asserts them** — §29 is explicit that zero vertical
+movement is not the target and the video is the judgement.
+
+### The policy law held
+
+Same rig, 30s per policy, rounds inside 48px:
+
+| policy | CF.1 | CF.2 | required |
+|---|---|---|---|
+| `still` | 91% | **93%** | heavily punishable ✓ |
+| `stepstop` | 39% | **26%** | no magic safe gap ✓ |
+| `line` | 25% | **18%** | pressured ✓ (56% inside 96px) |
+| `reverse` | 3% | **6%** | strong counter ✓ |
+| `dash` | 0% | **0%** | strongest counter ✓ |
+
+The ORDERING is what §27 requires and it is intact. Two honest notes: `stepstop`
+and `line` both fell, because a monotonic sweep puts fewer rounds near the middle
+of the corridor than `outward` did — and `line` carries its documented rig
+confound (a forced reversal roughly every 1.4s against a ~1.3s flight). Neither
+was re-tuned. **Changing the corridor geometry in the same pass that simplified
+the spray would make the next handset verdict unreadable**, and nothing here is
+evidence that continuing is safe: 18% inside 48px and 56% inside 96px is a player
+living under constant near-misses.
+
+### What CF.2 did not touch
+
+Tactical step (distance, timings, cooldown, triggers, FX, fairness — all frozen
+on the handset verdict), durability (1900 + 3400 = 5300), Super resistance (none,
+still), the Arc Grenade's gameplay, the reactive armour, movement speed, the
+engagement band, and the burst-length distribution. B.2.3 — directional damaged
+skins, model-level deterioration, the engineered Arc Grenade device and field —
+is still pending and still deliberately out of a rifle-and-recoil pass.
 
 ### Evidence
 

@@ -1895,39 +1895,55 @@ export const CHAMPION = {
       // A still player: the corridor becomes a short band ACROSS his bearing,
       // centred on them. Narrow enough that standing still is punished.
       stillFanPx: 74,
-      // ── CONTROLLED IMPERFECTION ──────────────────────────────────────────
+      // ── CONTROLLED IMPERFECTION, AND IT MAY NEVER OUT-SHOUT THE SWEEP ───
       // He is skilled, not a ballistic computer, and these live INSIDE the
-      // plan rather than replacing it. Large random spread would make the fire
-      // ignorable; this keeps every round inside the corridor's own width.
-      jitterPx: 13,
-      // Recoil progression: the group opens slightly as the burst runs, which
-      // is also why a six-round burst is not simply a better three-round one.
-      climbPx: 4.5,
-      // ── PER-BURST BIAS ───────────────────────────────────────────────────
-      // One side of the corridor is favoured, chosen once and held for every
-      // round, so the eye can see him deliberately walking fire to one side.
-      biasMaxPx: 22,
+      // plan rather than replacing it. THE HARD RULE (§8): noise must never be
+      // large enough to make the spray appear to REVERSE. It is perpendicular
+      // only — it can never move a round back along the corridor — and it is
+      // bounded against the along-axis step between consecutive rounds, so the
+      // A -> B traversal stays the dominant motion at every burst length.
+      jitterPx: 11,
+      // The group opens a little as the burst runs. Deliberately small now: at
+      // 4.5 the late rounds of a six-round burst were swinging far enough
+      // sideways to compete with the sweep itself.
+      climbPx: 2.5,
+      // ── PER-BURST BIAS, CONSTANT FOR THE WHOLE BURST ─────────────────────
+      // One side of the corridor is favoured, chosen once and HELD — it no
+      // longer opens per round. A growing bias is a second motion across the
+      // sweep, and two motions is exactly what read as erratic.
+      biasMaxPx: 16,
       // How far the aim eases toward the next planned point between rounds.
       // This is what makes the fire visibly WALK: the rifle traverses the
       // corridor instead of snapping to each solution.
       traverse: 0.22,
     },
-    // ── THE SPRAY FAMILY ───────────────────────────────────────────────────
-    // Four authored shapes, one drawn per burst and executed consistently.
-    // `t` runs 0 (the corridor's origin, where the player was) to 1 (the far
-    // end, where the route leads).
-    //   'up'      near -> far. Walking fire along the route ahead of them.
-    //   'down'    far -> near. Cutting off the continuation first.
-    //   'outward' centre, then alternating out to both ends.
-    //   'sweepback' up the corridor and part of the way back — long bursts
-    //               only, and it is the one that covers the same ground twice.
-    // WEIGHTED TOWARD `up`, and that is not arbitrary: it is the shape whose
-    // round order matches the order the rounds ARRIVE in, so it is the one that
-    // reads as walking fire along a route. The other three are deliberate
-    // variations that trade some of that against covering the ground a player
-    // who slows, stops or wobbles ends up on — the brief asks for variation and
-    // this is where its cost is paid.
-    sprayWeights: [['up', 44], ['outward', 24], ['sweepback', 20], ['down', 12]],
+    // ── ONE BURST = ONE CORRIDOR + ONE MONOTONIC SWEEP ─────────────────────
+    //
+    // WHAT WAS REMOVED, AND WHY. The first cut of this law carried FOUR shapes:
+    // `up`, `down`, `outward` (centre, then alternating out to both ends) and
+    // `sweepback` (up the corridor and part of the way back). Two of those are
+    // NOT MONOTONIC BY CONSTRUCTION — `outward` goes 0.5 -> 0.75 -> 0.25 -> 1
+    // -> 0 and `sweepback` walks out and returns — and together they were 44%
+    // of bursts. On a handset that is a rifle that aims one way, swings back
+    // through where it came from, and corrects again: choreographed, erratic,
+    // "the spray goes crazy". The defect was not psychic prediction any more,
+    // it was TOO MANY INTERNAL DEGREES OF FREEDOM.
+    //
+    // THE ANSWER IS FEWER SHAPES, NOT MORE. What is left is one law with one
+    // free choice: WHICH SIDE THE SWEEP STARTS ON. `near` opens at the corridor
+    // origin (where the player was) and walks out along the route; `far` opens
+    // at the far end and walks back down it. Both traverse the whole corridor
+    // ONCE, in ONE direction, and neither ever reverses.
+    //
+    // Naturalness comes from the four things chosen ONCE PER BURST — the start
+    // side, the length (3-6), the corridor's own width, and a constant side
+    // bias — plus bounded recoil noise. It does NOT come from letting each
+    // projectile pick an unrelated aim.
+    sprayWeights: [['near', 58], ['far', 42]],
+    // A mild ease on the traversal. The spatial DIRECTION never reverses (§6);
+    // this only varies the spacing, so the sweep starts and finishes a touch
+    // softer than its middle and reads as a hand rather than a stepper motor.
+    sprayEase: 0.45,
     // Never extrapolate further ahead than this, whatever the range says.
     // Retained for the ARC GRENADE's own bounded lead and for the corridor's
     // length solve.

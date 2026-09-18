@@ -78,8 +78,14 @@ check(cfg.weights.length === 4
 check(!cfg.weights.every(([, w]) => w === cfg.weights[0][1]),
   'the distribution is AUTHORED, not uniform — §18 forbids a flat roll',
   JSON.stringify(cfg.weights.map(([, w]) => w)));
-check(cfg.sprays.length >= 3, 'there is a family of spray shapes, not one',
-  `${cfg.sprays.length}`);
+// THE SHAPE FAMILY IS DELIBERATELY SMALL NOW, and the two that are gone are
+// gone because they were NOT MONOTONIC: `outward` walked 0.5 -> 0.75 -> 0.25
+// and `sweepback` went out and came back. Naming either again reintroduces the
+// exact thing the handset called erratic.
+check(cfg.sprays.length === 2
+  && cfg.sprays.every(([k]) => k === 'near' || k === 'far'),
+  'ONE FREE CHOICE — which side the sweep starts on, and nothing else',
+  JSON.stringify(cfg.sprays.map(([k]) => k)));
 // THE BOUND MOVED WHEN THE CORRIDOR WAS ANCHORED IN TIME, and the honest bound
 // is `maxLead` — how far from where they were standing any round may suppress.
 // `maxLen` is deliberately ABOVE what normal play asks for, because a cap that
@@ -160,6 +166,25 @@ const live = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(asyn
   await wait(26000);
   gs.events.off('postupdate', hook);
 
+  // ── THE MONOTONICITY PROOF (§6, §26) ────────────────────────────────────
+  // Project every round of a burst onto its OWN corridor axis and walk the
+  // projections in firing order: the progression must move consistently in one
+  // direction. This is the check the rejected build fails — `outward` produced
+  // 0.5 -> 0.75 -> 0.25 and any projection of that reverses at round three.
+  // Tolerance is the authored perpendicular budget expressed along the axis
+  // (bounded jitter can nudge a projection, it can never invert the walk).
+  const runs = [];
+  for (const pl of plans.filter((x) => x.shots.length > 2)) {
+    const proj = pl.shots.map((sx) => (sx.x - pl.ox) * pl.dx + (sx.y - pl.oy) * pl.dy);
+    let worstBack = 0;
+    const dir = Math.sign(proj[proj.length - 1] - proj[0]) || 1;
+    for (let i = 1; i < proj.length; i++) {
+      const stepI = (proj[i] - proj[i - 1]) * dir;
+      if (stepI < 0) worstBack = Math.min(worstBack, stepI);
+    }
+    runs.push({ n: pl.shots.length, pattern: pl.pattern, worstBack: Math.round(worstBack) });
+  }
+
   // HOW FAR EACH AIM POINT SITS OFF ITS OWN CORRIDOR LINE. Every round of one
   // burst has to lie within the authored bias + jitter of the same straight
   // line; under the rejected law rounds 1 and 3 sat on a line through the
@@ -195,6 +220,8 @@ const live = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(asyn
     allow: Math.round(c.def.corridor.biasMaxPx * (1 + 5 * 0.16)
       + c.def.corridor.jitterPx + c.def.corridor.climbPx * 5),
     strayPlan,
+    runs,
+    worstBack: runs.length ? Math.min(...runs.map((r) => r.worstBack)) : 0,
     vel0, vel1,
     min: c.def.burstRounds, max: c.def.burstRoundMax,
   };
@@ -226,6 +253,15 @@ check(live.vel0.length > 0 && live.vel0.every((v, i) => v === 0 || live.vel1[i] 
   || Math.abs(v - live.vel1[i]) <= 2),
   'NO HOMING — a round in flight keeps the velocity it left with',
   `${JSON.stringify(live.vel0)} -> ${JSON.stringify(live.vel1)}`);
+check(live.runs.length >= 2,
+  'several multi-round bursts were observed end to end',
+  `${live.runs.length}`);
+// THE HEADLINE CHECK OF THIS PASS. A single round stepping backward along its
+// own corridor is the reversal the handset saw; the allowance is small and is
+// there only for bounded perpendicular noise leaking into the projection.
+check(live.worstBack >= -8,
+  'EVERY BURST SWEEPS ONE WAY — no round steps back along its own corridor',
+  `worst backward step ${live.worstBack}px across ${live.runs.length} bursts`);
 check(live.strayPlan === 0,
   'and the corridor dies with the commitment — no plan outlives a brace or a burst',
   `${live.strayPlan} frames with a stray plan`);

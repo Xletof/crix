@@ -866,6 +866,15 @@ asserts separately that the ceiling is not reached.
   The notes below are how it works and how it breaks; **none of them is an
   invitation to tune it.** Still NO variants, NO colourways, NO Nemesis
   replacement — and **normal Endless spawns no Champion of any kind.**
+  **THE TACTICAL STEP, THE 5300 DURABILITY AND THE ARC GRENADE ARE NOW
+  HUMAN-APPROVED.** Handset play called the Captain much more agile, singled out
+  the step for producing genuine dodges (a whole Super dodged through real
+  movement), and reported a Wave 3 rush in which the Captain killed the PLAYER.
+  **Survivability is no longer the primary problem** — so no more HP tuning, no
+  Super resistance, no new survivability system, and the step's distance,
+  timings, cooldown, triggers and FX are CLOSED. The CORE FEEL CLOSEOUT (CF.2)
+  is the current candidate and touches only the spray shape and the firing
+  recoil.
   **THE CORE FEEL PASS (§10al) IS THE CURRENT CANDIDATE AND IS NOT APPROVED.**
   It changed the tactical step (150 -> 200px, five beats, a new priority list),
   the body's weight language (the whole-body squash, `bob`, `lean`, the firing
@@ -1017,6 +1026,44 @@ asserts separately that the ceiling is not reached.
   firing solution, and ordinary navigation already solves a blocked line at
   walking pace. Closing rate is measured from REAL DISPLACEMENT between frames,
   never from a velocity the actor just wrote.
+- **ONE BURST = ONE CORRIDOR + ONE MONOTONIC SWEEP, AND TWO OF THE FOUR SHAPES
+  WERE NEVER MONOTONIC.** `outward` walked 0.5 -> 0.75 -> 0.25 -> 1 -> 0 and
+  `sweepback` went out and came back; together they were 44% of bursts, and on a
+  handset that is a rifle aiming one way, swinging back through ground it has
+  already covered, and correcting again. **Measured at -159px of backward travel
+  along a burst's own corridor.** The fix was FEWER DEGREES OF FREEDOM, not more
+  patterns: one free choice (which side the sweep starts on), one traversal, one
+  direction. The ease is a smoothstep blended with the linear walk, so
+  monotonicity is a PROPERTY OF THE CONSTRUCTION — a non-negative blend of two
+  monotonic curves — rather than a threshold that could drift. And the noise is
+  bounded so it cannot compete: the bias is CONSTANT for the burst (it used to
+  open 16% per round, a second motion running across the first), the jitter is
+  PERPENDICULAR ONLY so it can never move a round backward, and the whole
+  perpendicular excursion is capped at 45% of the along-axis step between rounds.
+- **`lean` IS SCREEN-VERTICAL, BECAUSE THE CAPTAIN FACES THE PLAYER.** `bob` was
+  already zero for every firing pose and the handset still saw pumping. `lean` is
+  "along the facing axis" — and he aims at the player, so the front and back
+  views are the common ones and that axis IS screen y. At +1 / -2 / -1 across
+  fire / recoil / settle it moved the helmet crown FOUR SCREEN PIXELS, FOUR TIMES
+  A SECOND. It is one value held for the whole firing commitment now.
+- **A RATCHET, NOT A CYCLE — a long burst is ONE commitment, not six repeated
+  animations.** Shoulders used to run -2 -> 2 -> 4 -> 1 per round, a six-pixel
+  vertical swing repeated once per shot; the big step happens ONCE at commitment
+  now and they stay LOADED (1 / 2 / 1) until the settle. The rifle does the same:
+  `_wKick` keeps 55% of what is standing and adds to it, so the barrel never gets
+  all the way home between rounds, and it bleeds at 0.09/ms inside a burst
+  against 0.17/ms outside one so it IS home when the stance releases. **The
+  per-round motion moved into the ARM (`ao`, 4 to -3, lateral within the sprite)
+  and the rifle overlay** — §13's chain, rifle first, then arms and shoulders,
+  then a very small head, then a base that does not move at all.
+- **MEASURE A PISTON FROM THE SILHOUETTE, NOT FROM THE CHANNEL VALUES.** Reading
+  `bob`/`lean`/`sh` says what you intended; the topmost and bottom-most opaque
+  ROW of each pose frame says what shipped. It caught a surviving four-pixel
+  helmet step after the channels had already been "fixed", and it is what proves
+  the boot sole is identical across brace / fire / recoil / settle.
+  `shot-captain-cf` prints those rows and **asserts nothing about them** — §29 is
+  explicit that zero vertical movement is the wrong target and a stiff Captain is
+  a worse failure than a bouncy one.
 - **ONE BURST IS ONE TACTICAL DECISION, AND THE PER-ROUND SOLVER IS GONE.**
   B.2.2's ESTABLISH / LEAD / BRACKET solved an intercept PER PROJECTILE. It hit,
   and the handset called it robotic, aimbot, Terminator — and it was
