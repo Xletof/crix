@@ -324,3 +324,56 @@ systematically understates the danger of genuinely holding a direction.
 a player the rounds take 1.3s to reach: `line` measured 3 of 21 rounds inside
 48px, which is continuing being the SAFE answer — the exact failure B.2.2
 existed to fix. The corridor is anchored to the burst's own arrival window now.
+
+## THE VISUAL FINISH — damage in the model, a field with a source (`vf/`)
+
+    npm run dev
+    node tests/shot-captain-dmg.mjs     # the damage matrix
+    node tests/shot-arcfield.mjs        # the device and its field
+
+Play it at **`?champdbg=1&captel=1`**. `HANDOVER.md` `§10am`.
+
+**`00-MATRIX-state-x-facing.png` IS THE DAMAGE ACCEPTANCE FRAME.** Three
+authored body states across four facings on one canvas — because §16 asks a
+COMPARISON ("can I tell intact from broken from critical at 1×") and a human
+cannot make it by flipping between twelve files. It is drawn in the page from
+the twelve crops, so it needs no image library on the box.
+
+**AND IT IS WHAT CAUGHT THE REAL PROBLEM.** The first cut of CRITICAL added only
+one- and two-pixel features inside the silhouette and the matrix came back with
+BROKEN and CRITICAL as two indistinguishable dark Captains. What fixed it was
+`SpriteSheet.cut` — `clearRect`, so pixels leave the OUTLINE rather than being
+darkened inside it — plus one step of value off the whole plate ladder.
+
+| frame | what it shows |
+|---|---|
+| `0/1/2-*-front/back/east/west` | the twelve cells of the matrix, individually |
+| `3-broken-walk/strafe/fire/brace` | §7 — the damage survives the animation families the approved work lives in |
+| `4-critical-firing-short` | critical, mid-burst, with the electrical failure live |
+| `5-INSPECTION-x3-*` | **NOT THE REVIEW.** For reading the shapes while authoring them |
+
+**READ THE PAULDRON SIDE ACROSS A ROW.** The bone command pauldron is
+screen-LEFT in front view and screen-RIGHT in back view — it is the same
+shoulder and he has turned round. That mirroring is the whole claim: the old
+build derived its damage point from `flipX` alone and wore it at the same screen
+offset whichever way he was looking.
+
+### The Arc Grenade
+
+| frame | what it shows |
+|---|---|
+| `10-device-in-flight` | the device IS the projectile — tumbling, inert, one charging spark |
+| `11-landed-core-powers-up` | it lands, squashes, locks, and the core comes on |
+| `12-nodes-establish` | the projector nodes placed one at a time, each by a visible beam |
+| `13-perimeter-closes` | the boundary closing between them — complete at 74% of `armMs`, before the hazard is live |
+| `14-field-active` / `-wide` | eight true circular arcs on the real radius, eight nodes, one restrained wash |
+| `15-player-inside` | and the floor is still readable under it |
+| `16-player-on-the-edge` | **§27** — the player's centre on the painted line, which is exactly where `contains()` turns over |
+| `17-shutdown` | connections gone, perimeter opening, nodes retracting, core last |
+| `18-HIERARCHY-captain-field-enemies` | **§26** — a broken Captain, his live field, two ordinary enemies and the player in one frame |
+
+**THE ACTIVATION CANNOT BE APPROVED FROM ONE SCREENSHOT**, which is why there
+are five of it. Each station throws a FRESH grenade: the first version of the
+rig walked one grenade's whole life, pausing and resuming through it, and timed
+out — the arming beat is 520ms and at this harness's ~12fps its first third is
+barely two frames, which a resume-from-pause delta steps clean over.

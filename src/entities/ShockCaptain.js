@@ -55,7 +55,7 @@
 import Phaser from 'phaser';
 import { Enemy, ST } from './Enemy.js';
 import { CHAMPION } from '../config.js';
-import { CAPTAIN_MUZZLE_PX } from '../systems/pixelArt.js';
+import { CAPTAIN_MUZZLE_PX, CAPTAIN_DAMAGE_ANCHORS } from '../systems/pixelArt.js';
 import { SFX } from '../systems/FX.js';
 
 // The combat loop, as five named reasons. Every one of them is something a
@@ -138,14 +138,12 @@ export class ShockCaptain extends Enemy {
     this._wearSparkT = 0;
     this._wearFlickerT = 0;
     this._flickerHold = 0;
-    // ── B.2.2: THE DETERIORATION LAYER ─────────────────────────────────────
-    // `_wound` is the dark, always-true half (scorch, hot remnant) and
-    // `_arcGfx` the electrical half, which is entirely event-driven. Both are
-    // redrawn every frame from the live body position, so neither can be
-    // stranded where he used to be, and both are in `_reactFx` so both die with
-    // him. See `_drawDamage` for why the persistent mark is a stain and not a
-    // light.
-    this._wound = null;
+    // ── THE DETERIORATION LAYER, AFTER THE MODEL TOOK ITS HALF ────────────
+    // The always-true half — scorch, torn lip, cavity, cooling metal — is
+    // PAINTED INTO THE SHEET per facing now, so there is no persistent
+    // Graphics any more and nothing that can fail to turn with him. `_arcGfx`
+    // is what is left: the intermittent electrical failure, event driven,
+    // redrawn from the live anchors, and in `_reactFx` so it dies with him.
     this._arcGfx = null;
     this._arcT = 0;                // next short-circuit event
     this._arcHold = 0;             // how long the current one is still drawn
@@ -271,8 +269,18 @@ export class ShockCaptain extends Enemy {
     const line = this.hpMax * this.def.lowHealthFrac;
     if (!this._lowHealthFired && this.alive && hpBefore > line && this.hp <= line) {
       this._lowHealthFired = true;
+      // ── SYMBOL = TRANSITION, MODEL = SUSTAINED STATE ────────────────────
+      // The glyph says something CHANGED and is gone in a few hundred ms; the
+      // BODY is what stays true. Before this the grawlix was the only thing
+      // that ever announced critical and the sustained half was a Graphics
+      // decal, which is the failure this pass exists to end.
+      this._setBodyState();
       this._punctuate('glyph-rage');
-      this.scene.fx?.burstDir?.(this.x, this.y - 12, 'white', 5, -Math.PI / 2, 90);
+      // The failure runs out of the hardware that just gave way, not out of his
+      // centre — the same anchors the smoke and the shorts use.
+      const a0 = this._anchor('pauldron');
+      this.scene.fx?.burstDir?.(a0.x, a0.y, 'white', 4, -Math.PI / 2, 90);
+      this._arcHold = this.def.arc.holdMs;
       this.scene.events.emit('champion-low-health', this);
     }
   }
@@ -463,12 +471,49 @@ export class ShockCaptain extends Enemy {
    *
    * Idempotent, and there is no second layer and no regeneration in this gate.
    */
+  /**
+   * ── THE MODEL TELLS THE TRUTH FIRST ────────────────────────────────────
+   *
+   * ONE FUNCTION, DRIVEN BY THE AUTHORITATIVE GAMEPLAY STATE, choosing which
+   * authored sheet the body is. There is no separate visual flag: `armour`
+   * crossing zero and the body pool crossing `lowHealthFrac` are already the
+   * facts, and this reads them rather than keeping a parallel copy that could
+   * drift out of step with the fight.
+   *
+   * Idempotent, and it never changes the animation KEY — only the prefix — so
+   * a state change mid-stride keeps the pose, the frame index and the cycle it
+   * was on. A Captain who snapped back to frame 0 of an idle on the frame his
+   * armour broke would have lost the approved animation work to a texture swap.
+   */
+  _setBodyState() {
+    const d = this.def;
+    const want = this._lowHealthFired && d.texCritical
+      ? { tex: d.texCritical, pre: d.animCritical }
+      : this.armourBroken ? { tex: d.texBroken, pre: d.animBroken }
+        : { tex: d.tex, pre: d.anim };
+    if (this._animPrefix === want.pre) return;
+    const anim = this.anims.currentAnim;
+    const idx = this.anims.currentFrame?.index ?? 1;
+    const wasPlaying = this.anims.isPlaying;
+    this._animPrefix = want.pre;
+    this.setTexture(want.tex);
+    // Carry the cycle across: the key differs only in its prefix, so the same
+    // pose exists on the new sheet at the same index.
+    if (anim) {
+      const key = anim.key.replace(/^[a-z]+-/, `${want.pre}-`);
+      if (this.scene.anims.exists(key)) {
+        this.play(key, true);
+        if (wasPlaying) this.anims.setCurrentFrame(
+          this.anims.currentAnim.frames[Math.min(idx - 1, this.anims.currentAnim.frames.length - 1)]);
+      }
+    }
+  }
+
   _breakArmour() {
     if (this.armourBroken) return;
     this.armourBroken = true;
     this.armour = 0;
-    this._animPrefix = this.def.animBroken;
-    this.setTexture(this.def.texBroken);
+    this._setBodyState();
     if (this._armourBar) this._armourBar.visible = false;
 
     // ── THE MOMENT, NOT JUST THE STATE CHANGE ─────────────────────────────
@@ -551,7 +596,7 @@ export class ShockCaptain extends Enemy {
       g.clear();
       g.setDepth(this.y + 6);
       const a = 1 - u;
-      const st = this._site(0);
+      const st = this._anchor('pauldron');
       for (let i = 0; i < 4; i++) {
         const th = ang + (i - 1.5) * 0.34;
         const len = 26 + i * 5;
@@ -699,7 +744,11 @@ export class ShockCaptain extends Enemy {
       this._wearSmokeT -= delta;
       if (this._wearSmokeT <= 0) {
         this._wearSmokeT = roll(crit ? d.wearSmokeCriticalMs : d.wearSmokeMs);
-        const st = this._site(0);
+        // FROM THE HOLE, AND THE HOLE MOVES WITH HIM. At critical the torn
+        // pack is the louder of the two sites, which is also the one the eye
+        // can see from behind — so a Captain walking away still vents.
+        const st = crit && Math.random() < 0.5
+          ? this._anchor('pack') : this._anchor('pauldron');
         // `ventSmoke`, not `smokeTrail`. The missile trail's particle is darker
         // than the deck and lives 420ms, and one of them on a body photographs
         // as nothing — measured. This one is lighter than the floor, rises, and
@@ -716,7 +765,7 @@ export class ShockCaptain extends Enemy {
         this._arcToRifle = crit && Math.random() < d.arc.rifleJumpChance;
         SFX.captainShort?.();
         if (crit) {
-          const st = this._site(Math.random() < 0.5 ? 0 : 1);
+          const st = this._anchor(Math.random() < 0.5 ? 'pauldron' : 'pack');
           fx?.burstDir?.(st.x, st.y, 'white', 2, this._aim + Math.PI, 50);
         }
       }
@@ -743,11 +792,30 @@ export class ShockCaptain extends Enemy {
    * BOTH SIT BELOW THE HELMET. The visor is the fastest identification on this
    * body and nothing may crowd it — the same rule that removed the third ember.
    */
-  _site(i) {
-    const side = this._facingSuffix().flipX ? 1 : -1;
-    return i === 0
-      ? { x: this.x + side * 18, y: this.y - 11 }
-      : { x: this.x - side * 11, y: this.y + 5 };
+  /**
+   * ── WHERE THE BROKEN PART ACTUALLY IS, THIS FRAME ───────────────────────
+   *
+   * THE BUG THIS REPLACES: `_site(i)` returned a point derived from `flipX`
+   * ALONE — so smoke and electrical shorts sat at the same screen offset
+   * whether the Captain was facing you, walking away or standing in profile.
+   * The damage did not turn when he turned, which is the definition of a
+   * sticker and is exactly what the handset called it.
+   *
+   * The anchors are declared in `CAPTAIN_DAMAGE_ANCHORS` in the SHEET'S OWN
+   * PIXELS, beside the painter that draws the hole, and converted here through
+   * the sprite's LIVE `displayWidth` — so a rescale, a recoil squash or a
+   * different sheet cannot strand them. `flipX` mirrors about the centre, which
+   * is what the renderer does to the art itself.
+   */
+  _anchor(name) {
+    const { dir, flipX } = this._facingSuffix();
+    const a = (CAPTAIN_DAMAGE_ANCHORS[dir] || CAPTAIN_DAMAGE_ANCHORS.front)[name]
+      || CAPTAIN_DAMAGE_ANCHORS.front.pauldron;
+    // 28 x 30 is the sheet; the sprite's origin is its centre.
+    const px = (this.displayWidth || 112) / 28;
+    const py = (this.displayHeight || 120) / 30;
+    const ox = (a.x - 14) * px * (flipX ? -1 : 1);
+    return { x: this.x + ox, y: this.y + (a.y - 15) * py };
   }
 
   /** A jagged polyline. Shared by the crawl, the plate arcs and the rifle jump. */
@@ -765,83 +833,68 @@ export class ShockCaptain extends Enemy {
   }
 
   /**
-   * THE TWO HALVES, DRAWN FROM THE LIVE BODY EVERY FRAME.
+   * ── WHAT IS LEFT FOR A GRAPHICS TO DO, NOW THAT THE MODEL TELLS THE TRUTH ─
    *
-   * `_wound` is NORMAL-blended and dark: it takes light away, which is what a
-   * burn does and what no additive effect can do. `_arcGfx` is ADD and carries
-   * only the current. Keeping them on separate objects is not tidiness — an
-   * additive scorch is a bright patch, and a normal-blended arc on a dark deck
-   * is a grey scribble.
+   * REMOVED: the black three-disc SCORCH and the two orange "hot remnant"
+   * dots. Both were persistent Graphics drawn over the actor at a point that
+   * did not know which way he was facing — the sticker language §13 names, and
+   * the reason a turning Captain left his own damage behind. The scorch, the
+   * torn lip, the cavity and the cooling metal are PAINTED INTO THE SHEET now,
+   * per facing, so they are part of him.
+   *
+   * What a Graphics is still the right tool for is the thing that is genuinely
+   * not part of the model: an INTERMITTENT electrical failure. It is event
+   * driven, it lives 130ms, and it now runs between the two real anchors —
+   * out of the broken mount, across to the torn pack — so the current has a
+   * source and a destination instead of being scribbled across his middle.
    */
   _drawDamage() {
     const want = this.armourBroken || this._lowHealthFired;
     if (!want) {
-      for (const k of ['_wound', '_arcGfx']) {
-        if (this[k]) { this._dropFx(this[k]); this[k].destroy(); this[k] = null; }
+      if (this._arcGfx) {
+        this._dropFx(this._arcGfx); this._arcGfx.destroy(); this._arcGfx = null;
       }
       return;
     }
-    if (!this._wound) {
+    if (!this._arcGfx) {
       if (!this.scene?.add) return;
-      this._wound = this.scene.add.graphics();
       this._arcGfx = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
-      this._reactFx.push(this._wound, this._arcGfx);
+      this._reactFx.push(this._arcGfx);
     }
-    const w = this._wound, g = this._arcGfx;
-    w.clear(); g.clear();
-    w.setDepth(this.y + 5);
+    const g = this._arcGfx;
+    g.clear();
     g.setDepth(this.y + 6);
+    if (this._arcHold <= 0) return;
 
+    // ── THE SHORT. Only while an event is being held. ──────────────────────
+    const u = this._arcHold / this.def.arc.holdMs;   // 1 -> 0 across the snap
     const crit = this._lowHealthFired;
-    const sites = crit ? [this._site(0), this._site(1)] : [this._site(0)];
-    const a = this.def.arc.scorchAlpha;
-
-    // SIZED AGAINST THE SPRITE, NOT AGAINST A FEELING. He is 112px wide on
-    // screen; the first build used r=6, which is a ten-pixel blot on a
-    // hundred-and-twelve-pixel body — about a tenth of his width, and it
-    // photographed as nothing at 1x. A damaged plate has to be a fifth of the
-    // torso to read as a hole rather than as dirt.
-    for (let i = 0; i < sites.length; i++) {
-      const st = sites[i];
-      const r = i === 0 ? 11 : 8;
-      // THE SCORCH — three overlapping discs at deliberately unequal offsets.
-      // One disc is a dot; three is a blot, and a blot has an outline the eye
-      // reads as burnt material. It does NOT pulse.
-      w.fillStyle(0x08090c, a);
-      w.fillCircle(st.x, st.y, r);
-      w.fillCircle(st.x - r * 0.72, st.y + r * 0.34, r * 0.64);
-      w.fillCircle(st.x + r * 0.58, st.y + r * 0.48, r * 0.52);
-      w.fillStyle(0x1a1d23, a * 0.8);
-      w.fillCircle(st.x + r * 0.22, st.y - r * 0.42, r * 0.56);
-      // THE HOT REMNANT — two small irregular points of cooling metal, dim and
-      // deliberately NOT centred on the scorch. This is all that is left of the
-      // orange: it is evidence of heat, not an indicator light.
-      g.fillStyle(0xff7a2a, 0.40);
-      g.fillCircle(st.x + r * 0.34, st.y + r * 0.26, r * 0.30);
-      g.fillStyle(0xffc089, 0.30);
-      g.fillCircle(st.x - r * 0.46, st.y - r * 0.12, r * 0.20);
+    const mount = this._anchor('pauldron');
+    const pack = this._anchor('pack');
+    // AN ARC KNOWS WHERE IT STARTS AND WHERE IT ENDS. Mount to pack is the
+    // conductor that runs between the two damaged assemblies; at critical the
+    // chest conductor is exposed too and carries a second, shorter one.
+    this._bolt(g, mount.x, mount.y, pack.x, pack.y, 7, 2.5, 0xffffff, 0.9 * u);
+    if (crit) {
+      const chest = this._anchor('chest');
+      this._bolt(g, mount.x, mount.y, chest.x, chest.y, 6, 2,
+        this.def.color, 0.8 * u);
     }
-
-    // ── THE CURRENT. Only while an event is being held. ────────────────────
-    if (this._arcHold > 0) {
-      const u = this._arcHold / this.def.arc.holdMs;   // 1 -> 0 across the snap
-      for (const st of sites) {
-        this._bolt(g, st.x - 14, st.y - 6, st.x + 14, st.y + 6, 10, 2.5, 0xffffff, 0.9 * u);
-        this._bolt(g, st.x - 10, st.y + 9, st.x + 15, st.y - 5, 11, 2,
-          this.def.color, 0.85 * u);
-        g.fillStyle(0xffffff, 0.95 * u);
-        g.fillCircle(st.x, st.y, 3.4);
-      }
-      // THE JUMP TO THE RIFLE. The one effect that says the WEAPON is
-      // compromised, and the reason it is rationed: a body arcing to its own
-      // gun every second would be a light show, and once in three shorts at
-      // critical is a fault.
-      if (this._arcToRifle && this.weaponSprite) {
-        this._bolt(g, sites[0].x, sites[0].y, this.weaponSprite.x, this.weaponSprite.y,
-          14, 2, this.def.color, 0.7 * u);
-      }
+    // The flash at the break itself, which is what makes the mount the source.
+    g.fillStyle(0xffffff, 0.95 * u);
+    g.fillCircle(mount.x, mount.y, 3.2);
+    g.fillStyle(this.def.color, 0.5 * u);
+    g.fillCircle(mount.x, mount.y, 6.5);
+    // THE JUMP TO THE RIFLE. The one effect that says the WEAPON is
+    // compromised, and the reason it is rationed: a body arcing to its own gun
+    // every second would be a light show, and once in three shorts at critical
+    // is a fault.
+    if (this._arcToRifle && this.weaponSprite) {
+      this._bolt(g, mount.x, mount.y, this.weaponSprite.x, this.weaponSprite.y,
+        12, 2, this.def.color, 0.7 * u);
     }
   }
+
 
   /**
    * THE VISOR CANNOT HOLD.
@@ -870,7 +923,6 @@ export class ShockCaptain extends Enemy {
 
   _clearReactions() {
     this._punctQueue.length = 0;
-    this._wound = null;
     this._arcGfx = null;
     this._reactFx.slice().forEach((o) => {
       this.scene?.tweens?.killTweensOf(o);

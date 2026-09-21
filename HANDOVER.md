@@ -226,7 +226,20 @@ spawns the Captain; DEBUG carries four triggers — BIG HIT / BREAK / LOW HEALTH
 drive the real `damage()` path, and CHAMP: GRENADE clears the cooldown and lets
 the real AI decide.
 
-**THE CORE FEEL CLOSEOUT (CF.2) IS THE CURRENT CANDIDATE — `§10al`.** Handset
+**THE VISUAL FINISH IS THE CURRENT CANDIDATE — `§10am`.** Handset play approved
+the CORE COMBAT FEEL: agile, the tactical step producing genuine dodges, the
+variable suppression rifle reading, the recoil absorbed rather than bounced.
+**The mechanics are finished and every gameplay value is frozen and untouched**
+— 5300 durability, no Super resistance, the step, the rifle and the Arc
+Grenade's whole gameplay contract. `§10am` is the delayed visual finish and it
+is two things: DAMAGE THAT BELONGS TO THE BODY (three authored sheets painted
+per facing, so it turns when he turns — the old build derived its damage point
+from `flipX` alone and wore it at the same screen offset whichever way he was
+looking), and A FIELD THAT HAS A SOURCE (a real painted device, and a perimeter
+of eight true circular arcs between eight projector nodes on the exact gameplay
+radius, replacing sixteen arcs between random endpoints).
+
+**CF.2 IS THE PASS BEFORE IT — `§10al`.** Handset
 play on CF.1 came back WORKING — much more agile, the tactical step producing
 genuinely good dodges including a whole Super dodged through real movement,
 aggressive focus substantially riskier, and a Wave 3 rush that killed the PLAYER.
@@ -7109,6 +7122,154 @@ movement looks heavy, and no test asserts a TTK.** `diag-captain-pressure` gaine
 two policies — `stepstop` (the old exploit) and `dash` — and prints the plan
 count beside the round count, because under the rejected law those two numbers
 were equal.
+
+---
+
+## 10am. THE SHOCK CAPTAIN, VISUAL FINISH — damage that belongs to the body, and a field that has a source. **CANDIDATE — NOT APPROVED**
+
+Handset play approved the CORE COMBAT FEEL: the Captain is agile, the tactical
+step produces genuine dodges, the variable suppression rifle reads, the recoil
+is absorbed rather than bounced. **The mechanics are finished and every gameplay
+value in this section is FROZEN and untouched** — 1900 armour + 3400 body =
+5300, `armourTake`, `armourSpill`, no Super resistance, the step's 200/90/215/
+120/2800 and its triggers, the rifle's corridor and burst distribution, and the
+Arc Grenade's entire gameplay contract. This pass is the delayed VISUAL FINISH.
+
+### A. THE DAMAGE WAS A STICKER, AND `_site()` IS THE WHOLE STORY
+
+```js
+_site(i) {
+  const side = this._facingSuffix().flipX ? 1 : -1;
+  return i === 0 ? { x: this.x + side * 18, y: this.y - 11 } : ...;
+}
+```
+
+Every persistent mark — a three-disc black scorch, two orange "hot remnant"
+dots, the electrical shorts and the smoke vent — was a Graphics drawn OVER the
+actor at that point. It reads `flipX` and **nothing else**, so a Captain facing
+you, a Captain walking away and a Captain in profile all wore their damage at
+the same screen offset. The damage did not turn when he turned. That is the
+definition of a sticker and it is exactly what the handset called it.
+
+### THE MODEL TELLS THE TRUTH FIRST
+
+**Three authored sheets, painted per facing, selected by the authoritative
+gameplay state.** `champ-captain`, `champ-captain-broken`,
+`champ-captain-critical` — 57 frames each, and `smoke-captain-visual` hashes
+their pixels and requires all three to differ, because "a texture is set" passes
+just as happily on a tint.
+
+| | what physically changes |
+|---|---|
+| **INTACT** | clean armour, bone command pauldron, lit chest core |
+| **BROKEN** | the pauldron is SHEARED: inboard third survives as a torn plate, outboard half is a `cavity` (below every armour plane, so it reads as a hole), two conductor pins in the mount, one pixel of cooling metal at the tear, scorch baked onto the adjacent armour, a cracked pack seam, a lifted chest-plate lip |
+| **CRITICAL** | the SAME wound, and now the mount itself is gone — pixels **CUT** out of the silhouette, an open socket with the conductor hanging down the flank, a bite out of the pack's outline, a dead section in the visor, a notched kama, and the whole plate ladder one step darker |
+
+**ONE DAMAGE HISTORY TOLD FOUR TIMES.** The command pauldron took the hit, so
+`dmgX` is that side as a sign and every piece of damage reads it: screen-left in
+front view, screen-right in back view (the same shoulder — he has turned round),
+nearest in profile. The painter already mirrored the intact pauldron that way;
+the damage now rides the same mirror.
+
+**`SpriteSheet.cut` IS NEW AND IT IS THE POINT.** Filling a region dark changes
+what is INSIDE the outline; a missing piece of armour has to change the OUTLINE.
+The acceptance matrix proved why: the first cut of CRITICAL added only one- and
+two-pixel features inside the silhouette and came back as two indistinguishable
+dark Captains. `clearRect`, so the deck shows through and the edge has a bite.
+
+**AND CRITICAL LOSES A STEP OF VALUE.** Not instead of geometry — on top of it.
+Scorched, unpowered hardware is darker than hardware with its power on, and at
+112px on a phone a step of value is the only cue that survives a glance.
+
+### THE ANCHORS COME FROM THE PAINTER
+
+`CAPTAIN_DAMAGE_ANCHORS` declares `pauldron`, `pack` and `chest` per facing **in
+the sheet's own pixels, beside the code that paints the hole** — the
+`CONSOLE_KIT` rule applied to an actor. `_anchor(name)` converts through the
+sprite's LIVE `displayWidth`, so a rescale or a recoil squash cannot strand
+them, and `flipX` mirrors about the centre exactly as the renderer mirrors the
+art.
+
+Smoke rises from the torn pack (which is also the site a player sees from
+behind), the shorts run **from the broken mount to the torn pack** — an arc that
+knows where it starts and where it ends — and at critical a second one reaches
+the exposed chest conductor. `smoke-captain-visual` asserts four facings give
+four DIFFERENT anchor offsets, which is the check the old build fails.
+
+### WHAT WAS DELETED
+
+The scorch discs, the orange remnant dots and the persistent `_wound` Graphics
+are **gone**, not demoted. The only Graphics left on the actor is the
+intermittent short, and the test requires it to be ABSENT between events.
+
+### B. THE GRENADE WAS A CIRCLE WITH A DOT IN IT
+
+**THE DEVICE IS THE SOURCE AND THE FIELD IS ITS CONSEQUENCE**, and it was the
+other way round: the field carried the whole identity and a Graphics circle sat
+at its centre as a placeholder. `paintArcGrenade` is a real painted object —
+13x13 at scale 4, dark Imperial casing placed against the DECK, four projector
+prongs at the diagonals, one bone command band, a blue-white core, and **two
+frames** (inert / powered) because "the same thing, brighter" is not a state
+change. It flies as the projectile, tumbling and inert, and stays as the source.
+ONE object for the whole lifecycle.
+
+### NINE DECLARED POINTS, AND NO RANDOM ENDPOINTS
+
+The rejected field drew **sixteen boundary arcs between random endpoints on an
+invisible circle** plus three to five interior arcs with random ends, over three
+stacked translucent discs. Nothing in it had an anchor — that is what "scribbled
+with a pen" means — and the discs were loud enough that the floor started
+competing with the Captain.
+
+Everything is now one of nine points: the device, and **eight projector nodes at
+exact 45-degree intervals ON the real radius**.
+
+- **The perimeter is eight TRUE CIRCULAR ARCS** drawn with `Graphics.arc` at
+  `this.radius` — the hit test's own number, so painted and resolved cannot
+  drift by any amount. Gaps at the nodes, at 0.14 rad: at 0.085 the segments
+  closed into one drawn circle with tick marks on it.
+- **Every bolt runs between two declared points** — core→node or
+  node→neighbour. Both endpoints are exact and the jitter bows inward, so no
+  bolt can claim ground outside the radius.
+- **A BIG ROUND PROP DEFAULTS TO A DIAL.** A perfect circle with eight radial
+  spokes and eight tick marks is a RADAR. Four spokes, alternating, stopping at
+  0.52r.
+- **One interior wash** at 0.34, not three fills. The deck plating, the crates
+  and a player standing on it all survive it.
+
+### THE ACTIVATION IS A SEQUENCE
+
+Inside the unchanged 520ms `armMs`: core powers up (the device's own frame flips
+at 32%, with a landing squash) → nodes establish one at a time clockwise from
+north, each placed by a visible beam → **the perimeter closes by 74%** → the
+connections snap in. `contains()` does not return true until 100%, so **the
+dangerous region is fully legible before the hazard is live**.
+
+Shutdown reads off `_integrity` in the order a machine fails: connections cease
+above 0.55, the perimeter opens up, the nodes retract, and the core is last —
+and it drops to the inert FRAME rather than fading, because the device is still
+there afterwards. The edge stays legible the whole way down: it is dangerous
+for every millisecond of `warnMs`.
+
+### Evidence
+
+`docs/evidence/champion-reset/vf/`. **`00-MATRIX-state-x-facing.png` is the
+damage acceptance frame** — three states × four facings on one canvas, because
+§16 is a COMPARISON and a human cannot make it by flipping between twelve files.
+It is also what caught the CRITICAL problem. `18-HIERARCHY-captain-field-
+enemies.png` is the §26 frame: a broken Captain, his live field, two ordinary
+enemies and the player in one shot.
+
+### Tests
+
+`smoke-captain-visual` — 17 checks, and it asserts nothing about whether the art
+is good. Three sheets exist and are pixel-distinct; the body state follows the
+real transitions; four facings give four anchor offsets; a state change keeps
+the animation key's pose and index; the short is absent between events; nothing
+outlives the actor; the field's boundary is dangerous inside and at the edge and
+safe a fifth of a percent outside at eight bearings; the nodes sit exactly on
+the radius and MOVE when the radius is changed; one device owns the lifecycle
+and is destroyed with the field.
 
 ## 12. CAMERA PHASE 1 — a camera that frames the game
 

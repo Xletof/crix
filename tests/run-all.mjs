@@ -36,6 +36,7 @@ const TESTS = [
   'smoke-captel',
   'smoke-captain-step',
   'smoke-captain-rifle',
+  'smoke-captain-visual',
   'smoke-boost',
   'smoke-cluster',
   'smoke-controls',

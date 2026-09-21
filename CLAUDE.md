@@ -866,6 +866,12 @@ asserts separately that the ceiling is not reached.
   The notes below are how it works and how it breaks; **none of them is an
   invitation to tune it.** Still NO variants, NO colourways, NO Nemesis
   replacement — and **normal Endless spawns no Champion of any kind.**
+  **THE CAPTAIN'S CORE COMBAT FEEL IS HUMAN-APPROVED 🔒.** Handset play closed
+  out the agility, the tactical step, the variable suppression rifle and the
+  recoil. **THE MECHANICS ARE FINISHED — do not redesign the enemy.** No hp,
+  armour, Super-resistance, step, rifle, movement, range or Arc Grenade GAMEPLAY
+  change without new handset evidence. `§10am` is the VISUAL FINISH pass and is
+  the current candidate; it changed no gameplay value at all.
   **THE TACTICAL STEP, THE 5300 DURABILITY AND THE ARC GRENADE ARE NOW
   HUMAN-APPROVED.** Handset play called the Captain much more agile, singled out
   the step for producing genuine dodges (a whole Super dodged through real
@@ -973,6 +979,76 @@ asserts separately that the ceiling is not reached.
   — including the freshly injected Captain's — and passed only while that one
   happened not to shoot inside the window. Hold the IDENTITY (`_gen`), the same
   way the check beside it already held the actor's.
+- **DAMAGE BELONGS TO THE BODY, AND `_site()` IS THE SHAPE OF GETTING IT
+  WRONG.** It returned a point from `flipX` ALONE — so a Captain facing you, a
+  Captain walking away and a Captain in profile all wore their scorch, their
+  smoke vent and their electrical short at the SAME SCREEN OFFSET. The damage
+  did not turn when he turned, which is what a handset means by "sticker". The
+  persistent marks are painted into THREE AUTHORED SHEETS now (intact / broken /
+  critical, 57 frames each, per facing) and the dynamic FX run from
+  `CAPTAIN_DAMAGE_ANCHORS` — declared in the SHEET'S OWN PIXELS beside the
+  painter that draws the hole, converted through the sprite's LIVE
+  `displayWidth`. Same rule as `CONSOLE_KIT`: a hand-written world offset is one
+  edit away from venting smoke out of a shoulder that has moved.
+- **ONE DAMAGE HISTORY TOLD FOUR TIMES, NOT FOUR SKINS.** The command pauldron
+  took the hit, so `dmgX` is that side as a sign and every piece of damage reads
+  it — screen-left in front view, screen-right in back view (the same shoulder;
+  he has turned round), nearest in profile. CRITICAL is the SAME wound wider,
+  never a second theme.
+- **`SpriteSheet.cut` EXISTS BECAUSE A DARK FILL IS NOT A HOLE.** Filling a
+  region dark changes what is INSIDE the outline; a missing piece of armour has
+  to change the OUTLINE. MEASURED ON THE ACCEPTANCE MATRIX: the first cut of
+  CRITICAL added only one- and two-pixel features inside the silhouette and came
+  back as two indistinguishable dark Captains at 1x. `clearRect`, so the deck
+  shows through. And critical drops the whole plate ladder ONE STEP OF VALUE on
+  top of that geometry — scorched unpowered hardware really is darker, and a
+  step of value is the only cue that survives a glance at 112px.
+- **A STATE-CHANGE TEXTURE SWAP MUST KEEP THE POSE.** `_setBodyState` changes
+  only the animation PREFIX and re-seats the same frame index, so a Captain
+  whose armour breaks mid-stride keeps his cycle. Snapping back to frame 0 of an
+  idle on the frame the armour goes would throw away the approved animation work
+  to a texture swap.
+- **A CONTACT SHEET IS THE ONLY HONEST ACCEPTANCE FRAME FOR A STATE LADDER.**
+  "Can I tell intact from broken from critical at 1x" is a COMPARISON and a
+  human cannot make it by flipping between twelve files. `shot-captain-dmg`
+  draws three states x four facings onto one canvas IN THE PAGE, which needs no
+  image library on the box — and that frame is what caught CRITICAL being
+  indistinguishable from BROKEN.
+- **THE DEVICE IS THE SOURCE AND THE FIELD IS ITS CONSEQUENCE.** The Arc Grenade
+  was a Graphics circle with a dot in it while the FIELD carried the whole
+  visual identity — the Interdictor failure in miniature, where the floor effect
+  becomes the character. It is a painted two-frame object now (inert / powered,
+  because "the same thing, brighter" is not a state change), it flies as the
+  projectile and stays as the source, and ONE object owns the whole lifecycle.
+  It is an Image rather than a Graphics, so it is the one thing a sweep that
+  only remembered the four Graphics would have left behind.
+- **NINE DECLARED POINTS, AND NO RANDOM ENDPOINTS.** The rejected field drew
+  SIXTEEN boundary arcs between random endpoints on an invisible circle plus
+  three to five interior arcs with random ends, over three stacked translucent
+  discs. Nothing in it had an anchor — that is what "scribbled with a pen"
+  means. Everything is now the device or one of EIGHT projector nodes at exact
+  45-degree intervals: the perimeter is eight TRUE CIRCULAR ARCS drawn with
+  `Graphics.arc` at `this.radius` (the hit test's own number, so painted and
+  resolved cannot drift by any amount), and every bolt runs between two of the
+  nine points with both endpoints exact and the jitter bowing INWARD.
+- **A BIG ROUND PROP DEFAULTS TO A DIAL — AND SO DOES A BIG ROUND FIELD.** A
+  perfect circle with eight radial spokes and eight tick marks on it is a RADAR.
+  Four spokes, alternating, stopping at 0.52r; perimeter gaps at 0.14 rad
+  because at 0.085 the eight segments closed into one drawn circle with
+  graduations on it. Same rule the hero machine already carries.
+- **AN ACTIVATION IS A SEQUENCE AND THE DANGEROUS REGION MUST BE LEGIBLE BEFORE
+  IT IS DANGEROUS.** Core powers up, nodes establish one at a time each placed
+  by a visible beam, perimeter closes at 74% of `armMs`, connections snap in —
+  and `contains()` does not return true until 100%. Shutdown reads off
+  `_integrity` in the order a machine fails (connections, perimeter, nodes,
+  core last, and the core drops to the INERT FRAME rather than fading because
+  the device is still there). The edge stays legible the whole way down: it is
+  dangerous for every millisecond of `warnMs`.
+- **A BOUNDARY PROBE AT EXACTLY 1.0 MEASURES FLOATING-POINT ERROR.**
+  `cos(π/4) * r` lands a fraction above `r` and `contains` correctly says no, so
+  a test reading that as a bug is the instrument being wrong about a build that
+  is right. Probe 0.999 and 1.002 on eight bearings, and test the edge itself on
+  the four AXIS-ALIGNED bearings where the arithmetic is exact.
 - **THE BOUNCE WAS NOT IN THE SPRITE SHEET, AND THAT IS THE LESSON.**
   `Enemy.preUpdate` owns a SCALE channel — a sine wobble at ±10% while
   `_staggerMs` runs and a 12% shrink while `recoilT` does — and `Enemy.damage`

@@ -1691,6 +1691,12 @@ export const CHAMPION = {
     name: 'SHOCK CAPTAIN',
     tex: 'champ-captain',
     texBroken: 'champ-captain-broken',
+    // CRITICAL IS A THIRD AUTHORED SHEET, not a tint on the broken one. The
+    // same wound, wider — see `paintShockCaptain`. Selected by the existing
+    // authoritative low-health transition, so there is no second definition of
+    // "critical" anywhere and no state kept only for the art.
+    texCritical: 'champ-captain-critical',
+    animCritical: 'captaincrit',
     anim: 'captain',
     animBroken: 'captainbrk',
     // Ø56. One step under Vader's Ø112 and well over the Ø44 rank and file, and

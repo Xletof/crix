@@ -9,6 +9,7 @@ import {
   paintHarrower,
   paintShockCaptain,
   paintCaptainRifle,
+  paintArcGrenade,
   paintGrawlix,
   CAPTAIN_FRAMES,
   paintBoss,
@@ -93,14 +94,25 @@ export class PreloadScene extends Phaser.Scene {
     // PHASE B.1 CANDIDATE — the Harrower. Driven frame-by-frame by its actor
     // rather than through `anims`, so it registers no animation keys.
     paintHarrower(this);
-    // THE SHOCK CAPTAIN — TWO SHEETS, NOT ONE TINT. `champ-captain-broken` is
-    // the same 51 frames with the command pauldron sheared to a stub and the
-    // visor dead, because armour breaking has to change the SILHOUETTE: a
-    // recolour says "the same thing, dimmer", which is the read this layer
-    // exists to avoid. Same contract as the hero prop's second texture.
+    // ── THE SHOCK CAPTAIN — THREE SHEETS, NOT A TINT AND NOT A DECAL ──────
+    // Damage BELONGS TO THE BODY. It used to be a Graphics blot drawn over him
+    // at a point derived from `flipX` alone, so it occupied the same screen
+    // spot whether he faced you or walked away — a sticker, which is what the
+    // handset called it. Every state is now painted into the sheet, per facing,
+    // so the damage turns when he turns.
+    //   INTACT    clean armour, reactive layer live
+    //   BROKEN    the command pauldron sheared open: plate lip, dark cavity,
+    //             conductor pins, cracked pack casing, scorched chest edge
+    //   CRITICAL  the SAME wound, wider — pack torn open, chest conductor
+    //             exposed, a dead section in the visor, a notched kama
+    // One damage history told four times, never four different skins.
     paintShockCaptain(this, 'champ-captain');
-    paintShockCaptain(this, 'champ-captain-broken', { broken: true });
+    paintShockCaptain(this, 'champ-captain-broken', { damage: 1 });
+    paintShockCaptain(this, 'champ-captain-critical', { damage: 2 });
     paintCaptainRifle(this, 'wpn-captain');
+    // THE DEVICE IS THE SOURCE AND THE FIELD IS ITS CONSEQUENCE. Two frames,
+    // inert and powered — see `paintArcGrenade`.
+    paintArcGrenade(this, 'hz-arcnade');
     // COMBAT PUNCTUATION. Four glyphs, each a different EVENT — see
     // `paintGrawlix`. They are transition markers with a lifetime measured in
     // hundreds of milliseconds, never status icons.
@@ -363,6 +375,7 @@ export class PreloadScene extends Phaser.Scene {
     for (const c of [
       { key: 'captain', tex: 'champ-captain' },
       { key: 'captainbrk', tex: 'champ-captain-broken' },
+      { key: 'captaincrit', tex: 'champ-captain-critical' },
     ]) {
       ['front', 'back', 'side'].forEach((dirName, di) => {
         const o = di * CAPTAIN_FRAMES.perDir;

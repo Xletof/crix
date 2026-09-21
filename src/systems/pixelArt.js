@@ -382,6 +382,22 @@ export class SpriteSheet {
   }
   hline(y, x1, x2, color) { this.rect(x1, y, x2 - x1 + 1, 1, color); }
   vline(x, y1, y2, color) { this.rect(x, y1, 1, y2 - y1 + 1, color); }
+  /**
+   * CUT PIXELS OUT OF A FRAME — the only way to change a SILHOUETTE.
+   *
+   * Filling a region with a dark colour changes what is inside the outline;
+   * a missing piece of armour has to change the OUTLINE itself, and against
+   * a deck that can be tinted toward black by a room modifier a dark fill and
+   * a hole are not the same claim at all. `clearRect` rather than a fill, so
+   * the deck shows through and the body's edge genuinely has a bite in it.
+   */
+  cut(x, y, w, h) {
+    const cx = Math.max(0, x), cy = Math.max(0, y);
+    const cw = Math.min(w, this.logW - cx), ch = Math.min(h, this.logH - cy);
+    if (cw <= 0 || ch <= 0) return;
+    this.ctx.clearRect(this._ox() + cx * this.scale, cy * this.scale,
+      cw * this.scale, ch * this.scale);
+  }
   circle(cx, cy, r, color) {
     for (let dy = -r; dy <= r; dy++)
       for (let dx = -r; dx <= r; dx++)
@@ -1512,6 +1528,18 @@ export const CAPTAIN_PALETTE = {
   visor: '#4fc3ff', visorHot: '#dcf2ff', visorDim: '#1a4763',
   emissive: '#4fc3ff', emissiveHot: '#dcf2ff',
   damage: '#ffd27a', white: '#ffffff',
+  // ── MODEL-LEVEL DAMAGE, AND WHY IT NEEDS ITS OWN TONES ──────────────────
+  // Damage used to be a Graphics blot painted OVER the actor at a point
+  // derived from `flipX` alone — so it sat in the same screen place whether he
+  // was facing you or walking away, which is a sticker and not a wound. The
+  // damage is in the SHEET now, which means it needs real material values:
+  // a cavity that is darker than any armour plane, a lip where the plate was
+  // torn, cooling metal at the tear, and conductor that is still powered.
+  cavity: '#050609',      // the inside of him: below `black`, so it reads as a hole
+  cavityLip: '#2a2c33',   // the torn edge catching light from the north
+  scorch: '#14151a',      // baked contamination around a break, on the armour
+  conduit: '#2f6f8f',     // unpowered cabling
+  conduitHot: '#bfeaff',  // and the same cable still carrying current
 };
 
 // ── CORE FEEL PASS: 51 -> 57, AND BOTH NEW FRAMES ARE ABOUT WEIGHT ─────────
@@ -1640,9 +1668,51 @@ export function paintGrawlix(scene) {
   glyph('glyph-alert', ['bang']);                  // he has the line again
 }
 
+/**
+ * ── THE DAMAGE ANCHORS, IN THE SHEET'S OWN PIXELS ───────────────────────────
+ *
+ * WHERE A BROKEN PART PHYSICALLY IS, per facing, declared with the same numbers
+ * the painter below uses to draw it. This is the `CONSOLE_KIT` rule applied to
+ * an actor: a hand-written world offset is one edit away from venting smoke out
+ * of a shoulder that has moved, and the damage has to survive the body TURNING.
+ *
+ * The story is ONE story in four views: the command pauldron took the hit, so
+ * the primary site is that shoulder — screen-left in front view, screen-right
+ * in back view (it is the same shoulder; he has turned round), and the near one
+ * in profile. `pack` is the secondary site that opens at critical, on the same
+ * side of the same assembly.
+ *
+ * `ShockCaptain._anchor` converts these to world pixels through the sprite's
+ * live `displayWidth`, so a rescale cannot strand them.
+ */
+export const CAPTAIN_DAMAGE_ANCHORS = {
+  front: { pauldron: { x: 7, y: 15 }, pack: { x: 8, y: 11 }, chest: { x: 12, y: 18 } },
+  back: { pauldron: { x: 21, y: 15 }, pack: { x: 20, y: 11 }, chest: { x: 16, y: 18 } },
+  side: { pauldron: { x: 11, y: 14 }, pack: { x: 10, y: 11 }, chest: { x: 16, y: 18 } },
+};
+
 export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
   const P = { ...CAPTAIN_PALETTE, ...(opts.palette || {}) };
-  const BROKEN = !!opts.broken;
+  // ── THREE AUTHORED BODY STATES, NOT A TINT AND NOT A DECAL ──────────────
+  // 0 INTACT · 1 ARMOUR BROKEN · 2 CRITICAL. Each is a real sheet, painted
+  // per facing, so the damage is part of the model and turns when he turns.
+  // `broken` is kept as the legacy boolean for level 1.
+  const DMG = opts.damage != null ? (opts.damage | 0) : (opts.broken ? 1 : 0);
+  const BROKEN = DMG >= 1;
+  const CRIT = DMG >= 2;
+  // ── CRITICAL ALSO LOSES A STEP OF VALUE, AND THAT IS NOT A TINT ─────────
+  // MEASURED ON THE ACCEPTANCE MATRIX: geometry alone separated INTACT from
+  // BROKEN cleanly — the bone pauldron is a pale block and losing it changes
+  // the outline — but BROKEN and CRITICAL came back as two dark Captains,
+  // because everything critical added was a one- or two-pixel feature and at
+  // 112px on a phone that is nothing. So the whole plate ladder drops one
+  // step: scorched, unpowered hardware is genuinely darker than hardware with
+  // its power on, and a step of value is the only cue that survives a glance.
+  // It sits ON TOP of real geometry (see below), never instead of it.
+  if (CRIT) {
+    P.body = '#33353c'; P.plate = '#4a4c52'; P.lit = '#5f6166';
+    P.trim = '#7c7e80'; P.rankLo = '#6f6a5e';
+  }
   // 28 WIDE, 30 TALL. The two extra rows are EMPTY FOOTING at the south edge,
   // not more figure: the drawn body is unchanged from the approved concept and
   // the rows exist so a real stride has somewhere to land. An earlier build was
@@ -1759,6 +1829,12 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
     // the torso and mostly UNDER the helmet, so it is drawn first and shows as
     // two dark wings either side of the dome. Lit nozzles ABOVE the head read
     // as antennae, or as a second pair of eyes competing with the visor.
+    // THE DAMAGED SIDE IS THE COMMAND PAULDRON'S SIDE, IN EVERY VIEW. Front
+    // view puts that shoulder screen-left, back view screen-right — it is the
+    // same shoulder and he has turned round — and profile puts it nearest.
+    // `dmgX` is that side as a sign, and everything below reads it, which is
+    // what keeps one damage history consistent through a turn.
+    const dmgX = back ? 1 : -1;
     if (!side) {
       ss.rect(cx - 7, ty - 3, 14, 3, P.deep);
       ss.hline(ty - 3, cx - 7, cx + 6, P.body);
@@ -1766,11 +1842,43 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
       ss.px(cx - 7, ty - 2, flare ? P.emissive : P.black);
       ss.px(cx + 6, ty - 2, flare ? P.emissive : P.black);
       if (flare) { ss.px(cx - 8, ty - 2, P.emissiveHot); ss.px(cx + 7, ty - 2, P.emissiveHot); }
+      // ── THE PACK CASING, ON THE SAME SIDE AS THE SHOULDER ───────────────
+      // BROKEN cracks it: a scorched seam and one dead nozzle. CRITICAL tears
+      // it open — a real cavity with a powered conductor still in it, which is
+      // where the smoke comes from and why the smoke has somewhere to come
+      // from. Back view shows more of it, because that is what a back is.
+      if (BROKEN) {
+        const bx = back ? cx + 3 : cx - 6;
+        ss.rect(bx, ty - 3, 3, 2, P.scorch);
+        ss.px(bx + (back ? 3 : -1), ty - 2, P.black);
+        if (CRIT) {
+          // A BITE OUT OF THE OUTLINE, not a dark patch inside it. The pack is
+          // the only thing standing proud of the torso at the north edge, so
+          // taking four of its fourteen columns away is a silhouette change
+          // the eye catches at a glance — which a recoloured interior is not.
+          ss.cut(bx, ty - 4, 4, 2);
+          ss.rect(bx, ty - 3, 4, 3, P.cavity);
+          ss.hline(ty - 3, bx, bx + 3, P.cavityLip);
+          ss.px(bx + 1, ty - 2, P.conduit);
+          ss.px(bx + 2, ty - 2, P.conduitHot);
+          ss.px(bx + (back ? 3 : 0), ty - 1, P.damage);
+        }
+      }
     } else {
       ss.rect(cx - 6, ty - 3, 6, 3, P.deep);
       ss.hline(ty - 3, cx - 6, cx - 1, P.body);
       rim(cx - 6, ty - 3, 6, 3);
       ss.px(cx - 7, ty - 2, flare ? P.emissive : P.black);
+      // In profile the pack is foreshortened to six columns, so the damage is
+      // the rear two — the same corner of the same assembly.
+      if (BROKEN) {
+        ss.rect(cx - 6, ty - 3, 2, 2, P.scorch);
+        if (CRIT) {
+          ss.rect(cx - 6, ty - 3, 2, 3, P.cavity);
+          ss.px(cx - 6, ty - 3, P.cavityLip);
+          ss.px(cx - 5, ty - 2, P.conduitHot);
+        }
+      }
     }
 
     // ── HELMET DOME ───────────────────────────────────────────────────────
@@ -1811,6 +1919,17 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
       ss.hline(cy + 1, cx - 5, cx + 4, vis);
       ss.hline(cy + 2, cx - 4, cx + 3, vis);
       ss.px(cx - 5, cy + 1, P.visorHot); ss.px(cx + 4, cy + 1, P.visorHot);
+      // AT CRITICAL THE VISOR HAS A DEAD SECTION, on the damaged side, and the
+      // helmet shell is cracked above it. It is not a recolour of the whole
+      // strip: a display with a hole in it reads as broken hardware where a
+      // dimmer one only reads as mood.
+      if (CRIT && !hurt) {
+        const vx = dmgX < 0 ? cx - 5 : cx + 2;
+        ss.rect(vx, cy + 1, 3, 2, P.black);
+        ss.px(vx + (dmgX < 0 ? 3 : -1), cy + 1, P.conduitHot);
+        ss.px(cx + dmgX * 3, cy - 1, P.scorch);
+        ss.px(cx + dmgX * 4, cy, P.cavity);
+      }
       // ONLY ON THE FRAME THE SHOT LEAVES. Lit on the brace as well and the two
       // frames stop being distinguishable at 1x, where the visor is the first
       // thing the eye finds.
@@ -1851,9 +1970,24 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
         ss.hline(ty + 3, cx - 3, cx + 2, P.deep);
         ss.hline(ty + 6, cx - 3, cx + 2, P.black);
         rim(cx - 3, ty + 2, 6, 5);
-        ss.rect(cx - 1, ty + 4, 2, 2, BROKEN ? P.visorDim : P.emissive);
-        ss.px(cx - 1, ty + 4, P.emissiveHot);
-        if (BROKEN) { ss.px(cx - 4, ty + 6, P.damage); ss.px(cx + 3, ty + 3, P.damage); }
+        ss.rect(cx - 1, ty + 4, 2, 2, CRIT ? P.cavity : BROKEN ? P.visorDim : P.emissive);
+        ss.px(cx - 1, ty + 4, CRIT ? P.conduitHot : P.emissiveHot);
+        if (BROKEN) {
+          // THE PLATE EDGE NEAREST THE SHEAR IS TORN. Two loose pixels used to
+          // sit here as "sparks" and they read as dirt; a lifted lip with a
+          // cavity behind it reads as material that has come away.
+          const ex = dmgX < 0 ? cx - 4 : cx + 3;
+          ss.px(ex, ty + 3, P.cavityLip);
+          ss.px(ex, ty + 4, P.cavity);
+          ss.px(ex, ty + 5, P.scorch);
+        }
+        if (CRIT) {
+          // And at critical the chest conductor is exposed beside it.
+          const ex = dmgX < 0 ? cx - 3 : cx + 2;
+          ss.px(ex, ty + 5, P.conduit);
+          ss.px(ex, ty + 6, P.conduitHot);
+          ss.px(cx + (dmgX < 0 ? -4 : 3), ty + 6, P.damage);
+        }
       } else {
         ss.vline(cx - 1, ty + 1, ty + 6, P.deep); ss.vline(cx, ty + 1, ty + 6, P.deep);
         ss.hline(ty + 4, cx - 4, cx + 3, P.plate);
@@ -1884,16 +2018,61 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
         ss.rect(px0 + 1, sy + 6, 4, 2, P.rankLo);   // it wraps over the arm
         rim(px0 + 1, sy + 6, 4, 2);
       } else {
-        // ARMOUR BROKEN — the pauldron is sheared to a stub and the plate under
-        // it is exposed. THE SILHOUETTE CHANGES, which is the point of a
-        // breakable layer; a recolour would not be one.
-        ss.rect(px0 + 2, sy + 1, 4, 4, P.plate);
-        ss.hline(sy + 1, px0 + 2, px0 + 5, P.lit);
-        rim(px0 + 2, sy + 1, 4, 4);
-        ss.px(px0 + 1, sy + 2, P.rankLo); ss.px(px0 + 1, sy + 4, P.rankLo);
-        // Sparks on the SHEAR, not floating beside it. Drawn one pixel off the
-        // exposed plate's own edge so they read as coming out of the break.
-        ss.px(px0 + 1, sy, P.damage); ss.px(px0 + 2, sy + 5, P.damage);
+        // ── ARMOUR BROKEN — A SHEAR, AND WHAT IS UNDER IT ─────────────────
+        // THE SILHOUETTE CHANGES, which is the point of a breakable layer; a
+        // recolour would not be one. The bone pauldron is gone from its outer
+        // half and what is left is the MOUNT: a ragged plate lip, a dark cavity
+        // where the assembly was, and two conductor pins still in it. That
+        // cavity is the damage ANCHOR — the smoke and the shorts come out of
+        // THIS, which is why it has to be a hole rather than a stain.
+        //
+        // `out` is the outboard direction for this view, so the tear always
+        // opens away from the centreline whichever way he is facing.
+        const out = back ? 1 : -1;
+        const inn = back ? px0 : px0 + 5;      // the inboard column that survives
+        // What survives: the inboard third of the plate, torn.
+        ss.rect(back ? px0 : px0 + 3, sy + 1, 3, 5, P.plate);
+        ss.hline(sy + 1, back ? px0 : px0 + 3, (back ? px0 : px0 + 3) + 2, P.lit);
+        ss.px(inn, sy, P.rankLo);
+        ss.px(inn, sy + 5, P.rankLo);
+        // The cavity, outboard of it. Below every armour plane, so it reads as
+        // an opening rather than as a dark plate.
+        const cvx = back ? px0 + 3 : px0;
+        ss.rect(cvx, sy + 1, 3, 4, P.cavity);
+        ss.hline(sy + 1, cvx, cvx + 2, P.cavityLip);
+        ss.vline(cvx + (back ? 2 : 0), sy + 1, sy + 4, P.black);
+        // Two conductor pins in the mount, one still powered.
+        ss.px(cvx + 1, sy + 2, P.conduit);
+        ss.px(cvx + 1, sy + 3, CRIT ? P.conduitHot : P.conduit);
+        // Cooling metal at the tear — the ONLY orange on the body, and it is a
+        // pixel of hot hardware rather than a status light.
+        ss.px(cvx + (back ? 2 : 0), sy, P.damage);
+        // Baked contamination on the armour around the break.
+        ss.px(px0 + (back ? -1 : 6), sy + 2, P.scorch);
+        ss.px(px0 + (back ? -1 : 6), sy + 4, P.scorch);
+        if (CRIT) {
+          // ── CRITICAL: THE MOUNT ITSELF HAS GONE ─────────────────────────
+          // The same wound, and now the whole assembly is missing rather than
+          // torn — the outboard half of the shoulder is CLEARED from the
+          // silhouette and what is left is an open socket with the conductor
+          // hanging out of it. Clearing pixels is the point: the first attempt
+          // widened a dark patch INSIDE the outline and the acceptance matrix
+          // came back with broken and critical indistinguishable.
+          ss.cut(back ? px0 + 3 : px0 - 1, sy - 1, 4, 3);
+          ss.cut(back ? px0 + 4 : px0 - 1, sy + 2, 3, 6);
+          const soc = back ? px0 + 2 : px0 + 1;
+          ss.rect(soc, sy + 1, 3, 5, P.cavity);
+          ss.hline(sy + 1, soc, soc + 2, P.cavityLip);
+          ss.vline(soc + (back ? 0 : 2), sy + 1, sy + 5, P.black);
+          // The conductor, loose, hanging down the flank it used to be bolted
+          // to — the single most legible piece of "coming apart" available at
+          // this size, because it breaks the body's own vertical edge.
+          ss.px(soc + 1, sy + 2, P.conduitHot);
+          ss.px(soc + 1, sy + 4, P.conduit);
+          ss.px(soc + (back ? 1 : 1), sy + 6, P.conduit);
+          ss.px(soc + (back ? 2 : 0), sy + 7, P.conduitHot);
+          ss.px(soc + (back ? 2 : 0), sy + 8, P.damage);
+        }
       }
       const qx = back ? cx - 10 : cx + 4;
       ss.rect(qx, sy + 2, 6, 5, P.body);
@@ -1928,10 +2107,27 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
         ss.hline(sy + 2, cx - 4, cx - 2, P.rankLo);
         ss.hline(sy + 3, cx - 4, cx - 3, P.rankLo);
       } else {
-        ss.rect(cx - 3, sy + 1, 5, 4, P.plate);
-        ss.hline(sy + 1, cx - 3, cx + 1, P.lit);
-        rim(cx - 3, sy + 1, 5, 4);
-        ss.px(cx - 4, sy + 2, P.damage);
+        // IN PROFILE THE SAME ASSEMBLY IS SEEN EDGE-ON, so the tear opens to
+        // the REAR (screen-left on the east-facing sheet, which mirrors with
+        // the sprite for west). Inboard plate survives, cavity behind it.
+        ss.rect(cx - 1, sy + 1, 3, 4, P.plate);
+        ss.hline(sy + 1, cx - 1, cx + 1, P.lit);
+        rim(cx - 1, sy + 1, 3, 4);
+        ss.rect(cx - 4, sy + 1, 3, 4, P.cavity);
+        ss.hline(sy + 1, cx - 4, cx - 2, P.cavityLip);
+        ss.px(cx - 3, sy + 2, P.conduit);
+        ss.px(cx - 3, sy + 3, CRIT ? P.conduitHot : P.conduit);
+        ss.px(cx - 4, sy, P.damage);
+        ss.px(cx + 2, sy + 3, P.scorch);
+        if (CRIT) {
+          ss.cut(cx - 6, sy - 1, 4, 3);
+          ss.rect(cx - 4, sy + 1, 3, 5, P.cavity);
+          ss.hline(sy + 1, cx - 4, cx - 2, P.cavityLip);
+          ss.px(cx - 3, sy + 2, P.conduitHot);
+          ss.px(cx - 3, sy + 5, P.conduit);
+          ss.px(cx - 3, sy + 6, P.conduitHot);
+          ss.px(cx - 3, sy + 7, P.damage);
+        }
       }
       const ao = pose === 'brace' || pose === 'fire' || pose === 'settle' ? 1 : 0;
       ss.rect(cx + ao, sy + 6, 5, 3, P.body);
@@ -1949,6 +2145,14 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
     ss.hline(ky, cx - 6 - sp, cx + 5 + sp, P.body);
     rim(cx - 6 - sp, ky, 12 + sp * 2, 2);
     if (!back && !side) { ss.px(cx - 1, ky + 1, P.plate); ss.px(cx, ky + 1, P.plate); }
+    // The kama loses a corner on the damaged side at critical — the armoured
+    // skirt is part of the same assembly and it has been through the same
+    // fight. One notch, so the silhouette changes without the shape dissolving.
+    if (CRIT) {
+      const kx = dmgX < 0 ? cx - 6 - sp : cx + 4 + sp;
+      ss.px(kx, ky, P.cavity); ss.px(kx, ky + 1, P.cavity);
+      ss.px(kx + (dmgX < 0 ? 1 : -1), ky, P.cavityLip);
+    }
 
     // ── LEGS ──────────────────────────────────────────────────────────────
     // FOUR ROWS AND A FOUR-PIXEL GAP: greave over boot, not a boot cap. The
@@ -2032,6 +2236,76 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
     });
   });
 
+  ss.finish();
+}
+
+/**
+ * ── THE ARC GRENADE, AS AN ACTUAL PIECE OF EQUIPMENT ───────────────────────
+ *
+ * THE DEVICE IS THE SOURCE AND THE FIELD IS ITS CONSEQUENCE. The first build
+ * had this backwards: the grenade was a Graphics circle with a dot in it and
+ * the FIELD carried the whole visual identity, which is the Interdictor failure
+ * in miniature — the floor effect becomes the character and the machine that
+ * made it is a placeholder at its centre.
+ *
+ * So it is a painted object on the same contract as every other asset here: a
+ * dark Imperial casing placed against the DECK rather than inside a palette
+ * family, a blue-white power core, FOUR projector prongs at the diagonals (the
+ * things the field visibly comes out of), and one bone band because he is a
+ * command unit. 13x13 at scale 4 is 52px on screen — a quarter of the field's
+ * diameter, which is large enough to read as the source and small enough that
+ * it never competes with the Captain.
+ *
+ * TWO FRAMES, NOT A TINT: `0` is inert (core dim, prongs dark) and `1` is
+ * powered (core hot, prongs conducting). The same rule the hero prop's dark
+ * state holds — "the same thing, brighter" is not a state change.
+ */
+export function paintArcGrenade(scene, key = 'hz-arcnade') {
+  const W = 13, H = 13;
+  const ss = new SpriteSheet(scene, key, W, H, 2, 4);
+  const CASE = '#1b1f26', CASE_HI = '#343a45', CASE_LO = '#0a0c10';
+  const EDGE = '#05060a', BONE = '#c6c0b0';
+  const CORE_OFF = '#1a4763', CORE_ON = '#dcf2ff', RING = '#4fc3ff';
+
+  for (let f = 0; f < 2; f++) {
+    ss.frame(f);
+    const on = f === 1;
+    const c = 6;
+    // ── THE PRONGS, at the four diagonals. They are what the field comes out
+    // of, so they are drawn FIRST and the casing sits over their roots — a
+    // fitting that is bolted through, not four sticks taped on.
+    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      ss.px(c + dx * 4, c + dy * 4, on ? RING : CASE_HI);
+      ss.px(c + dx * 5, c + dy * 5, on ? CORE_ON : CASE);
+      ss.px(c + dx * 3, c + dy * 3, EDGE);
+    }
+    // ── THE CASING. Faceted rather than round: a large smooth pixel circle is
+    // the one shape this game's vocabulary cannot say, and at 13px a bevelled
+    // octagon reads crisper than a 6px radius ever would.
+    ss.rect(c - 3, c - 4, 7, 9, CASE);
+    ss.rect(c - 4, c - 3, 9, 7, CASE);
+    // Top plane catches the light, underside goes black — the deck rule.
+    ss.hline(c - 4, c - 2, c + 2, CASE_HI);
+    ss.hline(c - 3, c - 3, c + 3, CASE_HI);
+    ss.hline(c + 4, c - 2, c + 2, CASE_LO);
+    ss.hline(c + 3, c - 3, c + 3, CASE_LO);
+    // Rim, so it sits ON the deck instead of beside it.
+    ss.hline(c - 5, c - 2, c + 2, EDGE);
+    ss.hline(c + 5, c - 2, c + 2, EDGE);
+    ss.vline(c - 5, c - 2, c + 2, EDGE);
+    ss.vline(c + 5, c - 2, c + 2, EDGE);
+    ss.px(c - 4, c - 4, EDGE); ss.px(c + 4, c - 4, EDGE);
+    ss.px(c - 4, c + 4, EDGE); ss.px(c + 4, c + 4, EDGE);
+    // ── THE COMMAND BAND. Bone appears exactly once, the same ration the
+    // Captain's own body uses.
+    ss.hline(c - 1, c - 4, c + 3, BONE);
+    // ── THE CORE. A small circle INSIDE a faceted housing is allowed and
+    // renders cleanly at this size — the hero machine's well is the precedent.
+    ss.rect(c - 1, c - 2, 3, 5, on ? RING : CORE_OFF);
+    ss.rect(c - 2, c - 1, 5, 3, on ? RING : CORE_OFF);
+    ss.rect(c - 1, c - 1, 3, 3, on ? CORE_ON : RING);
+    ss.px(c, c, on ? '#ffffff' : CORE_ON);
+  }
   ss.finish();
 }
 

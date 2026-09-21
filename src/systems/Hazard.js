@@ -512,6 +512,16 @@ export class ArcGrenade {
     this._armed = false;       // one-shot: the activation beat has played
     this._landed = false;
 
+    // ── EIGHT PROJECTOR NODES, AND THEY ARE THE WHOLE GEOMETRY ────────────
+    // The rejected build drew SIXTEEN boundary arcs between random endpoints
+    // on an invisible circle plus three to five interior arcs with random ends
+    // — a shape with no anchors, which is what "scribbled with a pen" means.
+    // Every endpoint in this build is one of nine declared points: the core, or
+    // one of eight nodes spaced exactly 45 degrees apart ON the real radius.
+    // An arc that knows where it starts and where it ends is the whole of the
+    // difference between engineered and procedural.
+    this.nodes = 8;
+    this._nodeA = -Math.PI / 2;      // the first node is due north, deliberately
     this.floorGfx = scene.add.graphics().setDepth(HAZARD_DEPTH);
     this.edgeGfx = scene.add.graphics().setDepth(HAZARD_DEPTH + 1)
       .setBlendMode(Phaser.BlendModes.ADD);
@@ -520,6 +530,22 @@ export class ArcGrenade {
     // player is supposed to watch may not be. Its SHADOW stays on the deck.
     this.shadowGfx = scene.add.graphics().setDepth(HAZARD_DEPTH - 1);
     this.airGfx = scene.add.graphics().setDepth(2001);
+    // ── THE PHYSICAL DEVICE ───────────────────────────────────────────────
+    // A painted object, not a Graphics circle with a dot in it. IF A THING
+    // LOOKS LIKE AN EMITTER IT MUST EMIT, and its converse binds harder here:
+    // a field with a placeholder at its centre is a painted mark on the floor
+    // and the machine that made it has not been drawn. It flies as the
+    // projectile and it stays as the source, so it is ONE object for the whole
+    // lifecycle — the same claim `weaponSprite` makes about Vader's saber.
+    this.body = scene.add.image(spec.x, spec.y, 'hz-arcnade', 0)
+      .setDepth(2002);
+  }
+
+  /** World position of projector node `i`. ON the real radius, always. */
+  _node(i) {
+    const a = this._nodeA + (i / this.nodes) * Math.PI * 2;
+    return { x: this.x + Math.cos(a) * this.radius,
+      y: this.y + Math.sin(a) * this.radius, a };
   }
 
   /** 'flight' | 'arm' | 'field' | 'dead'. */
@@ -612,6 +638,28 @@ export class ArcGrenade {
     g.strokePath();
   }
 
+  /**
+   * ── AN ENGINEERED FIELD, NOT A PROCEDURAL ONE ───────────────────────────
+   *
+   * WHAT WAS REMOVED. Sixteen boundary arcs between RANDOM endpoints on an
+   * invisible circle; three to five interior arcs with random endpoints; three
+   * stacked translucent discs. Nothing in it had an anchor, which is exactly
+   * the freehand look the handset rejected — and the stacked discs were loud
+   * enough that the floor effect started competing with the Captain, which is
+   * the Interdictor failure arriving on a different actor.
+   *
+   * WHAT REPLACED IT. NINE DECLARED POINTS: the device at the centre, and eight
+   * projector nodes at exact 45-degree intervals ON the real radius. The
+   * perimeter is eight true circular ARCS at that radius with clean gaps at the
+   * nodes — `Graphics.arc` on `this.radius`, so the painted edge is the hit
+   * test's own number rather than something jittered toward it. Every bolt runs
+   * between two of the nine points. One restrained interior wash instead of
+   * three discs.
+   *
+   * THE BOUNDARY IS THE RADIUS BY CONSTRUCTION. There is no jitter cap to get
+   * wrong: an arc drawn at `r` is at `r`, and a chord between two nodes is
+   * inside the circle by geometry. Nothing decorative is drawn outside it.
+   */
   _draw(delta) {
     const ph = this.phase;
     this.floorGfx.clear();
@@ -631,19 +679,20 @@ export class ArcGrenade {
       // it arrives exactly where the field will open.
       this.shadowGfx.fillStyle(0x000000, 0.34 - 0.14 * (alt / this.arcPx));
       this.shadowGfx.fillEllipse(gx, gy, 20, 10);
-      const ax = gx, ay = gy - alt;
-      const spin = this.age * 0.02;
-      this.airGfx.fillStyle(0x0d1116, 1);
-      this.airGfx.fillCircle(ax, ay, 7);
-      this.airGfx.lineStyle(2, this.color, 0.9);
-      this.airGfx.strokeCircle(ax, ay, 7);
-      this.airGfx.fillStyle(0xffffff, 0.85);
-      this.airGfx.fillCircle(ax + Math.cos(spin) * 3, ay + Math.sin(spin) * 3, 2.4);
-      // A short live spark off the casing: it is armed and it is obvious.
-      if (Math.random() < 0.6) {
-        this._bolt(this.airGfx, ax, ay,
-          ax + (Math.random() - 0.5) * 22, ay + (Math.random() - 0.5) * 22,
-          6, 1.5, this.color, 0.7);
+      // THE DEVICE IS THE PROJECTILE. It tumbles — a thrown object that held
+      // one attitude the whole way would read as a guided munition — and it
+      // stays INERT in the air, because the thing that arms it is landing.
+      this.body.setVisible(true).setPosition(gx, gy - alt)
+        .setFrame(0).setRotation(this.age * 0.011).setScale(1);
+      // A short charging spark off one prong. Restrained on purpose: §19 asks
+      // for the projectile to remain the actor rather than the trail.
+      if (Math.random() < 0.4) {
+        const pa = this.age * 0.011 + Math.PI / 4;
+        this._bolt(this.airGfx, gx + Math.cos(pa) * 16, gy - alt + Math.sin(pa) * 16,
+          gx + Math.cos(pa) * 26, gy - alt + Math.sin(pa) * 26,
+          5, 1.5, this.color, 0.65);
+      } else {
+        this.airGfx.clear();
       }
       // A FAINT LANDING MARK from the moment it is in the air. Not a telegraph
       // ring — it claims nothing and damages nothing — but the player is
@@ -653,102 +702,178 @@ export class ArcGrenade {
       return;
     }
 
-    // Grounded: the casing sits at the centre for the rest of its life.
+    // ── GROUNDED. The device settles at the centre for the rest of its life ──
     const t = this.age / 1000;
+    this.body.setVisible(true).setPosition(this.x, this.y).setRotation(0);
+
     if (ph === 'arm') {
+      // ── THE ACTIVATION SEQUENCE (§21) ────────────────────────────────────
+      // Five beats inside `armMs`, and the ORDER is the claim: the device
+      // powers up, then it establishes its nodes, then the perimeter closes
+      // between them, then the connections form. The dangerous region is fully
+      // legible before the hazard is live — the perimeter completes at 74% of
+      // the arming time and `contains()` does not return true until 100%.
       const u = (this.age - this.flightMs) / this.armMs;
-      // THE TELL, AND IT ACCELERATES. A constant blink says "something is
-      // here"; one that speeds up says "and it is about to happen".
-      const rate = 3 + u * u * 16;
-      const blink = 0.5 + 0.5 * Math.sin(t * rate * Math.PI * 2);
-      this.floorGfx.fillStyle(this.color, 0.05 + 0.10 * u);
-      this.floorGfx.fillCircle(this.x, this.y, this.radius * u * 0.9);
-      // A charge ring that CONTRACTS onto the casing — the energy gathering in,
-      // so the moment it arrives is the moment the field goes out.
-      this.edgeGfx.lineStyle(2 + 2 * blink, this.color, 0.30 + 0.5 * blink);
-      this.edgeGfx.strokeCircle(this.x, this.y, this.radius * (1 - u * 0.62));
-      this.edgeGfx.lineStyle(1.5, this.color, 0.22);
-      this.edgeGfx.strokeCircle(this.x, this.y, this.radius);
-    } else {
-      const integ = this._integrity;
-      // ── THE FLOOR: ionised deck, not a painted danger disc ───────────────
-      // MEASURED AGAINST THE ROOM, NOT PICKED. The first build was 0.40 of
-      // `#0a1a26` with a 0.09 wash, and photographed on a hangar deck under the
-      // DARKNESS modifier as a soft blue-grey blob — present, and not legibly
-      // dangerous. On a deck that is already `#212328` and can be tinted toward
-      // black by a room modifier, a hazard has to carry its own contrast.
-      this.floorGfx.fillStyle(0x071620, 0.62 * integ);
-      this.floorGfx.fillCircle(this.x, this.y, this.radius);
-      this.floorGfx.fillStyle(this.color, 0.16 * integ);
-      this.floorGfx.fillCircle(this.x, this.y, this.radius * 0.74);
-      this.floorGfx.fillStyle(this.color, 0.10 * integ);
-      this.floorGfx.fillCircle(this.x, this.y, this.radius * 0.42);
-
-      // ── THE BOUNDARY: jagged, and it never reaches past the real radius ──
-      // The honest ring first, so the true edge is legible even on the frames
-      // the jitter happens to pull the arcs well inside it.
-      const strobe = integ < 1 ? (0.45 + 0.55 * Math.sin(t * 34)) : 1;
-      this.edgeGfx.lineStyle(2, this.color, 0.55 * integ * strobe);
-      this.edgeGfx.strokeCircle(this.x, this.y, this.radius);
-      const arcs = 16;
-      for (let i = 0; i < arcs; i++) {
-        const a0 = (i / arcs) * Math.PI * 2 + t * 0.6;
-        const a1 = a0 + (Math.PI * 2 / arcs) * 0.82;
-        // INWARD ONLY. `r0`/`r1` are never above `this.radius`, which is what
-        // makes the painted edge a promise the hit test can keep.
-        const r0 = this.radius - Math.random() * 12;
-        const r1 = this.radius - Math.random() * 12;
-        this._bolt(this.edgeGfx,
-          this.x + Math.cos(a0) * r0, this.y + Math.sin(a0) * r0,
-          this.x + Math.cos(a1) * r1, this.y + Math.sin(a1) * r1,
-          9, 3, i % 3 === 0 ? 0xffffff : this.color,
-          (0.7 + 0.3 * Math.random()) * integ * strobe);
-        // A NODE where two arcs meet. A boundary drawn only as lines reads as a
-        // sketch; the bright points are what make it read as a circuit closing
-        // around a patch of floor — and they sit exactly ON the radius, which
-        // is the edge the hit test uses.
-        if (i % 2 === 0) {
-          this.edgeGfx.fillStyle(0xffffff, 0.75 * integ * strobe);
-          this.edgeGfx.fillCircle(this.x + Math.cos(a0) * this.radius,
-            this.y + Math.sin(a0) * this.radius, 2.4);
-        }
+      // 1. CORE POWERS UP. The device's own frame flips at a third.
+      this.body.setFrame(u > 0.32 ? 1 : 0);
+      // A small settle: it lands, is briefly squashed, and locks.
+      this.body.setScale(1 + Math.max(0, 0.22 - u * 1.6), 1 - Math.max(0, 0.18 - u * 1.4));
+      this.edgeGfx.fillStyle(this.color, 0.10 + 0.3 * u);
+      this.edgeGfx.fillCircle(this.x, this.y, 9 + 7 * u);
+      // 2. THE NODES ESTABLISH, one at a time, clockwise from north — so the
+      //    player can watch the machine claim the ground rather than have a
+      //    circle appear around them.
+      const nodeT = Phaser.Math.Clamp((u - 0.18) / 0.42, 0, 1);
+      const upTo = nodeT * this.nodes;
+      for (let i = 0; i < this.nodes; i++) {
+        const k = Phaser.Math.Clamp(upTo - i, 0, 1);
+        if (k <= 0) continue;
+        const n = this._node(i);
+        // The projector beam that places it: centre to node, a straight line
+        // rather than a bolt, because this is the machine working correctly.
+        // The placing beam runs the whole way while the node is being PUT
+        // there — that is a machine working, not a graduation — and it is gone
+        // the moment the field is live.
+        this.edgeGfx.lineStyle(1.5, this.color, 0.30 * k * (1 - k * 0.5));
+        this.edgeGfx.lineBetween(this.x, this.y, n.x, n.y);
+        this._drawNode(n, k, 1);
       }
-
-      // ── THE INTERIOR: crawling current, re-rolled on its own clock ───────
-      // Per-frame randomisation at 60fps is a strobe and at 15fps is a
-      // different effect entirely; a fixed re-roll interval reads the same on
-      // both, which is the frame-rate lesson this project keeps relearning.
-      this._crawlT -= delta;
-      if (this._crawlT <= 0) {
-        this._crawlT = 70;
-        this._crawl.length = 0;
-        const n = 3 + Math.floor(Math.random() * 3);
-        for (let i = 0; i < n; i++) {
-          const a = Math.random() * Math.PI * 2;
-          const b = a + (Math.random() - 0.5) * 2.4;
-          const ra = Math.random() * this.radius * 0.8;
-          const rb = Math.random() * this.radius * 0.8;
-          this._crawl.push([Math.cos(a) * ra, Math.sin(a) * ra,
-            Math.cos(b) * rb, Math.sin(b) * rb]);
-        }
+      // 3. THE PERIMETER CLOSES between established nodes.
+      const perim = Phaser.Math.Clamp((u - 0.34) / 0.40, 0, 1);
+      if (perim > 0) this._drawPerimeter(perim, 0.5 + 0.5 * perim, 1);
+      // 4. THE CONNECTIONS FORM — the last beat, and the only random one.
+      if (u > 0.78 && Math.random() < 0.5) {
+        const i = Math.floor(Math.random() * this.nodes);
+        const n = this._node(i);
+        this._bolt(this.edgeGfx, this.x, this.y, n.x, n.y, 8, 2, 0xffffff, 0.55);
       }
-      for (const c of this._crawl) {
-        this._bolt(this.edgeGfx, this.x + c[0], this.y + c[1],
-          this.x + c[2], this.y + c[3], 12, 2, 0xffffff, 0.52 * integ);
-      }
+      return;
     }
 
-    // The casing, on the deck, for arm and field alike. THE SOURCE IS VISIBLE:
-    // a field with nothing at its centre is a painted mark, and a placed object
-    // is what makes it a thing a machine put there.
-    this.floorGfx.fillStyle(0x0d1116, 1);
-    this.floorGfx.fillCircle(this.x, this.y, 9);
-    this.floorGfx.lineStyle(2.5, this.color, 1);
-    this.floorGfx.strokeCircle(this.x, this.y, 9);
-    this.edgeGfx.fillStyle(this.color, 0.5);
-    this.edgeGfx.fillCircle(this.x, this.y, 7);
-    this.edgeGfx.fillStyle(0xffffff, 0.9);
-    this.edgeGfx.fillCircle(this.x, this.y, 3.4);
+    // ── THE ACTIVE FIELD ────────────────────────────────────────────────────
+    const integ = this._integrity;
+    // The core is the LAST thing to go out, and it goes out by dropping to the
+    // inert frame rather than by fading — the device is still there afterwards.
+    this.body.setFrame(integ > 0.14 ? 1 : 0).setScale(1);
+    if (integ < 1) {
+      this.edgeGfx.fillStyle(this.color, 0.30 * integ);
+      this.edgeGfx.fillCircle(this.x, this.y, 10 + 6 * integ);
+    }
+    // ONE WASH, NOT THREE DISCS. The floor has to stay readable under it (§25):
+    // the deck, its plating and a player standing on it all survive this, where
+    // three stacked fills turned the whole circle into a solid object.
+    this.floorGfx.fillStyle(0x071620, 0.34 * integ);
+    this.floorGfx.fillCircle(this.x, this.y, this.radius);
+    // ── CORE EMISSION, AND DELIBERATELY NOT EIGHT FULL SPOKES ─────────────
+    // A BIG ROUND PROP DEFAULTS TO A DIAL, AND A DIAL IS A UI WIDGET — the
+    // rule this project already carries for the hero machine, and a perfect
+    // circle with eight radial spokes and eight tick marks on it is a RADAR.
+    // Four of them, alternating, stopping well short of the rim: the centre is
+    // visibly feeding the edge without the result reading as graduations.
+    for (let i = 0; i < this.nodes; i += 2) {
+      const n = this._node(i);
+      this.floorGfx.lineStyle(2, this.color, 0.13 * integ);
+      this.floorGfx.lineBetween(this.x, this.y,
+        this.x + (n.x - this.x) * 0.52, this.y + (n.y - this.y) * 0.52);
+    }
+    // ── SHUTDOWN IS A SEQUENCE, NOT ONE TWEEN TO ZERO (§29) ────────────────
+    // `_integrity` runs 1 -> 0 across `warnMs` and the beats are read off it in
+    // the order the machine would actually fail: the connections stop first,
+    // then the perimeter opens up segment by segment, then the nodes retract,
+    // and the core is the last thing to go out. The field is dangerous for
+    // every millisecond of it — `contains()` is true until `fieldMs` — so the
+    // strobe keeps the edge legible the whole way down rather than fading it
+    // out under a player who is still standing in it.
+    const strobe = integ < 1 ? (0.45 + 0.55 * Math.sin(t * 34)) : 1;
+    const arcsLive = integ > 0.55;                 // connections cease first
+    const perimGrow = Phaser.Math.Clamp(integ / 0.45, 0.24, 1);
+    this._drawPerimeter(perimGrow, strobe, Math.max(integ, 0.42));
+    for (let i = 0; i < this.nodes; i++) {
+      this._drawNode(this._node(i), Phaser.Math.Clamp(integ / 0.3, 0.3, 1),
+        Math.max(integ, 0.42) * strobe);
+    }
+
+    // ── THE CONNECTIONS. Re-rolled on their own clock, never per frame ──────
+    // Per-frame randomisation at 60fps is a strobe and at 15fps is a different
+    // effect entirely; a fixed re-roll interval reads the same on both, which
+    // is the frame-rate lesson this project keeps relearning. Each entry is a
+    // PAIR OF DECLARED POINTS — core-to-node or node-to-neighbour — so the
+    // current always has somewhere it came from and somewhere it is going.
+    if (!arcsLive) { this._crawl.length = 0; return; }
+    this._crawlT -= delta;
+    if (this._crawlT <= 0) {
+      this._crawlT = 90;
+      this._crawl.length = 0;
+      const n = 2 + Math.floor(Math.random() * 2);
+      for (let k = 0; k < n; k++) {
+        const i = Math.floor(Math.random() * this.nodes);
+        // Two thirds of them are the perimeter discharging between neighbours,
+        // a third are the core feeding a node.
+        this._crawl.push(Math.random() < 0.34
+          ? { from: -1, to: i } : { from: i, to: (i + 1) % this.nodes });
+      }
+    }
+    for (const c of this._crawl) {
+      const a = c.from < 0 ? { x: this.x, y: this.y } : this._node(c.from);
+      const b = this._node(c.to);
+      // Jitter is bounded well under the node spacing and both ENDPOINTS are
+      // exact, so a bolt can bow inward and can never claim ground outside the
+      // radius — the endpoints are on it and the middle is inside it.
+      this._bolt(this.edgeGfx, a.x, a.y, b.x, b.y, 10, 2,
+        c.from < 0 ? 0xffffff : this.color, 0.55 * integ * strobe);
+    }
+  }
+
+  /**
+   * ONE PROJECTOR NODE — a small bracket sitting ON the boundary.
+   *
+   * Drawn as a short radial post with a bright cap rather than a dot: a dot is
+   * a particle and a post is a fitting, and the difference is what makes eight
+   * of them read as equipment the device put there. It extends INWARD from the
+   * radius, never outward, so nothing about it implies danger past the edge.
+   */
+  _drawNode(n, k, alpha) {
+    const ci = Math.cos(n.a), si = Math.sin(n.a);
+    this.edgeGfx.lineStyle(3, this.color, 0.75 * k * alpha);
+    this.edgeGfx.lineBetween(n.x - ci * 9 * k, n.y - si * 9 * k, n.x, n.y);
+    this.edgeGfx.fillStyle(0xffffff, 0.9 * k * alpha);
+    this.edgeGfx.fillCircle(n.x, n.y, 2.6 * k);
+    this.edgeGfx.fillStyle(this.color, 0.35 * k * alpha);
+    this.edgeGfx.fillCircle(n.x, n.y, 5.5 * k);
+  }
+
+  /**
+   * THE PERIMETER — eight TRUE CIRCULAR ARCS at the real radius.
+   *
+   * `Graphics.arc` at `this.radius` is the hit test's own number, so the
+   * painted edge cannot drift from the resolved one by any amount at all. The
+   * gaps at the nodes are what make it read as segmented hardware rather than
+   * as a drawn circle, and `grow` sweeps each segment out from its node during
+   * the activation so the boundary is seen to be BUILT.
+   */
+  _drawPerimeter(grow, strobe, integ) {
+    const step = (Math.PI * 2) / this.nodes;
+    // WIDER GAPS THAN THE FIRST BUILD. At 0.085 the eight segments closed into
+    // something the eye read as one drawn circle with tick marks on it; at 0.14
+    // they are eight separate fences held between eight emitters, which is the
+    // difference between a dial and a piece of equipment.
+    const gap = 0.14;
+    for (let i = 0; i < this.nodes; i++) {
+      const a0 = this._nodeA + i * step + gap;
+      const a1 = this._nodeA + (i + 1) * step - gap;
+      const end = a0 + (a1 - a0) * grow;
+      if (end <= a0) continue;
+      this.edgeGfx.lineStyle(3, this.color, 0.7 * strobe * integ);
+      this.edgeGfx.beginPath();
+      this.edgeGfx.arc(this.x, this.y, this.radius, a0, end);
+      this.edgeGfx.strokePath();
+      // A white inner rail one pixel in: the edge reads at 1x on a dark deck
+      // without the outer line ever being drawn at more than the true radius.
+      this.edgeGfx.lineStyle(1, 0xffffff, 0.45 * strobe * integ);
+      this.edgeGfx.beginPath();
+      this.edgeGfx.arc(this.x, this.y, this.radius - 2.5, a0, end);
+      this.edgeGfx.strokePath();
+    }
   }
 
   destroy() {
@@ -762,7 +887,13 @@ export class ArcGrenade {
     this.edgeGfx?.destroy();
     this.shadowGfx?.destroy();
     this.airGfx?.destroy();
+    // THE DEVICE GOES WITH THE FIELD. It is an Image rather than a Graphics and
+    // is therefore the one thing here that would survive a sweep that only
+    // remembered the four Graphics — the same shape as a `postupdate` handler
+    // closed over a dead boss.
+    this.body?.destroy();
     this.floorGfx = this.edgeGfx = this.shadowGfx = this.airGfx = null;
+    this.body = null;
   }
 }
 
