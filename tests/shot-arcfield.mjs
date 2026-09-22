@@ -117,6 +117,11 @@ await station('12-nodes-establish', `n.phase === 'arm' && ${armU} > 0.38 && ${ar
 await station('13-perimeter-closes', `n.phase === 'arm' && ${armU} > 0.74`);
 await station('14-field-active', "n.phase === 'field' && n._fieldAge > 200");
 await shot('14-field-active-wide', 620);
+// TWO FRAMES OF THE SAME LIVE FIELD, A SECOND APART. The circulation is the
+// one thing here that is CONTINUOUS rather than stochastic, so a single frame
+// cannot show it — the pair is the evidence, and the three packets must be at
+// three different places on the fence between them.
+await station('14b-field-circulation', "n.phase === 'field' && n._fieldAge > 1150");
 
 // THE PLAYER INSIDE IT, AND THE PLAYER ON THE EDGE — §27/§28. The edge frame
 // is the one that has to show the painted boundary agreeing with `contains`.
@@ -193,5 +198,65 @@ await page.evaluate(() => {
 await page.waitForTimeout(200);
 writeFileSync(`${OUT}/18-HIERARCHY-captain-field-enemies.png`, await page.screenshot());
 console.log('   18-HIERARCHY-captain-field-enemies  <- the §26 frame');
+
+// ── THE DEVICE IN HIS HAND, AND THE INTENT SIGN ────────────────────────────
+// §30 asks for the throw preparation if it is visible, and this pass gives it
+// something to show: the wind-up is now the interval in which a held sign says
+// a grenade is coming. The sign dies on the frame the device becomes a real
+// object, so this is the ONLY frame in the game where both the promise and the
+// man making it are on screen at once.
+//
+// THE DECISION IS THE AI'S. He is placed inside the throw band and his
+// cooldown is cleared; the rig then POLLS FOR THE STATE rather than waiting on
+// a clock, because a flat wait against this actor has already reported a
+// working grenade as absent once (a 1231px median separation against a 680px
+// `maxRange`).
+await resume();
+await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  window.__nade?.destroy?.();
+  window.__nade = null;
+  const c = window.__cap;
+  c._nadeCd = 0;
+  c.setPosition(gs.player.x - 60, gs.player.y - 330);
+  gs.events.removeAllListeners('postupdate');
+  let armed = false;
+  const h = () => {
+    if (armed) {
+      gs.events.off('postupdate', h);
+      const cam = gs.cameras.main;
+      cam.stopFollow();
+      cam.centerOn(c.x, c.y - 20);
+      cam.resetFX();
+      gs._sectorTint?.setAlpha(0);
+      window.game.scene.getScene('HUD')?.hud?.banner?.setAlpha(0);
+      window.__focus = { x: c.x, y: c.y - 20 };
+      gs.scene.pause();
+      return;
+    }
+    // One frame of grace: the sign is created in the state tick and is first
+    // DRAWN by its own `_tick` at the top of the next `preUpdate`.
+    if (c._cap === 'windup' && c._intentFx) armed = true;
+  };
+  gs.events.on('postupdate', h);
+});
+try {
+  await page.waitForFunction(
+    () => window.game.scene.getScene('Game').scene.isPaused(), null, { timeout: 30000 });
+  await page.waitForTimeout(200);
+  const at = await page.evaluate(() => {
+    const gs = window.game.scene.getScene('Game');
+    const cam = gs.cameras.main;
+    return { x: window.__focus.x - cam.scrollX, y: window.__focus.y - cam.scrollY + cam.y };
+  });
+  writeFileSync(`${OUT}/19-intent-sign-windup.png`, await page.screenshot({
+    clip: { x: Math.max(0, Math.round(at.x - 190)), y: Math.max(0, Math.round(at.y - 190)),
+      width: 380, height: 380 } }));
+  console.log('   19-intent-sign-windup');
+  writeFileSync(`${OUT}/19-intent-sign-windup-1x.png`, await page.screenshot());
+  console.log('   19-intent-sign-windup-1x   <- the verdict scale');
+} catch (e) {
+  console.log('   !! never caught a wind-up with the sign up');
+}
 
 await browser.close();

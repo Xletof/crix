@@ -153,6 +153,7 @@ export class ShockCaptain extends Enemy {
     // is never the first thing he does.
     this._nade = null;
     this._nadeCd = def.grenade.firstDelayMs;
+    this._intentFx = null;        // the held grenade-intent sign, if one is up
     // ── CORE FEEL PASS: A BODY THAT ABSORBS RATHER THAN BOUNCES ───────────
     // `Enemy.preUpdate` squashes the whole sprite on a sine while `_staggerMs`
     // runs and shrinks it while `recoilT` does — and `Enemy.damage` sets
@@ -662,6 +663,72 @@ export class ShockCaptain extends Enemy {
   }
 
   /**
+   * ── THE INTENT SIGN — A SECOND REGISTER, NOT A FIFTH REACTION ────────────
+   *
+   * SYMBOL = TRANSITION, BODY/FX = SUSTAINED STATE is the state language's one
+   * surviving rule, and this obeys it: the sign exists only while a COMMITMENT
+   * is outstanding and it is gone the instant the commitment resolves. What it
+   * adds is an axis the four reaction glyphs do not have — those say what
+   * HAPPENED TO HIM, this says what he is ABOUT TO DO.
+   *
+   * IT DOES NOT GO THROUGH `_punctuate`. The queue exists so two REACTIONS in
+   * one frame do not become soup, and it does that by making the second WAIT —
+   * `punctSpacingMs` behind an armour break would put this sign on screen after
+   * the grenade had already left, which is the one thing an intent sign cannot
+   * survive. It is spawned directly and it is held, not timed.
+   *
+   * IT IS NOT THE SPATIAL TELEGRAPH. Where the grenade is going is owned by the
+   * flying device, its shadow, the landing mark and the field itself; this owns
+   * only the fact of the decision.
+   */
+  _intentSign(key) {
+    this._clearIntentSign();
+    if (!this.alive || !this.scene?.add || !this.scene.textures?.exists(key)) return;
+    const g = this.scene.add.image(0, 0, key).setScale(0.55).setAlpha(0);
+    this._reactFx.push(g);
+    this._intentFx = g;
+    const started = this._clock;
+    // TRACKS THE HEAD, ON THE ACTOR'S OWN CLOCK. He is planted through the
+    // wind-up — but a sign that is merely PLACED is stranded by anything that
+    // moves him (a knockback, a shove, a wall resolve), and a sign standing
+    // where he used to be is worse than no sign at all. Off the centreline for
+    // the reason every glyph here is: `fx.damageNumber` rises straight up out
+    // of `(x, y - 40)` and the visor may never be crowded.
+    g._tick = () => {
+      // ── THE SIGN OWNS ITS OWN CONDITION ───────────────────────────────
+      // An interrupted wind-up — a stagger, a wall resolve, a room change, any
+      // future caller of `_enter` — must take the promise down with it, and a
+      // clear-on-every-exit-path list is exactly the kind of thing that drifts
+      // the moment a fifth path is added. It asks the one question instead: am
+      // I still the commitment I was raised for? The release beat clears it
+      // first, so leaving WINDUP for THROW never reaches this line.
+      if (!this.alive || this._cap !== CAP.WINDUP) { this._clearIntentSign(); return; }
+      const u = Math.min(1, (this._clock - started) / 110);
+      g.setPosition(this.x + 22, this.y - this._headroom() - 20 - u * 6);
+      g.setDepth(this.y + 24);
+      g.setAlpha(u).setScale(0.55 + u * 0.35);
+    };
+  }
+
+  /**
+   * GONE ON THE FRAME THE DEVICE LEAVES HIS HAND — a cut, not a fade.
+   *
+   * A fade would keep the promise on screen after it had already been kept, and
+   * for the length of that fade the sign would be describing the past while a
+   * real object was in the air saying something else. The release beat carries
+   * its own spark burst, so the cut lands inside an event rather than on a bare
+   * frame.
+   */
+  _clearIntentSign() {
+    const g = this._intentFx;
+    this._intentFx = null;
+    if (!g) return;
+    this._dropFx(g);
+    this.scene?.tweens?.killTweensOf(g);
+    g.destroy();
+  }
+
+  /**
    * A short electrical arc over the body — the armour's own power letting go.
    *
    * ONE Graphics, redrawn each frame of its life from the actor's live
@@ -924,6 +991,7 @@ export class ShockCaptain extends Enemy {
   _clearReactions() {
     this._punctQueue.length = 0;
     this._arcGfx = null;
+    this._intentFx = null;
     this._reactFx.slice().forEach((o) => {
       this.scene?.tweens?.killTweensOf(o);
       o.destroy?.();
@@ -1161,15 +1229,21 @@ export class ShockCaptain extends Enemy {
   /**
    * WHERE HIS BOOTS ARE, IN WORLD PIXELS.
    *
-   * DERIVED FROM THE SPRITE, NOT PICKED. The body is 28x30 at scale 4 with a
-   * centred origin and the boots occupy the last few canvas rows, so the deck
-   * he is standing on is most of a half-height below his centre. Every step
-   * effect that claims to touch the FLOOR reads this: the first build drew them
-   * at `y + 6` and `y + 10`, which is his WAIST, and they photographed as light
-   * around his middle rather than as a man pushing off a deck.
+   * DERIVED FROM THE SHEET, AND THE ARITHMETIC IS THE WHOLE POINT. The body is
+   * 28x30 at scale 4 with a CENTRED origin, so the sprite's bottom edge is
+   * exactly 0.5 of `displayHeight` below `y`, and the boots occupy the last
+   * three of the thirty rows — 0.40 to 0.50 of the height below centre. The
+   * sole is therefore at about 0.44, and that is what a step effect claiming to
+   * touch the deck has to be drawn at.
+   *
+   * IT WAS 0.30, WHICH IS MID-SHIN. The first build used `y + 6` and `y + 10`
+   * and photographed as light around his WAIST; 0.30 fixed most of that and was
+   * then read as finished, but it still sits 12-24px clear of the floor — high
+   * enough that the catch reads as something happening TO him rather than
+   * between him and the deck. Measure the sheet; do not eyeball the offset.
    */
   _bootY() {
-    return this.y + (this.displayHeight ? this.displayHeight * 0.30 : 34);
+    return this.y + (this.displayHeight ? this.displayHeight * 0.44 : 50);
   }
 
   /**
@@ -1202,14 +1276,33 @@ export class ShockCaptain extends Enemy {
           this.x + Math.cos(th) * r, this.y + Math.sin(th) * r - 6,
           3, 2, this.def.color, a);
       }
-      // The launching foot brightening — at the DECK, and large enough to read
-      // at 1x against a hangar floor.
+      // ── THE SUIT LOADING AGAINST THE DECK — STRAIGHT LINES ONLY ────────
+      // WHAT WAS HERE: two concentric FILLED CIRCLES swelling at the boot. A
+      // soft round blue blob growing at a point is a DROPLET, and together
+      // with the thrust's expanding ring and the catch's two expanding rings
+      // this move carried THREE spreading round shapes at the feet — which is
+      // exactly the "water drop / splash" the handset named.
+      // A brace is straight. A flat bar under the sole takes the load and a
+      // chevron opens the way he is about to go: 45-degree cuts and hard
+      // horizontals, which is the surface vocabulary the rest of CRIX speaks.
       const fx0 = this.x + Math.cos(back) * r * 0.8;
       const fy0 = this._bootY() + Math.sin(back) * r * 0.35;
-      g.fillStyle(this.def.color, a * 0.5);
-      g.fillCircle(fx0, fy0, 4 + u * 7);
-      g.fillStyle(0xffffff, a * 0.9);
-      g.fillCircle(fx0, fy0, 2 + u * 3.5);
+      const bw = 8 + u * 16;
+      g.lineStyle(3, this.def.color, a * 0.85);
+      g.lineBetween(fx0 - bw, fy0, fx0 + bw, fy0);
+      g.lineStyle(2, 0xffffff, a);
+      g.lineBetween(fx0 - bw * 0.45, fy0 - 2, fx0 + bw * 0.45, fy0 - 2);
+      // The chevron points where the impulse is going, so the PLANT already
+      // says which way — the load and the launch are one gesture.
+      const cx = this.x + Math.cos(ang) * (18 + u * 10);
+      const cy = this._bootY() + Math.sin(ang) * (9 + u * 5);
+      const nx = -Math.sin(ang), ny = Math.cos(ang) * 0.5;
+      for (const sgn of [-1, 1]) {
+        g.lineStyle(2, this.def.color, a * 0.8);
+        g.lineBetween(cx, cy,
+          cx - Math.cos(ang) * 11 + sgn * nx * 8,
+          cy - Math.sin(ang) * 5.5 + sgn * ny * 8);
+      }
     };
   }
 
@@ -1236,22 +1329,41 @@ export class ShockCaptain extends Enemy {
       if (u >= 1 || !this.alive) { this._dropFx(g); g.destroy(); return; }
       g.clear();
       g.setDepth(oy - 4);
-      const a = (1 - u) * 0.8;
-      // STARTS BIG AND OPENS. A ring that begins at r=10 on a 112px body is
-      // eight percent of him and photographs as nothing at all — the same
-      // mistake the B.2.2 damage marks made at r=6.
-      const r = 26 + u * 34;
-      g.lineStyle(3, this.def.color, a);
-      // Flattened 5:1: it lies on the deck rather than standing in the air, and
-      // it can never be mistaken for the 96px threat circle he is wearing.
-      g.strokeEllipse(ox, oy, r * 2.2, r * 0.44);
-      g.lineStyle(1.5, 0xffffff, a * 0.9);
-      g.strokeEllipse(ox, oy, r * 1.2, r * 0.24);
-      // Two short scuffs kicked sideways out of the landing — the deck
-      // answering a body that arrived hard.
+      const a = (1 - u) * 0.85;
+      // ── THE CATCH CONVERGES. IT DOES NOT SPREAD ───────────────────────
+      // WHAT WAS HERE: two nested ellipses opening from r=26 to r=60 under his
+      // boots. Concentric rings expanding from a point of contact on a flat
+      // plane is the canonical picture of something DROPPED INTO WATER — the
+      // third and the worst of this move's three round shapes.
+      // MASS ARRIVING IS THE OPPOSITE MOTION. Four hard brackets drive IN
+      // toward the boots and the deck bar COMPRESSES under them, so the beat
+      // reads as weight being received rather than as energy being released.
+      // THE HEAVIEST BEAT MUST NOT BE THE FAINTEST, and the first build of it
+      // was: 40px brackets and a 30px bar under a 112px body photographed as a
+      // few stray pixels at his shins. Scaled against the BODY rather than
+      // picked, the same mistake the B.2.2 damage marks made at r=6.
+      const k = 1 - u;                              // 1 at contact, 0 at rest
+      const R = this.def.radius;                    // 28 — the body is Ø56
+      for (let i = 0; i < 4; i++) {
+        const th = Math.PI / 4 + (i * Math.PI) / 2;
+        const far = R * (0.8 + k * 2.4), near = R * (0.35 + k * 0.6);
+        g.lineStyle(4, this.def.color, a);
+        g.lineBetween(ox + Math.cos(th) * far, oy + Math.sin(th) * far * 0.42,
+          ox + Math.cos(th) * near, oy + Math.sin(th) * near * 0.42);
+      }
+      // THE DECK BAR. Starts wide and CLOSES — the floor taking his weight,
+      // which is the one motion a spreading ring can never say.
+      const half = R * (0.7 + k * 1.7);
+      g.lineStyle(5, 0xffffff, a * 0.95);
+      g.lineBetween(ox - half, oy, ox + half, oy);
+      g.lineStyle(3, this.def.color, a * 0.75);
+      g.lineBetween(ox - half * 1.45, oy + 4, ox + half * 1.45, oy + 4);
+      // Two flat scuffs kicked sideways out of the landing. Hard, short and
+      // low: the deck answers without anything leaving a round mark on it.
       for (const sgn of [-1, 1]) {
-        this._bolt(g, ox + sgn * r * 0.5, oy,
-          ox + sgn * (r * 1.05 + u * 14), oy - 2, 3, 2, 0xffffff, a * 0.8);
+        const s0 = half * 0.9, s1 = s0 + 10 + u * 20;
+        g.lineStyle(2, 0xffffff, a * 0.6);
+        g.lineBetween(ox + sgn * s0, oy - 1, ox + sgn * s1, oy - 3);
       }
     };
   }
@@ -1271,15 +1383,28 @@ export class ShockCaptain extends Enemy {
       .setDepth(this.y - 3)
       .setScale(this.scaleX, this.scaleY)
       .setFlipX(this.flipX)
-      .setTint(0x8fd8ff)
-      .setAlpha(0.42)
-      .setBlendMode(Phaser.BlendModes.ADD);
+      // ── A FLAT SILHOUETTE, NOT A GLOW ────────────────────────────────
+      // IT WAS AN ADD-BLENDED `setTint`, AND THAT IS NOT A SILHOUETTE. A
+      // multiply tint under ADD keeps only the pixels that were already bright
+      // — his dome, his shoulder plates and his visor — so the stamp came out
+      // as a ROUND LUMINOUS BLOB hanging beside him with no outline at all,
+      // and at 1x it read as a bubble rather than as a place he had been.
+      // Photographed, twice.
+      //
+      // `setTintFill` on the NORMAL blend paints the sprite's own alpha mask
+      // in one flat colour: the OUTLINE survives exactly, the interior does
+      // not compete, and nothing glows. It also puts a second clear stripe
+      // between this and the player dash, which is seventeen ADD-blended
+      // ghosts GROWING 1.2x into a continuous trail — the negative reference
+      // this move is measured against.
+      .setTintFill(0x2f7fb8)
+      .setAlpha(0.40);
     this._reactFx.push(img);
     const started = this._clock;
     img._tick = () => {
       const u = (this._clock - started) / 130;
       if (u >= 1 || !this.alive) { this._dropFx(img); img.destroy(); return; }
-      img.setAlpha(0.42 * (1 - u));
+      img.setAlpha(0.40 * (1 - u));
     };
   }
 
@@ -1329,14 +1454,44 @@ export class ShockCaptain extends Enemy {
           ox + Math.cos(th) * len, oy + Math.sin(th) * len * 0.5,
           6, i === 1 ? 4 : 2, i === 1 ? 0xffffff : this.def.color, a);
       }
-      // THE DECK ANSWERS. A flat scuff at the launch foot — the surface he
-      // pushed against, which is the difference between a footstep and a jet.
-      // 5:1 AND OFFSET DOWN THE TRAVEL AXIS: a ring centred on a body is a
-      // circle telegraph whatever colour it is, and a shield bubble is the one
-      // thing the reactive armour was deliberately not.
-      g.lineStyle(3, this.def.color, a * 0.9);
-      g.strokeEllipse(ox + Math.cos(back) * 16, oy + Math.sin(back) * 8,
-        100 + u * 50, 20 + u * 10);
+      // ── A WEDGE AND FRAGMENTS, NEVER AN EXPANDING RING ────────────────
+      // WHAT WAS HERE: a 100px ellipse opening to 150 at the launch foot. An
+      // expanding ring spreading from a point on a flat plane is a RIPPLE
+      // whatever colour it is painted in, and it was the loudest of the three
+      // round shapes this move used to put on the deck.
+      // TWO NESTED CHEVRONS pointing back down the travel axis: the same claim
+      // — force left from here — said in STROKES.
+      //
+      // A FILLED WEDGE WAS THE FIRST ATTEMPT AND IT PHOTOGRAPHED AS A BUBBLE.
+      // 34 x 54 of translucent blue sitting against his hip is a MASS beside
+      // the body, and he already wears a cyan ring, so the two merged and the
+      // impulse read as a shield rather than as a shove. A chevron cannot: it
+      // is two hard lines meeting at a point, it has no interior to be mistaken
+      // for volume, and its vertex states a direction on its own.
+      const bx = -Math.sin(back), by = Math.cos(back) * 0.5;
+      const wx = ox + Math.cos(back) * 8, wy = oy + Math.sin(back) * 4;
+      for (let v = 0; v < 2; v++) {
+        const wl = (30 + v * 24) * (1 + u * 0.5), ww = (13 + v * 10);
+        const tipX = wx + Math.cos(back) * wl, tipY = wy + Math.sin(back) * wl * 0.5;
+        g.lineStyle(v ? 2 : 3, v ? this.def.color : 0xffffff, a * (v ? 0.55 : 0.85));
+        g.beginPath();
+        g.moveTo(wx + bx * ww, wy + by * ww);
+        g.lineTo(tipX, tipY);
+        g.lineTo(wx - bx * ww, wy - by * ww);
+        g.strokePath();
+      }
+      // IMPULSE FRAGMENTS — three hard little bars ejected out of the push-off
+      // at FIXED bearings, so they travel rather than strobe. Discrete pieces
+      // of spent energy: nothing here is round and nothing spreads outward as
+      // a boundary.
+      for (let k = 0; k < 3; k++) {
+        const th = back + (k - 1) * 0.34;
+        const d0 = 30 + k * 8 + u * 88;
+        const seg = 12 * (1 - u);
+        g.lineStyle(k === 1 ? 3 : 2, k === 1 ? 0xffffff : this.def.color, a * 0.7);
+        g.lineBetween(ox + Math.cos(th) * d0, oy + Math.sin(th) * d0 * 0.5,
+          ox + Math.cos(th) * (d0 + seg), oy + Math.sin(th) * (d0 + seg) * 0.5);
+      }
     };
   }
 
@@ -1386,6 +1541,9 @@ export class ShockCaptain extends Enemy {
       ...g, x: this.x + off, y: this.y - 10, tx: t.x, ty: t.y, owner: this,
     }) ?? null;
     this._nadeCd = g.cooldownMs;
+    // THE PROMISE IS KEPT. The device is a real object in the world from this
+    // line on, so the sign that announced it has nothing left to say.
+    this._clearIntentSign();
     SFX.captainThrow?.();
     this.scene.fx?.burstDir?.(this.x + off, this.y - 10, 'white', 3,
       Math.atan2(t.y - this.y, t.x - this.x), 60);
@@ -1646,6 +1804,11 @@ export class ShockCaptain extends Enemy {
         // 1.9s weapon is a tool that never comes out.
         if (this._canThrow(p, dist)) {
           this._enter(CAP.WINDUP, this.def.grenade.windupMs);
+          // THE SIGN GOES UP WITH THE COMMITMENT, not with the throw. The
+          // wind-up is the beat in which the decision exists and has not yet
+          // been carried out, and that is exactly the interval an intent sign
+          // is for.
+          this._intentSign('glyph-throw');
           this.setVelocity(0, 0);
         } else if (this._canFire(p, dist)) {
           this._enter(CAP.BRACE, this.def.braceMs);

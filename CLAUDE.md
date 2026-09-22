@@ -1550,6 +1550,96 @@ asserts separately that the ceiling is not reached.
   and `_wKickT`/`_wKickDur`/`_wKickMag`. Never reintroduce a hardcoded divisor; that
   bug made the super shrink the player instead of popping it.
 
+- **EXPANDING ROUND SHAPES AT A CONTACT POINT ARE WATER, WHATEVER COLOUR THEY
+  ARE PAINTED IN.** The tactical step came back from a handset as a "water
+  drop", and it was one by arithmetic rather than by taste: `_stepPreload` grew
+  two `fillCircle`s at the boot, `_stepThrust` opened a `strokeEllipse` 100 ->
+  150, and `_stepCatchFx` opened two more 26 -> 60. Five soft round shapes
+  swelling and spreading from a point on a flat plane. **No intensity, colour or
+  duration change could have answered that — THE FIX IS SHAPE LANGUAGE**, the
+  same rule the hero machine's circle and the shuttle's wing edges already
+  carry. Hard bars, stroked chevrons, 45-degree brackets and discrete impulse
+  fragments; and the catch CONVERGES, because mass arriving is the opposite
+  motion to energy released and a spreading ring can never say it.
+  `smoke-captain-closeout` greps the three methods for `fillCircle` and
+  `strokeEllipse` — absence, never a comment. `HANDOVER.md` §10an.
+- **A FILLED TRANSLUCENT WEDGE BESIDE A BODY IS A BUBBLE. A STROKED CHEVRON IS A
+  DIRECTION.** 34x54 of blue at 0.5 alpha against his hip photographed as a mass
+  he was wearing, and he already stands near round cyan fixtures. A chevron has
+  no interior to be mistaken for volume and its vertex states a bearing on its
+  own.
+- **AN ADD-BLENDED `setTint` IS NOT A SILHOUETTE.** A multiply tint under ADD
+  keeps only the pixels that were ALREADY BRIGHT, so a stamp of a dark armoured
+  body comes out as a round luminous blob with no outline — measured twice on
+  the step echo. `setTintFill` on the NORMAL blend paints the sprite's own alpha
+  mask flat: the outline survives exactly and nothing glows. It is also what
+  keeps the echo clear of the player dash, which is seventeen ADD ghosts GROWING
+  1.2x into a continuous trail.
+- **`_bootY()` IS 0.44 OF `displayHeight` AND IT IS DERIVED FROM THE SHEET.** The
+  body is 28x30 at scale 4 with a CENTRED origin, so the bottom edge is exactly
+  half the height below `y` and the boots are the last three of thirty rows —
+  0.40 to 0.50 below centre. It was 0.30, which is mid-shin, and every effect
+  claiming to touch the deck was drawn 12-24px clear of it. Measure the sheet;
+  do not eyeball the offset. Related: **the heaviest beat must not be the
+  faintest** — the catch's 40px brackets under a 112px body photographed as
+  stray pixels, the same mistake the B.2.2 damage marks made at r=6. Scale
+  against `def.radius`.
+- **A BINARY FLIP INSIDE A BUILD-UP BEAT IS A MACHINE THAT DOES NOT BUILD UP.**
+  The Arc Grenade device was two frames flipping at a third of `armMs` while the
+  field around it energised in five staged beats. It is three now — INERT ->
+  CHARGING -> ARMED, dim blue to white-blue — climbed IN STEP with the
+  activation and **stepped back DOWN the same ladder at shutdown**, because a
+  machine shutting down and an effect ending are different claims. Its four
+  prongs are stalks with shoulders and 2x2 heads: a bare diagonal run of single
+  pixels is a stair-step and reads as an artefact, not a fitting.
+- **A FIELD THAT ONLY EVER FLICKERS IS A FIELD WITH A FAULT.** Everything moving
+  in the live arc field was a SNAP. Three short bright arcs now travel the
+  perimeter at a constant rate, derived from ONE phase at fixed offsets so they
+  are evenly spaced by construction and carry no randomness at all — the one
+  controlled thing in an effect whose every other motion is stochastic. They
+  ride `this.radius` itself, so the one moving element on the boundary cannot
+  misreport it. **ARCS, NOT DOTS**: a dot running a circle is a loading spinner,
+  which is the UI read this field has already been pulled back from once.
+- **INTENT IS A SECOND REGISTER, AND IT IS NOT A FIFTH REACTION.** The four
+  grawlix glyphs say what HAPPENED TO HIM; `glyph-throw` says what he is ABOUT
+  TO DO, and "FOUR, AND NO MORE" still governs the reaction half. Three things
+  follow and none is cosmetic: it **does NOT go through `_punctuate`** (the
+  queue works by making the second glyph WAIT, and `punctSpacingMs` behind an
+  armour break would put the sign up after the grenade had already left); it is
+  **held, then CUT** on the frame `_throwGrenade` makes the device real, never
+  faded, because a fade describes a promise after it has been kept; and it
+  **owns its own condition** — the `_tick` asks *am I still the commitment I was
+  raised for?* rather than trusting a clear-on-every-exit-path list, so a
+  stagger, a wall resolve or any future caller of `_enter` takes it down by
+  construction. Same shape as `CameraDirector._bossFramable` refusing a
+  cancelled handle. **IT IS NOT THE SPATIAL TELEGRAPH** — the thrown device, its
+  shadow, the landing mark and the field own where; this owns only that.
+- **A GREP-BASED LAW MUST STRIP THE PROSE BEFORE IT READS THE CODE.** This
+  codebase documents the shapes it removed and the negative references it must
+  not copy BY NAME, so a check reading raw source finds the very literals it is
+  asserting are gone and **fails on a correct build**. It fired immediately on
+  the first run of `smoke-captain-closeout`. Comments out, then grep.
+- **A SHUTDOWN LADDER IS DRIVEN, NOT OBSERVED.** The arc field's `warnMs` is
+  520ms and this container drops under 6fps inside a full suite run, at which
+  the whole beat is two frames and a correct build reports as a fading one —
+  measured, as a flake that only appeared under `run-all`. `_integrity` is a
+  pure function of `age`, so the beat is addressable: put the object at the
+  instant and step it once. Same family as ticking `_clock` instead of sleeping.
+- **AN EFFECT SPAWNED ON THE FRAME A BEAT BEGINS IS EMPTY FOR EXACTLY ONE
+  FRAME.** `_reactFx` is ticked at the TOP of `preUpdate` and the state machine
+  runs below it, so a Graphics created by the state tick is not DRAWN until the
+  next frame. An evidence rig that pauses on the first qualifying frame
+  photographs a Captain with no impulse behind him at all — the harness being
+  wrong about a build that is right, and the same family as "a collision-time
+  pose lands one frame after its effect". And **frame the ORIGIN, not the
+  body**: every impulse effect is drawn where he pushed off while he travels
+  away from it, so a camera on the moving actor walks the subject out of shot.
+- **ATTRIBUTE THE THING IN THE SCREENSHOT BEFORE REDESIGNING AGAINST IT.** A
+  large soft cyan disc beside the stepping Captain looked exactly like the
+  bubble the step pass existed to remove, and two rounds went into chasing it.
+  Hiding every one of his `_reactFx` and re-shooting the same paused frame left
+  it precisely where it was: **it is the objective terminal's own marker.** The
+  A/B is one page.evaluate and it is cheaper than one wrong redesign.
 - **THE FOUR-ARENA ENVIRONMENT PILOT IS COMPLETE AND ALL FOUR ROOMS ARE
   FROZEN 🔒.** Vader Chamber, Hangar, Reactor Junction and Detention Block each
   closed on human handset play; `HANDOVER.md` §10ab is the closeout and carries

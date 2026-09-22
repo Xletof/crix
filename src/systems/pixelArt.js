@@ -1621,6 +1621,35 @@ export function paintGrawlix(scene) {
       }
       return 10;
     },
+    arcorb(put, ox) {
+      // ── THE INTENT SIGN — A DEVICE, NOT A REACTION ────────────────────
+      // The other four shapes here are things that HAPPENED TO HIM. This one
+      // says what he is ABOUT TO DO, and it has to be told apart from `star`
+      // at a glance on a moving body: `star` is a bare eight-way burst, this
+      // is a HOLLOW faceted casing with a charged core and four emitter studs
+      // — a small picture of the object in his hand, in the same chunky
+      // grammar. If the player can recognise the thing he is holding, the
+      // sign has explained the commitment without a word of UI.
+      const ring = [
+        [4, 1], [5, 1], [6, 1],
+        [3, 2], [4, 2], [5, 2], [6, 2], [7, 2],
+        [1, 3], [2, 3], [8, 3], [9, 3],
+        [1, 4], [2, 4], [8, 4], [9, 4],
+        [1, 5], [2, 5], [8, 5], [9, 5],
+        [3, 6], [4, 6], [5, 6], [6, 6], [7, 6],
+        [4, 7], [5, 7], [6, 7],
+      ];
+      // THE CORE IS A CROSS, held one clear pixel off the casing all round so
+      // the black surround cannot merge the two into a solid slab — the same
+      // spacing rule the hash strokes already carry.
+      const core = [[5, 3], [4, 4], [5, 4], [6, 4], [5, 5]];
+      // FOUR EMITTER STUDS at the diagonals, echoing the four prongs the real
+      // Arc Grenade is painted with, so the sign and the object agree.
+      const studs = [[0, 1], [0, 2], [10, 1], [10, 2],
+        [0, 6], [0, 7], [10, 6], [10, 7]];
+      [...ring, ...core, ...studs].forEach(([x, y]) => put(ox + x, y));
+      return 11;
+    },
   };
 
   /**
@@ -1660,12 +1689,27 @@ export function paintGrawlix(scene) {
     c.finish();
   };
 
-  // FOUR, AND NO MORE. Every one of them is a different EVENT; a fifth would be
-  // a vocabulary the player has to learn rather than read.
+  // ── TWO REGISTERS, AND THE COUNT RULE BELONGS TO THE FIRST ONE ───────────
+  //
+  // REACTION — FOUR, AND NO MORE. Every one is a different thing that HAPPENED
+  // TO HIM; a fifth reaction would be a vocabulary the player has to learn
+  // rather than read.
   glyph('glyph-break', ['hash', 'bang']);          // the armour gives
   glyph('glyph-rage', ['hash', 'query', 'bang']);  // he is in trouble
   glyph('glyph-impact', ['star']);                 // that one landed
   glyph('glyph-alert', ['bang']);                  // he has the line again
+
+  // INTENT — a SECOND register, and it is not a fifth reaction. A reaction
+  // glyph is punctuation on something already resolved and it is sequenced
+  // behind the others; an intent sign is a PROMISE, it is held for exactly as
+  // long as the promise is outstanding, and it dies on the frame the promise
+  // is kept. It never enters the punctuation queue, because a queue would
+  // delay it past the very moment it exists to announce.
+  //
+  // IT IS NOT THE SPATIAL TELEGRAPH AND MAY NEVER BECOME ONE. Where the
+  // grenade is going is owned by the thrown device, its shadow, the landing
+  // mark and the field. This says only THAT he has committed.
+  glyph('glyph-throw', ['arcorb']);                // he is committing to it
 }
 
 /**
@@ -2261,27 +2305,54 @@ export function paintShockCaptain(scene, key = 'champ-captain', opts = {}) {
  * state holds — "the same thing, brighter" is not a state change.
  */
 export function paintArcGrenade(scene, key = 'hz-arcnade') {
-  const W = 13, H = 13;
-  const ss = new SpriteSheet(scene, key, W, H, 2, 4);
-  const CASE = '#1b1f26', CASE_HI = '#343a45', CASE_LO = '#0a0c10';
+  const W = 15, H = 15;
+  // ── THREE FRAMES, NOT TWO: INERT -> CHARGING -> ARMED ────────────────────
+  //
+  // The two-frame build flipped straight from dead to live at a third of the
+  // arming time, so the device's own state change was a BINARY EVENT inside a
+  // beat whose whole job is to be a build-up. The field around it energised in
+  // five stages and the thing supposedly powering it did not. A charge that
+  // passes through a visible middle is what makes the armed state believable —
+  // the same reason the hero machine carries two authored faces rather than a
+  // dimmer.
+  const ss = new SpriteSheet(scene, key, W, H, 3, 4);
+  const CASE = '#1b1f26', CASE_HI = '#363d48', CASE_LO = '#0a0c10';
   const EDGE = '#05060a', BONE = '#c6c0b0';
-  const CORE_OFF = '#1a4763', CORE_ON = '#dcf2ff', RING = '#4fc3ff';
+  const DIM = '#1a4763', MID = '#4fc3ff', HOT = '#dcf2ff', WHITE = '#ffffff';
 
-  for (let f = 0; f < 2; f++) {
+  // DIM BLUE -> BLUE -> WHITE-BLUE, and the PRONGS come up with the core: the
+  // emitters are what the field leaves through, so a charged core behind unlit
+  // projectors would be a machine with its output still switched off.
+  const STATE = [
+    { core: DIM, hot: MID, prong: CASE_HI, tip: CASE_HI, band: BONE },
+    { core: MID, hot: HOT, prong: MID, tip: HOT, band: BONE },
+    { core: HOT, hot: WHITE, prong: HOT, tip: WHITE, band: WHITE },
+  ];
+
+  for (let f = 0; f < 3; f++) {
     ss.frame(f);
-    const on = f === 1;
-    const c = 6;
-    // ── THE PRONGS, at the four diagonals. They are what the field comes out
-    // of, so they are drawn FIRST and the casing sits over their roots — a
-    // fitting that is bolted through, not four sticks taped on.
+    const S = STATE[f];
+    const c = 7;
+    // ── FOUR PROJECTOR PRONGS, AT THE DIAGONALS ───────────────────────────
+    // Drawn FIRST, so the casing sits over their roots: hardware bolted
+    // through, not four sticks taped on. Each is a stalk with SHOULDERS and a
+    // 2x2 emitter head — a bare diagonal run of single pixels is a stair-step
+    // and reads as an artefact, while a stalk that has width and ends in a
+    // block reads as a fitting. The field's eight nodes are the same claim at
+    // arena scale, which is why the intent glyph carries four studs too.
     for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      ss.px(c + dx * 4, c + dy * 4, on ? RING : CASE_HI);
-      ss.px(c + dx * 5, c + dy * 5, on ? CORE_ON : CASE);
-      ss.px(c + dx * 3, c + dy * 3, EDGE);
+      for (let k = 3; k <= 5; k++) ss.px(c + dx * k, c + dy * k, k >= 5 ? S.prong : CASE_HI);
+      ss.px(c + dx * 4, c + dy * 3, CASE);
+      ss.px(c + dx * 3, c + dy * 4, CASE);
+      const hx = c + dx * 6, hy = c + dy * 6;
+      ss.px(hx, hy, S.tip);
+      ss.px(hx - dx, hy, S.prong);
+      ss.px(hx, hy - dy, S.prong);
+      ss.px(c + dx * 7, c + dy * 7, EDGE);
     }
     // ── THE CASING. Faceted rather than round: a large smooth pixel circle is
-    // the one shape this game's vocabulary cannot say, and at 13px a bevelled
-    // octagon reads crisper than a 6px radius ever would.
+    // the one shape this game's vocabulary cannot say, and a bevelled octagon
+    // reads crisper at this size than any radius would.
     ss.rect(c - 3, c - 4, 7, 9, CASE);
     ss.rect(c - 4, c - 3, 9, 7, CASE);
     // Top plane catches the light, underside goes black — the deck rule.
@@ -2297,14 +2368,15 @@ export function paintArcGrenade(scene, key = 'hz-arcnade') {
     ss.px(c - 4, c - 4, EDGE); ss.px(c + 4, c - 4, EDGE);
     ss.px(c - 4, c + 4, EDGE); ss.px(c + 4, c + 4, EDGE);
     // ── THE COMMAND BAND. Bone appears exactly once, the same ration the
-    // Captain's own body uses.
-    ss.hline(c - 1, c - 4, c + 3, BONE);
-    // ── THE CORE. A small circle INSIDE a faceted housing is allowed and
+    // Captain's own body uses — and it goes WHITE only when he is armed, so
+    // the rank plate is part of the state rather than decoration on it.
+    ss.hline(c - 2, c - 4, c + 4, S.band);
+    // ── THE CORE. A small circle inside a faceted housing is allowed and
     // renders cleanly at this size — the hero machine's well is the precedent.
-    ss.rect(c - 1, c - 2, 3, 5, on ? RING : CORE_OFF);
-    ss.rect(c - 2, c - 1, 5, 3, on ? RING : CORE_OFF);
-    ss.rect(c - 1, c - 1, 3, 3, on ? CORE_ON : RING);
-    ss.px(c, c, on ? '#ffffff' : CORE_ON);
+    ss.rect(c - 1, c - 2, 3, 5, S.core);
+    ss.rect(c - 2, c - 1, 5, 3, S.core);
+    ss.rect(c - 1, c - 1, 3, 3, S.hot);
+    ss.px(c, c, f === 2 ? WHITE : S.hot);
   }
   ss.finish();
 }

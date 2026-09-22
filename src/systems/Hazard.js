@@ -509,6 +509,13 @@ export class ArcGrenade {
     this._cool = 0;
     this._crawl = [];          // interior arcs, re-rolled on their own clock
     this._crawlT = 0;
+    // ── CIRCULATION, AND IT IS DETERMINISTIC ──────────────────────────────
+    // One phase in TURNS around the perimeter, advanced by delta. The packets
+    // are derived from it at fixed offsets rather than stored, so they can
+    // never drift apart, never need re-seeding and carry no randomness at all
+    // — a machine's current going round a ring is the one thing in this effect
+    // that must look CONTROLLED. Everything stochastic here is a snap.
+    this._pktT = 0;
     this._armed = false;       // one-shot: the activation beat has played
     this._landed = false;
 
@@ -714,8 +721,11 @@ export class ArcGrenade {
       // legible before the hazard is live — the perimeter completes at 74% of
       // the arming time and `contains()` does not return true until 100%.
       const u = (this.age - this.flightMs) / this.armMs;
-      // 1. CORE POWERS UP. The device's own frame flips at a third.
-      this.body.setFrame(u > 0.32 ? 1 : 0);
+      // 1. THE CORE ENERGISES, THROUGH A MIDDLE. Inert while it settles,
+      //    CHARGING as the nodes are placed, ARMED as the perimeter closes —
+      //    so the device's own three-frame ladder runs in step with the five
+      //    beats happening around it instead of flipping once at a third.
+      this.body.setFrame(u > 0.55 ? 2 : u > 0.18 ? 1 : 0);
       // A small settle: it lands, is briefly squashed, and locks.
       this.body.setScale(1 + Math.max(0, 0.22 - u * 1.6), 1 - Math.max(0, 0.18 - u * 1.4));
       this.edgeGfx.fillStyle(this.color, 0.10 + 0.3 * u);
@@ -752,9 +762,11 @@ export class ArcGrenade {
 
     // ── THE ACTIVE FIELD ────────────────────────────────────────────────────
     const integ = this._integrity;
-    // The core is the LAST thing to go out, and it goes out by dropping to the
-    // inert frame rather than by fading — the device is still there afterwards.
-    this.body.setFrame(integ > 0.14 ? 1 : 0).setScale(1);
+    // The core is the LAST thing to go out, and it goes out by STEPPING BACK
+    // DOWN ITS OWN LADDER — armed, then charging, then inert — rather than by
+    // fading. The device is still there afterwards, unpowered, which is the
+    // whole difference between a machine shutting down and an effect ending.
+    this.body.setFrame(integ > 0.45 ? 2 : integ > 0.14 ? 1 : 0).setScale(1);
     if (integ < 1) {
       this.edgeGfx.fillStyle(this.color, 0.30 * integ);
       this.edgeGfx.fillCircle(this.x, this.y, 10 + 6 * integ);
@@ -791,6 +803,31 @@ export class ArcGrenade {
     for (let i = 0; i < this.nodes; i++) {
       this._drawNode(this._node(i), Phaser.Math.Clamp(integ / 0.3, 0.3, 1),
         Math.max(integ, 0.42) * strobe);
+    }
+
+    // ── TRAVELLING PACKETS — THE FIELD'S CIRCULATION ──────────────────────
+    // WHAT THIS ANSWERS: everything moving in the live field used to be a
+    // SNAP — a bolt that appeared somewhere and was gone 90ms later. A machine
+    // that only ever flickers is a machine with a fault; one with current
+    // going round it is a machine that is running. These are three short
+    // bright arcs travelling the perimeter at a constant rate, derived from a
+    // single phase so they are evenly spaced by construction.
+    //
+    // THEY RIDE `this.radius`, the hit test's own number, so the one moving
+    // thing on the boundary cannot misreport where the boundary is. And they
+    // are ARCS, not dots: a dot running a circle is a loading spinner, which is
+    // the UI read this field has already been pulled back from once.
+    this._pktT = (this._pktT + delta / 2600) % 1;
+    for (let k = 0; k < 3; k++) {
+      const turn = (this._pktT + k / 3) % 1;
+      const a1 = this._nodeA + turn * Math.PI * 2;
+      this.edgeGfx.lineStyle(2.5, 0xffffff, 0.5 * integ * strobe);
+      this.edgeGfx.beginPath();
+      this.edgeGfx.arc(this.x, this.y, this.radius, a1 - 0.13, a1);
+      this.edgeGfx.strokePath();
+      this.edgeGfx.fillStyle(0xffffff, 0.85 * integ * strobe);
+      this.edgeGfx.fillCircle(this.x + Math.cos(a1) * this.radius,
+        this.y + Math.sin(a1) * this.radius, 2);
     }
 
     // ── THE CONNECTIONS. Re-rolled on their own clock, never per frame ──────

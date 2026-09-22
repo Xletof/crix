@@ -226,7 +226,20 @@ spawns the Captain; DEBUG carries four triggers — BIG HIT / BREAK / LOW HEALTH
 drive the real `damage()` path, and CHAMP: GRENADE clears the cooldown and lets
 the real AI decide.
 
-**THE VISUAL FINISH IS THE CURRENT CANDIDATE — `§10am`.** Handset play approved
+**THE VISUAL CLOSEOUT IS THE CURRENT CANDIDATE — `§10an`.** Three presentation
+jobs and nothing else, on top of `§10am`: THE STEP STOPS SPEAKING IN CIRCLES
+(the "water drop" verdict had one cause — two filled circles and three expanding
+ellipses at the boots — replaced by chevrons, hard bars, impulse fragments and a
+CONVERGING catch, with `_bootY()` corrected from mid-shin to the sole), THE ARC
+GRENADE GETS A MIDDLE (three authored device frames, inert -> charging -> armed,
+climbed with the activation and stepped back down at shutdown, plus deterministic
+travelling packets riding the true radius), and INTENT GETS ITS OWN REGISTER (a
+held `glyph-throw` sign over the head for the length of the commitment, cut on
+the frame the device leaves his hand — not a fifth reaction and not a
+telegraph). No gameplay value moved. Evidence in
+`docs/evidence/champion-reset/vc/`.
+
+**THE VISUAL FINISH BEFORE IT — `§10am`.** Handset play approved
 the CORE COMBAT FEEL: agile, the tactical step producing genuine dodges, the
 variable suppression rifle reading, the recoil absorbed rather than bounced.
 **The mechanics are finished and every gameplay value is frozen and untouched**
@@ -7270,6 +7283,214 @@ outlives the actor; the field's boundary is dangerous inside and at the edge and
 safe a fifth of a percent outside at eight bearings; the nodes sit exactly on
 the radius and MOVE when the radius is changed; one device owns the lifecycle
 and is destroyed with the field.
+
+## 10an. THE SHOCK CAPTAIN, VISUAL CLOSEOUT — the step stops speaking in circles, the device gets a middle, and intent gets a register. **CANDIDATE — NOT APPROVED**
+
+A narrow, final presentation pass over three things and nothing else. **Every
+gameplay value in `§10am` and before is FROZEN and untouched by this**: 1900
+armour + 3400 body = 5300, `armourTake`, `armourSpill`, no Super resistance, the
+rifle's corridor law and burst distribution, the step's distance, plant, travel,
+catch, cooldown, triggers and fairness contract, and the Arc Grenade's throw
+logic, targeting, radius, duration, drag, damage and legality. `smoke-captain-
+closeout` re-checks the grenade radius and the boundary's hit test against the
+authored config for exactly that reason.
+
+### A. THE STEP WAS A SPLASH, AND THE CAUSE WAS THREE ROUND SHAPES
+
+Handset: the foot effect reads like a **water drop**. It was one, and the
+diagnosis is arithmetic rather than taste — the three step effects between them
+drew:
+
+| method | shape | motion |
+| --- | --- | --- |
+| `_stepPreload` | two `fillCircle`, r 4 -> 11 and 2 -> 5.5 | swelling at a point |
+| `_stepThrust` | `strokeEllipse` 100 -> 150 wide | spreading from a point |
+| `_stepCatchFx` | two nested `strokeEllipse`, r 26 -> 60 | spreading from a point |
+
+**A soft round shape swelling at a point is a droplet and concentric rings
+opening from a point of contact on a flat plane is a ripple**, whatever colour
+they are painted in — and this move carried five of them at the boots. No
+intensity, colour or duration change could have answered that: **THE FIX IS
+SHAPE LANGUAGE**, which is the rule this project already carries for the hero
+machine's circle and the shuttle's wing edges.
+
+What replaced them is the game's own surface vocabulary — hard horizontals,
+verticals and 45-degree cuts:
+
+- **PLANT** — a flat bar under the sole that WIDENS as the suit loads, a hot
+  inner bar, and a chevron opening along the launch bearing so the plant already
+  says which way. Rising, not fading: the charge builds into the push-off.
+- **PUSH-OFF** — three long tight streaks back down the travel axis (kept from
+  `§10al`), **two nested stroked CHEVRONS** at the origin, and three **impulse
+  fragments**: hard little bars ejected at fixed bearings, travelling rather
+  than strobing.
+- **CATCH** — four hard brackets driving **IN** toward the boots and a white
+  deck bar that **COMPRESSES** under them, plus two flat sideways scuffs.
+  Converging is the whole point: **mass arriving is the opposite motion to
+  energy released**, and it is the one thing a spreading ring can never say.
+
+**A FILLED WEDGE WAS THE FIRST ATTEMPT AT THE PUSH-OFF AND IT PHOTOGRAPHED AS A
+BUBBLE.** 34 x 54 of translucent blue against his hip is a MASS beside the body;
+a chevron is two hard lines meeting at a point, has no interior to be mistaken
+for volume, and states a direction on its own.
+
+**THE ECHO WAS AN ADD-BLENDED `setTint`, WHICH IS NOT A SILHOUETTE.** A multiply
+tint under ADD keeps only the pixels that were already bright — his dome, his
+shoulder plates, his visor — so the stamp came out as a round luminous blob
+beside him with no outline at all. `setTintFill` on the NORMAL blend paints the
+sprite's own alpha mask flat: the outline survives exactly and nothing glows.
+It also puts a second clear stripe between this and the player dash, which is
+seventeen ADD ghosts GROWING 1.2x into a continuous trail.
+
+**`_bootY()` WAS MID-SHIN, AND THE SHEET SAYS SO.** The body is 28x30 at scale 4
+with a CENTRED origin, so the bottom edge is 0.5 of `displayHeight` below `y`
+and the boots are the last three of thirty rows — 0.40 to 0.50 below centre. It
+was 0.30. Every effect claiming to touch the deck was drawn 12-24px above it,
+which is why the catch read as something happening TO him rather than between
+him and the floor. It is 0.44, derived. **The catch was also the faintest beat
+of the heaviest moment** — 40px brackets under a 112px body — and is now scaled
+against `def.radius` rather than picked.
+
+### B. THE DEVICE HAD NO MIDDLE
+
+The Arc Grenade was two frames, inert and powered, and it flipped between them
+at a third of the arming time. So the field around it energised in five staged
+beats while **the thing supposedly powering it changed state once, binarily,
+inside a beat whose entire job is to be a build-up.**
+
+It is three authored frames now — **INERT -> CHARGING -> ARMED**, dim blue ->
+blue -> white-blue — climbed in step with the activation (frame 1 as the nodes
+are placed, frame 2 as the perimeter closes) and **stepped back DOWN the same
+ladder at shutdown**, because a machine shutting down and an effect ending are
+different claims. It is 15x15 rather than 13x13 so the four projector prongs can
+be real fittings: a stalk with shoulders and a 2x2 emitter head. **A bare
+diagonal run of single pixels is a stair-step and reads as an artefact.** The
+command band goes white only when he is armed, so the rank plate is part of the
+state rather than decoration on it.
+
+**THE FIELD GAINED CIRCULATION, AND IT IS THE ONLY DETERMINISTIC THING IN IT.**
+Everything that moved in the live field was a SNAP — a bolt that appeared
+somewhere and was gone 90ms later — and a machine that only ever flickers is a
+machine with a fault. Three short bright arcs now travel the perimeter at a
+constant rate, derived from ONE phase at fixed offsets so they are evenly spaced
+by construction, riding `this.radius` itself so the one moving element on the
+boundary cannot misreport where the boundary is. **They are ARCS, not dots**: a
+dot running a circle is a loading spinner, which is the UI read this field has
+already been pulled back from once.
+
+### C. INTENT IS A SECOND REGISTER, NOT A FIFTH REACTION
+
+`glyph-throw` — a hollow faceted casing with a charged cross core and four
+emitter studs, echoing the device's own four prongs, painted in the Captain's
+bone like the other four.
+
+The state language's rule survives intact and this is on the other side of it:
+
+> **SYMBOL = TRANSITION, BODY / FX = SUSTAINED STATE.**
+
+The four reaction glyphs say what HAPPENED TO HIM and are punctuation on
+something already resolved. This says what he is ABOUT TO DO. Three consequences
+follow and none of them is cosmetic:
+
+1. **It does not go through `_punctuate`.** The queue exists so two REACTIONS in
+   one frame do not become soup, and it does that by making the second WAIT —
+   `punctSpacingMs` behind an armour break would put the sign on screen after
+   the grenade had already left.
+2. **It is held, not timed.** Up the frame he commits, and cut — not faded — on
+   the frame `_throwGrenade` makes the device a real object. A fade would keep
+   the promise on screen after it had been kept.
+3. **It owns its own condition.** The `_tick` asks *am I still the commitment I
+   was raised for?* rather than trusting a clear-on-every-exit-path list, so a
+   stagger, a wall resolve, a room change or any future caller of `_enter` takes
+   it down by construction. Same shape as `CameraDirector._bossFramable`
+   refusing a cancelled handle.
+
+**IT IS NOT THE SPATIAL TELEGRAPH AND MAY NEVER BECOME ONE.** Where the grenade
+is going stays owned by the thrown device, its shadow, the landing mark and the
+field. The sign owns only the fact of the decision. **The "FOUR, AND NO MORE"
+rule is unchanged** — it always belonged to the reaction register, and this pass
+makes that explicit in `paintGrawlix` rather than raising the count to five.
+
+### VALIDATION
+
+`smoke-captain-closeout` — 25 checks, and it holds no opinion about whether any
+of this looks good; that is the handset gate.
+
+**The discriminating half is absence.** The three step methods are read out of
+the running module and checked for `fillCircle` and `strokeEllipse`, on the same
+rule that deleted the camera's `teleports` flag and the rifle's `_predict`: a
+shape that is supposed to be GONE is checked for by absence, never described in
+a comment. A/B against `f710abb` measured **2 filled circles and 3 expanding
+ellipses** in those three methods and a dash-cyan literal in the file; the
+worktree measures 0, 0 and none. The positive half asks for STROKES rather than
+fills — `strokePath` and `lineBetween` present, `fillStyle` absent from all
+three — because the first rebuild of the push-off used a filled wedge and had
+to be replaced.
+
+**ONE ADJACENT SUITE IS RED AND IT IS NOT THIS PASS.** `smoke-readability` fails
+`forcepull 0px/s drift 44px` against a 40px bound. Velocity is ZERO — he is
+planted, which is what the check is named for — and the drift is FORCE PULL
+doing what it exists to do while physics separates two bodies. A/B on the
+stashed tree measured the same failure, WORSE, at 55px. It is pre-existing,
+Vader is frozen, and **raising the threshold to make it green would be freezing
+a mistake into a passing check**, which is the `smoke-champion` error this
+project already carries one of. Left red and recorded.
+
+**THE PROSE HAD TO BE STRIPPED BEFORE THE CODE COULD BE GREPPED.** This file
+documents the shapes it removed and the negative reference it must not copy, BY
+NAME — so a check reading the raw text finds the very literals it is asserting
+are gone and fails on a correct build. Comments out, then grep.
+
+The rest: five glyphs, five distinct pixel sets; the sign raised on a real
+AI-driven commitment, present in no other state, gone the moment `_nade` exists,
+never in `_punctQueue`, holding its offset when the body is displaced 70px, and
+cleared by both an interrupted wind-up and a death; three device frames, all
+three used during arming; and the field's boundary re-measured against the
+authored radius at eight bearings.
+
+**THE SHUTDOWN LADDER IS DRIVEN, NOT OBSERVED.** `warnMs` is 520ms and this
+container has dropped under 6fps inside a full suite run, at which the whole
+beat is two frames and a correct build reports as a fading one — it failed
+exactly that way once. `_integrity` is a pure function of `age`, so the beat is
+addressable: put the object at the instant and step it once. Deterministic at
+any frame rate.
+
+### EVIDENCE — `docs/evidence/champion-reset/vc/`
+
+`shot-captain-step-fx.mjs` walks the four beats, **one fresh step per station**
+(the travel is 215ms against a ~12fps harness, so a rig that pauses and resumes
+through one step walks over the beat it was aiming at), each at 1x and as a
+crop: `20-plant`, `21-pushoff`, `22-travel`, `23-catch`, `24-READ-step-at-1x`.
+`shot-arcfield.mjs` walks the device's whole lifecycle plus `14b-field-
+circulation` and `19-intent-sign-windup`, which is **the only frame in the game
+where the promise and the man making it are on screen together**.
+
+**TWO RIG BUGS, BOTH THE SAME FAMILY.** `_reactFx` is ticked at the TOP of
+`preUpdate` and the state machine runs below it, so an effect spawned on the
+frame a beat BEGINS is not drawn until the next one — it exists, empty, for
+exactly one frame, and the first run photographed the push-off with no impulse
+behind him at all. And the impulse is drawn where he PUSHED OFF while he travels
+away from it, so a camera on the moving body walks the subject out of shot:
+frame the origin. Neither was a build fault.
+
+**AND ONE FALSE ALARM WORTH RECORDING.** A large soft cyan disc beside him in
+the push-off frames looked like the bubble this pass exists to remove. Hiding
+every one of the Captain's `_reactFx` and re-shooting the same paused frame left
+it exactly where it was: **it is the objective terminal's own marker**, and
+nothing to do with the step. Do not redesign an effect against a screenshot
+until the thing in it has been attributed.
+
+### NOT BUILT
+
+- **No gameplay value moved.** No hp, armour, Super resistance, rifle, movement,
+  range, step geometry or Arc Grenade gameplay change of any kind.
+- **No new abilities, no variants, no colourways, no Nemesis replacement**, and
+  normal Endless still spawns no Champion.
+- **No second intent sign.** The register exists and has exactly one member; a
+  vocabulary is built when a second move earns one, not in advance.
+- **No camera response on the step.** A punch or a flash on an enemy's
+  repositioning is gameplay-adjacent noise and nothing asked for it.
+- **Nothing is marked human-approved.** `§10al`-`§10an` are candidates.
 
 ## 12. CAMERA PHASE 1 — a camera that frames the game
 
