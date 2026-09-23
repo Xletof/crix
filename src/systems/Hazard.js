@@ -546,6 +546,15 @@ export class ArcGrenade {
     // lifecycle — the same claim `weaponSprite` makes about Vader's saber.
     this.body = scene.add.image(spec.x, spec.y, 'hz-arcnade', 0)
       .setDepth(2002);
+    // ── THE SOURCE'S OWN LIGHT, ABOVE THE SOURCE ──────────────────────────
+    // THE FIRST BLIPS WERE DRAWN INTO `edgeGfx`, WHICH SITS UNDER THE DEVICE.
+    // A core flash 11-15px across, centred on a 60px opaque sprite, was
+    // entirely hidden by the object that was supposed to be emitting it — the
+    // "light under a large prop" trap, in miniature, and it photographed as a
+    // device that changed frame and did nothing else. Everything the SOURCE
+    // says — the blips, the diagnostic tick, the prong fire — goes here.
+    this.coreGfx = scene.add.graphics().setDepth(2003)
+      .setBlendMode(Phaser.BlendModes.ADD);
   }
 
   /** World position of projector node `i`. ON the real radius, always. */
@@ -671,6 +680,7 @@ export class ArcGrenade {
     const ph = this.phase;
     this.floorGfx.clear();
     this.edgeGfx.clear();
+    this.coreGfx.clear();
 
     if (ph === 'flight') {
       this.airGfx.clear();
@@ -721,35 +731,54 @@ export class ArcGrenade {
       // legible before the hazard is live — the perimeter completes at 74% of
       // the arming time and `contains()` does not return true until 100%.
       const u = (this.age - this.flightMs) / this.armMs;
-      // 1. THE CORE ENERGISES, THROUGH A MIDDLE. Inert while it settles,
-      //    CHARGING as the nodes are placed, ARMED as the perimeter closes —
-      //    so the device's own three-frame ladder runs in step with the five
-      //    beats happening around it instead of flipping once at a third.
-      this.body.setFrame(u > 0.55 ? 2 : u > 0.18 ? 1 : 0);
+      // ── LAND. BLIP. (pause.) BLIP. ARMED. ────────────────────────────────
+      //
+      // THE DEVICE LOOKED DEAD AFTER LANDING, and the cause was the shape of
+      // its activation rather than its brightness: a frame ladder that climbed
+      // once and then HELD is a machine that did one thing and stopped. What a
+      // piece of electronics does when it comes online is DISCRETE — it
+      // checks, it waits, it confirms. So the device speaks twice, with a
+      // silence between, and the field is built only after the second word:
+      //
+      //   u 0.00-0.08  LAND     squash + three tiny contact sparks
+      //   u 0.08-0.17  BLIP 1   core to the CHARGING frame, a blue core flash
+      //   u 0.17-0.30  pause    back to INERT. The silence is the point.
+      //   u 0.30-0.40  BLIP 2   the ARMED frame, a brighter white-blue flash,
+      //                         and all four prongs fire — projector online
+      //   u 0.40-1.00  armed    held, while the nodes establish from it
+      //
+      // ALL OF IT IS INSIDE `armMs`. `contains()` reads `phase` alone, so none
+      // of this can move the moment the field becomes dangerous, and the
+      // perimeter still completes at 74% — legible before it is live.
+      const BLIP1 = u >= 0.08 && u < 0.17;
+      const BLIP2 = u >= 0.30 && u < 0.40;
+      this.body.setFrame(u >= 0.30 ? 2 : BLIP1 ? 1 : 0);
       // A small settle: it lands, is briefly squashed, and locks.
       this.body.setScale(1 + Math.max(0, 0.22 - u * 1.6), 1 - Math.max(0, 0.18 - u * 1.4));
-      this.edgeGfx.fillStyle(this.color, 0.10 + 0.3 * u);
-      this.edgeGfx.fillCircle(this.x, this.y, 9 + 7 * u);
-      // 2. THE NODES ESTABLISH, one at a time, clockwise from north — so the
-      //    player can watch the machine claim the ground rather than have a
-      //    circle appear around them.
-      const nodeT = Phaser.Math.Clamp((u - 0.18) / 0.42, 0, 1);
+      if (u < 0.08) this._contactSparks(u / 0.08);
+      // Reach is measured against the CASING (±20px at scale 4): blip 1 just
+      // clears it, blip 2 reaches well past — the second word is louder.
+      if (BLIP1) this._blip((u - 0.08) / 0.09, 0x3f8cff, 26, false);
+      if (BLIP2) this._blip((u - 0.30) / 0.10, 0xdcefff, 36, true);
+      // 2. THE NODES ESTABLISH, one at a time, clockwise from north — AFTER
+      //    the second blip, so they are placed BY an armed device: the
+      //    projector comes online and then projects.
+      const nodeT = Phaser.Math.Clamp((u - 0.40) / 0.26, 0, 1);
       const upTo = nodeT * this.nodes;
       for (let i = 0; i < this.nodes; i++) {
         const k = Phaser.Math.Clamp(upTo - i, 0, 1);
         if (k <= 0) continue;
         const n = this._node(i);
         // The projector beam that places it: centre to node, a straight line
-        // rather than a bolt, because this is the machine working correctly.
-        // The placing beam runs the whole way while the node is being PUT
-        // there — that is a machine working, not a graduation — and it is gone
-        // the moment the field is live.
+        // rather than a bolt, because this is the machine working correctly,
+        // and it is gone the moment the field is live.
         this.edgeGfx.lineStyle(1.5, this.color, 0.30 * k * (1 - k * 0.5));
         this.edgeGfx.lineBetween(this.x, this.y, n.x, n.y);
         this._drawNode(n, k, 1);
       }
       // 3. THE PERIMETER CLOSES between established nodes.
-      const perim = Phaser.Math.Clamp((u - 0.34) / 0.40, 0, 1);
+      // Starts behind the nodes and still completes at exactly 74%.
+      const perim = Phaser.Math.Clamp((u - 0.46) / 0.28, 0, 1);
       if (perim > 0) this._drawPerimeter(perim, 0.5 + 0.5 * perim, 1);
       // 4. THE CONNECTIONS FORM — the last beat, and the only random one.
       if (u > 0.78 && Math.random() < 0.5) {
@@ -817,7 +846,9 @@ export class ArcGrenade {
     // thing on the boundary cannot misreport where the boundary is. And they
     // are ARCS, not dots: a dot running a circle is a loading spinner, which is
     // the UI read this field has already been pulled back from once.
+    const prevPkt = this._pktT;
     this._pktT = (this._pktT + delta / 2600) % 1;
+    this._sourceLife(prevPkt, integ);
     for (let k = 0; k < 3; k++) {
       const turn = (this._pktT + k / 3) % 1;
       const a1 = this._nodeA + turn * Math.PI * 2;
@@ -858,6 +889,100 @@ export class ArcGrenade {
       // radius — the endpoints are on it and the middle is inside it.
       this._bolt(this.edgeGfx, a.x, a.y, b.x, b.y, 10, 2,
         c.from < 0 ? 0xffffff : this.color, 0.55 * integ * strobe);
+    }
+  }
+
+  /**
+   * ONE BLIP — a discrete electronic flash at the core. `u` runs 0 -> 1 over
+   * the blip's own window and the flash is a hard square-edged cross that
+   * snaps on and decays, never a breathing disc: a smooth pulse is a beacon or
+   * a pickup, and this is a machine confirming a state.
+   */
+  _blip(u, color, reach, prongs) {
+    const a = u < 0.25 ? 1 : 1 - (u - 0.25) / 0.75;
+    const g = this.coreGfx;
+    g.lineStyle(3, color, 0.9 * a);
+    g.lineBetween(this.x - reach, this.y, this.x + reach, this.y);
+    g.lineBetween(this.x, this.y - reach * 0.7, this.x, this.y + reach * 0.7);
+    g.fillStyle(0xffffff, 0.95 * a);
+    g.fillRect(this.x - 3, this.y - 3, 6, 6);
+    if (!prongs) return;
+    // BLIP 2 ONLY: the four prongs fire outward from their tips — the
+    // projector coming online, in the four directions the device is built to
+    // project in. Short, straight, and gone with the blip.
+    this._prongTips().forEach((t) => {
+      g.lineStyle(2, 0xdcefff, 0.9 * a);
+      g.lineBetween(t.x, t.y, t.x + t.dx * 10, t.y + t.dy * 10);
+    });
+  }
+
+  /** The four prong tips of the painted device, in world pixels. */
+  _prongTips() {
+    // 15x15 at scale 4, centred; the emitter heads are 6 px out on each
+    // diagonal. Read from the live sprite so a re-scale cannot strand them.
+    const s = (this.body?.displayWidth ?? 60) / 15;
+    return [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dy]) => ({
+      x: this.x + dx * 6 * s, y: this.y + dy * 6 * s,
+      dx: dx * Math.SQRT1_2, dy: dy * Math.SQRT1_2,
+    }));
+  }
+
+  /** Three tiny straight sparks off the deck at the moment of landing. */
+  _contactSparks(u) {
+    const g = this.edgeGfx;
+    const a = 1 - u;
+    [-2.4, -Math.PI / 2, -0.7].forEach((th, i) => {
+      const d0 = 24 + u * 16, d1 = d0 + 7;   // outside the ±20px casing, or it is under it
+      g.lineStyle(2, i === 1 ? 0xffffff : 0x9fc4ff, 0.9 * a);
+      g.lineBetween(this.x + Math.cos(th) * d0, this.y + Math.sin(th) * d0 * 0.6,
+        this.x + Math.cos(th) * d1, this.y + Math.sin(th) * d1 * 0.6);
+    });
+  }
+
+  /**
+   * ── THE SOURCE STAYS ALIVE, AND IT IS SYNCED TO THE FIELD IT POWERS ─────
+   *
+   * The armed frame alone is a lit object that never does anything. Two
+   * discrete behaviours make it the thing running the field, and both are
+   * DERIVED FROM THE CIRCULATION PHASE rather than from a clock of their own,
+   * so cause and effect cannot drift apart:
+   *
+   *   - A PRONG FIRES as a packet crosses the diagonal node its sector faces:
+   *     a short straight core->node transfer and a lit tip, ~70ms.
+   *   - THE CORE TICKS once as a packet crosses due north — three ticks a lap,
+   *     one every ~870ms. A diagnostic pulse, not a heartbeat: it is a sharp
+   *     on-and-decay square, and it is off for 90% of the time.
+   *
+   * Scaled by `integ`, so the source goes quiet with the field on the way
+   * down and the shutdown ladder is unchanged.
+   */
+  _sourceLife(prevPkt, integ) {
+    if (integ <= 0.14) return;
+    const g = this.coreGfx;
+    const tips = this._prongTips();
+    // Diagonal node i (1,3,5,7) faces prong: NE=1, SE=3, SW=5, NW=7.
+    const prongFor = { 1: 1, 3: 3, 5: 2, 7: 0 };
+    for (let k = 0; k < 3; k++) {
+      const turn = (this._pktT + k / 3) % 1;
+      const pos = turn * this.nodes;                 // in node units
+      const near = Math.round(pos) % this.nodes;
+      const dist = Math.abs(pos - Math.round(pos));  // 0 exactly on a node
+      if (dist > 0.22) continue;
+      const f = 1 - dist / 0.22;
+      if (near % 2 === 1) {
+        const t = tips[prongFor[near]];
+        const n = this._node(near);
+        g.lineStyle(2, 0xdcefff, 0.75 * f * integ);
+        g.lineBetween(t.x, t.y, t.x + (n.x - t.x) * 0.22, t.y + (n.y - t.y) * 0.22);
+        g.fillStyle(0xffffff, 0.95 * f * integ);
+        g.fillRect(t.x - 3, t.y - 3, 6, 6);
+      } else if (near === 0) {
+        g.lineStyle(2, 0xdcefff, 0.8 * f * integ);
+        g.lineBetween(this.x - 22, this.y, this.x + 22, this.y);
+        g.lineBetween(this.x, this.y - 15, this.x, this.y + 15);
+        g.fillStyle(0xffffff, 0.9 * f * integ);
+        g.fillRect(this.x - 3, this.y - 3, 6, 6);
+      }
     }
   }
 
@@ -924,12 +1049,13 @@ export class ArcGrenade {
     this.edgeGfx?.destroy();
     this.shadowGfx?.destroy();
     this.airGfx?.destroy();
+    this.coreGfx?.destroy();
     // THE DEVICE GOES WITH THE FIELD. It is an Image rather than a Graphics and
     // is therefore the one thing here that would survive a sweep that only
     // remembered the four Graphics — the same shape as a `postupdate` handler
     // closed over a dead boss.
     this.body?.destroy();
-    this.floorGfx = this.edgeGfx = this.shadowGfx = this.airGfx = null;
+    this.floorGfx = this.edgeGfx = this.shadowGfx = this.airGfx = this.coreGfx = null;
     this.body = null;
   }
 }

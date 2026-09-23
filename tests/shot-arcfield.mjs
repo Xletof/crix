@@ -111,6 +111,37 @@ const station = async (name, expr, w) => {
   await shot(name, w);
 };
 const armU = '(n.age - n.flightMs) / n.armMs';
+
+// ── THE BLIP SEQUENCE, ADDRESSED ON THE OBJECT'S OWN CLOCK ─────────────────
+// Each blip is ~47-52ms and this harness runs near 12fps, so polling for one
+// is a coin flip per frame. `_draw` is a pure function of `age`, so the rig
+// PUTS the grenade at the instant and steps it once: the drawing is the real
+// code path, only the moment is chosen. Same idiom as the shutdown ladder.
+const at = async (name, u, flight = false) => {
+  await resume();
+  await throwOne();
+  await page.evaluate(({ uu, fl }) => {
+    const gs = window.game.scene.getScene('Game');
+    const n = window.__nade;
+    n.age = fl ? n.flightMs * uu : n.flightMs + n.armMs * uu;
+    n.update(1);
+    const cam = gs.cameras.main;
+    cam.stopFollow(); cam.centerOn(n.x, fl ? n.y - 120 : n.y); cam.resetFX();
+    gs._sectorTint?.setAlpha(0);
+    window.game.scene.getScene('HUD')?.hud?.banner?.setAlpha(0);
+    gs.scene.pause();
+  }, { uu: u, fl: flight });
+  await page.waitForTimeout(250);
+  await shot(name, 300);
+};
+console.log('the device coming online:');
+await at('40-release', 0.06, true);
+await at('41-land', 0.04);
+await at('42-BLIP-1', 0.11);
+await at('43-pause', 0.24);
+await at('44-BLIP-2', 0.33);
+await at('45-field-establishing', 0.62);
+
 await station('10-device-in-flight', "n.phase === 'flight' && n.age > n.flightMs * 0.4");
 await station('11-landed-core-powers-up', `n.phase === 'arm' && ${armU} < 0.34`);
 await station('12-nodes-establish', `n.phase === 'arm' && ${armU} > 0.38 && ${armU} < 0.7`);
@@ -122,6 +153,11 @@ await shot('14-field-active-wide', 620);
 // cannot show it — the pair is the evidence, and the three packets must be at
 // three different places on the fence between them.
 await station('14b-field-circulation', "n.phase === 'field' && n._fieldAge > 1150");
+// THE SOURCE MID-TICK: the frame a packet crosses due north, which is the
+// instant the core's diagnostic pulse fires. Found from the circulation phase
+// itself, so the photograph is of the synchronisation rather than near it.
+await station('46-live-source-tick', "n.phase === 'field' && n._fieldAge > 300 && [0, 1/3, 2/3].some((o) => { const p = ((n._pktT + o) % 1) * 8; return Math.abs(p - Math.round(p)) < 0.07 && Math.round(p) % 8 === 0; })");
+await station('47-live-source-prong', "n.phase === 'field' && n._fieldAge > 300 && [0, 1/3, 2/3].some((o) => { const p = ((n._pktT + o) % 1) * 8; return Math.abs(p - Math.round(p)) < 0.07 && Math.round(p) % 2 === 1; })");
 
 // THE PLAYER INSIDE IT, AND THE PLAYER ON THE EDGE — §27/§28. The edge frame
 // is the one that has to show the painted boundary agreeing with `contains`.
@@ -166,8 +202,11 @@ await page.evaluate(async () => {
   const c = gs.spawnChampion(640, 700, 'captain');
   c.die = () => { c.hp = Math.max(c.hp, 600); };
   window.__cap = c;
-  gs.spawnEnemyAt?.(900, 820, 'shooter');
-  gs.spawnEnemyAt?.(520, 900, 'grunt');
+  // TYPE FIRST: `spawnEnemyAt(type, x, y)`. This used to pass (x, y, type),
+  // which spawned no shooter and no grunt, so the §26 frame was never the
+  // crowd it claimed to be.
+  gs.spawnEnemyAt('shooter', 900, 820);
+  gs.spawnEnemyAt('grunt', 520, 900);
   await new Promise((r) => setTimeout(r, 400));
   c.armour = 40; c.damage(80, { x: 0, y: -300 });
 });

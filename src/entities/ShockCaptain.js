@@ -1213,7 +1213,12 @@ export class ShockCaptain extends Enemy {
     this._wantPostBurstStep = false;
     this._blockedMs = 0;
     this._stepEchoT = 0;
+    this._stepEchoed = false;
     const ang = Math.atan2(dest.y - this.y, dest.x - this.x);
+    // PRESENTATION ONLY: the catch lays its deck bar ACROSS the travel and
+    // throws its sparks along it, so it has to know which way he was going
+    // after the velocity has been switched off. Nothing gameplay reads this.
+    this._stepAng = ang;
     const speed = dest.reach / (d.travelMs / 1000);
     this._stepVx = Math.cos(ang) * speed;
     this._stepVy = Math.sin(ang) * speed;
@@ -1247,15 +1252,29 @@ export class ShockCaptain extends Enemy {
   }
 
   /**
-   * PRELOAD — a short blue-white charge across the pack and the launching side,
-   * drawn for the length of the plant.
+   * ── THE STEP'S OWN PALETTE — COBALT HARDWARE, NOT DASH CYAN ──────────────
    *
-   * POWERED ARMOUR ASSISTING A SIDESTEP, not a magic dash charging. It is
-   * short, it is small, and it is gone by the time he is moving: a preload the
-   * player has time to admire is a wind-up, and this is footwork.
+   * The player's dash is `0x60ecff`/`0x80f0ff`: pale, luminous CYAN. The
+   * Captain's `def.color` (`0x4fc3ff`) sits close enough to it that a step
+   * painted in it reads as the same technology in peripheral vision, so the
+   * step does not use it. DEEP COBALT for mass, a brighter blue for edges, and
+   * a white-blue peak rationed to the one thing on each beat that is hottest.
+   */
+  static get STEP_FX() {
+    return { cobalt: 0x2f5fe8, blue: 0x5f9bff, peak: 0xe6f0ff, deck: 0x9aa6b8 };
+  }
+
+  /**
+   * PRELOAD — the plant. Straight lines only, and it RISES into the launch.
+   *
+   * POWERED ARMOUR LOADING, not a magic dash charging: short, small, gone by
+   * the time he moves. One electrical crack across the pack, a flat bar under
+   * the sole taking the load, and a chevron opening along the launch bearing
+   * so the plant already says which way.
    */
   _stepPreload(ang) {
     if (!this.scene?.add) return;
+    const C = ShockCaptain.STEP_FX;
     const g = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
     this._reactFx.push(g);
     const started = this._clock;
@@ -1266,232 +1285,259 @@ export class ShockCaptain extends Enemy {
       if (u >= 1 || !this.alive) { this._dropFx(g); g.destroy(); return; }
       g.clear();
       g.setDepth(this.y + 2);
-      // Rising, not fading: the charge builds into the push-off.
-      const a = 0.25 + u * 0.55;
+      const a = 0.3 + u * 0.6;                      // rising, not fading
       const r = this.def.radius * 0.72;
-      // Two short bars on the pack, and a brightening point at the launch foot.
-      for (let i = -1; i <= 1; i += 2) {
-        const th = back + i * 0.55;
-        this._bolt(g, this.x + Math.cos(th) * r * 0.6, this.y + Math.sin(th) * r * 0.6 - 6,
-          this.x + Math.cos(th) * r, this.y + Math.sin(th) * r - 6,
-          3, 2, this.def.color, a);
-      }
-      // ── THE SUIT LOADING AGAINST THE DECK — STRAIGHT LINES ONLY ────────
-      // WHAT WAS HERE: two concentric FILLED CIRCLES swelling at the boot. A
-      // soft round blue blob growing at a point is a DROPLET, and together
-      // with the thrust's expanding ring and the catch's two expanding rings
-      // this move carried THREE spreading round shapes at the feet — which is
-      // exactly the "water drop / splash" the handset named.
-      // A brace is straight. A flat bar under the sole takes the load and a
-      // chevron opens the way he is about to go: 45-degree cuts and hard
-      // horizontals, which is the surface vocabulary the rest of CRIX speaks.
+      // ONE CRACK ACROSS THE PACK — a hard two-segment zig, not a jittered
+      // polyline: a random scribble on a body is the rejected field's language.
+      const px0 = this.x + Math.cos(back) * r * 0.55, py0 = this.y - 8;
+      const nx = -Math.sin(back), ny = Math.cos(back);
+      g.lineStyle(2, C.peak, a);
+      g.beginPath();
+      g.moveTo(px0 - nx * 9, py0 - ny * 4);
+      g.lineTo(px0 + Math.cos(back) * 5, py0 - 3);
+      g.lineTo(px0 + nx * 9, py0 + ny * 4);
+      g.strokePath();
+      // THE SOLE TAKING THE LOAD.
       const fx0 = this.x + Math.cos(back) * r * 0.8;
       const fy0 = this._bootY() + Math.sin(back) * r * 0.35;
-      const bw = 8 + u * 16;
-      g.lineStyle(3, this.def.color, a * 0.85);
+      const bw = 8 + u * 14;
+      g.lineStyle(3, C.cobalt, a * 0.9);
       g.lineBetween(fx0 - bw, fy0, fx0 + bw, fy0);
-      g.lineStyle(2, 0xffffff, a);
+      g.lineStyle(2, C.peak, a);
       g.lineBetween(fx0 - bw * 0.45, fy0 - 2, fx0 + bw * 0.45, fy0 - 2);
-      // The chevron points where the impulse is going, so the PLANT already
-      // says which way — the load and the launch are one gesture.
+      // THE CHEVRON — the load and the launch are one gesture.
       const cx = this.x + Math.cos(ang) * (18 + u * 10);
       const cy = this._bootY() + Math.sin(ang) * (9 + u * 5);
-      const nx = -Math.sin(ang), ny = Math.cos(ang) * 0.5;
+      const cnx = -Math.sin(ang), cny = Math.cos(ang) * 0.5;
+      g.lineStyle(2, C.blue, a * 0.85);
       for (const sgn of [-1, 1]) {
-        g.lineStyle(2, this.def.color, a * 0.8);
         g.lineBetween(cx, cy,
-          cx - Math.cos(ang) * 11 + sgn * nx * 8,
-          cy - Math.sin(ang) * 5.5 + sgn * ny * 8);
+          cx - Math.cos(ang) * 11 + sgn * cnx * 8,
+          cy - Math.sin(ang) * 5.5 + sgn * cny * 8);
       }
     };
   }
 
   /**
-   * THE CATCH — deck impact where he lands, and the body compresses into it.
+   * ── THE CATCH: ONE BAR, A FEW SPARKS, A BOOT FLASH. TOK. ──────────────────
    *
-   * A 200px displacement that ends by switching the velocity off is the floaty
-   * read this whole pass exists to remove. The `land` frame does the body half;
-   * this is the deck half — a low, flat ring and a few sparks at the boots, so
-   * the stop has a place as well as a pose. Flat and wide on purpose: a tall
-   * bloom here would be a landing effect from a different game.
+   * WHAT WAS REJECTED, AND WHY IT WAS NOT A COLOUR PROBLEM. The v2 catch drew
+   * FOUR diagonal brackets converging on the boots, TWO stacked deck bars, TWO
+   * sideways scuffs and a five-spark `burstDir` fan straight up — eight marks
+   * arranged symmetrically around a point under the body. On a handset that is
+   * the silhouette of a GROUND SLAM: Vader's crush, the Riven melee's floor
+   * crack, an ability going off underneath him. Recolouring it would have
+   * left the same shape saying the same thing.
+   *
+   * THE BODY DOES THE WORK. The `land` frame is the catch; the deck only has
+   * to agree that weight arrived. So:
+   *
+   *   1. ONE DECK CONTACT BAR, laid ACROSS the travel (perpendicular to it on
+   *      the deck plane) at the leading boot. It is SHORTENED, never widened:
+   *      a line that grows from a point is a shockwave.
+   *   2. THREE TINY ANGULAR SPARKS kicked FORWARD along the travel — momentum
+   *      carrying on past the stop, which is the one direction a slam cannot
+   *      throw anything. Fixed bearings, straight segments, no particles.
+   *   3. A BOOT FLASH: a small hard rectangle at the contact point for the
+   *      first third of the beat. Rectangular because it is a sole on a deck.
+   *
+   * No brackets, no rings, no arcs, no radial fan, no `burstDir`, no `_bolt`.
    */
   _stepCatchFx() {
-    const fx = this.scene.fx;
-    fx?.burstDir?.(this.x, this._bootY(), 'white', 5, Math.PI / 2, 80);
     if (!this.scene?.add) return;
+    const C = ShockCaptain.STEP_FX;
     const g = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
     this._reactFx.push(g);
     const started = this._clock;
-    const MS = this.def.step.catchMs + 80;
-    const ox = this.x, oy = this._bootY();
+    const MS = this.def.step.catchMs + 60;
+    const ang = this._stepAng ?? 0;
+    const tx = Math.cos(ang), ty = Math.sin(ang) * 0.5;        // travel, on the deck
+    // ACROSS THE TRAVEL, FORESHORTENED LIKE EVERY OTHER DECK MARK. Unit on
+    // screen for the direction, but the LENGTH keeps the deck's 0.5 squash:
+    // a sideways step's bar is N-S on the floor and must come out half as long
+    // on screen as a forward step's E-W one. The first build normalised the
+    // squash away and a lateral step laid a full-height vertical line straight
+    // down over his legs, which photographed as a strap, not a floor.
+    const qx = -Math.sin(ang), qy = Math.cos(ang) * 0.5;
+    const qn = Math.hypot(qx, qy) || 1;
+    const ux = qx / qn, uy = qy / qn;
+    const R = this.def.radius;
+    // AT THE FRONT EDGE OF THE LEADING BOOT, clear of the legs — the place the
+    // sole actually bit into the deck, not the centre of the body above it.
+    const ox = this.x + tx * R * 1.05, oy = this._bootY() + ty * R * 1.05;
     g._tick = () => {
       const u = (this._clock - started) / MS;
       if (u >= 1 || !this.alive) { this._dropFx(g); g.destroy(); return; }
       g.clear();
       g.setDepth(oy - 4);
-      const a = (1 - u) * 0.85;
-      // ── THE CATCH CONVERGES. IT DOES NOT SPREAD ───────────────────────
-      // WHAT WAS HERE: two nested ellipses opening from r=26 to r=60 under his
-      // boots. Concentric rings expanding from a point of contact on a flat
-      // plane is the canonical picture of something DROPPED INTO WATER — the
-      // third and the worst of this move's three round shapes.
-      // MASS ARRIVING IS THE OPPOSITE MOTION. Four hard brackets drive IN
-      // toward the boots and the deck bar COMPRESSES under them, so the beat
-      // reads as weight being received rather than as energy being released.
-      // THE HEAVIEST BEAT MUST NOT BE THE FAINTEST, and the first build of it
-      // was: 40px brackets and a 30px bar under a 112px body photographed as a
-      // few stray pixels at his shins. Scaled against the BODY rather than
-      // picked, the same mistake the B.2.2 damage marks made at r=6.
-      const k = 1 - u;                              // 1 at contact, 0 at rest
-      const R = this.def.radius;                    // 28 — the body is Ø56
-      for (let i = 0; i < 4; i++) {
-        const th = Math.PI / 4 + (i * Math.PI) / 2;
-        const far = R * (0.8 + k * 2.4), near = R * (0.35 + k * 0.6);
-        g.lineStyle(4, this.def.color, a);
-        g.lineBetween(ox + Math.cos(th) * far, oy + Math.sin(th) * far * 0.42,
-          ox + Math.cos(th) * near, oy + Math.sin(th) * near * 0.42);
+      const a = 1 - u;
+      // 1. THE DECK BAR — across the travel, shortening as the weight settles.
+      const half = R * 0.85 * qn * (1 - u * 0.4);
+      g.lineStyle(4, C.cobalt, a * 0.9);
+      g.lineBetween(ox - ux * half, oy - uy * half, ox + ux * half, oy + uy * half);
+      g.lineStyle(2, C.peak, a);
+      g.lineBetween(ox - ux * half * 0.6, oy - uy * half * 0.6 - 1,
+        ox + ux * half * 0.6, oy + uy * half * 0.6 - 1);
+      // 2. THREE SPARKS, FORWARD. Short straight segments at fixed bearings
+      //    off the travel axis, flying on and shrinking.
+      for (let k = 0; k < 3; k++) {
+        const off = (k - 1) * 0.42;
+        const cs = Math.cos(ang + off), sn = Math.sin(ang + off) * 0.5;
+        const d0 = R * 0.5 + u * R * 1.3 + k * 3;
+        const seg = 7 * (1 - u) + 2;
+        g.lineStyle(2, k === 1 ? C.peak : C.deck, a * 0.9);
+        g.lineBetween(ox + cs * d0, oy + sn * d0 - 2,
+          ox + cs * (d0 + seg), oy + sn * (d0 + seg) - 2 - k % 2);
       }
-      // THE DECK BAR. Starts wide and CLOSES — the floor taking his weight,
-      // which is the one motion a spreading ring can never say.
-      const half = R * (0.7 + k * 1.7);
-      g.lineStyle(5, 0xffffff, a * 0.95);
-      g.lineBetween(ox - half, oy, ox + half, oy);
-      g.lineStyle(3, this.def.color, a * 0.75);
-      g.lineBetween(ox - half * 1.45, oy + 4, ox + half * 1.45, oy + 4);
-      // Two flat scuffs kicked sideways out of the landing. Hard, short and
-      // low: the deck answers without anything leaving a round mark on it.
-      for (const sgn of [-1, 1]) {
-        const s0 = half * 0.9, s1 = s0 + 10 + u * 20;
-        g.lineStyle(2, 0xffffff, a * 0.6);
-        g.lineBetween(ox + sgn * s0, oy - 1, ox + sgn * s1, oy - 3);
+      // 3. THE BOOT FLASH — only in the first third, and it is a rectangle.
+      if (u < 0.34) {
+        const f = 1 - u / 0.34;
+        g.fillStyle(C.peak, 0.85 * f);
+        g.fillRect(ox - 7, oy - 3, 14, 4);
       }
     };
   }
 
   /**
-   * A RESTRAINED SILHOUETTE ECHO — TWO, AND THEY ARE GONE IN 130ms.
+   * ONE BROKEN SILHOUETTE ECHO — the place he launched from, in two pieces.
    *
-   * THE HARROWER IS THE NEGATIVE REFERENCE (§6). A persistent trail is what
-   * made a body read as a craft gliding, so this is deliberately not one: two
-   * discrete stamps of his own frame at the positions he actually occupied,
-   * each dying fast, with nothing joining them. They say "he was there a moment
-   * ago"; they must never say "he is sliding".
+   * THE HARROWER AND THE PLAYER DASH ARE BOTH NEGATIVE REFERENCES. A
+   * persistent trail says "sliding" and seventeen growing ghosts say "the
+   * player's dash". This is ONE stamp of his own frame at the spot he actually
+   * left, CUT into two horizontal bands — helmet and shoulders, then legs —
+   * with the waist missing and the legs lagging a few pixels behind. A
+   * segmented silhouette is hardware; a whole one is a ghost.
+   *
+   * `setTintFill` on the NORMAL blend, because an ADD-blended `setTint` keeps
+   * only the already-bright pixels and came out as a round luminous blob with
+   * no outline — measured twice.
    */
   _stepEcho() {
     if (!this.scene?.add || !this.texture) return;
-    const img = this.scene.add.image(this.x, this.y, this.texture.key, this.frame.name)
-      .setDepth(this.y - 3)
-      .setScale(this.scaleX, this.scaleY)
-      .setFlipX(this.flipX)
-      // ── A FLAT SILHOUETTE, NOT A GLOW ────────────────────────────────
-      // IT WAS AN ADD-BLENDED `setTint`, AND THAT IS NOT A SILHOUETTE. A
-      // multiply tint under ADD keeps only the pixels that were already bright
-      // — his dome, his shoulder plates and his visor — so the stamp came out
-      // as a ROUND LUMINOUS BLOB hanging beside him with no outline at all,
-      // and at 1x it read as a bubble rather than as a place he had been.
-      // Photographed, twice.
-      //
-      // `setTintFill` on the NORMAL blend paints the sprite's own alpha mask
-      // in one flat colour: the OUTLINE survives exactly, the interior does
-      // not compete, and nothing glows. It also puts a second clear stripe
-      // between this and the player dash, which is seventeen ADD-blended
-      // ghosts GROWING 1.2x into a continuous trail — the negative reference
-      // this move is measured against.
-      .setTintFill(0x2f7fb8)
-      .setAlpha(0.40);
-    this._reactFx.push(img);
-    const started = this._clock;
-    img._tick = () => {
-      const u = (this._clock - started) / 130;
-      if (u >= 1 || !this.alive) { this._dropFx(img); img.destroy(); return; }
-      img.setAlpha(0.40 * (1 - u));
+    const C = ShockCaptain.STEP_FX;
+    const fw = this.frame.width, fh = this.frame.height;
+    const back = (this._stepAng ?? 0) + Math.PI;
+    const bands = [
+      { y0: 0, y1: Math.round(fh * 0.46), lag: 0, a: 0.45 },
+      { y0: Math.round(fh * 0.58), y1: fh, lag: 7, a: 0.34 },
+    ];
+    for (const b of bands) {
+      const img = this.scene.add.image(
+        this.x + Math.cos(back) * b.lag, this.y + Math.sin(back) * b.lag * 0.5,
+        this.texture.key, this.frame.name)
+        .setDepth(this.y - 3)
+        .setScale(this.scaleX, this.scaleY)
+        .setFlipX(this.flipX)
+        .setCrop(0, b.y0, fw, b.y1 - b.y0)
+        .setTintFill(C.cobalt)
+        .setAlpha(b.a);
+      this._reactFx.push(img);
+      const started = this._clock;
+      img._tick = () => {
+        const u = (this._clock - started) / 150;
+        if (u >= 1 || !this.alive) { this._dropFx(img); img.destroy(); return; }
+        img.setAlpha(b.a * (1 - u));
+      };
+    }
+  }
+
+  /**
+   * ── THE BODY STREAK — THE MOVEMENT ITSELF IS THE HERO ────────────────────
+   *
+   * v2's launch, travel and catch were three separate effects in three
+   * places, which is "several small FX around his feet". This is the piece
+   * that joins them: TWO RIGID SEGMENTED BARS, at shoulder and at knee, drawn
+   * every frame from the body's LIVE position back toward the launch point.
+   * They are attached to him, so they travel with the displacement; their
+   * tail never passes the origin, so they cannot become a ribbon; and they are
+   * dashed into hard segments, so they read as armour edges smearing under a
+   * violent impulse rather than as light.
+   *
+   * Gone ~70ms after the travel ends. The catch owns the stop.
+   */
+  _stepStreak() {
+    if (!this.scene?.add) return;
+    const C = ShockCaptain.STEP_FX;
+    const g = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    this._reactFx.push(g);
+    const from = this._stepFrom ? { ...this._stepFrom } : { x: this.x, y: this.y };
+    const ang = this._stepAng ?? 0;
+    const back = ang + Math.PI;
+    const d = this.def.step;
+    let endAt = null;
+    g._tick = () => {
+      if (!this.alive) { this._dropFx(g); g.destroy(); return; }
+      const travelling = this._cap === CAP.STEP && this._stepPlantMs <= 0
+        && this._stateMs > d.catchMs;
+      if (!travelling && endAt == null) endAt = this._clock;
+      const fade = endAt == null ? 1 : 1 - (this._clock - endAt) / 70;
+      if (fade <= 0) { this._dropFx(g); g.destroy(); return; }
+      g.clear();
+      g.setDepth(this.y - 1);
+      // Never longer than the ground actually covered, and capped so the
+      // streak is a signature, not a trail.
+      const covered = Math.hypot(this.x - from.x, this.y - from.y);
+      const len = Math.min(covered, 118) * (endAt == null ? 1 : fade);
+      if (len < 6) return;
+      const H = this.displayHeight || 120;
+      for (const lane of [{ dy: -H * 0.16, w: 3, c: C.blue }, { dy: H * 0.28, w: 2, c: C.cobalt }]) {
+        // Hard segments, 14px on and 6px off, walking back from the body.
+        for (let s = 10; s < len; s += 20) {
+          const s1 = Math.min(len, s + 14);
+          const k = 1 - s / len;                   // brightest at the body
+          g.lineStyle(lane.w, lane.c, 0.85 * k * fade);
+          g.lineBetween(this.x + Math.cos(back) * s, this.y + lane.dy + Math.sin(back) * s * 0.5,
+            this.x + Math.cos(back) * s1, this.y + lane.dy + Math.sin(back) * s1 * 0.5);
+        }
+      }
+      // One white-blue edge at the leading end of the upper lane.
+      g.lineStyle(2, C.peak, 0.9 * fade);
+      g.lineBetween(this.x + Math.cos(back) * 10, this.y - H * 0.16 + Math.sin(back) * 5,
+        this.x + Math.cos(back) * 24, this.y - H * 0.16 + Math.sin(back) * 12);
     };
   }
 
   /**
-   * THE IMPULSE, AND IT COMES OUT OF THE PACK AND THE BOOTS.
+   * THE IMPULSE, LEFT BEHIND AT THE ORIGIN — rigid, and it stays put.
    *
-   * Drawn opposite the travel, so the thrust reads as the thing that caused
-   * the movement rather than as a trail following it. His own blue: this is
-   * the same equipment the visor, the bolt and the grenade are painted in, and
-   * an assisted step should look assisted.
+   * Three STRAIGHT streaks down the travel axis and one double chevron. v2's
+   * streaks were `_bolt` polylines — jittered, which is the scribble register
+   * — and three impulse fragments on top: another handful of small marks at
+   * the feet. What is left is the minimum that says "force left from here":
+   * rigid lines and one vertex pointing back the way he came.
    */
   _stepThrust(ang) {
-    const fx = this.scene.fx;
-    const back = ang + Math.PI;
-    fx?.burstDir?.(this.x + Math.cos(back) * 10, this.y + Math.sin(back) * 10 + 6,
-      'white', 5, back, 120);
     if (!this.scene?.add) return;
+    const C = ShockCaptain.STEP_FX;
+    const back = ang + Math.PI;
     const g = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
     g.setDepth(this.y - 2);
     this._reactFx.push(g);
     const started = this._clock;
-    const MS = 240;
-    // THE DECK HE PUSHED OFF, not the air beside his waist.
+    const MS = 220;
     const ox = this.x, oy = this._bootY();
     g._tick = () => {
       const u = (this._clock - started) / MS;
       if (u >= 1 || !this.alive) { this._dropFx(g); g.destroy(); return; }
       g.clear();
-      g.setDepth(this.y - 2);
-      const a = (1 - u) * 0.9;
-      // A short cone of thrust at the ORIGIN, which stays put — the body
-      // leaves it behind, which is what says he pushed off from there. FIVE
-      // strands over 200px rather than three over 150: the displacement class
-      // went up and an impulse that did not go with it reads as the same small
-      // shove producing a longer slide, which is the Harrower again.
-      // ── DIRECTIONAL, NOT RADIAL ─────────────────────────────────────
-      // THE CAPTAIN ALREADY WEARS A 96px CYAN CIRCLE — the threat ring — so
-      // ANYTHING blue, round and near him merges into it and reads as a bubble.
-      // The first build spread five strands over ±0.26 rad and photographed as
-      // exactly that. These are three LONG, TIGHT streaks straight back down
-      // the travel axis: a shape the threat ring cannot be confused with, and
-      // the only shape that says which way he went.
+      g.setDepth(oy - 2);
+      const a = (1 - u) * 0.95;
       for (let i = 0; i < 3; i++) {
-        const th = back + (i - 1) * 0.11;
-        const len = (78 - Math.abs(i - 1) * 22) + u * 30;
-        this._bolt(g, ox + Math.cos(back) * 12, oy + Math.sin(back) * 6,
-          ox + Math.cos(th) * len, oy + Math.sin(th) * len * 0.5,
-          6, i === 1 ? 4 : 2, i === 1 ? 0xffffff : this.def.color, a);
+        const th = back + (i - 1) * 0.10;
+        const l0 = 14, l1 = (74 - Math.abs(i - 1) * 22) + u * 26;
+        g.lineStyle(i === 1 ? 4 : 2, i === 1 ? C.peak : C.cobalt, a);
+        g.lineBetween(ox + Math.cos(th) * l0, oy + Math.sin(th) * l0 * 0.5,
+          ox + Math.cos(th) * l1, oy + Math.sin(th) * l1 * 0.5);
       }
-      // ── A WEDGE AND FRAGMENTS, NEVER AN EXPANDING RING ────────────────
-      // WHAT WAS HERE: a 100px ellipse opening to 150 at the launch foot. An
-      // expanding ring spreading from a point on a flat plane is a RIPPLE
-      // whatever colour it is painted in, and it was the loudest of the three
-      // round shapes this move used to put on the deck.
-      // TWO NESTED CHEVRONS pointing back down the travel axis: the same claim
-      // — force left from here — said in STROKES.
-      //
-      // A FILLED WEDGE WAS THE FIRST ATTEMPT AND IT PHOTOGRAPHED AS A BUBBLE.
-      // 34 x 54 of translucent blue sitting against his hip is a MASS beside
-      // the body, and he already wears a cyan ring, so the two merged and the
-      // impulse read as a shield rather than as a shove. A chevron cannot: it
-      // is two hard lines meeting at a point, it has no interior to be mistaken
-      // for volume, and its vertex states a direction on its own.
       const bx = -Math.sin(back), by = Math.cos(back) * 0.5;
       const wx = ox + Math.cos(back) * 8, wy = oy + Math.sin(back) * 4;
-      for (let v = 0; v < 2; v++) {
-        const wl = (30 + v * 24) * (1 + u * 0.5), ww = (13 + v * 10);
-        const tipX = wx + Math.cos(back) * wl, tipY = wy + Math.sin(back) * wl * 0.5;
-        g.lineStyle(v ? 2 : 3, v ? this.def.color : 0xffffff, a * (v ? 0.55 : 0.85));
-        g.beginPath();
-        g.moveTo(wx + bx * ww, wy + by * ww);
-        g.lineTo(tipX, tipY);
-        g.lineTo(wx - bx * ww, wy - by * ww);
-        g.strokePath();
-      }
-      // IMPULSE FRAGMENTS — three hard little bars ejected out of the push-off
-      // at FIXED bearings, so they travel rather than strobe. Discrete pieces
-      // of spent energy: nothing here is round and nothing spreads outward as
-      // a boundary.
-      for (let k = 0; k < 3; k++) {
-        const th = back + (k - 1) * 0.34;
-        const d0 = 30 + k * 8 + u * 88;
-        const seg = 12 * (1 - u);
-        g.lineStyle(k === 1 ? 3 : 2, k === 1 ? 0xffffff : this.def.color, a * 0.7);
-        g.lineBetween(ox + Math.cos(th) * d0, oy + Math.sin(th) * d0 * 0.5,
-          ox + Math.cos(th) * (d0 + seg), oy + Math.sin(th) * (d0 + seg) * 0.5);
-      }
+      const wl = 34 * (1 + u * 0.4), ww = 16;
+      g.lineStyle(3, C.blue, a * 0.8);
+      g.beginPath();
+      g.moveTo(wx + bx * ww, wy + by * ww);
+      g.lineTo(wx + Math.cos(back) * wl, wy + Math.sin(back) * wl * 0.5);
+      g.lineTo(wx - bx * ww, wy - by * ww);
+      g.strokePath();
     };
   }
 
@@ -1662,11 +1708,15 @@ export class ShockCaptain extends Enemy {
           // still underneath and a destination check that was wrong costs a
           // short stop rather than a body inside a console.
           this.setVelocity(this._stepVx, this._stepVy);
-          // TWO ECHOES ACROSS THE WHOLE TRAVEL, never a continuous trail.
+          // ONE BROKEN ECHO, AT THE FIRST FRAME OF TRAVEL, and the rigid body
+          // streaks for the rest of it. The player's dash is a CONTINUOUS
+          // trail of seventeen growing ghosts; the Captain leaves one hard
+          // mechanical signature and it is attached to where he actually was.
           this._stepEchoT -= delta;
-          if (this._stepEchoT <= 0) {
-            this._stepEchoT = d.travelMs / 2;
+          if (this._stepEchoT <= 0 && !this._stepEchoed) {
+            this._stepEchoed = true;
             this._stepEcho();
+            this._stepStreak();
           }
         } else {
           // THE CATCH. The body is stopped and the legs absorb it — this is a

@@ -226,7 +226,21 @@ spawns the Captain; DEBUG carries four triggers — BIG HIT / BREAK / LOW HEALTH
 drive the real `damage()` path, and CHAMP: GRENADE clears the cooldown and lets
 the real AI decide.
 
-**THE VISUAL CLOSEOUT IS THE CURRENT CANDIDATE — `§10an`.** Three presentation
+**THE FINAL VISUAL CLOSEOUT IS THE CURRENT CANDIDATE — `§10ao`.** Handset play
+approved the direction and named three remaining visual issues; this pass
+fixes exactly those. TACTICAL STEP v3 — the rejected slam-shaped catch (four
+converging brackets, doubled bars, a radial spark fan) is gone, replaced by one
+deck bar at the leading boot, forward sparks and a boot flash, and rigid dashed
+body streaks now join launch, travel and catch; the step is cobalt, never the
+dash's cyan. ARC GRENADE — the landed device speaks: LAND, BLIP, SILENCE, BLIP,
+ARMED inside the unchanged 520ms, and live it ticks and fires its prongs in
+sync with the circulation. VIOLET ABOVE THE HEAD — all five glyphs moved from
+bone to `PUNCT_PALETTE` so they separate from damage numbers and CRIT, a
+candidate "character punctuation" register. No gameplay value moved (the suite
+pins them as literals). **After the handset gate: freeze Shock Captain V1, or
+not.** Evidence in `docs/evidence/champion-reset/vx/`.
+
+**THE VISUAL CLOSEOUT BEFORE IT — `§10an`.** Three presentation
 jobs and nothing else, on top of `§10am`: THE STEP STOPS SPEAKING IN CIRCLES
 (the "water drop" verdict had one cause — two filled circles and three expanding
 ellipses at the boots — replaced by chevrons, hard bars, impulse fragments and a
@@ -7491,6 +7505,190 @@ until the thing in it has been attributed.
 - **No camera response on the step.** A punch or a flash on an enemy's
   repositioning is gameplay-adjacent noise and nothing asked for it.
 - **Nothing is marked human-approved.** `§10al`-`§10an` are candidates.
+
+## 10ao. THE SHOCK CAPTAIN, FINAL VISUAL CLOSEOUT — a step with no slam in it, a device that speaks, and a colour for character punctuation. **CANDIDATE — NOT APPROVED**
+
+Handset play approved the direction and named exactly three remaining visual
+issues. This pass fixes those three and nothing else; after it, the handset
+gate decides whether Shock Captain V1 freezes as the REFERENCE CHAMPION.
+
+**NOTHING GAMEPLAY MOVED, AND IT IS ASSERTED AS LITERALS.** `smoke-captain-
+closeout` now pins 3400 + 1900 = 5300, `armourTake` 0.85, `armourSpill` 0.55,
+the step's 200 / 90 / 215 / 120 / 2800, and the Arc Grenade's radius 132,
+flight 620, arm 520, field 1900, warn 520, damage 46, tick 420, drag 0.62,
+cooldown 9000. No AI, trigger, targeting, rifle or lifecycle code was edited.
+
+### A. TACTICAL STEP v3 — the catch was a ground slam
+
+Handset: the step is mechanically excellent, the player's dash still reads
+crisper, and **the landing squiggles are rejected** as reused Vader / melee
+ground-crush language. They were: v2's catch drew four diagonal brackets
+converging on the boots, two stacked deck bars, two sideways scuffs and a
+five-spark `burstDir` fan straight up — eight marks arranged symmetrically
+round a point under a body, which is the silhouette of a slam. The v2 streaks
+were `_bolt` polylines, which are jittered: the scribble register.
+
+**Removed:** the four converging brackets, the doubled deck bar, the sideways
+scuffs, both `burstDir` fans (catch and push-off), every `_bolt` in the step
+(v2's three streaks and the plant's two pack bars), the three impulse
+fragments, the second echo, and `def.color` from every step method.
+
+**The final chain**, all in `ShockCaptain.STEP_FX` — cobalt `0x2f5fe8`, blue
+`0x5f9bff`, white-blue peak `0xe6f0ff`, grey deck spark `0x9aa6b8`:
+
+1. **PLANT (90ms)** — one hard two-segment crack across the pack, a flat bar
+   under the sole WIDENING as it loads, a chevron opening along the launch
+   bearing. Rising, not fading.
+2. **PUSH-OFF** — at the origin, three STRAIGHT streaks back down the travel
+   axis (white-blue centre, cobalt flanks) and one stroked chevron. It stays
+   where he left it.
+3. **TRAVEL (215ms)** — ONE broken echo at the launch point: his own frame cut
+   into two horizontal bands with the waist missing and the legs lagging 7px,
+   `setTintFill` cobalt on the normal blend. And `_stepStreak`: two rigid DASHED
+   bars at shoulder and knee, drawn every frame from his LIVE position back
+   toward the origin, capped at 118px and never longer than the ground covered.
+   **This is the piece v2 did not have** — launch, travel and catch were three
+   effects in three places, and the streak is what joins them to the body.
+4. **CATCH (120ms)** — ONE deck bar across the travel at the LEADING boot,
+   foreshortened like every deck mark and shortening as the weight settles;
+   three straight sparks thrown FORWARD, which a slam can never do; a small
+   rectangular boot flash for the first third. Three draw calls, and the `land`
+   frame does the rest.
+5. **SETTLE** — the streak is gone ~70ms after the travel; nothing lingers.
+
+**How it differs from the player dash, on purpose:** the dash is pale CYAN
+(`0x60ecff`/`0x80f0ff`), ADD-blended, a filled tapered triangle plus seventeen
+ghosts that GROW 1.2x into a continuous luminous trail, with a camera flash
+and punch. The step is COBALT, one segmented flat-tint echo that does not grow,
+two dashed rigid bars attached to the body, straight lines only, and no camera
+response. Luminous and flowing against hard and segmented.
+
+**One mistake on the way.** The first v3 catch normalised the deck's 0.5 squash
+away to get a unit direction and then used that unit vector for the LENGTH, so
+a sideways step laid a full-height vertical line straight down over his legs —
+it photographed as a strap. It sits at the leading boot's front edge now, with
+its length foreshortened.
+
+### B. ARC GRENADE — LAND, BLIP, SILENCE, BLIP, ARMED
+
+Handset: the field is good and the device looks DEAD after landing. The cause
+was the shape of the activation rather than its brightness — the three-frame
+ladder climbed once and held, which is a machine that did one thing and
+stopped. Electronics coming online are discrete: they check, wait, confirm.
+
+Inside the unchanged 520ms `armMs`:
+
+| u | beat | device frame | overlay |
+| --- | --- | --- | --- |
+| 0.00-0.08 | LAND | inert | squash + three straight contact sparks outside the casing |
+| 0.08-0.17 | BLIP 1 | charging | a hard blue (`0x3f8cff`) core cross reaching 26px, white core square |
+| 0.17-0.30 | pause | **inert again** | nothing — the silence is the point |
+| 0.30-0.40 | BLIP 2 | armed | a white-blue (`0xdcefff`) cross reaching 36px, and all four prongs fire outward |
+| 0.40-1.00 | armed | armed | nodes establish clockwise from 0.40 to 0.66, perimeter 0.46 -> **0.74 (unchanged)**, connections past 0.78 |
+
+The nodes now start AFTER the second blip, so they are placed by an armed
+device: the projector comes online, then projects. The blip decays from a hard
+edge — **it is never a smooth pulse**, which is a beacon or a pickup.
+`contains()` reads `phase` alone, so none of this moves danger by a
+millisecond, and the suite checks the centre is safe at every beat.
+
+**LIVE, THE SOURCE IS DRIVEN BY THE CIRCULATION.** `_sourceLife` reads the
+same `_pktT` the travelling packets ride: a prong fires (a short straight
+transfer toward its node and a lit tip) as a packet crosses the diagonal node
+that prong faces, and the core ticks (a hard cross and a white square) as one
+crosses due north — three ticks a lap, about every 870ms, and dark 90% of the
+time. It is scaled by `integ`, so it goes quiet with the field and the shutdown
+ladder is untouched.
+
+**THE BLIPS WERE INVISIBLE ON THE FIRST RUN.** They were drawn into `edgeGfx`,
+at hazard depth, under the device sprite at 2002 — a 15px flash centred on a
+60px opaque object, hidden completely by the thing emitting it. The strip
+photographed a frame change and nothing else. `coreGfx` at 2003 carries
+everything the source says, and the blip crosses now reach past the ±20px
+casing. The field's geometry, radius, eight nodes, packets, wash, player
+interaction and shutdown are unchanged.
+
+### C. VIOLET ABOVE THE HEAD — THE CHARACTER-PUNCTUATION REGISTER
+
+Handset: the glyphs work, and they get LOST among damage counters and CRIT
+text. Bone was chosen as his rank plate, which answered what a glyph must not
+be confused with in the world and never asked what it lands NEXT TO: every
+frame that raises a reaction prints `#ffffff` damage, `#ff8020` Super damage,
+`#ffe040` CRIT! and `#7fd4ff` armour hits in the same column over the same
+head.
+
+`PUNCT_PALETTE`, in `pixelArt.js`:
+
+| role | colour |
+| --- | --- |
+| outline / shadow | `#230a3a` dark purple |
+| body | `#9a5cff` saturated electric violet |
+| highlight (top edge) | `#dcc8ff` pale lavender |
+
+All five glyphs use it and nothing else — `glyph-break`, `glyph-rage`,
+`glyph-impact`, `glyph-alert` and `glyph-throw` — and every one keeps its own
+shape. **Colour is the register, shape is the meaning.** No timing, threshold,
+queue, sequencing or intent-lifetime code was touched: only the three colour
+constants inside `paintGrawlix` changed.
+
+**Violet belongs above the head and nowhere else on him.** The step, the field,
+the grenade core, the armour response, the rifle and the damage sparks all stay
+cobalt / blue-white. The suite walks the three body sheets, the rifle and the
+grenade device for any violet-family pixel (none), and greps his FX sources for
+the palette literals (none). Vader's FORCE effects are violet on the floor
+around HIM; position and shape separate the two and they never share an
+encounter.
+
+**RECORDED, NOT GENERALISED.** *Head punctuation = character intent /
+reaction* is a candidate CRIX doctrine with exactly one proven user. No icons
+were added to Vader, ordinary enemies or telegraphs, and no framework was
+built.
+
+### VALIDATION
+
+`smoke-captain-closeout` — **39 checks**. A/B against `fc62989`: **9 fail on
+the old build** and pass on this one — the step method set, no `burstDir`, no
+`_bolt`, the converging brackets gone, the catch at three draw calls, the step
+off `def.color`, every glyph pixel in the palette, the violet detector firing
+on the glyphs, and the blip ladder (old: `0 / 0 / 1 / 1 / 2`; new:
+`0 / 1 / 0 / 2 / 2`). The frozen-literal checks pass on BOTH builds, which is
+what they are for.
+
+**The blip ladder is addressed, not caught.** Each blip is ~47-52ms against a
+~12fps harness, so the suite and the evidence rig put the grenade at the
+instant (`age`) and step it once: the real drawing path, only the moment
+chosen.
+
+### EVIDENCE — `docs/evidence/champion-reset/vx/`
+
+- **A/B pairs** (old `fc62989` left, new right): `00-AB-first-catch`,
+  `00-AB-punct-break`, `00-AB-punct-intent`, `00-AB-punct-lowhealth`.
+- **Step, 1x and crop:** `30-before`, `31-plant`, `32-preload`, `33-pushoff`,
+  `34-early-travel`, `35-late-travel`, **`36-FIRST-CATCH`**, `37-settle`.
+- **Grenade:** `00-STRIP-blip-sequence` (land, BLIP 1, pause, BLIP 2,
+  establishing), `00-STRIP-live-source` (active, core tick, prong fire,
+  shutdown), `40-release`, `10`-`18` for the full lifecycle, and
+  `19-intent-sign-windup` for the device in hand with the sign up.
+- **Punctuation among REAL combat text:** `50-intent`, `51-break`,
+  `52-lowhealth` — every number in them is produced through `damage()`, and the
+  CRIT is a real >= 400 hit on a grunt at his shoulder (a 400 on him would
+  exceed `staggerMinDamage` and correctly take the wind-up, and the sign, away).
+
+**`spawnEnemyAt(type, x, y)` — TYPE FIRST.** `shot-arcfield`'s §26 hierarchy
+frame called it `(x, y, type)` and had no crowd in it for a whole pass. Fixed
+in both rigs.
+
+### NOT BUILT
+
+- No gameplay, AI, balance or lifecycle change of any kind.
+- No redesign of the model, damaged states, smoke/electrical anchors, armour
+  response, rifle, recoil, field geometry or hierarchy.
+- No punctuation for any other actor, and no icon framework.
+- No real-time combat CLIP: this harness produces stills, not video. The
+  in-combat step is exercised by `smoke-captain-step`; the clip is the
+  handset's.
+- Nothing is marked human-approved. **The handset gate decides A, B, C, and
+  whether Shock Captain V1 freezes as the reference Champion.**
 
 ## 12. CAMERA PHASE 1 — a camera that frames the game
 

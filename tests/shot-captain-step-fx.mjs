@@ -62,6 +62,10 @@ const stepOnce = () => page.evaluate(() => {
   const gs = window.game.scene.getScene('Game');
   const c = window.__cap;
   c._stepCd = 0;
+  // THE GRENADE IS HELD OFF FOR THE PHOTOGRAPH. The real AI throws between
+  // stations and its live field lands in the frame the step is being judged
+  // in; the rig only moves the cooldown, never a gameplay number.
+  c._nadeCd = 1e9;
   c.setPosition(700, 720); c.setVelocity(0, 0);
   c._cap = 'hold'; c._stateMs = 0;
   const d = c.def.step;
@@ -159,25 +163,33 @@ const station = async (name, expr) => {
 };
 
 // `_stateMs` counts DOWN from plant + travel + catch, so the beats are read
-// off it rather than off a wall clock the harness does not have.
-await station('20-plant', "c._cap === 'step' && c._stepPlantMs > 0");
-await station('21-pushoff',
-  "c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs > d.catchMs + d.travelMs * 0.55");
-await station('22-travel',
-  "c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs > d.catchMs + 10 && c._stateMs < d.catchMs + d.travelMs * 0.5");
-// THE CATCH IS 120ms AND THIS BOX RUNS NEAR 12fps, so the window is read off
-// the state clock rather than off the catch counter — `_stateMs <= catchMs` is
-// the beat by definition and cannot fall between two frames the way a
-// separately decremented counter can.
-await station('23-catch',
-  "c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs <= d.catchMs");
-
-// ── THE WHOLE MOVE IN ONE FRAME IS NOT AVAILABLE, so the last station is the
-// question the beats cannot answer: does any of this read as a splash at 1x
-// with the room around it? Wide, unclipped, at the scale the phone shows.
+// off it rather than off a wall clock the harness does not have. ONE FRESH
+// STEP PER STATION: the travel is 215ms against a ~12fps harness.
+//
+// BEFORE: one frame of the Captain standing, so the sequence has a baseline.
 await resume();
-await stepOnce();
-await pauseWhen("c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs > d.catchMs + d.travelMs * 0.3");
-await shot('24-READ-step-at-1x');
+await page.evaluate(() => {
+  const gs = window.game.scene.getScene('Game');
+  const c = window.__cap;
+  c.setPosition(700, 720); c.setVelocity(0, 0); c._cap = 'hold'; c._stateMs = 400;
+  window.__focus = { x: c.x - 100, y: c.y + 20 };
+  const cam = gs.cameras.main; cam.stopFollow(); cam.centerOn(window.__focus.x, window.__focus.y);
+  cam.resetFX(); gs.scene.pause();
+});
+await page.waitForTimeout(250);
+await shot('30-before-1x'); await shot('30-before-crop', 420);
+
+await station('31-plant', "c._cap === 'step' && c._stepPlantMs > d.plantMs * 0.5");
+await station('32-preload', "c._cap === 'step' && c._stepPlantMs > 0 && c._stepPlantMs <= d.plantMs * 0.5");
+await station('33-pushoff',
+  "c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs > d.catchMs + d.travelMs * 0.72");
+await station('34-early-travel',
+  "c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs <= d.catchMs + d.travelMs * 0.72 && c._stateMs > d.catchMs + d.travelMs * 0.4");
+await station('35-late-travel',
+  "c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs <= d.catchMs + d.travelMs * 0.4 && c._stateMs > d.catchMs");
+// THE MOST IMPORTANT FRAME. Armed on the first frame of the catch, shot on the
+// next — the first frame on which the catch has actually been DRAWN.
+await station('36-FIRST-CATCH', "c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs <= d.catchMs");
+await station('37-settle', "c._cap !== 'step' && c._stepFrom && Math.hypot(c.x - c._stepFrom.x, c.y - c._stepFrom.y) > 150");
 
 await browser.close();

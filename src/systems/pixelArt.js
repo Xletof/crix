@@ -1575,13 +1575,38 @@ export const CAPTAIN_FRAMES = {
 // vocabulary as everything else here — chunky, black-outlined, no curves the
 // grid cannot say.
 //
-// THEY ARE PAINTED IN THE CAPTAIN'S OWN BONE, not in a new colour. Crimson is
-// Vader and every telegraph, green is enemy bullet colour, amber is arena
-// emergency power, cyan is screens: a reaction glyph has no business spending
-// any of those, and bone is already the Champion's rank plate, so the
-// punctuation reads as belonging to him.
+// ── VIOLET ABOVE THE HEAD = CHARACTER PUNCTUATION ─────────────────────────
+//
+// THEY WERE PAINTED IN THE CAPTAIN'S BONE, AND BONE IS COMBAT-TEXT COLOUR.
+// The reasoning was sound as far as it went — bone is his rank plate, so the
+// glyphs read as belonging to him — but it only asked what the glyph must not
+// be confused WITH IN THE WORLD. It never asked what the glyph lands NEXT TO,
+// and the answer is: the damage number. Every frame that raises a reaction is
+// a frame that prints `#ffffff` damage, `#ff8020` Super damage, `#ffe040` CRIT!
+// and `#7fd4ff` armour hits in the same column over the same head. A cream
+// glyph with a white top edge in that stack is one more pale mark among four,
+// and a handset lost it in real combat.
+//
+// VIOLET IS THE ONE HUE NOTHING NEAR HIS HEAD SPENDS. Red is Vader and every
+// telegraph, green is enemy bullets, amber is the environment, blue-white is
+// the Captain's own hardware, and white/yellow/orange/pale-blue are numbers.
+// So the register is a COLOUR and the meaning is a SHAPE: violet says "this is
+// the character's punctuation", and the form says which one.
+//
+// VIOLET BELONGS ABOVE THE HEAD AND NOWHERE ELSE ON HIM. His step, his field,
+// his grenade core, his armour response, his rifle and his damage sparks stay
+// cobalt and blue-white; `smoke-captain-closeout` walks his painted sheets and
+// his FX sources and fails if this palette leaks into any of them. (Vader's
+// FORCE effects are violet on the FLOOR around him; the two never share an
+// encounter, and position plus shape keep them apart if they ever do.)
+export const PUNCT_PALETTE = {
+  edge: '#230a3a',       // dark purple outline — reads on deck, wall and flash
+  body: '#9a5cff',       // saturated electric violet
+  lit: '#dcc8ff',        // pale lavender top edge — the light on the form
+};
+
 export function paintGrawlix(scene) {
-  const BONE = '#e6e0d0', HOT = '#ffffff', EDGE = '#08080c';
+  const BODY = PUNCT_PALETTE.body, HOT = PUNCT_PALETTE.lit, EDGE = PUNCT_PALETTE.edge;
 
   // One shared shape library, so a glyph is composed rather than hand-drawn
   // twice. Each returns its own width so a cluster can be laid out by walking.
@@ -1679,7 +1704,7 @@ export function paintGrawlix(scene) {
     }
     for (const m of at) {
       const [x, y] = m.split(',').map(Number);
-      c.px(x, y, BONE);
+      c.px(x, y, BODY);
     }
     // A hot top edge, so the form has a light on it rather than being flat ink.
     for (const m of at) {

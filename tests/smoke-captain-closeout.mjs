@@ -54,24 +54,38 @@ const method = (name) => {
   }
   return src.slice(i);
 };
-const stepFx = ['_stepPreload', '_stepThrust', '_stepCatchFx'].map(method);
-check(stepFx.every((m) => m.length > 200), 'the three step effect methods were found to read',
-  stepFx.map((m) => m.length).join('/'));
+const STEP_METHODS = ['_stepPreload', '_stepThrust', '_stepCatchFx', '_stepEcho', '_stepStreak'];
+const stepFx = STEP_METHODS.map(method);
+check(stepFx.every((m) => m.length > 200), 'the five step effect methods were found to read',
+  STEP_METHODS.map((n, i) => `${n}:${stepFx[i].length}`).join(' '));
 check(stepFx.every((m) => !m.includes('fillCircle')),
   'no step effect fills a circle at the boots — the droplet is gone, not dimmed');
-check(stepFx.every((m) => !m.includes('strokeEllipse')),
-  'and none of them opens an ellipse from a point — the ripple is gone too');
-// WHAT REPLACED THEM IS STROKED, AND THAT IS ALSO A RULE. The first rebuild
-// used a FILLED wedge for the push-off and it photographed as a bubble against
-// his hip — a translucent mass beside a body reads as volume however hard its
-// edges are. So the positive half of this check asks for strokes, not fills:
-// `strokePath` (the chevrons) and `lineBetween` (every bar, bracket and
-// fragment), with no `fillStyle` anywhere in the three methods at all.
-check(stepFx.every((m) => !m.includes('fillStyle')),
-  'and nothing in the three fills a shape at all — the impulse is drawn, not massed');
-check(stepFx.some((m) => m.includes('strokePath')) && stepFx.every((m) => m.includes('lineBetween')),
-  'what replaced them is hard stroked geometry — chevrons, bars and brackets',
-  'strokePath + lineBetween present');
+check(stepFx.every((m) => !m.includes('strokeEllipse') && !m.includes('.arc(')),
+  'and none of them opens an ellipse or an arc from a point — no ripple, no ring');
+// A TRANSLUCENT MASS BESIDE A BODY IS A BUBBLE. The v2 push-off's filled
+// wedge photographed as one, so polygon fills stay banned. The v3 catch's boot
+// flash is a `fillRect` — a sole on a deck — and that is the one fill allowed.
+check(stepFx.every((m) => !m.includes('fillPath') && !m.includes('fillTriangle')),
+  'nothing in them fills a polygon — the impulse is drawn, not massed');
+// ── THE REJECTED CATCH, BY ABSENCE ────────────────────────────────────────
+// The handset rejected v2's landing as a ground slam: four diagonal brackets
+// converging on the boots, two stacked bars, two sideways scuffs and a
+// `burstDir` fan straight up. `_bolt` is the jittered polyline — the scribble
+// register — and v2's streaks were drawn with it too.
+const catchFx = method('_stepCatchFx');
+check(!catchFx.includes('burstDir') && !stepFx.some((m) => m.includes('burstDir')),
+  'the catch throws no radial particle fan — no step effect calls `burstDir`');
+check(!stepFx.some((m) => m.includes('_bolt(')),
+  'no step effect draws a jittered `_bolt` squiggle');
+check(!/for \(let i = 0; i < 4;/.test(catchFx) && !catchFx.includes('Math.PI / 4 +'),
+  'the four converging diagonal brackets are gone from the catch');
+check(catchFx.includes('_stepAng') && (catchFx.match(/lineBetween/g) || []).length <= 3,
+  'the catch is ONE bar keyed to the travel bearing, plus sparks — three draw calls at most',
+  `${(catchFx.match(/lineBetween/g) || []).length} lineBetween`);
+// COBALT HARDWARE, NOT DASH CYAN. `def.color` is 0x4fc3ff, close enough to the
+// player's dash to read as the same technology, so the step does not spend it.
+check(stepFx.every((m) => !m.includes('this.def.color')) && src.includes('static get STEP_FX'),
+  'the step is painted from its own cobalt palette, never the near-cyan `def.color`');
 // THE PLAYER DASH IS THE NEGATIVE REFERENCE. It stamps seventeen 0x60ecff
 // ghosts that grow 1.2x; anything of the Captain's wearing that colour is one
 // tuning decision away from reading as the same move.
@@ -119,7 +133,45 @@ const glyphs = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(()
   };
   const keys = ['glyph-break', 'glyph-rage', 'glyph-impact', 'glyph-alert', 'glyph-throw'];
   const missing = keys.filter((k) => !gs.textures.exists(k));
-  return { missing, marks: missing.length ? [] : keys.map(hashOf) };
+  const pixels = (key) => {
+    const src2 = gs.textures.get(key).getSourceImage();
+    const cv = document.createElement('canvas');
+    cv.width = src2.width; cv.height = src2.height;
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(src2, 0, 0);
+    return ctx.getImageData(0, 0, src2.width, src2.height).data;
+  };
+  const hex = (r, g, b) => '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
+  // EVERY OPAQUE GLYPH PIXEL IS ONE OF THE THREE DECLARED PUNCTUATION COLOURS.
+  const allowed = new Set(['#230a3a', '#9a5cff', '#dcc8ff']);
+  const stray = {};
+  for (const k of keys) {
+    if (!gs.textures.exists(k)) continue;
+    const d = pixels(k);
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 200) continue;
+      const h = hex(d[i], d[i + 1], d[i + 2]);
+      if (!allowed.has(h)) stray[k] = (stray[k] || 0) + 1;
+    }
+  }
+  // AND VIOLET GOES NOWHERE ELSE ON HIM. His three body sheets, his rifle and
+  // the grenade device are walked for any pixel in the violet family — blue
+  // dominant, red well above green — which is what his cobalt and blue-white
+  // hardware is NOT (blue-white keeps green up with red; cobalt keeps red low).
+  const violetish = (r, g, b) => b > 140 && r > g + 40 && r > 90 && b > g + 60;
+  const leak = {};
+  for (const k of ['champ-captain', 'champ-captain-broken', 'champ-captain-critical',
+    'wpn-captain', 'hz-arcnade']) {
+    if (!gs.textures.exists(k)) { leak[k] = 'missing'; continue; }
+    const d = pixels(k);
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 40 && violetish(d[i], d[i + 1], d[i + 2])) n++;
+    if (n) leak[k] = n;
+  }
+  const glyphViolet = keys.every((k) => { const d = pixels(k); let v = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200 && violetish(d[i], d[i + 1], d[i + 2])) v++;
+    return v > 20; });
+  return { missing, marks: missing.length ? [] : keys.map(hashOf), stray, leak, glyphViolet };
 }));
 check(glyphs.missing.length === 0, 'the intent sign is a painted texture like the four reactions',
   glyphs.missing.join(','));
@@ -128,6 +180,23 @@ check(new Set(glyphs.marks.map((m) => m.h)).size === glyphs.marks.length,
 check(glyphs.marks.length === 5 && glyphs.marks[4].ink > 40,
   'it carries enough ink to read at 1x rather than being a few stray pixels',
   glyphs.marks.length === 5 ? `${glyphs.marks[4].ink} lit px` : 'n/a');
+// ── THE PUNCTUATION REGISTER ──────────────────────────────────────────────
+check(Object.keys(glyphs.stray).length === 0,
+  'every opaque pixel of all five glyphs is one of the three declared violet punctuation colours',
+  JSON.stringify(glyphs.stray));
+check(glyphs.glyphViolet,
+  'and the violet detector this file uses actually FIRES on them — the containment check below is not blind');
+check(Object.keys(glyphs.leak).length === 0,
+  'no violet anywhere on his body sheets, his rifle or the grenade device — the register stays above the head',
+  JSON.stringify(glyphs.leak));
+{
+  const PUNCT = ['#230a3a', '#9a5cff', '#dcc8ff', '0x230a3a', '0x9a5cff', '0xdcc8ff'];
+  const hazSrc = decomment(await (await fetch(BASE + 'src/systems/Hazard.js')).text());
+  const hit = PUNCT.filter((h) => src.toLowerCase().includes(h) || hazSrc.toLowerCase().includes(h));
+  check(hit.length === 0,
+    'and no Captain or Arc Grenade FX source names a punctuation colour — step, field, core and armour stay cobalt',
+    hit.join(','));
+}
 
 // ── 3. THE DEVICE LADDER AND THE INTENT SIGN, IN ONE STAGED THROW ──────────
 //
@@ -269,8 +338,39 @@ const edge = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(asyn
     return String(n.body?.frame?.name ?? 'gone');
   };
   const ladder = { armed: at2(1.4), charging: at2(0.30), inert: at2(0.05) };
+
+  // ── LAND, BLIP, PAUSE, BLIP, ARMED — addressed on the object's own clock ──
+  // A second grenade, put at each instant of its arming window and stepped
+  // once. `contains()` is asked at the centre at every one of them: none of
+  // the activation may make the device dangerous a millisecond early.
+  const m = gs.spawnArcGrenade({ ...g, x: gs.player.x + 300, y: gs.player.y - 420,
+    tx: gs.player.x + 300, ty: gs.player.y - 420, owner: null });
+  const armAt = (uu) => {
+    m.age = m.flightMs + m.armMs * uu;
+    m.update(1);
+    return { f: String(m.body?.frame?.name), hot: m.contains(m.x, m.y) };
+  };
+  const blips = {
+    land: armAt(0.04), blip1: armAt(0.12), pause: armAt(0.24),
+    blip2: armAt(0.35), armed: armAt(0.9),
+  };
+  // THE ORPHAN SWEEP. The source-life FX draw into the grenade's own Graphics
+  // and create nothing of their own, so the display list must come back to
+  // exactly where it was when the object goes.
+  const before = gs.children.list.length;
+  m.destroy();
+  const after = gs.children.list.length;
+  const counted = { before, after, removed: before - after };
   return {
-    R, cfg: g.radius, ladder,
+    R, cfg: g.radius, ladder, blips, counted,
+    frozen: {
+      hp: CHAMPION.captain.hp, armour: CHAMPION.captain.armour,
+      armourTake: CHAMPION.captain.armourTake, armourSpill: CHAMPION.captain.armourSpill,
+      step: (({ distance, plantMs, travelMs, catchMs, cooldownMs }) =>
+        ({ distance, plantMs, travelMs, catchMs, cooldownMs }))(CHAMPION.captain.step),
+      nade: (({ radius, flightMs, armMs, fieldMs, warnMs, damage, tickMs, dragMult, cooldownMs }) =>
+        ({ radius, flightMs, armMs, fieldMs, warnMs, damage, tickMs, dragMult, cooldownMs }))(g),
+    },
     inAll: B.every((a) => at(0.999, a)),
     outAll: B.every((a) => !at(1.002, a)),
     axisEdge: [0, Math.PI / 2, Math.PI, -Math.PI / 2].every((a) => at(1, a)),
@@ -285,6 +385,24 @@ check(edge.inAll && edge.outAll && edge.axisEdge,
 check(edge.ladder.armed === '2' && edge.ladder.charging === '1' && edge.ladder.inert === '0',
   'shutdown steps back DOWN the device\'s own ladder — armed, charging, inert — rather than fading out',
   JSON.stringify(edge.ladder));
+const B = edge.blips;
+check(B.land.f === '0' && B.blip1.f === '1' && B.pause.f === '0' && B.blip2.f === '2' && B.armed.f === '2',
+  'the device speaks twice: inert on landing, BLIP to charging, SILENT again, BLIP to armed, and holds',
+  JSON.stringify(B));
+check(Object.values(B).every((x) => x.hot === false),
+  'and not one instant of the activation makes the centre dangerous — `contains` still waits for the field');
+check(edge.counted.removed === 6,
+  'the source life creates no objects per frame — a destroyed grenade takes exactly its five Graphics and its device',
+  JSON.stringify(edge.counted));
+// ── EVERY FROZEN NUMBER, AS A LITERAL ─────────────────────────────────────
+const F = edge.frozen;
+check(F.hp === 3400 && F.armour === 1900 && F.armourTake === 0.85 && F.armourSpill === 0.55,
+  'durability is 3400 + 1900 = 5300 with armourTake 0.85 and armourSpill 0.55 — untouched', JSON.stringify(F));
+check(JSON.stringify(F.step) === JSON.stringify({ distance: 200, plantMs: 90, travelMs: 215, catchMs: 120, cooldownMs: 2800 }),
+  'the step is 200px / 90 / 215 / 120 / 2800 — untouched', JSON.stringify(F.step));
+check(JSON.stringify(F.nade) === JSON.stringify({ radius: 132, flightMs: 620, armMs: 520, fieldMs: 1900,
+  warnMs: 520, damage: 46, tickMs: 420, dragMult: 0.62, cooldownMs: 9000 }),
+  'the Arc Grenade\'s radius, timings, damage, tick, drag and cooldown are untouched', JSON.stringify(F.nade));
 
 await browser.close();
 for (const c of checks) {
