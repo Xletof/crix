@@ -1561,21 +1561,37 @@ asserts separately that the ceiling is not reached.
   carry. `smoke-captain-closeout` greps the step methods for `fillCircle`,
   `strokeEllipse` and `.arc(` — absence, never a comment. `HANDOVER.md` §10an,
   and §10ao for what replaced v2's catch.
-- **A STEP BUILT FROM LINES IS SCRIBBLE, AND THE STEP IS v4 NOW —
-  `HANDOVER.md` §10ap.** v2's catch was a ground slam (four converging
-  brackets, doubled bars, a spark fan). v3 removed that and was still made of
-  HAIRLINES — a 2px pack crack, a 2px chevron, dashed 2-3px shoulder and knee
-  streaks, a thin catch tick that read as a strap. A dozen thin lines round a
-  112px body is scribble at 1x however carefully each is placed. **v4 has no
-  line primitive in it at all**, only three kinds of thing: THE SUIT FLARES
-  (`_suitFlash`: his own live frame flat-filled in ice, at the plant, push-off
-  and catch), JETS (`_jet`: solid narrow kites from the boots — BACK at the
-  launch, FORWARD at the catch as counter-thrust), and TWO SEGMENTED STAMPS
-  (his frame cut into three lagging bands). **The catch puts nothing on the
-  floor** — a powered suit stops itself the way it started, which no ground
-  slam can be mistaken for. `smoke-captain-closeout` fails on any
-  `lineStyle`/`lineBetween`, `arc`, `strokeEllipse`, `fillCircle`, `_bolt` or
-  `burstDir` in the step, and on a polygon fill anywhere but `_jet`.
+- **THE STEP IS v5: HE THROWS HIS OWN FIELD AND CATCHES IT — `HANDOVER.md`
+  §10aq.** v2's catch was a ground slam; v3 was hairlines (scribble at 1x);
+  v4 was solid shapes but still FOUR EFFECTS ATTACHED TO A MOVING BODY — flare,
+  jets, two stamps, counter-thrust, every beat equally bright. v5 gives the
+  move to something already his: the electric-blue ground ring he wears all
+  fight. PLANT compresses it, PUSH-OFF shears its back half into a crescent
+  that trails him (short cobalt jets leave the boots), CATCH collapses it and
+  REFORMS it at its true radius in white-blue with the move's ONLY suit flash —
+  the hero frame — then it cools back to the stock halo. One partial echo.
+  **One peak, and it is the catch**: everything before it is cobalt at low
+  alpha, so the step is fainter than the player's dash on average. The ring
+  overlay (`_stepRing`) is the one place in the step a stroke or a polygon fill
+  may live; `smoke-captain-closeout` fails on a line anywhere else, on a second
+  suit flash, on a second echo, on any `arc`/`strokeEllipse`/`fillCircle`/
+  `_bolt`/`burstDir`, and on the old v4 shapes coming back.
+- **`threatRing` IS AN IDENTITY HALO, NOT GAMEPLAY — AND IT STILL HAS ONE
+  AUTHOR.** `Enemy.threatRing` sits at radius+12 (stroke) / radius+20 (fill)
+  and nothing reads it: not a hitbox, a range or a state. The step borrows it
+  WITHOUT a second author: `Enemy.preUpdate` still places it every frame, the
+  overlay re-asserts alpha 0 AFTER that write for as long as it lives, and when
+  it is destroyed the next `preUpdate` restores the stock ring untouched. The
+  suite checks the ring is hidden only while the overlay stands in, that it is
+  back at full after the settle, and that its own geometry never changed.
+- **A GROUND RING AROUND A STANDING FIGURE HAS A NEAR SIDE.** The first v5
+  drew the whole ring under him, and his 112px body hid it: the hero reform at
+  r=40 was almost entirely occluded by the man it reformed around, and the
+  late-travel crescent vanished behind his back. Each ring segment now goes to
+  the layer its own screen position says — behind him on the far (north) side,
+  in front of his legs on the near (south) side — and fills stay under him
+  only, because a translucent disc over his legs is a bubble. The crescent is
+  also long enough to clear his ±56px body for the whole travel.
 - **THE STEP DOES NOT SPEND `def.color`.** `0x4fc3ff` sits close enough to the
   player's dash cyan to read as the same technology in peripheral vision.
   `ShockCaptain.STEP_FX` is cobalt / blue / white-blue peak / ice.

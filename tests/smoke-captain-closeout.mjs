@@ -54,47 +54,52 @@ const method = (name) => {
   }
   return src.slice(i);
 };
-const STEP_METHODS = ['_stepPreload', '_stepThrust', '_stepCatchFx', '_stepEcho', '_suitFlash', '_jet'];
+const STEP_METHODS = ['_stepPreload', '_stepThrust', '_stepCatchFx', '_stepEcho', '_suitFlash', '_jet', '_stepRing'];
 const stepFx = STEP_METHODS.map(method);
-check(stepFx.every((m) => m.length > 120), 'the six step effect methods were found to read',
+const M = Object.fromEntries(STEP_METHODS.map((n, i) => [n, stepFx[i]]));
+check(stepFx.every((m) => m.length > 20), 'the seven step effect methods were found to read',
   STEP_METHODS.map((n, i) => `${n}:${stepFx[i].length}`).join(' '));
 check(stepFx.every((m) => !m.includes('fillCircle')),
   'no step effect fills a circle at the boots — the droplet is gone, not dimmed');
 check(stepFx.every((m) => !m.includes('strokeEllipse') && !m.includes('.arc(')),
-  'and none of them opens an ellipse or an arc from a point — no ripple, no ring');
+  'no ellipse or arc primitive anywhere in the step — the ring is his own, drawn as points');
 check(!stepFx.some((m) => m.includes('burstDir')) && !stepFx.some((m) => m.includes('_bolt(')),
   'no radial particle fan and no jittered `_bolt` squiggle anywhere in the step');
-// ── STEP v4: SHAPES, NOT LINES ────────────────────────────────────────────
-// v3 was built from hairlines — 2px cracks, chevrons, dashed streaks, a thin
-// catch tick — and a dozen thin lines round a body is scribble at 1x. v4 has
-// no line primitive at all: the suit's own silhouette, solid jets, and cut
-// stamps. Checked by absence, so a hairline cannot quietly come back.
-check(stepFx.every((m) => !m.includes('lineBetween') && !m.includes('lineStyle(')),
-  'the step draws no LINES at all — every mark is a solid shape or his own silhouette');
-check(!src.includes('_stepStreak('),
-  'the dashed body streaks are gone, not just unused');
-// A translucent mass beside a body is a bubble (v2's filled wedge). Polygon
-// fills live in exactly one place — the narrow `_jet` kite — and nowhere else.
-const nonJet = stepFx.filter((_, i) => STEP_METHODS[i] !== '_jet');
-check(nonJet.every((m) => !m.includes('fillPoints') && !m.includes('fillPath') && !m.includes('fillTriangle'))
-  && method('_jet').includes('fillPoints'),
-  'polygon fills exist only inside `_jet`, the narrow thrust kite');
-// ── THE CATCH IS COUNTER-THRUST ───────────────────────────────────────────
-// v2's catch was a ground slam (converging brackets); v3's was a floor tick
-// that read as a strap. v4 puts nothing on the floor: the jets fire FORWARD,
-// along the travel, and the suit flares.
-const catchFx = method('_stepCatchFx');
-check(/_jet\([^)]*\bang\b/.test(catchFx) && !/_jet\([^)]*\bback\b/.test(catchFx)
-  && catchFx.includes('_suitFlash('),
-  'the catch fires the jets FORWARD along the travel and flares the suit — counter-thrust, not a floor mark');
-check(!/for \(let i = 0; i < 4;/.test(catchFx) && !catchFx.includes('Math.PI / 4 +'),
+// ── v5: THE RING IS THE ONE PLACE A STROKE MAY LIVE ─────────────────────
+// v3 was hairlines and read as scribble; v4 banned every line. v5 gives the
+// move to the Captain's own ground ring, which is a stroked shape by nature —
+// so strokes are allowed in `_stepRing` ALONE, never thinner than the stock
+// ring's own 2.5, and nowhere else in the step.
+const nonRing = stepFx.filter((_, i) => STEP_METHODS[i] !== '_stepRing');
+check(nonRing.every((m) => !m.includes('lineBetween') && !m.includes('lineStyle(')),
+  'no step effect outside the ring overlay draws a line');
+{
+  const widths = [...M._stepRing.matchAll(/stroke\(pts,\s*([0-9.]+)/g)].map((x) => +x[1]);
+  check(widths.length >= 3 && widths.every((w) => w >= 2.5) && !M._stepRing.includes('lineBetween'),
+    'the ring overlay strokes nothing thinner than the stock ring, and draws no loose lines',
+    JSON.stringify(widths));
+}
+check(!src.includes('_stepStreak('), 'the v3 dashed body streaks are still gone');
+const fillers = STEP_METHODS.filter((n) => /fillPoints|fillPath|fillTriangle/.test(M[n]));
+check(JSON.stringify(fillers.sort()) === JSON.stringify(['_jet', '_stepRing']),
+  'polygon fills live only in the thrust kite and the ring overlay', fillers.join(','));
+// ── ONE HERO: the catch carries the only suit flash ─────────────────────
+check((src.match(/this\._suitFlash\(/g) || []).length === 1 && M._stepRing.includes('_suitFlash(')
+  && !M._stepThrust.includes('_suitFlash(') && !M._stepCatchFx.includes('_suitFlash('),
+  'there is exactly ONE suit flash in the move, and it belongs to the ring reform at the catch');
+check(/_jet\([^)]*\bang\b/.test(M._stepCatchFx) && !/_jet\([^)]*\bback\b/.test(M._stepCatchFx),
+  'the catch counter-thrusts FORWARD along the travel — nothing is put on the floor');
+check(/_jet\([^)]*\bback\b/.test(M._stepThrust),
+  'the push-off thrusts BACK down the travel');
+check(!/for \(let i = 0; i < 4;/.test(M._stepCatchFx) && !M._stepCatchFx.includes('Math.PI / 4 +'),
   'the four converging diagonal brackets are still gone');
-check(/_jet\([^)]*\bback\b/.test(method('_stepThrust')) && method('_stepThrust').includes('_suitFlash('),
-  'the push-off fires the jets BACK down the travel and flashes the suit');
-check((src.match(/this\._stepEcho\(\)/g) || []).length === 2 && method('_stepEcho').includes('setCrop'),
-  'two segmented stamps per step, each his own frame cut into bands');
+check((src.match(/this\._stepEcho\(\)/g) || []).length === 1 && M._stepEcho.includes('setCrop')
+  && (M._stepEcho.match(/\{ y0:/g) || []).length === 2,
+  'ONE partial echo per step, two bands of his frame with the torso missing');
 check(stepFx.every((m) => !m.includes('this.def.color')) && src.includes('static get STEP_FX'),
   'the step is painted from its own cobalt palette, never the near-cyan `def.color`');
+check(!src.includes('stampGhost') && !src.includes('tryDash'),
+  'nothing of the player dash implementation is used');
 // THE PLAYER DASH IS THE NEGATIVE REFERENCE. It stamps seventeen 0x60ecff
 // ghosts that grow 1.2x; anything of the Captain's wearing that colour is one
 // tuning decision away from reading as the same move.
@@ -320,6 +325,53 @@ check(throwRun.frames.includes('flight:0') && throwRun.armedInArm,
   'a real thrown device flies inert and arms — land, blip and pause are sub-frame and proved on its own clock below',
   throwRun.frames.join(' '));
 check(throwRun.armedInField, 'the live field is powered by an ARMED device');
+
+// ── 3b. THE RING THE STEP BORROWS, AND HANDS BACK ──────────────────────────
+// `threatRing` is an identity halo nothing reads. The step hides it and draws
+// a deformed copy; the checks here are that it does so ONLY while the step
+// runs, that nothing is left behind, and that no gameplay number moved.
+const ringRun = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(async () => {
+  const gs = window.game.scene.getScene('Game');
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  gs.arenaActive = false;
+  gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully?.(e) ?? e.destroy());
+  const c = gs.spawnChampion(gs.player.x + 380, gs.player.y - 60, 'captain');
+  c.die = () => { c.hp = Math.max(c.hp, 900); };
+  c._nadeCd = 1e9;
+  await wait(600);
+  const ringCmds0 = c.threatRing.commandBuffer.length;
+  const body0 = { r: c.body.radius, w: c.body.width, speed: c.def.speed };
+  const fx0 = c._reactFx.length;
+  const S = [];
+  const hook = () => S.push({
+    beat: c._stepRingFx?._beat ?? null, overlay: !!c._stepRingFx,
+    ringA: c.threatRing.alpha, cap: c._cap,
+  });
+  gs.events.on('postupdate', hook);
+  c._stepCd = 0; c._cap = 'hold'; c._stateMs = 0;
+  c._beginStep(gs.player, 'close', { x: c.x - 200, y: c.y, reach: 200 });
+  for (let i = 0; i < 120 && (c._cap === 'step' || c._stepRingFx); i++) await wait(50);
+  await wait(250);
+  gs.events.off('postupdate', hook);
+  return {
+    beats: [...new Set(S.map((x) => x.beat).filter(Boolean))],
+    hiddenOnlyWithOverlay: S.every((x) => x.ringA > 0 || x.overlay),
+    hiddenDuring: S.some((x) => x.overlay && x.ringA === 0),
+    after: { overlay: !!c._stepRingFx, ringA: c.threatRing.alpha, fx: c._reactFx.length, fx0 },
+    ringCmdsSame: c.threatRing.commandBuffer.length === ringCmds0,
+    bodySame: c.body.radius === body0.r && c.body.width === body0.w && c.def.speed === body0.speed,
+  };
+}));
+check(ringRun.beats.includes('travel') && (ringRun.beats.includes('hero') || ringRun.beats.includes('cool')),
+  'a real step drives the ring through its beats — sheared in travel, reformed at the catch',
+  JSON.stringify(ringRun.beats));
+check(ringRun.hiddenDuring && ringRun.hiddenOnlyWithOverlay,
+  'the stock ring is hidden ONLY while the step overlay stands in for it');
+check(!ringRun.after.overlay && ringRun.after.ringA === 1 && ringRun.after.fx <= ringRun.after.fx0,
+  'after the settle the overlay is gone, the stock ring is back at full and no step FX is left',
+  JSON.stringify(ringRun.after));
+check(ringRun.ringCmdsSame && ringRun.bodySame,
+  'the stock ring\'s own geometry, his body and his speed are untouched by the step');
 
 // ── 4. THE BOUNDARY IS STILL THE RADIUS ────────────────────────────────────
 const edge = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(async () => {

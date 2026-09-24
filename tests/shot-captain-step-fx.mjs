@@ -66,6 +66,10 @@ const stepOnce = () => page.evaluate(() => {
   // stations and its live field lands in the frame the step is being judged
   // in; the rig only moves the cooldown, never a gameplay number.
   c._nadeCd = 1e9;
+  // HIS OWN BOLTS FROM BEFORE THE STATION ARE STILL IN FLIGHT and photograph
+  // as tall white-blue shapes beside him — they read as step FX and are not.
+  // Cleared, not hidden: `hostileBullets` is every hostile pool.
+  gs.hostileBullets.forEach((grp) => grp.getChildren().forEach((b) => b.disableBody?.(true, true)));
   c.setPosition(700, 720); c.setVelocity(0, 0);
   c._cap = 'hold'; c._stateMs = 0;
   const d = c.def.step;
@@ -179,17 +183,65 @@ await page.evaluate(() => {
 await page.waitForTimeout(250);
 await shot('30-before-1x'); await shot('30-before-crop', 420);
 
-await station('31-plant', "c._cap === 'step' && c._stepPlantMs > d.plantMs * 0.5");
-await station('32-preload', "c._cap === 'step' && c._stepPlantMs > 0 && c._stepPlantMs <= d.plantMs * 0.5");
+await station('31-plant', "c._cap === 'step' && c._stepPlantMs > 0");
 await station('33-pushoff',
   "c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs > d.catchMs + d.travelMs * 0.5");
-await station('34-early-travel',
-  "c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs <= d.catchMs + d.travelMs * 0.72 && c._stateMs > d.catchMs + d.travelMs * 0.4");
-await station('35-late-travel',
-  "c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs <= d.catchMs + d.travelMs * 0.4 && c._stateMs > d.catchMs");
-// THE MOST IMPORTANT FRAME. Armed on the first frame of the catch, shot on the
-// next — the first frame on which the catch has actually been DRAWN.
-await station('36-FIRST-CATCH', "c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs <= d.catchMs");
-await station('37-settle', "c._cap !== 'step' && c._stepFrom && Math.hypot(c.x - c._stepFrom.x, c.y - c._stepFrom.y) > 60");
+await station('34-early-travel', "c._stepRingFx?._beat === 'travel' && c._stepRingFx._k < 0.5");
+await station('35-late-travel', "c._stepRingFx?._beat === 'travel' && c._stepRingFx._k >= 0.5");
+// THE FIRST CATCH FRAME and THE HERO FRAME, addressed by the field overlay's
+// own published beat: the catch is 120ms and the harness sees ~1.5 frames of it.
+await station('36-FIRST-CATCH', "c._stepRingFx?._beat === 'collapse' || c._stepRingFx?._beat === 'hero'");
+await station('36b-HERO-FRAME', "c._stepRingFx?._beat === 'hero'");
+await station('37-settle', "c._stepRingFx?._beat === 'cool' && c._stepRingFx._k > 0.45");
+
+// ── THE PLAYER DASH, SAME ROOM, SAME CAMERA RULE — the comparison ────────
+// Not to make them alike: to hold both against the same bar at 1x.
+const dashStation = async (name, expr) => {
+  await resume();
+  await page.evaluate(() => {
+    const gs = window.game.scene.getScene('Game');
+    const c = window.__cap;
+    c.setPosition(700, 520); c.setVelocity(0, 0);
+    c._stepCd = 1e9; c._nadeCd = 1e9;
+    gs.hostileBullets.forEach((grp) => grp.getChildren().forEach((b) => b.disableBody?.(true, true)));
+    const p = gs.player;
+    p.setPosition(760, 900); p.setVelocity(0, 0); p.alive = true;
+    p.dashCharges = 3; p.isDashing = false;
+    p.facing = Math.PI; p._moveTargetX = -1; p._moveTargetY = 0;
+    window.__dashFrom = { x: p.x, y: p.y };
+    p.tryDash();
+  });
+  await page.evaluate((code) => {
+    const gs = window.game.scene.getScene('Game');
+    // eslint-disable-next-line no-new-func
+    const test = new Function('p', `return (${code});`);
+    let armed = false;
+    const h = () => {
+      const p = gs.player;
+      if (armed) {
+        gs.events.off('postupdate', h);
+        const cam = gs.cameras.main;
+        cam.stopFollow();
+        const o = window.__dashFrom;
+        window.__focus = { x: (o.x + p.x) / 2, y: (o.y + p.y) / 2 };
+        cam.centerOn(window.__focus.x, window.__focus.y);
+        cam.resetFX(); gs._sectorTint?.setAlpha(0);
+        window.game.scene.getScene('HUD')?.hud?.banner?.setAlpha(0);
+        gs.scene.pause();
+        return;
+      }
+      if (test(p)) armed = true;
+    };
+    gs.events.on('postupdate', h);
+  }, expr);
+  try {
+    await page.waitForFunction(() => window.game.scene.getScene('Game').scene.isPaused(), null, { timeout: 15000 });
+  } catch (e) { console.log(`   !! dash window missed: ${expr}`); return; }
+  await page.waitForTimeout(200);
+  await shot(`${name}-1x`);
+  await shot(`${name}-crop`, 420);
+};
+await dashStation('40-DASH-early', 'p.isDashing && Math.hypot(p.x - window.__dashFrom.x, p.y - window.__dashFrom.y) > 20');
+await dashStation('41-DASH-late', 'p.isDashing && Math.hypot(p.x - window.__dashFrom.x, p.y - window.__dashFrom.y) > 90');
 
 await browser.close();

@@ -226,7 +226,15 @@ spawns the Captain; DEBUG carries four triggers — BIG HIT / BREAK / LOW HEALTH
 drive the real `damage()` path, and CHAMP: GRENADE clears the cooldown and lets
 the real AI decide.
 
-**PHASE VY IS THE CURRENT CANDIDATE — `§10ap`.** Three handset-named visual
+**TACTICAL STEP v5 IS THE CURRENT CANDIDATE — `§10aq`.** Step visual polish
+only, on top of `§10ap`: the Captain shears his own ground ring into a
+crescent to throw himself sideways and it snaps back around him on the catch —
+the one hero frame, with the move's only suit flash. v4's plant/push flashes,
+boot plates and second echo are gone. Grenade and glyph code untouched; step
+gameplay pinned as literals. **If the handset approves it, Shock Captain V1 is
+complete.** Evidence in `docs/evidence/champion-reset/vz/`.
+
+**PHASE VY BEFORE IT — `§10ap`.** Three handset-named visual
 jobs on top of `§10ao`: TACTICAL STEP v4 has no lines at all — the suit flares,
 solid jets fire back at the launch and FORWARD as counter-thrust at the catch,
 and two segmented stamps mark where he was; the ARC GRENADE source is alive
@@ -7815,6 +7823,105 @@ armed on landing, and the addressed blip ladder proves the rest.
 - No gameplay, AI, balance, lifecycle-timing or state-logic change.
 - No punctuation for any other actor; no icon framework.
 - No video. The in-motion read is the handset's.
+- Nothing is marked human-approved.
+
+## 10aq. THE SHOCK CAPTAIN, TACTICAL STEP v5 — he throws his own field, and catches it. **CANDIDATE — NOT APPROVED**
+
+Tactical Step visual polish only. The Arc Grenade and the glyphs are closed for
+this pass and their code is untouched (`Hazard.js` and `pixelArt.js` carry no
+diff); the only source file changed is `ShockCaptain.js`, and only its step
+FX. Step gameplay — 200px, 90 / 215 / 120ms, 2800ms cooldown, triggers,
+priority, collision, no i-frames, no Super reading — is pinned as literals by
+`smoke-captain-closeout` and did not move.
+
+### THE ONE SENTENCE
+
+**The Captain shears his own suit field off his body to throw himself
+sideways, and on the catch the field snaps back around him.**
+
+### WHY v4 WAS NOT FINISHED
+
+v4 was a suit flare, a jet pair, two segmented stamps and a counter-thrust,
+each beat roughly as bright as the next: four good effects attached to a
+moving Captain rather than one move he performs. Adding a fifth could not fix
+that. v5 hands the move to something he already wears: the electric-blue
+ground ring.
+
+### THE RING, AUDITED FIRST
+
+`Enemy.threatRing`: a Graphics halo, stroke at radius+12 (40px), fill at
+radius+20 (48px), placed and gently pulsed every frame by `Enemy.preUpdate`.
+**Nothing reads it** — it is not the 28px body, not a range, not a state. It
+is an identity marker, so it may take part. It still has one author: while the
+step runs the overlay re-asserts alpha 0 after `Enemy.preUpdate`'s write and
+draws a deformed copy; destroyed, it hands the stock ring back untouched.
+
+### THE CHAIN
+
+| beat | what the player sees |
+| --- | --- |
+| PLANT (90ms) | the ring compresses along the travel axis and sags toward the loaded side |
+| PUSH-OFF | its front half is spent; the back half shears into a crescent behind him; short cobalt jets leave the boots at the origin (170ms) |
+| TRAVEL (215ms) | the crescent rides behind the body, attached to it; one partial echo marks the spot he left |
+| CATCH (120ms) | the crescent COLLAPSES inward (45ms), then **reforms at its true radius in white-blue** with the move's only suit flash; short counter-thrust fires forward |
+| SETTLE | the reformed ring cools back to the stock halo (~230ms) and is handed back |
+
+**THE HERO FRAME is the reform at the catch.** It is the heaviest stroke in
+the move (5px, white-blue) and carries the one suit flash; the push-off
+crescent was deliberately quietened after the first build out-read it.
+
+### REMOVED OR REDUCED FROM v4
+
+- the plant suit flash and the two boot charge plates (the compressing ring
+  says "loading")
+- the push-off suit flash (the push is setup, not the peak)
+- the second echo, and the torso band of the remaining one — ONE partial echo,
+  helmet-and-shoulders plus legs, 0.32 / 0.24 alpha, 130ms
+- jet length and brightness: push 78 -> 58px, catch 54 -> 38px, inner core
+  blue rather than white
+
+### ONE FIX THAT MATTERED
+
+**A ground ring around a standing figure has a near side.** The first v5 drew
+the whole ring under him and his 112px body hid it — the hero reform was
+almost entirely occluded, and the late-travel crescent vanished behind his
+back. Each ring segment now goes to the layer its own screen position says:
+behind him on the far side, in front of his legs on the near side. Fills stay
+under him only. The crescent now reaches far enough back to clear his body.
+
+### AGAINST THE PLAYER DASH
+
+The dash is pale cyan, ADD-blended, a filled tapered streak plus seventeen
+growing full-body ghosts and a camera flash and punch: fluid and luminous. The
+step is cobalt, one incomplete echo that never grows, the Captain's own ring
+deforming and reforming, short jets, no camera response, and a single white-
+blue peak at the catch: compact and powered. No dash code is used
+(`stampGhost`, `tryDash` are asserted absent).
+
+### VALIDATION
+
+`smoke-captain-closeout` — **53 checks**; **7 fail on `3383f90`** and pass
+here (the method set, ring-only strokes, fills only in `_jet` / `_stepRing`,
+exactly one suit flash owned by the catch, one partial echo, and on a real
+step: the ring driven through its beats, and the stock ring hidden only while
+the overlay stands in). Also asserted on a real step: the overlay is gone after
+the settle, the stock ring is back at full, no step FX is left in `_reactFx`,
+and the stock ring's geometry, his body and his speed are unchanged.
+
+### EVIDENCE — `docs/evidence/champion-reset/vz/`
+
+- **`00-MATCHED-dash-vs-step`** — player dash, Captain push-off, Captain hero
+  catch, same room.
+- **`00-STRIP-step`** — plant, push-off, late travel, HERO FRAME, settle.
+- `00-AB-catch-v4-v5`, `00-AB-pushoff-v4-v5`.
+- `30`-`37` at 1x and cropped; `36b-HERO-FRAME` is the frame to judge;
+  `41-DASH-late`. (The early-dash station misses its window at this harness's
+  frame rate; the late one carries the comparison.)
+
+### NOT BUILT
+
+- No gameplay, AI, balance, grenade or glyph change.
+- No video — the full-speed read is the handset's.
 - Nothing is marked human-approved.
 
 ## 12. CAMERA PHASE 1 — a camera that frames the game
