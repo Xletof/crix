@@ -1575,34 +1575,31 @@ export const CAPTAIN_FRAMES = {
 // vocabulary as everything else here — chunky, black-outlined, no curves the
 // grid cannot say.
 //
-// ── VIOLET ABOVE THE HEAD = CHARACTER PUNCTUATION ─────────────────────────
+// ── ICE ABOVE THE HEAD = CHARACTER PUNCTUATION ────────────────────────────
 //
-// THEY WERE PAINTED IN THE CAPTAIN'S BONE, AND BONE IS COMBAT-TEXT COLOUR.
-// The reasoning was sound as far as it went — bone is his rank plate, so the
-// glyphs read as belonging to him — but it only asked what the glyph must not
-// be confused WITH IN THE WORLD. It never asked what the glyph lands NEXT TO,
-// and the answer is: the damage number. Every frame that raises a reaction is
-// a frame that prints `#ffffff` damage, `#ff8020` Super damage, `#ffe040` CRIT!
-// and `#7fd4ff` armour hits in the same column over the same head. A cream
-// glyph with a white top edge in that stack is one more pale mark among four,
-// and a handset lost it in real combat.
+// TWO PALETTES WERE TRIED BEFORE THIS ONE, AND BOTH ANSWERED A REAL QUESTION.
+// BONE (his rank plate) answered "what must this not be confused with in the
+// world" and lost the glyphs among the damage numbers that land in the same
+// column over the same head: `#ffffff` damage, `#ff8020` Super damage,
+// `#ffe040` CRIT! and `#7fd4ff` armour hits. VIOLET answered that and was
+// judged softer and less crisp in real combat. ICY PERIWINKLE is the handset's
+// choice: a cold, pale blue whose HUE sits well off the armour number's cyan
+// (`#7fd4ff` ~197deg against `#8faeff` ~224deg), carried by a deep navy
+// outline that no combat text wears — the outline is what separates the
+// family from every number beside it, and the pale body is what makes it
+// crisp.
 //
-// VIOLET IS THE ONE HUE NOTHING NEAR HIS HEAD SPENDS. Red is Vader and every
-// telegraph, green is enemy bullets, amber is the environment, blue-white is
-// the Captain's own hardware, and white/yellow/orange/pale-blue are numbers.
-// So the register is a COLOUR and the meaning is a SHAPE: violet says "this is
-// the character's punctuation", and the form says which one.
+// COLOUR IS THE REGISTER, SHAPE IS THE MEANING. All five glyphs share these
+// three values and keep their own forms.
 //
-// VIOLET BELONGS ABOVE THE HEAD AND NOWHERE ELSE ON HIM. His step, his field,
-// his grenade core, his armour response, his rifle and his damage sparks stay
-// cobalt and blue-white; `smoke-captain-closeout` walks his painted sheets and
-// his FX sources and fails if this palette leaks into any of them. (Vader's
-// FORCE effects are violet on the FLOOR around him; the two never share an
-// encounter, and position plus shape keep them apart if they ever do.)
+// THE CAPTAIN'S OTHER BLUES ARE NOT THIS. His hardware is cobalt `#2f5fe8`,
+// cyan `#4fc3ff` and white-blue; none of his sheets, his rifle or the grenade
+// device carries any of these three exact values, and `smoke-captain-closeout`
+// checks that by pixel and by source literal.
 export const PUNCT_PALETTE = {
-  edge: '#230a3a',       // dark purple outline — reads on deck, wall and flash
-  body: '#9a5cff',       // saturated electric violet
-  lit: '#dcc8ff',        // pale lavender top edge — the light on the form
+  edge: '#18264a',       // deep navy outline — the thing no number wears
+  body: '#8faeff',       // icy periwinkle
+  lit: '#e8f4ff',        // near-white ice highlight on the top edge
 };
 
 export function paintGrawlix(scene) {
@@ -2351,7 +2348,10 @@ export function paintArcGrenade(scene, key = 'hz-arcnade') {
   const STATE = [
     { core: DIM, hot: MID, prong: CASE_HI, tip: CASE_HI, band: BONE },
     { core: MID, hot: HOT, prong: MID, tip: HOT, band: BONE },
-    { core: HOT, hot: WHITE, prong: HOT, tip: WHITE, band: WHITE },
+    // ARMED IS BLUE WITH A WHITE PIP, not white. The first armed frame was a
+    // white core in a white-blue ring and photographed as a dead white dot —
+    // the powered state has to read as CURRENT, and current here is blue.
+    { core: '#4fa8ff', hot: '#bfe4ff', prong: HOT, tip: WHITE, band: WHITE },
   ];
 
   for (let f = 0; f < 3; f++) {

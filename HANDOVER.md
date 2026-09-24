@@ -226,7 +226,16 @@ spawns the Captain; DEBUG carries four triggers — BIG HIT / BREAK / LOW HEALTH
 drive the real `damage()` path, and CHAMP: GRENADE clears the cooldown and lets
 the real AI decide.
 
-**THE FINAL VISUAL CLOSEOUT IS THE CURRENT CANDIDATE — `§10ao`.** Handset play
+**PHASE VY IS THE CURRENT CANDIDATE — `§10ap`.** Three handset-named visual
+jobs on top of `§10ao`: TACTICAL STEP v4 has no lines at all — the suit flares,
+solid jets fire back at the launch and FORWARD as counter-thrust at the catch,
+and two segmented stamps mark where he was; the ARC GRENADE source is alive
+every frame (a stepwise blue core and internal shorts), powers down in a new
+post-danger `spent` phase, and surges when its field hits the player; the head
+glyphs move to ICE (`#18264a` / `#8faeff` / `#e8f4ff`). No gameplay value
+moved. Evidence in `docs/evidence/champion-reset/vy/`.
+
+**THE FINAL VISUAL CLOSEOUT BEFORE IT — `§10ao`.** Handset play
 approved the direction and named three remaining visual issues; this pass
 fixes exactly those. TACTICAL STEP v3 — the rejected slam-shaped catch (four
 converging brackets, doubled bars, a radial spark fan) is gone, replaced by one
@@ -7689,6 +7698,124 @@ in both rigs.
   handset's.
 - Nothing is marked human-approved. **The handset gate decides A, B, C, and
   whether Shock Captain V1 freezes as the reference Champion.**
+
+## 10ap. THE SHOCK CAPTAIN, PHASE VY — a step made of shapes, a source that stays alive, and ice above the head. **CANDIDATE — NOT APPROVED**
+
+Three visual jobs from handset play, and nothing else. No gameplay, AI, balance
+or state logic moved; `smoke-captain-closeout` still pins every frozen number
+as a literal (5300 = 3400 + 1900, `armourTake` 0.85, `armourSpill` 0.55, the
+step's 200 / 90 / 215 / 120 / 2800, the grenade's radius, timings, damage 46,
+tick 420, drag 0.62, cooldown 9000).
+
+### A. TACTICAL STEP v4 — no lines at all
+
+**What made v3 read weak and scribbly.** Every mark in it was a LINE: a 2px zig
+crack across the pack, a 2px chevron, dashed 2-3px bars at shoulder and knee,
+and a thin tick plus three thin sparks at the catch. A dozen hairlines round a
+112px body is scribble at 1x, and the catch tick still read as a strap.
+
+**v4 has no line primitive in it.** Three kinds of thing:
+
+1. **THE SUIT FLARES** — `_suitFlash` is his own live frame, `setTintFill` ice
+   on the normal blend, tracking him. It rises through the plant, hits hard at
+   the push-off (0.7, then 120ms down) and flares again at the catch (0.55,
+   170ms). The armour itself charges and absorbs; a silhouette the player
+   already knows cannot read as a floor decal or a spell.
+2. **JETS** — `_jet` draws a solid narrow kite (cobalt with a white-blue core)
+   out of each boot. At the push-off they fire BACK down the travel and are
+   left at the origin (190ms). At the catch they fire FORWARD, along the
+   travel: **counter-thrust**. The suit stops itself the way it started itself,
+   and nothing touches the floor, so no ground slam can be read into it. The
+   catch is held at full strength for its first 40%, because the first build
+   decayed from its first frame and was mostly gone by the next.
+3. **TWO SEGMENTED STAMPS** — his frame cut into three bands (helmet and
+   shoulders, torso, legs), each lagging further back along the travel, flat
+   cobalt, never growing: one at the first frame of travel, one at its middle.
+
+Plant also builds two small solid charge plates at the boots. The dashed body
+streaks are deleted, not unused.
+
+**Against the player dash:** the dash is pale cyan, ADD-blended, a tapered
+streak plus seventeen growing ghosts. The step is cobalt and ice, solid kites
+and cut stamps, and the suit's own outline — compact and engineered against
+fluid and luminous.
+
+### B. ARC GRENADE — the source stays alive, powers down, and answers its hits
+
+**What made it read dead.** Between the packet-synced ticks the live device
+drew nothing at all, and its armed frame was a white core in a white-blue ring.
+A tick every ~870ms is dark about 90% of the time.
+
+- **ALIVE, EVERY FRAME.** `_coreAlive` holds a BLUE core (three nested hard
+  squares, blue to white pip) under a STEPWISE level re-rolled every 60-110ms
+  from a table of discrete values, plus one or two short internal arcs from the
+  core to a prong tip, re-rolled on the same kind of clock and kept inside the
+  device's footprint. The armed frame's own core is `#4fa8ff` with a `#bfe4ff`
+  centre now. The synced ticks and prong fire stay on top.
+- **INSTABILITY** is the warn window: the level table darkens and gains
+  dropouts while the field is failing — and still dangerous, which the strobing
+  edge already says.
+- **POWER-DOWN, AFTER THE DANGER.** A new phase, `'spent'`, for `spentMs` (460)
+  after `fieldMs`. `live` is false there, so `contains()`, the tick and the
+  drag are already off and the ring is not drawn. Blip, dark, a weaker blip,
+  the core contracting to nothing, a dark shell fading — then `destroy`. It
+  keeps `_nade.dead` false 460ms longer, which the 9000ms cooldown makes
+  irrelevant to `_canThrow`.
+- **HIT-REACT.** The damage tick's own line records `_hitT` and the bearing;
+  for 170ms the core surges, the prong facing the player fires, and one routed
+  arc runs from that prong to them, on the hazard layer UNDER the actors so it
+  ends beneath the body it hit. Presentation reads the gameplay decision and
+  never makes one.
+
+Field geometry, radius, nodes, packets, wash, player interaction and arming
+timing are unchanged.
+
+### C. ICE ABOVE THE HEAD
+
+`PUNCT_PALETTE`: edge `#18264a` (deep navy), body `#8faeff` (icy periwinkle),
+highlight `#e8f4ff`. All five glyphs — break, low health, major hit, reacquire
+and the grenade intent sign — use exactly these three values and keep their
+shapes. The body's hue (~224deg) sits clear of the armour number's cyan
+(`#7fd4ff`, ~197deg), and the navy outline is what no number wears. Because his
+hardware is blue too, **containment is checked by exact value**: none of the
+three appears on his sheets, his rifle or the device, and his FX sources never
+name them. No timing, threshold or queue code changed.
+
+### VALIDATION
+
+`smoke-captain-closeout` — **46 checks**. A/B against `5d3ebb4`: **13 fail on
+the old build** and pass on this one — the step method set, no lines, streaks
+deleted, polygon fills only in `_jet`, forward counter-thrust at the catch,
+back thrust at the push-off, two segmented stamps, every glyph pixel in the ice
+palette, the core drawing between ticks, the hit-react, the spent phase, the
+ring gone during it, and the timed removal.
+
+**One instrument bug of mine.** The first "alive between ticks" probe put the
+packets at phase 0.5/8 and passed on the dead build too: three packets a third
+of a lap apart always leave one inside the old tick window. At 2/8 one sits on
+an even non-north node, where the old law draws nothing. And the live-throw
+check could no longer see the inert frame during arming (land and pause are
+sub-frame windows at this frame rate); it now asks only for inert in flight and
+armed on landing, and the addressed blip ladder proves the rest.
+
+### EVIDENCE — `docs/evidence/champion-reset/vy/`
+
+- **A/B:** `00-AB-step-catch`, `00-AB-step-travel` (v3 left, v4 right);
+  `00-AB-punct-break`, `00-AB-punct-intent` (violet left, ice right, among
+  real numbers and a real CRIT).
+- **Step:** `00-STRIP-step`, and `30`-`37` at 1x and cropped, with
+  `36-FIRST-CATCH` the frame to judge.
+- **Grenade:** `00-STRIP-live-core-and-hit` (live core twice, instability,
+  HIT-REACT), `00-STRIP-power-down` (blip, weaker blip, core contracting, dark
+  shell), `40`-`45` for arming, `10`-`19` for the lifecycle.
+- **Punctuation:** `50`-`52` among real combat text.
+
+### NOT BUILT
+
+- No gameplay, AI, balance, lifecycle-timing or state-logic change.
+- No punctuation for any other actor; no icon framework.
+- No video. The in-motion read is the handset's.
+- Nothing is marked human-approved.
 
 ## 12. CAMERA PHASE 1 — a camera that frames the game
 

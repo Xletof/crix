@@ -54,36 +54,45 @@ const method = (name) => {
   }
   return src.slice(i);
 };
-const STEP_METHODS = ['_stepPreload', '_stepThrust', '_stepCatchFx', '_stepEcho', '_stepStreak'];
+const STEP_METHODS = ['_stepPreload', '_stepThrust', '_stepCatchFx', '_stepEcho', '_suitFlash', '_jet'];
 const stepFx = STEP_METHODS.map(method);
-check(stepFx.every((m) => m.length > 200), 'the five step effect methods were found to read',
+check(stepFx.every((m) => m.length > 120), 'the six step effect methods were found to read',
   STEP_METHODS.map((n, i) => `${n}:${stepFx[i].length}`).join(' '));
 check(stepFx.every((m) => !m.includes('fillCircle')),
   'no step effect fills a circle at the boots — the droplet is gone, not dimmed');
 check(stepFx.every((m) => !m.includes('strokeEllipse') && !m.includes('.arc(')),
   'and none of them opens an ellipse or an arc from a point — no ripple, no ring');
-// A TRANSLUCENT MASS BESIDE A BODY IS A BUBBLE. The v2 push-off's filled
-// wedge photographed as one, so polygon fills stay banned. The v3 catch's boot
-// flash is a `fillRect` — a sole on a deck — and that is the one fill allowed.
-check(stepFx.every((m) => !m.includes('fillPath') && !m.includes('fillTriangle')),
-  'nothing in them fills a polygon — the impulse is drawn, not massed');
-// ── THE REJECTED CATCH, BY ABSENCE ────────────────────────────────────────
-// The handset rejected v2's landing as a ground slam: four diagonal brackets
-// converging on the boots, two stacked bars, two sideways scuffs and a
-// `burstDir` fan straight up. `_bolt` is the jittered polyline — the scribble
-// register — and v2's streaks were drawn with it too.
+check(!stepFx.some((m) => m.includes('burstDir')) && !stepFx.some((m) => m.includes('_bolt(')),
+  'no radial particle fan and no jittered `_bolt` squiggle anywhere in the step');
+// ── STEP v4: SHAPES, NOT LINES ────────────────────────────────────────────
+// v3 was built from hairlines — 2px cracks, chevrons, dashed streaks, a thin
+// catch tick — and a dozen thin lines round a body is scribble at 1x. v4 has
+// no line primitive at all: the suit's own silhouette, solid jets, and cut
+// stamps. Checked by absence, so a hairline cannot quietly come back.
+check(stepFx.every((m) => !m.includes('lineBetween') && !m.includes('lineStyle(')),
+  'the step draws no LINES at all — every mark is a solid shape or his own silhouette');
+check(!src.includes('_stepStreak('),
+  'the dashed body streaks are gone, not just unused');
+// A translucent mass beside a body is a bubble (v2's filled wedge). Polygon
+// fills live in exactly one place — the narrow `_jet` kite — and nowhere else.
+const nonJet = stepFx.filter((_, i) => STEP_METHODS[i] !== '_jet');
+check(nonJet.every((m) => !m.includes('fillPoints') && !m.includes('fillPath') && !m.includes('fillTriangle'))
+  && method('_jet').includes('fillPoints'),
+  'polygon fills exist only inside `_jet`, the narrow thrust kite');
+// ── THE CATCH IS COUNTER-THRUST ───────────────────────────────────────────
+// v2's catch was a ground slam (converging brackets); v3's was a floor tick
+// that read as a strap. v4 puts nothing on the floor: the jets fire FORWARD,
+// along the travel, and the suit flares.
 const catchFx = method('_stepCatchFx');
-check(!catchFx.includes('burstDir') && !stepFx.some((m) => m.includes('burstDir')),
-  'the catch throws no radial particle fan — no step effect calls `burstDir`');
-check(!stepFx.some((m) => m.includes('_bolt(')),
-  'no step effect draws a jittered `_bolt` squiggle');
+check(/_jet\([^)]*\bang\b/.test(catchFx) && !/_jet\([^)]*\bback\b/.test(catchFx)
+  && catchFx.includes('_suitFlash('),
+  'the catch fires the jets FORWARD along the travel and flares the suit — counter-thrust, not a floor mark');
 check(!/for \(let i = 0; i < 4;/.test(catchFx) && !catchFx.includes('Math.PI / 4 +'),
-  'the four converging diagonal brackets are gone from the catch');
-check(catchFx.includes('_stepAng') && (catchFx.match(/lineBetween/g) || []).length <= 3,
-  'the catch is ONE bar keyed to the travel bearing, plus sparks — three draw calls at most',
-  `${(catchFx.match(/lineBetween/g) || []).length} lineBetween`);
-// COBALT HARDWARE, NOT DASH CYAN. `def.color` is 0x4fc3ff, close enough to the
-// player's dash to read as the same technology, so the step does not spend it.
+  'the four converging diagonal brackets are still gone');
+check(/_jet\([^)]*\bback\b/.test(method('_stepThrust')) && method('_stepThrust').includes('_suitFlash('),
+  'the push-off fires the jets BACK down the travel and flashes the suit');
+check((src.match(/this\._stepEcho\(\)/g) || []).length === 2 && method('_stepEcho').includes('setCrop'),
+  'two segmented stamps per step, each his own frame cut into bands');
 check(stepFx.every((m) => !m.includes('this.def.color')) && src.includes('static get STEP_FX'),
   'the step is painted from its own cobalt palette, never the near-cyan `def.color`');
 // THE PLAYER DASH IS THE NEGATIVE REFERENCE. It stamps seventeen 0x60ecff
@@ -143,7 +152,7 @@ const glyphs = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(()
   };
   const hex = (r, g, b) => '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
   // EVERY OPAQUE GLYPH PIXEL IS ONE OF THE THREE DECLARED PUNCTUATION COLOURS.
-  const allowed = new Set(['#230a3a', '#9a5cff', '#dcc8ff']);
+  const allowed = new Set(['#18264a', '#8faeff', '#e8f4ff']);
   const stray = {};
   for (const k of keys) {
     if (!gs.textures.exists(k)) continue;
@@ -154,23 +163,20 @@ const glyphs = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(()
       if (!allowed.has(h)) stray[k] = (stray[k] || 0) + 1;
     }
   }
-  // AND VIOLET GOES NOWHERE ELSE ON HIM. His three body sheets, his rifle and
-  // the grenade device are walked for any pixel in the violet family — blue
-  // dominant, red well above green — which is what his cobalt and blue-white
-  // hardware is NOT (blue-white keeps green up with red; cobalt keeps red low).
-  const violetish = (r, g, b) => b > 140 && r > g + 40 && r > 90 && b > g + 60;
+  // AND THE PUNCTUATION VALUES GO NOWHERE ELSE ON HIM. The family is blue
+  // now and so is his hardware, so a hue-family detector would be blind — it
+  // is checked by EXACT VALUE: none of the three punctuation colours may
+  // appear on his three body sheets, his rifle or the grenade device.
   const leak = {};
   for (const k of ['champ-captain', 'champ-captain-broken', 'champ-captain-critical',
     'wpn-captain', 'hz-arcnade']) {
     if (!gs.textures.exists(k)) { leak[k] = 'missing'; continue; }
     const d = pixels(k);
     let n = 0;
-    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 40 && violetish(d[i], d[i + 1], d[i + 2])) n++;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 40 && allowed.has(hex(d[i], d[i + 1], d[i + 2]))) n++;
     if (n) leak[k] = n;
   }
-  const glyphViolet = keys.every((k) => { const d = pixels(k); let v = 0;
-    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200 && violetish(d[i], d[i + 1], d[i + 2])) v++;
-    return v > 20; });
+  const glyphViolet = true;
   return { missing, marks: missing.length ? [] : keys.map(hashOf), stray, leak, glyphViolet };
 }));
 check(glyphs.missing.length === 0, 'the intent sign is a painted texture like the four reactions',
@@ -182,15 +188,13 @@ check(glyphs.marks.length === 5 && glyphs.marks[4].ink > 40,
   glyphs.marks.length === 5 ? `${glyphs.marks[4].ink} lit px` : 'n/a');
 // ── THE PUNCTUATION REGISTER ──────────────────────────────────────────────
 check(Object.keys(glyphs.stray).length === 0,
-  'every opaque pixel of all five glyphs is one of the three declared violet punctuation colours',
+  'every opaque pixel of all five glyphs is one of the three declared ICE punctuation colours',
   JSON.stringify(glyphs.stray));
-check(glyphs.glyphViolet,
-  'and the violet detector this file uses actually FIRES on them — the containment check below is not blind');
 check(Object.keys(glyphs.leak).length === 0,
-  'no violet anywhere on his body sheets, his rifle or the grenade device — the register stays above the head',
+  'no punctuation colour anywhere on his body sheets, his rifle or the grenade device — the register stays above the head',
   JSON.stringify(glyphs.leak));
 {
-  const PUNCT = ['#230a3a', '#9a5cff', '#dcc8ff', '0x230a3a', '0x9a5cff', '0xdcc8ff'];
+  const PUNCT = ['#18264a', '#8faeff', '#e8f4ff', '0x18264a', '0x8faeff', '0xe8f4ff'];
   const hazSrc = decomment(await (await fetch(BASE + 'src/systems/Hazard.js')).text());
   const hit = PUNCT.filter((h) => src.toLowerCase().includes(h) || hazSrc.toLowerCase().includes(h));
   check(hit.length === 0,
@@ -312,8 +316,8 @@ check(throwRun.deviceFrames === '012', 'the device is three authored frames, not
 // it and a correct build reports as a two-frame device. That frame is proved
 // by the ADDRESSED blip ladder below; here the live throw only has to show the
 // device going from inert to armed on a real AI grenade.
-check(throwRun.inertInArm && throwRun.armedInArm,
-  'a real thrown device lands inert and arms — the charging blip is proved on its own clock below',
+check(throwRun.frames.includes('flight:0') && throwRun.armedInArm,
+  'a real thrown device flies inert and arms — land, blip and pause are sub-frame and proved on its own clock below',
   throwRun.frames.join(' '));
 check(throwRun.armedInField, 'the live field is powered by an ARMED device');
 
@@ -360,15 +364,58 @@ const edge = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(asyn
     land: armAt(0.04), blip1: armAt(0.12), pause: armAt(0.24),
     blip2: armAt(0.35), armed: armAt(0.9),
   };
+  // ── THE CORE IS ALIVE BETWEEN TICKS ──────────────────────────────────────
+  // At instants chosen AWAY from every packet-sync tick, the source layer must
+  // still carry draw commands. On the previous build it was empty there — the
+  // tick was the only thing the device ever drew.
+  const liveAt = [0.21, 0.37, 0.52, 0.66].map((f) => {
+    m.age = m.flightMs + m.armMs + m.fieldMs * f;
+    // Packets at node positions 2, 4.67 and 7.33: one sits on an EVEN node
+    // that is not north (where the tick law draws nothing) and the other two
+    // are a third of a node away. An earlier choice of 0.5/8 left one packet
+    // inside the old tick window, so the check passed on the dead build too.
+    m._pktT = 2 / 8;
+    m.update(1);
+    return (m.coreGfx?.commandBuffer?.length ?? 0) > 0;
+  });
+  // ── THE SOURCE ANSWERS THE HIT, AND THE HIT IS UNCHANGED ─────────────────
+  const pl = gs.player;
+  const hp0 = pl.hp;
+  const godWas = pl._god;
+  pl.setPosition(m.x, m.y); pl.alive = true;
+  m.age = m.flightMs + m.armMs + 400; m._cool = 0; m._hitT = 0;
+  m.update(1);
+  const hitReact = { hitT: m._hitT, removed: hp0 - pl.hp, cool: m._cool };
+  // ── THE POWER-DOWN IS AFTER THE DANGER, IN ITS OWN PHASE ─────────────────
+  pl.setPosition(m.x, m.y);
+  m.age = m.flightMs + m.armMs + m.fieldMs + 20; m._cool = 0;
+  const hpS = pl.hp;
+  m.update(1);
+  const spent = {
+    phase: m.phase, live: m.live, contains: m.contains(m.x, m.y),
+    hurt: hpS - pl.hp, drawn: (m.coreGfx?.commandBuffer?.length ?? 0) > 0 || m.body?.frame?.name === '1',
+    ringDrawn: (m.edgeGfx?.commandBuffer?.length ?? 0) > 0,
+    dead: m.dead,
+  };
+  m.age = m.flightMs + m.armMs + m.fieldMs + m.spentMs - 30; m.update(1);
+  const lateAlive = !m.dead;
+  m.age = m.flightMs + m.armMs + m.fieldMs + m.spentMs + 5; m.update(1);
+  const endsDead = m.dead;
+  pl.setPosition(gs.player.x, gs.player.y + 500);
+
   // THE ORPHAN SWEEP. The source-life FX draw into the grenade's own Graphics
   // and create nothing of their own, so the display list must come back to
   // exactly where it was when the object goes.
+  // A fresh one for the count: the one above has already destroyed itself.
+  const q = gs.spawnArcGrenade({ ...g, x: gs.player.x - 300, y: gs.player.y - 420,
+    tx: gs.player.x - 300, ty: gs.player.y - 420, owner: null });
   const before = gs.children.list.length;
-  m.destroy();
+  q.destroy();
   const after = gs.children.list.length;
   const counted = { before, after, removed: before - after };
   return {
-    R, cfg: g.radius, ladder, blips, counted,
+    R, cfg: g.radius, ladder, blips, counted, liveAt, hitReact, spent, lateAlive, endsDead,
+    dmg: g.damage, tick: g.tickMs,
     frozen: {
       hp: CHAMPION.captain.hp, armour: CHAMPION.captain.armour,
       armourTake: CHAMPION.captain.armourTake, armourSpill: CHAMPION.captain.armourSpill,
@@ -400,6 +447,21 @@ check(Object.values(B).every((x) => x.hot === false),
 check(edge.counted.removed === 6,
   'the source life creates no objects per frame — a destroyed grenade takes exactly its five Graphics and its device',
   JSON.stringify(edge.counted));
+check(edge.liveAt.every(Boolean),
+  'the source core is drawing at every sampled instant of the live field — alive between ticks, not only on them',
+  JSON.stringify(edge.liveAt));
+check(edge.hitReact.hitT > 0 && edge.hitReact.removed === edge.dmg && edge.hitReact.cool === edge.tick,
+  'a damage tick makes the source react — and the tick itself is exactly the authored damage on the authored cadence',
+  JSON.stringify(edge.hitReact));
+check(edge.spent.phase === 'spent' && !edge.spent.live && !edge.spent.contains && edge.spent.hurt === 0,
+  'after `fieldMs` the device is SPENT: not live, `contains` false, and a player standing on it takes nothing',
+  JSON.stringify(edge.spent));
+check(edge.spent.drawn && !edge.spent.ringDrawn,
+  'the power-down is drawn on the device alone — no ring survives the danger',
+  JSON.stringify(edge.spent));
+check(edge.lateAlive && edge.endsDead,
+  'it powers down for `spentMs` and is then gone — a visible shutdown, then a clean removal',
+  `late ${edge.lateAlive}, end ${edge.endsDead}`);
 // ── EVERY FROZEN NUMBER, AS A LITERAL ─────────────────────────────────────
 const F = edge.frozen;
 check(F.hp === 3400 && F.armour === 1900 && F.armourTake === 0.85 && F.armourSpill === 0.55,

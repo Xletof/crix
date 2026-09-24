@@ -516,6 +516,20 @@ export class ArcGrenade {
     // — a machine's current going round a ring is the one thing in this effect
     // that must look CONTROLLED. Everything stochastic here is a snap.
     this._pktT = 0;
+    // ── SOURCE LIFE, SHUTDOWN AND HIT-REACT (visual state only) ───────────
+    // `_flick` is a STEPWISE core level re-rolled on its own short clock: a
+    // machine flickers in steps, a beacon breathes in a sine, and this is a
+    // machine. `_shorts` are the internal arcs, re-rolled the same way.
+    // `_hitT` is the source answering a damage tick it just delivered.
+    this._flick = 1; this._flickT = 0;
+    this._shorts = []; this._shortT = 0;
+    this._hitT = 0; this._hitAng = 0; this._hitX = 0; this._hitY = 0;
+    // THE POWER-DOWN HAPPENS AFTER THE DANGER, NEVER DURING IT. `spentMs` is
+    // a tail appended AFTER `fieldMs`, in a phase of its own: `live` is false
+    // there, so `contains()`, the damage tick and the drag are all already
+    // off, and the ring is not drawn. A shutdown that played inside the field
+    // would be a power-off animation over ground that still hurts.
+    this.spentMs = 460;
     this._armed = false;       // one-shot: the activation beat has played
     this._landed = false;
 
@@ -564,12 +578,13 @@ export class ArcGrenade {
       y: this.y + Math.sin(a) * this.radius, a };
   }
 
-  /** 'flight' | 'arm' | 'field' | 'dead'. */
+  /** 'flight' | 'arm' | 'field' | 'spent' | 'dead'. */
   get phase() {
     if (this.dead) return 'dead';
     if (this.age < this.flightMs) return 'flight';
     if (this.age < this.flightMs + this.armMs) return 'arm';
-    return 'field';
+    if (this._fieldAge < this.fieldMs) return 'field';
+    return 'spent';
   }
 
   /** How long the field has been live, ms. Negative before it is. */
@@ -599,7 +614,8 @@ export class ArcGrenade {
   update(delta) {
     if (this.dead) return false;
     this.age += delta;
-    if (this._fieldAge >= this.fieldMs) { this.destroy(); return false; }
+    if (this._fieldAge >= this.fieldMs + this.spentMs) { this.destroy(); return false; }
+    if (this._hitT > 0) this._hitT -= delta;
 
     const ph = this.phase;
     if (ph !== 'flight' && !this._landed) {
@@ -629,6 +645,12 @@ export class ArcGrenade {
       p._envDrag = Math.min(p._envDrag ?? 1, this.dragMult);
       if (this._cool <= 0) {
         this._cool = this.tickMs;
+        // THE SOURCE DELIVERS THE HIT, SO THE SOURCE SHOWS IT. Recorded here,
+        // on the one line that decides the tick, and drawn by `_draw` next
+        // frame — presentation reads the gameplay decision, never makes one.
+        this._hitT = 170;
+        this._hitAng = Math.atan2(p.y - this.y, p.x - this.x);
+        this._hitX = p.x; this._hitY = p.y;
         p.damage(this.damage, Math.atan2(p.y - this.y, p.x - this.x));
         this.scene.fx?.burst?.(p.x, p.y, 'white', 4);
         SFX.arcFieldTick?.();
@@ -722,6 +744,8 @@ export class ArcGrenade {
     // ── GROUNDED. The device settles at the centre for the rest of its life ──
     const t = this.age / 1000;
     this.body.setVisible(true).setPosition(this.x, this.y).setRotation(0);
+
+    if (ph === 'spent') { this._drawSpent(); return; }
 
     if (ph === 'arm') {
       // ── THE ACTIVATION SEQUENCE (§21) ────────────────────────────────────
@@ -848,7 +872,9 @@ export class ArcGrenade {
     // the UI read this field has already been pulled back from once.
     const prevPkt = this._pktT;
     this._pktT = (this._pktT + delta / 2600) % 1;
+    this._coreAlive(delta, integ);
     this._sourceLife(prevPkt, integ);
+    this._hitReact();
     for (let k = 0; k < 3; k++) {
       const turn = (this._pktT + k / 3) % 1;
       const a1 = this._nodeA + turn * Math.PI * 2;
@@ -890,6 +916,128 @@ export class ArcGrenade {
       this._bolt(this.edgeGfx, a.x, a.y, b.x, b.y, 10, 2,
         c.from < 0 ? 0xffffff : this.color, 0.55 * integ * strobe);
     }
+  }
+
+  /**
+   * ── THE CORE IS ALIVE FOR THE WHOLE FIELD, NOT FOR ONE TICK ─────────────
+   *
+   * WHAT WAS DEAD. Between the synced ticks the armed device was a static
+   * white-cored sprite, and a tick every ~870ms is dark 90% of the time — so
+   * for most of the field the machine sustaining it did nothing at all.
+   *
+   * Two constant behaviours, both STEPWISE, never a sine:
+   *   - A BLUE CORE held lit under a level re-rolled every 60-110ms from a
+   *     short table of discrete values: a device drawing current, flickering
+   *     in steps the way electronics do.
+   *   - INTERNAL SHORTS: one or two short arcs from the core out to a prong
+   *     tip, re-rolled on the same kind of clock and kept inside the device's
+   *     own footprint, so the conduction reads as INSIDE the machine rather
+   *     than as more field.
+   *
+   * INSTABILITY IS THE WARN WINDOW. As `integ` falls the table goes darker and
+   * gains dropouts, so the source visibly struggles in exactly the interval
+   * the field is about to fail — while the field is still dangerous, which is
+   * what the strobing edge already says.
+   */
+  _coreAlive(delta, integ) {
+    const g = this.coreGfx;
+    this._flickT -= delta;
+    if (this._flickT <= 0) {
+      const steady = [1, 0.85, 1, 0.92, 0.78, 1];
+      const failing = [0.9, 0.35, 0.7, 0, 0.55, 0.2, 0.8];
+      const tbl = integ < 1 ? failing : steady;
+      this._flick = tbl[Math.floor(Math.random() * tbl.length)] * (integ < 1 ? 0.5 + integ * 0.5 : 1);
+      this._flickT = 60 + Math.random() * 50;
+    }
+    const f = this._flick;
+    if (f > 0) {
+      g.fillStyle(0x2f7fff, 0.45 * f);
+      g.fillRect(this.x - 9, this.y - 9, 18, 18);
+      g.fillStyle(0x7fc8ff, 0.7 * f);
+      g.fillRect(this.x - 5, this.y - 5, 10, 10);
+      g.fillStyle(0xe8f6ff, 0.9 * f);
+      g.fillRect(this.x - 2, this.y - 2, 4, 4);
+    }
+    this._shortT -= delta;
+    if (this._shortT <= 0) {
+      this._shortT = 90 + Math.random() * 70;
+      this._shorts = [];
+      const n = integ < 1 ? (Math.random() < 0.5 ? 1 : 0) : 1 + (Math.random() < 0.4 ? 1 : 0);
+      for (let k = 0; k < n; k++) this._shorts.push(Math.floor(Math.random() * 4));
+    }
+    const tips = this._prongTips();
+    for (const i of this._shorts) {
+      const tp = tips[i];
+      this._bolt(g, this.x, this.y, tp.x, tp.y, 5, 2, 0xbfe6ff, 0.85 * Math.max(integ, 0.4));
+      g.fillStyle(0xffffff, 0.9);
+      g.fillRect(tp.x - 2, tp.y - 2, 4, 4);
+    }
+  }
+
+  /**
+   * ── THE SOURCE ANSWERS THE HIT IT DELIVERS ──────────────────────────────
+   *
+   * On the tick that damages the player: the core SURGES, the prong facing
+   * them fires, and one routed arc runs from that prong to where they stand.
+   * 170ms. The arc is drawn on the hazard layer, UNDER the actors, so it ends
+   * beneath the player's sprite rather than painting over the body it hit.
+   */
+  _hitReact() {
+    if (this._hitT <= 0) return;
+    const k = Math.min(1, this._hitT / 170);
+    const g = this.coreGfx;
+    g.fillStyle(0xe8f6ff, 0.95 * k);
+    g.fillRect(this.x - 6, this.y - 6, 12, 12);
+    g.lineStyle(3, 0xbfe6ff, 0.9 * k);
+    g.lineBetween(this.x - 30, this.y, this.x + 30, this.y);
+    g.lineBetween(this.x, this.y - 22, this.x, this.y + 22);
+    const tips = this._prongTips();
+    let best = tips[0], bd = -2;
+    for (const tp of tips) {
+      const d = Math.cos(Math.atan2(tp.dy, tp.dx) - this._hitAng);
+      if (d > bd) { bd = d; best = tp; }
+    }
+    g.fillStyle(0xffffff, k);
+    g.fillRect(best.x - 3, best.y - 3, 6, 6);
+    this._bolt(this.edgeGfx, best.x, best.y, this._hitX, this._hitY, 12, 3, 0xbfe6ff, 0.9 * k);
+    this._bolt(this.edgeGfx, best.x, best.y, this._hitX, this._hitY, 8, 1.5, 0xffffff, 0.9 * k);
+  }
+
+  /**
+   * ── POWER-DOWN: AFTER THE DANGER, IN ITS OWN PHASE ──────────────────────
+   *
+   *   s 0.00-0.12  a last blip — the charging frame and a small cross
+   *   s 0.12-0.28  dark
+   *   s 0.28-0.38  a weaker blip
+   *   s 0.38-0.72  the core CONTRACTS: a hard square shrinking to nothing
+   *   s 0.72-1.00  the dark shell, fading out
+   *
+   * No ring, no wash, no node: the ground stopped being dangerous at
+   * `fieldMs` and the picture has to say so on that same frame. What is left
+   * is only the machine switching itself off.
+   */
+  _drawSpent() {
+    const s = Phaser.Math.Clamp((this._fieldAge - this.fieldMs) / this.spentMs, 0, 1);
+    const g = this.coreGfx;
+    const blipA = s < 0.12 ? 1 - s / 0.12 : 0;
+    const blipB = s >= 0.28 && s < 0.38 ? 1 - (s - 0.28) / 0.10 : 0;
+    this.body.setFrame(blipA > 0 || blipB > 0 ? 1 : 0).setScale(1);
+    const bl = Math.max(blipA, blipB * 0.6);
+    if (bl > 0) {
+      const r = blipA > 0 ? 20 : 12;
+      g.lineStyle(3, 0x7fc8ff, 0.9 * bl);
+      g.lineBetween(this.x - r, this.y, this.x + r, this.y);
+      g.lineBetween(this.x, this.y - r * 0.7, this.x, this.y + r * 0.7);
+    }
+    if (s >= 0.38 && s < 0.72) {
+      const c = 1 - (s - 0.38) / 0.34;
+      const h = Math.max(1, Math.round(7 * c));
+      g.fillStyle(0x7fc8ff, 0.9 * c);
+      g.fillRect(this.x - h, this.y - h, h * 2, h * 2);
+      g.fillStyle(0xffffff, c);
+      g.fillRect(this.x - 1, this.y - 1, 2, 2);
+    }
+    this.body.setAlpha(s < 0.72 ? 1 : 1 - (s - 0.72) / 0.28);
   }
 
   /**

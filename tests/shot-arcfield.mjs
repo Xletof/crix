@@ -134,6 +134,28 @@ const at = async (name, u, flight = false) => {
   await page.waitForTimeout(250);
   await shot(name, 300);
 };
+// AT AN ABSOLUTE AGE, for the live-core, power-down and hit-react stations.
+// `setup` runs in the page with the grenade as `n` before the single step.
+const atAge = async (name, ageExpr, setup = '') => {
+  await resume();
+  await throwOne();
+  await page.evaluate(({ ageExpr, setup }) => {
+    const gs = window.game.scene.getScene('Game');
+    const n = window.__nade;
+    // eslint-disable-next-line no-new-func
+    n.age = new Function('n', `return (${ageExpr});`)(n);
+    // eslint-disable-next-line no-new-func
+    if (setup) new Function('n', 'gs', setup)(n, gs);
+    n.update(1);
+    const cam = gs.cameras.main;
+    cam.stopFollow(); cam.centerOn(n.x, n.y); cam.resetFX();
+    gs._sectorTint?.setAlpha(0);
+    window.game.scene.getScene('HUD')?.hud?.banner?.setAlpha(0);
+    gs.scene.pause();
+  }, { ageExpr, setup });
+  await page.waitForTimeout(250);
+  await shot(name, 300);
+};
 console.log('the device coming online:');
 await at('40-release', 0.06, true);
 await at('41-land', 0.04);
@@ -141,6 +163,19 @@ await at('42-BLIP-1', 0.11);
 await at('43-pause', 0.24);
 await at('44-BLIP-2', 0.33);
 await at('45-field-establishing', 0.62);
+console.log('the live source, its power-down, and its hit:');
+const F = 'n.flightMs + n.armMs';
+await atAge('60-live-core-a', `${F} + 500`, 'n._pktT = 0.25;');
+await atAge('61-live-core-b', `${F} + 900`, 'n._pktT = 0.25;');
+await atAge('62-instability', `${F} + n.fieldMs - n.warnMs * 0.4`);
+await atAge('63-power-down-blip', `${F} + n.fieldMs + n.spentMs * 0.04`);
+await atAge('64-power-down-blip-2', `${F} + n.fieldMs + n.spentMs * 0.31`);
+await atAge('65-core-contracts', `${F} + n.fieldMs + n.spentMs * 0.5`);
+await atAge('66-dark-shell', `${F} + n.fieldMs + n.spentMs * 0.8`);
+// THE HIT: the player is placed inside the live field and the tick cooldown
+// is cleared, so the real contact code decides a real damage tick.
+await atAge('67-HIT-REACT', `${F} + 600`,
+  "const p = gs.player; p.setPosition(n.x + n.radius * 0.55, n.y + 10); p.setVelocity(0, 0); n._cool = 0; n.update(1);");
 
 await station('10-device-in-flight', "n.phase === 'flight' && n.age > n.flightMs * 0.4");
 await station('11-landed-core-powers-up', `n.phase === 'arm' && ${armU} < 0.34`);
@@ -153,11 +188,8 @@ await shot('14-field-active-wide', 620);
 // cannot show it — the pair is the evidence, and the three packets must be at
 // three different places on the fence between them.
 await station('14b-field-circulation', "n.phase === 'field' && n._fieldAge > 1150");
-// THE SOURCE MID-TICK: the frame a packet crosses due north, which is the
-// instant the core's diagnostic pulse fires. Found from the circulation phase
-// itself, so the photograph is of the synchronisation rather than near it.
-await station('46-live-source-tick', "n.phase === 'field' && n._fieldAge > 300 && [0, 1/3, 2/3].some((o) => { const p = ((n._pktT + o) % 1) * 8; return Math.abs(p - Math.round(p)) < 0.07 && Math.round(p) % 8 === 0; })");
-await station('47-live-source-prong', "n.phase === 'field' && n._fieldAge > 300 && [0, 1/3, 2/3].some((o) => { const p = ((n._pktT + o) % 1) * 8; return Math.abs(p - Math.round(p)) < 0.07 && Math.round(p) % 2 === 1; })");
+// (The live source is photographed by the ADDRESSED stations 60-61 above; a
+// polled station for a sub-frame tick window timed out on this harness.)
 
 // THE PLAYER INSIDE IT, AND THE PLAYER ON THE EDGE — §27/§28. The edge frame
 // is the one that has to show the painted boundary agreeing with `contains`.

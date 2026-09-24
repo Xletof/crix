@@ -1348,9 +1348,8 @@ asserts separately that the ceiling is not reached.
   deck, a dark cell wall and a muzzle flash, so it carries a black surround —
   and with 2px gaps that surround MERGES and the glyph photographs as a dark
   slab with bone shapes cut out of it. Two-pixel bars, three-pixel gaps,
-  single-pixel crossbars. **They are VIOLET now, not bone** — see the
-  punctuation register below; bone was right about the world and wrong about
-  the combat text standing next to it.
+  single-pixel crossbars. **They are ICE now — not bone, not violet** — see
+  the punctuation register below.
 - **TARGET REACQUIRE WAS MEASURED BEFORE IT WAS BUILT.** In a real CROSSFIRE and
   VANGUARD the Captain holds line of sight ~85% of frames and loses it about
   twice per 22s for 0.5-3.4s, and in 21-34 of those frames he was READY TO FIRE
@@ -1562,38 +1561,24 @@ asserts separately that the ceiling is not reached.
   carry. `smoke-captain-closeout` greps the step methods for `fillCircle`,
   `strokeEllipse` and `.arc(` — absence, never a comment. `HANDOVER.md` §10an,
   and §10ao for what replaced v2's catch.
-- **CONVERGING BRACKETS AROUND THE FEET ARE A GROUND SLAM, AND A HANDSET SAID
-  SO.** v2 answered "splash" by making the catch CONVERGE: four diagonal
-  brackets driving in on the boots, two stacked deck bars, two sideways scuffs
-  and a `burstDir` fan straight up. Eight marks arranged symmetrically round a
-  point under a body is the silhouette of Vader's crush and the Riven melee's
-  floor crack — an ability going off underneath him — and it was rejected as
-  reused language, not as a colour. **Recolouring it would have left the same
-  shape saying the same thing.** v3's catch is ONE deck bar across the travel
-  at the LEADING boot, three straight sparks thrown FORWARD (momentum carrying
-  on, the one direction a slam cannot throw anything) and a small rectangular
-  boot flash; the `land` frame does the rest. **If a landing effect could be
-  reused by Vader or a melee slam, it is wrong.** `smoke-captain-closeout`
-  bans `burstDir` and `_bolt` in every step method and caps the catch at three
-  draw calls.
-- **A DECK MARK KEEPS THE DECK'S FORESHORTENING, INCLUDING ITS LENGTH.** Every
-  floor mark here squashes y by 0.5. The v3 catch bar normalised the squash
-  away to get a unit direction and then used the unit vector for the LENGTH,
-  so a sideways step laid a full-height vertical line straight down over his
-  legs — photographed as a strap. Direction unit, length foreshortened.
-- **THE MOVEMENT IS THE HERO, SO SOMETHING MUST BE ATTACHED TO IT.** v2 was
-  launch FX at the origin, travel, and catch FX at the end: three separate
-  effects in three places, which a handset reads as "several small FX around
-  his feet". `_stepStreak` is two RIGID DASHED bars at shoulder and knee drawn
-  every frame from the LIVE body back toward the launch point — attached to
-  him, never longer than the ground covered (so it cannot become a ribbon),
-  and gone ~70ms after the travel. With ONE broken echo (two cropped bands of
-  his frame, waist missing, legs lagging) it is the Captain's answer to the
-  dash: one hard mechanical signature, not seventeen growing ghosts.
+- **A STEP BUILT FROM LINES IS SCRIBBLE, AND THE STEP IS v4 NOW —
+  `HANDOVER.md` §10ap.** v2's catch was a ground slam (four converging
+  brackets, doubled bars, a spark fan). v3 removed that and was still made of
+  HAIRLINES — a 2px pack crack, a 2px chevron, dashed 2-3px shoulder and knee
+  streaks, a thin catch tick that read as a strap. A dozen thin lines round a
+  112px body is scribble at 1x however carefully each is placed. **v4 has no
+  line primitive in it at all**, only three kinds of thing: THE SUIT FLARES
+  (`_suitFlash`: his own live frame flat-filled in ice, at the plant, push-off
+  and catch), JETS (`_jet`: solid narrow kites from the boots — BACK at the
+  launch, FORWARD at the catch as counter-thrust), and TWO SEGMENTED STAMPS
+  (his frame cut into three lagging bands). **The catch puts nothing on the
+  floor** — a powered suit stops itself the way it started, which no ground
+  slam can be mistaken for. `smoke-captain-closeout` fails on any
+  `lineStyle`/`lineBetween`, `arc`, `strokeEllipse`, `fillCircle`, `_bolt` or
+  `burstDir` in the step, and on a polygon fill anywhere but `_jet`.
 - **THE STEP DOES NOT SPEND `def.color`.** `0x4fc3ff` sits close enough to the
   player's dash cyan to read as the same technology in peripheral vision.
-  `ShockCaptain.STEP_FX` is cobalt / blue / white-blue peak / a grey deck
-  spark, and the closeout suite fails a step method that names `def.color`.
+  `ShockCaptain.STEP_FX` is cobalt / blue / white-blue peak / ice.
 - **A FILLED TRANSLUCENT WEDGE BESIDE A BODY IS A BUBBLE. A STROKED CHEVRON IS A
   DIRECTION.** 34x54 of blue at 0.5 alpha against his hip photographed as a mass
   he was wearing, and he already stands near round cyan fixtures. A chevron has
@@ -1637,6 +1622,33 @@ asserts separately that the ceiling is not reached.
   the diagonal node its sector faces, and the core ticks as one crosses due
   north (three ticks a lap). Derived from `_pktT`, so cause and effect cannot
   drift.
+- **A SOURCE THAT ONLY TICKS IS DEAD 90% OF THE TIME.** The synced ticks were
+  all the live device ever drew, so for most of the field a handset saw a
+  static white-cored sprite. `_coreAlive` holds a BLUE core every frame under
+  a STEPWISE level re-rolled every 60-110ms (electronics flicker in steps; a
+  sine is a beacon) plus one or two internal shorts core-to-prong, and the
+  armed frame's own core is blue with a white pip now, not white. In the warn
+  window the table darkens and gains dropouts: the source struggles exactly
+  while the field is failing.
+- **THE POWER-DOWN LIVES IN ITS OWN PHASE, AFTER THE DANGER.** `phase` is
+  `'spent'` for `spentMs` (460) after `fieldMs`: `live` is false, so
+  `contains()`, the tick and the drag are already off and the ring is not
+  drawn. Blip, dark, weaker blip, the core contracting, a dark shell fading —
+  then `destroy`. Putting the shutdown inside the field would animate a
+  power-off over ground that still hurts. It holds `_nade.dead` false 460ms
+  longer, which the 9000ms cooldown makes irrelevant to `_canThrow`.
+- **THE SOURCE SHOWS THE HIT IT DELIVERS.** The damage tick's own line records
+  `_hitT` and the bearing; `_hitReact` surges the core, fires the prong facing
+  the player and runs one routed arc from that prong to them, on the hazard
+  layer UNDER the actors so it ends beneath the body it hit. Presentation reads
+  the gameplay decision and never makes one: the suite pins the tick at the
+  authored 46 on the authored 420ms cadence.
+- **CHOOSE A PROBE INSTANT THAT THE OLD LAW DEFINITELY DOES NOT DRAW AT.** The
+  first "alive between ticks" check set the packet phase to 0.5/8 and passed on
+  the dead build too — three packets a third of a lap apart always put one
+  within the old tick window. At 2/8 one sits on an even non-north node, where
+  the old law draws nothing. A/B every new check; a check that passes on the
+  bug is decoration.
 - **THE SOURCE'S LIGHT GOES ABOVE THE SOURCE.** The first blips were drawn into
   `edgeGfx` (hazard depth) under the device at 2002 — a 15px core flash on a
   60px opaque sprite, completely hidden by the object emitting it. Measured on
@@ -1666,23 +1678,20 @@ asserts separately that the ceiling is not reached.
   construction. Same shape as `CameraDirector._bossFramable` refusing a
   cancelled handle. **IT IS NOT THE SPATIAL TELEGRAPH** — the thrown device, its
   shadow, the landing mark and the field own where; this owns only that.
-- **VIOLET ABOVE THE HEAD = CHARACTER PUNCTUATION — `PUNCT_PALETTE`, a
-  CANDIDATE doctrine.** The glyphs were bone because bone is the Captain's
-  rank plate, which answered what they must not be confused with IN THE WORLD
-  and never asked what they land NEXT TO: every frame that raises one prints
-  `#ffffff` damage, `#ff8020` Super damage, `#ffe040` CRIT! and `#7fd4ff`
-  armour hits in the same column. A handset lost them there. Violet is the
-  one hue nothing near his head spends — red is telegraphs, green bullets,
-  amber environment, blue-white his hardware, white/yellow/orange/pale blue
-  numbers. **COLOUR IS THE REGISTER, SHAPE IS THE MEANING**: all five glyphs
-  share `edge #230a3a / body #9a5cff / lit #dcc8ff` and keep their own forms.
-  **Violet belongs above the head and NOWHERE ELSE on him** — the closeout
-  suite walks his three body sheets, his rifle and the grenade device for any
-  violet-family pixel, and greps his FX sources for the palette literals.
-  **Do NOT generalise it yet**: no icons on ordinary enemies, none on Vader, no
-  icon framework. The Captain is the first proven use; a second actor must
-  earn the second. Vader's FORCE effects are violet ON THE FLOOR around him —
-  position and shape separate the two, and they never share an encounter.
+- **ICE ABOVE THE HEAD = CHARACTER PUNCTUATION — `PUNCT_PALETTE`, a
+  CANDIDATE doctrine, third palette.** BONE (his rank plate) was lost among the
+  numbers that land in the same column — `#ffffff`, `#ff8020`, `#ffe040` CRIT!
+  and `#7fd4ff` armour hits. VIOLET fixed that and was judged softer and less
+  crisp on a handset. ICE is the handset's own choice: `edge #18264a / body
+  #8faeff / lit #e8f4ff`. The body's hue (~224deg) sits well off the armour
+  number's cyan (~197deg), and the deep NAVY OUTLINE is the thing no combat
+  text wears — it is what separates the family, and the pale body is what makes
+  it crisp. **COLOUR IS THE REGISTER, SHAPE IS THE MEANING**: all five glyphs
+  share the three values and keep their forms. **Because his hardware is blue
+  too, containment is checked by EXACT VALUE, not by hue family** — a blue
+  detector would be blind on a blue actor. None of the three values appears on
+  his sheets, his rifle or the grenade device, and his FX sources never name
+  them. **Do NOT generalise it yet**: the Captain is the first proven use.
 - **A GREP-BASED LAW MUST STRIP THE PROSE BEFORE IT READS THE CODE.** This
   codebase documents the shapes it removed and the negative references it must
   not copy BY NAME, so a check reading raw source finds the very literals it is

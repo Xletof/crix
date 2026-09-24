@@ -182,7 +182,7 @@ await shot('30-before-1x'); await shot('30-before-crop', 420);
 await station('31-plant', "c._cap === 'step' && c._stepPlantMs > d.plantMs * 0.5");
 await station('32-preload', "c._cap === 'step' && c._stepPlantMs > 0 && c._stepPlantMs <= d.plantMs * 0.5");
 await station('33-pushoff',
-  "c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs > d.catchMs + d.travelMs * 0.72");
+  "c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs > d.catchMs + d.travelMs * 0.5");
 await station('34-early-travel',
   "c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs <= d.catchMs + d.travelMs * 0.72 && c._stateMs > d.catchMs + d.travelMs * 0.4");
 await station('35-late-travel',
@@ -190,6 +190,6 @@ await station('35-late-travel',
 // THE MOST IMPORTANT FRAME. Armed on the first frame of the catch, shot on the
 // next — the first frame on which the catch has actually been DRAWN.
 await station('36-FIRST-CATCH', "c._cap === 'step' && c._stepPlantMs <= 0 && c._stateMs <= d.catchMs");
-await station('37-settle', "c._cap !== 'step' && c._stepFrom && Math.hypot(c.x - c._stepFrom.x, c.y - c._stepFrom.y) > 150");
+await station('37-settle', "c._cap !== 'step' && c._stepFrom && Math.hypot(c.x - c._stepFrom.x, c.y - c._stepFrom.y) > 60");
 
 await browser.close();
