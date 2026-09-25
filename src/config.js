@@ -1298,6 +1298,12 @@ export const SCORE = {
   },
   eliteMult: 3,          // an elite is worth 3x its base
   miniBoss: 2500,
+  // A CHAMPION sits between the two tiers it separates: above the richest
+  // elite (a sniper elite is 300 x 3 = 900 before the chain) and below a
+  // nemesis (2500, which scars raise further). Flat, like `miniBoss` — no
+  // chain multiplier, no elite multiplier, no drop or loot layer attached.
+  // Phase B integration pilot: CANDIDATE, not human-approved.
+  champion: 1500,
   boss: 25000,
 
   chainStep: 0.25,       // +25% per chain kill beyond the first

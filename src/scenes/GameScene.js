@@ -16,7 +16,10 @@ import { attachFX, SFX, startMusic, duckMusic, duckSfx, stopMusic, isLowQuality 
 import { setMusicPhase, setBossPhase, tickDirector, musicSampleDue, resetDirector } from '../systems/musicDirector.js';
 import { ROOMS } from '../data/rooms.js';
 import { perimeterOpenings } from '../data/mapUtils.js';
-import { encounterFor, buildSpawnQueue, pickGates, ENCOUNTERS, bandFor } from '../data/encounters.js';
+import {
+  encounterFor, buildSpawnQueue, pickGates, ENCOUNTERS, bandFor,
+  championPlacementFor, applyChampionPlacement, PLACEABLE_CHAMPIONS,
+} from '../data/encounters.js';
 import { CameraDirector } from '../systems/CameraDirector.js';
 import { rollNemesis, traitLine } from '../data/nemesis.js';
 import {
@@ -26,7 +29,7 @@ import {
 import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.js';
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
-  isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel,
+  isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff,
 } from '../systems/debug.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { attachHazards } from '../systems/Hazard.js';
@@ -173,8 +176,10 @@ export class GameScene extends Phaser.Scene {
     this._waveCount    = 0;     // the drip's budget — see _resolveEncounter
     this._encounter    = null;  // authored composition for this wave, or null
     this._spawnQueue   = null;
+    this._placement    = null;  // authored Champion placement for this wave, or null
     this._gatePlan     = null;
     this._gateStep     = 0;
+    this._debugStartWave = 0;   // `?encdbg&wave=` — consumed by the first room
     this._lastLiving   = -1;
     this._comboCount   = 0;
     this._lastKillTime = -99999;
@@ -451,6 +456,10 @@ export class GameScene extends Phaser.Scene {
       const st = this.registry.get('encdbgStart') || {};
       if (st.room) startRoom = ROOMS.find((r) => r.id === st.room) || startRoom;
       if (st.sector > 0) this.sector = st.sector;
+      // `&wave=N` (1-based) starts the FIRST room at that wave, so a placement
+      // that lives on a room's second or third wave is still one bookmark.
+      // Consumed once by `_startArena`; every later room starts at wave 1.
+      if (st.wave > 1) this._debugStartWave = st.wave - 1;
     }
     this.time.delayedCall(200, () => this.loadRoom(startRoom));
     // `?duel=` — drop straight into a nemesis fight. Armed here rather than in
@@ -853,7 +862,11 @@ export class GameScene extends Phaser.Scene {
     } else {
       this._roomModifier = MODIFIERS[cfg.modifier] || null;
     }
-    this._startWave(0);
+    // Debug only: `_debugStartWave` is non-zero solely under `?encdbg&wave=`,
+    // and it is spent here so it can only ever apply to the first room.
+    const firstWave = Math.min(this._debugStartWave || 0, Math.max(0, (cfg.waves?.length || 1) - 1));
+    this._debugStartWave = 0;
+    this._startWave(firstWave);
 
     // Announce after WAVE 1's banner so the modifier reads as the second beat,
     // and drive the persistent HUD label + darkness overlay.
@@ -1459,6 +1472,10 @@ export class GameScene extends Phaser.Scene {
       const scars = enemy._nemesis?.scars || 0;
       return Math.round(SCORE.miniBoss * (1 + 0.5 * scars));
     }
+    // A Champion is a flat tier value, like the mini-boss above and unlike the
+    // rank and file: he is the encounter's anchor, not a body in a chain, and
+    // a chain multiplier on him would let one kill out-pay a nemesis.
+    if (enemy?.isChampion) return SCORE.champion;
     const base = SCORE.points[enemy?.enemyType] ?? SCORE.points.grunt;
     const raw = base * (enemy?._elite ? SCORE.eliteMult : 1);
     return Math.round(raw * this.chainMult());
@@ -6047,7 +6064,9 @@ export class GameScene extends Phaser.Scene {
    * move a data change rather than a scene change.
    */
   /**
-   * Spawn one Champion. DEBUG-ONLY reachable for now — see `_maybeInjectChampion`.
+   * Spawn one Champion. Two callers: the AUTHORED placement path
+   * (`_spawnPlacedChampion`, from `CHAMPION_PLACEMENTS`) and the debug
+   * injector (`_maybeInjectChampion`, `?champdbg=1` only).
    *
    * Goes through the real enemy pipeline: the same group, the same wall
    * collider, the same `RoomManager` registration and the same nav grid every
@@ -6061,7 +6080,8 @@ export class GameScene extends Phaser.Scene {
     // explicit `?champdbg=interdictor` / `?champdbg=harrower`, for a
     // side-by-side. They are kept rather than deleted because the post-mortem
     // is more useful next to the things it is about — but neither is what the
-    // flag produces, and nothing in production reaches any of the three.
+    // flag produces, and production reaches only the Captain, and only through
+    // an authored placement (`PLACEABLE_CHAMPIONS`).
     const spec = { behavior: 'swarm', alerted: true };
     const c = which === 'interdictor' ? new Champion(this, x, y, CHAMPION.interdictor, spec)
       : which === 'harrower' ? new Harrower(this, x, y, spec)
@@ -6118,12 +6138,12 @@ export class GameScene extends Phaser.Scene {
   /**
    * DEBUG ONLY — put exactly one Champion into the wave that just started.
    *
-   * NORMAL ENDLESS SPAWNS NO CHAMPION. There is no entry for it in any
-   * encounter's pool, no branch in `_rollEnemyType` and no chance roll
-   * anywhere: the ONLY way one reaches the floor is this method, and it returns
-   * immediately without the flag. That is the same shape the encounter debug
-   * force uses — the production path is not merely unlikely to produce one, it
-   * cannot.
+   * THIS IS NOT HOW PRODUCTION GETS A CHAMPION. There is no entry for one in
+   * any encounter's pool, no branch in `_rollEnemyType` and no chance roll
+   * anywhere; production places the Captain only in the authored cells of
+   * `CHAMPION_PLACEMENTS`, through the wave's own queue. This method returns
+   * immediately without the flag, and stands down on a placement wave so the
+   * two paths can never both put one on the floor.
    *
    * It rides `_startWave` rather than a timer so the Champion arrives with the
    * real encounter: real room, real authored queue, real ordinary enemies at
@@ -6133,6 +6153,9 @@ export class GameScene extends Phaser.Scene {
   _maybeInjectChampion(wave) {
     if (!isChampDebug()) return null;
     if (wave?.miniBoss || this.roomSpec?.boss) return null;
+    // An authored placement OWNS this wave's Champion. Injecting as well would
+    // put two on the floor, and the debug path must never be a second author.
+    if (this._placement) return null;
     if (this.enemies.getChildren().some((e) => e.alive && e.isChampion)) return null;
     // At a gate, like everything else, and never inside the 400px safety the
     // ordinary spawner keeps. A Champion materialising on the player would make
@@ -6147,6 +6170,21 @@ export class GameScene extends Phaser.Scene {
       x = far.x; y = far.y;
     }
     return this.spawnChampion(x, y);
+  }
+
+  /**
+   * PRODUCTION — the one place an authored placement becomes an actor.
+   *
+   * Reached only from `spawnAtGate` draining a queue token that
+   * `_resolveEncounter` wrote from `CHAMPION_PLACEMENTS`. It goes through the
+   * same `spawnChampion` the debug harness uses, so the Captain on the floor is
+   * the approved actor and is registered, collided and cleared exactly like
+   * every other enemy. ONE AT A TIME: a Champion already alive refuses a second
+   * — the token is spent either way, so this cannot retry into a duplicate.
+   */
+  _spawnPlacedChampion(id, x, y) {
+    if (this.enemies.getChildren().some((e) => e.alive && e.isChampion)) return null;
+    return this.spawnChampion(x, y, id);
   }
 
   _castNemesisMove(e, forcedId = null) {
@@ -6567,6 +6605,7 @@ export class GameScene extends Phaser.Scene {
     this._waveCount   = wave.count;
     this._encounter   = null;
     this._spawnQueue  = null;
+    this._placement   = null;
     this._gatePlan    = null;
     this._gateStep    = 0;
 
@@ -6598,6 +6637,22 @@ export class GameScene extends Phaser.Scene {
 
     this._spawnQueue = buildSpawnQueue(enc, this._waveCount, this.rng.waves);
     this._gatePlan   = pickGates(enc.gate, this.roomSpec?.gates, this.rng.waves);
+
+    // ── AUTHORED CHAMPION PLACEMENT (Phase B integration pilot) ─────────────
+    // After the queue and the gates are built exactly as before, so every wave
+    // that is NOT a placement draws the same random numbers it always drew.
+    // Endless only; the row must name this arena, band, wave AND the archetype
+    // actually running. He replaces a lead slot and the tail gives up the rest
+    // of his cost, so the wave's event budget SHRINKS — `encounters.js` has
+    // the reasoning. `?encdbg&nochamp=1` suppresses it for the matched A/B.
+    const suppressed = isEncDebug() && isChampPlacementOff();
+    this._placement = (this.mode === 'endless' && !suppressed)
+      ? championPlacementFor(this.roomSpec?.id, this._waveIdx, this.sector || 1, enc.id)
+      : null;
+    if (this._placement) {
+      this._spawnQueue = applyChampionPlacement(this._spawnQueue, this._placement);
+      this._waveCount  = this._spawnQueue.length;
+    }
 
     this.events.emit('encounter-set', enc);
   }
@@ -6669,6 +6724,8 @@ export class GameScene extends Phaser.Scene {
       // Counted live off the enemy group, never off what was injected.
       champions: this.enemies.getChildren().filter((e) => e.alive && e.isChampion).length,
       champion: this.enemies.getChildren().find((e) => e.alive && e.isChampion)?.def?.name ?? '\u2014',
+      placement: this._placement ? `${this._placement.champion} @ lead ${this._placement.slot}` : null,
+      placementOff: isChampPlacementOff(),
     };
   }
 
@@ -6770,7 +6827,12 @@ export class GameScene extends Phaser.Scene {
         // AFTER the floor was swept. Rare enough that it only showed up under
         // suite load — and it is exactly the crowd the duel exists to remove.
         if (this._duelActive) return;
-        if (type === 'swarmling') {
+        if (PLACEABLE_CHAMPIONS.includes(type)) {
+          // An AUTHORED placement's token — see `_resolveEncounter`. No elite
+          // roll and no sector hp/speed ramp: `spawnChampion` builds the frozen
+          // V1 actor exactly as approved, and nothing here may touch it.
+          this._spawnPlacedChampion(type, gx, gy);
+        } else if (type === 'swarmling') {
           this._spawnSwarmlingPack(gx, gy);
         } else {
           // Elite upgrade roll (not for fodder). eliteChance is per-room.

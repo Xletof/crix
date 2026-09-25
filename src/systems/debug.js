@@ -148,11 +148,27 @@ export function setEncDebug(v) { encDebug = !!v; }
 export function getEncForce() { return encForce; }
 export function setEncForce(id) { encForce = id || null; }
 
-/** Parse `?encdbg` into `{ on, force, room, sector }`, or null when absent. */
+// Two more pieces of grammar for the Phase B Champion placement pilot, both
+// read ONLY alongside `?encdbg` and both inert without it:
+//
+//   &wave=2       start the FIRST room at that wave (1-based). The authored
+//                 placements live on a room's second and third waves, and a
+//                 bookmark that makes the reviewer clear a wave first is not a
+//                 bookmark.
+//   &nochamp=1    suppress the authored Champion placement, so the SAME cell
+//                 can be played without him — the matched baseline. It never
+//                 ADDS a Champion anywhere; it can only take one away.
+let champPlacementOff = false;
+
+export function isChampPlacementOff() { return champPlacementOff; }
+export function setChampPlacementOff(v) { champPlacementOff = !!v; }
+
+/** Parse `?encdbg` into `{ on, force, room, sector, wave, nochamp }`, or null when absent. */
 export function parseEncDebugParams(params) {
   if (!params.has('encdbg')) return null;
   const raw = (params.get('encdbg') || '').trim();
   const sector = parseInt(params.get('sector') || '', 10);
+  const wave = parseInt(params.get('wave') || '', 10);
   return {
     on: true,
     // '1', '' and 'on' all mean "overlay only, no forcing". Anything else is
@@ -161,6 +177,8 @@ export function parseEncDebugParams(params) {
     force: (raw && raw !== '1' && raw !== 'on') ? raw : null,
     room: params.get('room') || null,
     sector: Number.isFinite(sector) ? sector : null,
+    wave: Number.isFinite(wave) ? wave : null,
+    nochamp: params.has('nochamp') && params.get('nochamp') !== '0',
   };
 }
 
@@ -173,10 +191,11 @@ export function parseEncDebugParams(params) {
 //
 //   ?champdbg=1&encdbg=crossfire&room=detention&sector=8
 //
-// NORMAL ENDLESS SPAWNS NO CHAMPION. This flag is the only path to one — there
-// is no entry in any encounter pool, no branch in `_rollEnemyType` and no
-// chance roll anywhere — so the production build cannot produce one rather than
-// being merely unlikely to. `smoke-champion` asserts that in both directions.
+// This flag is the only path to a Champion OUTSIDE the authored placements in
+// `CHAMPION_PLACEMENTS` (`src/data/encounters.js`) — there is no entry in any
+// encounter pool, no branch in `_rollEnemyType` and no chance roll anywhere.
+// `smoke-champion` and `smoke-champion-placement` assert both halves. On a
+// placement wave the injector stands down, so the two never stack.
 //
 // `?champdbg=1` injects the ACTIVE candidate, which is the SHOCK CAPTAIN. The
 // Interdictor and the Harrower are both HUMAN-REJECTED (`HANDOVER.md` §10af)

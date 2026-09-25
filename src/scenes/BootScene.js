@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
   setDialogueMuted, setDuelRequest, parseDuelParams, setHitstopMuted, setMoveNamesMuted,
-  setEncDebug, setEncForce, parseEncDebugParams, setChampDebug, setChampWhich,
+  setEncDebug, setEncForce, parseEncDebugParams, setChampDebug, setChampWhich, setChampPlacementOff,
   setCapTel,
 } from '../systems/debug.js';
 import { ENCOUNTERS } from '../data/encounters.js';
@@ -43,11 +43,12 @@ export class BootScene extends Phaser.Scene {
     if (enc) {
       setEncDebug(true);
       setEncForce(enc.force && ENCOUNTERS[enc.force] ? enc.force : null);
-      this.registry.set('encdbgStart', { room: enc.room, sector: enc.sector });
+      this.registry.set('encdbgStart', { room: enc.room, sector: enc.sector, wave: enc.wave });
+      setChampPlacementOff(enc.nochamp);
     }
 
     // `?champdbg=1` injects one Champion into each ordinary wave — the Phase B
-    // vertical slice. Debug only; normal Endless spawns none.
+    // vertical slice. Debug only; production places the Captain only through `CHAMPION_PLACEMENTS`.
     if (params.has('champdbg')) {
       setChampDebug(true);
       // `?champdbg=interdictor` / `?champdbg=harrower` reach the two rejected

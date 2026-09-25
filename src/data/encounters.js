@@ -311,3 +311,88 @@ export function pickGates(mode, gates, rng) {
   }
   return [];
 }
+
+// ── CHAMPION PLACEMENT — THE ROSTER, PHASE B INTEGRATION PILOT ──────────────
+//
+// CANDIDATE — NOT HUMAN-APPROVED. The Shock Captain himself is frozen (V1,
+// `6560c62`); what is on trial here is only WHERE he stands in a real run.
+//
+// PLACEMENT IS AUTHORED. There is no `championChance`, no roll, no promotion
+// of an ordinary spawn and no "every N waves" clock. A Champion reaches the
+// floor in production for exactly one reason: the wave being resolved is one
+// of the rows below. Anything this table does not name gets no Champion, and
+// that is the same ABSENCE that keeps the boss room out of the plan above.
+//
+// A row is one cell of `ENCOUNTER_PLAN` — arena, band, wave index — plus the
+// archetype that cell already resolves to, restated so the two cannot drift
+// apart silently (`smoke-champion-placement` fails if they disagree, and at
+// runtime a row only applies while that archetype is the one RUNNING, so a
+// debug force onto a different archetype takes the Captain away rather than
+// dropping him into a composition nobody authored for him).
+//
+// HE CONSUMES THE ENCOUNTER, HE IS NOT ADDED TO IT. The queue is built exactly
+// as the archetype always built it, then:
+//   slot   the lead position he takes. The entry there is REPLACED, so he
+//          arrives in the formation's own order, at the formation's own gate.
+//   cost   spawn EVENTS he is worth in total: his own slot plus `cost - 1`
+//          removed from the TAIL of the queue — the fill, never the lead, so
+//          the archetype's guaranteed opening is still the thing that opens.
+// `_waveCount` drops by `cost - 1`. A full wave plus a 5300-durability actor
+// on top of it would be a hidden pressure increase, which is the one thing
+// this pass is not allowed to be.
+//
+// WHY THESE CELLS. The mid band begins at sector 5 and sector 5 is always
+// Vader (`ENDLESS.bossEvery`), so every mid or late cell is reached only after
+// the first Vader — the band IS the progression gate, with no second condition
+// to keep in step with it. Both rows are the HANGAR: the open deployment deck,
+// the room with the floor his engagement band and his step need, and not
+// detention, whose capstone is already the nemesis duel.
+//   - mid VANGUARD (wave 2): the first case, and the thesis — the officer
+//     leading the formation. The rotation reaches the mid-band hangar exactly
+//     twice (sectors 8 and 12), so this one row is the first placement AND
+//     the restrained repeat.
+//   - late CROSSFIRE (wave 3): the high-pressure validation case, the hangar's
+//     capstone wave. Late hangar wave 1 is still a VANGUARD with no Captain,
+//     so not every VANGUARD carries one.
+// Never SWARM TIDE, SNIPER NEST or BOMBER RUN — each already has a subject
+// the Captain would compete with, and the structural test pins that.
+//
+// If this ever needs a condition, a callback or a second kind of row, it has
+// failed its brief. Stop, do not grow a grammar.
+
+/** The Champion ids a placement may name. Only the approved reference Champion. */
+export const PLACEABLE_CHAMPIONS = ['captain'];
+
+export const CHAMPION_PLACEMENTS = [
+  { arena: 'hangar', band: 'mid', wave: 1, encounter: 'vanguard', champion: 'captain', slot: 2, cost: 2 },
+  { arena: 'hangar', band: 'late', wave: 2, encounter: 'crossfire', champion: 'captain', slot: 2, cost: 2 },
+];
+
+/**
+ * The authored Champion placement for one wave, or null.
+ *
+ * `encId` is the archetype actually RUNNING. A row applies only when it
+ * matches, so the placement belongs to the authored composition and not merely
+ * to the cell.
+ */
+export function championPlacementFor(arenaId, waveIdx = 0, sector = 1, encId = null) {
+  const band = bandFor(sector);
+  return CHAMPION_PLACEMENTS.find((p) => p.arena === arenaId && p.band === band
+    && p.wave === waveIdx && p.encounter === encId) || null;
+}
+
+/**
+ * Apply a placement to a built queue. Pure: returns a NEW array.
+ *
+ * The Champion takes `slot`; `cost - 1` entries come off the tail. The result
+ * is always exactly one Champion token and `queue.length - (cost - 1)` events.
+ */
+export function applyChampionPlacement(queue, placement) {
+  if (!placement || !queue?.length) return queue;
+  const out = queue.slice();
+  const slot = Math.min(placement.slot, out.length - 1);
+  out[slot] = placement.champion;
+  const drop = Math.max(0, Math.min((placement.cost ?? 1) - 1, out.length - 1 - slot));
+  out.length -= drop;
+  return out;
+}

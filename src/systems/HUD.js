@@ -872,8 +872,13 @@ export class HUDScene extends Phaser.Scene {
     // The Champion line is only printed under `?champdbg`, and it reports what
     // is actually alive rather than what was injected — a Champion the player
     // has killed must stop being listed, or the label is lying about the floor.
-    const champ = isChampDebug()
-      ? `CHAMP ${st.champions > 0 ? `${st.champion} x${st.champions}` : '\u2014 (none alive)'}`
+    // It is also printed whenever an AUTHORED placement is live on this wave,
+    // or `&nochamp=1` is suppressing one, so the reviewer can tell the matched
+    // A and B cases apart without reading the URL.
+    const tag = st.placement ? ` \u00b7 PLACED (${st.placement})`
+      : st.placementOff ? ' \u00b7 placement OFF' : '';
+    const champ = (isChampDebug() || st.placement || st.placementOff)
+      ? `CHAMP ${st.champions > 0 ? `${st.champion} x${st.champions}` : '\u2014 (none alive)'}${tag}`
       : '';
     const txt = [
       `SEL \u25b8 ${selName}`,
