@@ -211,7 +211,7 @@ later Champions should copy.
 | Arc Grenade | targeting, radius 132, flight/arm/field/warn, drag, damage 46 / tick 420, cooldown 9000, the physical source device, its live core, hit response and `spent` shutdown — gameplay AND presentation closed |
 | damage presentation | authored INTACT / BROKEN / CRITICAL sheets per facing, directional physical damage, smoke and shorts from `CAPTAIN_DAMAGE_ANCHORS`, the reactive-armour absorption language |
 | punctuation | four reaction glyphs + the `glyph-throw` intent sign, in the ICE `PUNCT_PALETTE` (`#18264a` / `#8faeff` / `#e8f4ff`) |
-| scope | debug-only (`?champdbg=1`); normal Endless still spawns no Champion; no variants, colourways, second signature or Nemesis replacement |
+| scope | no variants, colourways, second signature or Nemesis replacement. His PRODUCTION PLACEMENT (`§10at`) is a separate layer and is a **CANDIDATE**, not part of this freeze; `?champdbg=1` still injects him anywhere for review |
 
 **The step's history, kept because it explains WHY the final version exists:**
 v2 read as a water drop (expanding round shapes) → v3 as scribble (hairlines)
@@ -409,13 +409,37 @@ records, WITHOUT implementing any of it, the Regular → Elite → Champion →
 Commander → Vader hierarchy and the rule that Captain placement stays AUTHORED
 (no `championChance`, no random spawning).
 
+### THE ROSTER, PHASE B — CHAMPION INTEGRATION. **CANDIDATE — NOT HUMAN-APPROVED**
+
+**In flight, waiting on handset play.** The Shock Captain now appears in real
+Endless, in exactly two AUTHORED cells of the encounter plan — no chance, no
+roll, no clock. `§10at` is the record: the derived sector schedule, the
+placement table, the budget rule, the spawn path, the score and the three
+review URLs.
+
+| case | where | URL |
+|---|---|---|
+| A — VANGUARD + Captain | sector 8, hangar, wave 2 | `?encdbg=1&room=hangar&sector=8&wave=2` |
+| B — matched VANGUARD, no Captain | same | `?encdbg=1&room=hangar&sector=8&wave=2&nochamp=1` |
+| C — late CROSSFIRE + Captain | sector 16, hangar, wave 3 | `?encdbg=1&room=hangar&sector=16&wave=3` |
+
+**The Captain himself did not change** — V1 stays HUMAN-APPROVED / FROZEN /
+REFERENCE CHAMPION, and `smoke-champion-placement` diffs his actor, base class,
+grenade, moves, art and CHAMPION config block against `6560c62`. If placement
+play shows a problem, the order of suspects is placement → ordinary budget →
+composition → the Captain, and the last one is the human's call.
+
+Not started, and not to be started on the strength of this pass: the Elite
+redesign, Commander design, a second Champion, new arenas, Nemesis
+replacement.
+
 ### The recommended next area of work
 
-**Nothing is in flight. The next direction comes from the human.** The camera
-(`§21`), the four arenas, Phase A and Shock Captain V1 are all closed. What
-the Captain's closure unblocks is listed in his section above — Champion
-integration, the Elite hierarchy, Commander planning, authored Champion
-placement. The older standing options are still honest:
+**Phase B Champion integration is in flight** (above). Beyond it, the next
+direction comes from the human. The camera (`§21`), the four arenas, Phase A
+and Shock Captain V1 are all closed. What the Captain's closure unblocks
+besides placement is listed in his section above — the Elite hierarchy and
+Commander planning. The older standing options are still honest:
 
 1. **Content breadth** — the arena rotation is four rooms and `_arenaCycle`
    walks them in order; more rooms are now an application of a proven
@@ -8129,6 +8153,210 @@ the least bright that survives the combat frame. Evidence `.../v6c/`.
 
 **HANDSET VERDICT: APPROVED.** The v6c step on `6560c62` is the final Tactical
 Step and closes Shock Captain V1 — §0 carries the frozen contract.
+
+---
+
+## 10at. THE ROSTER, PHASE B — CHAMPION INTEGRATION. **CANDIDATE — NOT HUMAN-APPROVED**
+
+**What this is:** the first time a Champion appears in the real Endless game.
+The Shock Captain is unchanged — V1, `6560c62`, HUMAN-APPROVED / FROZEN /
+REFERENCE CHAMPION, and `smoke-champion-placement` proves it from git. **Only
+his production PLACEMENT is the candidate.** The question for the handset is no
+longer "does the Captain work?" but "does the finished Captain work as the
+ANCHOR of a real authored encounter?"
+
+### The real Endless schedule (derived from source, not memory)
+
+`ENDLESS.bossEvery = 5`. `_arenaCycle` starts at 1 and advances only on a
+non-boss transition (`_transitionToNext`), so the rotation is hangar → junction
+→ detention with Vader cut in every fifth sector. Hangar and the junction run
+three waves, detention four (the fourth is the nemesis duel). `encounterFor`
+indexes the band's list by wave index.
+
+| sector | band | arena | wave 1 / 2 / 3 (/ 4) |
+|---|---|---|---|
+| 1 | early | hangar | mixed / swarmTide / bomberRun |
+| 2 | early | junction | crossfire / mixed / vanguard |
+| 3 | early | detention | sniperNest / mixed / crossfire / duel |
+| 4 | early | hangar | mixed / swarmTide / bomberRun |
+| 5 | — | Vader | (no plan) |
+| 6 | mid | junction | crossfire / vanguard / swarmTide |
+| 7 | mid | detention | sniperNest / crossfire / vanguard / duel |
+| **8** | mid | **hangar** | bomberRun / **VANGUARD + CAPTAIN** / swarmTide |
+| 9 | mid | junction | crossfire / vanguard / swarmTide |
+| 10 | — | Vader | |
+| 11 | mid | detention | sniperNest / crossfire / vanguard / duel |
+| **12** | mid | **hangar** | bomberRun / **VANGUARD + CAPTAIN** / swarmTide |
+| 13 | late | junction | vanguard / crossfire / sniperNest |
+| 14 | late | detention | crossfire / sniperNest / bomberRun / duel |
+| 15 | — | Vader | |
+| **16** | late | **hangar** | vanguard / bomberRun / **CROSSFIRE + CAPTAIN** |
+| 17, 18 | late | junction, detention | |
+| **19, 23, 27, 31…** | late | **hangar** | vanguard / bomberRun / **CROSSFIRE + CAPTAIN** |
+
+**The band is the progression gate.** `mid` begins at sector 5 and sector 5 is
+always Vader, so a mid or late row cannot fire before the first Vader. There is
+no second condition to keep in step with it; the test sweeps sectors 1-4 across
+every arena, wave and archetype (forced ones included) and requires nothing.
+
+### The placement table — `CHAMPION_PLACEMENTS`, `src/data/encounters.js`
+
+| row | band | arena | wave | archetype | Captain enters | budget |
+|---|---|---|---|---|---|---|
+| 1 | mid | hangar | 2 (idx 1) | VANGUARD | lead slot 2 — behind the first two shields, at the formation's single gate | 9 events → **8** (7 ordinary + Captain) |
+| 2 | late | hangar | 3 (idx 2) | CROSSFIRE | lead slot 2 — bearing A, after one shooter per bearing | 12 events → **11** (10 ordinary + Captain) |
+
+Two rows, three authored cases: row 1 fires at sectors **8** and **12** (the
+first placement, and the restrained repeat — the rotation reaches the mid-band
+hangar exactly twice), row 2 at **16, 19, 23, 27…**. **At most one Captain per
+room, and only in one room in three.** Late hangar wave 1 is still a VANGUARD
+with no Captain, so not every VANGUARD carries him.
+
+Why the hangar, both times: it is the open deployment deck — the floor his
+300-520 band and 200px step need — and it is not detention, whose capstone is
+already the nemesis duel, so the two set pieces never share a room. VANGUARD
+there is the first case to tune from; CROSSFIRE there is the hangar's capstone
+wave and the high-pressure validation case.
+
+**Deliberately excluded:** SWARM TIDE (the pack is the subject), SNIPER NEST
+(the crossing is the thesis), BOMBER RUN (repeated floor denial plus the Arc
+Grenade is telegraph overload), MIXED, the Vader chamber, the nemesis duel, the
+early band, campaign mode, the Reactor Junction and Detention.
+
+### Budget semantics — he consumes the encounter, he is not added to it
+
+`buildSpawnQueue` builds the wave exactly as it always did, then
+`applyChampionPlacement`:
+
+- **`slot`** — the queue position he takes. The entry there is REPLACED, so he
+  arrives in the formation's own order at the formation's own gate. In both
+  rows that is the first rifleman: his rifle does that job.
+- **`cost`** — spawn events he is worth in total (2): his slot plus one event
+  off the TAIL of the queue. The tail is fill, never lead, so the archetype's
+  guaranteed opening still opens the fight.
+
+`_waveCount` drops by one; `maxAlive` and `spawnRate` are untouched; every
+other event is the same event in the same order as the matched baseline (the
+test compares the two queues entry by entry). The placement runs AFTER the queue
+and the gates are built, so every wave that is not a placement draws exactly
+the random numbers it always drew.
+
+**`cost: 2` is a dial, not a measurement.** A durability-matched cost (~6
+ordinary bodies at sector 8) would leave VANGUARD without a formation, which is
+the thesis the pairing exists to keep. Whether 2 is right is a handset call.
+
+He is spawned with **no elite roll and no sector hp/speed ramp** — both would
+change frozen values — so at sector 8 he is 3400 + 1900 against ~870-hp
+shields and ~700-hp shooters, and the gap narrows as the sector ramp lifts the
+rank and file. Also a handset observation, not a tuning target.
+
+### The production spawn path
+
+`_startWave` → `_resolveEncounter` (endless only; row must match arena, band,
+wave AND the archetype actually running) writes a `'captain'` token into the
+queue → the ordinary drip → `spawnAtGate(token, gate)` → 600ms gate telegraph
+→ `_spawnPlacedChampion` (refuses if a Champion is already alive) →
+`spawnChampion(x, y, 'captain')` — the same constructor, group, wall collider
+and `RoomManager` registration the debug harness uses. He counts as a living
+enemy, so wave clear waits for him; he dies through `Enemy.die` like everything
+else; `_clearRoomEntities` destroys him with the room. `_maybeInjectChampion`
+(`?champdbg`) stands down on a placement wave, so the two paths never stack.
+No boss bar, no nemesis ledger (only `_nemesis` actors are recorded), no duel.
+
+### Score
+
+`SCORE.champion: 1500`, flat — no chain multiplier, no elite multiplier, no
+drop or loot layer. It sits between the tiers it separates: above the richest
+elite (sniper 300 × 3 = 900 before the chain) and below a nemesis
+(`miniBoss` 2500, raised further by scars). Flat for the same reason `miniBoss`
+is: he is an anchor, not a body in a chain, and a ×5 chain on 1500 would let
+one kill out-pay a nemesis. Previously a debug Captain fell through to the
+grunt fallback (100 × chain).
+
+### Handset cases — direct URLs
+
+Each is one bookmark. `&wave=` (new, 1-based) starts the FIRST room on that
+wave; `&nochamp=1` (new) suppresses the placement for the matched baseline.
+Both are read only with `?encdbg`, and inert without it. The encounter label
+top-left prints `CHAMP … · PLACED` or `placement OFF` so the cases can be told
+apart without reading the URL.
+
+- **A — VANGUARD + CAPTAIN** (sector 8, hangar, wave 2):
+  `https://xletof.github.io/crix/?encdbg=1&room=hangar&sector=8&wave=2`
+- **B — the matched VANGUARD, no Captain** (same room, sector, wave, pressure):
+  `https://xletof.github.io/crix/?encdbg=1&room=hangar&sector=8&wave=2&nochamp=1`
+- **C — late CROSSFIRE + CAPTAIN** (sector 16, hangar, wave 3):
+  `https://xletof.github.io/crix/?encdbg=1&room=hangar&sector=16&wave=3`
+
+Starting at sector 8 or 16 skips the upgrades a real run would have earned by
+then, so these fights are harder on the player than the same wave reached
+naturally. An unmodified run reaches case A at sector 8.
+
+### What the human is asked to judge
+
+- **A:** does it still read as VANGUARD? Does the Captain look like he is
+  leading the formation — the anchor — or like a bonus enemy? Can you still
+  read the front, and is breaking or flanking it still the decision? Does the
+  Arc Grenade enrich the flank or erase it? Does the rifle support the line
+  without overwhelming it?
+- **B:** what changes without him? Is his contribution worth Champion rarity?
+- **C:** is the screen still readable at 1x? Can you read his rifle against two
+  shooter bearings, and his grenade under opposing fire? Are you making
+  priority decisions, or is it generic chaos?
+
+### Tests
+
+`smoke-champion-placement` (new) — structure only, and it asserts nothing about
+fun, balance, readability or TTK. It covers: no placement before the first Vader;
+only authored rows fire; every row matches its own plan cell; exactly one
+Captain token and exactly one live Captain; the budget shrinks by `cost - 1`
+against a matched `&nochamp=1` baseline, with cap, cadence and every other
+event identical; SWARM TIDE / SNIPER NEST / BOMBER RUN / MIXED never carry one,
+natural or forced; the boss room, the duel wave, early sectors, the other
+hangar waves, the late hangar VANGUARD and the junction VANGUARD carry none;
+seeds reproduce it and a different seed places him identically; he arrives at
+the frozen 3400 + 1900 with no elite or sector ramp and scores 1500; wave clear
+waits for him and his death clears the wave; room teardown destroys him; the
+debug injector stands down on a placement wave; and `ShockCaptain.js`,
+`Enemy.js`, `Hazard.js`, `champions.js`, `pixelArt.js` and the CHAMPION config
+block are byte-identical to `6560c62`.
+
+### Evidence
+
+`docs/evidence/champion-integration/` — `tests/shot-champion-placement.mjs`,
+1x, the same three URLs, an invulnerable player standing in front of the gate,
+the room modifier nulled so the three frames differ only in the encounter.
+DIAGNOSTIC STILLS, NOT A VERDICT.
+
+### Conflicts found
+
+None with the Captain himself. Nothing in this pass needed him to change, and
+no approved behaviour was touched to make a composition fit. Things the pass
+turned up, none of them fixed here:
+
+- **He is not sector-scaled, and the rank and file are.** At sector 8 the
+  ordinary enemies carry ×1.56 hp and the Captain carries exactly the approved
+  5300. By sector 16 it is ×2.2. The gap between him and his formation
+  therefore NARROWS as the run deepens. That is a consequence of freezing him,
+  not a decision, and it is for the handset to say whether it matters.
+- **`RoomManager.aliveEnemies` drifts (pre-existing).** A room's authored
+  `spec.enemies` register BEFORE `loadRoom` calls `roomManager.setRoom`, which
+  zeroes the counter, so it clamps at 0 before the room is really empty. The
+  wave machine reads `_livingEnemyCount()` and never this counter, so nothing
+  in play depends on it. The first draft of the new test read it and failed;
+  the test now counts `onEnemyDied` calls instead. Noted, not fixed.
+- **A gate telegraph still in flight when the last visible enemy dies can
+  materialise after the wave has cleared (pre-existing, every enemy type).**
+  The Captain is protected by construction: his slot is in the LEAD, so he is
+  never the wave's last spawn event.
+- **Score changed for the debug harness too.** `scoreForEnemy` pays 1500 for
+  ANY `isChampion` actor, so a `?champdbg` Captain now scores the tier value
+  instead of falling through to the grunt fallback (100 × chain).
+- **The handset URLs start mid-run with no upgrades.** Sector 8 and 16 reached
+  from a bookmark are harder on the player than the same wave reached
+  naturally. Judge composition and readability from them, not difficulty.
+
+---
 
 ## 12. CAMERA PHASE 1 — a camera that frames the game
 

@@ -817,9 +817,10 @@ asserts separately that the ceiling is not reached.
   The TECHNOLOGY is sound and reusable: `Hazard.js`, the `?champdbg` harness,
   `smoke-champion`'s structure and the cancelled-handle fix all stay. Its honest
   future is an EMPLACEMENT — a terminal-defence turret or a deployable — where
-  `holdRange` stops being a bug. Normal Endless still spawns no Champion — no
-  encounter pool entry, no `_rollEnemyType` branch, no chance roll — and Nemesis
-  is still untouched.
+  `holdRange` stops being a bug. Normal Endless never spawns it — no
+  encounter pool entry, no `_rollEnemyType` branch, no chance roll, and
+  `PLACEABLE_CHAMPIONS` names only the Captain — and Nemesis is still
+  untouched.
 - **THE HARROWER IS HUMAN-REJECTED ❌ TOO — `HANDOVER.md` §10ae.** Handset
   play: *"the first was a stationary bot and now this one looks like a sliding
   skateboard bot."* DO NOT TUNE IT — not speed, not the pass planner, not the
@@ -873,11 +874,34 @@ asserts separately that the ceiling is not reached.
   above ordinary enemies, a combatant not a device, humanoid and readable,
   tactically mobile, aggressive but fair, below Vader — and is NOT an ability
   template to copy. Still NO variants, NO colourways, NO second signature, NO
-  Nemesis replacement, and **normal Endless spawns no Champion of any kind**:
-  integration, the Elite hierarchy, Commander planning and authored placement
-  are unblocked by his closure and NOT started. The phase names that run
+  Nemesis replacement. His PRODUCTION PLACEMENT is a separate, CANDIDATE
+  layer (see the next bullet); the Elite hierarchy and Commander planning are
+  unblocked by his closure and NOT started. The phase names that run
   through the notes below (B.2.1, B.2.2, S1, CF.1/CF.2, §10am-§10as) are the
   HISTORY of how he got here, not open candidates.
+- **CHAMPION PLACEMENT IS AUTHORED, AND IT IS A CANDIDATE — `HANDOVER.md`
+  §10at. NOT HUMAN-APPROVED.** `CHAMPION_PLACEMENTS` in `encounters.js` is the
+  only production door: a row names an arena, a band, a wave index and the
+  archetype that cell already runs, and nothing else ever puts a Champion on
+  the floor — no `championChance`, no roll, no promotion, no clock. **Do not
+  add one.** Four traps: (1) **THE BAND IS THE PROGRESSION GATE.** `mid`
+  starts at sector 5 and sector 5 is always Vader, so no mid/late row can fire
+  before the first Vader — change `bossEvery` or the band edges and
+  `smoke-champion-placement` fails rather than a pre-Vader Captain shipping.
+  (2) **HE CONSUMES THE ENCOUNTER.** The queue is built exactly as before, then
+  he REPLACES a lead slot and `cost - 1` events come off the tail, so
+  `_waveCount` shrinks; a full wave plus a 5300-durability actor is the hidden
+  pressure increase this layer exists to refuse. It runs AFTER the queue and
+  gates are built so every non-placement wave draws the same random numbers
+  it always drew. (3) **THE TOKEN ROUTES AROUND `spawnEnemyAt`.** `spawnAtGate`
+  sends a `PLACEABLE_CHAMPIONS` id to `_spawnPlacedChampion` → `spawnChampion`,
+  never through the elite roll or the sector hp/speed ramp, which would both
+  change frozen values. (4) **ONE AUTHOR PER WAVE.** `_maybeInjectChampion`
+  (`?champdbg`) stands down whenever `_placement` is set, or the two paths
+  stack. A row applies only while its archetype is the one RUNNING, so a debug
+  force onto SWARM TIDE takes him away rather than inventing a pairing.
+  `?encdbg=1&room=&sector=&wave=` reaches any cell and `&nochamp=1` is the
+  matched no-Captain baseline; both are inert without `encdbg`.
 - **THE STATE LANGUAGE'S ONE RULE SURVIVED HANDSET REVIEW AND ITS SUSTAINED
   HALF DID NOT — `HANDOVER.md` §10ah, §10ai.** **SYMBOL = TRANSITION, BODY / FX
   = SUSTAINED STATE.** A glyph lives a few hundred ms to say something CHANGED
