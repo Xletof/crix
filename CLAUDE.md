@@ -66,7 +66,7 @@ asserts separately that the ceiling is not reached.
 
 - **Deploys only happen from the `FRIX` branch.** `.github/workflows/deploy.yml`
   triggers on pushes to `FRIX` only. Work lands on the dev branch
-  (`claude/death-star-visual-pilot-olbbqx`); GitHub Pages will serve a **stale build**
+  (`claude/crix-frix-product-audit-ptjwbv`); GitHub Pages will serve a **stale build**
   until `FRIX` is fast-forwarded. If a session ever finds this name stale again,
   trust `git rev-parse --abbrev-ref HEAD` over this line and fix the line.
 - **Always deploy — don't ask.** The user tests on a phone against GitHub Pages,
@@ -856,48 +856,28 @@ asserts separately that the ceiling is not reached.
   is art inspection only. Two full implementations died at a handset on a
   question that costs one picture to answer. **The IMPERIAL SHOCK CAPTAIN
   PASSED that gate** — `HANDOVER.md` §10ag — and only then got a runtime.
-- **THE SHOCK CAPTAIN'S COMBATANT FOUNDATION IS HUMAN-APPROVED AND FROZEN 🔒 —
-  `HANDOVER.md` §10ag, §10ah.** Frozen: the silhouette (helmet dome + crest,
-  narrow luminous visor, ONE asymmetric bone pauldron, reinforced chest, kama,
-  separated legs, compact back pack, two-handed rifle), the 112x120 hierarchy,
-  the walk and strafe cycles, the brace → fire → recoil structure, the 300-520
-  engagement band, advance / give ground / strafe, the three-round burst, the
-  two-layer reactive armour and `armourSpill`, and the anti-stunlock behaviour.
-  The notes below are how it works and how it breaks; **none of them is an
-  invitation to tune it.** Still NO variants, NO colourways, NO Nemesis
-  replacement — and **normal Endless spawns no Champion of any kind.**
-  **THE CAPTAIN'S CORE COMBAT FEEL IS HUMAN-APPROVED 🔒.** Handset play closed
-  out the agility, the tactical step, the variable suppression rifle and the
-  recoil. **THE MECHANICS ARE FINISHED — do not redesign the enemy.** No hp,
-  armour, Super-resistance, step, rifle, movement, range or Arc Grenade GAMEPLAY
-  change without new handset evidence. `§10am` is the VISUAL FINISH pass and is
-  the current candidate; it changed no gameplay value at all.
-  **THE TACTICAL STEP, THE 5300 DURABILITY AND THE ARC GRENADE ARE NOW
-  HUMAN-APPROVED.** Handset play called the Captain much more agile, singled out
-  the step for producing genuine dodges (a whole Super dodged through real
-  movement), and reported a Wave 3 rush in which the Captain killed the PLAYER.
-  **Survivability is no longer the primary problem** — so no more HP tuning, no
-  Super resistance, no new survivability system, and the step's distance,
-  timings, cooldown, triggers and FX are CLOSED. The CORE FEEL CLOSEOUT (CF.2)
-  is the current candidate and touches only the spray shape and the firing
-  recoil.
-  **THE CORE FEEL PASS (§10al) IS THE CURRENT CANDIDATE AND IS NOT APPROVED.**
-  It changed the tactical step (150 -> 200px, five beats, a new priority list),
-  the body's weight language (the whole-body squash, `bob`, `lean`, the firing
-  base, and two new frames — `settle` and `land`, 51 -> 57) and the rifle (a
-  fixed three rounds -> a variable 3-6, and the per-round solver replaced by one
-  committed corridor). **IT CHANGED NO DURABILITY AND ADDED NO SUPER
-  RESISTANCE** — 1900 armour + 3400 body = 5300 is frozen, `armourTake` and
-  `armourSpill` are untouched, and S2 is neither started nor justified.
-  **B.2.3 IS STILL PAUSED**: directional damaged skins, model-level
-  deterioration and the engineered Arc Grenade / field art are all still
-  required and are NOT to be mixed into a movement or rifle pass.
-  **B.2.2 CHANGED HIS TIMINGS AND HIS SPEED, ON A HANDSET FINDING, AND DID NOT
-  TOUCH THE BAND.** `speed` 205 → 250, `recoverMs` 520 → 240, and the
-  give-ground multiplier 0.86 → 1 (he was at his SLOWEST the one moment the
-  player rushed him). `holdMin`/`holdMax` are in the frozen list and stayed
-  there. **THERE IS ONE SIGNATURE NOW — THE ARC GRENADE — AND THERE IS NO
-  SECOND ONE.**
+- **SHOCK CAPTAIN V1 IS COMPLETE — HUMAN-APPROVED AND FROZEN 🔒 — THE
+  REFERENCE CHAMPION. `6560c62` IS THE FINAL APPROVED IMPLEMENTATION.**
+  `HANDOVER.md` §0 carries the whole frozen contract; do not restate it here.
+  Everything he is — the silhouette (helmet dome + crest, narrow luminous
+  visor, ONE asymmetric bone pauldron, reinforced chest, kama, separated legs,
+  compact back pack, two-handed rifle), the 112x120 hierarchy, the walk and
+  strafe cycles, the 300-520 band, 3400 + 1900 = 5300 with `armourTake` 0.85 /
+  `armourSpill` 0.55 and NO Super resistance, the variable 3-6 corridor rifle,
+  the tactical step's mechanics AND visuals, the Arc Grenade's gameplay AND
+  presentation, the INTACT / BROKEN / CRITICAL damage model and the ICE
+  punctuation — is closed on handset play. **Do not polish him again.** The
+  notes below are how he works and how he breaks; **none of them is an
+  invitation to tune him**, and nothing reopens without NEW human play
+  evidence. He sets the QUALITY BAR and TIER PHILOSOPHY for Champion work —
+  above ordinary enemies, a combatant not a device, humanoid and readable,
+  tactically mobile, aggressive but fair, below Vader — and is NOT an ability
+  template to copy. Still NO variants, NO colourways, NO second signature, NO
+  Nemesis replacement, and **normal Endless spawns no Champion of any kind**:
+  integration, the Elite hierarchy, Commander planning and authored placement
+  are unblocked by his closure and NOT started. The phase names that run
+  through the notes below (B.2.1, B.2.2, S1, CF.1/CF.2, §10am-§10as) are the
+  HISTORY of how he got here, not open candidates.
 - **THE STATE LANGUAGE'S ONE RULE SURVIVED HANDSET REVIEW AND ITS SUSTAINED
   HALF DID NOT — `HANDOVER.md` §10ah, §10ai.** **SYMBOL = TRANSITION, BODY / FX
   = SUSTAINED STATE.** A glyph lives a few hundred ms to say something CHANGED
@@ -907,13 +887,13 @@ asserts separately that the ceiling is not reached.
   reacquire. **IT IS NOT A PHASE SYSTEM** — nothing in it touches fire rate,
   speed, damage or the state machine, and `smoke-captain-state` measures a fresh
   and a badly damaged Captain and pins identical speed, damage and median burst
-  gap. **PHASE B.2.2 (§10ai) IS THE CURRENT CANDIDATE** and is not approved.
+  gap. (Phase B.2.2, §10ai, is history now — see the V1 freeze.)
 - **DO NOT BALANCE THE CAPTAIN AGAINST THE WORD "SUPER" — `HANDOVER.md` §10aj.**
   "He survives two or three Supers" only means something if a Super is scarce,
   and in real play it can be used about once a second, which makes it closer to
-  high-power secondary fire than to an ultimate. **B.2.3 POLISH IS PAUSED** and
-  no hp, armour, rifle, model or ability change is to be made until the human
-  brings back A/B/C runs from `?champdbg=1&captel=1`. The order is: measure how
+  high-power secondary fire than to an ultimate. B.2.3 polish was PAUSED until
+  the human brought back A/B/C runs from `?champdbg=1&captel=1` (they did; S1
+  and §10am followed). The ORDER is the lesson and it travels: measure how
   fast and by what means a real player kills him, then decide where Champion
   sits in the hierarchy, then choose a survivability mechanism. **HP COMES
   LAST.**
@@ -948,7 +928,7 @@ asserts separately that the ceiling is not reached.
   name), and fire real Supers at it while asserting no step follows a cast.
 - **THE PLANT IS WHAT MAKES A STEP FOOTWORK.** Without it the body simply
   acquires velocity, which is the sliding read both rejected Champions died of.
-  70ms planted in the brace body, then the travel on the STRAFE cycle — the
+  90ms planted (70 before CF.1) in the brace body, then the travel on the STRAFE cycle — the
   existing lateral gait, and the only one whose feet agree with sideways
   movement. And move it with VELOCITY, never a tween or a teleport, so the wall
   collider stays underneath and a wrong destination costs a stop rather than a
@@ -1079,11 +1059,11 @@ asserts separately that the ceiling is not reached.
   off his back foot.
 - **A STEP WITHOUT A CATCH IS A TRANSLATION.** The Captain's step was plant →
   impulse → stop, and the handset called 150px too short and visually weak. It
-  is 200px and FIVE beats: plant (90ms, brace body, with a RISING suit preload —
-  it builds into the launch, it does not fade), push-off (five thrust strands at
-  the ORIGIN he leaves behind plus a flat deck scuff), travel (215ms, strafe
-  cycle), CATCH (120ms on a dedicated `land` frame, with a low flat deck ring)
-  and settle. **The catch is the frame that did not exist**, and without it a
+  is 200px and FIVE beats: plant (90ms, brace body, the suit loading), push-off,
+  travel (215ms, strafe cycle), CATCH (120ms on a dedicated `land` frame) and
+  settle. (The FX this bullet used to describe — thrust strands, a deck scuff,
+  a deck ring — are long gone; the approved presentation is the v6c bullet
+  below.) **The catch is the frame that did not exist**, and without it a
   200px displacement ends by switching the velocity off.
 - **THE ECHO IS WHERE THE HARROWER COMES BACK.** THREE discrete traces of the
   actor's own silhouette at positions he really occupied (§10as), with
@@ -1561,8 +1541,11 @@ asserts separately that the ceiling is not reached.
   carry. `smoke-captain-closeout` greps the step methods for `fillCircle`,
   `strokeEllipse` and `.arc(` — absence, never a comment. `HANDOVER.md` §10an,
   and §10ao for what replaced v2's catch.
-- **THE STEP IS v6: THE BODY OWNS THE MOVEMENT, THE SUIT EXPLAINS THE SPEED —
-  `HANDOVER.md` §10ar. CANDIDATE, NOT APPROVED.** v5 (§10aq) gave the move to
+- **THE STEP IS v6c: THE BODY OWNS THE MOVEMENT, THE SUIT EXPLAINS THE SPEED —
+  `HANDOVER.md` §10ar, §10as. HUMAN-APPROVED AND FROZEN 🔒 on `6560c62`.**
+  History: v4 physical but unfinished → v5 rejected → v6 body-led → v6t three
+  traces → v6c royal-blue traces, approved. Do not brighten it, raise its alpha
+  or change the trace count. v5 (§10aq) gave the move to
   his ground ring — compress, shear into a crescent, collapse, reform — and the
   handset REJECTED it as a regression: the shape around him deforming instead
   of him moving. **That family is dead — do not tune it, redraw the crescent
@@ -1703,8 +1686,8 @@ asserts separately that the ceiling is not reached.
   construction. Same shape as `CameraDirector._bossFramable` refusing a
   cancelled handle. **IT IS NOT THE SPATIAL TELEGRAPH** — the thrown device, its
   shadow, the landing mark and the field own where; this owns only that.
-- **ICE ABOVE THE HEAD = CHARACTER PUNCTUATION — `PUNCT_PALETTE`, a
-  CANDIDATE doctrine, third palette.** BONE (his rank plate) was lost among the
+- **ICE ABOVE THE HEAD = CHARACTER PUNCTUATION — `PUNCT_PALETTE`, third
+  palette, APPROVED for the Captain as part of V1.** BONE (his rank plate) was lost among the
   numbers that land in the same column — `#ffffff`, `#ff8020`, `#ffe040` CRIT!
   and `#7fd4ff` armour hits. VIOLET fixed that and was judged softer and less
   crisp on a handset. ICE is the handset's own choice: `edge #18264a / body

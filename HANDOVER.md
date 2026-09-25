@@ -10,11 +10,11 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-09-09. HEAD is `claude/vader-threat-awareness-jv6kns`. Pages
-builds only from `FRIX`, so the live build is whatever `FRIX` points at: check
-`git rev-parse HEAD origin/FRIX` rather than trusting a hash written here, and
-`git rev-parse --abbrev-ref HEAD` for the branch name. This line has now named a
-stale branch twice — trust the command, fix the line.*
+*Updated 2026-09-25. Pages builds only from `FRIX`, so the live build is
+whatever `FRIX` points at: check `git rev-parse HEAD origin/FRIX` rather than
+trusting a hash written here, and `git rev-parse --abbrev-ref HEAD` for the
+branch name. This line has named a stale branch three times — trust the
+command, fix the line.*
 
 ### THE CAMERA IS COMPLETE, HUMAN-APPROVED AND FROZEN 🔒
 
@@ -166,6 +166,13 @@ boss scheduler's timing while fixing it.
   arenas have real authored emissive second states. Setting it to 0 removes it;
   nobody has.
 - Dormant code from the game's two earlier shapes is still in the tree — §9.
+- **`smoke-captain-rifle` "the burst fires exactly the length it drew" is
+  intermittent.** It failed once inside a full focused run during both the
+  `§10ar` and `§10as` passes and passed on every immediate re-run, on the new
+  build and on the build before it; no rifle code changed in either pass. The
+  likely cause is the instrument (a plan still firing when the sample window
+  closes is compared as fired < drawn). Carried as test debt — do not read it
+  as a rifle regression, and do not touch the rifle over it.
 
 ### THE ROSTER, PHASE A — ENCOUNTER IDENTITY IS HUMAN-APPROVED AND FROZEN 🔒
 
@@ -180,7 +187,65 @@ sufficient to create meaningfully different fights.
 rules, the sector bands or the pressure multipliers without NEW handset
 evidence. `?encdbg=1` stays as the evaluation harness.
 
-### THE SHOCK CAPTAIN — COMBATANT FOUNDATION HUMAN-APPROVED / FROZEN 🔒
+### SHOCK CAPTAIN V1 IS COMPLETE — HUMAN-APPROVED AND FROZEN 🔒 — THE REFERENCE CHAMPION
+
+**Handset play closed the last open item (the Tactical Step) on `6560c62`.
+`6560c62` IS THE FINAL HUMAN-APPROVED IMPLEMENTATION BASELINE** — any later
+commit on `FRIX` that is documentation only does not change what was approved.
+**Do not polish him again.** Nothing below reopens without NEW human play
+evidence.
+
+He is the project's reference for what a Champion-tier authored combatant
+FEELS like — clearly above ordinary enemies, a real combatant rather than a
+device or hazard carrier, humanoid and readable, tactically mobile, aggressive
+but fair, authored without a boss-encounter wrapper, and below Vader. He sets
+the QUALITY BAR and the TIER PHILOSOPHY; he is not a template whose abilities
+later Champions should copy.
+
+| system | frozen state |
+|---|---|
+| durability | armour 1900 + body 3400 = **5300**, `armourTake` 0.85, `armourSpill` 0.55, **no Super resistance** |
+| rifle | variable 3-6 round bursts, ONE committed corridor snapshotted at late brace, one monotonic sweep, no per-round correction, the approved recoil/body behaviour; the player's dash is the strongest counter |
+| tactical step — mechanics | 200px, plant 90 / travel 215 / catch 120ms, cooldown 2800ms, current reason priority (CLOSE > POST-BURST > FIELD > BLOCKED), current destination legality and collision, **no i-frames, never reads Super input** |
+| tactical step — visuals | `§10ar` + `§10as`: plant contour → powered release (boot jets) → **three traces** sampled at 0 / ⅓ / ⅔ of the real motion (≈0 / 62 / 124px, live body ≈186 at 60fps), peaks 0.30 / 0.40 / 0.52, lives 200 / 165 / 130ms, out at 0 / 40 / 70ms into the catch, mass `0x4a86ff` with the faint `0x5f9bff` plate hint → body-led catch (`land` pose, leading contour, forward counter-thrust) → ready. The threat ring is never touched |
+| Arc Grenade | targeting, radius 132, flight/arm/field/warn, drag, damage 46 / tick 420, cooldown 9000, the physical source device, its live core, hit response and `spent` shutdown — gameplay AND presentation closed |
+| damage presentation | authored INTACT / BROKEN / CRITICAL sheets per facing, directional physical damage, smoke and shorts from `CAPTAIN_DAMAGE_ANCHORS`, the reactive-armour absorption language |
+| punctuation | four reaction glyphs + the `glyph-throw` intent sign, in the ICE `PUNCT_PALETTE` (`#18264a` / `#8faeff` / `#e8f4ff`) |
+| scope | debug-only (`?champdbg=1`); normal Endless still spawns no Champion; no variants, colourways, second signature or Nemesis replacement |
+
+**The step's history, kept because it explains WHY the final version exists:**
+v2 read as a water drop (expanding round shapes) → v3 as scribble (hairlines)
+→ **v4** (`3383f90`) was the stronger physical direction but still effects
+attached to a moving body → **v5** (`f9f138a`, `§10aq`) was REJECTED as a
+regression — his ground ring compressed, sheared into a crescent and reformed,
+so the shape around him moved instead of him → **v6** (`4ec5931`, `§10ar`)
+the body-led correction → **v6t** (`6cff3cf`, `§10as`) three sampled traces →
+**v6c** (`6560c62`) the brighter royal-blue trace, **approved**. Two durable
+lessons: a persistent identity marker is not automatically an action's motion
+language — for fast locomotion, temporal BODY information beats deforming
+UI-like geometry; and coherence does not need one primitive to own every beat
+— the final step works because animation, propulsion, traces and catch all
+describe ONE causal event. **Do not revive ring deformation, ellipses,
+crescents, a circular hero frame or floor ripples.**
+
+**The final step's character:** a heavily equipped, highly trained soldier
+making an explosively fast lateral reposition with powered assistance and a
+controlled physical catch. Not a teleport, not magic, not skating, not a
+ground slam, not a shield move, not an automatic Super dodge — and not the
+player's dash, which shares only the temporal-silhouette grammar (luminous
+cyan, many ghosts, a screen flash) where the Captain's is royal blue, exactly
+three restrained traces and no screen effect.
+
+**What his closure unblocks** (none started — the next direction comes from
+the human): Champion integration, the Elite hierarchy and its application,
+Commander planning, and authored Champion placement (`§10aj` records the
+Regular → Elite → Champion → Commander → Vader ladder and the no-random-spawn
+rule).
+
+**The history of how he got here follows**, newest pass first after the
+foundation.
+
+#### The combatant foundation
 
 **Two candidates were rejected on CATEGORY before this one** — INTERDICTOR and
 HARROWER, one that never moved and one that never stopped, both returned in the
@@ -209,8 +274,8 @@ reacquire), each fired by authoritative gameplay state, are kept. What was
 rejected is what the BODY was carrying afterwards: two symmetrical orange embers
 read as *an actor with two status lights*, not as a machine coming apart.
 
-**PHASE B.2.2 IS THE CURRENT CANDIDATE AND IS NOT APPROVED — `§10ai`.** It
-answers four handset findings and adds the first signature ability:
+**PHASE B.2.2 — `§10ai`** (superseded by everything below). It answered four
+handset findings and added the first signature ability:
 
 | finding | answer |
 |---|---|
@@ -226,20 +291,12 @@ spawns the Captain; DEBUG carries four triggers — BIG HIT / BREAK / LOW HEALTH
 drive the real `damage()` path, and CHAMP: GRENADE clears the cooldown and lets
 the real AI decide.
 
-**TACTICAL STEP v6 + THE TRACE MICRO-PASS IS THE CURRENT CANDIDATE — `§10ar`,
-`§10as`. NOT APPROVED.** The handset kept v6's body-led direction (plant,
-trailing charge, jets, live body, catch contour, counter-thrust, stock ring —
-all untouched) and asked for one thing: more temporal information, less
-"dim rendered Captain". The single origin exposure is now THREE traces sampled
-from the real travel at 0 / ⅓ / ⅔ of the motion window (0 / 62 / 124px, live
-body at 186), flat cobalt silhouettes with a faint plate hint, oldest
-faintest, and the catch takes them back on its own clock. Nothing else moved.
-**Trace colour closeout (`§10as`, end):** handset liked the three traces and
-found them slightly too dark in real combat; the trace MASS moved from cobalt
-`0x2f5fe8` to royal `0x4a86ff` (`STEP_FX.trace`). Alpha, timing, spacing and
-lifetimes unchanged. **Shock Captain V1 stays unapproved until a handset
-closes the step.** Evidence in `docs/evidence/champion-reset/v6c/` (traces in
-`.../v6t/`, v6 in `.../v6/`).
+**TACTICAL STEP v6c — `§10ar`, `§10as` — HUMAN-APPROVED on `6560c62`.**
+The handset kept v6's body-led direction, asked for more temporal information
+(three sampled traces, `§10as`), then for a brighter trace colour (cobalt
+`0x2f5fe8` → royal `0x4a86ff`, pigment not alpha) — and approved that.
+Evidence in `docs/evidence/champion-reset/v6c/` (traces `.../v6t/`, v6
+`.../v6/`).
 
 **TACTICAL STEP v5 BEFORE IT — `§10aq`. REJECTED ❌.** The ring-deformation
 experiment. Kept as history; do not tune it, redraw the crescent or find a
@@ -265,8 +322,7 @@ ARMED inside the unchanged 520ms, and live it ticks and fires its prongs in
 sync with the circulation. VIOLET ABOVE THE HEAD — all five glyphs moved from
 bone to `PUNCT_PALETTE` so they separate from damage numbers and CRIT, a
 candidate "character punctuation" register. No gameplay value moved (the suite
-pins them as literals). **After the handset gate: freeze Shock Captain V1, or
-not.** Evidence in `docs/evidence/champion-reset/vx/`.
+pins them as literals). Evidence in `docs/evidence/champion-reset/vx/`.
 
 **THE VISUAL CLOSEOUT BEFORE IT — `§10an`.** Three presentation
 jobs and nothing else, on top of `§10am`: THE STEP STOPS SPEAKING IN CIRCLES
@@ -338,7 +394,9 @@ failure IS the break. **NO Super resistance of any kind**, held back so the
 handset can say whether durability and movement were enough. S2 reopens armour
 mechanics only if a focused Captain still dies in 4-5s.
 
-**B.2.3 POLISH IS PAUSED, AND THE INSTRUMENT THAT PROVED WHY IS `§10aj`.**
+**B.2.3 WAS PAUSED HERE, AND THE INSTRUMENT THAT PROVED WHY IS `§10aj`**
+(the pause was lifted by the measurements that led to S1, and the directional
+damage and grenade art it deferred landed in `§10am`).
 Balance thinking had reached "the Captain survives two or three Supers", and
 that sentence only means something if a Super is scarce: in real play it can be
 used roughly once a second, so surviving three of them may describe three
@@ -353,17 +411,17 @@ Commander → Vader hierarchy and the rule that Captain placement stays AUTHORED
 
 ### The recommended next area of work
 
-**PHASE 3 — Vader / major-threat camera awareness — is the chosen next task;
-`§17` is its brief.** The options below are what was on the table when the
-environment pilot closed and remain the honest list for anything that is not
-the camera:
+**Nothing is in flight. The next direction comes from the human.** The camera
+(`§21`), the four arenas, Phase A and Shock Captain V1 are all closed. What
+the Captain's closure unblocks is listed in his section above — Champion
+integration, the Elite hierarchy, Commander planning, authored Champion
+placement. The older standing options are still honest:
 
 1. **Content breadth** — the arena rotation is four rooms and `_arenaCycle`
-   walks them in order. More rooms would now be an application of a proven
-   language rather than an experiment, which is a different and cheaper kind of
-   task.
-2. **The super registry** (see debt above), which is the one structural gap
-   that blocks a whole class of player-facing content.
+   walks them in order; more rooms are now an application of a proven
+   language rather than an experiment.
+2. **The super registry** (see debt above), the one structural gap that blocks
+   a whole class of player-facing content.
 3. **The flat-depth cleanup** for bullets and shared emitters.
 
 Pick with the human. Do not start one on the strength of this list.
@@ -4902,7 +4960,7 @@ remains DEFERRED ENGINE DEBT and was deliberately not fixed — §0 records it.
 
 ---
 
-## 10ac. THE ROSTER, PHASE A — encounter composition. **CANDIDATE — NOT APPROVED**
+## 10ac. THE ROSTER, PHASE A — encounter composition. **HUMAN-APPROVED AND FROZEN 🔒** (see §0)
 
 **Status: shipped to `FRIX` for handset evaluation. NOT human-approved. Nothing
 in it is frozen and every number in `src/data/encounters.js` is a proposal.**
@@ -6213,7 +6271,7 @@ change smuggled in as a mood. The embers carry the persistent read instead.
 
 ---
 
-## 10ai. THE SHOCK CAPTAIN, PHASE B.2.2 — pressure, deterioration, truth, and the first signature. **CANDIDATE — NOT APPROVED**
+## 10ai. THE SHOCK CAPTAIN, PHASE B.2.2 — pressure, deterioration, truth, and the first signature. **SUPERSEDED** — Shock Captain V1 closed on `6560c62` (§0)
 
 Handset play on the deployed B.2.1 build kept the character and rejected four
 specific things about it. This pass answers all four and adds the first
@@ -6663,7 +6721,7 @@ back and the hierarchy decision comes before the survivability mechanism — and
 
 ---
 
-## 10ak. THE SHOCK CAPTAIN, S1 — survivability, footwork, and armour with an identity. **CANDIDATE — NOT APPROVED**
+## 10ak. THE SHOCK CAPTAIN, S1 — survivability, footwork, and armour with an identity. **SUPERSEDED** — Shock Captain V1 closed on `6560c62` (§0)
 
 Four human handset runs, through `?champdbg=1&captel=1`, produced the first
 balance evidence this Champion has ever had. **B.2.3 polish stays paused.**
@@ -6862,7 +6920,7 @@ is not pre-built.
 
 ---
 
-## 10al. THE SHOCK CAPTAIN, CORE FEEL — footwork with a chain, a body with a base, and one burst as one decision. **CANDIDATE — NOT APPROVED**
+## 10al. THE SHOCK CAPTAIN, CORE FEEL — footwork with a chain, a body with a base, and one burst as one decision. **SUPERSEDED** — Shock Captain V1 closed on `6560c62` (§0)
 
 S1 came back from the handset DIRECTIONALLY SUCCESSFUL and precisely
 criticised. He is harder to erase; the human takes more risk and dies more
@@ -7180,7 +7238,7 @@ were equal.
 
 ---
 
-## 10am. THE SHOCK CAPTAIN, VISUAL FINISH — damage that belongs to the body, and a field that has a source. **CANDIDATE — NOT APPROVED**
+## 10am. THE SHOCK CAPTAIN, VISUAL FINISH — damage that belongs to the body, and a field that has a source. **SUPERSEDED** — Shock Captain V1 closed on `6560c62` (§0)
 
 Handset play approved the CORE COMBAT FEEL: the Captain is agile, the tactical
 step produces genuine dodges, the variable suppression rifle reads, the recoil
@@ -7326,7 +7384,7 @@ safe a fifth of a percent outside at eight bearings; the nodes sit exactly on
 the radius and MOVE when the radius is changed; one device owns the lifecycle
 and is destroyed with the field.
 
-## 10an. THE SHOCK CAPTAIN, VISUAL CLOSEOUT — the step stops speaking in circles, the device gets a middle, and intent gets a register. **CANDIDATE — NOT APPROVED**
+## 10an. THE SHOCK CAPTAIN, VISUAL CLOSEOUT — the step stops speaking in circles, the device gets a middle, and intent gets a register. **SUPERSEDED** — Shock Captain V1 closed on `6560c62` (§0)
 
 A narrow, final presentation pass over three things and nothing else. **Every
 gameplay value in `§10am` and before is FROZEN and untouched by this**: 1900
@@ -7534,7 +7592,7 @@ until the thing in it has been attributed.
   repositioning is gameplay-adjacent noise and nothing asked for it.
 - **Nothing is marked human-approved.** `§10al`-`§10an` are candidates.
 
-## 10ao. THE SHOCK CAPTAIN, FINAL VISUAL CLOSEOUT — a step with no slam in it, a device that speaks, and a colour for character punctuation. **CANDIDATE — NOT APPROVED**
+## 10ao. THE SHOCK CAPTAIN, FINAL VISUAL CLOSEOUT — a step with no slam in it, a device that speaks, and a colour for character punctuation. **SUPERSEDED** — Shock Captain V1 closed on `6560c62` (§0)
 
 Handset play approved the direction and named exactly three remaining visual
 issues. This pass fixes those three and nothing else; after it, the handset
@@ -7718,7 +7776,7 @@ in both rigs.
 - Nothing is marked human-approved. **The handset gate decides A, B, C, and
   whether Shock Captain V1 freezes as the reference Champion.**
 
-## 10ap. THE SHOCK CAPTAIN, PHASE VY — a step made of shapes, a source that stays alive, and ice above the head. **CANDIDATE — NOT APPROVED**
+## 10ap. THE SHOCK CAPTAIN, PHASE VY — a step made of shapes, a source that stays alive, and ice above the head. **SUPERSEDED** — Shock Captain V1 closed on `6560c62` (§0)
 
 Three visual jobs from handset play, and nothing else. No gameplay, AI, balance
 or state logic moved; `smoke-captain-closeout` still pins every frozen number
@@ -7935,7 +7993,7 @@ and the stock ring's geometry, his body and his speed are unchanged.
 - No video — the full-speed read is the handset's.
 - Nothing is marked human-approved.
 
-## 10ar. THE SHOCK CAPTAIN, TACTICAL STEP v6 — the body owns the movement, the suit explains the speed. **CANDIDATE — NOT APPROVED**
+## 10ar. THE SHOCK CAPTAIN, TACTICAL STEP v6 — the body owns the movement, the suit explains the speed. **HUMAN-APPROVED AND FROZEN 🔒** — final as v6c on `6560c62`
 
 Step presentation only. `Hazard.js` and `pixelArt.js` carry no diff; the one
 source file changed is `ShockCaptain.js`, and only its step FX plus one sweep
@@ -8018,7 +8076,7 @@ stations at 1x; `10-STRIP-60fps-every-3rd-frame` (f00-f27, 50ms apart);
 
 **The next authority is the handset.** Nothing here is approved.
 
-## 10as. TACTICAL STEP v6 — THE TRACE MICRO-PASS. **CANDIDATE — NOT APPROVED**
+## 10as. TACTICAL STEP v6 — THE TRACE MICRO-PASS. **HUMAN-APPROVED AND FROZEN 🔒** — final as v6c on `6560c62`
 
 **The verdict:** v6's body-led direction WORKED and is kept whole. The one
 remaining issue was the temporal trace — too sparse (origin ghost ————— live
@@ -8068,6 +8126,9 @@ up (blue carries ~7% of luminance), so the first A/B (`0x3f7cff` /
 `0x4a86ff` against `0x6a9cff`. B drifted to periwinkle and, being lighter, let
 the multiply plate hint read as armour — more Captain, not more residue. A is
 the least bright that survives the combat frame. Evidence `.../v6c/`.
+
+**HANDSET VERDICT: APPROVED.** The v6c step on `6560c62` is the final Tactical
+Step and closes Shock Captain V1 — §0 carries the frozen contract.
 
 ## 12. CAMERA PHASE 1 — a camera that frames the game
 
