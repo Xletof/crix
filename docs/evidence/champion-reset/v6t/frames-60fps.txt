@@ -1,0 +1,34 @@
+ 0 step   plant   73 state  408 moved   0  traces@ -  edge
+ 1 step   plant   57 state  392 moved   0  traces@ -  edge
+ 2 step   plant   40 state  375 moved   0  traces@ -  edge
+ 3 step   plant   23 state  358 moved   0  traces@ -  edge
+ 4 step   plant    7 state  342 moved   0  traces@ -  edge
+ 5 step   plant  -10 state  325 moved   0  traces@ -  edge,thrust
+ 6 step   plant  -10 state  308 moved  16  traces@ 0  thrust,trace,Image
+ 7 step   plant  -10 state  292 moved  31  traces@ 0  thrust,trace,Image
+ 8 step   plant  -10 state  275 moved  47  traces@ 0  thrust,trace,Image
+ 9 step   plant  -10 state  258 moved  62  traces@ 0  thrust,trace,Image
+10 step   plant  -10 state  242 moved  78  traces@ 0/62  thrust,trace,Image,trace,Image
+11 step   plant  -10 state  225 moved  93  traces@ 0/62  thrust,trace,Image,trace,Image
+12 step   plant  -10 state  208 moved 109  traces@ 0/62  thrust,trace,Image,trace,Image
+13 step   plant  -10 state  192 moved 124  traces@ 0/62  thrust,trace,Image,trace,Image
+14 step   plant  -10 state  175 moved 140  traces@ 0/62/124  thrust,trace,Image,trace,Image,trace,Image
+15 step   plant  -10 state  158 moved 155  traces@ 0/62/124  trace,Image,trace,Image,trace,Image
+16 step   plant  -10 state  142 moved 171  traces@ 0/62/124  trace,Image,trace,Image,trace,Image
+17 step   plant  -10 state  125 moved 186  traces@ 0/62/124  trace,Image,trace,Image,trace,Image
+18 step   plant  -10 state  108 moved 186  traces@ 62/124  trace,Image,trace,Image,catch-edge,counter
+19 step   plant  -10 state   92 moved 186  traces@ 62/124  trace,Image,trace,Image,catch-edge,counter
+20 step   plant  -10 state   75 moved 186  traces@ 124  trace,Image,catch-edge,counter
+21 step   plant  -10 state   58 moved 186  traces@ 124  trace,Image,catch-edge,counter
+22 step   plant  -10 state   42 moved 186  traces@ -  catch-edge,counter
+23 step   plant  -10 state   25 moved 186  traces@ -  catch-edge,counter
+24 step   plant  -10 state    8 moved 186  traces@ -  catch-edge,counter
+25 strafe plant  -10 state  901 moved 186  traces@ -  counter
+26 brace  plant  -10 state  300 moved 186  traces@ -  
+27 brace  plant  -10 state  283 moved 186  traces@ -  
+28 brace  plant  -10 state  267 moved 186  traces@ -  
+29 brace  plant  -10 state  250 moved 186  traces@ -  
+30 brace  plant  -10 state  233 moved 186  traces@ -  
+31 brace  plant  -10 state  217 moved 186  traces@ -  
+32 brace  plant  -10 state  200 moved 186  traces@ -  
+33 brace  plant  -10 state  183 moved 186  traces@ -  

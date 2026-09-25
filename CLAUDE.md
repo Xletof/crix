@@ -1085,9 +1085,9 @@ asserts separately that the ceiling is not reached.
   cycle), CATCH (120ms on a dedicated `land` frame, with a low flat deck ring)
   and settle. **The catch is the frame that did not exist**, and without it a
   200px displacement ends by switching the velocity off.
-- **THE ECHO IS WHERE THE HARROWER COMES BACK.** ONE discrete exposure of the
-  actor's own frame at the position he really left (v6), with NOTHING
-  joining it to him. They say "he was there a moment ago". A persistent trail says
+- **THE ECHO IS WHERE THE HARROWER COMES BACK.** THREE discrete traces of the
+  actor's own silhouette at positions he really occupied (§10as), with
+  NOTHING joining them. They say "he was there a moment ago". A persistent trail says
   "he is sliding", which is the word a handset already used to kill a Champion.
   Do not add a wake, a long glide, whole-body rotation or giant afterimages.
 - **CHANGE ONE THING PER HANDSET QUESTION.** The step's `cooldownMs` stayed at
@@ -1569,14 +1569,18 @@ asserts separately that the ceiling is not reached.
   or find a different arc.** "The ring has no gameplay semantics" was true and
   was never a reason for it to be the motion language. v6: his TRAILING
   contour loads at the plant, the charge is cut into two short boot jets back
-  down the travel, ONE hard cobalt exposure of his body is left at the origin
-  (stepping down in three stops — a shutter, not a fade), the live body is the
-  travel, and the catch is his `land` pose with the LEADING contour flaring
+  down the travel, THREE cobalt traces are SAMPLED from the real travel
+  (0 / ⅓ / ⅔ of the motion window — §10as; flat silhouette mass plus a faint
+  plate hint, oldest faintest, stepped decay), the live body is the travel, and the catch is his `land` pose with the LEADING contour flaring
   white-blue and a compact forward counter-thrust. Unity comes from
   CAUSALITY, not from one graphic owning every beat. `smoke-captain-closeout`
   fails on any step method naming `threatRing`, on any line, on polygon
-  geometry outside the boot jet, on a second exposure, and on a whole-body
-  wash coming back.
+  geometry outside the boot jet, on a fourth trace or a trace off the body's
+  real path, on a trace surviving into the catch, and on a whole-body wash.
+  **THE v6 A-vs-B (one exposure beat two) WAS CONFOUNDED BY THE RENDER** —
+  multiply-tinted copies read as extra Captains at any count. Colour, not
+  render; and a lifetime that "ends near" a beat is a frame-alignment coin
+  flip — end it ON the beat, from the beat's own line.
 - **`threatRing` IS AN IDENTITY HALO AND THE STEP LEAVES IT ALONE.** It sits at
   radius+12 / radius+20, nothing reads it, and `Enemy.preUpdate` is its one
   author. The suite steps a real step at 60fps and requires the ring's alpha

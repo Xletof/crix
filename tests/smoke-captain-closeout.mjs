@@ -93,14 +93,16 @@ check(/_jet\([^)]*\bback\b/.test(M._stepThrust),
 check(!/for \(let i = 0; i < 4;/.test(M._stepCatchFx) && !M._stepCatchFx.includes('Math.PI / 4 +'),
   'the four converging diagonal brackets are still gone');
 // ── ONE TEMPORAL EXPOSURE, taken at the push-off, whole-bodied, never moving
-check((src.match(/this\._stepExposure\(/g) || []).length === 1 && M._stepThrust.includes('_stepExposure(')
-  && !src.includes('_stepEcho') && !M._stepExposure.includes('setCrop'),
-  'ONE temporal exposure per step, taken on the push-off frame at the spot he left');
+// ── THREE TRACES, SAMPLED FROM THE REAL TRAVEL (the trace micro-pass) ────
+check((src.match(/this\._stepExposure\(/g) || []).length === 1 && !M._stepThrust.includes('_stepExposure(')
+  && /_stepTraces < 3/.test(src) && !src.includes('_stepEcho') && !M._stepExposure.includes('setCrop'),
+  'the trace is taken from the travel branch, at most three samples per step — none at the push-off');
 {
-  const tick = M._stepExposure.slice(M._stepExposure.indexOf('img._tick'));
+  const tick = M._stepExposure.slice(M._stepExposure.indexOf('mass._tick'));
   check(tick.length > 20 && !tick.includes('setPosition') && !tick.includes('setScale'),
-    'the exposure never moves and never grows once taken');
+    'a trace never moves and never grows once taken');
 }
+
 check(stepFx.every((m) => !m.includes('this.def.color')) && src.includes('static get STEP_FX'),
   'the step is painted from its own cobalt palette, never the near-cyan `def.color`');
 check(!src.includes('stampGhost') && !src.includes('tryDash'),
@@ -357,18 +359,42 @@ const stepRun = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(a
   c._stepCd = 1e9;
   const S = [];
   const exposures = new Map();
+  const bodyAt = [`${c.x},${c.y}`];
+  let catchSeen = null;
   for (let f = 0; f < 60; f++) {
     adv();
+    bodyAt.push(`${c.x},${c.y}`);
+    if (catchSeen == null && c._cap === 'step' && c._stateMs <= c.def.step.catchMs) catchSeen = f;
     const roles = c._reactFx.map((o) => o._role).filter(Boolean);
     for (const o of c._reactFx) {
-      if (o._role !== 'exposure') continue;
-      const e = exposures.get(o) || { xs: new Set(), sc: new Set() };
-      e.xs.add(`${o.x},${o.y}`); e.sc.add(`${o.scaleX},${o.scaleY}`);
+      if (o._role !== 'trace') continue;
+      const e = exposures.get(o) || { xs: new Set(), sc: new Set(), k: o._traceK, a: 0, x: o.x - c._stepFrom.x };
+      e.xs.add(`${o.x},${o.y}`); e.sc.add(`${o.scaleX},${o.scaleY}`); e.a = Math.max(e.a, o.alpha);
       exposures.set(o, e);
     }
-    S.push({ cap: c._cap, roles, ringA: c.threatRing.alpha, ringX: c.threatRing.x - c.x });
+    const nTr = roles.filter((r) => r === 'trace').length;
+    S.push({ cap: c._cap, roles, nTr, ks: c._reactFx.filter((o) => o._role === 'trace').map((o) => o._traceK),
+      sinceCatch: catchSeen == null ? -1 : f - catchSeen, ringA: c.threatRing.alpha, ringX: c.threatRing.x - c.x });
     if (c._cap !== 'step' && !c._reactFx.length) break;
   }
+  const afterStep = { fx: c._reactFx.length, fx0, ringA: c.threatRing.alpha };
+  const ringCmdsSame = c.threatRing.commandBuffer.length === ringCmds0;
+  const bodySame = c.body.radius === body0.r && c.body.width === body0.w && c.def.speed === body0.speed;
+  // DEATH MID-TRAVEL, with all three traces up: a real death, then nothing
+  // Captain-textured may be left on the display list.
+  c._stepCd = 0; c._cap = 'hold'; c._stateMs = 0;
+  c._beginStep(gs.player, 'close', { x: c.x + 200, y: c.y, reach: 200 });
+  let upAtDeath = 0;
+  for (let f = 0; f < 40; f++) {
+    adv();
+    upAtDeath = c._reactFx.filter((o) => o._role === 'trace').length;
+    if (upAtDeath === 3) break;
+  }
+  delete c.die;
+  c.damage(1e7);
+  for (let f = 0; f < 12; f++) adv();
+  const orphans = gs.children.list.filter((o) => o.type === 'Image'
+    && String(o.texture?.key || '').startsWith('champ-captain')).length;
   g.loop.wake();
   const seen = [...new Set(S.flatMap((x) => x.roles))];
   return {
@@ -377,20 +403,41 @@ const stepRun = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(a
     edgeAfterStep: S.some((x) => x.cap !== 'step' && x.roles.includes('catch-edge')),
     exposureCount: exposures.size,
     exposureStill: [...exposures.values()].every((e) => e.xs.size === 1 && e.sc.size === 1),
-    after: { fx: c._reactFx.length, fx0, ringA: c.threatRing.alpha },
-    ringCmdsSame: c.threatRing.commandBuffer.length === ringCmds0,
-    bodySame: c.body.radius === body0.r && c.body.width === body0.w && c.def.speed === body0.speed,
+    // Every trace stands exactly where the body really was on some frame.
+    tracesOnPath: [...exposures.values()].every((e) => [...e.xs].every((p) => bodyAt.includes(p))),
+    traces: [...exposures.values()].map((e) => ({ k: e.k, a: +e.a.toFixed(2), dx: Math.round(e.x) })),
+    maxTogether: Math.max(0, ...S.map((x) => x.nTr)),
+    atFirstCatch: S.find((x) => x.sinceCatch === 0)?.ks ?? null,
+    atCatch60: Math.max(0, ...S.filter((x) => x.sinceCatch >= 4 && x.cap === 'step').map((x) => x.nTr)),
+    traceAfterStep: S.some((x) => x.cap !== 'step' && x.nTr > 0),
+    after: afterStep,
+    death: { upAtDeath, orphans },
+    ringCmdsSame,
+    bodySame,
   };
 }));
-check(['edge', 'thrust', 'exposure', 'catch-edge', 'counter'].every((r) => stepRun.seen.includes(r)),
-  'a real step at 60fps draws every beat — plant contour, release jets, exposure, catch contour, counter-thrust',
+check(['edge', 'thrust', 'trace', 'catch-edge', 'counter'].every((r) => stepRun.seen.includes(r)),
+  'a real step at 60fps draws every beat — plant contour, release jets, trace, catch contour, counter-thrust',
   JSON.stringify(stepRun.seen));
 check(stepRun.ringAlways1 && stepRun.ringCmdsSame,
   'the stock threat ring is never hidden, redrawn or deformed by the step', `${stepRun.frames} frames`);
-check(stepRun.exposureCount === 1 && stepRun.exposureStill,
-  'exactly one temporal exposure, and it neither moves nor grows', JSON.stringify(stepRun.exposureCount));
+check(stepRun.exposureCount === 3 && stepRun.exposureStill && stepRun.maxTogether <= 3,
+  'exactly three traces per step, never more than three at once, none moving or growing',
+  JSON.stringify(stepRun.traces));
+check(stepRun.tracesOnPath,
+  'every trace stands on a position the body really occupied — sampled, never placed');
+{
+  const T = stepRun.traces.slice().sort((p, q) => p.k - q.k);
+  check(T.length === 3 && T.every((tr, i) => i === 0 || (Math.abs(tr.dx) > Math.abs(T[i - 1].dx) && tr.a > T[i - 1].a)),
+    'the traces run along the travel in order, oldest faintest', JSON.stringify(T));
+}
+check(stepRun.atFirstCatch && !stepRun.atFirstCatch.includes(0) && stepRun.atCatch60 <= 1 && !stepRun.traceAfterStep,
+  'the catch belongs to the body — oldest trace gone as it lands, at most one left 60ms in, none after the step',
+  JSON.stringify({ first: stepRun.atFirstCatch, at60: stepRun.atCatch60 }));
 check(!stepRun.edgeAfterStep,
   'the catch contour is gone on the frame the step ends — it never outlines the next pose');
+check(stepRun.death.upAtDeath === 3 && stepRun.death.orphans === 0,
+  'a Captain killed mid-travel with three traces up leaves no trace image behind', JSON.stringify(stepRun.death));
 check(stepRun.after.fx <= stepRun.after.fx0 && stepRun.after.ringA === 1 && stepRun.bodySame,
   'after the step no step FX is left, and his body and speed are untouched', JSON.stringify(stepRun.after));
 

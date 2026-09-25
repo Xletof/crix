@@ -97,10 +97,14 @@ if (begun !== 'step') { console.log('!! step refused', begun); process.exit(1); 
 // Stations are chosen from the actor's own state on each frame, never from
 // a frame index guessed in advance.
 const want = {
-  '31-plant': (s, seen) => s.cap === 'step' && s.plant > 0 && s.plant < 50,
-  '33-launch': (s, seen) => s.cap === 'step' && s.plant <= 0 && s.moved > 20,
-  '34-early-travel': (s) => s.cap === 'step' && s.state > s.catchMs && s.moved > 80,
-  '35-late-travel': (s) => s.cap === 'step' && s.state > s.catchMs && s.moved > 160,
+  '31-plant': (s) => s.cap === 'step' && s.plant > 0 && s.plant < 50,
+  '32-release': (s) => s.cap === 'step' && s.plant <= 0 && s.moved > 0,
+  '33a-trace-1': (s) => s.cap === 'step' && s.traces >= 1 && s.moved > 30,
+  '33b-trace-2': (s) => s.cap === 'step' && s.traces >= 2,
+  '33c-trace-3': (s) => s.cap === 'step' && s.traces >= 3,
+  // THE STRONGEST TRAVEL FRAME: all three traces alive, as late as possible.
+  '35-THREE-TRACES-late-travel': (s) => s.cap === 'step' && s.state > s.catchMs
+    && s.traces === 3 && s.moved > 160,
   '36-FIRST-CATCH': (s) => s.cap === 'step' && s.state <= s.catchMs,
   '36b-HERO-FRAME': (s) => s.cap === 'step' && s.state <= s.catchMs - 30,
   '37-settle': (s) => s.cap !== 'step' && s.sinceEnd >= 5,
@@ -114,11 +118,13 @@ for (let f = 0; f < 48; f++) {
     const c = window.__cap;
     return { cap: c._cap, plant: c._stepPlantMs, state: c._stateMs, catchMs: c.def.step.catchMs,
       moved: Math.round(Math.abs(c.x - 700)),
-      fx: c._reactFx.map((o) => o._role || o.type).join(',') };
+      fx: c._reactFx.map((o) => o._role || o.type).join(','),
+      traces: c._reactFx.filter((o) => o._role === 'trace').length,
+      traceAt: c._reactFx.filter((o) => o._role === 'trace').map((o) => Math.round(700 - o.x)).join('/') };
   });
   if (s.cap !== 'step' && endFrame == null) endFrame = f;
   s.sinceEnd = endFrame == null ? -1 : f - endFrame;
-  log.push(`${String(f).padStart(2)} ${s.cap.padEnd(6)} plant ${Math.round(s.plant).toString().padStart(4)} state ${Math.round(s.state).toString().padStart(4)} moved ${String(s.moved).padStart(3)}  ${s.fx}`);
+  log.push(`${String(f).padStart(2)} ${s.cap.padEnd(6)} plant ${Math.round(s.plant).toString().padStart(4)} state ${Math.round(s.state).toString().padStart(4)} moved ${String(s.moved).padStart(3)}  traces@ ${s.traceAt || '-'}  ${s.fx}`);
   await cropAt(`${OUT}/seq/f${String(f).padStart(2, '0')}.png`);
   for (const [name, test] of Object.entries(want)) {
     if (!taken.has(name) && test(s)) {

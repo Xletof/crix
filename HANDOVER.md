@@ -226,17 +226,16 @@ spawns the Captain; DEBUG carries four triggers — BIG HIT / BREAK / LOW HEALTH
 drive the real `damage()` path, and CHAMP: GRENADE clears the cooldown and lets
 the real AI decide.
 
-**TACTICAL STEP v6 IS THE CURRENT CANDIDATE — `§10ar`. NOT APPROVED.**
-Step visuals only. **v5 (`§10aq`, `f9f138a`) was REJECTED on the handset as a
-regression** — its ring/ellipse/crescent language read as the shape around him
-deforming instead of him moving. v6 is body-led: his trailing contour loads
-at the plant, two short boot jets and ONE hard cobalt exposure of his body
-mark the release, the live body is the travel, and the catch is his `land`
-pose with the LEADING contour flaring white-blue plus a compact forward
-counter-thrust. The threat ring is back on its stock path and the step never
-touches it. Grenade, glyphs and every gameplay literal untouched. **Shock
-Captain V1 stays unapproved until a handset closes the step.** Evidence in
-`docs/evidence/champion-reset/v6/`.
+**TACTICAL STEP v6 + THE TRACE MICRO-PASS IS THE CURRENT CANDIDATE — `§10ar`,
+`§10as`. NOT APPROVED.** The handset kept v6's body-led direction (plant,
+trailing charge, jets, live body, catch contour, counter-thrust, stock ring —
+all untouched) and asked for one thing: more temporal information, less
+"dim rendered Captain". The single origin exposure is now THREE traces sampled
+from the real travel at 0 / ⅓ / ⅔ of the motion window (0 / 62 / 124px, live
+body at 186), flat cobalt silhouettes with a faint plate hint, oldest
+faintest, and the catch takes them back on its own clock. Nothing else moved.
+**Shock Captain V1 stays unapproved until a handset closes the step.**
+Evidence in `docs/evidence/champion-reset/v6t/` (v6 in `.../v6/`).
 
 **TACTICAL STEP v5 BEFORE IT — `§10aq`. REJECTED ❌.** The ring-deformation
 experiment. Kept as history; do not tune it, redraw the crescent or find a
@@ -8014,6 +8013,44 @@ stations at 1x; `10-STRIP-60fps-every-3rd-frame` (f00-f27, 50ms apart);
 `00-AB-candidate-A-vs-B`; `41-player-DASH-1x`.
 
 **The next authority is the handset.** Nothing here is approved.
+
+## 10as. TACTICAL STEP v6 — THE TRACE MICRO-PASS. **CANDIDATE — NOT APPROVED**
+
+**The verdict:** v6's body-led direction WORKED and is kept whole. The one
+remaining issue was the temporal trace — too sparse (origin ghost ————— live
+body) and too much like a dim rendered Captain, because a multiply tint keeps
+every armour value boundary in the sprite. Only `_stepExposure` and where it
+is called changed.
+
+| | v6 | trace pass |
+|---|---|---|
+| count | 1 | **3** + the live body |
+| sampled | push-off frame, origin | travel branch, at 0, ⅓, ⅔ of the MOTION window (from the first frame the body moves) |
+| spacing at 60fps | — | 0 / 62 / 124px, live at 186 — even, because he moves at constant speed |
+| render | multiply-tinted sprite at 0.5 | flat cobalt tint-fill silhouette (mass) + a multiply copy at 0.28 of it (a hint of plates) |
+| peak alpha | 0.5 | 0.30 / 0.40 / 0.52, oldest faintest |
+| life | 250ms, 3 stops | 200 / 165 / 130ms, 3 stops each — AND out at 0 / 40 / 70ms into the catch |
+
+**Two timing facts that each cost a round.** (1) The travel clock includes the
+plant's last-frame overshoot, so sampling thirds of `travelMs` from it put the
+samples at 0 / 47 / 109 against a live body at 186 — a ladder that lied about
+constant speed. The window is measured from the first frame of motion
+(`_stepTravel0`). (2) A lifetime that "ends near the catch" is a coin-flip on
+frame alignment — the oldest trace's 200ms landed on the catch frame to within
+float error — and `_reactFx` ticks before the state machine, so even a
+catch-clock rule is one frame late. The catch-start line re-ticks the traces,
+so the oldest is gone ON the first catch frame; the suite asserts it.
+
+**The earlier A-vs-B was confounded** (`§10ar`): "two exposures read as a row
+of Captains" was a verdict on the multiply-tinted RENDER, not on the count.
+This pass compared frame-matched v6 one-trace against the new three
+(`00-AB-v6-one-trace-vs-three.png`, f16 late travel and f18 first catch).
+
+`smoke-captain-closeout` (60): exactly three traces, never more at once, none
+moving or growing, every one on a position the body really occupied, ordered
+along the travel oldest-faintest, oldest gone on the first catch frame, ≤1 at
+60ms into the catch, none after the step, and a Captain killed mid-travel with
+three up leaves no Captain-textured image. Six fail on `4ec5931`.
 
 ## 12. CAMERA PHASE 1 — a camera that frames the game
 

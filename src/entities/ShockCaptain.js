@@ -1211,6 +1211,8 @@ export class ShockCaptain extends Enemy {
     this._stepCd = d.cooldownMs;
     this._wantPostBurstStep = false;
     this._blockedMs = 0;
+    this._stepTraces = 0;
+    this._stepTravel0 = null;
     const ang = Math.atan2(dest.y - this.y, dest.x - this.x);
     // PRESENTATION ONLY: the catch lights his LEADING contour and fires its
     // counter-thrust forward, so it has to know which way he was going after
@@ -1374,7 +1376,6 @@ export class ShockCaptain extends Enemy {
    * leaves it. White-blue core for the first few frames only.
    */
   _stepThrust(ang) {
-    this._stepExposure(0.5);
     if (!this.scene?.add) return;
     const back = ang + Math.PI;
     const g = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
@@ -1396,33 +1397,71 @@ export class ShockCaptain extends Enemy {
   }
 
   /**
-   * A TEMPORAL EXPOSURE — his whole frame, tinted deep blue, at a place he
-   * really was. It does not grow, does not move and does not fade smoothly:
-   * it STEPS DOWN in three hard stops, so it reads as a shutter record of an
-   * armoured body rather than as a ghost trail. The player's dash is
-   * seventeen growing ADD ghosts in pale cyan; this is one hard exposure.
+   * ── THE TRACE: THREE COLOURED RECORDS OF ONE MOVING BODY ─────────────────
+   *
+   * v6 left ONE exposure at the origin and it read two ways the handset did
+   * not want: too sparse (origin ghost ————— live body, nothing between) and
+   * too much like a dim rendered Captain standing behind him, because a
+   * multiply tint keeps every armour value boundary in the sprite.
+   *
+   * THREE SAMPLES, TAKEN, NOT PLACED. The travel branch calls this at 0, 1/3
+   * and 2/3 of `travelMs` of real elapsed travel, at wherever the body
+   * actually IS on that frame — so the spacing is his velocity, not a
+   * formula. At constant speed that is a ~67px ladder across the 200px step:
+   * TRACE 1 -> TRACE 2 -> TRACE 3 -> LIVE.
+   *
+   * COLOUR, NOT RENDER. Each trace is his silhouette flat-filled deep cobalt
+   * (the mass: helmet, shoulders, torso, stance) with a much fainter multiply
+   * copy on top carrying only a hint of the plates, so it reads as blue
+   * temporal residue rather than as another armoured man. A flat fill alone
+   * was measured as a blob when it was ONE strong exposure; three weaker ones
+   * in a row read as a path.
+   *
+   * OLDEST FAINTEST, SHORTEST-LIVED LAST. `k` is the sample index: older
+   * samples are fainter and are timed to be gone or going by the catch, so
+   * the catch belongs to the live body. Stepped decay — a shutter, not a fade.
    */
-  _stepExposure(peak) {
+  static get STEP_TRACE() {
+    return [
+      { peak: 0.30, life: 200, catchOut: 0 },    // trace 1 — oldest; gone as the catch lands
+      { peak: 0.40, life: 165, catchOut: 40 },   // trace 2 — dying through the first 40ms
+      { peak: 0.52, life: 130, catchOut: 70 },   // trace 3 — nearest; briefly behind the catch
+    ];
+  }
+
+  _stepExposure(k) {
     if (!this.scene?.add || !this.texture) return;
     const C = ShockCaptain.STEP_FX;
-    const img = this.scene.add.image(this.x, this.y, this.texture.key, this.frame.name)
+    const spec = ShockCaptain.STEP_TRACE[k];
+    if (!spec) return;
+    const mk = () => this.scene.add.image(this.x, this.y, this.texture.key, this.frame.name)
       .setDepth(this.y - 3)
       .setScale(this.scaleX, this.scaleY)
-      .setFlipX(this.flipX)
-      // A MULTIPLY tint on the NORMAL blend keeps the armour's own value
-      // structure, so the record is an armoured body. A flat tint fill of the
-      // whole frame was measured as a round blue blob.
-      .setTint(C.blue)
-      .setAlpha(peak);
-    this._reactFx.push(img);
-    img._t0 = this._clock;
-    img._role = 'exposure';
-    const STOPS = [[90, 1], [170, 0.55], [250, 0.25]];
-    img._tick = () => {
-      const t = this._clock - img._t0;
-      const s = STOPS.find(([until]) => t < until);
-      if (!s || !this.alive) { this._dropFx(img); img.destroy(); return; }
-      img.setAlpha(peak * s[1]);
+      .setFlipX(this.flipX);
+    const mass = mk().setTintFill(C.cobalt);
+    const hint = mk().setTint(C.blue).setDepth(this.y - 2.9);
+    const parts = [[mass, 1], [hint, 0.28]];
+    this._reactFx.push(mass, hint);
+    mass._t0 = this._clock;
+    mass._role = 'trace';
+    mass._traceK = k;
+    hint._tick = () => {};          // driven by `mass`, swept with it
+    const set = (u) => { for (const [o, w] of parts) o.setAlpha(spec.peak * w * u); };
+    set(1);
+    mass._tick = () => {
+      const t = this._clock - mass._t0;
+      let u = t < spec.life * 0.45 ? 1 : t < spec.life * 0.75 ? 0.6 : t < spec.life ? 0.3 : 0;
+      // THE CATCH TAKES THE FRAME BACK, on the step's own clock rather than
+      // on a lifetime that happens to end near it: at 60fps the oldest
+      // trace's 200ms landed on the catch frame to within float error.
+      const d = this.def.step;
+      const inCatch = this._cap === CAP.STEP ? d.catchMs - this._stateMs : Infinity;
+      if (inCatch >= spec.catchOut) u = 0;
+      if (!u || !this.alive) {
+        for (const [o] of parts) { this._dropFx(o); o.destroy(); }
+        return;
+      }
+      set(u);
     };
   }
 
@@ -1627,6 +1666,19 @@ export class ShockCaptain extends Enemy {
           // still underneath and a destination check that was wrong costs a
           // short stop rather than a body inside a console.
           this.setVelocity(this._stepVx, this._stepVy);
+          // THE TRACE IS SAMPLED FROM THE REAL TRAVEL: at 0, 1/3 and 2/3 of
+          // `travelMs`, wherever the body is on that frame. Presentation only.
+          // The window is measured from the FIRST FRAME OF MOTION, not from
+          // the travel clock: the plant's last frame overshoots into it, and
+          // sampling from the clock put the first gap at 47px and the last at
+          // 77 — a ladder that lied about a body moving at constant speed.
+          const into = d.catchMs + d.travelMs - this._stateMs;
+          if (this._stepTravel0 == null) this._stepTravel0 = into;
+          const span = Math.max(1, d.travelMs - this._stepTravel0);
+          while (this._stepTraces < 3
+            && into - this._stepTravel0 >= (span / 3) * this._stepTraces) {
+            this._stepExposure(this._stepTraces++);
+          }
         } else {
           // THE CATCH. The body is stopped and the legs absorb it — this is a
           // real beat with its own frame, not the tail of the travel.
@@ -1634,6 +1686,9 @@ export class ShockCaptain extends Enemy {
             this._stepCatchMs = d.catchMs;
             this.setVelocity(0, 0);
             this._stepCatchFx();
+            // The traces ticked at the top of this frame, before the catch
+            // began; re-tick them now so the oldest is gone ON the catch frame.
+            this._reactFx.filter((o) => o._role === 'trace').forEach((o) => o._tick());
           }
           this._stepCatchMs -= delta;
           this.setVelocity(0, 0);
