@@ -1570,8 +1570,9 @@ asserts separately that the ceiling is not reached.
   was never a reason for it to be the motion language. v6: his TRAILING
   contour loads at the plant, the charge is cut into two short boot jets back
   down the travel, THREE cobalt traces are SAMPLED from the real travel
-  (0 / ⅓ / ⅔ of the motion window — §10as; flat silhouette mass plus a faint
-  plate hint, oldest faintest, stepped decay), the live body is the travel, and the catch is his `land` pose with the LEADING contour flaring
+  (0 / ⅓ / ⅔ of the motion window — §10as; flat ROYAL-blue `STEP_FX.trace`
+  silhouette mass plus a faint plate hint, oldest faintest, stepped decay —
+  too dark in combat is fixed with PIGMENT, never alpha), the live body is the travel, and the catch is his `land` pose with the LEADING contour flaring
   white-blue and a compact forward counter-thrust. Unity comes from
   CAUSALITY, not from one graphic owning every beat. `smoke-captain-closeout`
   fails on any step method naming `threatRing`, on any line, on polygon

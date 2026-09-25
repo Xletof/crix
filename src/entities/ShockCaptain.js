@@ -1257,10 +1257,14 @@ export class ShockCaptain extends Enemy {
    * Captain's `def.color` (`0x4fc3ff`) sits close enough to it to read as the
    * same technology in peripheral vision, so the step does not spend it. Deep
    * COBALT for thrust mass, a brighter blue for its edge, a white-blue PEAK for
-   * the hottest core, and ICE for the suit itself flaring.
+   * the hottest core, and ICE for the suit itself flaring. TRACE is the
+   * temporal residue's mass: a brighter ROYAL blue than cobalt, because at
+   * 0.30-0.52 alpha over a dark deck in real combat cobalt lost the oldest
+   * trace (handset). Brighter PIGMENT, never more alpha — more alpha is more
+   * Captain. Still far off the dash's `0x60ecff` in green.
    */
   static get STEP_FX() {
-    return { cobalt: 0x2f5fe8, blue: 0x5f9bff, peak: 0xe6f0ff, ice: 0xcfe4ff };
+    return { cobalt: 0x2f5fe8, blue: 0x5f9bff, peak: 0xe6f0ff, ice: 0xcfe4ff, trace: 0x4a86ff };
   }
 
   /**
@@ -1438,7 +1442,7 @@ export class ShockCaptain extends Enemy {
       .setDepth(this.y - 3)
       .setScale(this.scaleX, this.scaleY)
       .setFlipX(this.flipX);
-    const mass = mk().setTintFill(C.cobalt);
+    const mass = mk().setTintFill(C.trace);
     const hint = mk().setTint(C.blue).setDepth(this.y - 2.9);
     const parts = [[mass, 1], [hint, 0.28]];
     this._reactFx.push(mass, hint);

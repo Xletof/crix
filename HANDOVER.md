@@ -234,8 +234,12 @@ all untouched) and asked for one thing: more temporal information, less
 from the real travel at 0 / ⅓ / ⅔ of the motion window (0 / 62 / 124px, live
 body at 186), flat cobalt silhouettes with a faint plate hint, oldest
 faintest, and the catch takes them back on its own clock. Nothing else moved.
-**Shock Captain V1 stays unapproved until a handset closes the step.**
-Evidence in `docs/evidence/champion-reset/v6t/` (v6 in `.../v6/`).
+**Trace colour closeout (`§10as`, end):** handset liked the three traces and
+found them slightly too dark in real combat; the trace MASS moved from cobalt
+`0x2f5fe8` to royal `0x4a86ff` (`STEP_FX.trace`). Alpha, timing, spacing and
+lifetimes unchanged. **Shock Captain V1 stays unapproved until a handset
+closes the step.** Evidence in `docs/evidence/champion-reset/v6c/` (traces in
+`.../v6t/`, v6 in `.../v6/`).
 
 **TACTICAL STEP v5 BEFORE IT — `§10aq`. REJECTED ❌.** The ring-deformation
 experiment. Kept as history; do not tune it, redraw the crescent or find a
@@ -8051,6 +8055,19 @@ moving or growing, every one on a position the body really occupied, ordered
 along the travel oldest-faintest, oldest gone on the first catch frame, ≤1 at
 60ms into the catch, none after the step, and a Captain killed mid-travel with
 three up leaves no Captain-textured image. Six fail on `4ec5931`.
+
+### TRACE COLOUR CLOSEOUT (after §10as)
+
+Handset: the three-trace step works; the traces were slightly too dark in real
+combat against the dark arenas. Pigment only: the flat mass moved from cobalt
+`0x2f5fe8` to `STEP_FX.trace` = `0x4a86ff`; the faint multiply hint stays
+`0x5f9bff`; alphas 0.30 / 0.40 / 0.52, sampling, spacing, lifetimes and the
+catch cleanup untouched. A saturated blue barely brightens until GREEN comes
+up (blue carries ~7% of luminance), so the first A/B (`0x3f7cff` /
+`0x5590ff`) was indistinguishable from the old colour; the real A/B was
+`0x4a86ff` against `0x6a9cff`. B drifted to periwinkle and, being lighter, let
+the multiply plate hint read as armour — more Captain, not more residue. A is
+the least bright that survives the combat frame. Evidence `.../v6c/`.
 
 ## 12. CAMERA PHASE 1 — a camera that frames the game
 
