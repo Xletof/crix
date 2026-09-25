@@ -226,13 +226,21 @@ spawns the Captain; DEBUG carries four triggers — BIG HIT / BREAK / LOW HEALTH
 drive the real `damage()` path, and CHAMP: GRENADE clears the cooldown and lets
 the real AI decide.
 
-**TACTICAL STEP v5 IS THE CURRENT CANDIDATE — `§10aq`.** Step visual polish
-only, on top of `§10ap`: the Captain shears his own ground ring into a
-crescent to throw himself sideways and it snaps back around him on the catch —
-the one hero frame, with the move's only suit flash. v4's plant/push flashes,
-boot plates and second echo are gone. Grenade and glyph code untouched; step
-gameplay pinned as literals. **If the handset approves it, Shock Captain V1 is
-complete.** Evidence in `docs/evidence/champion-reset/vz/`.
+**TACTICAL STEP v6 IS THE CURRENT CANDIDATE — `§10ar`. NOT APPROVED.**
+Step visuals only. **v5 (`§10aq`, `f9f138a`) was REJECTED on the handset as a
+regression** — its ring/ellipse/crescent language read as the shape around him
+deforming instead of him moving. v6 is body-led: his trailing contour loads
+at the plant, two short boot jets and ONE hard cobalt exposure of his body
+mark the release, the live body is the travel, and the catch is his `land`
+pose with the LEADING contour flaring white-blue plus a compact forward
+counter-thrust. The threat ring is back on its stock path and the step never
+touches it. Grenade, glyphs and every gameplay literal untouched. **Shock
+Captain V1 stays unapproved until a handset closes the step.** Evidence in
+`docs/evidence/champion-reset/v6/`.
+
+**TACTICAL STEP v5 BEFORE IT — `§10aq`. REJECTED ❌.** The ring-deformation
+experiment. Kept as history; do not tune it, redraw the crescent or find a
+different arc — the handset rejected the family, not the execution.
 
 **PHASE VY BEFORE IT — `§10ap`.** Three handset-named visual
 jobs on top of `§10ao`: TACTICAL STEP v4 has no lines at all — the suit flares,
@@ -7488,7 +7496,7 @@ any frame rate.
 
 ### EVIDENCE — `docs/evidence/champion-reset/vc/`
 
-`shot-captain-step-fx.mjs` walks the four beats, **one fresh step per station**
+`shot-captain-step-fx.mjs` (deleted in `§10ar` — see there) walked the four beats, **one fresh step per station**
 (the travel is 215ms against a ~12fps harness, so a rig that pauses and resumes
 through one step walks over the beat it was aiming at), each at 1x and as a
 crop: `20-plant`, `21-pushoff`, `22-travel`, `23-catch`, `24-READ-step-at-1x`.
@@ -7825,7 +7833,7 @@ armed on landing, and the addressed blip ladder proves the rest.
 - No video. The in-motion read is the handset's.
 - Nothing is marked human-approved.
 
-## 10aq. THE SHOCK CAPTAIN, TACTICAL STEP v5 — he throws his own field, and catches it. **CANDIDATE — NOT APPROVED**
+## 10aq. THE SHOCK CAPTAIN, TACTICAL STEP v5 — he throws his own field, and catches it. **REJECTED ON HANDSET ❌ — see `§10ar`**
 
 Tactical Step visual polish only. The Arc Grenade and the glyphs are closed for
 this pass and their code is untouched (`Hazard.js` and `pixelArt.js` carry no
@@ -7923,6 +7931,89 @@ and the stock ring's geometry, his body and his speed are unchanged.
 - No gameplay, AI, balance, grenade or glyph change.
 - No video — the full-speed read is the handset's.
 - Nothing is marked human-approved.
+
+## 10ar. THE SHOCK CAPTAIN, TACTICAL STEP v6 — the body owns the movement, the suit explains the speed. **CANDIDATE — NOT APPROVED**
+
+Step presentation only. `Hazard.js` and `pixelArt.js` carry no diff; the one
+source file changed is `ShockCaptain.js`, and only its step FX plus one sweep
+on the step's end frame. Every gameplay literal (200px, 90 / 215 / 120ms,
+2800ms, triggers, priority, collision, no i-frames, no Super reading, the
+grenade, durability) is pinned by `smoke-captain-closeout` and did not move.
+
+### THE VERDICT THAT OPENED IT
+
+**v5 IS REJECTED — a regression.** The ring → compress → shear → crescent →
+collapse → reform sequence read as generic, abstract, somewhat scribbled and
+less physical than v4. The post-mortem is one line: **for a ~400ms lateral
+locomotion event, the information hierarchy is the body — displacement,
+velocity, direction, commitment, powered assistance, recovery — and v5 moved
+it to the geometry of a circle around him.** "The ring has no gameplay
+semantics" was true and was not a reason for it to be the motion language.
+The concept is killed, not tuned.
+
+### WHAT v6 IS
+
+Plant → powered release → armoured body crosses space → body catches the mass
+→ ready. Unity comes from CAUSALITY, not from one graphic owning every beat:
+
+| beat | what draws |
+|---|---|
+| PLANT (90ms) | his TRAILING contour — a tint-fill copy of his live frame 4px behind him, under his body, so only the armour edge on the push side shows — rising cobalt → blue |
+| RELEASE | that charge is CUT on the push-off frame; two short solid boot jets (50px, white-blue core for the first few frames) fire back down the travel, left at the origin; ONE hard exposure of his body is taken where he stood |
+| TRAVEL (215ms) | the live body. The exposure steps DOWN in three hard stops (1 / 0.55 / 0.25 over 250ms) — a shutter record, not a fade, and it never moves or grows |
+| CATCH (120ms) | the `land` pose; his LEADING contour flares white-blue (60ms) then ice, and two compact counter-thrust jets fire forward. Nothing on the floor |
+| READY | the contour is removed on the step's end frame; the stock ring was never touched |
+
+**REMOVED from v5:** `_stepRing` (the near/far split ring overlay, its
+crescent, collapse and reform), the threat-ring hiding, `_stepRingFx`, and the
+single whole-body `_suitFlash`. **REMOVED from v4:** the whole-body ice washes
+at plant, push-off and catch (they turned his armour pale at exactly the
+beats his body had to read), the boot charge plates, the second stamp and the
+banded echo (`_stepEcho`). **KEPT from v4's vocabulary:** the silhouette taking
+part (now as a contour, not a wash), solid boot thrust back and forward, a
+discrete temporal body record, the `land` frame carrying the stop, cobalt
+rather than dash cyan, no screen flash, nothing on the floor.
+
+### CANDIDATE A vs B
+
+Two density levels of the same concept, compared at matched 60fps frames:
+**A** = one exposure at the origin, **B** = the same plus a second exposure at
+mid-travel. B read as a row of blue Captains behind him during late travel and
+at the catch — the clone read the brief warned about. **A was selected**; B's
+code is gone. `00-AB-candidate-A-vs-B.png`.
+
+### THREE THINGS THIS PASS MEASURED
+
+- **THE OLD STEP RIG PHOTOGRAPHED THE WRONG STEP.** `shot-captain-step-fx`
+  started the step in one `page.evaluate` and armed its pause hook in the next
+  — 200-400ms later, against a 425ms step — so its "plant" and "travel"
+  stations were whatever step his AI took afterwards, elsewhere in the room.
+  It is deleted. `shot-captain-step-seq.mjs` takes the loop off the RAF
+  (`game.loop.sleep()`) and advances it by hand with `game.step(t, 1000/60)`:
+  every beat as a phone at 60fps draws it, stations chosen from the actor's
+  state on each frame, and the same script run against `3383f90` and
+  `f9f138a` for matched A/Bs. The closeout suite's step block uses the same
+  stepping.
+- **A SILHOUETTE COPY TICKED IN `_reactFx` SHOWS LAST FRAME'S POSE.** FX tick
+  at the top of `preUpdate`, before the animation advances. Inside the catch
+  the `land` frame is held and it costs nothing; on the frame the next state
+  picks a new pose the copy outlined the old one — a pale halo all round him.
+  The catch contour therefore ends with the step and is swept on the step's
+  end frame by the state machine. It also re-reads `scaleX/Y` every tick, or
+  the `land` squash leaves a halo of its own.
+- **THE STOCK RING LAGS THE BODY BY ONE FRAME** (`Enemy.preUpdate` places it
+  before physics moves him). At ~930px/s that is ~15px at 60fps for the length
+  of the travel. It is pre-existing, identical in v4, and on the ring's own
+  path, which this pass was told to leave alone; noted, not fixed.
+
+### EVIDENCE — `docs/evidence/champion-reset/v6/`
+
+`01-v4-*`, `02-v5-*` baselines at 1x (same rig, same room); `31`-`37` v6
+stations at 1x; `10-STRIP-60fps-every-3rd-frame` (f00-f27, 50ms apart);
+`11-MATCHED-dash-vs-step`; `12-AB-v4-vs-v6`; `13-AB-v5-vs-v6`;
+`00-AB-candidate-A-vs-B`; `41-player-DASH-1x`.
+
+**The next authority is the handset.** Nothing here is approved.
 
 ## 12. CAMERA PHASE 1 — a camera that frames the game
 

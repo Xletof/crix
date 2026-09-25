@@ -1085,9 +1085,9 @@ asserts separately that the ceiling is not reached.
   cycle), CATCH (120ms on a dedicated `land` frame, with a low flat deck ring)
   and settle. **The catch is the frame that did not exist**, and without it a
   200px displacement ends by switching the velocity off.
-- **THE ECHO IS WHERE THE HARROWER COMES BACK.** Two discrete stamps of the
-  actor's own frame at positions he really occupied, 130ms each, with NOTHING
-  joining them. They say "he was there a moment ago". A persistent trail says
+- **THE ECHO IS WHERE THE HARROWER COMES BACK.** ONE discrete exposure of the
+  actor's own frame at the position he really left (v6), with NOTHING
+  joining it to him. They say "he was there a moment ago". A persistent trail says
   "he is sliding", which is the word a handset already used to kill a Champion.
   Do not add a wake, a long glide, whole-body rotation or giant afterimages.
 - **CHANGE ONE THING PER HANDSET QUESTION.** The step's `cooldownMs` stayed at
@@ -1561,37 +1561,41 @@ asserts separately that the ceiling is not reached.
   carry. `smoke-captain-closeout` greps the step methods for `fillCircle`,
   `strokeEllipse` and `.arc(` — absence, never a comment. `HANDOVER.md` §10an,
   and §10ao for what replaced v2's catch.
-- **THE STEP IS v5: HE THROWS HIS OWN FIELD AND CATCHES IT — `HANDOVER.md`
-  §10aq.** v2's catch was a ground slam; v3 was hairlines (scribble at 1x);
-  v4 was solid shapes but still FOUR EFFECTS ATTACHED TO A MOVING BODY — flare,
-  jets, two stamps, counter-thrust, every beat equally bright. v5 gives the
-  move to something already his: the electric-blue ground ring he wears all
-  fight. PLANT compresses it, PUSH-OFF shears its back half into a crescent
-  that trails him (short cobalt jets leave the boots), CATCH collapses it and
-  REFORMS it at its true radius in white-blue with the move's ONLY suit flash —
-  the hero frame — then it cools back to the stock halo. One partial echo.
-  **One peak, and it is the catch**: everything before it is cobalt at low
-  alpha, so the step is fainter than the player's dash on average. The ring
-  overlay (`_stepRing`) is the one place in the step a stroke or a polygon fill
-  may live; `smoke-captain-closeout` fails on a line anywhere else, on a second
-  suit flash, on a second echo, on any `arc`/`strokeEllipse`/`fillCircle`/
-  `_bolt`/`burstDir`, and on the old v4 shapes coming back.
-- **`threatRing` IS AN IDENTITY HALO, NOT GAMEPLAY — AND IT STILL HAS ONE
-  AUTHOR.** `Enemy.threatRing` sits at radius+12 (stroke) / radius+20 (fill)
-  and nothing reads it: not a hitbox, a range or a state. The step borrows it
-  WITHOUT a second author: `Enemy.preUpdate` still places it every frame, the
-  overlay re-asserts alpha 0 AFTER that write for as long as it lives, and when
-  it is destroyed the next `preUpdate` restores the stock ring untouched. The
-  suite checks the ring is hidden only while the overlay stands in, that it is
-  back at full after the settle, and that its own geometry never changed.
-- **A GROUND RING AROUND A STANDING FIGURE HAS A NEAR SIDE.** The first v5
-  drew the whole ring under him, and his 112px body hid it: the hero reform at
-  r=40 was almost entirely occluded by the man it reformed around, and the
-  late-travel crescent vanished behind his back. Each ring segment now goes to
-  the layer its own screen position says — behind him on the far (north) side,
-  in front of his legs on the near (south) side — and fills stay under him
-  only, because a translucent disc over his legs is a bubble. The crescent is
-  also long enough to clear his ±56px body for the whole travel.
+- **THE STEP IS v6: THE BODY OWNS THE MOVEMENT, THE SUIT EXPLAINS THE SPEED —
+  `HANDOVER.md` §10ar. CANDIDATE, NOT APPROVED.** v5 (§10aq) gave the move to
+  his ground ring — compress, shear into a crescent, collapse, reform — and the
+  handset REJECTED it as a regression: the shape around him deforming instead
+  of him moving. **That family is dead — do not tune it, redraw the crescent
+  or find a different arc.** "The ring has no gameplay semantics" was true and
+  was never a reason for it to be the motion language. v6: his TRAILING
+  contour loads at the plant, the charge is cut into two short boot jets back
+  down the travel, ONE hard cobalt exposure of his body is left at the origin
+  (stepping down in three stops — a shutter, not a fade), the live body is the
+  travel, and the catch is his `land` pose with the LEADING contour flaring
+  white-blue and a compact forward counter-thrust. Unity comes from
+  CAUSALITY, not from one graphic owning every beat. `smoke-captain-closeout`
+  fails on any step method naming `threatRing`, on any line, on polygon
+  geometry outside the boot jet, on a second exposure, and on a whole-body
+  wash coming back.
+- **`threatRing` IS AN IDENTITY HALO AND THE STEP LEAVES IT ALONE.** It sits at
+  radius+12 / radius+20, nothing reads it, and `Enemy.preUpdate` is its one
+  author. The suite steps a real step at 60fps and requires the ring's alpha
+  to stay 1 and its command buffer to be unchanged throughout. It lags the
+  body by one frame (placed before physics moves him) — ~15px at step speed at
+  60fps; pre-existing, on the stock path, noted and deliberately not fixed.
+- **A SILHOUETTE COPY IN `_reactFx` SHOWS LAST FRAME'S POSE.** FX tick at the
+  top of `preUpdate`, before the animation advances, so a tint-fill copy of
+  his frame is one pose behind. Harmless while a pose is held (the `land`
+  frame through the catch); on the frame the next state picks a new pose it
+  outlines the old one as a pale halo. Tie such a copy to a held pose and
+  sweep it on the state's end frame, and re-read `scaleX/Y` every tick — the
+  `land` squash leaves a halo of its own otherwise.
+- **A SUB-100ms BEAT IS SAMPLED BY STEPPING THE LOOP, NOT BY POLLING IT.**
+  `game.loop.sleep()` then `game.step(t, 1000/60)` by hand runs the real
+  update and render at exactly a phone's cadence — `shot-captain-step-seq`
+  and the closeout suite's step block do this. The rig it replaced started a
+  425ms step in one `page.evaluate` and armed its pause hook in the next,
+  200-400ms later, and photographed whatever step his AI took afterwards.
 - **THE STEP DOES NOT SPEND `def.color`.** `0x4fc3ff` sits close enough to the
   player's dash cyan to read as the same technology in peripheral vision.
   `ShockCaptain.STEP_FX` is cobalt / blue / white-blue peak / ice.

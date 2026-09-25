@@ -54,48 +54,53 @@ const method = (name) => {
   }
   return src.slice(i);
 };
-const STEP_METHODS = ['_stepPreload', '_stepThrust', '_stepCatchFx', '_stepEcho', '_suitFlash', '_jet', '_stepRing'];
+const STEP_METHODS = ['_stepPreload', '_stepThrust', '_stepCatchFx', '_stepExposure', '_suitEdge', '_jet'];
 const stepFx = STEP_METHODS.map(method);
 const M = Object.fromEntries(STEP_METHODS.map((n, i) => [n, stepFx[i]]));
-check(stepFx.every((m) => m.length > 20), 'the seven step effect methods were found to read',
+check(stepFx.every((m) => m.length > 20), 'the six step effect methods were found to read',
   STEP_METHODS.map((n, i) => `${n}:${stepFx[i].length}`).join(' '));
 check(stepFx.every((m) => !m.includes('fillCircle')),
   'no step effect fills a circle at the boots — the droplet is gone, not dimmed');
-check(stepFx.every((m) => !m.includes('strokeEllipse') && !m.includes('.arc(')),
-  'no ellipse or arc primitive anywhere in the step — the ring is his own, drawn as points');
+check(stepFx.every((m) => !m.includes('strokeEllipse') && !m.includes('fillEllipse') && !m.includes('.arc(')),
+  'no ellipse or arc primitive anywhere in the step');
 check(!stepFx.some((m) => m.includes('burstDir')) && !stepFx.some((m) => m.includes('_bolt(')),
   'no radial particle fan and no jittered `_bolt` squiggle anywhere in the step');
-// ── v5: THE RING IS THE ONE PLACE A STROKE MAY LIVE ─────────────────────
-// v3 was hairlines and read as scribble; v4 banned every line. v5 gives the
-// move to the Captain's own ground ring, which is a stroked shape by nature —
-// so strokes are allowed in `_stepRing` ALONE, never thinner than the stock
-// ring's own 2.5, and nowhere else in the step.
-const nonRing = stepFx.filter((_, i) => STEP_METHODS[i] !== '_stepRing');
-check(nonRing.every((m) => !m.includes('lineBetween') && !m.includes('lineStyle(')),
-  'no step effect outside the ring overlay draws a line');
-{
-  const widths = [...M._stepRing.matchAll(/stroke\(pts,\s*([0-9.]+)/g)].map((x) => +x[1]);
-  check(widths.length >= 3 && widths.every((w) => w >= 2.5) && !M._stepRing.includes('lineBetween'),
-    'the ring overlay strokes nothing thinner than the stock ring, and draws no loose lines',
-    JSON.stringify(widths));
-}
+// ── v6: THE BODY OWNS THE MOVEMENT — v5's RING DEFORMATION IS GONE ───────
+// The handset rejected v5 as the shape AROUND him deforming instead of him
+// moving. Checked by ABSENCE: no step method names the ring, the overlay and
+// its bookkeeping do not exist, and the only `threatRing` writes left in the
+// file are the constructor's five that paint the stock halo.
+check(!src.includes('_stepRing') && stepFx.every((m) => !m.includes('threatRing')),
+  'no step code touches the threat ring — the v5 ring overlay is deleted, not disabled');
+check((src.match(/this\.threatRing/g) || []).length === 5,
+  'the only threat-ring writes in the Captain are the constructor\'s stock halo',
+  String((src.match(/this\.threatRing/g) || []).length));
+check(stepFx.every((m) => !m.includes('lineBetween') && !m.includes('lineStyle(') && !m.includes('strokePoints')),
+  'no step effect draws a line of any width — no crescent, no scribble, no hairline');
 check(!src.includes('_stepStreak('), 'the v3 dashed body streaks are still gone');
-const fillers = STEP_METHODS.filter((n) => /fillPoints|fillPath|fillTriangle/.test(M[n]));
-check(JSON.stringify(fillers.sort()) === JSON.stringify(['_jet', '_stepRing']),
-  'polygon fills live only in the thrust kite and the ring overlay', fillers.join(','));
-// ── ONE HERO: the catch carries the only suit flash ─────────────────────
-check((src.match(/this\._suitFlash\(/g) || []).length === 1 && M._stepRing.includes('_suitFlash(')
-  && !M._stepThrust.includes('_suitFlash(') && !M._stepCatchFx.includes('_suitFlash('),
-  'there is exactly ONE suit flash in the move, and it belongs to the ring reform at the catch');
+const fillers = STEP_METHODS.filter((n) => /fillPoints|fillPath|fillTriangle|fillRect/.test(M[n]));
+check(JSON.stringify(fillers) === JSON.stringify(['_jet']),
+  'the only drawn geometry in the step is the boot jet — everything else is his own silhouette', fillers.join(','));
+// ── THE SUIT, AS HIS OWN CONTOUR: loads on the trailing side, takes the catch
+// on the leading side. No whole-body wash (v4's `_suitFlash`) survives.
+check(!src.includes('_suitFlash') && (src.match(/this\._suitEdge\(/g) || []).length === 2
+  && /_suitEdge\(ang \+ Math\.PI/.test(M._stepPreload) && /_suitEdge\(ang,/.test(M._stepCatchFx),
+  'the suit answers twice as his own contour — trailing at the plant, leading at the catch');
 check(/_jet\([^)]*\bang\b/.test(M._stepCatchFx) && !/_jet\([^)]*\bback\b/.test(M._stepCatchFx),
   'the catch counter-thrusts FORWARD along the travel — nothing is put on the floor');
 check(/_jet\([^)]*\bback\b/.test(M._stepThrust),
   'the push-off thrusts BACK down the travel');
 check(!/for \(let i = 0; i < 4;/.test(M._stepCatchFx) && !M._stepCatchFx.includes('Math.PI / 4 +'),
   'the four converging diagonal brackets are still gone');
-check((src.match(/this\._stepEcho\(\)/g) || []).length === 1 && M._stepEcho.includes('setCrop')
-  && (M._stepEcho.match(/\{ y0:/g) || []).length === 2,
-  'ONE partial echo per step, two bands of his frame with the torso missing');
+// ── ONE TEMPORAL EXPOSURE, taken at the push-off, whole-bodied, never moving
+check((src.match(/this\._stepExposure\(/g) || []).length === 1 && M._stepThrust.includes('_stepExposure(')
+  && !src.includes('_stepEcho') && !M._stepExposure.includes('setCrop'),
+  'ONE temporal exposure per step, taken on the push-off frame at the spot he left');
+{
+  const tick = M._stepExposure.slice(M._stepExposure.indexOf('img._tick'));
+  check(tick.length > 20 && !tick.includes('setPosition') && !tick.includes('setScale'),
+    'the exposure never moves and never grows once taken');
+}
 check(stepFx.every((m) => !m.includes('this.def.color')) && src.includes('static get STEP_FX'),
   'the step is painted from its own cobalt palette, never the near-cyan `def.color`');
 check(!src.includes('stampGhost') && !src.includes('tryDash'),
@@ -326,11 +331,11 @@ check(throwRun.frames.includes('flight:0') && throwRun.armedInArm,
   throwRun.frames.join(' '));
 check(throwRun.armedInField, 'the live field is powered by an ARMED device');
 
-// ── 3b. THE RING THE STEP BORROWS, AND HANDS BACK ──────────────────────────
-// `threatRing` is an identity halo nothing reads. The step hides it and draws
-// a deformed copy; the checks here are that it does so ONLY while the step
-// runs, that nothing is left behind, and that no gameplay number moved.
-const ringRun = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(async () => {
+// ── 3b. A REAL STEP, AT A REAL 60fps, AND A RING THAT STAYS BORING ─────────
+// The plant is 90ms and the catch 120ms, which this container draws as one
+// frame or none, so the loop is taken off the RAF and ADVANCED BY HAND at
+// 1000/60 — every beat sampled as a phone draws it, through the real update.
+const stepRun = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(async () => {
   const gs = window.game.scene.getScene('Game');
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   gs.arenaActive = false;
@@ -339,39 +344,55 @@ const ringRun = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(a
   c.die = () => { c.hp = Math.max(c.hp, 900); };
   c._nadeCd = 1e9;
   await wait(600);
+  const g = window.game;
+  g.loop.sleep();
+  let t = performance.now();
+  const adv = () => { t += 1000 / 60; g.step(t, 1000 / 60); };
+  adv();
   const ringCmds0 = c.threatRing.commandBuffer.length;
   const body0 = { r: c.body.radius, w: c.body.width, speed: c.def.speed };
   const fx0 = c._reactFx.length;
-  const S = [];
-  const hook = () => S.push({
-    beat: c._stepRingFx?._beat ?? null, overlay: !!c._stepRingFx,
-    ringA: c.threatRing.alpha, cap: c._cap,
-  });
-  gs.events.on('postupdate', hook);
   c._stepCd = 0; c._cap = 'hold'; c._stateMs = 0;
   c._beginStep(gs.player, 'close', { x: c.x - 200, y: c.y, reach: 200 });
-  for (let i = 0; i < 120 && (c._cap === 'step' || c._stepRingFx); i++) await wait(50);
-  await wait(250);
-  gs.events.off('postupdate', hook);
+  c._stepCd = 1e9;
+  const S = [];
+  const exposures = new Map();
+  for (let f = 0; f < 60; f++) {
+    adv();
+    const roles = c._reactFx.map((o) => o._role).filter(Boolean);
+    for (const o of c._reactFx) {
+      if (o._role !== 'exposure') continue;
+      const e = exposures.get(o) || { xs: new Set(), sc: new Set() };
+      e.xs.add(`${o.x},${o.y}`); e.sc.add(`${o.scaleX},${o.scaleY}`);
+      exposures.set(o, e);
+    }
+    S.push({ cap: c._cap, roles, ringA: c.threatRing.alpha, ringX: c.threatRing.x - c.x });
+    if (c._cap !== 'step' && !c._reactFx.length) break;
+  }
+  g.loop.wake();
+  const seen = [...new Set(S.flatMap((x) => x.roles))];
   return {
-    beats: [...new Set(S.map((x) => x.beat).filter(Boolean))],
-    hiddenOnlyWithOverlay: S.every((x) => x.ringA > 0 || x.overlay),
-    hiddenDuring: S.some((x) => x.overlay && x.ringA === 0),
-    after: { overlay: !!c._stepRingFx, ringA: c.threatRing.alpha, fx: c._reactFx.length, fx0 },
+    seen, frames: S.length,
+    ringAlways1: S.every((x) => x.ringA === 1),
+    edgeAfterStep: S.some((x) => x.cap !== 'step' && x.roles.includes('catch-edge')),
+    exposureCount: exposures.size,
+    exposureStill: [...exposures.values()].every((e) => e.xs.size === 1 && e.sc.size === 1),
+    after: { fx: c._reactFx.length, fx0, ringA: c.threatRing.alpha },
     ringCmdsSame: c.threatRing.commandBuffer.length === ringCmds0,
     bodySame: c.body.radius === body0.r && c.body.width === body0.w && c.def.speed === body0.speed,
   };
 }));
-check(ringRun.beats.includes('travel') && (ringRun.beats.includes('hero') || ringRun.beats.includes('cool')),
-  'a real step drives the ring through its beats — sheared in travel, reformed at the catch',
-  JSON.stringify(ringRun.beats));
-check(ringRun.hiddenDuring && ringRun.hiddenOnlyWithOverlay,
-  'the stock ring is hidden ONLY while the step overlay stands in for it');
-check(!ringRun.after.overlay && ringRun.after.ringA === 1 && ringRun.after.fx <= ringRun.after.fx0,
-  'after the settle the overlay is gone, the stock ring is back at full and no step FX is left',
-  JSON.stringify(ringRun.after));
-check(ringRun.ringCmdsSame && ringRun.bodySame,
-  'the stock ring\'s own geometry, his body and his speed are untouched by the step');
+check(['edge', 'thrust', 'exposure', 'catch-edge', 'counter'].every((r) => stepRun.seen.includes(r)),
+  'a real step at 60fps draws every beat — plant contour, release jets, exposure, catch contour, counter-thrust',
+  JSON.stringify(stepRun.seen));
+check(stepRun.ringAlways1 && stepRun.ringCmdsSame,
+  'the stock threat ring is never hidden, redrawn or deformed by the step', `${stepRun.frames} frames`);
+check(stepRun.exposureCount === 1 && stepRun.exposureStill,
+  'exactly one temporal exposure, and it neither moves nor grows', JSON.stringify(stepRun.exposureCount));
+check(!stepRun.edgeAfterStep,
+  'the catch contour is gone on the frame the step ends — it never outlines the next pose');
+check(stepRun.after.fx <= stepRun.after.fx0 && stepRun.after.ringA === 1 && stepRun.bodySame,
+  'after the step no step FX is left, and his body and speed are untouched', JSON.stringify(stepRun.after));
 
 // ── 4. THE BOUNDARY IS STILL THE RADIUS ────────────────────────────────────
 const edge = await run('?nodlg=1&champdbg=1', async (page) => page.evaluate(async () => {

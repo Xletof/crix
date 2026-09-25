@@ -179,7 +179,6 @@ export class ShockCaptain extends Enemy {
     this._stepVx = 0; this._stepVy = 0;
     this._stepReason = null;
     this._stepFrom = null;        // for the telemetry's displacement figure
-    this._stepEchoT = 0;
     // Closing RATE, not just distance. A player who is still coming is a
     // collapse in progress; waiting until they have arrived is waiting until
     // the firing solution they are building is already finished.
@@ -992,7 +991,6 @@ export class ShockCaptain extends Enemy {
     this._punctQueue.length = 0;
     this._arcGfx = null;
     this._intentFx = null;
-    this._stepRingFx = null;      // the stock ring's next preUpdate restores it
     this._reactFx.slice().forEach((o) => {
       this.scene?.tweens?.killTweensOf(o);
       o.destroy?.();
@@ -1213,12 +1211,10 @@ export class ShockCaptain extends Enemy {
     this._stepCd = d.cooldownMs;
     this._wantPostBurstStep = false;
     this._blockedMs = 0;
-    this._stepEchoT = 0;
-    this._stepEchoed = false;
     const ang = Math.atan2(dest.y - this.y, dest.x - this.x);
-    // PRESENTATION ONLY: the catch lays its deck bar ACROSS the travel and
-    // throws its sparks along it, so it has to know which way he was going
-    // after the velocity has been switched off. Nothing gameplay reads this.
+    // PRESENTATION ONLY: the catch lights his LEADING contour and fires its
+    // counter-thrust forward, so it has to know which way he was going after
+    // the velocity has been switched off. Nothing gameplay reads this.
     this._stepAng = ang;
     const speed = dest.reach / (d.travelMs / 1000);
     this._stepVx = Math.cos(ang) * speed;
@@ -1266,46 +1262,42 @@ export class ShockCaptain extends Enemy {
   }
 
   /**
-   * ── STEP v5: HE THROWS HIS OWN FIELD, AND CATCHES IT ─────────────────────
+   * ── STEP v6: THE BODY OWNS THE MOVEMENT, THE SUIT EXPLAINS THE SPEED ─────
    *
-   * ONE SENTENCE: the Captain shears his own suit field off his body to throw
-   * himself sideways, and on the catch the field snaps back around him.
+   * ONE SENTENCE: plant, powered release, the armoured body crosses space,
+   * the body catches its own mass, ready.
    *
-   * WHY v4 WAS NOT FINISHED. It was a flare, a jet pair, two segmented stamps
-   * and a counter-thrust, every beat about as bright as the next — four good
-   * effects ATTACHED to a moving Captain rather than one move he performs. v5
-   * gives the move to something that is already his: the electric-blue ground
-   * ring he wears for the whole fight (`threatRing`, set in the constructor).
+   * WHY v5 WENT. It gave the move to his ground ring — compress, shear into a
+   * crescent, collapse, reform — and the handset read the shape AROUND him
+   * deforming instead of HIM moving: generic, abstract, less physical. The
+   * ring is back on its stock path and the step never touches it. Unity here
+   * comes from CAUSALITY, not from one graphic owning every beat: the suit
+   * charges, the charge leaves through the boots, the body travels, the suit
+   * takes the load on the catch.
    *
-   * THE RING IS NOT GAMEPLAY. It is `Enemy.threatRing`, an identity halo at
-   * r = radius+12 (stroke) and radius+20 (fill) that nothing reads — not a
-   * hitbox, not a range, not a state — so it may take part in the move. It
-   * still has ONE author: `Enemy.preUpdate` places it every frame. While the
-   * step runs the overlay below hides it (alpha 0, re-asserted each frame
-   * AFTER that write) and draws a deformed copy; when the step ends the
-   * overlay is destroyed and the next `preUpdate` restores the stock ring
-   * untouched. Nothing is left behind to disagree with it.
+   *   PLANT     his TRAILING contour charges (a silhouette rim on the side he
+   *             pushes from), rising through the 90ms — the suit loading.
+   *   RELEASE   the charge is CUT on the push-off frame and leaves as two
+   *             short hard boot jets back down the travel, at the origin. A
+   *             hard cobalt EXPOSURE of his body stays where he stood.
+   *   TRAVEL    the live body, nothing wrapped round it. The exposure steps
+   *             down in discrete stops (a shutter, not a fade).
+   *   CATCH     THE HERO FRAME IS HIS BODY: the `land` pose, its LEADING
+   *             contour flaring white-blue where the momentum arrives, and a
+   *             compact counter-thrust forward out of the boots.
    *
-   *   PLANT     the ring compresses along the travel axis and sags toward the
-   *             loaded side — the suit gathering itself.
-   *   PUSH-OFF  its front half goes out; the back half shears into a crescent
-   *             trailing behind him. Short cobalt jets leave the boots.
-   *   TRAVEL    the crescent rides behind the body, attached to it; one
-   *             partial echo marks the spot he left.
-   *   CATCH     THE HERO FRAME. The crescent collapses inward to a small full
-   *             ring and REFORMS at its true radius in white-blue, the suit
-   *             flashes once, and short counter-thrust fires forward.
-   *   SETTLE    the reformed ring cools back to the stock halo and hands over.
-   *
-   * Only the catch is bright. Everything before it is cobalt at low alpha, so
-   * the move is fainter than the player's dash on average and peaks once.
+   * Every mark is either his own silhouette or a solid jet bolted to a boot.
+   * No ring, arc, ellipse, circle, line or floor mark: the closeout suite
+   * greps for all of it.
    */
 
   /** A solid thrust kite on the deck plane, from (x, y) along `ang`. */
-  _jet(g, x, y, ang, len, halfW, a) {
+  _jet(g, x, y, ang, len, halfW, a, hot = 0) {
     const C = ShockCaptain.STEP_FX;
+    // Length lies on the deck (squashed along y); WIDTH is screen pixels. A
+    // deck-squashed width made a sideways jet 5px thick — a hairline.
     const dx = Math.cos(ang), dy = Math.sin(ang) * 0.5;
-    const nx = -Math.sin(ang), ny = Math.cos(ang) * 0.5;
+    const nx = -Math.sin(ang), ny = Math.cos(ang);
     const kite = (L, W, col, al) => {
       g.fillStyle(col, al);
       g.fillPoints([
@@ -1315,8 +1307,8 @@ export class ShockCaptain extends Enemy {
         { x: x - nx * W, y: y - ny * W },
       ], true);
     };
-    kite(len, halfW, C.cobalt, 0.75 * a);
-    kite(len * 0.6, halfW * 0.45, C.blue, 0.8 * a);
+    kite(len, halfW, C.cobalt, 0.85 * a);
+    kite(len * 0.62, halfW * 0.5, hot > 0 ? C.peak : C.blue, a * (hot > 0 ? hot : 0.8));
   }
 
   /** The two boots, on the deck, either side of the travel axis. */
@@ -1327,252 +1319,144 @@ export class ShockCaptain extends Enemy {
   }
 
   /**
-   * THE SUIT FLASHES — a flat ice fill of his live frame, tracking him. Used
-   * ONCE per step, on the hero frame. `setTintFill` on the NORMAL blend: an
-   * ADD `setTint` keeps only the already-bright pixels of a dark body and
-   * comes out as a round glow with no outline (measured twice on the v2 echo).
+   * HIS CONTOUR, LIT FROM ONE SIDE — a flat tint-fill copy of his live frame
+   * drawn just UNDER his body and offset `off` px along `side`, so only the
+   * sliver of it that clears his own silhouette shows: the armour edge facing
+   * that way. It is his outline, so it cannot read as an aura, a floor decal
+   * or a spell. `setTintFill` on the NORMAL blend, never an ADD `setTint`: the
+   * second keeps only the already-bright pixels of a dark body and comes out
+   * as a round glow (measured twice on the v2 echo). `level(t)` returns
+   * [alpha, colour] or null to end.
    */
-  _suitFlash(peak, riseMs, decayMs) {
-    if (!this.scene?.add || !this.texture) return;
-    const C = ShockCaptain.STEP_FX;
+  _suitEdge(side, off, level) {
+    if (!this.scene?.add || !this.texture) return null;
     const img = this.scene.add.image(this.x, this.y, this.texture.key, this.frame.name)
-      .setScale(this.scaleX, this.scaleY).setTintFill(C.ice).setAlpha(0);
+      .setScale(this.scaleX, this.scaleY).setTintFill(ShockCaptain.STEP_FX.ice).setAlpha(0);
     this._reactFx.push(img);
-    const started = this._clock;
+    // `_t0` is the effect's own start, on the actor's clock. It is a field
+    // rather than a closure so a rig can ADDRESS a 60ms beat instead of
+    // hoping a ~12fps harness lands on it.
+    img._t0 = this._clock;
+    img._role = 'edge';
+    const ox = Math.cos(side) * off, oy = Math.sin(side) * off;
     img._tick = () => {
-      const t = this._clock - started;
-      if (t >= riseMs + decayMs || !this.alive) { this._dropFx(img); img.destroy(); return; }
-      img.setPosition(this.x, this.y).setFrame(this.frame.name).setFlipX(this.flipX)
-        .setDepth(this.y + 1);
-      img.setAlpha(t < riseMs ? peak * (t / Math.max(1, riseMs))
-        : peak * (1 - (t - riseMs) / decayMs));
+      const lv = this.alive ? level(this._clock - img._t0) : null;
+      if (!lv) { this._dropFx(img); img.destroy(); return; }
+      // SCALE TRACKS TOO: the `land` squash and the stagger channel scale the
+      // body, and a copy left at the old scale shows as a halo all round him.
+      img.setPosition(this.x + ox, this.y + oy).setFrame(this.frame.name)
+        .setScale(this.scaleX, this.scaleY)
+        .setFlipX(this.flipX).setDepth(this.y - 0.5)
+        .setTintFill(lv[1]).setAlpha(lv[0]);
     };
-  }
-
-  /** PLANT: the field overlay takes over the ring for the whole step. */
-  _stepPreload(ang) {
-    this._stepRing(ang);
+    return img;
   }
 
   /**
-   * ── THE FIELD, FOR THE LENGTH OF ONE STEP ───────────────────────────────
-   *
-   * One Graphics, living from the plant to the end of the settle, whose beat
-   * is READ OFF THE ACTOR'S OWN STEP STATE every frame rather than kept on a
-   * clock of its own — so it cannot drift from the body, and an interrupted
-   * step (a stagger, a room change) ends it early and hands the ring back.
-   *
-   * The ring is drawn as a polygon in the travel frame: `t` along the travel,
-   * `n` across it. That is what lets it compress along one axis, lose its front
-   * half and shear its back half into a trailing crescent without ever being a
-   * shape that spreads outward from a point — the catch COLLAPSES it and
-   * reforms it at exactly its own radius, never larger.
+   * PLANT — THE SUIT LOADS. His trailing contour (the side he will push
+   * from) charges cobalt -> blue across the plant, rising into the launch. It
+   * is CUT, not faded, on the push-off frame: the charge has gone into the
+   * jets, which is the causal link between the two beats.
    */
-  _stepRing(ang) {
-    if (!this.scene?.add || !this.threatRing) return;
+  _stepPreload(ang) {
     const C = ShockCaptain.STEP_FX;
-    // ── TWO LAYERS, BECAUSE A GROUND RING HAS A NEAR SIDE ────────────────
-    // The first build drew the whole ring under him, and his 112px body hid
-    // it: at the ring's true radius the hero reform was almost entirely
-    // occluded by the man it was reforming around, and the late-travel
-    // crescent vanished behind his own back. In a high-angle view a ring on
-    // the deck passes BEHIND his body on its far (north) side and IN FRONT of
-    // his legs on its near (south) side, so each segment goes to the layer
-    // its own screen position says it belongs to. Fills stay on the back
-    // layer only: a translucent disc drawn over his legs is a bubble.
-    const g = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
-    const gf = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
-    this._reactFx.push(g, gf);
-    this._stepRingFx = g;
-    gf._tick = () => {};              // driven by `g`, swept with it
     const d = this.def.step;
-    const R0 = this.def.radius + 12;                 // the stock ring's stroke radius
-    const tx = Math.cos(ang), ty = Math.sin(ang);
-    const nx = -ty, ny = tx;
-    let catchAt = null, endAt = null, flashed = false;
-    const done = () => {
-      this._dropFx(g); g.destroy();
-      this._dropFx(gf); gf.destroy();
-      if (this._stepRingFx === g) this._stepRingFx = null;
-      this.threatRing?.setAlpha(1);
-    };
-    // pts(from, to) — the ring between two travel-frame angles (0 = ahead).
-    const ringPts = (rx, ry, shift, tail, th0, th1, n = 24) => {
-      const pts = [];
-      for (let i = 0; i <= n; i++) {
-        const th = th0 + (th1 - th0) * (i / n);
-        const c = Math.cos(th), sn = Math.sin(th);
-        const along = rx * c + shift - (c < 0 ? tail * -c : 0);
-        const across = ry * sn;
-        pts.push({ x: this.x + tx * along + nx * across, y: this.y + ty * along + ny * across });
-      }
-      return pts;
-    };
-    // Split a polyline into runs by which side of his centre each segment
-    // lies on, and stroke each run on its own layer.
-    const stroke = (pts, w, col, a, closed = false) => {
-      const P = closed ? [...pts, pts[0]] : pts;
-      let run = [P[0]], front = null;
-      const flush = () => {
-        if (run.length < 2) return;
-        const L = front ? gf : g;
-        L.lineStyle(w, col, a);
-        L.strokePoints(run, false, false);
-      };
-      for (let i = 1; i < P.length; i++) {
-        const isFront = (P[i - 1].y + P[i].y) / 2 > this.y + 6;
-        if (front !== null && isFront !== front) { flush(); run = [P[i - 1]]; }
-        front = isFront;
-        run.push(P[i]);
-      }
-      flush();
-    };
-    g._tick = () => {
-      if (!this.alive) { done(); return; }
-      const inStep = this._cap === CAP.STEP;
-      const planting = inStep && this._stepPlantMs > 0;
-      const catching = inStep && !planting && this._stateMs <= d.catchMs;
-      const travelling = inStep && !planting && !catching;
-      if (catching && catchAt == null) catchAt = this._clock;
-      if (!inStep && endAt == null) endAt = this._clock;
-      // An interrupted step never reached the catch: go quietly, 80ms.
-      if (endAt != null && catchAt == null) {
-        if (this._clock - endAt > 80) { done(); return; }
-      }
-      const pulse = this.threatRing.scaleX || 1;
-      const R = R0 * pulse;
-      this.threatRing.setAlpha(0);
-      g.clear(); gf.clear();
-      g.setDepth(this.y - 2);
-      gf.setDepth(this.y + 2);
-
-      // The beat is PUBLISHED on the overlay (`_beat`, `_k`) for the rigs and
-      // the suite to address; nothing in the game reads it.
-      if (planting || (endAt != null && catchAt == null)) {
-        g._beat = 'plant';
-        // PLANT — compress along the travel, sag toward the loaded (back) side.
-        const u = planting ? 1 - Math.max(0, this._stepPlantMs) / d.plantMs : 1;
-        const pts = ringPts(R * (1 - 0.2 * u), R * (1 + 0.06 * u), -5 * u, 0, 0, Math.PI * 2);
-        g.fillStyle(C.cobalt, 0.10);
-        g.fillPoints(pts, true);
-        stroke(pts, 2.5, C.blue, 0.45 + 0.2 * u, true);
-        return;
-      }
-      if (travelling) {
-        // PUSH-OFF -> TRAVEL — the front half is spent; the back half shears
-        // into a crescent that rides behind him, longest at the push.
-        const v = 1 - (this._stateMs - d.catchMs) / d.travelMs;   // 0 -> 1
-        g._beat = 'travel'; g._k = v;
-        // Long enough to CLEAR HIS BODY for the whole travel: the body is
-        // ±56px, so a crescent reaching 47px behind centre was invisible.
-        const tail = 44 * (1 - v * 0.45);
-        const pts = ringPts(R * 0.9, R * 0.96, -6, tail, Math.PI * 0.55, Math.PI * 1.45);
-        // QUIETER THAN THE CATCH, ON PURPOSE: the first v5 build had the
-        // push-off crescent out-reading the hero reform in every still.
-        stroke(pts, 4, C.cobalt, 0.42);
-        stroke(pts, 2.5, C.blue, 0.6 - 0.2 * v);
-        return;
-      }
-      // CATCH + SETTLE — collapse, then THE HERO FRAME: the ring reforms at its
-      // true radius in white-blue and cools back to the stock halo.
-      const t = this._clock - catchAt;
-      const COLLAPSE = 45, COOL = 230;
-      if (t < COLLAPSE) {
-        const k = t / COLLAPSE;
-        g._beat = 'collapse'; g._k = k;
-        const pts = ringPts(R * (0.78 - 0.2 * k), R * (0.96 - 0.3 * k), -4 * (1 - k), 0, 0, Math.PI * 2);
-        stroke(pts, 3.5, C.blue, 0.8, true);
-        return;
-      }
-      if (!flashed) { flashed = true; this._suitFlash(0.45, 1, 150); }
-      const k = Math.min(1, (t - COLLAPSE) / COOL);
-      if (k >= 1 && !inStep) { done(); return; }
-      g._beat = k < 0.45 ? 'hero' : 'cool'; g._k = k;
-      const pts = ringPts(R, R, 0, 0, 0, Math.PI * 2);
-      g.fillStyle(C.peak, 0.18 * (1 - k));
-      g.fillPoints(pts, true);
-      // THE ONE PEAK OF THE MOVE: white-blue, heaviest line in the step.
-      stroke(pts, 5 - 2.5 * k, k < 0.45 ? C.peak : C.blue, 1 - 0.5 * k, true);
-    };
+    this._suitEdge(ang + Math.PI, 4, () => {
+      if (this._cap !== CAP.STEP || this._stepPlantMs <= 0) return null;
+      const u = 1 - this._stepPlantMs / d.plantMs;
+      return [0.35 + 0.45 * u, u < 0.5 ? C.cobalt : C.blue];
+    });
   }
 
   /**
-   * PUSH-OFF — short cobalt jets out of the boots, back down the travel, left
-   * at the ORIGIN. No suit flash here: the push is the setup, not the peak.
+   * RELEASE — two short hard jets out of the boots, back down the travel,
+   * left at the ORIGIN: the propulsion stays where it was spent while he
+   * leaves it. White-blue core for the first few frames only.
    */
   _stepThrust(ang) {
+    this._stepExposure(0.5);
     if (!this.scene?.add) return;
     const back = ang + Math.PI;
     const g = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
     this._reactFx.push(g);
-    const started = this._clock;
-    const MS = 170;
+    g._t0 = this._clock;
+    g._role = 'thrust';
+    const MS = 160;
     const boots = this._bootPair(ang);
     const oy = this._bootY();
     g._tick = () => {
-      const u = (this._clock - started) / MS;
+      const u = (this._clock - g._t0) / MS;
       if (u >= 1 || !this.alive) { this._dropFx(g); g.destroy(); return; }
       g.clear();
       g.setDepth(oy - 2);
-      const len = 58 * (u < 0.25 ? 0.6 + u * 1.6 : 1 - (u - 0.25) * 0.8);
-      for (const b of boots) this._jet(g, b.x, b.y, back, len, 6, 1 - u);
+      // Out to full length at once, then burning down: an impulse, not a glow.
+      const len = 50 * (u < 0.2 ? 1 : 1 - (u - 0.2) * 0.9);
+      for (const b of boots) this._jet(g, b.x, b.y, back, len, 6, 1 - u * 0.8, u < 0.3 ? 1 : 0);
     };
   }
 
   /**
-   * ONE PARTIAL ECHO — helmet-and-shoulders and legs only, the torso missing,
-   * the legs lagging: incomplete on purpose so it reads as a trace of where he
-   * WAS rather than a second Captain. Faint, short-lived, never growing.
+   * A TEMPORAL EXPOSURE — his whole frame, tinted deep blue, at a place he
+   * really was. It does not grow, does not move and does not fade smoothly:
+   * it STEPS DOWN in three hard stops, so it reads as a shutter record of an
+   * armoured body rather than as a ghost trail. The player's dash is
+   * seventeen growing ADD ghosts in pale cyan; this is one hard exposure.
    */
-  _stepEcho() {
+  _stepExposure(peak) {
     if (!this.scene?.add || !this.texture) return;
     const C = ShockCaptain.STEP_FX;
-    const fw = this.frame.width, fh = this.frame.height;
-    const back = (this._stepAng ?? 0) + Math.PI;
-    const bands = [
-      { y0: 0, y1: 0.36, lag: 0, a: 0.32 },
-      { y0: 0.72, y1: 1, lag: 8, a: 0.24 },
-    ];
-    for (const b of bands) {
-      const y0 = Math.round(fh * b.y0), y1 = Math.round(fh * b.y1);
-      const img = this.scene.add.image(
-        this.x + Math.cos(back) * b.lag, this.y + Math.sin(back) * b.lag * 0.5,
-        this.texture.key, this.frame.name)
-        .setDepth(this.y - 3)
-        .setScale(this.scaleX, this.scaleY)
-        .setFlipX(this.flipX)
-        .setCrop(0, y0, fw, y1 - y0)
-        .setTintFill(C.cobalt)
-        .setAlpha(b.a);
-      this._reactFx.push(img);
-      const started = this._clock;
-      img._tick = () => {
-        const u = (this._clock - started) / 130;
-        if (u >= 1 || !this.alive) { this._dropFx(img); img.destroy(); return; }
-        img.setAlpha(b.a * (1 - u));
-      };
-    }
+    const img = this.scene.add.image(this.x, this.y, this.texture.key, this.frame.name)
+      .setDepth(this.y - 3)
+      .setScale(this.scaleX, this.scaleY)
+      .setFlipX(this.flipX)
+      // A MULTIPLY tint on the NORMAL blend keeps the armour's own value
+      // structure, so the record is an armoured body. A flat tint fill of the
+      // whole frame was measured as a round blue blob.
+      .setTint(C.blue)
+      .setAlpha(peak);
+    this._reactFx.push(img);
+    img._t0 = this._clock;
+    img._role = 'exposure';
+    const STOPS = [[90, 1], [170, 0.55], [250, 0.25]];
+    img._tick = () => {
+      const t = this._clock - img._t0;
+      const s = STOPS.find(([until]) => t < until);
+      if (!s || !this.alive) { this._dropFx(img); img.destroy(); return; }
+      img.setAlpha(peak * s[1]);
+    };
   }
 
   /**
-   * THE CATCH'S BODY HALF — a short counter-thrust FORWARD out of the boots.
-   * The ring's collapse-and-reform and the one suit flash are the hero frame
-   * and live in `_stepRing`; nothing touches the floor.
+   * THE CATCH — THE BODY IS THE HERO. The `land` frame carries the stop; his
+   * LEADING contour flares white-blue where 200px of momentum arrives (held,
+   * then stepped down), and two compact counter-thrust jets fire FORWARD out
+   * of the boots. Nothing touches the floor.
    */
   _stepCatchFx() {
+    const C = ShockCaptain.STEP_FX;
+    const ang = this._stepAng ?? 0;
+    // IT ENDS WITH THE STEP. The copy is ticked at the top of `preUpdate`,
+    // before the animation advances, so it shows the body's PREVIOUS frame;
+    // inside the catch the `land` frame is held and that costs nothing, but
+    // the frame the next state picks a new pose it photographed as a pale
+    // halo all round him. Measured at 60fps, frame by frame.
+    const edge = this._suitEdge(ang, 5, (t) => (this._cap !== CAP.STEP ? null
+      : t < 60 ? [0.95, C.peak] : [0.55, C.ice]));
+    if (edge) edge._role = 'catch-edge';
     if (!this.scene?.add) return;
     const g = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
     this._reactFx.push(g);
-    const started = this._clock;
+    g._t0 = this._clock;
+    g._role = 'counter';
     const MS = this.def.step.catchMs;
-    const ang = this._stepAng ?? 0;
     g._tick = () => {
-      const u = (this._clock - started) / MS;
+      const u = (this._clock - g._t0) / MS;
       if (u >= 1 || !this.alive) { this._dropFx(g); g.destroy(); return; }
       g.clear();
       g.setDepth(this.y + 2);
-      const len = 38 * (1 - u * 0.5);
-      for (const b of this._bootPair(ang)) this._jet(g, b.x, b.y, ang, len, 5, 1 - u);
+      const len = 36 * (1 - u * 0.5);
+      const a = u < 0.4 ? 1 : 1 - (u - 0.4) / 0.6;
+      for (const b of this._bootPair(ang)) this._jet(g, b.x, b.y, ang, len, 5, a);
     };
   }
 
@@ -1743,13 +1627,6 @@ export class ShockCaptain extends Enemy {
           // still underneath and a destination check that was wrong costs a
           // short stop rather than a body inside a console.
           this.setVelocity(this._stepVx, this._stepVy);
-          // ONE PARTIAL ECHO, at the first frame of travel: the spot he left.
-          // A second one was a second Captain-shaped object in a move that
-          // now has one hero, and it went.
-          if (!this._stepEchoed) {
-            this._stepEchoed = true;
-            this._stepEcho();
-          }
         } else {
           // THE CATCH. The body is stopped and the legs absorb it — this is a
           // real beat with its own frame, not the tail of the travel.
@@ -1764,6 +1641,12 @@ export class ShockCaptain extends Enemy {
         if (this._stateMs <= 0) {
           this.setVelocity(0, 0);
           this._stepCatchMs = 0;
+          // The catch contour goes on THIS frame, from here: ticked at the top
+          // of the next `preUpdate` it would still see 'step' and draw the
+          // `land` silhouette over whatever pose the next state picks.
+          this._reactFx.filter((o) => o._role === 'catch-edge').forEach((o) => {
+            this._dropFx(o); o.destroy();
+          });
           this.scene.events.emit('champion-step-end', this, {
             reason: this._stepReason,
             moved: this._stepFrom
