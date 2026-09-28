@@ -931,6 +931,14 @@ asserts separately that the ceiling is not reached.
   HUMAN-APPROVED / FROZEN** and never arms it. **And `?encdbg&wave=N` omits the
   room's authored opening enemies** — a real wave 2 never has them, and keeping
   them handed every VANGUARD review five exposed bodies from second zero.
+- **A SURGE NEVER TOUCHES THE AUTHORED QUEUE — `HANDOVER.md` §10aw.** The drip
+  is the only consumer of `_spawnQueue`; `triggerSurge` draws from
+  `_rollEncounterFillType()` (the running encounter's fill, else the room
+  roll). It used `_nextEncounterType()`, which SHIFTS the queue, and during a
+  VANGUARD front hold that spawned the Captain himself past the staging. Any
+  new mid-wave spawn source goes through the fill roll, never the queue. The
+  mid Captain-VANGUARD row's `shieldSlot: 5` converts one FILL event into a
+  guaranteed shield after placement — same budget, same draws elsewhere.
 - **THE STATE LANGUAGE'S ONE RULE SURVIVED HANDSET REVIEW AND ITS SUSTAINED
   HALF DID NOT — `HANDOVER.md` §10ah, §10ai.** **SYMBOL = TRANSITION, BODY / FX
   = SUSTAINED STATE.** A glyph lives a few hundred ms to say something CHANGED

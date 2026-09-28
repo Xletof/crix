@@ -417,8 +417,9 @@ Commander → Vader hierarchy and the rule that Captain placement stays AUTHORED
 | **CROSSFIRE + Shock Captain** (late hangar, wave 3) | **HUMAN-APPROVED / FROZEN 🔒** — played repeatedly on `1b7c84d` |
 | VANGUARD + Shock Captain (mid hangar, wave 2) | **liked and RETAINED** — the Captain is not the problem |
 | VANGUARD close screen (`§10au`, hold 140 / resume 165) | **RETAINED** — it solved the ~290px flank stall it was built for |
-| VANGUARD opening front (`§10av`) | **CANDIDATE — NOT HUMAN-APPROVED**. The last open Phase B item |
-| Phase B integration as a whole | **OPEN** only for `§10av`'s handset gate. Not frozen. |
+| VANGUARD opening front (`§10av`) | **RETAINED on handset** (`d3766eb`) — the opening works, the shields are effective |
+| VANGUARD reinforcement + surge fix (`§10aw`) | **CANDIDATE — NOT HUMAN-APPROVED**. The last open Phase B item |
+| Phase B integration as a whole | **OPEN** only for `§10aw`'s handset gate. Not frozen. |
 
 **The handset verdicts, in order.** On `5a97fd4`: A (VANGUARD + Captain) fun,
 the Captain belongs in the formation; C (CROSSFIRE + Captain) more chaotic and
@@ -430,7 +431,14 @@ NEW problem the screen was never meant to solve: **the backline arrived before
 the shield front had established**, so the player shot exposed bodies, built a
 Super and deleted the shields before the wall was ever the question.
 
-**The candidate correction is `§10av` — the VANGUARD FRONT.** The drip holds
+**On `d3766eb`:** C still very good and still FROZEN; A's staged opening works
+and the shields are effective — but the fight felt light on shields: once the
+opening pair broke it read as the Captain plus exposed bodies, because only
+three shields were guaranteed. **`§10aw`** guarantees one more later shield
+inside the same budget and fixes a surge that could steal the authored queue
+(the Captain's token included) during the front hold.
+
+**The previous correction was `§10av` — the VANGUARD FRONT.** The drip holds
 after the two opening shields until they establish (both within 200px of the
 player), are breached (one killed) or time out (3000ms of game time after the
 second EXISTS); the opening pair approach on small left/right lanes. Queue,
@@ -464,8 +472,8 @@ replacement.
 
 ### The recommended next area of work
 
-**Phase B Champion integration is open only for the VANGUARD opening's handset
-gate** (above, `§10av`). Beyond it, the next
+**Phase B Champion integration is open only for the VANGUARD reinforcement's
+handset gate** (above, `§10aw`). Beyond it, the next
 direction comes from the human. The camera (`§21`), the four arenas, Phase A
 and Shock Captain V1 are all closed. What the Captain's closure unblocks
 besides placement is listed in his section above — the Elite hierarchy and
@@ -8473,7 +8481,11 @@ play exactly as before.
 
 ---
 
-## 10av. THE VANGUARD FRONT — the opening sentence. **CANDIDATE — NOT HUMAN-APPROVED**
+## 10av. THE VANGUARD FRONT — the opening sentence. **RETAINED on handset** (`d3766eb`)
+
+**Verdict:** the new opening works and the shields are effective; the fight is
+fun. What it exposed next — the shield identity fading once the opening pair
+breaks — is `§10aw`, not a failure of this.
 
 **The evidence (`1b7c84d`, repeated handset A runs):** QUEUE ORDER IS NOT
 BATTLEFIELD ORDER. At sector 8 the drip schedules an event every ~616ms of game
@@ -8552,6 +8564,67 @@ natural? Once the Captain arrives, does the fight open up — and is Captain +
 VANGUARD still fun? Does close footwork still work? Does killing a shield early
 feel rewarded? Can you kite without freezing the wave? And C should be exactly
 as good as before.
+
+---
+
+## 10aw. THE VANGUARD REINFORCEMENT, and a surge that could steal the queue. **CANDIDATE — NOT HUMAN-APPROVED**
+
+**The evidence (`d3766eb`, handset A):** the opening front works, the fight is
+fun, and it felt somewhat light on shields — not too SHORT, but the VANGUARD
+identity faded as soon as the opening pair broke. The production
+Captain-VANGUARD guaranteed exactly three shields (slots 0, 1 and 3); every
+other shield was fill RNG.
+
+**The change — one data field on one row.** The mid Captain-VANGUARD placement
+row gains `shieldSlot: 5`. `applyChampionPlacement` writes `'shielded'` into
+that slot AFTER the Captain's placement, so:
+
+| | queue (8 events, unchanged) | guaranteed shields |
+|---|---|---|
+| before | shield · shield · CAPTAIN · shield · shooter · fill · fill · fill | 0, 1, 3 |
+| after | shield · shield · CAPTAIN · shield · shooter · **SHIELD** · fill · fill | 0, 1, 3, **5** |
+
+One existing FILL event converted, nothing added: the event count, the
+Captain's slot and cost, the opening pair and every other slot's random draw
+are identical (checked across 200 seeds). The front reinforces once
+mid-fight; the last two slots stay fill so it is not a shield wall. The
+reinforcement is a VANGUARD screen (140/165) and never an opening-pair member
+(no slot, no lane). The unplaced VANGUARD (B, and every VANGUARD elsewhere) and
+CROSSFIRE + Captain are untouched. Seed 1 on the old build rolled a grunt at
+slot 5; with the opening pair killed, the new build kept 3 shields on the floor
+against the old build's 1-2.
+
+**The surge fix.** `triggerSurge()` drew its bodies with `_nextEncounterType()`,
+which SHIFTS `_spawnQueue` — so a terminal hacked during the front hold took the
+authored queue's next tokens past the staging. A/B'd on the old line: the surge
+spawned the Captain himself during the hold, and the wave then dripped a
+reordered queue. `_rollEncounterFillType()` now draws a surge body from the
+running encounter's FILL pool (or the room's ordinary roll without one) and
+never touches the queue; the drip alone consumes it. After a surge the wave owes
+exactly the token it owed before. Surge shields are still VANGUARD screens and
+never opening members, and a surge neither releases nor resets the front.
+(The surge still advances the gate plan as it always did; that is unchanged.)
+
+**Untouched:** `VANGUARD_FRONT` 2 / 200 / 3000 / 7000 / 60, `VANGUARD_SCREEN`
+140 / 165, `ENEMY.shielded`, the block and resource rules, the Captain
+(`6560c62` guard), the CROSSFIRE row and archetype.
+
+**Tests:** `smoke-vanguard-reinforce` (26 checks — the queue before/after on
+200 seeds, guaranteed shields 3 → 4, same budget, every other slot identical;
+live: the surge during the hold leaves the queue identical, does not spawn the
+Captain, draws from fill, keeps the front holding; the drip then resumes with
+the owed Captain and drips the rest of the authored queue in order; the later
+shields are screens with no lane; wave clear; B and C untouched). Its surge
+checks FAIL on the old surge line (five of them), which is what makes them
+evidence. **Evidence:** `docs/evidence/vanguard-reinforce/`
+(`tests/shot-vanguard-reinforce.mjs`, OLD served from a `d3766eb` worktree).
+
+**Handset questions:** does the opening still work exactly as before? After
+the first two shields break, does it still feel like VANGUARD — an officer
+fighting with shield troops? Is one more guaranteed shield enough, without
+dragging or reading as shield spam? Is the wave still fun, and does it feel
+fuller because it has more structure rather than more hp? And C should be
+exactly as good as before.
 
 ---
 
