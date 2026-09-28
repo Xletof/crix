@@ -396,3 +396,31 @@ export function applyChampionPlacement(queue, placement) {
   out.length -= drop;
   return out;
 }
+
+// ── VANGUARD SCREEN — an ENCOUNTER ROLE, not a new enemy ────────────────────
+//
+// CANDIDATE — NOT HUMAN-APPROVED. Handset evidence: in the matched no-Captain
+// VANGUARD the fight stalled on two surviving shields. A blocked frontal shot
+// gives no damage and no Super or melee charge (deliberately, and unchanged),
+// and at the stock hold of ~290px a walking player cannot out-turn a 2.6 rad/s
+// shield — at that radius 380px/s of footwork is ~1.3 rad/s of bearing. So a
+// shield-only tail had no exposed target to build the Super from, and no flank
+// short of a dash.
+//
+// The answer is GEOMETRY, not economy: a VANGUARD shield closes to ~140px and
+// holds there. At that radius the same footwork is ~2.7 rad/s of bearing, so
+// close movement starts to beat the turn, dash stays the stronger answer and
+// Super stays the direct one. It also puts the shields physically between the
+// player and the guns behind them, which is what "shields lead, guns work
+// behind them" was always claiming.
+//
+// ONLY a Shielded spawned by a running VANGUARD gets this (`spawnAtGate`
+// stamps it into the spawn spec). `ENEMY.shielded` is untouched and every
+// other Shielded — MIXED, a room's ordinary roll, authored room enemies —
+// keeps the stock hold. Nothing else about the trooper changes: hp, arc, turn
+// rate, weapon, the block rule and the resource rule are all as they were.
+//
+//   holdPx    advance until the centre distance is at or under this
+//   resumePx  once holding, advance again only past this — the hysteresis
+//             band, so a player shuffling on the line does not make him jitter
+export const VANGUARD_SCREEN = { holdPx: 140, resumePx: 165 };

@@ -1610,6 +1610,11 @@ export class EnemyShielded extends EnemyShooter {
     this.fireCd = Phaser.Math.Between(1000, this.cfg.fireCooldownMs);
     this.shieldArc = scene.add.graphics().setDepth(this.depth + 2);
     this._attachments.push(this.shieldArc); // cleaned up on die/room-clear
+    // VANGUARD SCREEN (encounter role, `VANGUARD_SCREEN` in encounters.js):
+    // present only when the spawner says this trooper leads a VANGUARD. Null
+    // is the stock trooper, byte for byte.
+    this._screen = spec.vanguardScreen || null;
+    this._screenHolding = false;
   }
 
   // A hit traveling along flightAng strikes the side at (flightAng + PI) from
@@ -1634,7 +1639,18 @@ export class EnemyShielded extends EnemyShooter {
     const turnDiff = Phaser.Math.Angle.Wrap(toPlayer - this._shieldFacing);
     this._shieldFacing += Phaser.Math.Clamp(turnDiff, -maxTurn, maxTurn);
 
-    if (dist > this.cfg.desiredRange + 30) {
+    if (this._screen) {
+      // A VANGUARD screen closes to the player and holds there, with a
+      // hysteresis band so the line does not jitter on one threshold. Same
+      // speed, same shield, same gun — only where it stops moves.
+      if (this._screenHolding) {
+        if (dist > this._screen.resumePx) this._screenHolding = false;
+      } else if (dist <= this._screen.holdPx) {
+        this._screenHolding = true;
+      }
+      if (this._screenHolding) this.setVelocity(0, 0);
+      else this._moveToward(player.x, player.y, this.cfg.speed);
+    } else if (dist > this.cfg.desiredRange + 30) {
       this._moveToward(player.x, player.y, this.cfg.speed);
     } else {
       this.setVelocity(0, 0);

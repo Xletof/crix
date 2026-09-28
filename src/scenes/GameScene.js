@@ -18,7 +18,7 @@ import { ROOMS } from '../data/rooms.js';
 import { perimeterOpenings } from '../data/mapUtils.js';
 import {
   encounterFor, buildSpawnQueue, pickGates, ENCOUNTERS, bandFor,
-  championPlacementFor, applyChampionPlacement, PLACEABLE_CHAMPIONS,
+  championPlacementFor, applyChampionPlacement, PLACEABLE_CHAMPIONS, VANGUARD_SCREEN,
 } from '../data/encounters.js';
 import { CameraDirector } from '../systems/CameraDirector.js';
 import { rollNemesis, traitLine } from '../data/nemesis.js';
@@ -29,7 +29,7 @@ import {
 import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.js';
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
-  isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff,
+  isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff, isVanguardScreenOff,
 } from '../systems/debug.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { attachHazards } from '../systems/Hazard.js';
@@ -6790,6 +6790,12 @@ export class GameScene extends Phaser.Scene {
   spawnAtGate(type, preferred = null) {
     const spec = this.roomSpec;
     if (!spec) return;
+    // VANGUARD SCREEN — decided NOW, when the running encounter drew this
+    // token, not 600ms later when the telegraph lands. Only a Shielded, only
+    // while VANGUARD is the composition running; `?encdbg&noscreen=1` turns it
+    // off for the old-vs-new comparison and is inert without `encdbg`.
+    const screen = (type === 'shielded' && this._encounter?.id === 'vanguard'
+      && !(isEncDebug() && isVanguardScreenOff())) ? VANGUARD_SCREEN : null;
     const gates = spec.gates;
     if (!gates?.length) { this.spawnEnemyRandom(type); return; }
 
@@ -6837,7 +6843,9 @@ export class GameScene extends Phaser.Scene {
         } else {
           // Elite upgrade roll (not for fodder). eliteChance is per-room.
           const elite = this.rng.waves.chance(this.arenaCfg?.eliteChance ?? 0);
-          this.spawnEnemyAt(type, gx, gy, elite ? { elite: true } : {});
+          const es = elite ? { elite: true } : {};
+          if (screen) es.vanguardScreen = screen;
+          this.spawnEnemyAt(type, gx, gy, es);
         }
         this.fx.burst(gx, gy, 'red', 10);
       },

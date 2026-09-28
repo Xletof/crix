@@ -34,13 +34,26 @@ const check = (ok, label, detail) => { checks.push({ ok: !!ok, label, detail });
   try {
     sh(`git cat-file -e ${BASELINE}^{commit}`);
     const frozenFiles = [
-      'src/entities/ShockCaptain.js', 'src/entities/Enemy.js', 'src/systems/Hazard.js',
+      'src/entities/ShockCaptain.js', 'src/systems/Hazard.js',
       'src/data/champions.js', 'src/systems/pixelArt.js',
     ];
     const diff = sh(`git diff --stat ${BASELINE} -- ${frozenFiles.join(' ')}`).trim();
     ok = diff === '';
     detail = diff || frozenFiles.join(', ');
-    check(ok, 'THE CAPTAIN\'S ACTOR, BASE CLASS, GRENADE, MOVES AND ART ARE UNCHANGED since the approved baseline', detail);
+    check(ok, 'THE CAPTAIN\'S ACTOR, GRENADE, MOVES AND ART ARE UNCHANGED since the approved baseline', detail);
+    // `Enemy.js` also holds the ordinary troopers, and the VANGUARD screen
+    // pass legitimately edits `EnemyShielded`. What the Captain INHERITS is the
+    // `Enemy` base class — everything before the first subclass — so that span
+    // is what must be byte-identical.
+    const baseClass = (src) => {
+      const a = src.indexOf('export class Enemy extends');
+      const b = src.indexOf('\nexport class ', a + 10);
+      return a < 0 ? null : src.slice(0, b);
+    };
+    const bBefore = baseClass(sh(`git show ${BASELINE}:src/entities/Enemy.js`));
+    const bNow = baseClass(sh('cat src/entities/Enemy.js'));
+    check(bBefore && bBefore === bNow, 'the Enemy BASE CLASS the Captain inherits is byte-identical to the approved baseline',
+      bBefore ? `${bBefore.length} vs ${bNow?.length}` : 'base class not found');
     const block = (src) => {
       const a = src.indexOf('export const CHAMPION = {');
       const b = src.indexOf('\nexport const ', a + 10);

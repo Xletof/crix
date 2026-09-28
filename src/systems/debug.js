@@ -158,7 +158,14 @@ export function setEncForce(id) { encForce = id || null; }
 //   &nochamp=1    suppress the authored Champion placement, so the SAME cell
 //                 can be played without him — the matched baseline. It never
 //                 ADDS a Champion anywhere; it can only take one away.
+//   &noscreen=1   switch the VANGUARD screen role off (the Shielded holds at
+//                 its stock ~290px again), for the old-vs-new comparison. It
+//                 can only take the role away, never grant it.
 let champPlacementOff = false;
+let vanguardScreenOff = false;
+
+export function isVanguardScreenOff() { return vanguardScreenOff; }
+export function setVanguardScreenOff(v) { vanguardScreenOff = !!v; }
 
 export function isChampPlacementOff() { return champPlacementOff; }
 export function setChampPlacementOff(v) { champPlacementOff = !!v; }
@@ -179,6 +186,7 @@ export function parseEncDebugParams(params) {
     sector: Number.isFinite(sector) ? sector : null,
     wave: Number.isFinite(wave) ? wave : null,
     nochamp: params.has('nochamp') && params.get('nochamp') !== '0',
+    noscreen: params.has('noscreen') && params.get('noscreen') !== '0',
   };
 }
 
