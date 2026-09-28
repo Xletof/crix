@@ -162,18 +162,24 @@ const hold = await run('?nodlg=1&encdbg=1&room=hangar&sector=8', async (page) =>
   const plant = (x, y) => { p.setPosition(x, y); p.setVelocity(0, 0); };
 
   // Sample on the page's own clock: distance and state flips once settled.
-  const measure = async (e, settleMs) => {
+  // POLL FOR THE CONDITION, never a fixed wall-clock window: under suite load
+  // a second of wall time can be a third of a second of game time, and a
+  // fixed 9s window photographed a trooper still walking (measured: 321px
+  // and moving at 204px/s). Settled = zero speed for 40 consecutive samples;
+  // `capMs` is only a backstop, and the tail is those 40 samples.
+  const measure = async (e, capMs) => {
     const d = () => Math.hypot(e.x - p.x, e.y - p.y);
     let flips = 0, last = e._screenHolding, still = 0;
     const t0 = Date.now();
     const trace = [];
-    while (Date.now() - t0 < settleMs) {
+    await wait(500);   // let the approach begin before judging "stopped"
+    while (Date.now() - t0 < capMs && still < 40) {
       plant(P.x, P.y);
       if (e._screenHolding !== last) { flips++; last = e._screenHolding; }
       trace.push(Math.round(d()));
+      still = Math.hypot(e.body.velocity.x, e.body.velocity.y) < 1 ? still + 1 : 0;
       await wait(50);
     }
-    // The last two seconds are the settled window.
     const tail = trace.slice(-40);
     return { final: Math.round(d()), min: Math.min(...tail), max: Math.max(...tail), flips,
       speedAtRest: Math.round(Math.hypot(e.body.velocity.x, e.body.velocity.y)) };
@@ -181,12 +187,12 @@ const hold = await run('?nodlg=1&encdbg=1&room=hangar&sector=8', async (page) =>
 
   plant(P.x, P.y);
   const stock = gs.spawnEnemyAt('shielded', P.x + 620, P.y, {});
-  const stockM = await measure(stock, 9000);
+  const stockM = await measure(stock, 40000);
   gs._destroyEnemyFully(stock);
 
   plant(P.x, P.y);
   const scr = gs.spawnEnemyAt('shielded', P.x + 620, P.y, { vanguardScreen: E.VANGUARD_SCREEN });
-  const scrM = await measure(scr, 9000);
+  const scrM = await measure(scr, 40000);
   // Walk the settled window's hold flips separately from the approach.
   let flipsSettled = 0, lastH = scr._screenHolding;
   for (let i = 0; i < 40; i++) {
@@ -198,7 +204,7 @@ const hold = await run('?nodlg=1&encdbg=1&room=hangar&sector=8', async (page) =>
   const away = { x: P.x - 260, y: P.y };
   P.x = away.x;
   const dAfterStep = Math.round(Math.hypot(scr.x - away.x, scr.y - away.y));
-  const resumeM = await measure(scr, 7000);
+  const resumeM = await measure(scr, 40000);
   return { stockM, scrM, flipsSettled, dAfterStep, resumeM, screen: { ...E.VANGUARD_SCREEN } };
 }));
 check(hold.stockM.final >= 255 && hold.stockM.final <= 300,

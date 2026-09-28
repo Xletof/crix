@@ -885,6 +885,7 @@ export class HUDScene extends Phaser.Scene {
       `NOW   ${st.running ?? '\u2014'}`,
       `${st.room} \u00b7 S${st.sector} ${st.band} \u00b7 W${st.wave}/${st.waves}`,
       champ,
+      st.front ? `FRONT ${st.front}` : '',
       msg,
     ].filter(Boolean).join('\n');
     if (txt !== this._encTxt) { this._encTxt = txt; this.encText.setText(txt); }

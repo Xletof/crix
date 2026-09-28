@@ -163,6 +163,13 @@ export function setEncForce(id) { encForce = id || null; }
 //                 can only take the role away, never grant it.
 let champPlacementOff = false;
 let vanguardScreenOff = false;
+//   &nofront=1    switch the VANGUARD FRONT staging off (no drip hold after
+//                 the opening shields, no opening lanes) while the 140px screen
+//                 stays ON — the timing of `1b7c84d`, for the A/B. Separate
+//                 from `noscreen` on purpose: they are two experiments.
+let vanguardFrontOff = false;
+export function isVanguardFrontOff() { return vanguardFrontOff; }
+export function setVanguardFrontOff(v) { vanguardFrontOff = !!v; }
 
 export function isVanguardScreenOff() { return vanguardScreenOff; }
 export function setVanguardScreenOff(v) { vanguardScreenOff = !!v; }
@@ -187,6 +194,7 @@ export function parseEncDebugParams(params) {
     wave: Number.isFinite(wave) ? wave : null,
     nochamp: params.has('nochamp') && params.get('nochamp') !== '0',
     noscreen: params.has('noscreen') && params.get('noscreen') !== '0',
+    nofront: params.has('nofront') && params.get('nofront') !== '0',
   };
 }
 

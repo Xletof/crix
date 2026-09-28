@@ -18,7 +18,7 @@ import { ROOMS } from '../data/rooms.js';
 import { perimeterOpenings } from '../data/mapUtils.js';
 import {
   encounterFor, buildSpawnQueue, pickGates, ENCOUNTERS, bandFor,
-  championPlacementFor, applyChampionPlacement, PLACEABLE_CHAMPIONS, VANGUARD_SCREEN,
+  championPlacementFor, applyChampionPlacement, PLACEABLE_CHAMPIONS, VANGUARD_SCREEN, VANGUARD_FRONT,
 } from '../data/encounters.js';
 import { CameraDirector } from '../systems/CameraDirector.js';
 import { rollNemesis, traitLine } from '../data/nemesis.js';
@@ -29,7 +29,7 @@ import {
 import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.js';
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
-  isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff, isVanguardScreenOff,
+  isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff, isVanguardScreenOff, isVanguardFrontOff,
 } from '../systems/debug.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { attachHazards } from '../systems/Hazard.js';
@@ -793,7 +793,15 @@ export class GameScene extends Phaser.Scene {
     this.events.emit('objective-update', this._terminalsHacked, this._terminalsTotal);
 
     // Spawn enemies listed in the spec (each gets the cover registry injected)
-    spec.enemies.forEach((enemySpec) => this.spawnEnemyAt(enemySpec.type, enemySpec.x, enemySpec.y, enemySpec));
+    // — EXCEPT when `?encdbg&wave=N` starts this room past wave 1. A wave only
+    // clears when the floor is empty, so in any real run the room's authored
+    // opening enemies are dead before wave 2 exists; a bookmark that skips
+    // wave 1 but keeps them hands the reviewer bodies the wave never has.
+    // `_debugStartWave` is non-zero only under that flag, and only for the
+    // first room.
+    if (!(this._debugStartWave > 0)) {
+      spec.enemies.forEach((enemySpec) => this.spawnEnemyAt(enemySpec.type, enemySpec.x, enemySpec.y, enemySpec));
+    }
 
     // Boss room
     if (spec.boss) {
@@ -5523,9 +5531,15 @@ export class GameScene extends Phaser.Scene {
       this._waveDripMs += delta;
       if (this._waveSpawned < this._waveCount &&
           this._waveDripMs >= cfg.spawnRate &&
-          living < cfg.maxAlive) {
+          living < cfg.maxAlive &&
+          !this._frontHolds(delta)) {
         this._waveDripMs = 0;
-        this.spawnAtGate(this._nextEncounterType(), this._nextEncounterGate());
+        const type = this._nextEncounterType();
+        // The VANGUARD's two opening shield events carry their slot, so the
+        // actors they become can be told apart from every later shield.
+        const f = this._vanguardFront;
+        const slot = (f && this._waveSpawned < f.cfg.openers && type === 'shielded') ? this._waveSpawned : null;
+        this.spawnAtGate(type, this._nextEncounterGate(), slot);
         this._waveSpawned++;
       }
       if (this._waveSpawned >= this._waveCount) this._wavePhase = 'clearing';
@@ -6606,6 +6620,7 @@ export class GameScene extends Phaser.Scene {
     this._encounter   = null;
     this._spawnQueue  = null;
     this._placement   = null;
+    this._vanguardFront = null;
     this._gatePlan    = null;
     this._gateStep    = 0;
 
@@ -6652,6 +6667,18 @@ export class GameScene extends Phaser.Scene {
     if (this._placement) {
       this._spawnQueue = applyChampionPlacement(this._spawnQueue, this._placement);
       this._waveCount  = this._spawnQueue.length;
+    }
+
+    // ── VANGUARD FRONT (encounters.js `VANGUARD_FRONT`) ─────────────────────
+    // Staging, not composition: the queue above is untouched. It arms only
+    // when the running archetype is VANGUARD and its first `openers` tokens
+    // really are shields; `?encdbg&nofront=1` switches it off for the A/B.
+    const q = this._spawnQueue || [];
+    const F = VANGUARD_FRONT;
+    if (enc.id === 'vanguard' && !(isEncDebug() && isVanguardFrontOff())
+        && q.slice(0, F.openers).length === F.openers
+        && q.slice(0, F.openers).every((t) => t === 'shielded')) {
+      this._vanguardFront = { cfg: F, pair: [], secondAt: null, holdAt: null, holdMs: 0, sinceSecondMs: 0, released: false, releasedAt: null, why: null };
     }
 
     this.events.emit('encounter-set', enc);
@@ -6726,7 +6753,48 @@ export class GameScene extends Phaser.Scene {
       champion: this.enemies.getChildren().find((e) => e.alive && e.isChampion)?.def?.name ?? '\u2014',
       placement: this._placement ? `${this._placement.champion} @ lead ${this._placement.slot}` : null,
       placementOff: isChampPlacementOff(),
+      front: this._vanguardFront
+        ? (this._vanguardFront.released ? `released (${this._vanguardFront.why})` : 'holding')
+        : (isVanguardFrontOff() && this._encounter?.id === 'vanguard' ? 'OFF' : null),
     };
+  }
+
+  /**
+   * VANGUARD FRONT — true while the drip must wait for the opening shields.
+   *
+   * Evaluated from the ACTORS the two opening events became, never from the
+   * events: two red gate rings are not a front. Resolves once, on the first
+   * of establish / breach / timeout / stall, and never re-arms.
+   */
+  _frontHolds(delta) {
+    const f = this._vanguardFront;
+    if (!f || f.released) return false;
+    if (this._waveSpawned < f.cfg.openers) return false;   // still spending the opening events
+    // BOTH CLOCKS RUN ON THE DRIP'S OWN `delta` — the same time the shields
+    // walk in — so a slow frame cannot spend the timeout on distance nobody
+    // covered. The timestamps beside them are for reporting only.
+    const now = this.time.now;
+    if (f.holdAt == null) f.holdAt = now;
+    f.holdMs += delta;
+    const release = (why) => { f.released = true; f.releasedAt = now; f.why = why; return false; };
+    const [a, b] = f.pair;
+    if ((a && !a.alive) || (b && !b.alive)) return release('breach');
+    if (a && b) {
+      f.sinceSecondMs += delta;
+      const p = this.player;
+      const near = (e) => Math.hypot(e.x - p.x, e.y - p.y) <= f.cfg.establishPx;
+      if (near(a) && near(b)) return release('established');
+      if (f.sinceSecondMs >= f.cfg.timeoutMs) return release('timeout');
+    }
+    if (f.holdMs >= f.cfg.stallMs) return release('stall');
+    return true;
+  }
+
+  /** An opening shield has MATERIALISED — the front's clock runs from actors. */
+  _frontRegister(f, slot, enemy) {
+    if (!enemy || f.released) return;
+    f.pair[slot] = enemy;
+    if (f.pair[0] && f.pair[1] && f.secondAt == null) f.secondAt = this.time.now;
   }
 
   /** The next type this wave owes, or the room's ordinary roll. */
@@ -6787,9 +6855,12 @@ export class GameScene extends Phaser.Scene {
   // player (else the farthest), telegraph it with a pulsing red ring for
   // 600ms, then spawn with a burst. Falls back to the legacy random-edge
   // picker for rooms without gates.
-  spawnAtGate(type, preferred = null) {
+  spawnAtGate(type, preferred = null, openingSlot = null) {
     const spec = this.roomSpec;
     if (!spec) return;
+    // The front object is captured NOW, so a telegraph still in flight when a
+    // wave is replaced registers into the old wave's state, never the new one.
+    const front = openingSlot != null ? this._vanguardFront : null;
     // VANGUARD SCREEN — decided NOW, when the running encounter drew this
     // token, not 600ms later when the telegraph lands. Only a Shielded, only
     // while VANGUARD is the composition running; `?encdbg&noscreen=1` turns it
@@ -6845,7 +6916,9 @@ export class GameScene extends Phaser.Scene {
           const elite = this.rng.waves.chance(this.arenaCfg?.eliteChance ?? 0);
           const es = elite ? { elite: true } : {};
           if (screen) es.vanguardScreen = screen;
-          this.spawnEnemyAt(type, gx, gy, es);
+          if (front && screen) es.vanguardLane = { sign: openingSlot === 0 ? -1 : 1, px: front.cfg.lanePx };
+          const made = this.spawnEnemyAt(type, gx, gy, es);
+          if (front) this._frontRegister(front, openingSlot, made);
         }
         this.fx.burst(gx, gy, 'red', 10);
       },

@@ -1615,6 +1615,9 @@ export class EnemyShielded extends EnemyShooter {
     // is the stock trooper, byte for byte.
     this._screen = spec.vanguardScreen || null;
     this._screenHolding = false;
+    // VANGUARD FRONT (encounters.js `VANGUARD_FRONT`): only the two opening
+    // shields carry a lane, and only until they first reach the close hold.
+    this._lane = spec.vanguardLane || null;   // { sign: -1 | +1, px }
   }
 
   // A hit traveling along flightAng strikes the side at (flightAng + PI) from
@@ -1648,8 +1651,17 @@ export class EnemyShielded extends EnemyShooter {
       } else if (dist <= this._screen.holdPx) {
         this._screenHolding = true;
       }
-      if (this._screenHolding) this.setVelocity(0, 0);
-      else this._moveToward(player.x, player.y, this.cfg.speed);
+      if (this._screenHolding) {
+        this._lane = null;   // first close hold: an ordinary screen from here on
+        this.setVelocity(0, 0);
+      } else if (this._lane && dist > 1) {
+        // Aim at a point beside the player, across this shield's own line of
+        // approach, so the opening pair closes as two bodies, not one line.
+        const k = this._lane.sign * this._lane.px / dist;
+        this._moveToward(player.x - dy * k, player.y + dx * k, this.cfg.speed);
+      } else {
+        this._moveToward(player.x, player.y, this.cfg.speed);
+      }
     } else if (dist > this.cfg.desiredRange + 30) {
       this._moveToward(player.x, player.y, this.cfg.speed);
     } else {

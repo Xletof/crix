@@ -424,3 +424,41 @@ export function applyChampionPlacement(queue, placement) {
 //   resumePx  once holding, advance again only past this — the hysteresis
 //             band, so a player shuffling on the line does not make him jitter
 export const VANGUARD_SCREEN = { holdPx: 140, resumePx: 165 };
+
+// ── VANGUARD FRONT — the opening sentence. CANDIDATE, NOT HUMAN-APPROVED ─────
+//
+// Handset evidence on the 140px screen: the screen works, but the backline
+// arrived before the shields had become the fight. At sector 8 the drip put
+// the third event (the Captain, or the first rifle) about a second behind the
+// second shield, and a 140px/s shield is the slowest thing in the formation,
+// so QUEUE ORDER WAS NOT BATTLEFIELD ORDER: the exposed bodies were in reach
+// first, the player built a Super on them, and the Super deleted the front
+// before the front had ever been the question.
+//
+// So a VANGUARD holds its drip after the two OPENING shield events until the
+// front exists, then releases the rest of the authored queue — same tokens,
+// same order, same budget, only WHEN event three may be scheduled moves. It is
+// resolved from ACTORS, never from scheduled events (a red gate ring is not a
+// shield), and released by the first of:
+//
+//   establishPx  both opening shields are within this of the player — the
+//                front is in the fight. Outside the 140 hold on purpose: the
+//                backline's own 600ms gate telegraph is the time the shields
+//                spend closing the last stretch.
+//   a breach     either opening shield is dead. Answering the question early
+//                is rewarded by the fight moving on, never by waiting.
+//   timeoutMs    since the SECOND opening shield MATERIALISED, so a player
+//                kiting backward cannot freeze the wave.
+//   stallMs      since the hold began, whatever happened to the telegraphs —
+//                a last backstop, so no path can leave a wave that never ends.
+//
+// Once released it is finished for that wave: it never re-arms, and surges
+// and later shields are never part of it.
+//
+//   lanePx       the two opening shields approach a point this far either side
+//                of the player, across their own line of approach, so two
+//                shields from one gate arrive as a two-man front rather than
+//                one overlapping blob. APPROACH ONLY — the lane is dropped the
+//                first time the shield reaches its close hold, and from then on
+//                it is an ordinary VANGUARD screen.
+export const VANGUARD_FRONT = { openers: 2, establishPx: 200, timeoutMs: 3000, stallMs: 7000, lanePx: 60 };
