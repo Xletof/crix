@@ -409,25 +409,43 @@ records, WITHOUT implementing any of it, the Regular → Elite → Champion →
 Commander → Vader hierarchy and the rule that Captain placement stays AUTHORED
 (no `championChance`, no random spawning).
 
-### THE ROSTER, PHASE B — CHAMPION INTEGRATION. **CANDIDATE — NOT HUMAN-APPROVED**
+### THE ROSTER, PHASE B — CHAMPION INTEGRATION. **CAPTAIN PLACEMENT HUMAN-VALIDATED IN A AND C; OPEN ONLY FOR THE VANGUARD SCREEN CORRECTION**
 
-**In flight, waiting on handset play.** The Shock Captain now appears in real
-Endless, in exactly two AUTHORED cells of the encounter plan — no chance, no
-roll, no clock. `§10at` is the record: the derived sector schedule, the
-placement table, the budget rule, the spawn path, the score and the three
-review URLs.
+| layer | status |
+|---|---|
+| Shock Captain V1 | **HUMAN-APPROVED / FROZEN** (`6560c62`) |
+| Captain production placement (`§10at`) | **HUMAN-VALIDATED in cases A and C** on `5a97fd4` — keep both placements, the budget and the score as they are |
+| Phase B integration as a whole | **OPEN** only for the VANGUARD screen correction (`§10au`) and its handset gate. Not frozen. |
+
+**The handset verdict on `5a97fd4`:** A (VANGUARD + Captain) was fun, the
+Captain plays very well inside VANGUARD and belongs in the formation. C
+(CROSSFIRE + Captain) was even more chaotic and dangerous, and that chaos
+stayed FUN — not unreadable projectile soup; keep it unchanged. B (the matched
+VANGUARD without him) exposed a SEPARATE problem: late in the fight the human
+was left against two Shielded troopers, could not build a Super off blocked
+shots (correct, and unchanged), could not out-walk the shield turn at ~290px,
+and the cleanup stalled.
+
+**The candidate correction is `§10au` — the VANGUARD SCREEN.** A Shielded
+spawned by a running VANGUARD closes to ~140px and holds there; every other
+Shielded, the shield contract, the resource rule, the Captain and CROSSFIRE are
+untouched.
 
 | case | where | URL |
 |---|---|---|
 | A — VANGUARD + Captain | sector 8, hangar, wave 2 | `?encdbg=1&room=hangar&sector=8&wave=2` |
 | B — matched VANGUARD, no Captain | same | `?encdbg=1&room=hangar&sector=8&wave=2&nochamp=1` |
-| C — late CROSSFIRE + Captain | sector 16, hangar, wave 3 | `?encdbg=1&room=hangar&sector=16&wave=3` |
+| C — late CROSSFIRE + Captain (regression control) | sector 16, hangar, wave 3 | `?encdbg=1&room=hangar&sector=16&wave=3` |
+
+Append `&noscreen=1` to A or B for the OLD shield behaviour (the stock ~290px
+hold), for a side-by-side.
 
 **The Captain himself did not change** — V1 stays HUMAN-APPROVED / FROZEN /
-REFERENCE CHAMPION, and `smoke-champion-placement` diffs his actor, base class,
-grenade, moves, art and CHAMPION config block against `6560c62`. If placement
-play shows a problem, the order of suspects is placement → ordinary budget →
-composition → the Captain, and the last one is the human's call.
+REFERENCE CHAMPION, and `smoke-champion-placement` diffs his actor, grenade,
+moves, art, the `Enemy` base class he inherits and the CHAMPION config block
+against `6560c62`. If placement play shows a problem, the order of suspects is
+placement → ordinary budget → composition → the Captain, and the last one is
+the human's call.
 
 Not started, and not to be started on the strength of this pass: the Elite
 redesign, Commander design, a second Champion, new arenas, Nemesis
@@ -435,7 +453,8 @@ replacement.
 
 ### The recommended next area of work
 
-**Phase B Champion integration is in flight** (above). Beyond it, the next
+**Phase B Champion integration is open only for the VANGUARD screen's handset
+gate** (above, `§10au`). Beyond it, the next
 direction comes from the human. The camera (`§21`), the four arenas, Phase A
 and Shock Captain V1 are all closed. What the Captain's closure unblocks
 besides placement is listed in his section above — the Elite hierarchy and
@@ -8156,7 +8175,16 @@ Step and closes Shock Captain V1 — §0 carries the frozen contract.
 
 ---
 
-## 10at. THE ROSTER, PHASE B — CHAMPION INTEGRATION. **CANDIDATE — NOT HUMAN-APPROVED**
+## 10at. THE ROSTER, PHASE B — CHAMPION INTEGRATION. **PLACEMENT HUMAN-VALIDATED IN A AND C** (`5a97fd4`)
+
+**Handset verdict, recorded after the pass below:** A (VANGUARD + Captain) —
+fun, he plays very well inside VANGUARD and belongs in the formation; keep the
+placement. C (CROSSFIRE + Captain) — more chaotic and dangerous, and the chaos
+stayed fun; keep it unchanged. B (no Captain) exposed the Shielded cleanup
+tail that `§10au` addresses. The placements, the budget rule and the score
+below are validated and do not move; Phase B as a whole is not frozen until
+`§10au` passes its own handset gate. The body of this section is the record as
+written before the verdict.
 
 **What this is:** the first time a Champion appears in the real Endless game.
 The Shock Captain is unchanged — V1, `6560c62`, HUMAN-APPROVED / FROZEN /
@@ -8355,6 +8383,77 @@ turned up, none of them fixed here:
 - **The handset URLs start mid-run with no upgrades.** Sector 8 and 16 reached
   from a bookmark are harder on the player than the same wave reached
   naturally. Judge composition and readability from them, not difficulty.
+
+---
+
+## 10au. THE VANGUARD SCREEN — shields that close. **CANDIDATE — NOT HUMAN-APPROVED**
+
+**The evidence.** Case B of `§10at` (the matched VANGUARD without the Captain)
+stalled late: the human was left against two Shielded troopers and spent a long
+time trying to get behind them. The shield contract is coherent and is NOT the
+fault — a frontal non-piercing shot is blocked, deals nothing, gives no hit
+credit, no Super charge and no melee charge — but when only shields remain and
+no Super is banked, there is nothing exposed to build the Super from, and the
+only other answer, the flank, was too hard at the distance they held.
+
+**The arithmetic.** `EnemyShielded._tickSwarm` advances only while
+`dist > desiredRange + 30`, so the stock trooper holds at ~290px (measured 279
+in the harness, where a 140px/s body overshoots by a coarse frame). At 290px a
+380px/s player sweeps ~1.3 rad/s of bearing round him against a 2.6 rad/s
+shield turn: walking cannot out-turn it. At 140px the same footwork is ~2.7
+rad/s — close movement starts to beat the turn, the dash stays the stronger
+answer, the Super stays the direct one.
+
+**The change — geometry, not economy.** A VANGUARD Shielded closes to ~140px
+and holds there. That is all.
+
+- `VANGUARD_SCREEN = { holdPx: 140, resumePx: 165 }` in `encounters.js`: hold
+  once at or inside 140, advance again only past 165 (hysteresis, so a player
+  shuffling on the line does not make him chatter).
+- `spawnAtGate` stamps `vanguardScreen` into the spawn spec when the token is a
+  `shielded` drawn while VANGUARD is the running encounter — decided when the
+  token is drawn, not when the 600ms telegraph lands. Surges inside a VANGUARD
+  draw from its own pool and get it too; nothing outside a VANGUARD does.
+- `EnemyShielded` reads it in one branch of `_tickSwarm`. `_screen` null runs
+  the old branch verbatim.
+- `?encdbg&noscreen=1` takes the role away for the side-by-side; inert without
+  `encdbg`, and it can only remove the role, never grant it.
+
+**Measured** (`smoke-vanguard-screen`, one trooper against a planted player):
+stock hold **279px**, screen hold **129px** (settled 129-129, zero velocity,
+zero threshold flips), and after the player steps 260px away (386px) he resumes
+and re-settles at **128px**. The ~11px undershoot of 140 is the harness frame
+rate; at 60fps expect ~138.
+
+**Untouched, and pinned:** `ENEMY.shielded` (compared byte-for-byte with
+`5a97fd4`) — hp 560, speed 140, `desiredRange` 260, arc 1.35, turn 2.6, fire
+1500ms, bolt 700 / 120 / 520. The frontal block, the Super-piercing rule and
+the resource rule (a blocked shot: zero damage, zero Super, zero melee — with a
+positive control from behind proving the probe can see a charge). VANGUARD's
+composition. CROSSFIRE (which carries no Shielded at all). The Champion
+placement rows, slot, cost and score. The Captain (`smoke-champion-placement`
+still diffs him against `6560c62`; its `Enemy.js` guard is narrowed to the
+`Enemy` base class he inherits, because `EnemyShielded` lives in the same file).
+
+**Deliberately NOT built:** bodyguard AI, a Captain tether, formation logic,
+shield walls, interception rules. The hypothesis is that the VANGUARD's one
+gate, its shields-first lead and a close hold are enough to put the shields in
+the player's firing lane by themselves. If the handset says they are not, that
+is the next question — not a tuning pass on this one.
+
+**Evidence:** `docs/evidence/vanguard-screen/` (`tests/shot-vanguard-screen.mjs`)
+— OLD (`&noscreen=1`) and NEW, with and without the Captain: entry, advancing,
+settled, close lateral footwork, a dash, and the tail (two Shieldeds left,
+everything else gone, Super EMPTY — zeroed, never precharged). Stills are
+diagnostic only.
+
+**Handset questions:** does VANGUARD now read as an advancing front? Do the
+shields occupy the space between you and the guns / Captain? Can you finish one
+or two Shieldeds without a Super? Does close footwork create real flank
+openings, with the dash still the stronger counter and the Super still the
+clean one? Is the close pressure interesting or just annoying? Does VANGUARD
+still read with the Captain in it? And C is the regression control — it should
+play exactly as before.
 
 ---
 

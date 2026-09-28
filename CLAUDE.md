@@ -902,6 +902,20 @@ asserts separately that the ceiling is not reached.
   force onto SWARM TIDE takes him away rather than inventing a pairing.
   `?encdbg=1&room=&sector=&wave=` reaches any cell and `&nochamp=1` is the
   matched no-Captain baseline; both are inert without `encdbg`.
+- **THE VANGUARD SCREEN IS AN ENCOUNTER ROLE, NOT A NEW SHIELDED — `HANDOVER.md`
+  §10au. CANDIDATE.** `spawnAtGate` stamps `vanguardScreen: VANGUARD_SCREEN`
+  into the spawn spec when the token is a `shielded` drawn while VANGUARD is
+  the running encounter — decided at DRAW time, not when the 600ms telegraph
+  lands. `EnemyShielded` then closes to `holdPx` (140) and holds until the
+  player opens past `resumePx` (165); `_screen` null is the stock trooper byte
+  for byte. **`ENEMY.shielded` IS NOT TOUCHED, AND THE ANSWER WAS NEVER
+  ECONOMY**: a blocked frontal shot still gives zero damage, zero Super and
+  zero melee charge, and the turn rate is still 2.6. The problem was the
+  radius — at the stock ~290px hold (the branch advances only past
+  `desiredRange + 30`), 380px/s of footwork is ~1.3 rad/s of bearing against a
+  2.6 rad/s shield; at 140 it is ~2.7. Do not "fix" a shield tail by paying for
+  blocked shots or slowing the turn. `?encdbg&noscreen=1` restores the old hold
+  for an A/B and is inert without `encdbg`.
 - **THE STATE LANGUAGE'S ONE RULE SURVIVED HANDSET REVIEW AND ITS SUSTAINED
   HALF DID NOT — `HANDOVER.md` §10ah, §10ai.** **SYMBOL = TRANSITION, BODY / FX
   = SUSTAINED STATE.** A glyph lives a few hundred ms to say something CHANGED
