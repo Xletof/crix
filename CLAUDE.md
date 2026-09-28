@@ -916,6 +916,21 @@ asserts separately that the ceiling is not reached.
   2.6 rad/s shield; at 140 it is ~2.7. Do not "fix" a shield tail by paying for
   blocked shots or slowing the turn. `?encdbg&noscreen=1` restores the old hold
   for an A/B and is inert without `encdbg`.
+- **QUEUE ORDER IS NOT BATTLEFIELD ORDER — the VANGUARD FRONT, `HANDOVER.md`
+  §10av. CANDIDATE.** A 600ms gate telegraph plus a ~616ms drip put the third
+  event ~0.6s behind the second shield, and the shield is the slowest body in
+  the formation. `_vanguardFront` holds the drip after the two opening shield
+  EVENTS until the two shield ACTORS establish (both within `establishPx`
+  200), are breached (either dead) or time out (3000ms after the second
+  MATERIALISES); both clocks run on the drip's own `delta`. Resolved from
+  actors registered by `_frontRegister`, never from `_waveSpawned` — two red
+  gate rings are not a front. It never re-arms, and surges are never pair
+  members. The opening pair's `vanguardLane` (±60px across their own line of
+  approach) is dropped at the first close hold. `&nofront=1` switches it off
+  with the screen still on; it is NOT `noscreen`. **CROSSFIRE + Captain is
+  HUMAN-APPROVED / FROZEN** and never arms it. **And `?encdbg&wave=N` omits the
+  room's authored opening enemies** — a real wave 2 never has them, and keeping
+  them handed every VANGUARD review five exposed bodies from second zero.
 - **THE STATE LANGUAGE'S ONE RULE SURVIVED HANDSET REVIEW AND ITS SUSTAINED
   HALF DID NOT — `HANDOVER.md` §10ah, §10ai.** **SYMBOL = TRANSITION, BODY / FX
   = SUSTAINED STATE.** A glyph lives a few hundred ms to say something CHANGED

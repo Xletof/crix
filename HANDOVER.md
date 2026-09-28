@@ -409,36 +409,47 @@ records, WITHOUT implementing any of it, the Regular → Elite → Champion →
 Commander → Vader hierarchy and the rule that Captain placement stays AUTHORED
 (no `championChance`, no random spawning).
 
-### THE ROSTER, PHASE B — CHAMPION INTEGRATION. **CAPTAIN PLACEMENT HUMAN-VALIDATED IN A AND C; OPEN ONLY FOR THE VANGUARD SCREEN CORRECTION**
+### THE ROSTER, PHASE B — CHAMPION INTEGRATION. **CROSSFIRE + CAPTAIN FROZEN 🔒; OPEN ONLY FOR THE VANGUARD OPENING**
 
 | layer | status |
 |---|---|
 | Shock Captain V1 | **HUMAN-APPROVED / FROZEN** (`6560c62`) |
-| Captain production placement (`§10at`) | **HUMAN-VALIDATED in cases A and C** on `5a97fd4` — keep both placements, the budget and the score as they are |
-| Phase B integration as a whole | **OPEN** only for the VANGUARD screen correction (`§10au`) and its handset gate. Not frozen. |
+| **CROSSFIRE + Shock Captain** (late hangar, wave 3) | **HUMAN-APPROVED / FROZEN 🔒** — played repeatedly on `1b7c84d` |
+| VANGUARD + Shock Captain (mid hangar, wave 2) | **liked and RETAINED** — the Captain is not the problem |
+| VANGUARD close screen (`§10au`, hold 140 / resume 165) | **RETAINED** — it solved the ~290px flank stall it was built for |
+| VANGUARD opening front (`§10av`) | **CANDIDATE — NOT HUMAN-APPROVED**. The last open Phase B item |
+| Phase B integration as a whole | **OPEN** only for `§10av`'s handset gate. Not frozen. |
 
-**The handset verdict on `5a97fd4`:** A (VANGUARD + Captain) was fun, the
-Captain plays very well inside VANGUARD and belongs in the formation. C
-(CROSSFIRE + Captain) was even more chaotic and dangerous, and that chaos
-stayed FUN — not unreadable projectile soup; keep it unchanged. B (the matched
-VANGUARD without him) exposed a SEPARATE problem: late in the fight the human
-was left against two Shielded troopers, could not build a Super off blocked
-shots (correct, and unchanged), could not out-walk the shield turn at ~290px,
-and the cleanup stalled.
+**The handset verdicts, in order.** On `5a97fd4`: A (VANGUARD + Captain) fun,
+the Captain belongs in the formation; C (CROSSFIRE + Captain) more chaotic and
+dangerous and still fun; B exposed the ~290px shield cleanup stall. On
+`1b7c84d`, played repeatedly with fresh pages: **C is very good — dangerous,
+chaotic in a good way, readable, fun, at one point "an anime fight" — and is
+FROZEN**; the 140px screen worked and is kept; and repeated A runs exposed a
+NEW problem the screen was never meant to solve: **the backline arrived before
+the shield front had established**, so the player shot exposed bodies, built a
+Super and deleted the shields before the wall was ever the question.
 
-**The candidate correction is `§10au` — the VANGUARD SCREEN.** A Shielded
-spawned by a running VANGUARD closes to ~140px and holds there; every other
-Shielded, the shield contract, the resource rule, the Captain and CROSSFIRE are
-untouched.
+**The candidate correction is `§10av` — the VANGUARD FRONT.** The drip holds
+after the two opening shields until they establish (both within 200px of the
+player), are breached (one killed) or time out (3000ms of game time after the
+second EXISTS); the opening pair approach on small left/right lanes. Queue,
+budget, placement, screen values, Captain and CROSSFIRE are untouched.
+**It also found a harness confound**: `&wave=2` used to keep the hangar's five
+authored opening enemies (4 grunts + a shooter) on the floor — bodies a real
+wave 2 never has, because wave 1 cannot clear with them alive. Every A/B run
+before this pass had five exposed targets from second zero. `&wave=` now omits
+them (debug only).
 
 | case | where | URL |
 |---|---|---|
 | A — VANGUARD + Captain | sector 8, hangar, wave 2 | `?encdbg=1&room=hangar&sector=8&wave=2` |
-| B — matched VANGUARD, no Captain | same | `?encdbg=1&room=hangar&sector=8&wave=2&nochamp=1` |
-| C — late CROSSFIRE + Captain (regression control) | sector 16, hangar, wave 3 | `?encdbg=1&room=hangar&sector=16&wave=3` |
+| B — VANGUARD, no Captain | same | `?encdbg=1&room=hangar&sector=8&wave=2&nochamp=1` |
+| C — CROSSFIRE + Captain (FROZEN, regression control) | sector 16, hangar, wave 3 | `?encdbg=1&room=hangar&sector=16&wave=3` |
 
-Append `&noscreen=1` to A or B for the OLD shield behaviour (the stock ~290px
-hold), for a side-by-side.
+`&nofront=1` on A or B restores `1b7c84d`'s opening timing and unlaned
+opening pair with the 140px screen still ON; `&noscreen=1` is the older, 290px
+shield experiment. They are separate switches on purpose.
 
 **The Captain himself did not change** — V1 stays HUMAN-APPROVED / FROZEN /
 REFERENCE CHAMPION, and `smoke-champion-placement` diffs his actor, grenade,
@@ -453,8 +464,8 @@ replacement.
 
 ### The recommended next area of work
 
-**Phase B Champion integration is open only for the VANGUARD screen's handset
-gate** (above, `§10au`). Beyond it, the next
+**Phase B Champion integration is open only for the VANGUARD opening's handset
+gate** (above, `§10av`). Beyond it, the next
 direction comes from the human. The camera (`§21`), the four arenas, Phase A
 and Shock Captain V1 are all closed. What the Captain's closure unblocks
 besides placement is listed in his section above — the Elite hierarchy and
@@ -8386,7 +8397,12 @@ turned up, none of them fixed here:
 
 ---
 
-## 10au. THE VANGUARD SCREEN — shields that close. **CANDIDATE — NOT HUMAN-APPROVED**
+## 10au. THE VANGUARD SCREEN — shields that close. **RETAINED on handset** (`1b7c84d`)
+
+**Verdict:** the 140px screen solved the problem it was built for — the human no
+longer met shields standing off at ~290px and being tedious to flank. Keep
+hold 140 / resume 165. Repeated play then exposed a different problem (the
+backline arriving before the front), which is `§10av`, not a failure of this.
 
 **The evidence.** Case B of `§10at` (the matched VANGUARD without the Captain)
 stalled late: the human was left against two Shielded troopers and spent a long
@@ -8454,6 +8470,88 @@ openings, with the dash still the stronger counter and the Super still the
 clean one? Is the close pressure interesting or just annoying? Does VANGUARD
 still read with the Captain in it? And C is the regression control — it should
 play exactly as before.
+
+---
+
+## 10av. THE VANGUARD FRONT — the opening sentence. **CANDIDATE — NOT HUMAN-APPROVED**
+
+**The evidence (`1b7c84d`, repeated handset A runs):** QUEUE ORDER IS NOT
+BATTLEFIELD ORDER. At sector 8 the drip schedules an event every ~616ms of game
+time and every event then spends 600ms on a gate telegraph, so the third event
+(the Captain, in A) was scheduled ~0.6s after the second shield — and the
+shield is the slowest body in the formation (140px/s against a shooter's 190
+and the Captain's 250). Exposed bodies were in reach first, the player built a
+Super on them, and the Super deleted the front before the front had been the
+question. **Not an economy problem** — the resource rule is unchanged.
+
+**What changed — WHEN event three may be scheduled, nothing else.**
+`VANGUARD_FRONT = { openers: 2, establishPx: 200, timeoutMs: 3000, stallMs:
+7000, lanePx: 60 }` in `encounters.js`. `_resolveEncounter` arms a small
+`_vanguardFront` state only when the RUNNING archetype is VANGUARD and its
+first two queue tokens are shields. The drip passes those two events slot 0 and
+slot 1; `spawnAtGate` carries the slot through its 600ms telegraph and
+`_frontRegister` records the ACTOR the event became. `_frontHolds(delta)` then
+blocks the drip until the first of:
+
+| release | condition |
+|---|---|
+| `established` | both opening shields within 200px of the player |
+| `breach` | either opening shield dead — at any point, even before the second exists |
+| `timeout` | 3000ms of GAME time since the SECOND shield MATERIALISED |
+| `stall` | 7000ms of game time since the hold began — a last backstop |
+
+Both clocks accumulate the drip's own `delta`, the time the shields walk in, so
+a slow frame cannot spend the timeout on distance nobody covered. It resolves
+once and never re-arms; surges and later shields are never pair members.
+`&nofront=1` (requires `encdbg`) turns it off with the 140px screen still on.
+
+**The lanes.** The opening pair carry `vanguardLane: { sign: -1 | +1, px: 60 }`:
+while approaching, each aims at a point 60px beside the player ACROSS its own
+line of approach (recomputed every frame, so the front still chases a moving
+player), and drops the lane the first time it reaches its close hold — an
+ordinary screen from there. Measured at the hold: **89-128px apart laned
+against 2-7px unlaned** (the same pair, stacked on one line).
+
+**The timeline.** On a 60fps phone at sector 8: shield 1 materialises ~1.2s
+into the wave, shield 2 ~1.8s, and the backline's first event is scheduled at
+release — ~4.8s on a pure timeout, sooner if the player engages the front —
+and materialises 600ms later. Before this pass the Captain materialised at
+~2.4s. The staging buys the front up to ~3s. In the harness (a player planted
+640px from the gate) the release was `established` and the Captain arrived
+with both shields at 127-132px, holding; with `&nofront=1` he arrived with the
+shields still 256-433px out and two rifles already on the floor.
+
+**The harness confound this pass found and fixed.** `?encdbg&wave=2` skipped
+wave 1 but kept the room's authored opening enemies — in the hangar, four
+grunts and a shooter. A real wave 2 never has them (wave 1 cannot clear while
+they live), so every A/B run of VANGUARD until now carried five exposed bodies
+from second zero, which is precisely the "exposed targets too early" read.
+`loadRoom` now omits them when `&wave=` starts the room past wave 1; production
+never sets that flag. `smoke-vanguard-front` checks it as a pair.
+
+**Untouched:** the VANGUARD queue (content and order, compared token by token
+with and without the staging), the Captain's slot, cost and score, hold 140 /
+resume 165, `ENEMY.shielded`, the block and resource rules, CROSSFIRE (never
+arms it), the Captain (`6560c62` guard).
+
+**Tests:** `smoke-vanguard-front` (30 checks — slots, lanes, actor-based
+clocks, the third event held until release, each release path driven
+deterministically, no deadlock, surge isolation, no re-arm, queue identity,
+wave clear, CROSSFIRE and SWARM TIDE never arm it, the `&wave=` statics pair).
+**Evidence:** `docs/evidence/vanguard-front/` (`tests/shot-vanguard-front.mjs`)
+— `A-old` (`&nofront=1`) and `A-new` frame by frame, paused ON the frame each
+beat first occurs; `A-new-08-trails` draws both opening shields' real paths at
+1x; `breach` and `kite` show the other two release paths.
+
+**Handset questions:** shields first, then the backline? A brief real period
+where the two shields are the whole problem? Do you have to flank, dash or
+spend an already-banked Super before exposed bodies become meter? Does it avoid
+feeling artificially paused, and does the backline arrive at the right moment?
+Do the two shields read as a front rather than one blob, and does the lane feel
+natural? Once the Captain arrives, does the fight open up — and is Captain +
+VANGUARD still fun? Does close footwork still work? Does killing a shield early
+feel rewarded? Can you kite without freezing the wave? And C should be exactly
+as good as before.
 
 ---
 
