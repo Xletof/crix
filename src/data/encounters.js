@@ -357,6 +357,17 @@ export function pickGates(mode, gates, rng) {
 // Never SWARM TIDE, SNIPER NEST or BOMBER RUN — each already has a subject
 // the Captain would compete with, and the structural test pins that.
 //
+//   shieldSlot (optional, one row only) a later queue position that is made a
+//          GUARANTEED shield after the Captain is placed. Handset evidence on
+//          `d3766eb`: the staged opening works, but once the opening pair was
+//          broken the Captain-VANGUARD read as the Captain plus exposed bodies,
+//          because only three shields were guaranteed and the rest was fill
+//          RNG. This converts one existing FILL event — the budget does not
+//          move, nothing is added — so the front reinforces once mid-fight:
+//          SHIELD SHIELD CAPTAIN SHIELD SHOOTER SHIELD fill fill. It is
+//          written after the queue is built, so the random numbers every
+//          other slot drew are the same ones they always drew.
+//
 // If this ever needs a condition, a callback or a second kind of row, it has
 // failed its brief. Stop, do not grow a grammar.
 
@@ -364,7 +375,7 @@ export function pickGates(mode, gates, rng) {
 export const PLACEABLE_CHAMPIONS = ['captain'];
 
 export const CHAMPION_PLACEMENTS = [
-  { arena: 'hangar', band: 'mid', wave: 1, encounter: 'vanguard', champion: 'captain', slot: 2, cost: 2 },
+  { arena: 'hangar', band: 'mid', wave: 1, encounter: 'vanguard', champion: 'captain', slot: 2, cost: 2, shieldSlot: 5 },
   { arena: 'hangar', band: 'late', wave: 2, encounter: 'crossfire', champion: 'captain', slot: 2, cost: 2 },
 ];
 
@@ -394,6 +405,8 @@ export function applyChampionPlacement(queue, placement) {
   out[slot] = placement.champion;
   const drop = Math.max(0, Math.min((placement.cost ?? 1) - 1, out.length - 1 - slot));
   out.length -= drop;
+  const s = placement.shieldSlot;
+  if (s != null && s > slot && s < out.length) out[s] = 'shielded';
   return out;
 }
 

@@ -31,6 +31,7 @@ const TESTS = [
   'smoke-champion-placement',
   'smoke-vanguard-screen',
   'smoke-vanguard-front',
+  'smoke-vanguard-reinforce',
   'smoke-harrower',
   'smoke-captain',
   'smoke-captain-state',

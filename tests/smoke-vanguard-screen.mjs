@@ -89,9 +89,9 @@ check(table.crossfire === JSON.stringify({
   gate: 'split', countMult: 0.85, maxAliveMult: 0.65, spawnRateMult: 1.25,
 }), 'CROSSFIRE is unchanged — and carries no Shielded, so the role cannot reach it', table.crossfire);
 check(table.rows === JSON.stringify([
-  { arena: 'hangar', band: 'mid', wave: 1, encounter: 'vanguard', champion: 'captain', slot: 2, cost: 2 },
+  { arena: 'hangar', band: 'mid', wave: 1, encounter: 'vanguard', champion: 'captain', slot: 2, cost: 2, shieldSlot: 5 },
   { arena: 'hangar', band: 'late', wave: 2, encounter: 'crossfire', champion: 'captain', slot: 2, cost: 2 },
-]), 'the Champion placement rows, slot and cost are unchanged', table.rows);
+]), 'the Champion placement rows, slot and cost are unchanged (plus the one mid-VANGUARD shieldSlot)', table.rows);
 
 // ── 2. WHO gets the role — through the real spawner ───────────────────────
 //

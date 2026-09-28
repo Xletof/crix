@@ -203,7 +203,8 @@ check(withCap.waveCount === withoutCap.waveCount - (withCap.placement?.cost - 1)
   `${withCap.waveCount} vs ${withoutCap.waveCount}`);
 check(withCap.queue.filter((t) => t !== 'captain').length === withoutCap.queue.length - withCap.placement?.cost,
   'and cost fewer ORDINARY bodies', `${withCap.queue.length - 1} vs ${withoutCap.queue.length}`);
-check(withCap.queue.every((t, i) => i === withCap.placement?.slot || t === withoutCap.queue[i]),
+check(withCap.queue.every((t, i) => i === withCap.placement?.slot
+    || (i === withCap.placement?.shieldSlot && t === 'shielded') || t === withoutCap.queue[i]),
   'every other event is the SAME event, in the same order — no hidden reroll', '');
 check(withCap.maxAlive === withoutCap.maxAlive && withCap.spawnRate === withoutCap.spawnRate,
   'cap and cadence are untouched — no hidden pressure increase', `${withCap.maxAlive}/${withCap.spawnRate}`);

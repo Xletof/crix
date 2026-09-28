@@ -6804,6 +6804,17 @@ export class GameScene extends Phaser.Scene {
     // Past the authored budget — a terminal surge, or a wave whose cap let it
     // outrun its list. Keep the encounter's identity rather than reverting to
     // the room soup mid-fight.
+    return this._rollEncounterFillType();
+  }
+
+  /**
+   * One enemy from the running encounter's FILL pool, or the room's ordinary
+   * roll without one. Never touches `_spawnQueue`: the authored queue belongs
+   * to the drip alone, which is what lets a surge happen mid-wave without
+   * stealing a token — a VANGUARD's Captain, or an opening shield — or
+   * reordering what the wave still owes.
+   */
+  _rollEncounterFillType() {
     const fill = this._encounter?.fill;
     if (fill?.length) return this.rng.waves.pick(fill);
     return this._rollEnemyType();
@@ -6846,7 +6857,10 @@ export class GameScene extends Phaser.Scene {
         if (!this.arenaActive) return;
         // Surges may briefly exceed the drip cap, but never runaway.
         if (this._livingEnemyCount() >= cfg.maxAlive + 4) return;
-        this.spawnAtGate(this._nextEncounterType(), this._nextEncounterGate());
+        // FILL, never the authored queue — see `_rollEncounterFillType`. A
+        // surge during a VANGUARD front hold used to shift the next token off
+        // the queue, which could be the Captain, past the staging.
+        this.spawnAtGate(this._rollEncounterFillType(), this._nextEncounterGate());
       });
     }
   }
