@@ -10,7 +10,7 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-09-25. Pages builds only from `FRIX`, so the live build is
+*Updated 2026-09-30. Pages builds only from `FRIX`, so the live build is
 whatever `FRIX` points at: check `git rev-parse HEAD origin/FRIX` rather than
 trusting a hash written here, and `git rev-parse --abbrev-ref HEAD` for the
 branch name. This line has named a stale branch three times — trust the
@@ -211,7 +211,7 @@ later Champions should copy.
 | Arc Grenade | targeting, radius 132, flight/arm/field/warn, drag, damage 46 / tick 420, cooldown 9000, the physical source device, its live core, hit response and `spent` shutdown — gameplay AND presentation closed |
 | damage presentation | authored INTACT / BROKEN / CRITICAL sheets per facing, directional physical damage, smoke and shorts from `CAPTAIN_DAMAGE_ANCHORS`, the reactive-armour absorption language |
 | punctuation | four reaction glyphs + the `glyph-throw` intent sign, in the ICE `PUNCT_PALETTE` (`#18264a` / `#8faeff` / `#e8f4ff`) |
-| scope | no variants, colourways, second signature or Nemesis replacement. His PRODUCTION PLACEMENT (`§10at`) is a separate layer and is a **CANDIDATE**, not part of this freeze; `?champdbg=1` still injects him anywhere for review |
+| scope | no variants, colourways, second signature or Nemesis replacement. His PRODUCTION PLACEMENT (`§10at`-`§10aw`) is a separate layer, now also **HUMAN-APPROVED / FROZEN 🔒** as Phase B (baseline `a3563a4`); `?champdbg=1` still injects him anywhere for review |
 
 **The step's history, kept because it explains WHY the final version exists:**
 v2 read as a water drop (expanding round shapes) → v3 as scribble (hairlines)
@@ -409,17 +409,17 @@ records, WITHOUT implementing any of it, the Regular → Elite → Champion →
 Commander → Vader hierarchy and the rule that Captain placement stays AUTHORED
 (no `championChance`, no random spawning).
 
-### THE ROSTER, PHASE B — CHAMPION INTEGRATION. **CROSSFIRE + CAPTAIN FROZEN 🔒; OPEN ONLY FOR THE VANGUARD OPENING**
+### THE ROSTER, PHASE B — CHAMPION INTEGRATION. **HUMAN-APPROVED / COMPLETE / FROZEN 🔒** (final gameplay baseline `a3563a4`)
 
 | layer | status |
 |---|---|
 | Shock Captain V1 | **HUMAN-APPROVED / FROZEN** (`6560c62`) |
 | **CROSSFIRE + Shock Captain** (late hangar, wave 3) | **HUMAN-APPROVED / FROZEN 🔒** — played repeatedly on `1b7c84d` |
-| VANGUARD + Shock Captain (mid hangar, wave 2) | **liked and RETAINED** — the Captain is not the problem |
-| VANGUARD close screen (`§10au`, hold 140 / resume 165) | **RETAINED** — it solved the ~290px flank stall it was built for |
-| VANGUARD opening front (`§10av`) | **RETAINED on handset** (`d3766eb`) — the opening works, the shields are effective |
-| VANGUARD reinforcement + surge fix (`§10aw`) | **CANDIDATE — NOT HUMAN-APPROVED**. The last open Phase B item |
-| Phase B integration as a whole | **OPEN** only for `§10aw`'s handset gate. Not frozen. |
+| VANGUARD + Shock Captain (mid hangar, wave 2) | **HUMAN-APPROVED / FROZEN 🔒** — hard but fair (`a3563a4`) |
+| VANGUARD close screen (`§10au`, hold 140 / resume 165) | **HUMAN-APPROVED / FROZEN 🔒** — it solved the ~290px flank stall it was built for |
+| VANGUARD opening front (`§10av`) | **HUMAN-APPROVED / FROZEN 🔒** — 2 openers / establish 200 / timeout 3000 / stall 7000 / lane 60 |
+| VANGUARD reinforcement + surge fix (`§10aw`) | **HUMAN-APPROVED / FROZEN 🔒** (`a3563a4`) — `shieldSlot: 5`, 4 guaranteed shields in 8 events; surge queue protection stays |
+| Phase B integration as a whole | **HUMAN-APPROVED / COMPLETE / FROZEN 🔒** — final gameplay baseline `a3563a4`. Final verdict: VANGUARD hard but fair, close footwork and flanking work, the extra shield preserves the formation without becoming shield spam, C remains excellent |
 
 **The handset verdicts, in order.** On `5a97fd4`: A (VANGUARD + Captain) fun,
 the Captain belongs in the formation; C (CROSSFIRE + Captain) more chaotic and
@@ -472,8 +472,8 @@ replacement.
 
 ### The recommended next area of work
 
-**Phase B Champion integration is open only for the VANGUARD reinforcement's
-handset gate** (above, `§10aw`). Beyond it, the next
+**Phase B Champion integration is CLOSED — human-approved and frozen on
+`a3563a4`** (above). The next
 direction comes from the human. The camera (`§21`), the four arenas, Phase A
 and Shock Captain V1 are all closed. What the Captain's closure unblocks
 besides placement is listed in his section above — the Elite hierarchy and
@@ -8194,7 +8194,7 @@ Step and closes Shock Captain V1 — §0 carries the frozen contract.
 
 ---
 
-## 10at. THE ROSTER, PHASE B — CHAMPION INTEGRATION. **PLACEMENT HUMAN-VALIDATED IN A AND C** (`5a97fd4`)
+## 10at. THE ROSTER, PHASE B — CHAMPION INTEGRATION. **HUMAN-APPROVED / FROZEN 🔒** (`5a97fd4`; Phase B final `a3563a4`)
 
 **Handset verdict, recorded after the pass below:** A (VANGUARD + Captain) —
 fun, he plays very well inside VANGUARD and belongs in the formation; keep the
@@ -8405,7 +8405,7 @@ turned up, none of them fixed here:
 
 ---
 
-## 10au. THE VANGUARD SCREEN — shields that close. **RETAINED on handset** (`1b7c84d`)
+## 10au. THE VANGUARD SCREEN — shields that close. **HUMAN-APPROVED / FROZEN 🔒** (`1b7c84d`; Phase B final `a3563a4`)
 
 **Verdict:** the 140px screen solved the problem it was built for — the human no
 longer met shields standing off at ~290px and being tedious to flank. Keep
@@ -8481,7 +8481,7 @@ play exactly as before.
 
 ---
 
-## 10av. THE VANGUARD FRONT — the opening sentence. **RETAINED on handset** (`d3766eb`)
+## 10av. THE VANGUARD FRONT — the opening sentence. **HUMAN-APPROVED / FROZEN 🔒** (`d3766eb`; Phase B final `a3563a4`)
 
 **Verdict:** the new opening works and the shields are effective; the fight is
 fun. What it exposed next — the shield identity fading once the opening pair
@@ -8567,7 +8567,7 @@ as good as before.
 
 ---
 
-## 10aw. THE VANGUARD REINFORCEMENT, and a surge that could steal the queue. **CANDIDATE — NOT HUMAN-APPROVED**
+## 10aw. THE VANGUARD REINFORCEMENT, and a surge that could steal the queue. **HUMAN-APPROVED / FROZEN 🔒** (`a3563a4`)
 
 **The evidence (`d3766eb`, handset A):** the opening front works, the fight is
 fun, and it felt somewhat light on shields — not too SHORT, but the VANGUARD

@@ -874,13 +874,14 @@ asserts separately that the ceiling is not reached.
   above ordinary enemies, a combatant not a device, humanoid and readable,
   tactically mobile, aggressive but fair, below Vader — and is NOT an ability
   template to copy. Still NO variants, NO colourways, NO second signature, NO
-  Nemesis replacement. His PRODUCTION PLACEMENT is a separate, CANDIDATE
-  layer (see the next bullet); the Elite hierarchy and Commander planning are
+  Nemesis replacement. His PRODUCTION PLACEMENT is a separate layer, also
+  HUMAN-APPROVED / FROZEN 🔒 as Phase B on `a3563a4` (see the next bullet); the Elite hierarchy and Commander planning are
   unblocked by his closure and NOT started. The phase names that run
   through the notes below (B.2.1, B.2.2, S1, CF.1/CF.2, §10am-§10as) are the
   HISTORY of how he got here, not open candidates.
-- **CHAMPION PLACEMENT IS AUTHORED, AND IT IS A CANDIDATE — `HANDOVER.md`
-  §10at. NOT HUMAN-APPROVED.** `CHAMPION_PLACEMENTS` in `encounters.js` is the
+- **CHAMPION PLACEMENT IS AUTHORED, AND IT IS HUMAN-APPROVED / FROZEN 🔒 —
+  `HANDOVER.md` §10at. PHASE B IS COMPLETE; FINAL GAMEPLAY BASELINE `a3563a4`
+  (Captain V1 baseline `6560c62`). Nothing moves without NEW handset evidence.** `CHAMPION_PLACEMENTS` in `encounters.js` is the
   only production door: a row names an arena, a band, a wave index and the
   archetype that cell already runs, and nothing else ever puts a Champion on
   the floor — no `championChance`, no roll, no promotion, no clock. **Do not
@@ -903,7 +904,7 @@ asserts separately that the ceiling is not reached.
   `?encdbg=1&room=&sector=&wave=` reaches any cell and `&nochamp=1` is the
   matched no-Captain baseline; both are inert without `encdbg`.
 - **THE VANGUARD SCREEN IS AN ENCOUNTER ROLE, NOT A NEW SHIELDED — `HANDOVER.md`
-  §10au. CANDIDATE.** `spawnAtGate` stamps `vanguardScreen: VANGUARD_SCREEN`
+  §10au. HUMAN-APPROVED / FROZEN 🔒 (`a3563a4`).** `spawnAtGate` stamps `vanguardScreen: VANGUARD_SCREEN`
   into the spawn spec when the token is a `shielded` drawn while VANGUARD is
   the running encounter — decided at DRAW time, not when the 600ms telegraph
   lands. `EnemyShielded` then closes to `holdPx` (140) and holds until the
@@ -917,7 +918,7 @@ asserts separately that the ceiling is not reached.
   blocked shots or slowing the turn. `?encdbg&noscreen=1` restores the old hold
   for an A/B and is inert without `encdbg`.
 - **QUEUE ORDER IS NOT BATTLEFIELD ORDER — the VANGUARD FRONT, `HANDOVER.md`
-  §10av. CANDIDATE.** A 600ms gate telegraph plus a ~616ms drip put the third
+  §10av. HUMAN-APPROVED / FROZEN 🔒 (`a3563a4`).** A 600ms gate telegraph plus a ~616ms drip put the third
   event ~0.6s behind the second shield, and the shield is the slowest body in
   the formation. `_vanguardFront` holds the drip after the two opening shield
   EVENTS until the two shield ACTORS establish (both within `establishPx`
@@ -931,7 +932,8 @@ asserts separately that the ceiling is not reached.
   HUMAN-APPROVED / FROZEN** and never arms it. **And `?encdbg&wave=N` omits the
   room's authored opening enemies** — a real wave 2 never has them, and keeping
   them handed every VANGUARD review five exposed bodies from second zero.
-- **A SURGE NEVER TOUCHES THE AUTHORED QUEUE — `HANDOVER.md` §10aw.** The drip
+- **A SURGE NEVER TOUCHES THE AUTHORED QUEUE — `HANDOVER.md` §10aw.
+  HUMAN-APPROVED / FROZEN 🔒 (`a3563a4`).** The drip
   is the only consumer of `_spawnQueue`; `triggerSurge` draws from
   `_rollEncounterFillType()` (the running encounter's fill, else the room
   roll). It used `_nextEncounterType()`, which SHIFTS the queue, and during a
