@@ -2,14 +2,15 @@
 // archetype wears. Presentation only: nothing here may touch hp, radius,
 // speed, AI or what spawns.
 //
-// Phase 1 of the roster redesign ships this EMPTY. Under `?roster=v1` a role
-// with no registered art falls back to legacy art, so the switch can exist
-// before the art does and a half-painted roster is never invisible.
+// Roles are registered by `PreloadScene` as their production art is painted
+// (`src/systems/rosterPaint.js`). Today that is the GUNNER (`shooter`) alone.
+// Under `?roster=v1` a role with no registered art falls back to legacy art,
+// so the rest of the roster stays exactly as it was while one role is judged.
 //
-// An entry, when the art lands, looks like:
+// An entry looks like:
 //   shooter: {
-//     regular: { tex: 'ro-gun-R', prefix: 'ro-gun-R', weapon: 'ro-w-gun-R' },
-//     elite:   { tex: 'ro-gun-E', prefix: 'ro-gun-E', weapon: 'ro-w-gun-E' },
+//     regular: { tex: 'ro-gun-R', prefix: 'ro-gun-R', weapon: 'ro-w-gun-R', weaponOrigin: [ox, oy] },
+//     elite:   { tex: 'ro-gun-E', prefix: 'ro-gun-E', weapon: 'ro-w-gun-E', weaponOrigin: [ox, oy] },
 //   }
 // Any field may be omitted; an omitted field keeps the legacy value.
 //
@@ -47,7 +48,18 @@ export function rosterArtFor(scene, type, elite = false) {
 export function wearRosterArt(enemy, art, bodyRadius) {
   enemy.anims?.stop();
   enemy.setTexture(art.tex);
-  if (art.prefix) enemy._animPrefix = art.prefix;
-  if (art.weapon && enemy.weaponSprite) enemy.weaponSprite.setTexture(art.weapon);
+  if (art.prefix) {
+    // The hp bar's colour is read off the PREFIX in the frozen base class
+    // (`'shooter'` is the cyan bar). Remember the one it had, so the bar keeps
+    // its legacy colour — see `EnemyShooter.updateHpBar`.
+    enemy._barPrefix ??= enemy._animPrefix;
+    enemy._animPrefix = art.prefix;
+  }
+  if (art.weapon && enemy.weaponSprite) {
+    enemy.weaponSprite.setTexture(art.weapon);
+    // Presentation only: where the drawn gun sits on the aim line the base
+    // class places it on. The bolt's spawn point is not read from here.
+    if (art.weaponOrigin) enemy.weaponSprite.setOrigin(art.weaponOrigin[0], art.weaponOrigin[1]);
+  }
   enemy.body.setCircle(bodyRadius, enemy.width / 2 - bodyRadius, enemy.height / 2 - bodyRadius);
 }

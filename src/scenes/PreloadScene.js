@@ -76,6 +76,8 @@ import {
   paintBustVader,
   paintNemesisBrute, paintNemesisDemolisher, paintNemesisMarksman,
 } from '../systems/pixelArt.js';
+import { paintRosterGunner } from '../systems/rosterPaint.js';
+import { registerRosterArt } from '../data/rosterArt.js';
 
 // All textures are programmatically painted. No external assets needed.
 
@@ -89,6 +91,9 @@ export class PreloadScene extends Phaser.Scene {
     paintPlayer(this);
     paintGrunt(this);
     paintShooter(this);
+    // ROSTER v1 (`?roster=v1`): production art for the redesigned roster, on
+    // NEW keys. The legacy sheets above keep painting exactly as before.
+    registerRosterArt('shooter', paintRosterGunner(this));
     // PHASE B CANDIDATE — the first Champion. See CHAMPION in config.js.
     paintInterdictor(this);
     // PHASE B.1 CANDIDATE — the Harrower. Driven frame-by-frame by its actor
@@ -272,6 +277,8 @@ export class PreloadScene extends Phaser.Scene {
       { key: 'nemdemo',  tex: 'nem-demo' },
       { key: 'nemmarks', tex: 'nem-marks' },
       { key: 'interdictor', tex: 'champ-interdictor' },
+      { key: 'ro-gun-R', tex: 'ro-gun-R' },
+      { key: 'ro-gun-E', tex: 'ro-gun-E' },
     ];
 
     for (const c of chars) {
@@ -337,6 +344,8 @@ export class PreloadScene extends Phaser.Scene {
       { key: 'nemdemo',  tex: 'nem-demo' },
       { key: 'nemmarks', tex: 'nem-marks' },
       { key: 'interdictor', tex: 'champ-interdictor' },
+      { key: 'ro-gun-R', tex: 'ro-gun-R' },
+      { key: 'ro-gun-E', tex: 'ro-gun-E' },
     ];
     for (const c of posed) {
       poseDirs.forEach((dirName, di) => {

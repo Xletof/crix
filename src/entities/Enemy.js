@@ -982,6 +982,19 @@ export class EnemyShooter extends Enemy {
       .setDepth(this.depth + 1).setOrigin(0.15, 0.5).setScale(1.0);
   }
 
+  // The base class colours the hp bar off `_animPrefix === 'shooter'` — a UI
+  // read keyed on an ART NAME, inside the frozen base class. `?roster=v1` art
+  // changes the prefix, so a body that wore `shooter` answers for it while the
+  // bar is drawn (`_barPrefix`, set by `wearRosterArt`). Unset, this is the
+  // base method exactly.
+  updateHpBar() {
+    if (!this._barPrefix) { super.updateHpBar(); return; }
+    const own = this._animPrefix;
+    this._animPrefix = this._barPrefix;
+    super.updateHpBar();
+    this._animPrefix = own;
+  }
+
   preUpdate(time, delta) {
     super.preUpdate(time, delta);
     if (!this.alive) return;

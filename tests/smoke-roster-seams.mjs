@@ -150,7 +150,10 @@ check(legacy.anims.grunt === 18 && legacy.anims.shooter === 18 && JSON.stringify
 const want = { grunt: true, 'grunt+E': true, shooter: false, 'shooter+E': false, shielded: false, sniper: false };
 for (const [k, v] of Object.entries(want)) check(legacy.units[k].play.rusher === v, `_isRusher on ${k} is ${v}`, String(legacy.units[k].play.rusher));
 
-// ── V1 (no new assets yet: must fall back to legacy art, and change NO gameplay) ──
+// ── V1: change NO gameplay; roles without production art fall back to legacy ──
+// Phase 2A gave the GUNNER (`shooter`) its production art; its presentation is
+// checked in `smoke-roster-gunner`. Every other role still falls back.
+const V1_ROLES = { shooter: 'ro-gun-R', 'shooter+E': 'ro-gun-E' };
 const pV = await boot('?nodlg=1&nofreeze=1&roster=v1');
 const v1 = await pV.evaluate(PROBE);
 const flags = await pV.evaluate(async () => {
@@ -161,12 +164,14 @@ const flags = await pV.evaluate(async () => {
 check(flags.roster === 'v1', '?roster=v1 sets the roster flag', JSON.stringify(flags));
 for (const k of Object.keys(legacy.units)) {
   check(JSON.stringify(legacy.units[k].play) === JSON.stringify(v1.units[k].play), `v1 ${k}: gameplay identical to legacy`, `${JSON.stringify(v1.units[k].play)}`);
-  check(JSON.stringify(legacy.units[k].look) === JSON.stringify(v1.units[k].look), `v1 ${k}: no v1 art registered yet, so presentation falls back to legacy`, JSON.stringify(v1.units[k].look));
+  if (V1_ROLES[k]) check(v1.units[k].look.tex === V1_ROLES[k], `v1 ${k}: wears its production art (${V1_ROLES[k]})`, JSON.stringify(v1.units[k].look));
+  else check(JSON.stringify(legacy.units[k].look) === JSON.stringify(v1.units[k].look), `v1 ${k}: no v1 art registered, so presentation falls back to legacy`, JSON.stringify(v1.units[k].look));
 }
 check(JSON.stringify(v1.behaviour) === JSON.stringify(legacy.behaviour), 'v1 rusher behaviour identical', JSON.stringify(v1.behaviour));
 
 // ── V1 elite presentation PATH, exercised with a stand-in texture ────────────
-// No production elite art exists yet, so register a throwaway 96x104 texture in
+// The generic path, on a role WITHOUT production art (grunt — the Gunner's own
+// is covered by smoke-roster-gunner): register a throwaway 96x104 texture in
 // the game's OWN registry instance and prove: scale 1, no tint, texture used,
 // body centred, and the PHYSICS footprint identical to legacy.
 const elitePath = await pV.evaluate(async () => {
@@ -175,8 +180,8 @@ const elitePath = await pV.evaluate(async () => {
   if (!url) return { err: 'rosterArt module not loaded' };
   const ra = await import(url);
   const c = gs.textures.createCanvas('test-elite-shooter', 96, 104); c.context.fillStyle = '#888'; c.context.fillRect(20, 10, 56, 90); c.refresh();
-  ra.registerRosterArt('shooter', { elite: { tex: 'test-elite-shooter' } });
-  const e = gs.spawnEnemyAt('shooter', 700, 700, { elite: true }); e.body.updateFromGameObject();
+  ra.registerRosterArt('grunt', { elite: { tex: 'test-elite-shooter' } });
+  const e = gs.spawnEnemyAt('grunt', 700, 700, { elite: true }); e.body.updateFromGameObject();
   const r = {
     tex: e.texture.key, scale: e.scaleX, baseScale: e._baseScale, tint: e.tintTopLeft,
     radius: e.cfg.radius, bodyW: e.body.width, bodyHalf: e.body.halfWidth,
@@ -190,14 +195,13 @@ const elitePath = await pV.evaluate(async () => {
   // squash parity: the legacy body breathes with the 1.4 render scale; v1 must breathe identically
   e.setScale(0.9); e.body.updateFromGameObject(); r.bodyWSquash = e.body.width; e.setScale(1);
   // a nemesis must stay on legacy presentation even with v1 art registered
-  ra.registerRosterArt('grunt', { elite: { tex: 'test-elite-shooter' } });
   const n = gs._spawnMiniBoss();
   r.nemesis = { tex: n.texture.key, scale: +n.scaleX.toFixed(3), tinted: n.tintTopLeft !== 0xffffff };
-  ra.registerRosterArt('grunt', null); ra.registerRosterArt('shooter', null);
+  ra.registerRosterArt('grunt', null);
   gs._destroyEnemyFully(e); gs._destroyEnemyFully(n);
   return r;
 });
-const le = legacy.units['shooter+E'].play;
+const le = legacy.units['grunt+E'].play;
 check(!elitePath.err, 'rosterArt module is part of the running game', elitePath.err);
 check(elitePath.tex === 'test-elite-shooter' && elitePath.scale === 1 && elitePath.baseScale === 1 && elitePath.tint === 0xffffff,
   'v1 elite with art: dedicated texture, render scale 1.0, NO gold tint', JSON.stringify(elitePath));

@@ -1,0 +1,242 @@
+[
+ {
+  "tier": "REGULAR v1",
+  "aim": "E 0°",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 72
+ },
+ {
+  "tier": "REGULAR v1",
+  "aim": "SE",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 72
+ },
+ {
+  "tier": "REGULAR v1",
+  "aim": "S",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 72
+ },
+ {
+  "tier": "REGULAR v1",
+  "aim": "SW",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 72
+ },
+ {
+  "tier": "REGULAR v1",
+  "aim": "W 180°",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 72
+ },
+ {
+  "tier": "REGULAR v1",
+  "aim": "NW",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 72
+ },
+ {
+  "tier": "REGULAR v1",
+  "aim": "N",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 72
+ },
+ {
+  "tier": "REGULAR v1",
+  "aim": "NE",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 72
+ },
+ {
+  "tier": "ELITE v1",
+  "aim": "E 0°",
+  "radius": 30,
+  "pivot": 26,
+  "spawn": 34,
+  "boltHeadAtSpawn": 67.9,
+  "firstRenderHead": 79.5,
+  "muzzle": 80
+ },
+ {
+  "tier": "ELITE v1",
+  "aim": "SE",
+  "radius": 30,
+  "pivot": 26,
+  "spawn": 34,
+  "boltHeadAtSpawn": 67.9,
+  "firstRenderHead": 79.5,
+  "muzzle": 80
+ },
+ {
+  "tier": "ELITE v1",
+  "aim": "S",
+  "radius": 30,
+  "pivot": 26,
+  "spawn": 34,
+  "boltHeadAtSpawn": 67.9,
+  "firstRenderHead": 79.5,
+  "muzzle": 80
+ },
+ {
+  "tier": "ELITE v1",
+  "aim": "SW",
+  "radius": 30,
+  "pivot": 26,
+  "spawn": 34,
+  "boltHeadAtSpawn": 67.9,
+  "firstRenderHead": 79.5,
+  "muzzle": 80
+ },
+ {
+  "tier": "ELITE v1",
+  "aim": "W 180°",
+  "radius": 30,
+  "pivot": 26,
+  "spawn": 34,
+  "boltHeadAtSpawn": 67.9,
+  "firstRenderHead": 79.5,
+  "muzzle": 80
+ },
+ {
+  "tier": "ELITE v1",
+  "aim": "NW",
+  "radius": 30,
+  "pivot": 26,
+  "spawn": 34,
+  "boltHeadAtSpawn": 67.9,
+  "firstRenderHead": 79.5,
+  "muzzle": 80
+ },
+ {
+  "tier": "ELITE v1",
+  "aim": "N",
+  "radius": 30,
+  "pivot": 26,
+  "spawn": 34,
+  "boltHeadAtSpawn": 67.9,
+  "firstRenderHead": 79.5,
+  "muzzle": 80
+ },
+ {
+  "tier": "ELITE v1",
+  "aim": "NE",
+  "radius": 30,
+  "pivot": 26,
+  "spawn": 34,
+  "boltHeadAtSpawn": 67.9,
+  "firstRenderHead": 79.5,
+  "muzzle": 80
+ },
+ {
+  "tier": "LEGACY regular (reference)",
+  "aim": "E 0°",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 79.2
+ },
+ {
+  "tier": "LEGACY regular (reference)",
+  "aim": "SE",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 79.2
+ },
+ {
+  "tier": "LEGACY regular (reference)",
+  "aim": "S",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 79.2
+ },
+ {
+  "tier": "LEGACY regular (reference)",
+  "aim": "SW",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 79.2
+ },
+ {
+  "tier": "LEGACY regular (reference)",
+  "aim": "W 180°",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 79.2
+ },
+ {
+  "tier": "LEGACY regular (reference)",
+  "aim": "NW",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 79.2
+ },
+ {
+  "tier": "LEGACY regular (reference)",
+  "aim": "N",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 79.2
+ },
+ {
+  "tier": "LEGACY regular (reference)",
+  "aim": "NE",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "boltHeadAtSpawn": 59.9,
+  "firstRenderHead": 71.5,
+  "muzzle": 79.2
+ }
+]
