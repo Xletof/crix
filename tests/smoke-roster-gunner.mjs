@@ -85,7 +85,7 @@ const UNIT = () => {
       },
       look: {
         tex: e.texture.key, prefix: e._animPrefix, scale: +e.scaleX.toFixed(4), baseScale: e._baseScale,
-        tint: e.tintTopLeft, tinted: e.isTinted, weapon: e.weaponSprite?.texture?.key ?? null,
+        tint: e.tintTopLeft, tinted: e.isTinted, weapon: e.weaponSprite?.texture?.key ?? null, weaponVis: e.weaponSprite?.visible ?? null,
         wOrigin: e.weaponSprite ? [+e.weaponSprite.originX.toFixed(4), +e.weaponSprite.originY.toFixed(4)] : null,
         fireCd: e.cfg.fireCooldownMs, bSpeed: e.cfg.bulletSpeed, bDmg: e.cfg.bulletDamage, bRange: e.cfg.bulletRange,
       },
@@ -114,8 +114,8 @@ const strip = ({ rusher, ...p }) => p;
 // 6. legacy is 88e9b89
 for (const [k, h] of [['R', 'shooter'], ['E', 'shooter+E']]) {
   check(JSON.stringify(strip(hist.units[h].play)) === JSON.stringify(strip(L[k].play)), `6. legacy Gunner ${k}: gameplay identical to 88e9b89`, JSON.stringify(L[k].play));
-  const { tinted, wOrigin, fireCd, bSpeed, bDmg, bRange, ...look } = L[k].look;
-  check(JSON.stringify(hist.units[h].look) === JSON.stringify(look), `6. legacy Gunner ${k}: presentation identical to 88e9b89`, JSON.stringify(look));
+  const look = Object.fromEntries(Object.keys(hist.units[h].look).map((q) => [q, L[k].look[q]]));
+  check(JSON.stringify(hist.units[h].look) === JSON.stringify(look), `6. legacy Gunner ${k}: presentation identical to 88e9b89`, `${JSON.stringify(hist.units[h].look)} vs ${JSON.stringify(look)}`);
 }
 check(JSON.stringify(L.R.look.wOrigin) === '[0.15,0.5]' && JSON.stringify(L.E.look.wOrigin) === '[0.15,0.5]', '6. legacy Gunner weapon origin is still (0.15, 0.5)', JSON.stringify(L.R.look.wOrigin));
 // 1-3. v1 art
@@ -366,16 +366,20 @@ async function crossfire(q) {
     const id = (e) => { if (!ids.has(e)) ids.set(e, nid++); return ids.get(e); };
     const shots = [], snaps = [];
     let tick = 0;
-    gs.events.on('shooter-fire', (s, a) => {
-      if (s.enemyType !== 'shooter') return;
-      shots.push({ tick, id: id(s), elite: !!s._elite, tex: s.texture.key, ang: +a.toFixed(6), x: +s.x.toFixed(3), y: +s.y.toFixed(3), r: s.cfg.radius });
-    });
+    // The scene's own `shooter-fire` handler was registered first, so it has
+    // already fired the bolt when this listener runs: the wrapper parks the
+    // bolt it just saw and the listener claims it for the shot it belongs to.
+    let parked = null;
     const fire = gs.enemyBullets.fire.bind(gs.enemyBullets);
     gs.enemyBullets.fire = (x, y, ang, speed, dmg, range, opts) => {
-      const last = shots[shots.length - 1];
-      if (last && last.tick === tick && last.bx === undefined) Object.assign(last, { bx: +x.toFixed(3), by: +y.toFixed(3), speed, dmg, range });
+      parked = { bx: +x.toFixed(3), by: +y.toFixed(3), speed, dmg, range };
       return fire(x, y, ang, speed, dmg, range, opts);
     };
+    gs.events.on('shooter-fire', (s, a) => {
+      const bolt = parked; parked = null;
+      if (s.enemyType !== 'shooter') return;
+      shots.push({ tick, id: id(s), elite: !!s._elite, tex: s.texture.key, ang: +a.toFixed(6), x: +s.x.toFixed(3), y: +s.y.toFixed(3), r: s.cfg.radius, ...bolt });
+    });
     const k = gs.keys;
     for (; tick < 900; tick++) {
       const ph = Math.floor(tick / 90) % 4;
@@ -404,9 +408,11 @@ check(sameShots && cL.shots.length > 10, `11. fire cadence: the same ${cV.shots.
 const eliteShots = cV.shots.filter((s) => s.tex === 'ro-gun-E').length, regShots = cV.shots.filter((s) => s.tex === 'ro-gun-R').length;
 check(eliteShots > 0 && regShots > 0, `11. (not vacuous) v1 shots came from both production tiers: ${regShots} regular, ${eliteShots} elite`, JSON.stringify(cV.tex));
 const badBolt = cV.shots.filter((s, i) => s.bx === undefined || s.speed !== cL.shots[i]?.speed || s.dmg !== cL.shots[i]?.dmg || s.range !== cL.shots[i]?.range);
-const spawnOff = cV.shots.filter((s) => Math.abs(Math.hypot(s.bx - s.x, s.by - s.y) - (s.r + 4)) > 1e-3);
+// positions are recorded to 3 decimals, so the tolerance is the rounding's
+const spawnOff = cV.shots.filter((s) => Math.abs(Math.hypot(s.bx - s.x, s.by - s.y) - (s.r + 4)) > 0.01
+  || Math.abs(Math.atan2(s.by - s.y, s.bx - s.x) - s.ang) > 1e-3);
 check(!badBolt.length, `12. every v1 Gunner bolt has the legacy speed / damage / range (${[...new Set(cV.shots.map((s) => `${s.speed}px/s ${s.dmg}dmg ${s.range}px`))].join(', ')})`, JSON.stringify(badBolt.slice(0, 2)));
-check(!spawnOff.length, '13. every v1 Gunner bolt spawned exactly cfg.radius + 4 from its body (26 regular / 34 elite)', JSON.stringify(spawnOff.slice(0, 2)));
+check(!spawnOff.length, '13. every v1 Gunner bolt spawned cfg.radius + 4 from its body along the fire angle (26 regular / 34 elite)', JSON.stringify(spawnOff.slice(0, 2)));
 check(cV.kills > 0, `(not vacuous) the window contains kills: ${cV.kills}`, '');
 
 // ── 15/16. the Captain and the Enemy base class are byte-identical ─────────

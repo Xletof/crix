@@ -448,9 +448,11 @@ async function controlled() {
   await quietRoom(page);
   await page.evaluate(() => {
     const gs = window.__gs, cam = gs.cameras.main;
-    const X0 = 520, Y0 = 520, DX = 330, DY = 330;
+    // each actor walks a ~150px square east-then-south from its start, so the
+    // columns are spaced to keep the four squares apart and inside the frame
+    const X0 = 400, Y0 = 470, DX = 280, DY = 300;
     const P = gs.player; P.setPosition(X0 + 160, Y0 + 1200); P.body.reset(P.x, P.y); P.setVisible(false); P.weaponSprite?.setVisible(false);
-    cam.setScroll(X0 - 195, Y0 - 300);
+    cam.setScroll(X0 - 200, Y0 - 250);
     const who = [['LEGACY regular', { legacyArt: true }, false, 0, 0], ['v1 REGULAR', {}, false, 1, 0], ['LEGACY elite', { legacyArt: true }, true, 0, 1], ['v1 ELITE', { elite: true }, false, 1, 1]];
     const actors = [];
     for (const [name, spec, legacyElite, cx, cy] of who) {
@@ -460,7 +462,7 @@ async function controlled() {
       const enemyProto = Object.getPrototypeOf(Object.getPrototypeOf(e));
       e.preUpdate = function (t, d) { enemyProto.preUpdate.call(this, t, d); };    // presentation only — the script drives
       e.body.reset(x, y);
-      gs.add.text(x, y - 150, name, { fontFamily: 'monospace', fontSize: '14px', color: '#e4e7ee', backgroundColor: '#000a', padding: { x: 4, y: 2 } }).setOrigin(0.5).setDepth(9999);
+      gs.add.text(x + 75, y - 95, name, { fontFamily: 'monospace', fontSize: '14px', color: '#e4e7ee', backgroundColor: '#000a', padding: { x: 4, y: 2 } }).setOrigin(0.5).setDepth(9999);
       actors.push({ e, x, y });
     }
     // walk a square (E, S, W, N), stopping to fire twice at each corner along the
@@ -475,7 +477,9 @@ async function controlled() {
       const b = beats[bi % beats.length];
       for (const { e } of actors) {
         e._aim = b.ang;
-        const v = b.kind === 'walk' ? e.cfg.speed : 0;
+        // the archetype's own speed with the room modifier taken back off, so
+        // the stride is judged against the speed it was drawn for
+        const v = b.kind === 'walk' ? e.cfg.speed / (gs.arenaCfg?.speedMult || 1) : 0;
         e.setVelocity(Math.cos(b.ang) * v, Math.sin(b.ang) * v);
         if (b.kind === 'warn' && left === b.ms) e.weaponSprite.setTint(0xff6010);
         if (b.kind === 'fire' && !fired) { e.weaponSprite.clearTint(); e.recoilT = 100; e._fireAnimTimer = 180; gs.fireShooter(e, b.ang); }
