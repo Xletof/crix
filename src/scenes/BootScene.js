@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import {
   setDialogueMuted, setDuelRequest, parseDuelParams, setHitstopMuted, setMoveNamesMuted,
   setEncDebug, setEncForce, parseEncDebugParams, setChampDebug, setChampWhich, setChampPlacementOff, setVanguardScreenOff, setVanguardFrontOff,
-  setCapTel,
+  setCapTel, setRosterVersion, setShowColliders,
 } from '../systems/debug.js';
 import { ENCOUNTERS } from '../data/encounters.js';
 import { CAMERA } from '../config.js';
@@ -22,6 +22,11 @@ export class BootScene extends Phaser.Scene {
     if (params.has('nodlg')) setDialogueMuted(true);
     // `?nofreeze=1` mutes hitstop. Harnesses only — see systems/debug.js.
     if (params.has('nofreeze')) setHitstopMuted(true);
+    // `?roster=v1` selects the redesigned roster PRESENTATION (legacy is the
+    // default); `?colliders=1` draws enemy physics footprints. Both are
+    // presentation/diagnostic only — see systems/debug.js.
+    if (params.get('roster') === 'v1') setRosterVersion('v1');
+    if (params.has('colliders')) setShowColliders(true);
     // `?nonames=1` hides Vader's ATTACK-NAME callouts, and only those, so a
     // reviewer can judge whether each move reads without its label.
     if (params.has('nonames')) setMoveNamesMuted(true);

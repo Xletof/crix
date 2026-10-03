@@ -262,3 +262,26 @@ let capTel = false;
 
 export function isCapTel() { return capTel; }
 export function setCapTel(v) { capTel = !!v; }
+
+// ── Roster visual A/B (`?roster=v1`) ──────────────────────────────────────
+//
+// The Regular/Elite roster redesign arrives behind this switch. It selects
+// PRESENTATION ONLY — body sheets, weapon overlays, elite presentation and the
+// Bulwark field renderer — and never AI, hp, radius, speed, encounters or
+// rewards. Absent, the game is the legacy roster exactly (`smoke-roster-seams`
+// compares it against a fixture captured from `88e9b89`). Present, any role
+// without registered v1 art still falls back to legacy art, so this flag can
+// ship before the art does.
+let rosterVersion = 'legacy';
+export function getRosterVersion() { return rosterVersion; }
+export function setRosterVersion(v) { rosterVersion = v === 'v1' ? 'v1' : 'legacy'; }
+export function isRosterV1() { return rosterVersion === 'v1'; }
+
+// `?colliders=1` draws every enemy's PHYSICS footprint (body circle, which
+// Arcade scales with the sprite) and its BULLET hit radius (`cfg.radius`). It
+// exists so a handset reviewer can judge art-to-hitbox honesty when v1 elite
+// art renders at 1.0 while keeping the historical collider. Nothing is built
+// without the flag.
+let showColliders = false;
+export function isShowColliders() { return showColliders; }
+export function setShowColliders(v) { showColliders = !!v; }

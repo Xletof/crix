@@ -971,6 +971,12 @@ export class EnemyShooter extends Enemy {
     this.flankTarget  = null;
     this.flankHoldMs  = 0;
     this.role         = spec.role || 'suppress'; // 'suppress' | 'flanker'
+    // RUSHER is a gameplay role, not an art key. It used to be inferred from
+    // `_animPrefix === 'grunt'`, which tied AI to a sprite sheet name; the
+    // roster redesign gives each role its own sheet. EnemyGrunt (and so bomber
+    // and swarmling) sets it true; a nemesis grunt is set false explicitly in
+    // `_wearNemesisBody`, which is what its `nembrute` prefix always meant.
+    this._isRusher    = false;
     // Heavy DT-29 blaster overlay
     this.weaponSprite = scene.add.image(x, y, 'wpn-enemy-rifle')
       .setDepth(this.depth + 1).setOrigin(0.15, 0.5).setScale(1.0);
@@ -1338,7 +1344,7 @@ export class EnemyShooter extends Enemy {
     const dist = Math.hypot(dx, dy);
     const toPlayer = Math.atan2(dy, dx);
 
-    const isRusher = this._animPrefix === 'grunt';
+    const isRusher = this._isRusher;
     const near     = isRusher ? SWARM_RUSH_RANGE : SWARM_HOLD_RANGE;
     const speed    = this.cfg.speed * (isRusher ? 1.2 : 1.0);
 
@@ -1408,6 +1414,7 @@ export class EnemyGrunt extends EnemyShooter {
     this.hp  = this.cfg.hp;
     this.hpMax = this.cfg.hp;
     this._animPrefix = 'grunt';
+    this._isRusher = true;
     // Recompute the body circle — the base ctor sized it from the 'shooter'
     // texture before setTexture('grunt') changed our frame dimensions.
     this.body.setCircle(
@@ -1627,7 +1634,12 @@ export class EnemyShielded extends EnemyShooter {
     return Math.abs(Phaser.Math.Angle.Wrap(impactSide - this._shieldFacing)) < this._shieldHalfArc;
   }
 
-  onBlock() { this._shieldFlash = 150; }
+  // PRESENTATION SEAM (roster Phase 1). The scene hands over where the blocked
+  // bolt — or a piercing Super — crossed the visible field (see
+  // systems/shieldContact.js). Recorded only: the legacy arc ignores it, and
+  // the block decision was already made before either is called.
+  onBlock(contact = null) { this._shieldFlash = 150; this._lastBlockContact = contact; }
+  onPierce(contact = null) { this._lastPierceContact = contact; }
 
   _tickSwarm(delta, player) {
     this.lastKnownX = player.x;

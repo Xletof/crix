@@ -1,0 +1,340 @@
+{
+ "units": {
+  "grunt": {
+   "play": {
+    "hp": 320,
+    "hpMax": 320,
+    "radius": 22,
+    "speed": 294.40000000000003,
+    "bodyW": 44,
+    "bodyHalf": 22,
+    "bodyDx": 0,
+    "bodyDy": 0,
+    "gunDist": 18,
+    "muzzleDist": 26,
+    "shieldHalf": null,
+    "shieldTurn": null,
+    "elite": false,
+    "rusher": null
+   },
+   "look": {
+    "tex": "grunt",
+    "prefix": "grunt",
+    "scale": 1,
+    "baseScale": 1,
+    "tint": 16777215,
+    "weapon": "wpn-enemy-rifle",
+    "weaponVis": true
+   }
+  },
+  "grunt+E": {
+   "play": {
+    "hp": 800,
+    "hpMax": 800,
+    "radius": 30,
+    "speed": 264.96,
+    "bodyW": 84,
+    "bodyHalf": 42,
+    "bodyDx": 0,
+    "bodyDy": 0,
+    "gunDist": 26,
+    "muzzleDist": 34,
+    "shieldHalf": null,
+    "shieldTurn": null,
+    "elite": true,
+    "rusher": null
+   },
+   "look": {
+    "tex": "grunt",
+    "prefix": "grunt",
+    "scale": 1.4,
+    "baseScale": 1.4,
+    "tint": 16764992,
+    "weapon": "wpn-enemy-rifle",
+    "weaponVis": true
+   }
+  },
+  "shooter": {
+   "play": {
+    "hp": 450,
+    "hpMax": 450,
+    "radius": 22,
+    "speed": 243.20000000000002,
+    "bodyW": 44,
+    "bodyHalf": 22,
+    "bodyDx": 0,
+    "bodyDy": 0,
+    "gunDist": 18,
+    "muzzleDist": 26,
+    "shieldHalf": null,
+    "shieldTurn": null,
+    "elite": false,
+    "rusher": null
+   },
+   "look": {
+    "tex": "shooter",
+    "prefix": "shooter",
+    "scale": 1,
+    "baseScale": 1,
+    "tint": 16777215,
+    "weapon": "wpn-enemy-rifle",
+    "weaponVis": true
+   }
+  },
+  "shooter+E": {
+   "play": {
+    "hp": 1125,
+    "hpMax": 1125,
+    "radius": 30,
+    "speed": 218.88,
+    "bodyW": 84,
+    "bodyHalf": 42,
+    "bodyDx": 0,
+    "bodyDy": 0,
+    "gunDist": 26,
+    "muzzleDist": 34,
+    "shieldHalf": null,
+    "shieldTurn": null,
+    "elite": true,
+    "rusher": null
+   },
+   "look": {
+    "tex": "shooter",
+    "prefix": "shooter",
+    "scale": 1.4,
+    "baseScale": 1.4,
+    "tint": 16764992,
+    "weapon": "wpn-enemy-rifle",
+    "weaponVis": true
+   }
+  },
+  "shielded": {
+   "play": {
+    "hp": 560,
+    "hpMax": 560,
+    "radius": 24,
+    "speed": 179.20000000000002,
+    "bodyW": 48,
+    "bodyHalf": 24,
+    "bodyDx": 0,
+    "bodyDy": 0,
+    "gunDist": 20,
+    "muzzleDist": 28,
+    "shieldHalf": 1.35,
+    "shieldTurn": 2.6,
+    "elite": false,
+    "rusher": null
+   },
+   "look": {
+    "tex": "shooter",
+    "prefix": "shooter",
+    "scale": 1,
+    "baseScale": 1,
+    "tint": 10466008,
+    "weapon": "wpn-enemy-rifle",
+    "weaponVis": true
+   }
+  },
+  "shielded+E": {
+   "play": {
+    "hp": 1400,
+    "hpMax": 1400,
+    "radius": 33,
+    "speed": 161.28,
+    "bodyW": 92.39999999999999,
+    "bodyHalf": 46,
+    "bodyDx": -0.2,
+    "bodyDy": -0.2,
+    "gunDist": 29,
+    "muzzleDist": 37,
+    "shieldHalf": 1.35,
+    "shieldTurn": 2.6,
+    "elite": true,
+    "rusher": null
+   },
+   "look": {
+    "tex": "shooter",
+    "prefix": "shooter",
+    "scale": 1.4,
+    "baseScale": 1.4,
+    "tint": 16764992,
+    "weapon": "wpn-enemy-rifle",
+    "weaponVis": true
+   }
+  },
+  "sniper": {
+   "play": {
+    "hp": 260,
+    "hpMax": 260,
+    "radius": 22,
+    "speed": 192,
+    "bodyW": 44,
+    "bodyHalf": 22,
+    "bodyDx": 0,
+    "bodyDy": 0,
+    "gunDist": 18,
+    "muzzleDist": 26,
+    "shieldHalf": null,
+    "shieldTurn": null,
+    "elite": false,
+    "rusher": null
+   },
+   "look": {
+    "tex": "shooter",
+    "prefix": "shooter",
+    "scale": 1,
+    "baseScale": 1,
+    "tint": 12607743,
+    "weapon": "wpn-enemy-rifle",
+    "weaponVis": true
+   }
+  },
+  "sniper+E": {
+   "play": {
+    "hp": 650,
+    "hpMax": 650,
+    "radius": 30,
+    "speed": 172.8,
+    "bodyW": 84,
+    "bodyHalf": 42,
+    "bodyDx": 0,
+    "bodyDy": 0,
+    "gunDist": 26,
+    "muzzleDist": 34,
+    "shieldHalf": null,
+    "shieldTurn": null,
+    "elite": true,
+    "rusher": null
+   },
+   "look": {
+    "tex": "shooter",
+    "prefix": "shooter",
+    "scale": 1.4,
+    "baseScale": 1.4,
+    "tint": 16764992,
+    "weapon": "wpn-enemy-rifle",
+    "weaponVis": true
+   }
+  },
+  "bomber": {
+   "play": {
+    "hp": 200,
+    "hpMax": 200,
+    "radius": 20,
+    "speed": 384,
+    "bodyW": 40,
+    "bodyHalf": 20,
+    "bodyDx": 0,
+    "bodyDy": 0,
+    "gunDist": 16,
+    "muzzleDist": 24,
+    "shieldHalf": null,
+    "shieldTurn": null,
+    "elite": false,
+    "rusher": null
+   },
+   "look": {
+    "tex": "grunt",
+    "prefix": "grunt",
+    "scale": 1,
+    "baseScale": 1,
+    "tint": 16738867,
+    "weapon": "wpn-enemy-rifle",
+    "weaponVis": false
+   }
+  },
+  "bomber+E": {
+   "play": {
+    "hp": 500,
+    "hpMax": 500,
+    "radius": 27,
+    "speed": 345.6,
+    "bodyW": 75.6,
+    "bodyHalf": 37,
+    "bodyDx": -0.8,
+    "bodyDy": -0.8,
+    "gunDist": 23,
+    "muzzleDist": 31,
+    "shieldHalf": null,
+    "shieldTurn": null,
+    "elite": true,
+    "rusher": null
+   },
+   "look": {
+    "tex": "grunt",
+    "prefix": "grunt",
+    "scale": 1.4,
+    "baseScale": 1.4,
+    "tint": 16764992,
+    "weapon": "wpn-enemy-rifle",
+    "weaponVis": false
+   }
+  },
+  "swarmling": {
+   "play": {
+    "hp": 60,
+    "hpMax": 60,
+    "radius": 13,
+    "speed": 361,
+    "bodyW": 18.2,
+    "bodyHalf": 9,
+    "bodyDx": -0.1,
+    "bodyDy": -0.1,
+    "gunDist": 9,
+    "muzzleDist": 17,
+    "shieldHalf": null,
+    "shieldTurn": null,
+    "elite": false,
+    "rusher": null
+   },
+   "look": {
+    "tex": "grunt",
+    "prefix": "grunt",
+    "scale": 0.7,
+    "baseScale": 0.7,
+    "tint": 7399480,
+    "weapon": "wpn-enemy-rifle",
+    "weaponVis": false
+   }
+  }
+ },
+ "behaviour": {
+  "grunt": "closes",
+  "shooter": "holds",
+  "shielded": "holds",
+  "bomber": "closes",
+  "swarmling": "closes",
+  "grunt+E": "closes",
+  "nemesis-grunt": "holds"
+ },
+ "frontal": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  0,
+  0,
+  0
+ ],
+ "sheets": {
+  "grunt": "2640x80:2772611941",
+  "shooter": "2640x80:769139877",
+  "wpn-enemy-rifle": "72x32:735901765",
+  "nem-brute": "4224x128:3919654565",
+  "nem-demo": "4224x128:1290498437",
+  "nem-marks": "4224x128:258315621"
+ },
+ "anims": {
+  "grunt": 18,
+  "shooter": 18
+ }
+}

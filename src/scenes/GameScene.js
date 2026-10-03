@@ -30,6 +30,7 @@ import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
   isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff, isVanguardScreenOff, isVanguardFrontOff,
+  isShowColliders,
 } from '../systems/debug.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { attachHazards } from '../systems/Hazard.js';
@@ -137,6 +138,8 @@ import { bossMoveById, bossMovesFor } from '../data/bossMoves.js';
 import { makeStreams, newSeed } from '../systems/rng.js';
 import { NARRATIVE } from '../data/narrative.js';
 import { NavGrid } from '../systems/NavGrid.js';
+import { rosterArtFor, wearRosterArt } from '../data/rosterArt.js';
+import { projectCurtainContact, curtainRadius } from '../systems/shieldContact.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -289,6 +292,19 @@ export class GameScene extends Phaser.Scene {
     // frame where `player.x/y` are the positions physics just produced rather
     // than last frame's.
     this.cameras.main.roundPixels = true;
+    // `?colliders=1` (debug only): every enemy's PHYSICS body circle in green
+    // and its BULLET hit radius (`cfg.radius`) in yellow. Nothing is built
+    // without the flag. Same POST_UPDATE lifecycle as the camera step below.
+    this._colliderGfx = null;
+    if (isShowColliders()) {
+      this._colliderGfx = this.add.graphics().setDepth(9500);
+      this._colliderStep = () => this._drawColliders();
+      this.events.on(Phaser.Scenes.Events.POST_UPDATE, this._colliderStep);
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        this.events.off(Phaser.Scenes.Events.POST_UPDATE, this._colliderStep);
+        this._colliderGfx = null;
+      });
+    }
     this.cameraDirector = new CameraDirector(this);
     this._camStep = (t, d) => { if (!this.scene.isPaused()) this.cameraDirector.update(d); };
     this.events.on(Phaser.Scenes.Events.POST_UPDATE, this._camStep);
@@ -1996,6 +2012,13 @@ export class GameScene extends Phaser.Scene {
     // credits/achievements planned on top of it — had only `instanceof` to go
     // on. One assignment at the single construction site keeps it honest.
     enemy.enemyType = type;
+    // ROSTER ART (presentation only, `?roster=v1`). Null under legacy and for
+    // any role with no registered v1 art. Swarmlings stay on the legacy grunt
+    // sheet and a nemesis asks for legacy (`legacyArt`) — both out of scope.
+    if (type !== 'swarmling' && !spec.legacyArt && !spec.elite) {
+      const art = rosterArtFor(this, type, false);
+      if (art) { wearRosterArt(enemy, art, enemy.cfg.radius); enemy.clearTint(); }
+    }
     if (spec.elite) this._makeElite(enemy);
     // Room modifier speed (FRENZY): stacks on top of the elite's adjusted speed.
     const sm = this.arenaCfg?.speedMult;
@@ -2024,17 +2047,35 @@ export class GameScene extends Phaser.Scene {
   // Upgrade a spawned enemy to an "elite": bigger, much tankier, tinted, and it
   // always drops a health orb (handled in the enemy-died listener). Defaults
   // reproduce the standard gold elite; the mini-boss passes heavier opts.
+  //
+  // GAMEPLAY and PRESENTATION are split here (roster Phase 1), and the split
+  // has one trap in it: Arcade derives a circle body's width from the radius
+  // it was given TIMES |scaleX|. So the legacy 1.4 render scale is part of the
+  // elite's physics footprint (a 30px bullet radius, but a 42px wall/cover
+  // body). The v1 presentation renders at 1.0 and therefore hands the body
+  // `r * scale` — the same width at every squash the stagger/recoil channel
+  // applies — so the collider is byte-identical either way. `scale` stays the
+  // GAMEPLAY input to the radius formula exactly as it always was.
   _makeElite(enemy, opts = {}) {
-    const { hpMult = 2.5, scale = 1.4, tint = 0xffd040, speedMult = 0.9 } = opts;
+    const { hpMult = 2.5, scale = 1.4, tint = 0xffd040, speedMult = 0.9, legacyLook = false } = opts;
     enemy._elite = true;
     enemy.hp = Math.round(enemy.hp * hpMult);
     enemy.hpMax = enemy.hp;
-    enemy._baseScale = scale;
-    enemy.setScale(scale);
-    enemy.setTint(tint);
     // Grow the physics body proportionally + slow it to match the heftier look.
     const r = Math.round(enemy.cfg.radius * (0.6 + scale * 0.55));
     enemy.cfg = { ...enemy.cfg, radius: r, speed: enemy.cfg.speed * speedMult };
+    const art = legacyLook ? null : rosterArtFor(this, enemy.enemyType, true);
+    if (art) {
+      // v1: dedicated elite art at render scale 1, no tint, SAME physics.
+      enemy._baseScale = 1;
+      enemy.setScale(1);
+      enemy.clearTint();
+      wearRosterArt(enemy, art, r * scale);
+      return;
+    }
+    enemy._baseScale = scale;
+    enemy.setScale(scale);
+    enemy.setTint(tint);
     enemy.body.setCircle(r, enemy.width / 2 - r, enemy.height / 2 - r);
   }
 
@@ -4459,11 +4500,16 @@ export class GameScene extends Phaser.Scene {
           // Shielded troopers deflect non-piercing frontal hits. The super is
           // piercing, so it punches straight through the shield.
           if (e._blocksFrontal && !b.piercing && e.isFrontalHit?.(flightAng)) {
-            e.onBlock?.();
+            e.onBlock?.(this._curtainContact(e, b, flightAng));
             this.fx.impactRing(b.x, b.y, 0x50b0ff);  // blue shield clang
             this.fx.healingSparkle(b.x, b.y, 6);       // blue deflection sparks
             b.kill();
             break; // bullet stopped by the shield — no damage, no super credit
+          }
+          // A piercing round through the FRONT of the field: tell the bearer
+          // where it crossed (presentation only — the round is not touched).
+          if (e._blocksFrontal && b.piercing && e.isFrontalHit?.(flightAng)) {
+            e.onPierce?.(this._curtainContact(e, b, flightAng));
           }
           b.hasHit = true;
           if (!isSuper && b.owner === 'player') this.player.onHitLanded();
@@ -4925,6 +4971,22 @@ export class GameScene extends Phaser.Scene {
         this.healthOrbs.splice(i, 1); SFX.heal();
       }
     }
+  }
+
+  _drawColliders() {
+    const g = this._colliderGfx;
+    if (!g?.active) return;
+    g.clear();
+    for (const e of this.enemies.getChildren()) {
+      if (!e.active || !e.alive || !e.body) continue;
+      g.lineStyle(2, 0x40ff80, 0.9); g.strokeCircle(e.body.center.x, e.body.center.y, e.body.halfWidth);
+      g.lineStyle(1, 0xffe040, 0.9); g.strokeCircle(e.x, e.y, e.cfg?.radius ?? 0);
+    }
+  }
+
+  /** Where a bolt crossed a shield-bearer's visible field. Presentation only. */
+  _curtainContact(e, b, flightAng) {
+    return projectCurtainContact(e.x, e.y, b.x, b.y, flightAng, e._shieldFacing, e._shieldHalfArc, curtainRadius(e));
   }
 
   circleOverlap(a, b) {
@@ -5819,6 +5881,11 @@ export class GameScene extends Phaser.Scene {
     e.setTexture(body.tex);
     e._animPrefix = body.prefix;
     e.anims?.stop();
+    // Rusher behaviour used to be read off `_animPrefix === 'grunt'`, so a
+    // nemesis grunt — prefix `nembrute` — has always HELD at range rather than
+    // rushed. That is the shipped behaviour; it is now stated rather than
+    // inherited from an art key.
+    e._isRusher = false;
   }
 
   /**
@@ -6020,7 +6087,7 @@ export class GameScene extends Phaser.Scene {
     // archetype plus 1-3 composable traits and a generated name, so the mini-boss
     // is a different fight each time without a hundred hand-authored ones.
     const nem = preRolled || this._nextNemesis();
-    const e = this.spawnEnemyAt(nem.base, gx, gy, {});
+    const e = this.spawnEnemyAt(nem.base, gx, gy, { legacyArt: true });
     // Swap to the purpose-drawn nemesis body BEFORE _makeElite, which derives
     // the body circle's offset from `width/2` — a texture swapped afterwards
     // leaves the hitbox centred for the old frame size.
@@ -6030,6 +6097,7 @@ export class GameScene extends Phaser.Scene {
       scale: NEMESIS_RENDER_SCALE * nem.scale,
       tint: Phaser.Display.Color.HexStringToColor(nem.tint).color,
       speedMult: 0.8 * nem.speedMult,
+      legacyLook: true,   // the nemesis is out of the roster redesign's scope
     });
     e._miniBoss = true;
     e._nemesis = nem;
