@@ -19,6 +19,7 @@
 // `GameScene._spawnMiniBoss` forces legacy elite presentation).
 
 import { isRosterV1 } from '../systems/debug.js';
+import { makeGunnerWeaponFx } from '../systems/gunnerMuzzle.js';
 
 const ROSTER_V1_ART = {};
 
@@ -63,5 +64,8 @@ export function wearRosterArt(enemy, art, bodyRadius) {
   }
   // presentation-only muzzle discharge (systems/gunnerMuzzle.js) for art that asks for it
   enemy._muzzleFx = !!art.muzzleFx;
+  // ...and the weapon's own charge / kick cycle (replaces the shared orange
+  // warning tint and the whole-body shot squash for this body only)
+  if (art.weaponFx && !enemy._weaponFx) enemy._weaponFx = makeGunnerWeaponFx(enemy);
   enemy.body.setCircle(bodyRadius, enemy.width / 2 - bodyRadius, enemy.height / 2 - bodyRadius);
 }

@@ -60,6 +60,7 @@ export function attachGunnerMuzzle(scene) {
     live.push({ img, t: 0 });
   };
   const tick = (time, delta) => {
+    for (const w of scene.__gunnerFx || []) if (w.tick(delta)) scene.__gunnerFx.delete(w);
     for (let i = live.length - 1; i >= 0; i--) {
       const f = live[i];
       f.t += delta;
@@ -75,5 +76,112 @@ export function attachGunnerMuzzle(scene) {
     for (const f of live) f.img.destroy();
     for (const p of pool) p.destroy();
     live.length = 0; pool.length = 0;
+    scene.__gunnerFx?.clear();
   });
+}
+
+// ── THE WEAPON'S OWN FIRING CYCLE (v1 Gunner) ──────────────────────────────
+//
+// The shipped shot read for every shooter was two shared things, and neither
+// belonged to an energy weapon:
+//   - the 300ms pre-fire warning turned the WHOLE GUN orange (a multiply tint
+//     that also outlived the shot by 60ms), and
+//   - the shot set `recoilT`, which SHRINKS THE BODY by up to 15% around its
+//     centre while the gun overlay does not scale — so the figure collapsed
+//     under a fixed gun and sprang back: the "shoved backward" bob.
+// `EnemyShooter._maybeFireAt` hands both moments to `_weaponFx` when the art
+// asks for it. The squash itself still runs — Arcade sizes the body from the
+// sprite's scale, so it is a physics change too — and is undone only for the
+// render, after the physics step. The TIMING is the shipped one (the warning still starts 300ms
+// before the shot, the shot on the same tick); only the drawing changes:
+//
+//   CHARGE   the power indicator brightens green -> yellow-white and a pip
+//            grows at the muzzle over the same 300ms (the dodge cue, now in
+//            the weapon's own language — no tint on the gun)
+//   SHOT     pip and indicator flash, the discharge above fires, and the GUN
+//            alone kicks back 2px along its own axis
+//   RECOVER  the kick bleeds out linearly in 80ms, the indicator drops back
+//
+// Rendered in POST_UPDATE, after `Enemy.preUpdate` has placed the gun for the
+// frame, so the kick is an offset on a fresh position and can never
+// accumulate. No timers, no tweens, no randomness; the overlays are the
+// actor's `_attachments`, so death and room clears sweep them.
+
+const CHARGE_KEY = 'fx-gun-charge', CELL_KEY = 'fx-gun-cell';
+const KICK_PX = 2, KICK_MS = 80, CELL_FLASH_MS = 50;
+
+export function paintGunnerCharge(scene) {
+  if (scene.textures.exists(CHARGE_KEY)) return;
+  const pip = scene.textures.createCanvas(CHARGE_KEY, 3 * S * 2, 3 * S);
+  const c = pip.getContext();
+  const px = (f, x, y, col) => { c.fillStyle = col; c.fillRect((f * 3 + x) * S, y * S, S, S); };
+  // frame 0: building (green); frame 1: about to release (white / yellow-white)
+  px(0, 1, 1, '#c8ffd4'); for (const [x, y] of [[0, 1], [2, 1], [1, 0], [1, 2]]) px(0, x, y, '#3dff6a');
+  px(1, 1, 1, '#ffffff'); for (const [x, y] of [[0, 1], [2, 1], [1, 0], [1, 2]]) px(1, x, y, '#fff3a0');
+  pip.refresh(); pip.add(0, 0, 0, 0, 3 * S, 3 * S); pip.add(1, 0, 3 * S, 0, 3 * S, 3 * S);
+  const cell = scene.textures.createCanvas(CELL_KEY, 2 * S * 2, S);
+  const d = cell.getContext();
+  d.fillStyle = '#9dffb2'; d.fillRect(0, 0, 2 * S, S);
+  d.fillStyle = '#fffbe0'; d.fillRect(2 * S, 0, 2 * S, S);
+  cell.refresh(); cell.add(0, 0, 0, 0, 2 * S, S); cell.add(1, 0, 2 * S, 0, 2 * S, S);
+}
+
+/** Give a v1 Gunner its weapon firing cycle. Called by `wearRosterArt`. */
+export function makeGunnerWeaponFx(e) {
+  const scene = e.scene;
+  const pip = scene.add.image(0, 0, CHARGE_KEY, 0).setVisible(false);
+  const cell = scene.add.image(0, 0, CELL_KEY, 0).setVisible(false);
+  e._attachments.push(pip, cell);
+  const fx = {
+    chargeT: -1, chargeMs: 300, kickT: -1, squashT: -1,
+    charge(ms) { this.chargeMs = ms; this.chargeT = 0; },
+    shot() { this.chargeT = -1; this.kickT = 0; this.squashT = 0; },
+    tick(delta) {
+      const ws = e.weaponSprite;
+      if (!e.active || !e.alive || !ws?.active) { pip.setVisible(false); cell.setVisible(false); return !e.active; }
+      // THE SHOT SQUASH IS PHYSICS, NOT JUST PICTURE. `recoilT` still shrinks
+      // the sprite in `Enemy.preUpdate` and the physics step has already sized
+      // the body from it this frame; this runs after that step and before the
+      // render, so the body keeps its shipped footprint and the picture stays
+      // at rest scale. `preUpdate` re-asserts the squash absolutely next frame.
+      if (this.squashT >= 0) {
+        this.squashT += delta;
+        if (this.squashT > 120) this.squashT = -1;
+        else if (!(e._staggerMs > 0)) e.setScale(e._baseScale);
+      }
+      // the kick: the gun alone, back along its own axis, never accumulating
+      let k = 0;
+      if (this.kickT >= 0) {
+        this.kickT += delta;
+        k = this.kickT < KICK_MS ? KICK_PX * (1 - this.kickT / KICK_MS) : 0;
+        if (this.kickT >= KICK_MS) this.kickT = -1;
+        ws.x -= Math.cos(ws.rotation) * k; ws.y -= Math.sin(ws.rotation) * k;
+      }
+      let u = -1;
+      if (this.chargeT >= 0) {
+        this.chargeT += delta;
+        u = Math.min(1, this.chargeT / this.chargeMs);
+        // no shot came (line of sight lost): the charge bleeds away
+        if (this.chargeT > this.chargeMs + 60) { this.chargeT = -1; u = -1; }
+      }
+      const flash = this.kickT >= 0 && this.kickT < CELL_FLASH_MS;
+      const mtx = ws.getWorldTransformMatrix(), p = new Phaser.Math.Vector2();
+      const a = ws.alpha, depth = ws.depth + 0.5;
+      // indicator: receiver pixels 11-12 of the padded gun, on the barrel row
+      mtx.transformPoint(12 * S - ws.originX * ws.width, 0, p);
+      if (u >= 0 || flash) {
+        cell.setPosition(p.x, p.y).setRotation(ws.rotation).setFrame(flash || u > 0.5 ? 1 : 0)
+          .setAlpha(a * (flash ? 1 : 0.55 + 0.45 * u)).setDepth(depth).setVisible(true);
+      } else cell.setVisible(false);
+      // muzzle pip, just inside the drawn tip
+      if (u >= 0) {
+        mtx.transformPoint((1 - ws.originX) * ws.width - 6, 0, p);
+        pip.setPosition(p.x, p.y).setFrame(u > 0.6 ? 1 : 0).setScale(0.6 + 0.5 * u)
+          .setAlpha(a * (0.45 + 0.55 * u)).setDepth(depth).setVisible(true);
+      } else pip.setVisible(false);
+      return false;
+    },
+  };
+  (scene.__gunnerFx ||= new Set()).add(fx);
+  return fx;
 }

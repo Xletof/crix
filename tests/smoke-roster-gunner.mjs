@@ -237,19 +237,46 @@ const inside = muzzle.filter((r) => !(r.rear < r.spawn && r.spawn < r.tip));
 check(!inside.length, '22. the gameplay spawn point is INSIDE the drawn gun (behind the muzzle, ahead of the butt)', JSON.stringify(inside.slice(0, 2)));
 check(muzzle.every((r) => r.rear >= -12.5), '22. the gun never reaches more than 12px behind the body centre (the visor stays clear when aimed at the camera)', JSON.stringify(muzzle.map((r) => +r.rear.toFixed(1))));
 
-// ── 23. the pre-fire warning tint carries at least what it carried on legacy ─
-const warn = await pV.evaluate(() => {
-  const st = (k) => {
-    const src = window.__gs.textures.get(k).getSourceImage();
-    const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
-    const x = c.getContext('2d'); x.drawImage(src, 0, 0); const d = x.getImageData(0, 0, c.width, c.height).data;
-    let shift = 0;   // what the 0xff6010 multiply takes off green: the visible hue change, summed over the gun
-    for (let i = 0; i < d.length; i += 4) if (d[i + 3]) shift += d[i] - d[i + 1] * 0x60 / 255;
-    return Math.round(shift);
+// ── 23. THE WEAPON FIRING CYCLE: the warning keeps its moment, changes its form ─
+// Driven through the REAL `_maybeFireAt`, sight forced true, one shot.
+const cyc = await pV.evaluate(() => {
+  const gs = window.__gs;
+  const run = (spec) => {
+    const e = gs.spawnEnemyAt('shooter', 800, 800, spec);
+    e.canSee = () => true; e._hasLOS = () => true; e._aim = 0; e._performing = false;
+    const enemyProto = Object.getPrototypeOf(Object.getPrototypeOf(e));
+    e.preUpdate = function (t, d) { enemyProto.preUpdate.call(this, t, d); };
+    e.fireCd = 600;
+    const tgt = { x: 1100, y: 800 };
+    let warnTick = -1, shotTick = -1, maxKick = 0, minScale = 1, tintedWarn = false, pipSeen = false, lastKickTick = -1;
+    gs.events.once('shooter-fire', () => { shotTick = t; });
+    let t = 0;
+    for (; t < 60; t++) {
+      const was = e._warnFlashed;
+      e._maybeFireAt(1000 / 60, tgt);
+      if (!was && e._warnFlashed) warnTick = t;
+      window.__adv(1);
+      const base = { x: e.x + (e.cfg.radius - 4), y: e.y };
+      const k = Math.hypot(e.weaponSprite.x - base.x, e.weaponSprite.y - base.y);
+      if (k > 1e-6) lastKickTick = t;
+      maxKick = Math.max(maxKick, k);
+      minScale = Math.min(minScale, e.scaleX);
+      if (warnTick >= 0 && shotTick < 0) { tintedWarn ||= e.weaponSprite.isTinted; pipSeen ||= e._attachments.some((o) => o.texture?.key === 'fx-gun-charge' && o.visible); }
+      if (shotTick >= 0 && t > shotTick + 20) break;
+    }
+    const r = { warnTick, shotTick, lead: shotTick - warnTick, maxKick: +maxKick.toFixed(2), kickTicks: lastKickTick - shotTick, minScale: +minScale.toFixed(3), tintedWarn, pipSeen };
+    gs._destroyEnemyFully(e);
+    return r;
   };
-  return { legacy: st('wpn-enemy-rifle'), R: st('ro-w-gun-R'), E: st('ro-w-gun-E') };
+  return { R: run({}), E: run({ elite: true }), legacy: run({ legacyArt: true }) };
 });
-check(warn.R >= warn.legacy && warn.E >= warn.legacy, '23. the 300ms pre-fire warning tint changes at least as much of the v1 gun as of the legacy one', JSON.stringify(warn));
+for (const k of ['R', 'E']) {
+  const c = cyc[k];
+  check(c.warnTick === cyc.legacy.warnTick && c.shotTick === cyc.legacy.shotTick, `23. v1 ${k}: the warning starts and the shot fires on the SAME ticks as legacy (${c.lead} ticks of warning)`, JSON.stringify(cyc));
+  check(!c.tintedWarn && c.pipSeen, `23. v1 ${k}: the warning is the gun's own charge (pip at the muzzle), the gun is never tinted`, JSON.stringify(c));
+  check(c.minScale === 1 && c.maxKick > 0.5 && c.maxKick <= 2.01 && c.kickTicks <= 6, `23. v1 ${k}: no body squash on the shot; the gun kicks ${c.maxKick}px and is home within ${c.kickTicks} ticks`, JSON.stringify(c));
+}
+check(cyc.legacy.tintedWarn && cyc.legacy.minScale < 0.9 && cyc.legacy.maxKick < 1e-6, '23. (A/B) legacy still tints the gun orange and squashes the body, gun unmoved', JSON.stringify(cyc.legacy));
 
 // ── 18. NO TINT DEPENDENCY: baked palette survives a hit flash ─────────────
 const tint = await pV.evaluate(() => {

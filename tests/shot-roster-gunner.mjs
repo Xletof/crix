@@ -505,51 +505,50 @@ async function controlled() {
 // muzzle event switched off on the actor (`_muzzleFx = false` — what shipped
 // in 191747a), the right pair with it on. Nothing else differs, in the same
 // frame. Each turns through E / S / W / N and fires two rounds per aim.
-async function fireStage(page) {
+async function fireStage(page, { zoom = 1 } = {}) {
   await page.goto(BASE + `?nodlg=1&nofreeze=1&roster=v1&${STILL}`);
   await stepBoot(page);
   await quietRoom(page);
-  await page.evaluate(() => {
+  await page.evaluate((zoom) => {
     const gs = window.__gs, cam = gs.cameras.main;
     const P = gs.player; P.setPosition(600, 1700); P.body.reset(P.x, P.y); P.setVisible(false); P.weaponSprite?.setVisible(false);
     const X0 = 380, Y0 = 520, DX = 240, DY = 300;
-    cam.setScroll(X0 - 180, Y0 - 260);
+    // OLD = the v1 Gunner as shipped in dbf16c6 (shared orange warning tint +
+    // whole-body shot squash + discharge); NEW = its own weapon cycle.
     const who = [['OLD regular', {}, false, 0, 0], ['NEW regular', {}, true, 1, 0], ['OLD elite', { elite: true }, false, 0, 1], ['NEW elite', { elite: true }, true, 1, 1]];
     const actors = [];
-    for (const [name, spec, fx, cx, cy] of who) {
+    for (const [name, spec, neu, cx, cy] of who) {
       const x = X0 + cx * DX, y = Y0 + cy * DY;
       const e = gs.spawnEnemyAt('shooter', x, y, spec);
-      e._muzzleFx = fx;
+      if (!neu) e._weaponFx = null;
+      // the REAL firing path (`_maybeFireAt`), with sight and line forced true
+      // and the cooldown pinned so all four fire on the same tick
+      e.canSee = () => true; e._hasLOS = () => true;
       const enemyProto = Object.getPrototypeOf(Object.getPrototypeOf(e));
       e.preUpdate = function (t, d) { enemyProto.preUpdate.call(this, t, d); };
       e.body.reset(x, y);
-      gs.add.text(x, y - 110, name, { fontFamily: 'monospace', fontSize: '14px', color: fx ? '#9dffb2' : '#e4e7ee', backgroundColor: '#000a', padding: { x: 4, y: 2 } }).setOrigin(0.5).setDepth(9999);
+      if (zoom === 1) gs.add.text(x, y - 110, name, { fontFamily: 'monospace', fontSize: '14px', color: neu ? '#9dffb2' : '#e4e7ee', backgroundColor: '#000a', padding: { x: 4, y: 2 } }).setOrigin(0.5).setDepth(9999);
+      e.fireCd = 600;
       actors.push(e);
     }
+    if (zoom === 1) cam.setScroll(X0 - 180, Y0 - 260);
+    else { cam.setZoom(zoom); cam.centerOn(X0 + DX / 2 + 30, Y0); }
     window.__fa = actors;
-    // the shot sequence `_maybeFireAt` runs: warn tint 300ms, then recoilT 100,
-    // fire frame 180ms, the event the scene fires the bolt from
-    const beats = [];
-    for (const ang of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
-      beats.push({ k: 'idle', ang, ms: 250 });
-      for (let r = 0; r < 2; r++) { beats.push({ k: 'warn', ang, ms: 300 }); beats.push({ k: 'fire', ang, ms: 220 }); }
-    }
-    let bi = 0, left = beats[0].ms, fired = false;
-    window.__shotTick = -1; let tick = 0;
+    const aims = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+    let tick = 0, shots = 0; window.__shotTick = -1;
     window.__ctl = () => {
-      const b = beats[bi % beats.length];
+      const ang = aims[Math.floor(shots / 2) % 4];
       for (const e of actors) {
-        e._aim = b.ang; e.setVelocity(0, 0);
-        if (b.k === 'warn' && left === b.ms) e.weaponSprite.setTint(0xff6010);
-        if (b.k === 'fire' && !fired) { e.weaponSprite.clearTint(); e.recoilT = 100; e._fireAnimTimer = 180; gs.events.emit('shooter-fire', e, b.ang); }
+        e._aim = ang; e.setVelocity(0, 0);
+        const before = e.fireCd;
+        e._maybeFireAt(1000 / 60, { x: e.x + Math.cos(ang) * 300, y: e.y + Math.sin(ang) * 300 });
+        if (e.fireCd > before) e.fireCd = 800;          // pinned cadence: the shot fired this tick
       }
-      if (b.k === 'fire' && !fired) window.__shotTick = tick;
-      if (b.k === 'fire') fired = true;
-      left -= 1000 / 60; tick++;
-      if (left <= 0) { bi++; left = beats[bi % beats.length].ms; fired = false; }
+      if (actors[0].fireCd === 800) { window.__shotTick = tick; shots++; actors.forEach((e) => { e.fireCd = 799.99; }); }
+      tick++; window.__tick = tick;
     };
     window.__frame = (n) => { for (let j = 0; j < n; j++) { window.__ctl(); window.__adv(1); } window.__quiet(); };
-  });
+  }, zoom);
 }
 
 async function firefx() {
@@ -596,7 +595,53 @@ async function firefx() {
   await live('gunner-firefx-v1-live.webm', 300);
 }
 
-const run = { sheets, facings, weapon, colliders, live: () => live(), ab, controlled, firefx };
+async function weaponfire() {
+  const P = (n) => OUT + n;
+  // 1. matched A/B, 1x
+  let page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
+  page.on('pageerror', (e) => fail(`weaponfire: ${e.message}`));
+  await fireStage(page);
+  let vw = videoWriter(P('gunner-weaponfire-v2-ab.webm'));
+  for (let f = 0; f < 330; f++) { await page.evaluate(() => window.__frame(2)); await vw.write(await page.screenshot({ type: 'jpeg', quality: 92 })); }
+  await vw.end(); console.log('wrote ab'); await page.close();
+  // 2. zoom diagnostic (3x camera), same script
+  page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
+  await fireStage(page, { zoom: 3 });
+  vw = videoWriter(P('gunner-weaponfire-v2-zoom.webm'));
+  for (let f = 0; f < 240; f++) { await page.evaluate(() => window.__frame(2)); await vw.write(await page.screenshot({ type: 'jpeg', quality: 92 })); }
+  await vw.end(); console.log('wrote zoom'); await page.close();
+  // 3. strip: one shot at aim E, tick by tick (60Hz)
+  page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
+  await fireStage(page);
+  // the first shot is on aim E; shots are 48 ticks apart, aim turns every two,
+  // so the third shot (first + 96) is on aim S, the camera-facing case
+  await page.evaluate(() => { while (window.__shotTick < 0) window.__frame(1); });
+  const first = await page.evaluate(() => window.__shotTick);
+  const offs = [-24, -16, -10, -4, -1, 0, 1, 2, 3, 5, 8];
+  const labels = ['idle', 'charge 33%', 'charge 67%', 'charge 89%', 'charge 100%', 'SHOT', '+16ms', '+33ms', '+50ms', '+83ms', '+133ms'];
+  const cells = [];
+  for (let i = 0; i < offs.length; i++) {
+    const at = await page.evaluate((target) => {
+      while (window.__tick < target) window.__frame(1);
+      const cam = window.__gs.cameras.main;
+      return window.__fa.map((e) => ({ x: (e.x - cam.worldView.x) * cam.zoom + cam.x, y: (e.y - cam.worldView.y) * cam.zoom + cam.y }));
+    }, first + 96 + offs[i] + 1);
+    for (const [k, row] of [[0, 'OLD R'], [1, 'NEW R'], [3, 'NEW E']]) {
+      const c = at[k];
+      cells.push({ k, label: `${row} ${labels[i]}`, png: b64(await page.screenshot({ clip: { x: Math.round(c.x - 60), y: Math.round(c.y - 60), width: 120, height: 150 } })) });
+    }
+  }
+  const ordered = [0, 1, 3].flatMap((k) => cells.filter((c) => c.k === k));
+  await compose(P('gunner-weaponfire-v2-strip.png'), {
+    title: 'GUNNER WEAPON FIRE v2 — 60Hz ticks around one shot (aim S, 1x). Rows: OLD v1 (dbf16c6), NEW regular, NEW elite',
+    cols: offs.length, cellW: 120, cellH: 150, cells: ordered,
+  });
+  await page.close();
+  // 4. real CROSSFIRE
+  await live('gunner-weaponfire-v2-live.webm', 360);
+}
+
+const run = { sheets, facings, weapon, colliders, live: () => live(), ab, controlled, firefx, weaponfire };
 if (MODE === 'all') { for (const f of Object.values(run)) await f(); }
 else if (run[MODE]) await run[MODE]();
 else fail(`unknown mode ${MODE}`);

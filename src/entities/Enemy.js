@@ -1397,7 +1397,11 @@ export class EnemyShooter extends Enemy {
     const WARN = 300;
     if (this.fireCd > 0 && this.fireCd <= WARN && !this._warnFlashed) {
       this._warnFlashed = true;
-      if (this.weaponSprite) {
+      // Roster v1 art may own the weapon's firing presentation (the Gunner's
+      // charge / discharge / kick, systems/gunnerMuzzle.js). Same moment, same
+      // window — only how it is drawn differs. Unset: the shipped orange tint.
+      if (this._weaponFx) this._weaponFx.charge(WARN);
+      else if (this.weaponSprite) {
         this.weaponSprite.setTint(0xff6010);
         this.scene.time.delayedCall(WARN + 60, () => {
           if (this.weaponSprite?.active) this.weaponSprite.clearTint();
@@ -1407,7 +1411,12 @@ export class EnemyShooter extends Enemy {
     if (this.fireCd <= 0) {
       this.fireCd         = Phaser.Math.Between(this.cfg.fireCooldownMs * 0.8, this.cfg.fireCooldownMs * 1.2);
       this._warnFlashed   = false;
+      // The whole-body squash STAYS for everyone: Arcade sizes a body from its
+      // sprite's scale, so this shrink is also a 100ms change to the physics
+      // footprint — gameplay. Art that owns its weapon presentation cancels
+      // the shrink at render time instead (systems/gunnerMuzzle.js).
       this.recoilT        = 100;
+      this._weaponFx?.shot();
       this._fireAnimTimer = 180;
       const ang = Math.atan2(player.y - this.y, player.x - this.x);
       this.scene.events.emit('shooter-fire', this, ang);
