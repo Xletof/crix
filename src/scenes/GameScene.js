@@ -30,7 +30,7 @@ import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
   isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff, isVanguardScreenOff, isVanguardFrontOff,
-  isShowColliders,
+  isShowColliders, isMoveV2,
 } from '../systems/debug.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { attachHazards } from '../systems/Hazard.js';
@@ -2022,6 +2022,9 @@ export class GameScene extends Phaser.Scene {
       if (art) { wearRosterArt(enemy, art, enemy.cfg.radius); enemy.clearTint(); }
     }
     if (spec.elite) this._makeElite(enemy);
+    // `?move=v2` candidate locomotion: the two archetypes that run the shared
+    // shooter swarm tick. Never a nemesis (`legacyArt`), never a swarmling.
+    if (isMoveV2() && (type === 'shooter' || type === 'grunt') && !spec.legacyArt) enemy._loco = true;
     // Room modifier speed (FRENZY): stacks on top of the elite's adjusted speed.
     const sm = this.arenaCfg?.speedMult;
     if (sm) enemy.cfg = { ...enemy.cfg, speed: enemy.cfg.speed * sm };

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import {
   setDialogueMuted, setDuelRequest, parseDuelParams, setHitstopMuted, setMoveNamesMuted,
   setEncDebug, setEncForce, parseEncDebugParams, setChampDebug, setChampWhich, setChampPlacementOff, setVanguardScreenOff, setVanguardFrontOff,
-  setCapTel, setRosterVersion, setShowColliders,
+  setCapTel, setRosterVersion, setShowColliders, setMoveV2,
 } from '../systems/debug.js';
 import { ENCOUNTERS } from '../data/encounters.js';
 import { CAMERA } from '../config.js';
@@ -27,6 +27,7 @@ export class BootScene extends Phaser.Scene {
     // presentation/diagnostic only — see systems/debug.js.
     if (params.get('roster') === 'v1') setRosterVersion('v1');
     if (params.has('colliders')) setShowColliders(true);
+    if (params.get('move') === 'v2') setMoveV2(true);
     // `?nonames=1` hides Vader's ATTACK-NAME callouts, and only those, so a
     // reviewer can judge whether each move reads without its label.
     if (params.has('nonames')) setMoveNamesMuted(true);

@@ -277,6 +277,15 @@ export function getRosterVersion() { return rosterVersion; }
 export function setRosterVersion(v) { rosterVersion = v === 'v1' ? 'v1' : 'legacy'; }
 export function isRosterV1() { return rosterVersion === 'v1'; }
 
+// `?move=v2` — CANDIDATE locomotion for the shared shooter tick (Gunner and
+// Rifleman in swarm waves): committed strafe legs, settles, band hysteresis,
+// eased velocity and a planted shot. THIS CHANGES GAMEPLAY (positions, lines,
+// how long a body is still), which is why it is its own flag and not part of
+// the roster presentation switch. Default off: the shipped movement.
+let moveV2 = false;
+export function setMoveV2(on) { moveV2 = !!on; }
+export function isMoveV2() { return moveV2; }
+
 // `?colliders=1` draws every enemy's PHYSICS footprint (body circle, which
 // Arcade scales with the sprite) and its BULLET hit radius (`cfg.radius`). It
 // exists so a handset reviewer can judge art-to-hitbox honesty when v1 elite

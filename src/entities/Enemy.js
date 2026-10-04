@@ -1350,6 +1350,7 @@ export class EnemyShooter extends Enemy {
   // back off if the player pushes in. No canSee cone — the swarm always knows
   // where you are; only firing is still LOS-gated (via _maybeFireAt).
   _tickSwarm(delta, player) {
+    if (this._loco) { this._tickSwarmLegs(delta, player); return; }
     this.lastKnownX = player.x;
     this.lastKnownY = player.y;
     const dx = player.x - this.x;
@@ -1380,6 +1381,105 @@ export class EnemyShooter extends Enemy {
       this.setVelocity(Math.cos(perp) * speed * 0.6, Math.sin(perp) * speed * 0.6);
       this._aim = toPlayer;
     }
+
+    this._maybeFireAt(delta, player);
+  }
+
+  // ── `?move=v2` CANDIDATE LOCOMOTION ────────────────────────────────────
+  //
+  // What the shipped tick above does, measured on CROSSFIRE: every frame it
+  // WRITES a velocity outright, so a change of intent is a one-frame snap;
+  // the pocket strafe is re-aimed perpendicular to the player's bearing every
+  // frame, so it curves as the player moves; its direction re-rolls 50/50
+  // every 0.84-1.56s, so half the "flips" are no flip and the rest arrive at
+  // random; and the three range bands share hard edges (340 / 160), so a
+  // player standing near one flips the body between approach and strafe
+  // frame to frame. It never stops, and it fires on the move.
+  //
+  // This keeps the archetype's ranges, speeds and fire logic and changes how
+  // the body gets around: committed LEGS (a world-space direction fixed when
+  // the leg starts), a SETTLE between legs, reversals only after two legs one
+  // way or when blocked, 40px of hysteresis on every band edge, eased
+  // velocity (ramps in ~90ms, out ~70ms — no snaps), and a PLANT for the shot:
+  // the body slows through the 300ms warning and stands for the fire frame.
+  // Fire timing is untouched — `_maybeFireAt` runs exactly as before.
+  _tickSwarmLegs(delta, player) {
+    this.lastKnownX = player.x;
+    this.lastKnownY = player.y;
+    const dx = player.x - this.x, dy = player.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    const toPlayer = Math.atan2(dy, dx);
+    const isRusher = this._isRusher;
+    const near = isRusher ? SWARM_RUSH_RANGE : SWARM_HOLD_RANGE;
+    const speed = this.cfg.speed * (isRusher ? 1.2 : 1.0);
+    const HYS = 40;
+    const L = this._leg || (this._leg = { mode: 'approach', phase: 'settle', t: 0, dur: 0, side: Math.random() < 0.5 ? 1 : -1, legs: 0, dx: 0, dy: 0 });
+
+    let mode = L.mode;
+    if (mode === 'approach' && dist <= near) mode = 'pocket';
+    else if (mode !== 'approach' && dist > near + HYS) mode = 'approach';
+    if (!isRusher) {
+      if (dist < SWARM_RETREAT_RANGE) mode = 'retreat';
+      else if (mode === 'retreat' && dist >= SWARM_RETREAT_RANGE + HYS) mode = 'pocket';
+    }
+    if (mode !== L.mode) { L.mode = mode; L.phase = 'settle'; L.t = 0; L.dur = mode === 'pocket' ? 180 : 0; }
+
+    let tvx = 0, tvy = 0;
+    let aim = toPlayer;
+    if (mode === 'approach') {
+      const v = this.body.velocity, vx = v.x, vy = v.y;
+      this._moveToward(player.x, player.y, speed);      // the shipped approach and its stuck sidestep
+      tvx = this.body.velocity.x; tvy = this.body.velocity.y;
+      this.body.velocity.set(vx, vy);
+      aim = this._aim;
+    } else if (mode === 'retreat') {
+      tvx = -Math.cos(toPlayer) * speed; tvy = -Math.sin(toPlayer) * speed;
+    } else {
+      L.t += delta;
+      const blocked = this.body.blocked.left || this.body.blocked.right || this.body.blocked.up || this.body.blocked.down;
+      if (L.phase === 'move' && (L.t >= L.dur || blocked)) {
+        L.phase = 'settle'; L.t = 0; L.dur = 320 + Math.random() * 280;
+        if (blocked) { L.side = -L.side; L.legs = 0; }
+      } else if (L.phase === 'settle' && L.t >= L.dur) {
+        if (L.legs >= 2 || Math.random() < 0.25) { L.side = -L.side; L.legs = 0; }
+        // don't stack: if a squadmate stands within 110px, take the side away from it
+        let mate = null, md = 110;
+        for (const o of this.scene.enemies.getChildren()) {
+          if (o === this || !o.active || !o.alive) continue;
+          const d = Math.hypot(o.x - this.x, o.y - this.y);
+          if (d < md) { md = d; mate = o; }
+        }
+        if (mate) {
+          const perp0 = toPlayer + Math.PI / 2;
+          const away = -Math.sign((mate.x - this.x) * Math.cos(perp0) + (mate.y - this.y) * Math.sin(perp0)) || L.side;
+          if (away !== L.side) { L.side = away; L.legs = 0; }
+        }
+        L.legs++;
+        // the leg's direction is FIXED here, in world space: across the
+        // bearing, leaning in or out to work back toward the middle of the band
+        const radial = Phaser.Math.Clamp((dist - (near - 70)) / 150, -0.6, 0.6);
+        const perp = toPlayer + L.side * Math.PI / 2;
+        let lx = Math.cos(perp) + Math.cos(toPlayer) * radial, ly = Math.sin(perp) + Math.sin(toPlayer) * radial;
+        const m = Math.hypot(lx, ly) || 1;
+        L.dx = lx / m; L.dy = ly / m;
+        L.phase = 'move'; L.t = 0; L.dur = 620 + Math.random() * 480;
+      }
+      if (L.phase === 'move') { tvx = L.dx * speed * 0.65; tvy = L.dy * speed * 0.65; }
+    }
+    // PLANT FOR THE SHOT: slow through the warning, stand for the fire frame
+    // — in the band only: a body still closing keeps closing, or it spends
+    // its approach planted and stands further out (fewer lines, fewer shots)
+    if (mode === 'pocket') {
+      if (this._fireAnimTimer > 0 || (this._warnFlashed && this.fireCd < 160)) { tvx = 0; tvy = 0; }
+      else if (this._warnFlashed) { tvx *= 0.3; tvy *= 0.3; }
+      if (this._warnFlashed || this._fireAnimTimer > 0) aim = toPlayer;
+    }
+    // eased velocity: no one-frame snaps, no one-frame reversals
+    const v = this.body.velocity;
+    const tau = (tvx * tvx + tvy * tvy) > (v.x * v.x + v.y * v.y) ? 90 : 70;
+    const k = 1 - Math.exp(-delta / tau);
+    this.setVelocity(v.x + (tvx - v.x) * k, v.y + (tvy - v.y) * k);
+    this._aim = aim;
 
     this._maybeFireAt(delta, player);
   }

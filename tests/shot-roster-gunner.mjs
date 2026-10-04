@@ -392,7 +392,7 @@ const PLAYER_SCRIPT = `
 async function live(file = 'gunner-v1-live-1x.webm', FR = 600) {
   const page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
   page.on('pageerror', (e) => fail(`live: ${e.message}`));
-  await page.goto(BASE + `?nodlg=1&nofreeze=1&roster=v1&${ENC}`);
+  await page.goto(BASE + `?nodlg=1&nofreeze=1&roster=v1&${ENC}${MOVE_EXTRA}`);
   await stepBoot(page);
   await page.evaluate(PLAYER_SCRIPT);
   const vw = videoWriter(OUT + file);              // FR frames at 30fps, two game ticks each
@@ -406,23 +406,23 @@ async function live(file = 'gunner-v1-live-1x.webm', FR = 600) {
   await page.close();
 }
 
-async function ab() {
+async function ab(qL = '', qR = '&roster=v1', labL = 'LEGACY (default)', labR = '?roster=v1', file = 'gunner-v1-ab.webm', FR = 600) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1280 } });
   const q = `?nodlg=1&nofreeze=1&${ENC}`;
   await page.setContent(`<body style="margin:0;background:#000;display:flex;position:relative">
-    <iframe id="L" src="${BASE}${q}" width="720" height="1280" style="border:0"></iframe>
-    <iframe id="V" src="${BASE}${q}&roster=v1" width="720" height="1280" style="border:0"></iframe>
-    <div style="position:absolute;left:0;top:1236px;width:720px;text-align:center;font:bold 22px monospace;color:#fff;background:#000a;padding:6px 0">LEGACY (default)</div>
-    <div style="position:absolute;left:720px;top:1236px;width:720px;text-align:center;font:bold 22px monospace;color:#7dff9a;background:#000a;padding:6px 0">?roster=v1</div>
+    <iframe id="L" src="${BASE}${q}${qL}" width="720" height="1280" style="border:0"></iframe>
+    <iframe id="V" src="${BASE}${q}${qR}" width="720" height="1280" style="border:0"></iframe>
+    <div style="position:absolute;left:0;top:1236px;width:720px;text-align:center;font:bold 22px monospace;color:#fff;background:#000a;padding:6px 0">${labL}</div>
+    <div style="position:absolute;left:720px;top:1236px;width:720px;text-align:center;font:bold 22px monospace;color:#7dff9a;background:#000a;padding:6px 0">${labR}</div>
     <div style="position:absolute;left:718px;top:0;width:4px;height:1280px;background:#fff"></div></body>`);
   await page.waitForTimeout(1500);
-  const [fL, fV] = [page.frames().find((f) => f.url().includes(q) && !f.url().includes('roster=v1')), page.frames().find((f) => f.url().includes('roster=v1'))];
+  const fr = page.frames().slice(1);
+  const [fL, fV] = [fr.find((f) => f.url().endsWith(q + qL)), fr.find((f) => f.url().endsWith(q + qR))];
   if (!fL || !fV) fail('ab: iframes not found');
   for (const f of [fL, fV]) f.page().on('pageerror', (e) => fail(`ab: ${e.message}`));
   await stepBoot(fL); await stepBoot(fV);
   await fL.evaluate(PLAYER_SCRIPT); await fV.evaluate(PLAYER_SCRIPT);
-  const vw = videoWriter(OUT + 'gunner-v1-ab.webm');
-  const FR = 600;
+  const vw = videoWriter(OUT + file);
   let drift = 0;
   for (let f = 0; f < FR; f++) {
     await fL.evaluate(() => window.__frame(2)); await fV.evaluate(() => window.__frame(2));
@@ -434,7 +434,7 @@ async function ab() {
     }
   }
   await vw.end();
-  console.log('wrote', OUT + 'gunner-v1-ab.webm', `— sampled state identical legacy vs v1 at ${20 - drift}/20 checkpoints`);
+  console.log('wrote', OUT + file, `— sampled state identical at ${Math.ceil(FR / 30) - drift}/${Math.ceil(FR / 30)} checkpoints`);
   await page.close();
 }
 
@@ -595,19 +595,19 @@ async function firefx() {
   await live('gunner-firefx-v1-live.webm', 300);
 }
 
-async function weaponfire() {
+async function weaponfire(tag = 'v2') {
   const P = (n) => OUT + n;
   // 1. matched A/B, 1x
   let page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
   page.on('pageerror', (e) => fail(`weaponfire: ${e.message}`));
   await fireStage(page);
-  let vw = videoWriter(P('gunner-weaponfire-v2-ab.webm'));
+  let vw = videoWriter(P(`gunner-weaponfire-${tag}-ab.webm`));
   for (let f = 0; f < 330; f++) { await page.evaluate(() => window.__frame(2)); await vw.write(await page.screenshot({ type: 'jpeg', quality: 92 })); }
   await vw.end(); console.log('wrote ab'); await page.close();
   // 2. zoom diagnostic (3x camera), same script
   page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
   await fireStage(page, { zoom: 3 });
-  vw = videoWriter(P('gunner-weaponfire-v2-zoom.webm'));
+  vw = videoWriter(P(`gunner-weaponfire-${tag}-zoom.webm`));
   for (let f = 0; f < 240; f++) { await page.evaluate(() => window.__frame(2)); await vw.write(await page.screenshot({ type: 'jpeg', quality: 92 })); }
   await vw.end(); console.log('wrote zoom'); await page.close();
   // 3. strip: one shot at aim E, tick by tick (60Hz)
@@ -632,16 +632,19 @@ async function weaponfire() {
     }
   }
   const ordered = [0, 1, 3].flatMap((k) => cells.filter((c) => c.k === k));
-  await compose(P('gunner-weaponfire-v2-strip.png'), {
-    title: 'GUNNER WEAPON FIRE v2 — 60Hz ticks around one shot (aim S, 1x). Rows: OLD v1 (dbf16c6), NEW regular, NEW elite',
+  await compose(P(`gunner-weaponfire-${tag}-strip.png`), {
+    title: `GUNNER WEAPON FIRE ${tag} — 60Hz ticks around one shot (aim S, 1x). Rows: OLD (shared orange tint + body squash), NEW regular, NEW elite`,
     cols: offs.length, cellW: 120, cellH: 150, cells: ordered,
   });
   await page.close();
   // 4. real CROSSFIRE
-  await live('gunner-weaponfire-v2-live.webm', 360);
+  await live(`gunner-weaponfire-${tag}-live.webm`, 360);
 }
 
-const run = { sheets, facings, weapon, colliders, live: () => live(), ab, controlled, firefx, weaponfire };
+let MOVE_EXTRA = '';
+const run = { sheets, facings, weapon, colliders, live: () => live(), ab, controlled, firefx, weaponfire: () => weaponfire('v3'),
+  movement: () => ab('&roster=v1', '&roster=v1&move=v2', 'SHIPPED MOVEMENT', '?move=v2 CANDIDATE', 'enemy-move-v2-ab.webm', 600),
+  'v3-live': async () => { MOVE_EXTRA = '&move=v2'; await live('gunner-weaponfire-v3-live-move-v2.webm', 450); } };
 if (MODE === 'all') { for (const f of Object.values(run)) await f(); }
 else if (run[MODE]) await run[MODE]();
 else fail(`unknown mode ${MODE}`);

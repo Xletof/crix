@@ -248,7 +248,7 @@ const cyc = await pV.evaluate(() => {
     e.preUpdate = function (t, d) { enemyProto.preUpdate.call(this, t, d); };
     e.fireCd = 600;
     const tgt = { x: 1100, y: 800 };
-    let warnTick = -1, shotTick = -1, maxKick = 0, minScale = 1, tintedWarn = false, pipSeen = false, lastKickTick = -1;
+    let warnTick = -1, shotTick = -1, maxKick = 0, minScale = 1, tintedWarn = false, pipSeen = false, chargeCmds = 0, lastKickTick = -1;
     gs.events.once('shooter-fire', () => { shotTick = t; });
     let t = 0;
     for (; t < 60; t++) {
@@ -261,10 +261,10 @@ const cyc = await pV.evaluate(() => {
       if (k > 1e-6) lastKickTick = t;
       maxKick = Math.max(maxKick, k);
       minScale = Math.min(minScale, e.scaleX);
-      if (warnTick >= 0 && shotTick < 0) { tintedWarn ||= e.weaponSprite.isTinted; pipSeen ||= e._attachments.some((o) => o.texture?.key === 'fx-gun-charge' && o.visible); }
+      if (warnTick >= 0 && shotTick < 0) { tintedWarn ||= e.weaponSprite.isTinted; const cg = e._attachments.find((o) => o.type === 'Graphics' && o.visible); if (cg) { pipSeen = true; chargeCmds = Math.max(chargeCmds, cg.commandBuffer.length); } }
       if (shotTick >= 0 && t > shotTick + 20) break;
     }
-    const r = { warnTick, shotTick, lead: shotTick - warnTick, maxKick: +maxKick.toFixed(2), kickTicks: lastKickTick - shotTick, minScale: +minScale.toFixed(3), tintedWarn, pipSeen };
+    const r = { warnTick, shotTick, lead: shotTick - warnTick, maxKick: +maxKick.toFixed(2), kickTicks: lastKickTick - shotTick, minScale: +minScale.toFixed(3), tintedWarn, pipSeen, chargeCmds };
     gs._destroyEnemyFully(e);
     return r;
   };
@@ -273,7 +273,7 @@ const cyc = await pV.evaluate(() => {
 for (const k of ['R', 'E']) {
   const c = cyc[k];
   check(c.warnTick === cyc.legacy.warnTick && c.shotTick === cyc.legacy.shotTick, `23. v1 ${k}: the warning starts and the shot fires on the SAME ticks as legacy (${c.lead} ticks of warning)`, JSON.stringify(cyc));
-  check(!c.tintedWarn && c.pipSeen, `23. v1 ${k}: the warning is the gun's own charge (pip at the muzzle), the gun is never tinted`, JSON.stringify(c));
+  check(!c.tintedWarn && c.pipSeen && c.chargeCmds > 60, `23. v1 ${k}: the warning is the gun's own charge (chamber packet + muzzle swirl drawn on the gun), the gun is never tinted`, JSON.stringify(c));
   check(c.minScale === 1 && c.maxKick > 0.5 && c.maxKick <= 2.01 && c.kickTicks <= 6, `23. v1 ${k}: no body squash on the shot; the gun kicks ${c.maxKick}px and is home within ${c.kickTicks} ticks`, JSON.stringify(c));
 }
 check(cyc.legacy.tintedWarn && cyc.legacy.minScale < 0.9 && cyc.legacy.maxKick < 1e-6, '23. (A/B) legacy still tints the gun orange and squashes the body, gun unmoved', JSON.stringify(cyc.legacy));

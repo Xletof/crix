@@ -107,38 +107,41 @@ export function attachGunnerMuzzle(scene) {
 // accumulate. No timers, no tweens, no randomness; the overlays are the
 // actor's `_attachments`, so death and room clears sweep them.
 
-const CHARGE_KEY = 'fx-gun-charge', CELL_KEY = 'fx-gun-cell';
-const KICK_PX = 2, KICK_MS = 80, CELL_FLASH_MS = 50;
-
-export function paintGunnerCharge(scene) {
-  if (scene.textures.exists(CHARGE_KEY)) return;
-  const pip = scene.textures.createCanvas(CHARGE_KEY, 3 * S * 2, 3 * S);
-  const c = pip.getContext();
-  const px = (f, x, y, col) => { c.fillStyle = col; c.fillRect((f * 3 + x) * S, y * S, S, S); };
-  // frame 0: building (green); frame 1: about to release (white / yellow-white)
-  px(0, 1, 1, '#c8ffd4'); for (const [x, y] of [[0, 1], [2, 1], [1, 0], [1, 2]]) px(0, x, y, '#3dff6a');
-  px(1, 1, 1, '#ffffff'); for (const [x, y] of [[0, 1], [2, 1], [1, 0], [1, 2]]) px(1, x, y, '#fff3a0');
-  pip.refresh(); pip.add(0, 0, 0, 0, 3 * S, 3 * S); pip.add(1, 0, 3 * S, 0, 3 * S, 3 * S);
-  const cell = scene.textures.createCanvas(CELL_KEY, 2 * S * 2, S);
-  const d = cell.getContext();
-  d.fillStyle = '#9dffb2'; d.fillRect(0, 0, 2 * S, S);
-  d.fillStyle = '#fffbe0'; d.fillRect(2 * S, 0, 2 * S, S);
-  cell.refresh(); cell.add(0, 0, 0, 0, 2 * S, S); cell.add(1, 0, 2 * S, 0, 2 * S, S);
-}
+const KICK_PX = 2, KICK_MS = 80;
 
 /** Give a v1 Gunner its weapon firing cycle. Called by `wearRosterArt`. */
+//
+// v3 — the charge is drawn INSIDE AND AROUND THE GUN, big enough to read at
+// 1x in a fight, and it MOVES, because a cue that only gets brighter reads as
+// a light blinking:
+//   CHAMBER  the receiver's core line lights green and a bright packet runs
+//            butt -> muzzle, faster each pass (three passes in the window):
+//            power being cycled into the barrel
+//   SWIRL    four sparks orbit the muzzle, spinning up and pulling in from
+//            12px to 4px as the window closes; green -> yellow-white
+//   TIGHTEN  the last 60ms: the sparks collapse into a white core
+//   RELEASE  the core and chamber flash white, a 2px ring snaps out from the
+//            muzzle to 13px in 60ms, the discharge fires, the gun kicks 2px
+// Pixel-snapped 3px squares (the bolt's own pixel), one Graphics per gun.
 export function makeGunnerWeaponFx(e) {
   const scene = e.scene;
-  const pip = scene.add.image(0, 0, CHARGE_KEY, 0).setVisible(false);
-  const cell = scene.add.image(0, 0, CELL_KEY, 0).setVisible(false);
-  e._attachments.push(pip, cell);
+  const g = scene.add.graphics().setVisible(false);
+  e._attachments.push(g);
+  const lerpCol = (a, b, t) => {
+    const r = ((a >> 16) & 255) + ((((b >> 16) & 255) - ((a >> 16) & 255)) * t);
+    const gg = ((a >> 8) & 255) + ((((b >> 8) & 255) - ((a >> 8) & 255)) * t);
+    const bl = (a & 255) + (((b & 255) - (a & 255)) * t);
+    return (Math.round(r) << 16) | (Math.round(gg) << 8) | Math.round(bl);
+  };
+  const GREEN = 0x3dff6a, LIME = 0x9dffb2, HOT = 0xfff6c0, WHITE = 0xffffff;
+  const sq = (x, y, sz, col, al) => { g.fillStyle(col, al); g.fillRect(Math.round(x - sz / 2), Math.round(y - sz / 2), sz, sz); };
   const fx = {
-    chargeT: -1, chargeMs: 300, kickT: -1, squashT: -1,
-    charge(ms) { this.chargeMs = ms; this.chargeT = 0; },
+    chargeT: -1, chargeMs: 300, kickT: -1, squashT: -1, spin: 0,
+    charge(ms) { this.chargeMs = ms; this.chargeT = 0; this.spin = 0; },
     shot() { this.chargeT = -1; this.kickT = 0; this.squashT = 0; },
     tick(delta) {
       const ws = e.weaponSprite;
-      if (!e.active || !e.alive || !ws?.active) { pip.setVisible(false); cell.setVisible(false); return !e.active; }
+      if (!e.active || !e.alive || !ws?.active) { g.setVisible(false); return !e.active; }
       // THE SHOT SQUASH IS PHYSICS, NOT JUST PICTURE. `recoilT` still shrinks
       // the sprite in `Enemy.preUpdate` and the physics step has already sized
       // the body from it this frame; this runs after that step and before the
@@ -150,10 +153,9 @@ export function makeGunnerWeaponFx(e) {
         else if (!(e._staggerMs > 0)) e.setScale(e._baseScale);
       }
       // the kick: the gun alone, back along its own axis, never accumulating
-      let k = 0;
       if (this.kickT >= 0) {
         this.kickT += delta;
-        k = this.kickT < KICK_MS ? KICK_PX * (1 - this.kickT / KICK_MS) : 0;
+        const k = this.kickT < KICK_MS ? KICK_PX * (1 - this.kickT / KICK_MS) : 0;
         if (this.kickT >= KICK_MS) this.kickT = -1;
         ws.x -= Math.cos(ws.rotation) * k; ws.y -= Math.sin(ws.rotation) * k;
       }
@@ -161,24 +163,40 @@ export function makeGunnerWeaponFx(e) {
       if (this.chargeT >= 0) {
         this.chargeT += delta;
         u = Math.min(1, this.chargeT / this.chargeMs);
-        // no shot came (line of sight lost): the charge bleeds away
-        if (this.chargeT > this.chargeMs + 60) { this.chargeT = -1; u = -1; }
+        if (this.chargeT > this.chargeMs + 60) { this.chargeT = -1; u = -1; }   // no shot came: it bleeds away
       }
-      const flash = this.kickT >= 0 && this.kickT < CELL_FLASH_MS;
+      const rel = this.kickT >= 0 && this.kickT < 70 ? this.kickT / 70 : -1;
+      g.clear();
+      if (u < 0 && rel < 0) { g.setVisible(false); return false; }
+      g.setVisible(true).setDepth(ws.depth + 0.5).setAlpha(ws.alpha);
       const mtx = ws.getWorldTransformMatrix(), p = new Phaser.Math.Vector2();
-      const a = ws.alpha, depth = ws.depth + 0.5;
-      // indicator: receiver pixels 11-12 of the padded gun, on the barrel row
-      mtx.transformPoint(12 * S - ws.originX * ws.width, 0, p);
-      if (u >= 0 || flash) {
-        cell.setPosition(p.x, p.y).setRotation(ws.rotation).setFrame(flash || u > 0.5 ? 1 : 0)
-          .setAlpha(a * (flash ? 1 : 0.55 + 0.45 * u)).setDepth(depth).setVisible(true);
-      } else cell.setVisible(false);
-      // muzzle pip, just inside the drawn tip
+      const at = (lx) => { mtx.transformPoint(lx * S - ws.originX * ws.width, 0, p); return { x: p.x, y: p.y }; };
+      const cx = Math.cos(ws.rotation), cy = Math.sin(ws.rotation);
+      const tipLx = ws.width / S - 1.5;                       // just inside the drawn muzzle, in gun pixels
+      const tip = at(tipLx);
       if (u >= 0) {
-        mtx.transformPoint((1 - ws.originX) * ws.width - 6, 0, p);
-        pip.setPosition(p.x, p.y).setFrame(u > 0.6 ? 1 : 0).setScale(0.6 + 0.5 * u)
-          .setAlpha(a * (0.45 + 0.55 * u)).setDepth(depth).setVisible(true);
-      } else pip.setVisible(false);
+        // CHAMBER: receiver core line (gun px 3..15), brightening, with a packet
+        const col = lerpCol(GREEN, HOT, u);
+        for (let lx = 3; lx <= 15; lx += 0.75) { const q = at(lx); sq(q.x, q.y, 3, col, 0.35 + 0.55 * u); }
+        const passes = 3 * Math.pow(u, 1.4);
+        const ph = passes - Math.floor(passes);
+        for (let j = 0; j < 3; j++) { const q = at(3 + ph * 12 - j * 0.8); sq(q.x, q.y, 3, j ? col : WHITE, 1 - j * 0.3); }
+        // SWIRL: four sparks spinning up and pulling in around the muzzle
+        this.spin += (delta / 1000) * (8 + 34 * u);
+        const r = u > 0.8 ? 4 * (1 - (u - 0.8) / 0.2) + 1 : 12 - 8 * (u / 0.8);
+        for (let j = 0; j < 4; j++) {
+          const a = this.spin + j * Math.PI / 2;
+          sq(tip.x + Math.cos(a) * r, tip.y + Math.sin(a) * r * 0.75, u > 0.5 ? 4 : 3, lerpCol(LIME, HOT, u), 0.6 + 0.4 * u);
+        }
+        sq(tip.x, tip.y, u > 0.6 ? 6 : 3, u > 0.6 ? WHITE : LIME, 0.5 + 0.5 * u);
+      }
+      if (rel >= 0) {
+        // RELEASE: chamber flash, core, and a hard ring snapping outward
+        if (rel < 0.5) for (let lx = 3; lx <= 15; lx += 0.75) { const q = at(lx); sq(q.x, q.y, 3, WHITE, 0.9 * (1 - rel * 2)); }
+        const rr = 4 + 9 * rel;
+        g.lineStyle(2, rel < 0.4 ? WHITE : LIME, 1 - rel);
+        g.strokeCircle(Math.round(tip.x + cx * 3), Math.round(tip.y + cy * 3), rr);
+      }
       return false;
     },
   };
