@@ -641,9 +641,52 @@ async function weaponfire(tag = 'v2') {
   await live(`gunner-weaponfire-${tag}-live.webm`, 360);
 }
 
+// ── density: where Gunners/Riflemen stand relative to the player, v2 vs v2.1 ─
+async function density() {
+  const collect = async (extra) => {
+    const page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
+    await page.goto(BASE + `?nodlg=1&nofreeze=1&roster=v1&${ENC}${extra}`);
+    await stepBoot(page);
+    await page.evaluate(PLAYER_SCRIPT);
+    const pts = [];
+    for (let f = 0; f < 600; f++) {
+      const r = await page.evaluate(() => { window.__frame(2); const gs = window.__gs, p = gs.player;
+        return gs.enemies.getChildren().filter((e) => e.active && e.alive && (e.enemyType === 'shooter' || e.enemyType === 'grunt')).map((e) => [e.x - p.x, e.y - p.y]); });
+      if (f % 3 === 0) pts.push(...r);
+    }
+    await page.close();
+    return pts;
+  };
+  const A = await collect('&move=v2'), B = await collect('&move=v21');
+  const page = await browser.newPage();
+  const url = await page.evaluate(({ A, B }) => {
+    const W = 460, c = document.createElement('canvas'); c.width = W * 2 + 30; c.height = W + 70;
+    const x = c.getContext('2d'); x.fillStyle = '#14161b'; x.fillRect(0, 0, c.width, c.height);
+    const panel = (pts, ox, title) => {
+      x.fillStyle = '#e4e7ee'; x.font = 'bold 15px monospace'; x.fillText(title, ox, 22);
+      const cx = ox + W / 2, cy = 40 + W / 2, k = W / 900;
+      x.strokeStyle = '#2c3038'; for (const r of [160, 340]) { x.beginPath(); x.arc(cx, cy, r * k, 0, 7); x.stroke(); }
+      x.fillStyle = 'rgba(61,255,106,0.10)';
+      for (const [dx, dy] of pts) x.fillRect(cx + dx * k - 2, cy + dy * k - 2, 4, 4);
+      x.fillStyle = '#fff'; x.fillRect(cx - 3, cy - 3, 6, 6);
+    };
+    panel(A, 10, '?move=v2  (positions rel. to player)');
+    panel(B, W + 20, '?move=v21 (personal lanes)');
+    x.fillStyle = '#aab0bd'; x.font = '12px monospace';
+    x.fillText('seeded CROSSFIRE s14, 20s, Gunners+Riflemen sampled every 100ms. Rings: 160 / 340px bands. Brighter = more time there.', 10, W + 60);
+    return c.toDataURL('image/png');
+  }, { A, B });
+  writeFileSync(OUT + 'enemy-move-v21-density.png', Buffer.from(url.split(',')[1], 'base64'));
+  await page.close(); console.log('wrote density');
+}
+
 let MOVE_EXTRA = '';
 const run = { sheets, facings, weapon, colliders, live: () => live(), ab, controlled, firefx, weaponfire: () => weaponfire('v3'),
   movement: () => ab('&roster=v1', '&roster=v1&move=v2', 'SHIPPED MOVEMENT', '?move=v2 CANDIDATE', 'enemy-move-v2-ab.webm', 600),
+  v4: () => weaponfire('v4'),
+  move21: () => ab('&roster=v1&move=v2', '&roster=v1&move=v21', '?move=v2', '?move=v21 (lanes)', 'enemy-move-v21-ab.webm', 600),
+  density,
+  'v4-live': async () => { MOVE_EXTRA = '&move=v21'; await live('gunner-v4-move-v21-live.webm', 450); },
   'v3-live': async () => { MOVE_EXTRA = '&move=v2'; await live('gunner-weaponfire-v3-live-move-v2.webm', 450); } };
 if (MODE === 'all') { for (const f of Object.values(run)) await f(); }
 else if (run[MODE]) await run[MODE]();

@@ -56,7 +56,6 @@ const SWARM_RUSH_RANGE     = 150;  // px — grunts close to this range then orb
 const SWARM_HOLD_RANGE     = 340;  // px — shooters hold and fire from here
 const SWARM_RETREAT_RANGE  = 160;  // px — shooters back off when player is closer
 const SWARM_STRAFE_FLIP_MS = 1200; // ms — strafe direction flip cadence
-const LANE_SPREAD          = 0.45; // rad — `?move=v21` personal-lane offset per lane step
 
 // ── Base Enemy class ──────────────────────────────────────────────────────────
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
@@ -965,6 +964,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 // Flank: if spec.role === 'flanker', after ALERT it computes a perpendicular
 //        position and moves there instead of the nearest cover.
 export class EnemyShooter extends Enemy {
+  // rad — `?move=v21` personal-lane offset per lane step. A class field, not a
+  // module const: everything above this class is pinned to the Captain baseline.
+  static LANE_SPREAD = 0.45;
+
   constructor(scene, x, y, spec = {}) {
     super(scene, x, y, 'shooter', ENEMY.shooter, spec);
     this.fireCd       = Phaser.Math.Between(800, this.cfg.fireCooldownMs);
@@ -1433,11 +1436,10 @@ export class EnemyShooter extends Enemy {
       // arriving through one gate fans out on the way in instead of filing in
       let ax = player.x, ay = player.y;
       if (this._lane !== undefined) {
-        if (this._laneAnchor === undefined) this._laneAnchor = toPlayer + Math.PI - this._lane * LANE_SPREAD;
+        if (this._laneAnchor === undefined) this._laneAnchor = toPlayer + Math.PI - this._lane * EnemyShooter.LANE_SPREAD;
         const lb = this._laneBearing(), R = near - 70;
         const lx = player.x + Math.cos(lb) * R, ly = player.y + Math.sin(lb) * R;
-        // ...unless that line is blind: then close on the player as v2 does
-        if (Math.hypot(lx - this.x, ly - this.y) > 40 && (this._blindMs || 0) < 400) { ax = lx; ay = ly; }
+        if (Math.hypot(lx - this.x, ly - this.y) > 40) { ax = lx; ay = ly; }
       }
       this._moveToward(ax, ay, speed);                  // the shipped approach and its stuck sidestep
       tvx = this.body.velocity.x; tvy = this.body.velocity.y;
@@ -1495,7 +1497,6 @@ export class EnemyShooter extends Enemy {
     this.setVelocity(v.x + (tvx - v.x) * k, v.y + (tvy - v.y) * k);
     this._aim = aim;
 
-    if (this._lane !== undefined) this._blindMs = this._hasLOS(this.x, this.y, player.x, player.y) ? 0 : (this._blindMs || 0) + delta;
     this._maybeFireAt(delta, player);
   }
 
@@ -1511,12 +1512,10 @@ export class EnemyShooter extends Enemy {
   // takes short steps inside +-0.22 rad of it, alternating, so it stays alive
   // without drifting into a neighbour's ground. The 110px mate check stays as
   // the emergency spacer underneath.
-  _laneBearing() { return this._laneAnchor + this._lane * LANE_SPREAD; }
+  _laneBearing() { return this._laneAnchor + this._lane * EnemyShooter.LANE_SPREAD; }
   _pickLaneSide(L, toPlayer) {
     const from = toPlayer + Math.PI;                          // bearing player -> me
-    // a lane that keeps the body out of sight of the player is not a firing
-    // position: after 0.4s blind in the band, the lane slides to where it stands
-    if (this._laneAnchor === undefined || L.blockedRun >= 2 || (this._blindMs || 0) > 400) { this._laneAnchor = from - this._lane * LANE_SPREAD; L.blockedRun = 0; }
+    if (this._laneAnchor === undefined || L.blockedRun >= 2) { this._laneAnchor = from - this._lane * EnemyShooter.LANE_SPREAD; L.blockedRun = 0; }
     const d = Phaser.Math.Angle.Wrap(this._laneBearing() - from);
     // my bearing phi = toPlayer + PI; side +1 heads along toPlayer + PI/2,
     // which DEcreases phi, so a lane at larger phi (d > 0) wants side -1
