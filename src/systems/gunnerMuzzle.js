@@ -111,17 +111,14 @@ const KICK_PX = 2, KICK_MS = 80;
 
 /** Give a v1 Gunner its weapon firing cycle. Called by `wearRosterArt`. */
 //
-// v3 — the charge is drawn INSIDE AND AROUND THE GUN, big enough to read at
-// 1x in a fight, and it MOVES, because a cue that only gets brighter reads as
-// a light blinking:
-//   CHAMBER  the receiver's core line lights green and a bright packet runs
-//            butt -> muzzle, faster each pass (three passes in the window):
-//            power being cycled into the barrel
-//   SWIRL    four sparks orbit the muzzle, spinning up and pulling in from
-//            12px to 4px as the window closes; green -> yellow-white
-//   TIGHTEN  the last 60ms: the sparks collapse into a white core
-//   RELEASE  the core and chamber flash white, a 2px ring snaps out from the
-//            muzzle to 13px in 60ms, the discharge fires, the gun kicks 2px
+// v4 — the charge lives INSIDE the gun, readable at 1x, and it moves:
+//   WIND     the receiver's core line lights and a packet runs forward in it
+//   SPIN     internal highlights step around the barrel axis, faster and faster
+//   COMPRESS the lit span shortens toward the muzzle, green -> near-white
+//   RELEASE  one tick of 7px white-hot core at the mouth (the muzzle wins),
+//            the discharge fires, the gun kicks 2px
+//   EMPTY    the chamber drops to a dim green and is gone in 70ms; the bolt
+//            carries the read from the next frame
 // Pixel-snapped 3px squares (the bolt's own pixel), one Graphics per gun.
 export function makeGunnerWeaponFx(e) {
   const scene = e.scene;
@@ -174,28 +171,52 @@ export function makeGunnerWeaponFx(e) {
       const cx = Math.cos(ws.rotation), cy = Math.sin(ws.rotation);
       const tipLx = ws.width / S - 1.5;                       // just inside the drawn muzzle, in gun pixels
       const tip = at(tipLx);
+      const atY = (lx, ly) => { mtx.transformPoint(lx * S - ws.originX * ws.width, ly, p); return { x: p.x, y: p.y }; };
+      void cx; void cy;
       if (u >= 0) {
-        // CHAMBER: receiver core line (gun px 3..15), brightening, with a packet
-        const col = lerpCol(GREEN, HOT, u);
-        for (let lx = 3; lx <= 15; lx += 0.75) { const q = at(lx); sq(q.x, q.y, 3, col, 0.35 + 0.55 * u); }
-        const passes = 3 * Math.pow(u, 1.4);
+        // v4 — THE ENERGY LIVES IN THE GUN. The lit span of the receiver's core
+        // line SHORTENS toward the muzzle as the charge fills (wound up, then
+        // compressed), its colour runs green -> near-white, a packet travels
+        // forward inside it, and three internal highlights step around the
+        // barrel axis (above / on / below it, 3px inside the receiver's 12px
+        // body) at a rate that climbs from ~6 to ~30 steps a second: a small
+        // contained mechanism spinning up. Nothing orbits outside the gun until
+        // the last 10%, and then only two pixels hugging the muzzle.
+        const ease = u * u * (3 - 2 * u);
+        const back = 3 + 9 * ease, front = 16;                 // lit span, gun px: 3..16 -> 12..16
+        const col = lerpCol(GREEN, HOT, ease);
+        for (let lx = back; lx <= front; lx += 0.75) { const q = at(lx); sq(q.x, q.y, 3, col, 0.45 + 0.5 * u); }
+        // packet: forward inside the span, faster each pass
+        const passes = 3 * Math.pow(u, 1.3);
         const ph = passes - Math.floor(passes);
-        for (let j = 0; j < 3; j++) { const q = at(3 + ph * 12 - j * 0.8); sq(q.x, q.y, 3, j ? col : WHITE, 1 - j * 0.3); }
-        // SWIRL: four sparks spinning up and pulling in around the muzzle
-        this.spin += (delta / 1000) * (8 + 34 * u);
-        const r = u > 0.8 ? 4 * (1 - (u - 0.8) / 0.2) + 1 : 12 - 8 * (u / 0.8);
-        for (let j = 0; j < 4; j++) {
-          const a = this.spin + j * Math.PI / 2;
-          sq(tip.x + Math.cos(a) * r, tip.y + Math.sin(a) * r * 0.75, u > 0.5 ? 4 : 3, lerpCol(LIME, HOT, u), 0.6 + 0.4 * u);
+        const q0 = at(back + ph * (front - back)); sq(q0.x, q0.y, 3, WHITE, 1);
+        // internal spin: three highlights stepping around the axis
+        this.spin += (delta / 1000) * (6 + 24 * u);
+        const step = Math.floor(this.spin) % 3;
+        const off = [-3, 0, 3][step];
+        const sx = back + (front - back) * 0.6;
+        const qa = atY(sx, off); sq(qa.x, qa.y, 3, u > 0.6 ? WHITE : LIME, 0.9);
+        const qb = atY(sx + 1.5, -off); sq(qb.x, qb.y, 3, u > 0.6 ? HOT : LIME, 0.7);
+        // the core at the barrel's mouth, inside the silhouette, near-white at the end
+        const c0 = at(tipLx - 0.5);
+        sq(c0.x, c0.y, u > 0.75 ? 5 : 3, u > 0.75 ? WHITE : lerpCol(LIME, HOT, u), 0.6 + 0.4 * u);
+        if (u > 0.9) {
+          const a = this.spin * 2.2;
+          for (const sgn of [1, -1]) sq(c0.x + Math.cos(a) * 4 * sgn, c0.y + Math.sin(a) * 3 * sgn, 2, WHITE, 0.9);
         }
-        sq(tip.x, tip.y, u > 0.6 ? 6 : 3, u > 0.6 ? WHITE : LIME, 0.5 + 0.5 * u);
       }
       if (rel >= 0) {
-        // RELEASE: chamber flash, core, and a hard ring snapping outward
-        if (rel < 0.5) for (let lx = 3; lx <= 15; lx += 0.75) { const q = at(lx); sq(q.x, q.y, 3, WHITE, 0.9 * (1 - rel * 2)); }
-        const rr = 4 + 9 * rel;
-        g.lineStyle(2, rel < 0.4 ? WHITE : LIME, 1 - rel);
-        g.strokeCircle(Math.round(tip.x + cx * 3), Math.round(tip.y + cy * 3), rr);
+        // RELEASE: the compressed charge dumps forward. Tick 1 the muzzle WINS —
+        // a 7px white-hot core; then the chamber is visibly EMPTY: dim, short,
+        // gone in 70ms, while the bolt carries the read.
+        const ms = this.kickT;
+        if (ms < 17) {
+          const c = at(tipLx); sq(c.x, c.y, 7, WHITE, 1);
+          for (let lx = 12; lx <= 16; lx += 0.75) { const q = at(lx); sq(q.x, q.y, 3, WHITE, 1); }
+        } else {
+          const k = 1 - rel;
+          for (let lx = 3; lx <= 16; lx += 1.5) { const q = at(lx); sq(q.x, q.y, 3, GREEN, 0.35 * k); }
+        }
       }
       return false;
     },

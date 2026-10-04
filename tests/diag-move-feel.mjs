@@ -42,7 +42,8 @@ async function run(extra) {
       for (const e of gs.enemies.getChildren()) {
         if (!e.active || !e.alive || (e.enemyType !== 'shooter' && e.enemyType !== 'grunt') || e._staggerMs > 0) continue;
         const v = e.body.velocity, sp = Math.hypot(v.x, v.y), h = Math.atan2(v.y, v.x);
-        const a = st.get(e) || { los: 0, dist: 0, modes: {}, n: 0, snaps: 0, rev: 0, turns: 0, still: 0, legs: [], legT: 0, legH: null, hist: [] };
+        const a = st.get(e) || { nn: [], los: 0, dist: 0, modes: {}, n: 0, snaps: 0, rev: 0, turns: 0, still: 0, legs: [], legT: 0, legH: null, hist: [] };
+        { let m = 1e9; for (const o of gs.enemies.getChildren()) { if (o === e || !o.active || !o.alive || (o.enemyType !== 'shooter' && o.enemyType !== 'grunt')) continue; m = Math.min(m, Math.hypot(o.x - e.x, o.y - e.y)); } if (m < 1e9) a.nn.push(m); }
         a.n++; if (e._hasLOS(e.x, e.y, gs.player.x, gs.player.y)) a.los++; a.dist += Math.hypot(gs.player.x - e.x, gs.player.y - e.y); const md = e._leg?.mode || '-'; a.modes[md] = (a.modes[md] || 0) + 1;
         if (sp < 25) { a.still++; if (a.legH !== null && a.legT > 0) { a.legs.push(a.legT); } a.legH = null; a.legT = 0; }
         else {
@@ -61,16 +62,16 @@ async function run(extra) {
         st.set(e, a);
       }
     }
-    let los = 0, dist = 0; const modes = {}; let n = 0, snaps = 0, rev = 0, turns = 0, still = 0; const legs = [];
-    for (const a of st.values()) { los += a.los; dist += a.dist; for (const [m, c] of Object.entries(a.modes)) modes[m] = (modes[m] || 0) + c; n += a.n; snaps += a.snaps; rev += a.rev; turns += a.turns; still += a.still; legs.push(...a.legs); }
+    const nn = []; let los = 0, dist = 0; const modes = {}; let n = 0, snaps = 0, rev = 0, turns = 0, still = 0; const legs = [];
+    for (const a of st.values()) { nn.push(...a.nn); los += a.los; dist += a.dist; for (const [m, c] of Object.entries(a.modes)) modes[m] = (modes[m] || 0) + c; n += a.n; snaps += a.snaps; rev += a.rev; turns += a.turns; still += a.still; legs.push(...a.legs); }
     legs.sort((x, y) => x - y);
     const secs = n / 60;
     return { actorSec: +secs.toFixed(1), snapsPerSec: +(snaps / secs).toFixed(2), reversalsPerSec: +(rev / secs).toFixed(2), turnsPerSec: +(turns / secs).toFixed(2),
-      medianLegMs: Math.round(legs[Math.floor(legs.length / 2)] || 0), stillPct: Math.round(100 * still / n), shots, shotsMovingPct: Math.round(100 * movingShots / Math.max(1, shots)), losPct: Math.round(100 * los / n), meanDist: Math.round(dist / n), modes: JSON.stringify(Object.fromEntries(Object.entries(modes).map(([m, c]) => [m, Math.round(100 * c / n)]))) };
+      medianLegMs: Math.round(legs[Math.floor(legs.length / 2)] || 0), stillPct: Math.round(100 * still / n), shots, shotsMovingPct: Math.round(100 * movingShots / Math.max(1, shots)), losPct: Math.round(100 * los / n), nnMedian: Math.round(nn.sort((x, y) => x - y)[Math.floor(nn.length / 2)]), nnUnder90Pct: Math.round(100 * nn.filter((d) => d < 90).length / nn.length), meanDist: Math.round(dist / n) };
   });
   await page.close();
   return r;
 }
 const extra = process.argv[2] || '';
-console.table({ shipped: await run(extra), 'move=v2': await run(extra + '&move=v2') });
+console.table({ shipped: await run(extra), 'move=v2': await run(extra + '&move=v2'), 'move=v21': await run(extra + '&move=v21') });
 await browser.close();

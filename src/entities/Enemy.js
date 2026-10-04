@@ -56,6 +56,7 @@ const SWARM_RUSH_RANGE     = 150;  // px — grunts close to this range then orb
 const SWARM_HOLD_RANGE     = 340;  // px — shooters hold and fire from here
 const SWARM_RETREAT_RANGE  = 160;  // px — shooters back off when player is closer
 const SWARM_STRAFE_FLIP_MS = 1200; // ms — strafe direction flip cadence
+const LANE_SPREAD          = 0.45; // rad — `?move=v21` personal-lane offset per lane step
 
 // ── Base Enemy class ──────────────────────────────────────────────────────────
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
@@ -1428,7 +1429,17 @@ export class EnemyShooter extends Enemy {
     let aim = toPlayer;
     if (mode === 'approach') {
       const v = this.body.velocity, vx = v.x, vy = v.y;
-      this._moveToward(player.x, player.y, speed);      // the shipped approach and its stuck sidestep
+      // v2.1: close on the body's OWN lane point, not on the player, so a squad
+      // arriving through one gate fans out on the way in instead of filing in
+      let ax = player.x, ay = player.y;
+      if (this._lane !== undefined) {
+        if (this._laneAnchor === undefined) this._laneAnchor = toPlayer + Math.PI - this._lane * LANE_SPREAD;
+        const lb = this._laneBearing(), R = near - 70;
+        const lx = player.x + Math.cos(lb) * R, ly = player.y + Math.sin(lb) * R;
+        // ...unless that line is blind: then close on the player as v2 does
+        if (Math.hypot(lx - this.x, ly - this.y) > 40 && (this._blindMs || 0) < 400) { ax = lx; ay = ly; }
+      }
+      this._moveToward(ax, ay, speed);                  // the shipped approach and its stuck sidestep
       tvx = this.body.velocity.x; tvy = this.body.velocity.y;
       this.body.velocity.set(vx, vy);
       aim = this._aim;
@@ -1439,9 +1450,10 @@ export class EnemyShooter extends Enemy {
       const blocked = this.body.blocked.left || this.body.blocked.right || this.body.blocked.up || this.body.blocked.down;
       if (L.phase === 'move' && (L.t >= L.dur || blocked)) {
         L.phase = 'settle'; L.t = 0; L.dur = 320 + Math.random() * 280;
-        if (blocked) { L.side = -L.side; L.legs = 0; }
+        if (blocked) { L.side = -L.side; L.legs = 0; L.blockedRun = (L.blockedRun || 0) + 1; } else L.blockedRun = 0;
       } else if (L.phase === 'settle' && L.t >= L.dur) {
-        if (L.legs >= 2 || Math.random() < 0.25) { L.side = -L.side; L.legs = 0; }
+        if (this._lane !== undefined) this._pickLaneSide(L, toPlayer);
+        else if (L.legs >= 2 || Math.random() < 0.25) { L.side = -L.side; L.legs = 0; }
         // don't stack: if a squadmate stands within 110px, take the side away from it
         let mate = null, md = 110;
         for (const o of this.scene.enemies.getChildren()) {
@@ -1465,6 +1477,8 @@ export class EnemyShooter extends Enemy {
         L.phase = 'move'; L.t = 0; L.dur = 620 + Math.random() * 480;
       }
       if (L.phase === 'move') { tvx = L.dx * speed * 0.65; tvy = L.dy * speed * 0.65; }
+      // v2.1: arrived in the lane — end the leg; the next one is a short step inside it
+      if (L.phase === 'move' && L.toLane && Math.abs(Phaser.Math.Angle.Wrap(this._laneBearing() - (toPlayer + Math.PI))) < 0.1) { L.phase = 'settle'; L.t = 0; L.dur = 380 + Math.random() * 300; }
     }
     // PLANT FOR THE SHOT: slow through the warning, stand for the fire frame
     // — in the band only: a body still closing keeps closing, or it spends
@@ -1481,7 +1495,34 @@ export class EnemyShooter extends Enemy {
     this.setVelocity(v.x + (tvx - v.x) * k, v.y + (tvy - v.y) * k);
     this._aim = aim;
 
+    if (this._lane !== undefined) this._blindMs = this._hasLOS(this.x, this.y, player.x, player.y) ? 0 : (this._blindMs || 0) + delta;
     this._maybeFireAt(delta, player);
+  }
+
+  // ── v2.1 PERSONAL LANE ─────────────────────────────────────────────────
+  //
+  // v2's legs are committed, but every body solves the same problem — the
+  // middle of the band, on the side away from the nearest mate — so a squad
+  // that arrives together ends up standing together. A lane is a BEARING
+  // AROUND THE PLAYER the body owns: its own approach bearing when it first
+  // reached the band, offset by lane x 0.62 rad (lanes -1 / 0 / +1 dealt
+  // round-robin at spawn). It persists; it is re-anchored only after two legs
+  // blocked in a row. Off its lane the next leg heads for it; on it, the body
+  // takes short steps inside +-0.22 rad of it, alternating, so it stays alive
+  // without drifting into a neighbour's ground. The 110px mate check stays as
+  // the emergency spacer underneath.
+  _laneBearing() { return this._laneAnchor + this._lane * LANE_SPREAD; }
+  _pickLaneSide(L, toPlayer) {
+    const from = toPlayer + Math.PI;                          // bearing player -> me
+    // a lane that keeps the body out of sight of the player is not a firing
+    // position: after 0.4s blind in the band, the lane slides to where it stands
+    if (this._laneAnchor === undefined || L.blockedRun >= 2 || (this._blindMs || 0) > 400) { this._laneAnchor = from - this._lane * LANE_SPREAD; L.blockedRun = 0; }
+    const d = Phaser.Math.Angle.Wrap(this._laneBearing() - from);
+    // my bearing phi = toPlayer + PI; side +1 heads along toPlayer + PI/2,
+    // which DEcreases phi, so a lane at larger phi (d > 0) wants side -1
+    if (Math.abs(d) > 0.22) { L.side = d > 0 ? -1 : 1; L.toLane = true; }
+    else { L.side = L.lastStep === 1 ? -1 : 1; L.lastStep = L.side; L.toLane = false; }
+    L.legs = 0;
   }
 
   // ── Fire helper ─────────────────────────────────────────────────────────
