@@ -331,7 +331,7 @@ export function paintRosterGunner(scene) {
   const oR = paintGunnerWeapon(scene, 'ro-w-gun-R', false);
   const oE = paintGunnerWeapon(scene, 'ro-w-gun-E', true);
   return {
-    regular: { tex: 'ro-gun-R', prefix: 'ro-gun-R', weapon: 'ro-w-gun-R', weaponOrigin: oR },
-    elite:   { tex: 'ro-gun-E', prefix: 'ro-gun-E', weapon: 'ro-w-gun-E', weaponOrigin: oE },
+    regular: { tex: 'ro-gun-R', prefix: 'ro-gun-R', weapon: 'ro-w-gun-R', weaponOrigin: oR, muzzleFx: true },
+    elite:   { tex: 'ro-gun-E', prefix: 'ro-gun-E', weapon: 'ro-w-gun-E', weaponOrigin: oE, muzzleFx: true },
   };
 }

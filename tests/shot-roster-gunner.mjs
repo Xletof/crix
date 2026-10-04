@@ -389,21 +389,20 @@ const PLAYER_SCRIPT = `
   window.__frame = (n) => { for (let j = 0; j < n; j++) { window.__drive(window.__tick++); window.__adv(1); } window.__quiet(); };
 `;
 
-async function live() {
+async function live(file = 'gunner-v1-live-1x.webm', FR = 600) {
   const page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
   page.on('pageerror', (e) => fail(`live: ${e.message}`));
   await page.goto(BASE + `?nodlg=1&nofreeze=1&roster=v1&${ENC}`);
   await stepBoot(page);
   await page.evaluate(PLAYER_SCRIPT);
-  const vw = videoWriter(OUT + 'gunner-v1-live-1x.webm');
-  const FR = 600;                                 // 20s at 30fps = 1200 game ticks
+  const vw = videoWriter(OUT + file);              // FR frames at 30fps, two game ticks each
   for (let f = 0; f < FR; f++) {
     await page.evaluate(() => window.__frame(2));
     await vw.write(await page.screenshot({ type: 'jpeg', quality: 90 }));
     if (f % 100 === 0) console.log('live frame', f, await page.evaluate(() => window.__gs.enemies.getChildren().filter((e) => e.active).map((e) => e.texture.key).join(',')));
   }
   await vw.end();
-  console.log('wrote', OUT + 'gunner-v1-live-1x.webm');
+  console.log('wrote', OUT + file);
   await page.close();
 }
 
@@ -500,7 +499,104 @@ async function controlled() {
   await page.close();
 }
 
-const run = { sheets, facings, weapon, colliders, live, ab, controlled };
+
+// ── MUZZLE DISCHARGE (polish pass): old vs new, matched, 1x ────────────────
+// One page, four v1 Gunners scripted identically: the left pair with the
+// muzzle event switched off on the actor (`_muzzleFx = false` — what shipped
+// in 191747a), the right pair with it on. Nothing else differs, in the same
+// frame. Each turns through E / S / W / N and fires two rounds per aim.
+async function fireStage(page) {
+  await page.goto(BASE + `?nodlg=1&nofreeze=1&roster=v1&${STILL}`);
+  await stepBoot(page);
+  await quietRoom(page);
+  await page.evaluate(() => {
+    const gs = window.__gs, cam = gs.cameras.main;
+    const P = gs.player; P.setPosition(600, 1700); P.body.reset(P.x, P.y); P.setVisible(false); P.weaponSprite?.setVisible(false);
+    const X0 = 380, Y0 = 520, DX = 240, DY = 300;
+    cam.setScroll(X0 - 180, Y0 - 260);
+    const who = [['OLD regular', {}, false, 0, 0], ['NEW regular', {}, true, 1, 0], ['OLD elite', { elite: true }, false, 0, 1], ['NEW elite', { elite: true }, true, 1, 1]];
+    const actors = [];
+    for (const [name, spec, fx, cx, cy] of who) {
+      const x = X0 + cx * DX, y = Y0 + cy * DY;
+      const e = gs.spawnEnemyAt('shooter', x, y, spec);
+      e._muzzleFx = fx;
+      const enemyProto = Object.getPrototypeOf(Object.getPrototypeOf(e));
+      e.preUpdate = function (t, d) { enemyProto.preUpdate.call(this, t, d); };
+      e.body.reset(x, y);
+      gs.add.text(x, y - 110, name, { fontFamily: 'monospace', fontSize: '14px', color: fx ? '#9dffb2' : '#e4e7ee', backgroundColor: '#000a', padding: { x: 4, y: 2 } }).setOrigin(0.5).setDepth(9999);
+      actors.push(e);
+    }
+    window.__fa = actors;
+    // the shot sequence `_maybeFireAt` runs: warn tint 300ms, then recoilT 100,
+    // fire frame 180ms, the event the scene fires the bolt from
+    const beats = [];
+    for (const ang of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+      beats.push({ k: 'idle', ang, ms: 250 });
+      for (let r = 0; r < 2; r++) { beats.push({ k: 'warn', ang, ms: 300 }); beats.push({ k: 'fire', ang, ms: 220 }); }
+    }
+    let bi = 0, left = beats[0].ms, fired = false;
+    window.__shotTick = -1; let tick = 0;
+    window.__ctl = () => {
+      const b = beats[bi % beats.length];
+      for (const e of actors) {
+        e._aim = b.ang; e.setVelocity(0, 0);
+        if (b.k === 'warn' && left === b.ms) e.weaponSprite.setTint(0xff6010);
+        if (b.k === 'fire' && !fired) { e.weaponSprite.clearTint(); e.recoilT = 100; e._fireAnimTimer = 180; gs.events.emit('shooter-fire', e, b.ang); }
+      }
+      if (b.k === 'fire' && !fired) window.__shotTick = tick;
+      if (b.k === 'fire') fired = true;
+      left -= 1000 / 60; tick++;
+      if (left <= 0) { bi++; left = beats[bi % beats.length].ms; fired = false; }
+    };
+    window.__frame = (n) => { for (let j = 0; j < n; j++) { window.__ctl(); window.__adv(1); } window.__quiet(); };
+  });
+}
+
+async function firefx() {
+  // 1. matched A/B video, 1x, 30fps from 60Hz ticks
+  let page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
+  page.on('pageerror', (e) => fail(`firefx: ${e.message}`));
+  await fireStage(page);
+  const vw = videoWriter(OUT + 'gunner-firefx-v1-ab.webm');
+  for (let f = 0; f < 300; f++) { await page.evaluate(() => window.__frame(2)); await vw.write(await page.screenshot({ type: 'jpeg', quality: 92 })); }
+  await vw.end(); console.log('wrote', OUT + 'gunner-firefx-v1-ab.webm');
+  await page.close();
+  // 2. the event tick by tick (60Hz), from the shot, at 1x and 3x
+  page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
+  page.on('pageerror', (e) => fail(`firefx strip: ${e.message}`));
+  await fireStage(page);
+  await page.evaluate(() => { while (window.__shotTick < 0) window.__frame(1); });   // first shot (aim E) fired this tick
+  const cells1 = [], cells3 = [];
+  const lab = ['shot tick', '+1 (16ms)', '+2 (33ms)', '+3 (50ms)', '+4 (67ms)', '+5 (83ms)', '+6 (100ms)'];
+  for (let k = 0; k < 7; k++) {
+    if (k) await page.evaluate(() => window.__frame(1));
+    const at = await page.evaluate(() => {
+      const cam = window.__gs.cameras.main;
+      return window.__fa.map((e) => ({ x: (e.x - cam.worldView.x) * cam.zoom + cam.x, y: (e.y - cam.worldView.y) * cam.zoom + cam.y }));
+    });
+    for (const [i, row] of [[0, 'OLD R'], [1, 'NEW R'], [3, 'NEW E']]) {
+      const c = at[i], clip = { x: Math.round(c.x - 30), y: Math.round(c.y - 60), width: 140, height: 120 };
+      const buf = await page.screenshot({ clip });
+      cells1.push({ label: `${row} ${lab[k]}`, png: b64(buf) });
+      if (i) cells3.push({ label: `${row} ${lab[k]}`, png: b64(await page.screenshot({ clip: { x: Math.round(c.x + 50), y: Math.round(c.y - 22), width: 70, height: 44 } })) });
+    }
+  }
+  // reorder so each row is one actor across time
+  const byRow = (cells, n) => { const out = []; for (let r = 0; r < n; r++) for (let k = 0; k < 7; k++) out.push(cells[k * n + r]); return out; };
+  await compose(OUT + 'gunner-firefx-v1-strip.png', {
+    title: 'GUNNER MUZZLE DISCHARGE — 60Hz ticks from the shot, aim E. Rows: OLD regular, NEW regular, NEW elite (1x)',
+    cols: 7, cellW: 140, cellH: 120, cells: byRow(cells1, 3),
+  });
+  await compose(OUT + 'gunner-firefx-v1-strip-3x.png', {
+    title: 'INSPECTION 3x — muzzle region only. Rows: NEW regular, NEW elite',
+    cols: 7, cellW: 210, cellH: 132, cells: byRow(cells3, 2),
+  });
+  await page.close();
+  // 3. a real encounter at real speed
+  await live('gunner-firefx-v1-live.webm', 300);
+}
+
+const run = { sheets, facings, weapon, colliders, live: () => live(), ab, controlled, firefx };
 if (MODE === 'all') { for (const f of Object.values(run)) await f(); }
 else if (run[MODE]) await run[MODE]();
 else fail(`unknown mode ${MODE}`);

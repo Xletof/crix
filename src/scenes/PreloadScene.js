@@ -78,6 +78,7 @@ import {
 } from '../systems/pixelArt.js';
 import { paintRosterGunner } from '../systems/rosterPaint.js';
 import { registerRosterArt } from '../data/rosterArt.js';
+import { paintGunnerMuzzle } from '../systems/gunnerMuzzle.js';
 
 // All textures are programmatically painted. No external assets needed.
 
@@ -94,6 +95,7 @@ export class PreloadScene extends Phaser.Scene {
     // ROSTER v1 (`?roster=v1`): production art for the redesigned roster, on
     // NEW keys. The legacy sheets above keep painting exactly as before.
     registerRosterArt('shooter', paintRosterGunner(this));
+    paintGunnerMuzzle(this);
     // PHASE B CANDIDATE — the first Champion. See CHAMPION in config.js.
     paintInterdictor(this);
     // PHASE B.1 CANDIDATE — the Harrower. Driven frame-by-frame by its actor

@@ -309,6 +309,29 @@ const nem = await pV.evaluate(async () => {
 check(nem.base === 'shooter' && nem.tex.startsWith('nem-') && !String(nem.weapon).startsWith('ro-') && nem.wox !== undefined && !String(nem.prefix).startsWith('ro-'),
   'a nemesis on the shooter base keeps its legacy nemesis presentation under v1', JSON.stringify(nem));
 
+// ── MUZZLE DISCHARGE: v1 Gunner only, presentation only ───────────────────
+const mfx = await pV.evaluate(() => {
+  const gs = window.__gs;
+  const count = () => gs.children.list.filter((o) => o.texture?.key === 'fx-gun-muzzle' && o.visible).length;
+  const r = {};
+  for (const [k, type, spec] of [['R', 'shooter', {}], ['E', 'shooter', { elite: true }], ['legacyR', 'shooter', { legacyArt: true }], ['shielded', 'shielded', {}], ['sniper', 'sniper', {}], ['grunt', 'grunt', {}]]) {
+    const e = gs.spawnEnemyAt(type, 800, 800, spec);
+    e._performing = true; e._aim = 0;
+    window.__adv(1);
+    const before = count();
+    gs.events.emit('shooter-fire', e, 0);
+    const peak = count();
+    window.__adv(8);                                   // 133ms: past the 85ms life
+    r[k] = { flag: !!e._muzzleFx, added: peak - before, after: count() - before };
+    gs._destroyEnemyFully(e);
+    gs.enemyBullets.getChildren().forEach((b) => b.disableBody?.(true, true));
+  }
+  return r;
+});
+check(mfx.R.flag && mfx.E.flag && mfx.R.added === 1 && mfx.E.added === 1, 'muzzle discharge: one event per v1 Gunner shot, both tiers', JSON.stringify(mfx));
+check(['legacyR', 'shielded', 'sniper', 'grunt'].every((k) => !mfx[k].flag && mfx[k].added === 0), 'muzzle discharge: none for legacy Gunner, shielded, sniper or grunt', JSON.stringify(mfx));
+check(mfx.R.after === 0 && mfx.E.after === 0, 'muzzle discharge: gone within 133ms (no afterglow, nothing left behind)', JSON.stringify(mfx));
+
 // ── 19. DEATH and ROOM CLEANUP leave no Gunner art behind ──────────────────
 const clean = await pV.evaluate(() => {
   const gs = window.__gs;

@@ -61,5 +61,7 @@ export function wearRosterArt(enemy, art, bodyRadius) {
     // class places it on. The bolt's spawn point is not read from here.
     if (art.weaponOrigin) enemy.weaponSprite.setOrigin(art.weaponOrigin[0], art.weaponOrigin[1]);
   }
+  // presentation-only muzzle discharge (systems/gunnerMuzzle.js) for art that asks for it
+  enemy._muzzleFx = !!art.muzzleFx;
   enemy.body.setCircle(bodyRadius, enemy.width / 2 - bodyRadius, enemy.height / 2 - bodyRadius);
 }

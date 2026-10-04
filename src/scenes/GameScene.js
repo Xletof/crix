@@ -139,6 +139,7 @@ import { makeStreams, newSeed } from '../systems/rng.js';
 import { NARRATIVE } from '../data/narrative.js';
 import { NavGrid } from '../systems/NavGrid.js';
 import { rosterArtFor, wearRosterArt } from '../data/rosterArt.js';
+import { attachGunnerMuzzle } from '../systems/gunnerMuzzle.js';
 import { projectCurtainContact, curtainRadius } from '../systems/shieldContact.js';
 
 export class GameScene extends Phaser.Scene {
@@ -264,6 +265,7 @@ export class GameScene extends Phaser.Scene {
     // telegraphs above and swept by the same room teardown, because a damaging
     // region that survives its room is the worst failure the class can have.
     attachHazards(this);
+    attachGunnerMuzzle(this);   // v1 Gunner muzzle discharge — presentation only
     // ── CAPTAIN COMBAT-ECONOMY TELEMETRY — `?captel=1` ────────────────────
     // NOT CONSTRUCTED WITHOUT THE FLAG. No container, no listeners, no panel
     // and no `postupdate` hook exist in a normal run, which is the same shape
