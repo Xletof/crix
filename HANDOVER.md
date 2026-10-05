@@ -489,6 +489,10 @@ through the same `?roster=v1` pipeline. Marksman movement is NOT v2.2 — it
 keeps its own sniper logic. Bulwark and Demolisher are NOT started and wait
 for this verdict. Record: `docs/evidence/roster-2b/rifleman-marksman-v1-notes.md`.
 
+**LOCOMOTION ANATOMY GATE (in flight):** the human rejected the shared roster gait
+(rear leg as a tail, opposite feet, skating). `?gait=v2` is the corrected,
+presentation-only candidate, default OFF. Record: `docs/evidence/roster-gait-v2/gait-v2-notes.md`.
+
 ### The recommended next area of work
 
 **Phase B Champion integration is CLOSED — human-approved and frozen on
