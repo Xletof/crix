@@ -292,6 +292,14 @@ export function isMoveV21() { return moveV2 === 'v21'; }
 export function setMoveV22(on) { moveV2 = on ? 'v22' : moveV2; }
 export function isMoveV22() { return moveV2 === 'v22'; }
 
+// `?gait=v2` — the corrected roster-v1 LOCOMOTION PRESENTATION (anatomy gait,
+// distance-driven cadence, retreat / strafe playback). Presentation only: it
+// repaints the roster-v1 leg frames and picks the displayed frame after the
+// frozen base class has chosen its animation. Default off until the handset.
+let gaitV2 = false;
+export function setGaitV2(on) { gaitV2 = !!on; }
+export function isGaitV2() { return gaitV2; }
+
 // `?colliders=1` draws every enemy's PHYSICS footprint (body circle, which
 // Arcade scales with the sprite) and its BULLET hit radius (`cfg.radius`). It
 // exists so a handset reviewer can judge art-to-hitbox honesty when v1 elite

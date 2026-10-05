@@ -24,6 +24,7 @@
 // art has nothing for it to erase.
 
 import { SpriteSheet, PixelCanvas } from './pixelArt.js';
+import { isGaitV2 } from './debug.js';
 
 const S = 4;                   // world px per logical px — the trooper scale
 export const ROSTER_FRAME = { w: 24, h: 26 };
@@ -166,7 +167,7 @@ function gunnerFrontBack(g, dir, e, o) {
     g.vl(a2, 3 + b, 7 + b, GUN.lit); g.px(a2, 2 + b, GP.glow);
     g.rect(pxL - 1, 7 + b, 7, 2, GR.mid); g.hl(7 + b, pxL, pxL + 4, GR.lit); g.hl(9 + b, pxL, pxL + 4, cell);
   }
-  gunnerLegsFB(g, o.lx, o.rx, o.liftL, o.liftR, 18 + b, e ? ST : null);
+  if (!o.noLegs) gunnerLegsFB(g, o.lx, o.rx, o.liftL, o.liftR, 18 + b, e ? ST : null);
   // TORSO
   g.rect(6, 13 + b, 12, 5, GP.mid); g.sym(13 + b, 12, GP.lit); g.sym(17 + b, 12, GUN.dk);
   g.vl(11, 14 + b, 16 + b, GP.dk); g.vl(12, 14 + b, 16 + b, GP.dk);
@@ -198,7 +199,7 @@ function gunnerFrontBack(g, dir, e, o) {
 function gunnerSide(g, e, o) {
   const b = o.bob, L = o.lean;
   const cell = o.fire ? FLARE : GP.glow;
-  gunnerLegsSide(g, o.near, o.far, o.nearLift, o.farLift, 18 + b, e ? ST : null);
+  if (!o.noLegs) gunnerLegsSide(g, o.near, o.far, o.nearLift, o.farLift, 18 + b, e ? ST : null);
   // PACK + ANTENNA behind (west)
   g.rect(4 + L, 9 + b, 4, 7, GR.mid); g.hl(9 + b, 4 + L, 7 + L, GR.lit); g.vl(5 + L, 1 + b, 8 + b, GUN.lit); g.px(5 + L, 13 + b, cell);
   if (e) { g.vl(7 + L, 3 + b, 8 + b, GUN.lit); g.px(7 + L, 2 + b, GP.glow); g.hl(11 + b, 4 + L, 7 + L, cell); g.rect(4 + L, 8 + b, 4, 1, GR.mid); }
@@ -326,8 +327,8 @@ function paintGunnerWeapon(scene, key, elite) {
  * entry `rosterArt.js` registers for the `shooter` archetype.
  */
 export function paintRosterGunner(scene) {
-  paintGunnerSheet(scene, 'ro-gun-R', false);
-  paintGunnerSheet(scene, 'ro-gun-E', true);
+  if (isGaitV2()) { paintGaitV2Sheet(scene, 'ro-gun-R', false, 'gunner'); paintGaitV2Sheet(scene, 'ro-gun-E', true, 'gunner'); }
+  else { paintGunnerSheet(scene, 'ro-gun-R', false); paintGunnerSheet(scene, 'ro-gun-E', true); }
   const oR = paintGunnerWeapon(scene, 'ro-w-gun-R', false);
   const oE = paintGunnerWeapon(scene, 'ro-w-gun-E', true);
   return {
@@ -447,7 +448,7 @@ function riflemanFrontBack(g, dir, e, o) {
   if (e && !front) {                                              // radio pack on the back, antenna up the char-left
     g.vl(8, 6 + b, 11 + b, RK.lit); g.px(8, 5 + b, RK.led);
   }
-  riflemanLegsFB(g, o, 18 + b);
+  if (!o.noLegs) riflemanLegsFB(g, o, 18 + b);
   // TORSO — compact
   g.rect(7, 13 + b, 10, 5, RW.mid); g.sym(13 + b, 10, RW.lit); g.sym(17 + b, 10, RW.sh);
   if (front) { g.hl(16 + b, 9, 14, RU.mid); g.px(11, 17 + b, RU.lit); g.px(12, 17 + b, RU.lit); g.hl(14 + b, 10, 13, RW.lit); }
@@ -486,7 +487,7 @@ function riflemanFrontBack(g, dir, e, o) {
 function riflemanSide(g, e, o) {
   const b = o.bob, L = o.lean;
   if (e) { g.vl(8 + L, 6 + b, 11 + b, RK.lit); g.px(8 + L, 5 + b, RK.led); }
-  riflemanLegsSide(g, o, 18 + b);
+  if (!o.noLegs) riflemanLegsSide(g, o, 18 + b);
   // small belt pouch behind (regular) / radio (elite)
   if (e) { g.rect(7 + L, 11 + b, 2, 4, RK.mid); g.px(7 + L, 11 + b, RK.lit); }
   else g.rect(8 + L, 15 + b, 1, 2, RU.mid);
@@ -582,7 +583,7 @@ function marksmanFrontBack(g, dir, e, o) {
   // (no coat-tail in front/back: one pixel beside each leg merged with the
   // legs into a wide lower body — the width this role must never gain. It
   // lives in the profile only, behind the legs.)
-  marksmanLegsFB(g, o, MHIP + b);
+  if (!o.noLegs) marksmanLegsFB(g, o, MHIP + b);
   // TORSO — a 6-wide chest tapering to a 4-wide waist: lean, never a slab
   g.rect(9, 12 + b, 6, 3, MK.mid); g.sym(12 + b, 6, MK.lit);
   g.sym(15 + b, 4, MU.mid);
@@ -615,8 +616,10 @@ function marksmanFrontBack(g, dir, e, o) {
 
 function marksmanSide(g, e, o) {
   const b = o.bob, L = o.lean;
-  g.vl(9 + L, MHIP + b, MHIP + 3 + b, MK.sh);                             // coat-tail behind
-  marksmanLegsSide(g, o, MHIP + b);
+  // coat-tail behind; under gait v2 it stops at the hip so it can never read
+  // as a third leg beside the articulated pair
+  g.vl(9 + L, MHIP + b, MHIP + (o.noLegs ? 1 : 3) + b, MK.sh);
+  if (!o.noLegs) marksmanLegsSide(g, o, MHIP + b);
   // TORSO — narrow
   g.rect(10 + L, 12 + b, 5, 4, MK.mid); g.hl(12 + b, 10 + L, 14 + L, MK.lit); g.hl(15 + b, 10 + L, 14 + L, MU.mid);
   // tucked shoulder, thin forearm out to the rifle
@@ -666,8 +669,8 @@ function paintPrecisionRifle(scene, key, elite) {
 
 /** Rifleman production art. Registered for `grunt` by PreloadScene. */
 export function paintRosterRifleman(scene) {
-  paintRoleSheet(scene, 'ro-rif-R', false, riflemanFrame);
-  paintRoleSheet(scene, 'ro-rif-E', true, riflemanFrame);
+  if (isGaitV2()) { paintGaitV2Sheet(scene, 'ro-rif-R', false, 'rifleman'); paintGaitV2Sheet(scene, 'ro-rif-E', true, 'rifleman'); }
+  else { paintRoleSheet(scene, 'ro-rif-R', false, riflemanFrame); paintRoleSheet(scene, 'ro-rif-E', true, riflemanFrame); }
   const oR = paintCarbine(scene, 'ro-w-rif-R', false);
   const oE = paintCarbine(scene, 'ro-w-rif-E', true);
   return {
@@ -678,8 +681,8 @@ export function paintRosterRifleman(scene) {
 
 /** Marksman production art. Registered for `sniper` by PreloadScene. */
 export function paintRosterMarksman(scene) {
-  paintRoleSheet(scene, 'ro-mrk-R', false, marksmanFrame);
-  paintRoleSheet(scene, 'ro-mrk-E', true, marksmanFrame);
+  if (isGaitV2()) { paintGaitV2Sheet(scene, 'ro-mrk-R', false, 'marksman'); paintGaitV2Sheet(scene, 'ro-mrk-E', true, 'marksman'); }
+  else { paintRoleSheet(scene, 'ro-mrk-R', false, marksmanFrame); paintRoleSheet(scene, 'ro-mrk-E', true, marksmanFrame); }
   const oR = paintPrecisionRifle(scene, 'ro-w-mrk-R', false);
   const oE = paintPrecisionRifle(scene, 'ro-w-mrk-E', true);
   return {
@@ -687,3 +690,189 @@ export function paintRosterMarksman(scene) {
     elite:   { tex: 'ro-mrk-E', prefix: 'ro-mrk-E', weapon: 'ro-w-mrk-E', weaponOrigin: oE, fx: 'marksman' },
   };
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// GAIT v2 (`?gait=v2`) — THE PELVIS OWNS BOTH LEGS
+// ════════════════════════════════════════════════════════════════════════
+//
+// The shipped cycle separated the legs by moving WHOLE LEG COLUMNS: in profile
+// the near and far hip roots sat up to 7 logical px apart (near 14 / far 7),
+// so the rear leg was a second post planted behind the pelvis — "a tail".
+// Both profile boots were 3px wide, but the far one extended WEST and the near
+// one EAST, so the feet pointed opposite ways; front/back toe caps sat on each
+// boot's OUTER edge, which is duck feet. And the torso bobbed over legs that
+// telescoped rather than bent.
+//
+// v2 builds every leg from ONE pelvis: a fixed hip socket, a knee, an ankle,
+// a boot. Separation is articulation and occlusion, not relocation. In
+// profile both boots point EAST (the west facing is this mirrored, so both
+// point west); the far leg is darker and is allowed to disappear behind the
+// near one. Front/back toes face the viewer's axis on BOTH boots. The upper
+// body carries a 1px weight shift toward the planted leg and a 1px settle on
+// the load frames, nothing more.
+//
+// Frames: the stock 33 keep their indices (idle / walk 1-6 / fire per facing,
+// poses 24-32), and 18 STRAFE frames follow (33-38 front, 39-44 back, 45-50
+// side). The walk/strafe frame on screen is chosen by `systems/rosterGait.js`
+// from REAL displacement, after the base class has picked its animation.
+export const GAIT_STRAFE_BASE = 33;
+export const GAIT_FRAMES = 51;
+// exported for the structural guards in smoke-gait-v2 (read-only)
+
+// role legs: hip row, palette, and the boot
+const GAIT_ROLE = {
+  gunner:   { hip: 18, near: GP.mid, far: GP.dk, root: GP.un, knee: GP.lit, boot: GUN.bk, toe: GUN.mid },
+  rifleman: { hip: 18, near: RW.dk, far: RW.sh, root: RU.mid, knee: RW.mid, boot: RB, toe: RU.lit },
+  marksman: { hip: 16, near: MK.dk, far: MK.sh, root: MU.mid, knee: MK.mid, boot: RB, toe: MU.lit },
+};
+
+// FRONT / BACK. Hip sockets never move: screen-left leg at x 9, right at 13.
+// Each leg: { fx: foot x offset, st: 'F' flat | 'H' heel-up / trailing | 'S'
+// swinging (lifted, knee bent toward the midline) }. `dx` shifts the upper
+// body (weight over the planted leg), `bob` settles it one row on a load.
+//   1 contact A   2 load A   3 pass B   4 contact B   5 load B   6 pass A
+export const FB2 = {
+  idle: { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'F' }, dx: 0, bob: 0 },
+  walk: [
+    { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'H' }, dx: 0, bob: 0 },
+    { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'S' }, dx: -1, bob: 1 },
+    { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'H' }, dx: -1, bob: 0 },
+    { L: { fx: 0, st: 'H' }, R: { fx: 0, st: 'F' }, dx: 0, bob: 0 },
+    { L: { fx: 0, st: 'S' }, R: { fx: 0, st: 'F' }, dx: 1, bob: 1 },
+    { L: { fx: 0, st: 'H' }, R: { fx: 0, st: 'F' }, dx: 1, bob: 0 },
+  ],
+  fire: { L: { fx: -1, st: 'F' }, R: { fx: 1, st: 'F' }, dx: 0, bob: 0 },
+  // side-step, painted moving SCREEN-RIGHT (played backwards to go left):
+  // neutral, right foot reaches, wide, settle, left foot closes, neutral
+  strafe: [
+    { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'F' }, dx: 0, bob: 0 },
+    { L: { fx: 0, st: 'F' }, R: { fx: 1, st: 'S' }, dx: 0, bob: 0 },
+    { L: { fx: -1, st: 'F' }, R: { fx: 1, st: 'F' }, dx: 0, bob: 0 },
+    { L: { fx: -1, st: 'F' }, R: { fx: 1, st: 'F' }, dx: 1, bob: 1 },
+    { L: { fx: 0, st: 'S' }, R: { fx: 0, st: 'F' }, dx: 1, bob: 0 },
+    { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'F' }, dx: 0, bob: 1 },
+  ],
+};
+// PROFILE (east). One hip socket at x 11 for BOTH legs. Each leg: knee x and
+// foot x relative to the hip, and the foot state. The planted foot slides
+// BACK relative to the body (+3 -> +2 -> 0) because the body is passing over
+// it; the trailing foot leaves heel-first; the swing leg passes UNDER the
+// pelvis with its knee forward. The stride is compact: feet never more than
+// 3px either side of the hip.
+export const SIDE2 = {
+  idle: { N: { k: 0, f: 1, st: 'F' }, F: { k: 0, f: -1, st: 'F' }, bob: 0 },
+  walk: [
+    { N: { k: 1, f: 3, st: 'F' }, F: { k: -1, f: -3, st: 'H' }, bob: 0 },
+    { N: { k: 1, f: 2, st: 'F' }, F: { k: 1, f: -1, st: 'S' }, bob: 1 },
+    { N: { k: 0, f: 0, st: 'F' }, F: { k: 2, f: 1, st: 'S' }, bob: 0 },
+    { N: { k: -1, f: -3, st: 'H' }, F: { k: 1, f: 3, st: 'F' }, bob: 0 },
+    { N: { k: 1, f: -1, st: 'S' }, F: { k: 1, f: 2, st: 'F' }, bob: 1 },
+    { N: { k: 2, f: 1, st: 'S' }, F: { k: 0, f: 0, st: 'F' }, bob: 0 },
+  ],
+  fire: { N: { k: 1, f: 2, st: 'F' }, F: { k: -1, f: -2, st: 'F' }, bob: 0 },
+  // moving toward / away from the camera while in profile: marking time, the
+  // knees lifting in turn under the pelvis
+  strafe: [
+    { N: { k: 0, f: 1, st: 'F' }, F: { k: 0, f: -1, st: 'F' }, bob: 0 },
+    { N: { k: 2, f: 1, st: 'S' }, F: { k: 0, f: -1, st: 'F' }, bob: 0 },
+    { N: { k: 1, f: 1, st: 'F' }, F: { k: 0, f: -1, st: 'F' }, bob: 1 },
+    { N: { k: 0, f: 1, st: 'F' }, F: { k: 0, f: -1, st: 'F' }, bob: 0 },
+    { N: { k: 0, f: 1, st: 'F' }, F: { k: 2, f: -1, st: 'S' }, bob: 0 },
+    { N: { k: 0, f: 1, st: 'F' }, F: { k: 1, f: -1, st: 'F' }, bob: 1 },
+  ],
+};
+
+// the boot row for a foot state: flat on the deck, heel lifted (toe still on
+// the deck), or swinging clear of it
+const footTop = (st) => (st === 'S' ? 21 : st === 'H' ? 22 : 23);
+
+function legFB(g, R, x, leg, hipY, back, elitePlate) {
+  const top = footTop(leg.st), fx = x + leg.fx;
+  const kneeY = hipY + Math.max(1, Math.floor((top - hipY) / 2));
+  const inward = leg.st === 'S' ? (x < 12 ? 1 : -1) : 0;      // a swinging knee comes in under the pelvis
+  g.rect(x, hipY, 2, kneeY - hipY, R.near);                     // thigh
+  g.rect(x + inward, kneeY, 2, 1, R.near); g.px(x + inward + (x < 12 ? 1 : 0), kneeY, R.knee);   // knee
+  for (let y = kneeY + 1; y < top; y++) g.rect(fx + (y === kneeY + 1 ? inward : 0), y, 2, 1, R.near);   // shin
+  if (elitePlate) g.hl(kneeY, x + inward, x + inward + 1, elitePlate);
+  // BOTH boots point the same way: front view the toe cap faces the camera
+  // (its bottom row), back view it faces away (no cap, a darker heel)
+  if (leg.st === 'H') { g.rect(fx, top, 2, 1, R.boot); g.rect(fx, top + 1, 2, 1, back ? R.boot : R.toe); }
+  else {
+    g.rect(fx, top, 2, 2, R.boot);
+    if (!back) g.hl(top + 1, fx, fx + 1, R.toe);
+  }
+}
+
+function legSide(g, R, leg, hipY, col, elitePlate) {
+  const HX = 11, top = footTop(leg.st);
+  const kneeY = hipY + Math.max(1, Math.floor((top - hipY) / 2)) - (leg.st === 'S' ? 1 : 0);
+  const kx = HX + leg.k, ax = HX + leg.f;
+  // hip -> knee -> ankle as a 2px-wide limb, one row at a time
+  for (let y = hipY; y < top; y++) {
+    const x = y <= kneeY
+      ? Math.round(HX + (kx - HX) * ((y - hipY) / Math.max(1, kneeY - hipY)))
+      : Math.round(kx + (ax - kx) * ((y - kneeY) / Math.max(1, top - kneeY)));
+    g.rect(x, y, 2, 1, col);
+  }
+  if (col === R.near) g.px(kx + 1, kneeY, R.knee);              // the near knee catches the light
+  if (elitePlate && col === R.near) g.px(kx + 1, kneeY, elitePlate);
+  // the BOOT POINTS EAST on both legs: heel at the ankle, toe forward
+  if (leg.st === 'H') {                                          // heel up, toe still on the deck
+    g.rect(ax, top, 2, 1, R.boot); g.rect(ax + 1, top + 1, 2, 1, R.boot);
+  } else {
+    g.rect(ax, top, 3, 2, R.boot);
+    if (col === R.near) g.px(ax + 2, top, R.toe);
+  }
+}
+
+// draw into `g` shifted by (dx, dy): the upper body rides the pelvis
+function shifted(g, dx, dy) {
+  const s = { px: (x, y, c) => g.px(x + dx, y + dy, c) };
+  s.rect = (x, y, w, h, c) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) s.px(x + i, y + j, c); };
+  s.hl = (y, x0, x1, c) => { for (let x = x0; x <= x1; x++) s.px(x, y, c); };
+  s.vl = (x, y0, y1, c) => { for (let y = y0; y <= y1; y++) s.px(x, y, c); };
+  s.sym = (y, wd, c) => s.hl(y, 12 - wd / 2, 12 + wd / 2 - 1, c);
+  return s;
+}
+
+const GAIT_UPPER = {
+  gunner: (g, dir, e, o) => (dir === 'side' ? gunnerSide(g, e, o) : gunnerFrontBack(g, dir, e, o)),
+  rifleman: (g, dir, e, o) => (dir === 'side' ? riflemanSide(g, e, o) : riflemanFrontBack(g, dir, e, o)),
+  marksman: (g, dir, e, o) => (dir === 'side' ? marksmanSide(g, e, o) : marksmanFrontBack(g, dir, e, o)),
+};
+
+// spec: one entry of FB2 / SIDE2; base: the upper-body pose options
+function gaitFrame(role, dir, e, spec, base) {
+  const R = GAIT_ROLE[role], g = grid(ROSTER_FRAME.w, ROSTER_FRAME.h);
+  const hip = R.hip + spec.bob, plate = role === 'gunner' && e ? ST.lit : null;
+  if (dir === 'side') {
+    legSide(g, R, spec.F, hip, R.far, null);
+    legSide(g, R, spec.N, hip, R.near, plate);
+    g.rect(9, hip - 1, 5, 2, R.root);                           // the pelvis both legs hang from
+  } else {
+    legFB(g, R, 9, spec.L, hip, dir === 'back', plate);
+    legFB(g, R, 13, spec.R, hip, dir === 'back', plate);
+    g.rect(9 + (spec.dx || 0), hip - 1, 6, 2, R.root);          // pelvis, carried over the planted leg
+  }
+  GAIT_UPPER[role](shifted(g, dir === 'side' ? 0 : (spec.dx || 0), 0), dir, e, { ...base, bob: spec.bob, noLegs: true });
+  g.outline();
+  return g;
+}
+
+/** Paint a role sheet with gait v2 legs: the 33 stock frames + 18 strafe frames. */
+export function paintGaitV2Sheet(scene, key, elite, role) {
+  const ss = new SpriteSheet(scene, key, ROSTER_FRAME.w, ROSTER_FRAME.h, GAIT_FRAMES, S);
+  const pose = (P) => ({ fire: false, armDy: P ? P.armDy : 0, armDx: P ? P.armDx : 0, lean: P ? P.lean : 0, hand: P ? P.hand : 0 });
+  ['front', 'back', 'side'].forEach((dir, di) => {
+    const T = dir === 'side' ? SIDE2 : FB2;
+    gaitFrame(role, dir, elite, T.idle, pose(null)).blit(ss.frame(di * 8));
+    T.walk.forEach((sp, k) => gaitFrame(role, dir, elite, sp, pose(null)).blit(ss.frame(di * 8 + 1 + k)));
+    gaitFrame(role, dir, elite, T.fire, { ...pose(null), fire: true }).blit(ss.frame(di * 8 + 7));
+    ['raise', 'thrust', 'recoil'].forEach((p, pi) => gaitFrame(role, dir, elite, p === 'raise' ? T.idle : T.fire, pose(POSES[p])).blit(ss.frame(24 + di * 3 + pi)));
+    T.strafe.forEach((sp, k) => gaitFrame(role, dir, elite, sp, pose(null)).blit(ss.frame(GAIT_STRAFE_BASE + di * 6 + k)));
+  });
+  ss.finish();
+}
+
+// what the presentation tick needs to know about each role's gait
+export const GAIT_CYCLE_PX = { 'ro-gun': 48, 'ro-rif': 48, 'ro-mrk': 44 };   // world px of travel per 6-frame walk cycle

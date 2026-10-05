@@ -1,0 +1,66 @@
+{
+ "shooter": {
+  "movingSamples": 7012,
+  "stillPct": 35,
+  "aim:advance%": 48,
+  "aim:oblique%": 18,
+  "aim:lateral%": 15,
+  "aim:back-oblique%": 6,
+  "aim:retreat%": 14
+ },
+ "shooter vs FACING": {
+  "aim:advance%": 47,
+  "aim:oblique%": 11,
+  "aim:lateral%": 19,
+  "aim:back-oblique%": 8,
+  "aim:retreat%": 15
+ },
+ "grunt": {
+  "movingSamples": 2384,
+  "stillPct": 20,
+  "aim:advance%": 74,
+  "aim:oblique%": 11,
+  "aim:lateral%": 8,
+  "aim:back-oblique%": 4,
+  "aim:retreat%": 3
+ },
+ "grunt vs FACING": {
+  "aim:advance%": 68,
+  "aim:oblique%": 12,
+  "aim:lateral%": 14,
+  "aim:back-oblique%": 4,
+  "aim:retreat%": 3
+ },
+ "sniper": {
+  "movingSamples": 1270,
+  "stillPct": 70,
+  "aim:advance%": 70,
+  "aim:oblique%": 0,
+  "aim:lateral%": 18,
+  "aim:back-oblique%": 0,
+  "aim:retreat%": 12
+ },
+ "sniper vs FACING": {
+  "aim:advance%": 70,
+  "aim:oblique%": 6,
+  "aim:lateral%": 3,
+  "aim:back-oblique%": 9,
+  "aim:retreat%": 12
+ },
+ "grunt (nest)": {
+  "movingSamples": 6519,
+  "stillPct": 21,
+  "aim:advance%": 61,
+  "aim:oblique%": 14,
+  "aim:lateral%": 12,
+  "aim:back-oblique%": 6,
+  "aim:retreat%": 7
+ },
+ "grunt (nest) vs FACING": {
+  "aim:advance%": 61,
+  "aim:oblique%": 11,
+  "aim:lateral%": 13,
+  "aim:back-oblique%": 7,
+  "aim:retreat%": 8
+ }
+}

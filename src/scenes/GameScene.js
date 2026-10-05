@@ -30,7 +30,7 @@ import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
   isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff, isVanguardScreenOff, isVanguardFrontOff,
-  isShowColliders, isMoveV2, isMoveV21, isMoveV22,
+  isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2,
 } from '../systems/debug.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { attachHazards } from '../systems/Hazard.js';
@@ -141,6 +141,7 @@ import { NavGrid } from '../systems/NavGrid.js';
 import { rosterArtFor, wearRosterArt } from '../data/rosterArt.js';
 import { attachGunnerMuzzle } from '../systems/gunnerMuzzle.js';
 import { attachRosterWeaponFx } from '../systems/rosterWeaponFx.js';
+import { attachRosterGait } from '../systems/rosterGait.js';
 import { projectCurtainContact, curtainRadius } from '../systems/shieldContact.js';
 
 export class GameScene extends Phaser.Scene {
@@ -268,6 +269,7 @@ export class GameScene extends Phaser.Scene {
     attachHazards(this);
     attachGunnerMuzzle(this);   // v1 Gunner muzzle discharge — presentation only
     attachRosterWeaponFx(this); // v1 Rifleman / Marksman firing — presentation only
+    if (isGaitV2()) attachRosterGait(this);   // ?gait=v2 locomotion presentation
     // ── CAPTAIN COMBAT-ECONOMY TELEMETRY — `?captel=1` ────────────────────
     // NOT CONSTRUCTED WITHOUT THE FLAG. No container, no listeners, no panel
     // and no `postupdate` hook exist in a normal run, which is the same shape
