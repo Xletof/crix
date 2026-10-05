@@ -665,22 +665,26 @@ async function weaponfire(tag = 'v2') {
 // ── FIRE v5: v4 vs v5, the reference served from the commit it shipped in ──
 const REF_V4 = 'd6e22d9';
 async function weaponfire5() {
+  // The reference module is SERVED BY THE BROWSER, never written to disk: a
+  // new file under the project root makes Vite full-reload every open page,
+  // including any other rig running at the time. Its one bare import is
+  // pointed at the Phaser instance the game already has.
   const { execSync } = await import('node:child_process');
-  const { unlinkSync } = await import('node:fs');
-  const refPath = new URL('./_ref-v4-gunnerMuzzle.js', import.meta.url).pathname;
-  writeFileSync(refPath, execSync(`git show ${REF_V4}:src/systems/gunnerMuzzle.js`));
-  const ref = '/tests/_ref-v4-gunnerMuzzle.js';
+  const refSrc = execSync(`git show ${REF_V4}:src/systems/gunnerMuzzle.js`).toString()
+    .replace("import Phaser from 'phaser';", 'const Phaser = window.Phaser;');
+  if (refSrc.includes("from 'phaser'")) fail('weaponfire5: reference module import not rewritten');
+  const ref = '/__ref/v4-gunnerMuzzle.js';
   const P = (n) => OUT + n;
   const stage = async (zoom = 1) => {
     const page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
     page.on('pageerror', (e) => fail(`weaponfire5: ${e.message}`));
+    await page.route('**/__ref/v4-gunnerMuzzle.js', (r) => r.fulfill({ contentType: 'application/javascript', body: refSrc }));
     await page.addInitScript(() => { window.__fireTags = ['v4', 'v5']; });
     await fireStage(page, { zoom, ref });
     return page;
   };
-  try {
-    let page, vw;
-    if (!process.env.STRIP_ONLY) {
+  let page, vw;
+  if (!process.env.STRIP_ONLY) {
     // 1. matched A/B, 1x
     page = await stage();
     vw = videoWriter(P('gunner-weaponfire-v5-ab.webm'));
@@ -691,61 +695,60 @@ async function weaponfire5() {
     vw = videoWriter(P('gunner-weaponfire-v5-zoom.webm'));
     for (let f = 0; f < 300; f++) { await page.evaluate(() => window.__frame(1)); await vw.write(await page.screenshot({ type: 'jpeg', quality: 92 })); }
     await vw.end(); console.log('wrote v5 zoom (every 60Hz tick, played at 30fps = half speed)'); await page.close();
-    }
-    // 3. strip: the sequence, tick by tick (60Hz). Shots are 48 ticks apart and
-    // aim turns every two, right after the second: shot 4 is the first W (the
-    // flipped gun) and shot 8 the first E of the next lap, so the aim holds
-    // through each one's empty and recovered frames.
-    page = await stage();
-    await page.evaluate(() => { while (window.__shotTick < 0) window.__frame(1); });
-    const first = await page.evaluate(() => window.__shotTick);
-    const offs = [-24, -17, -14, -10, -5, -3, -1, 0, 1, 4, 10];
-    const labels = ['idle', 'feed', 'slow rotor', 'faster rotor', 'compress', 'compress+', 'white-hot', 'SHOT', 'empty +16ms', 'empty +67ms', 'recovered'];
-    const rows = [];
-    for (const [shot, k, name] of [[8, 0, 'v4 R  aim E'], [8, 1, 'v5 R  aim E'], [8, 3, 'v5 E  aim E'], [4, 1, 'v5 R  aim W (flipped)'], [4, 3, 'v5 E  aim W (flipped)']]) {
-      rows.push({ shot, k, name, cells: [] });
-    }
-    for (const shot of [4, 8]) {
-      for (let i = 0; i < offs.length; i++) {
-        const at = await page.evaluate((target) => {
-          while (window.__tick < target) window.__frame(1);
-          const cam = window.__gs.cameras.main;
-          return window.__fa.map((e) => ({ x: (e.x - cam.worldView.x) * cam.zoom + cam.x, y: (e.y - cam.worldView.y) * cam.zoom + cam.y }));
-        }, first + shot * 48 + offs[i] + 1);
-        for (const r of rows.filter((q) => q.shot === shot)) {
-          const c = at[r.k], west = shot === 4;
-          r.cells.push({ label: `${r.name.split('  ')[0]} ${labels[i]}`, png: b64(await page.screenshot({ clip: { x: Math.round(c.x + (west ? -110 : -10)), y: Math.round(c.y - 40), width: 120, height: 80 } })) });
-        }
-      }
-    }
-    // reading order: v4 R, v5 R, v5 E (east) then the flipped pair
-    const order = [0, 1, 2, 3, 4].map((i) => rows[i]);
-    await compose(P('gunner-weaponfire-v5-strip.png'), {
-      title: 'GUNNER FIRE v5 — 60Hz ticks around one shot, 1x. Rows: v4 regular, v5 regular, v5 elite (aim E); v5 regular, v5 elite (aim W, flipped gun)',
-      cols: offs.length, cellW: 120, cellH: 80, cells: order.flatMap((r) => r.cells),
-    });
-    // the same cells at 3x for inspection (nearest-neighbour)
-    await compose(P('gunner-weaponfire-v5-strip-3x.png'), {
-      title: 'INSPECTION 3x of the strip above (nearest-neighbour upscale of the 1x pixels)',
-      cols: offs.length, cellW: 360, cellH: 240, cells: order.flatMap((r) => r.cells),
-    });
-    // every 60Hz tick of one charge, the rotor's steps: v5 regular and elite, aim E (shot 16)
-    const tick = [];
-    for (let o = -19; o <= 3; o++) {
+  }
+  // 3. strip: the sequence, tick by tick (60Hz). Shots are 48 ticks apart and
+  // aim turns every two, right after the second: shot 4 is the first W (the
+  // flipped gun) and shot 8 the first E of the next lap, so the aim holds
+  // through each one's empty and recovered frames.
+  page = await stage();
+  await page.evaluate(() => { while (window.__shotTick < 0) window.__frame(1); });
+  const first = await page.evaluate(() => window.__shotTick);
+  const offs = [-24, -17, -14, -10, -5, -3, -1, 0, 1, 4, 10];
+  const labels = ['idle', 'feed', 'slow rotor', 'faster rotor', 'compress', 'compress+', 'white-hot', 'SHOT', 'empty +16ms', 'empty +67ms', 'recovered'];
+  const rows = [];
+  for (const [shot, k, name] of [[8, 0, 'v4 R  aim E'], [8, 1, 'v5 R  aim E'], [8, 3, 'v5 E  aim E'], [4, 1, 'v5 R  aim W (flipped)'], [4, 3, 'v5 E  aim W (flipped)']]) {
+    rows.push({ shot, k, name, cells: [] });
+  }
+  for (const shot of [4, 8]) {
+    for (let i = 0; i < offs.length; i++) {
       const at = await page.evaluate((target) => {
         while (window.__tick < target) window.__frame(1);
         const cam = window.__gs.cameras.main;
         return window.__fa.map((e) => ({ x: (e.x - cam.worldView.x) * cam.zoom + cam.x, y: (e.y - cam.worldView.y) * cam.zoom + cam.y }));
-      }, first + 16 * 48 + o + 1);
-      for (const k of [1, 3]) tick.push({ k, label: `${k === 1 ? 'R' : 'E'} ${o < 0 ? `t-${-o}` : o ? `+${o}` : 'SHOT'}${o < 0 && o >= -18 ? ` u=${((19 + o) / 18).toFixed(2)}` : ''}`,
-        png: b64(await page.screenshot({ clip: { x: Math.round(at[k].x + 14), y: Math.round(at[k].y - 18), width: 72, height: 36 } })) });
+      }, first + shot * 48 + offs[i] + 1);
+      for (const r of rows.filter((q) => q.shot === shot)) {
+        const c = at[r.k], west = shot === 4;
+        r.cells.push({ label: `${r.name.split('  ')[0]} ${labels[i]}`, png: b64(await page.screenshot({ clip: { x: Math.round(c.x + (west ? -110 : -10)), y: Math.round(c.y - 40), width: 120, height: 80 } })) });
+      }
     }
-    await compose(P('gunner-weaponfire-v5-ticks-3x.png'), {
-      title: 'v5 ROTOR, EVERY 60Hz TICK (3x nearest-neighbour of the 1x receiver). Row pairs: regular, elite. Read left to right.',
-      cols: 12, cellW: 216, cellH: 108, cells: [1, 3].flatMap((k) => tick.filter((c) => c.k === k)),
-    });
-    await page.close();
-  } finally { unlinkSync(refPath); }
+  }
+  // reading order: v4 R, v5 R, v5 E (east) then the flipped pair
+  const order = [0, 1, 2, 3, 4].map((i) => rows[i]);
+  await compose(P('gunner-weaponfire-v5-strip.png'), {
+    title: 'GUNNER FIRE v5 — 60Hz ticks around one shot, 1x. Rows: v4 regular, v5 regular, v5 elite (aim E); v5 regular, v5 elite (aim W, flipped gun)',
+    cols: offs.length, cellW: 120, cellH: 80, cells: order.flatMap((r) => r.cells),
+  });
+  // the same cells at 3x for inspection (nearest-neighbour)
+  await compose(P('gunner-weaponfire-v5-strip-3x.png'), {
+    title: 'INSPECTION 3x of the strip above (nearest-neighbour upscale of the 1x pixels)',
+    cols: offs.length, cellW: 360, cellH: 240, cells: order.flatMap((r) => r.cells),
+  });
+  // every 60Hz tick of one charge, the rotor's steps: v5 regular and elite, aim E (shot 16)
+  const tick = [];
+  for (let o = -19; o <= 3; o++) {
+    const at = await page.evaluate((target) => {
+      while (window.__tick < target) window.__frame(1);
+      const cam = window.__gs.cameras.main;
+      return window.__fa.map((e) => ({ x: (e.x - cam.worldView.x) * cam.zoom + cam.x, y: (e.y - cam.worldView.y) * cam.zoom + cam.y }));
+    }, first + 16 * 48 + o + 1);
+    for (const k of [1, 3]) tick.push({ k, label: `${k === 1 ? 'R' : 'E'} ${o < 0 ? `t-${-o}` : o ? `+${o}` : 'SHOT'}${o < 0 && o >= -18 ? ` u=${((19 + o) / 18).toFixed(2)}` : ''}`,
+      png: b64(await page.screenshot({ clip: { x: Math.round(at[k].x + 14), y: Math.round(at[k].y - 18), width: 72, height: 36 } })) });
+  }
+  await compose(P('gunner-weaponfire-v5-ticks-3x.png'), {
+    title: 'v5 ROTOR, EVERY 60Hz TICK (3x nearest-neighbour of the 1x receiver). Row pairs: regular, elite. Read left to right.',
+    cols: 12, cellW: 216, cellH: 108, cells: [1, 3].flatMap((k) => tick.filter((c) => c.k === k)),
+  });
+  await page.close();
 }
 
 // ── density: where Gunners/Riflemen stand relative to the player ──────────

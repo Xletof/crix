@@ -1565,7 +1565,7 @@ export class EnemyShooter extends Enemy {
   static DEST_TAKEN_PX = 60;     // a body or a claim this close: the spot is taken
   static DEST_NEAR_PX = 140;     // ...and inside this, crowded
 
-  // Score one candidate spot; -Infinity when it is not a place to stand.
+  // A spot a body can stand on: on the floor, clear of every cover rect.
   _standable(cx, cy) {
     const sc = this.scene, wb = sc.physics.world.bounds, M = 36, IN = 26;
     if (cx < wb.x + M || cx > wb.right - M || cy < wb.y + M || cy > wb.bottom - M) return false;
@@ -1573,6 +1573,8 @@ export class EnemyShooter extends Enemy {
     return true;
   }
 
+  // Score one candidate spot; -Infinity when it is not a place to stand (or,
+  // with `needPath`, not reachable in a straight line).
   _scoreSpot(cx, cy, player, L, needPath) {
     if (!this._standable(cx, cy)) return -Infinity;
     const tx = cx - this.x, ty = cy - this.y, tl = Math.hypot(tx, ty) || 1;

@@ -470,6 +470,23 @@ Not started, and not to be started on the strength of this pass: the Elite
 redesign, Commander design, a second Champion, new arenas, Nemesis
 replacement.
 
+### IN FLIGHT — ROSTER REDESIGN PHASE 2A: THE GUNNER. **AWAITING HANDSET VERDICT**
+
+Two candidates, both behind flags, neither frozen:
+- **Presentation** (`?roster=v1`): the Gunner Regular + Elite production
+  art and its weapon firing cycle. The current fire is **v5** — a 3x3 chamber
+  rotor inside the receiver (feed, wind, compress, one-frame snap, empty).
+  It is presentation only; the seeded legacy-vs-v1 lockstep in
+  `smoke-roster-gunner` proves the fight is identical.
+- **Movement** (`?move=v2` / `v21` / `v22`, default off): GAMEPLAY-affecting
+  candidate locomotion for the shared shooter swarm tick (Gunner and Rifleman
+  only). `v22` (per-leg destination ownership) is the current candidate;
+  `v2` and `v21` stay available for A/B until the verdict.
+
+`docs/evidence/roster-gunner-v1/gunner-v5-move-v22-notes.md` is the latest
+record, metrics included. Rifleman, Marksman and the other roster roles are
+NOT started and wait for the human to freeze both candidates.
+
 ### The recommended next area of work
 
 **Phase B Champion integration is CLOSED — human-approved and frozen on
