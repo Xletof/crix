@@ -75,7 +75,19 @@ Choosing approach spots in world space then fixed the funnelling, but cost headi
 
 Seeded CROSSFIRE, sector 14, Reactor Junction, the same scripted player, 1500 ticks, about 230 actor-seconds (`tests/diag-move-feel.mjs`).
 
-METRICS_TABLE
+| | shipped | v2 | v2.1 | **v2.2** |
+|---|---|---|---|---|
+| one-frame direction snaps /s | 3.75 | 0.07 | 0.07 | **0.08** |
+| reversals /s | 0.54 | 0.06 | 0.04 | **0.08** |
+| turns > 45° /s | 3.92 | 0.12 | 0.16 | **0.18** |
+| median heading hold | 33 ms | 333 ms | 333 ms | **333 ms** |
+| time standing | 8 % | 32 % | 35 % | **27 %** |
+| shots fired while moving | 100 % | 32 % | 35 % | **30 %** |
+| **shots fired** | 209 | 202 | 187 | **207** |
+| **line of sight to player** | 85 % | 82 % | 77 % | **84 %** |
+| mean distance from player | 307 px | 327 px | 325 px | **324 px** |
+| **nearest squadmate, median** | 71 px | 52 px | 68 px | **86 px** |
+| **time with a squadmate within 90 px** | 57 % | 66 % | 59 % | **52 %** |
 
 Two more seeds (`SEED=777`, `SEED=31337`), v2 / v2.1 / v2.2:
 
@@ -98,9 +110,9 @@ What these numbers say:
 | `gunner-weaponfire-v5-ticks-3x.png` | Every 60 Hz tick of one charge, receiver only, 3×. This is where the rotor's steps are visible as steps. |
 | `gunner-weaponfire-v5-ab.webm` | v4 (left) vs v5 (right), both tiers, 1×, the same scripted shots. The v4 build is the committed `d6e22d9` module, served for that run only, with its own discharge timing. |
 | `gunner-weaponfire-v5-zoom.webm` | 3× camera, every 60 Hz tick, played at half speed. Diagnostic only. |
-| `enemy-move-v22-ab.webm` | `?move=v2` vs `?move=v22`, same seed and same scripted player. |
+| `enemy-move-v22-ab.webm` | `?move=v2` vs `?move=v22`, same seed and same scripted player. The rig's "sampled state identical" counter reads 0/20 here, as it should: the two halves are different movement, and that counter exists for the legacy-vs-v1 lockstep. |
 | `enemy-move-v22-density.png` | Where Gunners and Riflemen stood relative to the player, v2 vs v2.2. |
-| `gunner-v5-move-v22-live.webm` | Real CROSSFIRE at 1× with both candidates on. |
+| `gunner-v5-move-v22-live.webm` | Real CROSSFIRE at 1× with both candidates on. Spacing is better, not perfect: bodies still pass close to each other mid-fight, which is the remaining 52 % within 90 px. |
 
 ## Handset
 
