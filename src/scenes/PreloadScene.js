@@ -76,7 +76,8 @@ import {
   paintBustVader,
   paintNemesisBrute, paintNemesisDemolisher, paintNemesisMarksman,
 } from '../systems/pixelArt.js';
-import { paintRosterGunner } from '../systems/rosterPaint.js';
+import { paintRosterGunner, paintRosterRifleman, paintRosterMarksman } from '../systems/rosterPaint.js';
+import { paintRosterMuzzles } from '../systems/rosterWeaponFx.js';
 import { registerRosterArt } from '../data/rosterArt.js';
 import { paintGunnerMuzzle } from '../systems/gunnerMuzzle.js';
 
@@ -96,6 +97,10 @@ export class PreloadScene extends Phaser.Scene {
     // NEW keys. The legacy sheets above keep painting exactly as before.
     registerRosterArt('shooter', paintRosterGunner(this));
     paintGunnerMuzzle(this);
+    // Phase 2B: Rifleman (`grunt`) and Marksman (`sniper`), same contract
+    registerRosterArt('grunt', paintRosterRifleman(this));
+    registerRosterArt('sniper', paintRosterMarksman(this));
+    paintRosterMuzzles(this);
     // PHASE B CANDIDATE — the first Champion. See CHAMPION in config.js.
     paintInterdictor(this);
     // PHASE B.1 CANDIDATE — the Harrower. Driven frame-by-frame by its actor
@@ -281,6 +286,10 @@ export class PreloadScene extends Phaser.Scene {
       { key: 'interdictor', tex: 'champ-interdictor' },
       { key: 'ro-gun-R', tex: 'ro-gun-R' },
       { key: 'ro-gun-E', tex: 'ro-gun-E' },
+      { key: 'ro-rif-R', tex: 'ro-rif-R' },
+      { key: 'ro-rif-E', tex: 'ro-rif-E' },
+      { key: 'ro-mrk-R', tex: 'ro-mrk-R' },
+      { key: 'ro-mrk-E', tex: 'ro-mrk-E' },
     ];
 
     for (const c of chars) {
@@ -348,6 +357,10 @@ export class PreloadScene extends Phaser.Scene {
       { key: 'interdictor', tex: 'champ-interdictor' },
       { key: 'ro-gun-R', tex: 'ro-gun-R' },
       { key: 'ro-gun-E', tex: 'ro-gun-E' },
+      { key: 'ro-rif-R', tex: 'ro-rif-R' },
+      { key: 'ro-rif-E', tex: 'ro-rif-E' },
+      { key: 'ro-mrk-R', tex: 'ro-mrk-R' },
+      { key: 'ro-mrk-E', tex: 'ro-mrk-E' },
     ];
     for (const c of posed) {
       poseDirs.forEach((dirName, di) => {

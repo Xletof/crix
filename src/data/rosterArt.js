@@ -3,7 +3,8 @@
 // speed, AI or what spawns.
 //
 // Roles are registered by `PreloadScene` as their production art is painted
-// (`src/systems/rosterPaint.js`). Today that is the GUNNER (`shooter`) alone.
+// (`src/systems/rosterPaint.js`): the GUNNER (`shooter`), the RIFLEMAN (`grunt`)
+// and the MARKSMAN (`sniper`).
 // Under `?roster=v1` a role with no registered art falls back to legacy art,
 // so the rest of the roster stays exactly as it was while one role is judged.
 //
@@ -20,6 +21,7 @@
 
 import { isRosterV1 } from '../systems/debug.js';
 import { makeGunnerWeaponFx } from '../systems/gunnerMuzzle.js';
+import { makeRosterWeaponFx } from '../systems/rosterWeaponFx.js';
 
 const ROSTER_V1_ART = {};
 
@@ -67,5 +69,14 @@ export function wearRosterArt(enemy, art, bodyRadius) {
   // ...and the weapon's own charge / kick cycle (replaces the shared orange
   // warning tint and the whole-body shot squash for this body only)
   if (art.weaponFx && !enemy._weaponFx) enemy._weaponFx = makeGunnerWeaponFx(enemy);
+  // Phase 2B roles carry their OWN firing language (systems/rosterWeaponFx.js),
+  // keyed on `_rosterFx` so the Gunner's listener never fires for them. The
+  // rifle's cycle also takes the warning/shot hooks (`_weaponFx`); the
+  // marksman's reads the sniper's own charge state and needs none.
+  if (art.fx && !enemy._rosterFxObj) {
+    enemy._rosterFx = art.fx;
+    enemy._rosterFxObj = makeRosterWeaponFx(enemy, art.fx);
+    if (art.fx === 'rifle') enemy._weaponFx = enemy._rosterFxObj;
+  }
   enemy.body.setCircle(bodyRadius, enemy.width / 2 - bodyRadius, enemy.height / 2 - bodyRadius);
 }

@@ -7,7 +7,8 @@
 // What this file pins:
 //   - under `?roster=v1` the Gunner, and ONLY the Gunner, wears `ro-gun-R` /
 //     `ro-gun-E` and `ro-w-gun-R` / `ro-w-gun-E`, on the stock 33-frame / 18-key
-//     contract; shielded, sniper, swarmling and every nemesis stay legacy;
+//     contract; shielded, swarmling and every nemesis stay legacy (grunt and
+//     sniper wear their own Phase 2B art — smoke-roster-2b);
 //   - legacy (no flag) is the `88e9b89` Gunner, against the Phase 1 fixture;
 //   - every gameplay value the Gunner has is identical under both flags — and
 //     then, beyond the field list, that a SEEDED, HAND-STEPPED CROSSFIRE runs
@@ -137,12 +138,11 @@ for (const k of ['R', 'E']) {
 check(V.E.play.bodyW === hist.units['shooter+E'].play.bodyW && V.E.play.bodyW === 84 && V.E.look.scale === 1 && V.E.look.baseScale === 1,
   '10. v1 ELITE keeps the HISTORICAL physics footprint (84px) while rendering at scale 1.0', JSON.stringify({ ...V.E.play, scale: V.E.look.scale }));
 // shared-sheet roles are untouched
-for (const k of ['shielded', 'sniper']) {
-  check(JSON.stringify(L[k]) === JSON.stringify(V[k]) && V[k].look.tex === 'shooter',
-    `${k} still wears the legacy 'shooter' sheet under v1, gameplay identical (Gunner only)`, JSON.stringify(V[k].look));
-}
-check(V.shieldedE.look.tex === 'shooter' && V.sniperE.look.tex === 'shooter' && V.sniperE.look.scale === 1.4,
-  'shielded / sniper ELITES keep legacy presentation under v1', `${V.shieldedE.look.tex} ${V.sniperE.look.tex} ${V.sniperE.look.scale}`);
+// (the sniper wears its own Marksman art since Phase 2B — smoke-roster-2b)
+check(JSON.stringify(L.shielded) === JSON.stringify(V.shielded) && V.shielded.look.tex === 'shooter',
+  `shielded still wears the legacy 'shooter' sheet under v1, gameplay identical`, JSON.stringify(V.shielded.look));
+check(V.shieldedE.look.tex === 'shooter' && V.shieldedE.look.scale === 1.4 && V.sniper.look.tex !== 'ro-gun-R' && V.sniperE.look.tex !== 'ro-gun-E',
+  'shielded ELITE keeps legacy presentation under v1; no other role ever wears the Gunner sheets', `${V.shieldedE.look.tex} ${V.sniper.look.tex} ${V.sniperE.look.tex}`);
 check(V.swarmling.look.tex === 'grunt' && V.swarmling.look.scale === 0.7, 'swarmling still the legacy grunt sheet at 0.7', JSON.stringify(V.swarmling.look));
 
 // ── 4/5. THE SHEET CONTRACT ───────────────────────────────────────────────

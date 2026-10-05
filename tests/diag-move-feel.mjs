@@ -14,13 +14,16 @@
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 const BASE = 'http://localhost:5173/';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
-const Q = '?nodlg=1&nofreeze=1&roster=v1&encdbg=crossfire&room=corridor&sector=14&wave=1';
+// ENC=sniperNest measures the Rifleman-heavy SNIPER NEST instead of CROSSFIRE;
+// TYPES=grunt limits the measured bodies to one archetype
+const Q = `?nodlg=1&nofreeze=1&roster=v1&encdbg=${process.env.ENC || 'crossfire'}&room=corridor&sector=14&wave=1`;
+const TYPES = (process.env.TYPES || 'shooter,grunt').split(',');
 async function run(extra) {
   const page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
   page.on('pageerror', (e) => { console.error(e.message); process.exit(1); });
   await page.goto(BASE + Q + extra);
   await page.waitForFunction(() => window.game?.scene?.getScene('Title')?.sys?.isActive(), null, { timeout: 45000 });
-  const r = await page.evaluate(async (SEED) => {
+  const r = await page.evaluate(async ([SEED, TYPES]) => {
     const g = window.game; g.loop.sleep();
     let s = SEED; Math.random = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
     let t = 1e5; Date.now = () => t; const adv = () => { t += 1000 / 60; g.step(t, 1000 / 60); };
@@ -31,7 +34,7 @@ async function run(extra) {
     const st = new Map();
     let shots = 0, movingShots = 0;
     gs.events.on('shooter-fire', (e) => {
-      if (e.enemyType !== 'shooter' && e.enemyType !== 'grunt') return;
+      if (!TYPES.includes(e.enemyType)) return;
       shots++; if (Math.hypot(e.body.velocity.x, e.body.velocity.y) > 40) movingShots++;
     });
     const k = gs.keys;
@@ -41,7 +44,7 @@ async function run(extra) {
       k.A.isDown = ph === 1; k.D.isDown = ph === 4; k.W.isDown = ph === 2; k.S.isDown = false;
       adv();
       for (const e of gs.enemies.getChildren()) {
-        if (!e.active || !e.alive || (e.enemyType !== 'shooter' && e.enemyType !== 'grunt') || e._staggerMs > 0) continue;
+        if (!e.active || !e.alive || !TYPES.includes(e.enemyType) || e._staggerMs > 0) continue;
         const v = e.body.velocity, sp = Math.hypot(v.x, v.y), h = Math.atan2(v.y, v.x);
         const a = st.get(e) || { nn: [], los: 0, dist: 0, modes: {}, n: 0, snaps: 0, rev: 0, turns: 0, still: 0, legs: [], legT: 0, legH: null, hist: [] };
         { let m = 1e9; for (const o of gs.enemies.getChildren()) { if (o === e || !o.active || !o.alive || (o.enemyType !== 'shooter' && o.enemyType !== 'grunt')) continue; m = Math.min(m, Math.hypot(o.x - e.x, o.y - e.y)); } if (m < 1e9) a.nn.push(m); }
@@ -69,7 +72,7 @@ async function run(extra) {
     const secs = n / 60;
     return { actorSec: +secs.toFixed(1), snapsPerSec: +(snaps / secs).toFixed(2), reversalsPerSec: +(rev / secs).toFixed(2), turnsPerSec: +(turns / secs).toFixed(2),
       medianLegMs: Math.round(legs[Math.floor(legs.length / 2)] || 0), stillPct: Math.round(100 * still / n), shots, shotsMovingPct: Math.round(100 * movingShots / Math.max(1, shots)), losPct: Math.round(100 * los / n), nnMedian: Math.round(nn.sort((x, y) => x - y)[Math.floor(nn.length / 2)]), nnUnder90Pct: Math.round(100 * nn.filter((d) => d < 90).length / nn.length), meanDist: Math.round(dist / n) };
-  }, SEED);
+  }, [SEED, TYPES]);
   await page.close();
   return r;
 }

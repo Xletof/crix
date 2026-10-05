@@ -1,0 +1,137 @@
+[
+ {
+  "tier": "REGULAR",
+  "aim": "E",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "firstDrawnHead": 66.3,
+  "muzzle": 66
+ },
+ {
+  "tier": "REGULAR",
+  "aim": "SE",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "firstDrawnHead": 66.3,
+  "muzzle": 66
+ },
+ {
+  "tier": "REGULAR",
+  "aim": "S",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "firstDrawnHead": 66.3,
+  "muzzle": 66
+ },
+ {
+  "tier": "REGULAR",
+  "aim": "W",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "firstDrawnHead": 66.3,
+  "muzzle": 66
+ },
+ {
+  "tier": "REGULAR",
+  "aim": "N",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "firstDrawnHead": 66.3,
+  "muzzle": 66
+ },
+ {
+  "tier": "ELITE",
+  "aim": "E",
+  "radius": 30,
+  "pivot": 26,
+  "spawn": 34,
+  "firstDrawnHead": 74.3,
+  "muzzle": 74
+ },
+ {
+  "tier": "ELITE",
+  "aim": "SE",
+  "radius": 30,
+  "pivot": 26,
+  "spawn": 34,
+  "firstDrawnHead": 74.3,
+  "muzzle": 74
+ },
+ {
+  "tier": "ELITE",
+  "aim": "S",
+  "radius": 30,
+  "pivot": 26,
+  "spawn": 34,
+  "firstDrawnHead": 74.3,
+  "muzzle": 74
+ },
+ {
+  "tier": "ELITE",
+  "aim": "W",
+  "radius": 30,
+  "pivot": 26,
+  "spawn": 34,
+  "firstDrawnHead": 74.3,
+  "muzzle": 74
+ },
+ {
+  "tier": "ELITE",
+  "aim": "N",
+  "radius": 30,
+  "pivot": 26,
+  "spawn": 34,
+  "firstDrawnHead": 74.3,
+  "muzzle": 74
+ },
+ {
+  "tier": "LEGACY",
+  "aim": "E",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "firstDrawnHead": 66.3,
+  "muzzle": 79.2
+ },
+ {
+  "tier": "LEGACY",
+  "aim": "SE",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "firstDrawnHead": 66.3,
+  "muzzle": 79.2
+ },
+ {
+  "tier": "LEGACY",
+  "aim": "S",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "firstDrawnHead": 66.3,
+  "muzzle": 79.2
+ },
+ {
+  "tier": "LEGACY",
+  "aim": "W",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "firstDrawnHead": 66.3,
+  "muzzle": 79.2
+ },
+ {
+  "tier": "LEGACY",
+  "aim": "N",
+  "radius": 22,
+  "pivot": 18,
+  "spawn": 26,
+  "firstDrawnHead": 66.3,
+  "muzzle": 79.2
+ }
+]

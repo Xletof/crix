@@ -335,3 +335,355 @@ export function paintRosterGunner(scene) {
     elite:   { tex: 'ro-gun-E', prefix: 'ro-gun-E', weapon: 'ro-w-gun-E', weaponOrigin: oE, muzzleFx: true, weaponFx: true },
   };
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// PHASE 2B — RIFLEMAN (`grunt`) and MARKSMAN (`sniper`)
+// ════════════════════════════════════════════════════════════════════════
+//
+// Same contract, same channel tables (BOB / FB / SIDE / POSES) as the Gunner,
+// so the three roles walk on one rhythm. Each role owns its body and weapon
+// painters; nothing above is touched.
+
+// THE MUZZLE OF EVERY ROLE IS WHERE ITS BOLT FIRST APPEARS. Gameplay spawns
+// every stock bolt `cfg.radius + 4` along the aim (8px past the overlay's
+// pivot, any radius), as a 60px streak stretched by clamp(speed/620, 1, 2.2)
+// and centred on its position; the first frame anyone SEES it has already
+// moved speed/60. So the bolt's leading edge on its first drawn frame is
+//   8 + speed/60 + 30 * clamp(speed/620, 1, 2.2)   past the pivot,
+// and the drawn muzzle goes there. The gameplay speeds then ORDER THE GUNS
+// with no art decision at all: Rifleman 620 -> 48, Gunner 700 -> 54,
+// Marksman 1000 -> 73. The shortest weapon belongs to the baseline role and
+// the longest to the precision role because the bolts say so.
+export const muzzlePastPivot = (speed) => 8 + speed / 60 + 30 * Math.min(2.2, Math.max(1, speed / 620));
+export const RIFLE_MUZZLE_PAST_PIVOT = Math.round(muzzlePastPivot(620));      // 48
+export const MARKSMAN_MUZZLE_PAST_PIVOT = Math.round(muzzlePastPivot(1000));  // 73
+
+const RB = '#0b0c10';                                                    // boots, visor black
+
+// A padded weapon grid: the art is drawn one pixel in so the outline is
+// never clipped; the drawn muzzle is the canvas's right edge.
+function weaponGrid(len, h) {
+  const g = grid(len + 2, h + 2);
+  return {
+    g,
+    rect: (x, y, rw, rh, c) => g.rect(x + 1, y + 1, rw, rh, c),
+    hl: (y, x0, x1, c) => g.hl(y + 1, x0 + 1, x1 + 1, c),
+    vl: (x, y0, y1, c) => g.vl(x + 1, y0 + 1, y1 + 1, c),
+    px: (x, y, c) => g.px(x + 1, y + 1, c),
+  };
+}
+function paintWeaponGrid(scene, key, w, muzzle, barrelRow) {
+  w.g.outline();
+  const c = new PixelCanvas(scene, key, w.g.w, w.g.h, S);
+  w.g.blit(c);
+  c.finish();
+  return [1 - muzzle / (w.g.w * S), (barrelRow + 1 + 0.5) / w.g.h];
+}
+
+function rosterFrameOpts(k, pose) {
+  const P = pose ? POSES[pose] : null;
+  return {
+    bob: P ? P.bob : BOB[k], fire: !pose && k === 7,
+    armDy: P ? P.armDy : 0, armDx: P ? P.armDx : 0, lean: P ? P.lean : 0, hand: P ? P.hand : 0,
+    lx: P ? 8 : FB.lx[k], rx: P ? 14 : FB.rx[k], liftL: P ? 0 : FB.liftL[k], liftR: P ? 0 : FB.liftR[k],
+    near: P ? 14 : SIDE.near[k], far: P ? 7 : SIDE.far[k],
+    nearLift: P ? 0 : SIDE.nearLift[k], farLift: P ? 0 : SIDE.farLift[k],
+  };
+}
+function paintRoleSheet(scene, key, elite, frameFn) {
+  const ss = new SpriteSheet(scene, key, ROSTER_FRAME.w, ROSTER_FRAME.h, 33, S);
+  ['front', 'back', 'side'].forEach((dir, di) => {
+    for (let k = 0; k < 8; k++) frameFn(dir, elite, rosterFrameOpts(k, null)).blit(ss.frame(di * 8 + k));
+    ['raise', 'thrust', 'recoil'].forEach((pose, pi) => frameFn(dir, elite, rosterFrameOpts(0, pose)).blit(ss.frame(24 + di * 3 + pi)));
+  });
+  ss.finish();
+}
+
+// ── RIFLEMAN ──────────────────────────────────────────────────────────────
+//
+// The baseline infantryman: COMPACT (10-wide torso against the Gunner's 12),
+// white standard-issue plate over a dark undersuit, modest equal shoulders, a
+// rounded restrained helmet with a T visor and no glow. He is the plainest
+// thing in the roster on purpose — every other role reads by difference from
+// him. White legs are separated by the outline itself: the 2px gap between
+// them fills with outline black, which on WHITE legs is negative space.
+//
+// The ELITE is the same man better equipped, in GRAPHITE: chest webbing
+// (two straps and a pouch row), a compact radio on the char-left shoulder
+// with an amber tell-tale, forearm guards and a helmet-side sensor. Same
+// body, same width, no tint, nothing from the Captain's blue.
+const RW = { lit: '#f2f3f7', mid: '#cdd0d9', dk: '#9196a3', sh: '#646977' };
+const RU = { lit: '#3a3d47', mid: '#24262d', dk: '#16171c' };
+const RK = { lit: '#626774', mid: '#3a3d47', dk: '#23252c', led: '#ffb347' };
+
+function riflemanLegsFB(g, o, hipY) {
+  for (const [x, lift] of [[o.lx, o.liftL], [o.rx, o.liftR]]) {
+    const bootY = 23 - lift, len = bootY - hipY;
+    g.rect(x, hipY, 2, len, RW.dk);
+    if (len > 2) g.vl(x < 12 ? x : x + 1, hipY + 1, bootY - 1, RW.mid);   // lit outer shin
+    g.px(x < 12 ? x + 1 : x, hipY + 2, RU.mid);                           // knee joint
+    g.rect(x, bootY, 2, 2, RB);
+    g.px(x < 12 ? x : x + 1, bootY, RU.lit);                              // toe cap
+  }
+}
+function riflemanLegsSide(g, o, hipY) {
+  const leg = (x, lift, col) => {
+    const bootY = 23 - lift;
+    g.rect(x, hipY, 2, bootY - hipY, col);
+    return bootY;
+  };
+  const fb = leg(o.far, o.farLift, RW.sh);
+  g.rect(o.far - 1, fb, 3, 2, RB);
+  const nb = leg(o.near, o.nearLift, RW.dk);
+  g.vl(o.near + 1, hipY + 1, nb - 1, RW.mid);
+  g.px(o.near, hipY + 2, RU.mid);
+  g.rect(o.near, nb, 3, 2, RB); g.px(o.near + 2, nb, RU.lit);
+  g.rect(9, hipY - 1, 5, 2, RU.mid);
+}
+
+function riflemanFrontBack(g, dir, e, o) {
+  const front = dir === 'front', b = o.bob;
+  // char-left (radio side) is screen RIGHT in front view, screen LEFT in back
+  if (e && !front) {                                              // radio pack on the back, antenna up the char-left
+    g.vl(8, 6 + b, 11 + b, RK.lit); g.px(8, 5 + b, RK.led);
+  }
+  riflemanLegsFB(g, o, 18 + b);
+  // TORSO — compact
+  g.rect(7, 13 + b, 10, 5, RW.mid); g.sym(13 + b, 10, RW.lit); g.sym(17 + b, 10, RW.sh);
+  if (front) { g.hl(16 + b, 9, 14, RU.mid); g.px(11, 17 + b, RU.lit); g.px(12, 17 + b, RU.lit); g.hl(14 + b, 10, 13, RW.lit); }
+  else { g.vl(11, 14 + b, 16 + b, RW.dk); g.vl(12, 14 + b, 16 + b, RW.dk); }
+  // SHOULDERS — modest and equal; the arm hangs under each
+  const ad = o.armDx, fy = 12 + b + o.armDy - (o.fire ? 1 : 0);
+  const fx = front ? 5 - ad : 17 + ad, ox = front ? 17 + ad : 5 - ad;
+  for (const [x, y] of [[fx, fy], [ox, 12 + b + o.armDy]]) {
+    g.rect(x, y, 2, 3, RW.mid); g.px(x, y, RW.lit); g.px(x + 1, y, RW.lit);
+    g.rect(x, y + 3, 2, 2, e ? RK.mid : RU.mid);                         // forearm (elite: guard)
+    g.rect(x, y + 5, 2, 1, RB);                                          // glove
+  }
+  // HELMET — rounded, restrained
+  g.sym(4 + b, 4, RW.lit); g.rect(9, 5 + b, 6, 6, RW.mid); g.sym(5 + b, 6, RW.lit);
+  g.vl(9, 6 + b, 10 + b, RW.dk); g.vl(14, 6 + b, 10 + b, RW.dk);
+  g.sym(11 + b, 4, RU.mid);                                             // neck seal
+  if (front) {
+    g.hl(8 + b, 10, 13, RB); g.hl(9 + b, 11, 12, RB);                    // T visor
+    g.hl(10 + b, 11, 12, RW.dk);                                         // breath grille
+  } else {
+    g.hl(9 + b, 10, 13, RW.dk);                                          // rear rim
+  }
+  if (e) {
+    if (front) {
+      g.vl(9, 13 + b, 16 + b, RK.mid); g.vl(14, 13 + b, 16 + b, RK.mid);   // webbing straps
+      g.hl(15 + b, 9, 14, RK.mid); g.px(10, 15 + b, RK.lit); g.px(12, 15 + b, RK.lit);   // pouch row
+      g.rect(17 + ad, 10 + b + o.armDy, 2, 2, RK.mid); g.px(18 + ad, 10 + b + o.armDy, RK.led);   // radio
+      g.px(15, 7 + b, RK.lit); g.px(15, 8 + b, RK.mid);                   // helmet-side sensor
+    } else {
+      g.rect(9, 13 + b, 6, 3, RK.mid); g.hl(13 + b, 9, 14, RK.lit); g.px(10, 14 + b, RK.led);   // radio pack
+      g.px(8, 7 + b, RK.lit); g.px(8, 8 + b, RK.mid);                     // sensor (other side, turned)
+    }
+  }
+}
+
+function riflemanSide(g, e, o) {
+  const b = o.bob, L = o.lean;
+  if (e) { g.vl(8 + L, 6 + b, 11 + b, RK.lit); g.px(8 + L, 5 + b, RK.led); }
+  riflemanLegsSide(g, o, 18 + b);
+  // small belt pouch behind (regular) / radio (elite)
+  if (e) { g.rect(7 + L, 11 + b, 2, 4, RK.mid); g.px(7 + L, 11 + b, RK.lit); }
+  else g.rect(8 + L, 15 + b, 1, 2, RU.mid);
+  // TORSO
+  g.rect(9 + L, 12 + b, 6, 6, RW.mid); g.hl(12 + b, 9 + L, 14 + L, RW.lit); g.hl(17 + b, 9 + L, 14 + L, RW.sh);
+  g.hl(16 + b, 10 + L, 13 + L, RU.mid);
+  if (e) { g.rect(13 + L, 13 + b, 2, 3, RK.mid); g.px(13 + L, 14 + b, RK.lit); }   // chest rig front
+  // SHOULDER + ARM, forward to the carbine
+  const sx = 9 + L - (o.fire ? 1 : 0), sy = 11 + b + o.armDy;
+  g.rect(sx, sy, 5, 3, RW.mid); g.hl(sy, sx, sx + 4, RW.lit); g.hl(sy + 2, sx, sx + 4, RW.sh);
+  g.rect(13 + L + o.hand - (o.fire ? 1 : 0), 15 + b + Math.min(0, o.armDy), 3, 1, e ? RK.mid : RU.mid);
+  // HELMET — the visor block and brow are what make the profile a face
+  g.rect(10 + L, 4 + b, 5, 7, RW.mid); g.hl(4 + b, 11 + L, 13 + L, RW.lit); g.vl(10 + L, 5 + b, 9 + b, RW.dk);
+  g.hl(6 + b, 12 + L, 15 + L, RW.lit);                                  // brow, standing proud
+  g.rect(13 + L, 7 + b, 2, 2, RB); g.px(15 + L, 7 + b, RB);              // visor block
+  g.px(14 + L, 9 + b, RW.dk); g.px(14 + L, 10 + b, RW.dk);               // jaw / grille
+  g.hl(11 + b, 11 + L, 13 + L, RU.dk);
+  if (e) { g.px(11 + L, 7 + b, RK.lit); g.px(11 + L, 8 + b, RK.mid); }
+}
+
+function riflemanFrame(dir, e, o) {
+  const g = grid(ROSTER_FRAME.w, ROSTER_FRAME.h);
+  if (dir === 'side') riflemanSide(g, e, o); else riflemanFrontBack(g, dir, e, o);
+  g.outline();
+  return g;
+}
+
+// THE CARBINE — the shortest, plainest firearm in the roster. Dark gunmetal
+// against the white body (so it never merges into the torso), a short
+// receiver, a magazine, a handguard and a stub barrel, and a restrained optic.
+// No power housing and no glow. The elite adds a rail, a better optic, an
+// underbarrel module and a flash hider — still compact. Elite canvas is two
+// gun pixels longer at the FRONT: its pivot sits 8px further out (radius 30
+// against 22), so the stock lands on the same place on the body.
+const CB = { lit: '#6a6e7a', mid: '#3a3d47', dk: '#1d1f25', lens: '#8ab4c8' };
+export const CARBINE = { h: 6, barrelRow: 2, lens: [6, 0] };     // content coords (before the pad)
+function paintCarbine(scene, key, elite) {
+  const w = weaponGrid(elite ? 17 : 15, CARBINE.h);
+  w.rect(0, 2, 2, 2, CB.dk);                     // stock
+  w.rect(2, 1, 7, 3, CB.mid); w.hl(1, 2, 8, CB.lit);   // receiver
+  w.rect(5, 4, 2, 2, CB.dk);                     // magazine
+  w.px(3, 4, CB.dk);                             // grip
+  w.rect(9, 2, 3, 2, CB.mid); w.hl(2, 9, 11, CB.lit);  // handguard
+  if (!elite) {
+    w.rect(4, 0, 3, 1, CB.dk); w.px(6, 0, CB.lens);      // restrained optic
+    w.rect(12, 2, 3, 1, CB.dk); w.px(14, 2, CB.lit);     // barrel + lip
+  } else {
+    w.hl(0, 2, 10, CB.dk);                               // rail
+    w.rect(4, 0, 4, 1, CB.mid); w.px(7, 0, CB.lens); w.px(4, 0, CB.lit);   // better optic
+    w.rect(9, 4, 3, 1, CB.dk);                           // underbarrel module
+    w.rect(12, 2, 3, 1, CB.dk);
+    w.rect(15, 1, 2, 3, CB.mid); w.px(16, 2, CB.lit);    // flash hider
+  }
+  return paintWeaponGrid(scene, key, w, RIFLE_MUZZLE_PAST_PIVOT, CARBINE.barrelRow);
+}
+
+// ── MARKSMAN ──────────────────────────────────────────────────────────────
+//
+// The LEANEST body in the roster: an 8-wide chest, one-pixel tucked shoulders,
+// a visible neck, a narrow head and LONG legs (hips at row 16, two rows higher
+// than the Gunner's or the Rifleman's). Violet/plum plate baked in, a split
+// coat-tail behind the legs in profile, and the role's tell: an
+// OFF-CENTRE magenta optic on the char-right of the visor with its housing
+// standing proud of the head. The elite is a more advanced precision
+// specialist, not a heavier one: a rangefinder MAST on the helmet with its own
+// lens, a second sensor, and steel on the optic housing. No width is added
+// anywhere.
+const MK = { lit: '#9a7cbc', mid: '#664a86', dk: '#42305c', sh: '#2a1f3c' };
+const MU = { lit: '#3a3446', mid: '#221e2b', dk: '#141218' };
+const MO = { lens: '#ff4fd8', hot: '#ffc4f2', steel: '#b8bdc8', gr: '#4a4d58' };
+const MHIP = 16;
+
+function marksmanLegsFB(g, o, hipY) {
+  for (const [x, lift] of [[o.lx, o.liftL], [o.rx, o.liftR]]) {
+    const bootY = 23 - lift, len = bootY - hipY;
+    g.rect(x, hipY, 2, len, MK.dk);
+    g.px(x < 12 ? x : x + 1, hipY + 3, MK.mid);                           // knee
+    g.rect(x, bootY, 2, 2, RB); g.px(x < 12 ? x : x + 1, bootY, MU.lit);
+  }
+}
+function marksmanLegsSide(g, o, hipY) {
+  const leg = (x, lift, col) => { const bootY = 23 - lift; g.rect(x, hipY, 2, bootY - hipY, col); return bootY; };
+  const fb = leg(o.far, o.farLift, MK.sh);
+  g.rect(o.far - 1, fb, 3, 2, RB);
+  const nb = leg(o.near, o.nearLift, MK.dk);
+  g.px(o.near + 1, hipY + 3, MK.mid);
+  g.rect(o.near, nb, 3, 2, RB); g.px(o.near + 2, nb, MU.lit);
+  g.rect(10, hipY - 1, 4, 2, MU.mid);
+}
+
+function marksmanFrontBack(g, dir, e, o) {
+  const front = dir === 'front', b = o.bob;
+  // (no coat-tail in front/back: one pixel beside each leg merged with the
+  // legs into a wide lower body — the width this role must never gain. It
+  // lives in the profile only, behind the legs.)
+  marksmanLegsFB(g, o, MHIP + b);
+  // TORSO — a 6-wide chest tapering to a 4-wide waist: lean, never a slab
+  g.rect(9, 12 + b, 6, 3, MK.mid); g.sym(12 + b, 6, MK.lit);
+  g.sym(15 + b, 4, MU.mid);
+  if (front) { g.vl(11, 13 + b, 14 + b, MK.dk); }
+  else g.vl(12, 13 + b, 14 + b, MK.dk);
+  // arms TUCKED against the chest, one pixel each, ending in a dark glove
+  const ad = o.armDx;
+  for (const [x, y] of [[(front ? 8 - ad : 15 + ad), 12 + b + o.armDy - (o.fire ? 1 : 0)], [(front ? 15 + ad : 8 - ad), 12 + b + o.armDy]]) {
+    g.px(x, y, MK.lit); g.vl(x, y + 1, y + 2, MK.dk); g.px(x, y + 3, RB);
+  }
+  // NECK, visible
+  g.hl(11 + b, 11, 12, MU.mid);
+  // HEAD — narrow
+  g.hl(4 + b, 11, 12, MK.lit); g.rect(10, 5 + b, 4, 6, MK.mid); g.hl(5 + b, 10, 13, MK.lit);
+  g.vl(10, 6 + b, 9 + b, MK.dk);
+  if (front) {
+    g.hl(7 + b, 10, 13, RB); g.hl(8 + b, 11, 12, RB);
+    // OFF-CENTRE OPTIC: char-right = screen LEFT, housing proud of the head
+    g.vl(9, 6 + b, 8 + b, e ? MO.steel : MO.gr); g.px(10, 7 + b, MO.lens);
+    if (e) { g.px(13, 7 + b, MK.lit); }                                   // second sensor
+  } else {
+    g.hl(9 + b, 10, 13, MK.dk);
+    g.vl(14, 6 + b, 8 + b, e ? MO.steel : MO.gr);                         // optic housing seen from behind
+  }
+  if (e) {                                                               // rangefinder mast, char-left
+    const mx = front ? 13 : 10;
+    g.vl(mx, 2 + b, 3 + b, MO.gr); g.px(mx, 1 + b, MO.lens);          // row 0 stays free for the outline
+  }
+}
+
+function marksmanSide(g, e, o) {
+  const b = o.bob, L = o.lean;
+  g.vl(9 + L, MHIP + b, MHIP + 3 + b, MK.sh);                             // coat-tail behind
+  marksmanLegsSide(g, o, MHIP + b);
+  // TORSO — narrow
+  g.rect(10 + L, 12 + b, 5, 4, MK.mid); g.hl(12 + b, 10 + L, 14 + L, MK.lit); g.hl(15 + b, 10 + L, 14 + L, MU.mid);
+  // tucked shoulder, thin forearm out to the rifle
+  const sx = 11 + L - (o.fire ? 1 : 0), sy = 12 + b + o.armDy;
+  g.rect(sx, sy, 3, 2, MK.lit); g.hl(sy + 1, sx, sx + 2, MK.dk);
+  g.rect(13 + L + o.hand, 14 + b + Math.min(0, o.armDy), 3, 1, MU.mid);
+  g.hl(11 + b, 11 + L, 12 + L, MU.mid);                                   // neck
+  // HEAD
+  g.rect(10 + L, 5 + b, 4, 6, MK.mid); g.hl(4 + b, 11 + L, 12 + L, MK.lit); g.vl(10 + L, 6 + b, 9 + b, MK.dk);
+  g.px(13 + L, 7 + b, RB); g.px(13 + L, 8 + b, RB);
+  // the optic: forward of the face, lens at the front
+  g.rect(14 + L, 6 + b, 1, 3, e ? MO.steel : MO.gr); g.px(15 + L, 7 + b, MO.lens);
+  if (e) { g.vl(11 + L, 2 + b, 3 + b, MO.gr); g.px(11 + L, 1 + b, MO.lens); g.px(12 + L, 6 + b, MK.lit); }
+}
+
+function marksmanFrame(dir, e, o) {
+  const g = grid(ROSTER_FRAME.w, ROSTER_FRAME.h);
+  if (dir === 'side') marksmanSide(g, e, o); else marksmanFrontBack(g, dir, e, o);
+  g.outline();
+  return g;
+}
+
+// THE PRECISION RIFLE — the longest weapon in the ordinary roster, and thin:
+// a stock with a lit cheek rest, a slim receiver, a long scope with a magenta
+// lens, and ONE ROW of barrel running to a muzzle 73px past the pivot (the
+// bolt's own first-frame leading edge, see `muzzlePastPivot`). Lighter
+// graphite than the plum body so the two never merge. The elite adds a
+// rangefinder pod on the scope, a folded bipod and a muzzle brake.
+const MW = { lit: '#7a7f8c', mid: '#4a4d58', dk: '#24262d', acc: '#8a5cc0' };
+export const PRECISION = { h: 5, barrelRow: 2, lens: [10, 0] };
+function paintPrecisionRifle(scene, key, elite) {
+  const w = weaponGrid(elite ? 25 : 23, PRECISION.h);
+  w.rect(0, 1, 3, 3, MW.mid); w.hl(1, 0, 2, MW.lit); w.px(0, 3, MW.dk);   // stock + cheek rest
+  w.rect(3, 2, 2, 2, MW.dk);                                            // wrist
+  w.rect(5, 1, 6, 3, MW.mid); w.hl(1, 5, 10, MW.lit); w.px(5, 2, MW.acc); // receiver + role accent
+  w.px(8, 4, MW.dk);                                                    // magazine
+  w.rect(5, 0, 6, 1, MW.dk); w.px(10, 0, MO.lens); w.px(5, 0, MW.lit);  // scope
+  w.hl(2, 11, 21, MW.dk); w.hl(1, 11, 13, MW.mid);                      // long barrel, shroud at the root
+  w.px(22, 2, MW.lit);                                                  // muzzle
+  if (elite) {
+    w.rect(8, 0, 2, 1, MW.lit); w.px(9, 0, MO.hot);                     // rangefinder pod
+    w.hl(3, 13, 17, MW.dk);                                             // folded bipod
+    w.rect(23, 1, 2, 3, MW.mid); w.px(24, 2, MW.lit);                   // muzzle brake
+  }
+  return paintWeaponGrid(scene, key, w, MARKSMAN_MUZZLE_PAST_PIVOT, PRECISION.barrelRow);
+}
+
+/** Rifleman production art. Registered for `grunt` by PreloadScene. */
+export function paintRosterRifleman(scene) {
+  paintRoleSheet(scene, 'ro-rif-R', false, riflemanFrame);
+  paintRoleSheet(scene, 'ro-rif-E', true, riflemanFrame);
+  const oR = paintCarbine(scene, 'ro-w-rif-R', false);
+  const oE = paintCarbine(scene, 'ro-w-rif-E', true);
+  return {
+    regular: { tex: 'ro-rif-R', prefix: 'ro-rif-R', weapon: 'ro-w-rif-R', weaponOrigin: oR, fx: 'rifle' },
+    elite:   { tex: 'ro-rif-E', prefix: 'ro-rif-E', weapon: 'ro-w-rif-E', weaponOrigin: oE, fx: 'rifle' },
+  };
+}
+
+/** Marksman production art. Registered for `sniper` by PreloadScene. */
+export function paintRosterMarksman(scene) {
+  paintRoleSheet(scene, 'ro-mrk-R', false, marksmanFrame);
+  paintRoleSheet(scene, 'ro-mrk-E', true, marksmanFrame);
+  const oR = paintPrecisionRifle(scene, 'ro-w-mrk-R', false);
+  const oE = paintPrecisionRifle(scene, 'ro-w-mrk-E', true);
+  return {
+    regular: { tex: 'ro-mrk-R', prefix: 'ro-mrk-R', weapon: 'ro-w-mrk-R', weaponOrigin: oR, fx: 'marksman' },
+    elite:   { tex: 'ro-mrk-E', prefix: 'ro-mrk-E', weapon: 'ro-w-mrk-E', weaponOrigin: oE, fx: 'marksman' },
+  };
+}

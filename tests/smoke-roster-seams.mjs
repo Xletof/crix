@@ -151,9 +151,10 @@ const want = { grunt: true, 'grunt+E': true, shooter: false, 'shooter+E': false,
 for (const [k, v] of Object.entries(want)) check(legacy.units[k].play.rusher === v, `_isRusher on ${k} is ${v}`, String(legacy.units[k].play.rusher));
 
 // ── V1: change NO gameplay; roles without production art fall back to legacy ──
-// Phase 2A gave the GUNNER (`shooter`) its production art; its presentation is
-// checked in `smoke-roster-gunner`. Every other role still falls back.
-const V1_ROLES = { shooter: 'ro-gun-R', 'shooter+E': 'ro-gun-E' };
+// Phase 2A gave the GUNNER (`shooter`) its production art (`smoke-roster-gunner`),
+// Phase 2B the RIFLEMAN (`grunt`) and MARKSMAN (`sniper`) (`smoke-roster-2b`).
+// Every other role still falls back.
+const V1_ROLES = { shooter: 'ro-gun-R', 'shooter+E': 'ro-gun-E', grunt: 'ro-rif-R', 'grunt+E': 'ro-rif-E', sniper: 'ro-mrk-R', 'sniper+E': 'ro-mrk-E' };
 const pV = await boot('?nodlg=1&nofreeze=1&roster=v1');
 const v1 = await pV.evaluate(PROBE);
 const flags = await pV.evaluate(async () => {
@@ -170,8 +171,9 @@ for (const k of Object.keys(legacy.units)) {
 check(JSON.stringify(v1.behaviour) === JSON.stringify(legacy.behaviour), 'v1 rusher behaviour identical', JSON.stringify(v1.behaviour));
 
 // ── V1 elite presentation PATH, exercised with a stand-in texture ────────────
-// The generic path, on a role WITHOUT production art (grunt — the Gunner's own
-// is covered by smoke-roster-gunner): register a throwaway 96x104 texture in
+// The generic path, on a stand-in registration (it REPLACES grunt's / sniper's
+// real art for this block only; their production art is covered by
+// smoke-roster-2b): register a throwaway 96x104 texture in
 // the game's OWN registry instance and prove: scale 1, no tint, texture used,
 // body centred, and the PHYSICS footprint identical to legacy.
 const elitePath = await pV.evaluate(async () => {
