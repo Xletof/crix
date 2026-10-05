@@ -1426,7 +1426,7 @@ export class EnemyShooter extends Enemy {
       if (dist < SWARM_RETREAT_RANGE) mode = 'retreat';
       else if (mode === 'retreat' && dist >= SWARM_RETREAT_RANGE + HYS) mode = 'pocket';
     }
-    if (mode !== L.mode) { L.mode = mode; L.phase = 'settle'; L.t = 0; L.dur = mode === 'pocket' ? 180 : 0; }
+    if (mode !== L.mode) { L.mode = mode; L.phase = 'settle'; L.t = 0; L.dur = mode === 'pocket' ? 180 : 0; if (mode !== 'pocket' || L.dest?.kind !== 'approach') this._dest = L.dest = null; }
 
     let tvx = 0, tvy = 0;
     let aim = toPlayer;
@@ -1440,6 +1440,18 @@ export class EnemyShooter extends Enemy {
         const lb = this._laneBearing(), R = near - 70;
         const lx = player.x + Math.cos(lb) * R, ly = player.y + Math.sin(lb) * R;
         if (Math.hypot(lx - this.x, ly - this.y) > 40) { ax = lx; ay = ly; }
+      } else if (this._v22) {
+        // v2.2: the last stretch heads for a chosen spot on the band
+        // — a bearing and radius around the player chosen ONCE, so it travels
+        // with the player the way the shipped approach does and never flips
+        // sides; chosen again only if the room puts it out of reach
+        if (dist < near + 300) {
+          if (L.dest?.kind === 'approach') {
+            L.dest.x = player.x + Math.cos(L.dest.b) * L.dest.r; L.dest.y = player.y + Math.sin(L.dest.b) * L.dest.r;
+            if (!this._standable(L.dest.x, L.dest.y)) this._pickApproach(L, player, near);
+          } else this._pickApproach(L, player, near);
+          if (L.dest && Math.hypot(L.dest.x - this.x, L.dest.y - this.y) > 40) { ax = L.dest.x; ay = L.dest.y; }
+        } else if (L.dest) this._dest = L.dest = null;
       }
       this._moveToward(ax, ay, speed);                  // the shipped approach and its stuck sidestep
       tvx = this.body.velocity.x; tvy = this.body.velocity.y;
@@ -1450,9 +1462,18 @@ export class EnemyShooter extends Enemy {
     } else {
       L.t += delta;
       const blocked = this.body.blocked.left || this.body.blocked.right || this.body.blocked.up || this.body.blocked.down;
-      if (L.phase === 'move' && (L.t >= L.dur || blocked)) {
+      // v2.2: a leg that was going somewhere ends when it gets there, or when
+      // the player has moved far enough that it was chosen for another fight
+      const done = this._v22 && L.phase === 'move' && L.dest
+        && ((L.dest.x - this.x) * L.dx + (L.dest.y - this.y) * L.dy < 6
+          || Math.hypot(player.x - L.p0x, player.y - L.p0y) > 160);
+      if (L.phase === 'move' && (L.t >= L.dur || blocked || done)) {
         L.phase = 'settle'; L.t = 0; L.dur = 320 + Math.random() * 280;
         if (blocked) { L.side = -L.side; L.legs = 0; L.blockedRun = (L.blockedRun || 0) + 1; } else L.blockedRun = 0;
+        // ...and a body that cannot see the player does not stand there waiting
+        if (this._v22 && !this._hasLOS(this.x, this.y, player.x, player.y)) L.dur = 120 + Math.random() * 60;
+      } else if (L.phase === 'settle' && this._v22 && (L.t >= L.dur || this._crowded(50)) && this._pickDest(L, player, dist, near, speed)) {
+        // v2.2: committed to a chosen spot (L.dx/dy/dur set by _pickDest)
       } else if (L.phase === 'settle' && L.t >= L.dur) {
         if (this._lane !== undefined) this._pickLaneSide(L, toPlayer);
         else if (L.legs >= 2 || Math.random() < 0.25) { L.side = -L.side; L.legs = 0; }
@@ -1522,6 +1543,118 @@ export class EnemyShooter extends Enemy {
     if (Math.abs(d) > 0.22) { L.side = d > 0 ? -1 : 1; L.toLane = true; }
     else { L.side = L.lastStep === 1 ? -1 : 1; L.lastStep = L.side; L.toLane = false; }
     L.legs = 0;
+  }
+
+  // ── v2.2 DESTINATION OWNERSHIP ─────────────────────────────────────────
+  //
+  // v2.1 gave each body a permanent bearing around the player and it held that
+  // bearing faithfully — including the ones the room's cover had made bad
+  // (LOS 82% -> 77%, shots 202 -> 187 on the seeded CROSSFIRE). v2.2 owns a
+  // PLACE, not an angle, and only for one leg. When a leg starts the body
+  // looks at a handful of firing spots inside the band — a leg's length either
+  // side, wider either side, a little nearer or farther — and scores them on
+  // what it can already know (`_scoreSpot`), then commits to the best one and
+  // nothing re-scores it: the leg is the v2 leg, one fixed world-space
+  // direction, eased, ending on arrival, on a block, on its clock, or when the
+  // player has moved 160px since it was chosen. The last stretch of an
+  // APPROACH heads for a chosen spot on the band too, so a squad coming
+  // through one gate fans out instead of funnelling onto one point. The spot
+  // is published as `_dest`, so the next body to choose sees it as taken. If
+  // no spot is reachable `_pickDest` returns false and the v2 leg runs
+  // instead, 110px mate rule and all: the backstop.
+  static DEST_TAKEN_PX = 60;     // a body or a claim this close: the spot is taken
+  static DEST_NEAR_PX = 140;     // ...and inside this, crowded
+
+  // Score one candidate spot; -Infinity when it is not a place to stand.
+  _standable(cx, cy) {
+    const sc = this.scene, wb = sc.physics.world.bounds, M = 36, IN = 26;
+    if (cx < wb.x + M || cx > wb.right - M || cy < wb.y + M || cy > wb.bottom - M) return false;
+    for (const q of sc.losRects || []) if (cx > q.x - IN && cx < q.right + IN && cy > q.y - IN && cy < q.bottom + IN) return false;
+    return true;
+  }
+
+  _scoreSpot(cx, cy, player, L, needPath) {
+    if (!this._standable(cx, cy)) return -Infinity;
+    const tx = cx - this.x, ty = cy - this.y, tl = Math.hypot(tx, ty) || 1;
+    // reachable in a straight line by a BODY, not just by a ray
+    const ox = -ty / tl * 18, oy = tx / tl * 18;
+    const path = this._hasLOS(this.x, this.y, cx, cy) && this._hasLOS(this.x + ox, this.y + oy, cx + ox, cy + oy)
+      && this._hasLOS(this.x - ox, this.y - oy, cx - ox, cy - oy);
+    if (!path && needPath) return -Infinity;
+    let v = path ? 0 : -1;
+    // 1. a clear line to the player, and one that survives the player stepping either way
+    if (this._hasLOS(cx, cy, player.x, player.y)) {
+      v += 4;
+      const ux = player.x - cx, uy = player.y - cy, ul = Math.hypot(ux, uy) || 1;
+      const px = -uy / ul * 40, py = ux / ul * 40;
+      if (this._hasLOS(cx, cy, player.x + px, player.y + py)) v += 0.75;
+      if (this._hasLOS(cx, cy, player.x - px, player.y - py)) v += 0.75;
+    }
+    // 2. nobody standing there or headed there. A TAKEN spot costs more than a
+    // line is worth: two bodies sharing one good spot is the bunching itself.
+    const T = EnemyShooter.DEST_TAKEN_PX, N = EnemyShooter.DEST_NEAR_PX;
+    for (const o of this.scene.enemies.getChildren()) {
+      if (o === this || !o.active || !o.alive) continue;
+      let d = Math.hypot(o.x - cx, o.y - cy);
+      if (o._dest) d = Math.min(d, Math.hypot(o._dest.x - cx, o._dest.y - cy));
+      if (d < T) v -= 6;
+      else if (d < N) v -= 3 * (1 - (d - T) / (N - T));
+    }
+    // 3. a modest walk, and 4. not straight back to the spot just left
+    v -= 0.004 * tl;
+    if (L.from && Math.hypot(cx - L.from.x, cy - L.from.y) < 60) v -= 1.5;
+    return v + Math.random() * 0.3;
+  }
+
+  _pickDest(L, player, dist, near, speed) {
+    const R0 = near - 70;
+    const phi = Math.atan2(this.y - player.y, this.x - player.x);   // bearing player -> me
+    const rMin = this._isRusher ? 70 : SWARM_RETREAT_RANGE + 45;
+    const Rt = Phaser.Math.Clamp(dist + Phaser.Math.Clamp(R0 - dist, -60, 60), rMin, near);
+    const db = (95 + Math.random() * 45) / Math.max(90, Rt);       // a leg's length, along the band
+    const cands = [];
+    for (const [k, dr] of [[1, 0], [1.8, 0], [2.6, 0], [0.9, -60], [0.9, 60]]) {
+      for (const dir of [1, -1]) cands.push({ b: phi + dir * k * db, r: Phaser.Math.Clamp(Rt + dr, rMin, near), dir });
+    }
+    const rr = Phaser.Math.Clamp(dist + (dist > R0 ? -90 : 90), rMin, near);
+    if (Math.abs(rr - dist) >= 45) cands.push({ b: phi, r: rr, dir: 0 });
+    let best = null, bestS = -Infinity;
+    for (const c of cands) {
+      const cx = player.x + Math.cos(c.b) * c.r, cy = player.y + Math.sin(c.b) * c.r;
+      let v = this._scoreSpot(cx, cy, player, L, true);
+      if (v === -Infinity) continue;
+      if (c.dir && c.dir === L.lastDir) v += L.legs < 2 ? 0.4 : -0.3;   // v2's rhythm: two legs one way, then turn
+      if (v > bestS) { bestS = v; best = { x: cx, y: cy, dir: c.dir }; }
+    }
+    if (!best) { this._dest = L.dest = null; return false; }
+    const l = Math.hypot(best.x - this.x, best.y - this.y) || 1;
+    this._dest = L.dest = { x: best.x, y: best.y, kind: 'leg' };
+    L.from = { x: this.x, y: this.y };
+    L.p0x = player.x; L.p0y = player.y;
+    L.dx = (best.x - this.x) / l; L.dy = (best.y - this.y) / l;
+    L.legs = best.dir && best.dir === L.lastDir ? L.legs + 1 : 1;
+    if (best.dir) L.lastDir = best.dir;
+    L.phase = 'move'; L.t = 0; L.dur = Math.min(1500, l / (speed * 0.65) * 1000 + 250);
+    return true;
+  }
+
+  // The last stretch in: a spot just inside the band near the body's own
+  // bearing, scored the same way, held as a bearing + radius around the player.
+  _crowded(px) {
+    for (const o of this.scene.enemies.getChildren()) if (o !== this && o.active && o.alive && Math.hypot(o.x - this.x, o.y - this.y) < px) return true;
+    return false;
+  }
+
+  _pickApproach(L, player, near) {
+    const phi = Math.atan2(this.y - player.y, this.x - player.x);
+    const r = near - 40;
+    let best = null, bestS = -Infinity;
+    for (const k of [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]) {
+      const cx = player.x + Math.cos(phi + k) * r, cy = player.y + Math.sin(phi + k) * r;
+      const v = this._scoreSpot(cx, cy, player, L, false);
+      if (v > bestS) { bestS = v; best = { x: cx, y: cy, b: phi + k }; }
+    }
+    this._dest = L.dest = best ? { x: best.x, y: best.y, b: best.b, r, kind: 'approach' } : null;
   }
 
   // ── Fire helper ─────────────────────────────────────────────────────────

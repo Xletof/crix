@@ -288,6 +288,9 @@ export function isMoveV2() { return !!moveV2; }
 // `?move=v21` — v2 plus a PERSONAL LANE per body (see `_tickSwarmLegs`).
 export function setMoveV21(on) { moveV2 = on ? 'v21' : moveV2; }
 export function isMoveV21() { return moveV2 === 'v21'; }
+// `?move=v22` — v2 plus DESTINATION OWNERSHIP per leg (see `_pickDest`).
+export function setMoveV22(on) { moveV2 = on ? 'v22' : moveV2; }
+export function isMoveV22() { return moveV2 === 'v22'; }
 
 // `?colliders=1` draws every enemy's PHYSICS footprint (body circle, which
 // Arcade scales with the sprite) and its BULLET hit radius (`cfg.radius`). It

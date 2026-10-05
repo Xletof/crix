@@ -505,22 +505,43 @@ async function controlled() {
 // muzzle event switched off on the actor (`_muzzleFx = false` — what shipped
 // in 191747a), the right pair with it on. Nothing else differs, in the same
 // frame. Each turns through E / S / W / N and fires two rounds per aim.
-async function fireStage(page, { zoom = 1 } = {}) {
+async function fireStage(page, { zoom = 1, ref = null } = {}) {
   await page.goto(BASE + `?nodlg=1&nofreeze=1&roster=v1&${STILL}`);
   await stepBoot(page);
   await quietRoom(page);
-  await page.evaluate((zoom) => {
+  await page.evaluate(async ({ zoom, ref }) => {
+    const refMod = ref ? await import(ref) : null;
     const gs = window.__gs, cam = gs.cameras.main;
     const P = gs.player; P.setPosition(600, 1700); P.body.reset(P.x, P.y); P.setVisible(false); P.weaponSprite?.setVisible(false);
     const X0 = 380, Y0 = 520, DX = 240, DY = 300;
     // OLD = the v1 Gunner as shipped in dbf16c6 (shared orange warning tint +
     // whole-body shot squash + discharge); NEW = its own weapon cycle.
-    const who = [['OLD regular', {}, false, 0, 0], ['NEW regular', {}, true, 1, 0], ['OLD elite', { elite: true }, false, 0, 1], ['NEW elite', { elite: true }, true, 1, 1]];
+    const tag = window.__fireTags || ['OLD', 'NEW'];
+    const who = [[`${tag[0]} regular`, {}, false, 0, 0], [`${tag[1]} regular`, {}, true, 1, 0], [`${tag[0]} elite`, { elite: true }, false, 0, 1], [`${tag[1]} elite`, { elite: true }, true, 1, 1]];
     const actors = [];
     for (const [name, spec, neu, cx, cy] of who) {
       const x = X0 + cx * DX, y = Y0 + cy * DY;
       const e = gs.spawnEnemyAt('shooter', x, y, spec);
-      if (!neu) e._weaponFx = null;
+      if (!neu && refMod) {
+        // the REFERENCE build's weapon cycle (the committed module, served for
+        // this run only) and its own discharge timing, ticked on POST_UPDATE
+        gs.__gunnerFx.delete(e._weaponFx);
+        e._weaponFx = refMod.makeGunnerWeaponFx(e);
+        e._muzzleFx = false;
+        const live = [];
+        gs.events.on('shooter-fire', (s) => {
+          if (s !== e) return;
+          const ws = s.weaponSprite, m = new window.Phaser.Math.Vector2();
+          ws.getWorldTransformMatrix().transformPoint((1 - ws.originX) * ws.width, 0, m);
+          live.push({ img: gs.add.image(m.x, m.y, 'fx-gun-muzzle', 0).setOrigin(0.5 / 7, 0.5).setRotation(ws.rotation).setDepth(s.y + 2), t: 0 });
+        });
+        gs.events.on('postupdate', (t, d) => {
+          for (let i = live.length - 1; i >= 0; i--) {
+            const f = live[i]; f.t += d;
+            if (f.t >= 85) { f.img.destroy(); live.splice(i, 1); } else if (f.t >= 35) f.img.setFrame(1).setAlpha(1 - (f.t - 35) / 50 * 0.6);
+          }
+        });
+      } else if (!neu) e._weaponFx = null;
       // the REAL firing path (`_maybeFireAt`), with sight and line forced true
       // and the cooldown pinned so all four fire on the same tick
       e.canSee = () => true; e._hasLOS = () => true;
@@ -548,7 +569,7 @@ async function fireStage(page, { zoom = 1 } = {}) {
       tick++; window.__tick = tick;
     };
     window.__frame = (n) => { for (let j = 0; j < n; j++) { window.__ctl(); window.__adv(1); } window.__quiet(); };
-  }, zoom);
+  }, { zoom, ref });
 }
 
 async function firefx() {
@@ -641,8 +662,94 @@ async function weaponfire(tag = 'v2') {
   await live(`gunner-weaponfire-${tag}-live.webm`, 360);
 }
 
-// ── density: where Gunners/Riflemen stand relative to the player, v2 vs v2.1 ─
-async function density() {
+// ── FIRE v5: v4 vs v5, the reference served from the commit it shipped in ──
+const REF_V4 = 'd6e22d9';
+async function weaponfire5() {
+  const { execSync } = await import('node:child_process');
+  const { unlinkSync } = await import('node:fs');
+  const refPath = new URL('./_ref-v4-gunnerMuzzle.js', import.meta.url).pathname;
+  writeFileSync(refPath, execSync(`git show ${REF_V4}:src/systems/gunnerMuzzle.js`));
+  const ref = '/tests/_ref-v4-gunnerMuzzle.js';
+  const P = (n) => OUT + n;
+  const stage = async (zoom = 1) => {
+    const page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
+    page.on('pageerror', (e) => fail(`weaponfire5: ${e.message}`));
+    await page.addInitScript(() => { window.__fireTags = ['v4', 'v5']; });
+    await fireStage(page, { zoom, ref });
+    return page;
+  };
+  try {
+    let page, vw;
+    if (!process.env.STRIP_ONLY) {
+    // 1. matched A/B, 1x
+    page = await stage();
+    vw = videoWriter(P('gunner-weaponfire-v5-ab.webm'));
+    for (let f = 0; f < 330; f++) { await page.evaluate(() => window.__frame(2)); await vw.write(await page.screenshot({ type: 'jpeg', quality: 92 })); }
+    await vw.end(); console.log('wrote v5 ab'); await page.close();
+    // 2. zoom diagnostic (3x camera), same script, every tick at half speed
+    page = await stage(3);
+    vw = videoWriter(P('gunner-weaponfire-v5-zoom.webm'));
+    for (let f = 0; f < 300; f++) { await page.evaluate(() => window.__frame(1)); await vw.write(await page.screenshot({ type: 'jpeg', quality: 92 })); }
+    await vw.end(); console.log('wrote v5 zoom (every 60Hz tick, played at 30fps = half speed)'); await page.close();
+    }
+    // 3. strip: the sequence, tick by tick (60Hz). Shots are 48 ticks apart and
+    // aim turns every two, right after the second: shot 4 is the first W (the
+    // flipped gun) and shot 8 the first E of the next lap, so the aim holds
+    // through each one's empty and recovered frames.
+    page = await stage();
+    await page.evaluate(() => { while (window.__shotTick < 0) window.__frame(1); });
+    const first = await page.evaluate(() => window.__shotTick);
+    const offs = [-24, -17, -14, -10, -5, -3, -1, 0, 1, 4, 10];
+    const labels = ['idle', 'feed', 'slow rotor', 'faster rotor', 'compress', 'compress+', 'white-hot', 'SHOT', 'empty +16ms', 'empty +67ms', 'recovered'];
+    const rows = [];
+    for (const [shot, k, name] of [[8, 0, 'v4 R  aim E'], [8, 1, 'v5 R  aim E'], [8, 3, 'v5 E  aim E'], [4, 1, 'v5 R  aim W (flipped)'], [4, 3, 'v5 E  aim W (flipped)']]) {
+      rows.push({ shot, k, name, cells: [] });
+    }
+    for (const shot of [4, 8]) {
+      for (let i = 0; i < offs.length; i++) {
+        const at = await page.evaluate((target) => {
+          while (window.__tick < target) window.__frame(1);
+          const cam = window.__gs.cameras.main;
+          return window.__fa.map((e) => ({ x: (e.x - cam.worldView.x) * cam.zoom + cam.x, y: (e.y - cam.worldView.y) * cam.zoom + cam.y }));
+        }, first + shot * 48 + offs[i] + 1);
+        for (const r of rows.filter((q) => q.shot === shot)) {
+          const c = at[r.k], west = shot === 4;
+          r.cells.push({ label: `${r.name.split('  ')[0]} ${labels[i]}`, png: b64(await page.screenshot({ clip: { x: Math.round(c.x + (west ? -110 : -10)), y: Math.round(c.y - 40), width: 120, height: 80 } })) });
+        }
+      }
+    }
+    // reading order: v4 R, v5 R, v5 E (east) then the flipped pair
+    const order = [0, 1, 2, 3, 4].map((i) => rows[i]);
+    await compose(P('gunner-weaponfire-v5-strip.png'), {
+      title: 'GUNNER FIRE v5 — 60Hz ticks around one shot, 1x. Rows: v4 regular, v5 regular, v5 elite (aim E); v5 regular, v5 elite (aim W, flipped gun)',
+      cols: offs.length, cellW: 120, cellH: 80, cells: order.flatMap((r) => r.cells),
+    });
+    // the same cells at 3x for inspection (nearest-neighbour)
+    await compose(P('gunner-weaponfire-v5-strip-3x.png'), {
+      title: 'INSPECTION 3x of the strip above (nearest-neighbour upscale of the 1x pixels)',
+      cols: offs.length, cellW: 360, cellH: 240, cells: order.flatMap((r) => r.cells),
+    });
+    // every 60Hz tick of one charge, the rotor's steps: v5 regular and elite, aim E (shot 16)
+    const tick = [];
+    for (let o = -19; o <= 3; o++) {
+      const at = await page.evaluate((target) => {
+        while (window.__tick < target) window.__frame(1);
+        const cam = window.__gs.cameras.main;
+        return window.__fa.map((e) => ({ x: (e.x - cam.worldView.x) * cam.zoom + cam.x, y: (e.y - cam.worldView.y) * cam.zoom + cam.y }));
+      }, first + 16 * 48 + o + 1);
+      for (const k of [1, 3]) tick.push({ k, label: `${k === 1 ? 'R' : 'E'} ${o < 0 ? `t-${-o}` : o ? `+${o}` : 'SHOT'}${o < 0 && o >= -18 ? ` u=${((19 + o) / 18).toFixed(2)}` : ''}`,
+        png: b64(await page.screenshot({ clip: { x: Math.round(at[k].x + 14), y: Math.round(at[k].y - 18), width: 72, height: 36 } })) });
+    }
+    await compose(P('gunner-weaponfire-v5-ticks-3x.png'), {
+      title: 'v5 ROTOR, EVERY 60Hz TICK (3x nearest-neighbour of the 1x receiver). Row pairs: regular, elite. Read left to right.',
+      cols: 12, cellW: 216, cellH: 108, cells: [1, 3].flatMap((k) => tick.filter((c) => c.k === k)),
+    });
+    await page.close();
+  } finally { unlinkSync(refPath); }
+}
+
+// ── density: where Gunners/Riflemen stand relative to the player ──────────
+async function density(qA = '&move=v2', qB = '&move=v21', tA = '?move=v2  (positions rel. to player)', tB = '?move=v21 (personal lanes)', file = 'enemy-move-v21-density.png') {
   const collect = async (extra) => {
     const page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
     await page.goto(BASE + `?nodlg=1&nofreeze=1&roster=v1&${ENC}${extra}`);
@@ -657,9 +764,9 @@ async function density() {
     await page.close();
     return pts;
   };
-  const A = await collect('&move=v2'), B = await collect('&move=v21');
+  const A = await collect(qA), B = await collect(qB);
   const page = await browser.newPage();
-  const url = await page.evaluate(({ A, B }) => {
+  const url = await page.evaluate(({ A, B, tA, tB }) => {
     const W = 460, c = document.createElement('canvas'); c.width = W * 2 + 30; c.height = W + 70;
     const x = c.getContext('2d'); x.fillStyle = '#14161b'; x.fillRect(0, 0, c.width, c.height);
     const panel = (pts, ox, title) => {
@@ -670,13 +777,13 @@ async function density() {
       for (const [dx, dy] of pts) x.fillRect(cx + dx * k - 2, cy + dy * k - 2, 4, 4);
       x.fillStyle = '#fff'; x.fillRect(cx - 3, cy - 3, 6, 6);
     };
-    panel(A, 10, '?move=v2  (positions rel. to player)');
-    panel(B, W + 20, '?move=v21 (personal lanes)');
+    panel(A, 10, tA);
+    panel(B, W + 20, tB);
     x.fillStyle = '#aab0bd'; x.font = '12px monospace';
     x.fillText('seeded CROSSFIRE s14, 20s, Gunners+Riflemen sampled every 100ms. Rings: 160 / 340px bands. Brighter = more time there.', 10, W + 60);
     return c.toDataURL('image/png');
-  }, { A, B });
-  writeFileSync(OUT + 'enemy-move-v21-density.png', Buffer.from(url.split(',')[1], 'base64'));
+  }, { A, B, tA, tB });
+  writeFileSync(OUT + file, Buffer.from(url.split(',')[1], 'base64'));
   await page.close(); console.log('wrote density');
 }
 
@@ -687,7 +794,11 @@ const run = { sheets, facings, weapon, colliders, live: () => live(), ab, contro
   move21: () => ab('&roster=v1&move=v2', '&roster=v1&move=v21', '?move=v2', '?move=v21 (lanes)', 'enemy-move-v21-ab.webm', 600),
   density,
   'v4-live': async () => { MOVE_EXTRA = '&move=v21'; await live('gunner-v4-move-v21-live.webm', 450); },
-  'v3-live': async () => { MOVE_EXTRA = '&move=v2'; await live('gunner-weaponfire-v3-live-move-v2.webm', 450); } };
+  'v3-live': async () => { MOVE_EXTRA = '&move=v2'; await live('gunner-weaponfire-v3-live-move-v2.webm', 450); },
+  v5: weaponfire5,
+  move22: () => ab('&roster=v1&move=v2', '&roster=v1&move=v22', '?move=v2', '?move=v22 (destinations)', 'enemy-move-v22-ab.webm', 600),
+  density22: () => density('&move=v2', '&move=v22', '?move=v2  (positions rel. to player)', '?move=v22 (chosen destinations)', 'enemy-move-v22-density.png'),
+  'v5-live': async () => { MOVE_EXTRA = '&move=v22'; await live('gunner-v5-move-v22-live.webm', 450); } };
 if (MODE === 'all') { for (const f of Object.values(run)) await f(); }
 else if (run[MODE]) await run[MODE]();
 else fail(`unknown mode ${MODE}`);

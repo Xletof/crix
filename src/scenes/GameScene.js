@@ -30,7 +30,7 @@ import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
   isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff, isVanguardScreenOff, isVanguardFrontOff,
-  isShowColliders, isMoveV2, isMoveV21,
+  isShowColliders, isMoveV2, isMoveV21, isMoveV22,
 } from '../systems/debug.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { attachHazards } from '../systems/Hazard.js';
@@ -2028,6 +2028,8 @@ export class GameScene extends Phaser.Scene {
       enemy._loco = true;
       // v2.1: a stable lane, dealt round-robin so neighbours spawned together differ
       if (isMoveV21()) { this.__laneN = ((this.__laneN ?? -1) + 1) % 3; enemy._lane = this.__laneN - 1; }
+      // v2.2: each leg chooses and publishes a firing spot instead
+      if (isMoveV22()) enemy._v22 = true;
     }
     // Room modifier speed (FRENZY): stacks on top of the elite's adjusted speed.
     const sm = this.arenaCfg?.speedMult;

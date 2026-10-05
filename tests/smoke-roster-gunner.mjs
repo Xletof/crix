@@ -273,10 +273,47 @@ const cyc = await pV.evaluate(() => {
 for (const k of ['R', 'E']) {
   const c = cyc[k];
   check(c.warnTick === cyc.legacy.warnTick && c.shotTick === cyc.legacy.shotTick, `23. v1 ${k}: the warning starts and the shot fires on the SAME ticks as legacy (${c.lead} ticks of warning)`, JSON.stringify(cyc));
-  check(!c.tintedWarn && c.pipSeen && c.chargeCmds > 60, `23. v1 ${k}: the warning is the gun's own charge (chamber packet + muzzle swirl drawn on the gun), the gun is never tinted`, JSON.stringify(c));
+  check(!c.tintedWarn && c.pipSeen && c.chargeCmds > 60, `23. v1 ${k}: the warning is the gun's own charge (feed + chamber rotor drawn on the gun), the gun is never tinted`, JSON.stringify(c));
   check(c.minScale === 1 && c.maxKick > 0.5 && c.maxKick <= 2.01 && c.kickTicks <= 6, `23. v1 ${k}: no body squash on the shot; the gun kicks ${c.maxKick}px and is home within ${c.kickTicks} ticks`, JSON.stringify(c));
 }
 check(cyc.legacy.tintedWarn && cyc.legacy.minScale < 0.9 && cyc.legacy.maxKick < 1e-6, '23. (A/B) legacy still tints the gun orange and squashes the body, gun unmoved', JSON.stringify(cyc.legacy));
+
+// ── 23b. v5: THE SNAP AND THE DISCHARGE PEAK ARE FRAMES, NOT MILLISECONDS ──
+// v4 drew its one white release frame only while `kickT < 17`, and the
+// discharge held its peak for 35ms: on a 30fps phone the first tick after the
+// shot is already 33ms in, so the release was never drawn at all. Both are
+// counted in frames now. Stepped at 30fps here, one shot.
+const snap = await pV.evaluate(() => {
+  const gs = window.__gs, g = window.game;
+  const step30 = () => { window.__t += 1000 / 30; g.step(window.__t, 1000 / 30); };
+  const out = {};
+  for (const [k, spec] of [['R', {}], ['E', { elite: true }]]) {
+    const e = gs.spawnEnemyAt('shooter', 800, 800, spec);
+    e._performing = true; e._aim = 0;
+    window.__adv(1);
+    const gfx = e._attachments.find((o) => o.type === 'Graphics');
+    const whites = () => gfx.commandBuffer.filter((v) => v === 0xffffff).length;
+    const disc = () => gs.children.list.filter((o) => o.texture?.key === 'fx-gun-muzzle' && o.visible).map((o) => o.frame.name);
+    e._weaponFx.charge(300);
+    for (let i = 0; i < 9; i++) step30();                          // a 30fps charge: 9 x 33ms = the full 300ms
+    const full = whites();
+    e._weaponFx.shot(); gs.events.emit('shooter-fire', e, 0);       // the fire tick
+    step30();
+    const s1 = { whites: whites(), disc: disc() };
+    step30();
+    const s2 = { whites: whites(), disc: disc(), visible: gfx.visible };
+    out[k] = { full, s1, s2 };
+    gs._destroyEnemyFully(e);
+    gs.enemyBullets.getChildren().forEach((b) => b.disableBody?.(true, true));
+  }
+  return out;
+});
+for (const k of ['R', 'E']) {
+  const c = snap[k];
+  check(c.full >= 9, `23b. v1 ${k}: at full charge the chamber is a white-hot core (${c.full} white cells)`, JSON.stringify(c));
+  check(c.s1.whites >= 12 && c.s1.disc.includes(0), `23b. v1 ${k}: on a 30fps phone the first tick after the shot IS the snap — chamber and bore white (${c.s1.whites}), discharge on its peak frame`, JSON.stringify(c));
+  check(c.s2.whites === 0 && c.s2.visible && !c.s2.disc.includes(0), `23b. v1 ${k}: the next tick the chamber is EMPTY — no white anywhere, the discharge already decaying`, JSON.stringify(c));
+}
 
 // ── 18. NO TINT DEPENDENCY: baked palette survives a hit flash ─────────────
 const tint = await pV.evaluate(() => {

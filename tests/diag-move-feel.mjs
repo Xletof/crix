@@ -9,7 +9,8 @@
 //   leg ms     median time a heading holds within 30deg while moving
 //   still %    share of time under 25px/s
 //   shots moving %  shots fired at > 40px/s
-// usage: node tests/diag-move-feel.mjs ["extra query"]   (prints a table for off / v2)
+// usage: [SEED=n] [ONLY=v2,v22] node tests/diag-move-feel.mjs ["extra query"]
+//        (prints a table for shipped / v2 / v21 / v22)
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 const BASE = 'http://localhost:5173/';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
@@ -19,9 +20,9 @@ async function run(extra) {
   page.on('pageerror', (e) => { console.error(e.message); process.exit(1); });
   await page.goto(BASE + Q + extra);
   await page.waitForFunction(() => window.game?.scene?.getScene('Title')?.sys?.isActive(), null, { timeout: 45000 });
-  const r = await page.evaluate(async () => {
+  const r = await page.evaluate(async (SEED) => {
     const g = window.game; g.loop.sleep();
-    let s = 12345; Math.random = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+    let s = SEED; Math.random = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
     let t = 1e5; Date.now = () => t; const adv = () => { t += 1000 / 60; g.step(t, 1000 / 60); };
     g.scene.getScene('Title').scene.start('Game', { mode: 'endless', seed: 4242 }); adv(); adv();
     const gs = g.scene.getScene('Game');
@@ -68,10 +69,17 @@ async function run(extra) {
     const secs = n / 60;
     return { actorSec: +secs.toFixed(1), snapsPerSec: +(snaps / secs).toFixed(2), reversalsPerSec: +(rev / secs).toFixed(2), turnsPerSec: +(turns / secs).toFixed(2),
       medianLegMs: Math.round(legs[Math.floor(legs.length / 2)] || 0), stillPct: Math.round(100 * still / n), shots, shotsMovingPct: Math.round(100 * movingShots / Math.max(1, shots)), losPct: Math.round(100 * los / n), nnMedian: Math.round(nn.sort((x, y) => x - y)[Math.floor(nn.length / 2)]), nnUnder90Pct: Math.round(100 * nn.filter((d) => d < 90).length / nn.length), meanDist: Math.round(dist / n) };
-  });
+  }, SEED);
   await page.close();
   return r;
 }
 const extra = process.argv[2] || '';
-console.table({ shipped: await run(extra), 'move=v2': await run(extra + '&move=v2'), 'move=v21': await run(extra + '&move=v21') });
+// SEED=n picks the Math.random stream (12345 is the one every earlier table used);
+// ONLY=v2,v22 limits the columns
+const SEED = +(process.env.SEED || 12345);
+const cols = { shipped: '', 'move=v2': '&move=v2', 'move=v21': '&move=v21', 'move=v22': '&move=v22' };
+const only = process.env.ONLY ? process.env.ONLY.split(',') : null;
+const out = {};
+for (const [k, q] of Object.entries(cols)) if (!only || only.includes(k.replace('move=', '') || 'shipped')) out[k] = await run(extra + q);
+console.table(out);
 await browser.close();
