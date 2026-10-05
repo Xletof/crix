@@ -470,22 +470,24 @@ Not started, and not to be started on the strength of this pass: the Elite
 redesign, Commander design, a second Champion, new arenas, Nemesis
 replacement.
 
-### IN FLIGHT — ROSTER REDESIGN PHASE 2A: THE GUNNER. **AWAITING HANDSET VERDICT**
+### ROSTER PHASE 2A — GUNNER + MOVEMENT v2.2. **HUMAN-APPROVED / FROZEN 🔒** (`3ce5680`)
 
-Two candidates, both behind flags, neither frozen:
-- **Presentation** (`?roster=v1`): the Gunner Regular + Elite production
-  art and its weapon firing cycle. The current fire is **v5** — a 3x3 chamber
-  rotor inside the receiver (feed, wind, compress, one-frame snap, empty).
-  It is presentation only; the seeded legacy-vs-v1 lockstep in
-  `smoke-roster-gunner` proves the fight is identical.
-- **Movement** (`?move=v2` / `v21` / `v22`, default off): GAMEPLAY-affecting
-  candidate locomotion for the shared shooter swarm tick (Gunner and Rifleman
-  only). `v22` (per-leg destination ownership) is the current candidate;
-  `v2` and `v21` stay available for A/B until the verdict.
+- **Gunner** Regular + Elite production art, weapon art and weapon fire **v5**
+  (the 3x3 chamber rotor) are human-approved and FROZEN. Do not reopen them
+  without NEW regression evidence.
+- **Movement v2.2** (destination ownership, `?move=v22`) is human-approved for
+  **Gunner + Rifleman only**. No speculative v2.3. Doctrine: **CHOOSE USEFUL
+  SPACE → COMMIT → SETTLE → PERFORM ROLE.** The `?roster=v1` and
+  `?move=v2|v21|v22` flags stay until the wider roster rollout is approved;
+  defaults are still legacy art and shipped movement.
+- Record: `docs/evidence/roster-gunner-v1/gunner-v5-move-v22-notes.md`.
 
-`docs/evidence/roster-gunner-v1/gunner-v5-move-v22-notes.md` is the latest
-record, metrics included. Rifleman, Marksman and the other roster roles are
-NOT started and wait for the human to freeze both candidates.
+### IN FLIGHT — ROSTER PHASE 2B: RIFLEMAN + MARKSMAN. **AWAITING HANDSET VERDICT**
+
+Production art for `grunt` (Rifleman) and `sniper` (Marksman), Regular + Elite,
+through the same `?roster=v1` pipeline. Marksman movement is NOT v2.2 — it
+keeps its own sniper logic. Bulwark and Demolisher are NOT started and wait
+for this verdict. Record: `docs/evidence/roster-2b/rifleman-marksman-v1-notes.md`.
 
 ### The recommended next area of work
 
