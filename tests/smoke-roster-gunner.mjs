@@ -137,12 +137,15 @@ for (const k of ['R', 'E']) {
 }
 check(V.E.play.bodyW === hist.units['shooter+E'].play.bodyW && V.E.play.bodyW === 84 && V.E.look.scale === 1 && V.E.look.baseScale === 1,
   '10. v1 ELITE keeps the HISTORICAL physics footprint (84px) while rendering at scale 1.0', JSON.stringify({ ...V.E.play, scale: V.E.look.scale }));
-// shared-sheet roles are untouched
-// (the sniper wears its own Marksman art since Phase 2B — smoke-roster-2b)
-check(JSON.stringify(L.shielded) === JSON.stringify(V.shielded) && V.shielded.look.tex === 'shooter',
-  `shielded still wears the legacy 'shooter' sheet under v1, gameplay identical`, JSON.stringify(V.shielded.look));
-check(V.shieldedE.look.tex === 'shooter' && V.shieldedE.look.scale === 1.4 && V.sniper.look.tex !== 'ro-gun-R' && V.sniperE.look.tex !== 'ro-gun-E',
-  'shielded ELITE keeps legacy presentation under v1; no other role ever wears the Gunner sheets', `${V.shieldedE.look.tex} ${V.sniper.look.tex} ${V.sniperE.look.tex}`);
+// shared-sheet roles never wear the Gunner's art
+// (the sniper wears its own Marksman art since Phase 2B — smoke-roster-2b; the
+// shielded its own Bulwark art since the Bulwark integration — smoke-bulwark,
+// which also pins its gameplay identical to legacy)
+const lookPlay = ({ tex, prefix, scale, baseScale, tint, tinted, weapon, weaponVis, wOrigin, ...rest }) => rest;
+check(JSON.stringify(lookPlay(L.shielded.look)) === JSON.stringify(lookPlay(V.shielded.look)) && JSON.stringify(L.shielded.play) === JSON.stringify(V.shielded.play) && V.shielded.look.tex === 'ro-blw-R',
+  `shielded wears its OWN Bulwark art under v1 (never the Gunner's), gameplay identical`, JSON.stringify(V.shielded.look));
+check(V.shieldedE.look.tex === 'ro-blw-E' && V.shieldedE.look.scale === 1 && V.sniper.look.tex !== 'ro-gun-R' && V.sniperE.look.tex !== 'ro-gun-E',
+  'shielded ELITE wears ro-blw-E at scale 1; no other role ever wears the Gunner sheets', `${V.shieldedE.look.tex} ${V.sniper.look.tex} ${V.sniperE.look.tex}`);
 check(V.swarmling.look.tex === 'grunt' && V.swarmling.look.scale === 0.7, 'swarmling still the legacy grunt sheet at 0.7', JSON.stringify(V.swarmling.look));
 
 // ── 4/5. THE SHEET CONTRACT ───────────────────────────────────────────────

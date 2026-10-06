@@ -109,8 +109,10 @@ byte-identical to `6560c62`; `smoke-roster-2b`, `smoke-roster-gunner` and
   per step, and the shared `rosterGait.js` tick drives it from real displacement. That
   is about 21 frames/s at 140px/s, under the 24 cap.
 - **Measured motion relative to the displayed facing:** see the table at the end
-  (`tests/diag-bulwark-gait.mjs`). The Bulwark mostly advances or stands. The existing
-  walk / backwards-walk / strafe selection covers it with no new mode and no new AI.
+  (`tests/diag-bulwark-gait.mjs`). In VANGUARD it advances ~57% of moving frames,
+  strafes ~22% and moves against its facing ~17% (chasing with a lagging shield,
+  knockback). The existing walk / backwards-walk / strafe selection covers it with no
+  new mode and no new AI.
 
 ## The field — frosted hard-light curtain
 
@@ -230,6 +232,19 @@ byte-identical to `6560c62`; `smoke-roster-2b`, `smoke-roster-gunner` and
   - Fixing it is one line (set `_threatScale` for every v1 elite) but changes the frozen
     roles' v1 death juice, so it is the human's call.
 
+## Cost
+
+The field redraws every frame, so its CPU cost was measured on this container
+(desktop Chromium, loaded):
+
+- **0.07 ms per idle field.** An idle field is ten flat panels drawn as ten segments;
+  the five-per-panel sampling is used only while an event is live.
+- **0.26 ms per field under constant fire.** Six Bulwarks each hit every 3 frames came
+  to 1.6 ms per frame together.
+
+A phone is slower. This is the number to watch if VANGUARD frame time is ever a
+complaint.
+
 ## Gameplay invariance (smoke-bulwark, 59 checks)
 
 - **Units:** hp, radius, body width and centring, speed, half-arc 1.35, turn 2.6,
@@ -260,7 +275,26 @@ byte-identical to `6560c62`; `smoke-roster-2b`, `smoke-roster-gunner` and
   - `smoke-roster-2b`: it asserted the Bulwark stays on legacy art; it now asserts
     neither 2B firing cycle attaches to it.
   - `smoke-roster-seams`: `V1_ROLES` gains `shielded` / `shielded+E`.
-- Regression results: see the session summary / commit message.
+- Amended deliberately: `smoke-roster-gunner`'s two "shielded keeps legacy
+  presentation under v1" checks now assert it wears `ro-blw-R/E` (never the Gunner's
+  sheets), with legacy gameplay.
+- Regression results, run on this branch:
+
+| suite | result |
+|---|---|
+| smoke-bulwark (new) | 59/59 |
+| smoke-roster-2b | 72/72 |
+| smoke-roster-gunner (amended) | 72/72 (before the amendment, 70/72 on exactly the two legacy-art checks) |
+| smoke-roster-seams | 70/70 |
+| smoke-gait-v2 | 16/16 |
+| smoke-move-v2 | 9/9 |
+| smoke-champion-placement | 60/60 |
+| smoke-vanguard-screen | 22/22 |
+| smoke-vanguard-front | 30/30 |
+| smoke-vanguard-reinforce | **22/26 — PRE-EXISTING.** The same 4 surge/queue checks fail identically on the untouched `577c487` baseline, run twice on a second dev server. They are not caused by this work and were not chased. |
+| smoke-encounters | 25/25 |
+| smoke-encdbg | 33/33 |
+| `npm run build` | OK (the chunk-size warning is pre-existing) |
 
 ## Handset URLs (Pages, after the FRIX fast-forward)
 
@@ -272,6 +306,40 @@ byte-identical to `6560c62`; `smoke-roster-2b`, `smoke-roster-gunner` and
    `?roster=v1&gait=v2&move=v22&encdbg=1&room=hangar&sector=16&wave=3`
 4. **Legacy comparison:** `?move=v22&encdbg=vanguard&room=hangar&sector=8&wave=2`
 5. **Without the gait (stock walk):** `?roster=v1&move=v22&encdbg=vanguard&room=hangar&sector=8&wave=2`
+
+## Evidence files
+
+All are in this folder, from the real runtime, the loop stepped at exactly 1000/60.
+The videos run at real 1× (30fps from every second tick). The rig is
+`tests/shot-bulwark.mjs`.
+
+1. `bulwark-v1-sheet-regular.png`, `bulwark-v1-sheet-elite.png` — the 51-frame
+   `?gait=v2` sheets.
+2. `bulwark-v1-facings.png` — S / N / E / W × Regular / Elite / legacy / the unchanged
+   Captain.
+3. `bulwark-v1-sidearm.png` (+ `-numbers.json`) — pivot, spawn, drawn muzzle and the
+   real bolt's first frame, 5 aims × 3 tiers.
+4. `bulwark-v1-colliders.png` — `?colliders=1`.
+5. `bulwark-gait-v2-frames.png` and `bulwark-gait-v2-live.webm`.
+6. `bulwark-shield-idle.png` (+ `-2x.png`) — front / back / side × R / E, and a
+   VANGUARD pair.
+7. `bulwark-shield-block-strip.png` and `bulwark-shield-block-live.webm` — a staged
+   duel: one live Bulwark, the player firing at its front.
+8. `bulwark-shield-rapid.webm`.
+9. `bulwark-shield-super-strip.png` — row 1 is a REAL Super; row 2 is the field alone,
+   via the real pierce seam.
+10. `bulwark-shield-super.webm` — three real Supers, each into a fresh Elite at the
+    sector-14 hp ramp.
+11. `bulwark-vanguard-live.webm` — VANGUARD case A, sector 8, wave 2: front, hold,
+    blocks, two Supers.
+12. `bulwark-v1-ab.webm` — legacy vs `?roster=v1&gait=v2` under the identical script:
+    the same fight at **22/22** sampled checkpoints. The first render said 17/22,
+    which is how the Elite-death leak was found.
+13. `roster-v1-hierarchy-4roles.png`.
+
+The videos were rendered before the last change: an idle field drawn as one segment
+per flat panel instead of five. That change leaves the geometry identical and moves
+only the sampling of the faint sheen. The stills were re-rendered after it.
 
 ## What is still weak at 1x
 
@@ -299,4 +367,22 @@ byte-identical to `6560c62`; `smoke-roster-2b`, `smoke-roster-gunner` and
 
 ## Measured Bulwark motion (`tests/diag-bulwark-gait.mjs`)
 
-(filled in below from the run)
+Real displacement per frame against the facing the sprite shows. Seeded VANGUARD
+(sector 8, wave 2), 1500 ticks, the player strafing a square and firing,
+`?roster=v1&gait=v2&move=v22`:
+
+| case | still | advance | strafe | retreat | gait mode: idle / walk / strafe | close hold |
+|---|---|---|---|---|---|---|
+| VANGUARD A (with the Captain) | 4.3% | 56.8% | 21.7% | 17.2% | 3.6% / 75.5% / 20.9% | 3.1% |
+| VANGUARD, no Captain | 4.7% | 56.4% | 20.9% | 18.0% | 3.9% / 76.1% / 19.9% | 3.3% |
+
+How to read it:
+
+- The Bulwark never walks AWAY from the player. The "retreat" share is relative to its
+  FACING: it chases a player who has circled past its 2.6 rad/s shield, and it takes
+  knockback from unblocked flank hits.
+- The existing gait-v2 selection covers all of it with no new mode:
+  - the walk forward for advancing;
+  - the walk played backwards for retreating;
+  - the strafe cycle beyond 60° off the facing.
+- No AI was added or changed.

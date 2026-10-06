@@ -239,7 +239,7 @@ const geo = await pG.evaluate(async () => {
     const e = gs.spawnEnemyAt('shielded', 800, 700, elite ? { elite: true } : {});
     e._performing = true; e._movePlanted = true; e._aim = 0.7; e._shieldFacing = 0.7;
     window.__adv(2);
-    const f = e._curtain, N = f._rel.length - 1;
+    const f = e._curtain, N = f._n;
     const rel = [...f._rel], ox = [...f._ox].map((v) => v - e.x), oy = [...f._oy].map((v) => v - e.y), ix = [...f._ix].map((v) => v - e.x), iy = [...f._iy].map((v) => v - e.y);
     const tip = (j) => ({ ang: Math.atan2(oy[j], ox[j]), r: Math.hypot(ox[j], oy[j]), same: Math.hypot(ox[j] - ix[j], oy[j] - iy[j]) < 1e-3 });
     out[elite ? 'E' : 'R'] = { rel0: rel[0], relN: rel[N], half: e._shieldHalfArc, t0: tip(0), tN: tip(N), R: sc.curtainRadius(e), arr: [ox, oy, ix, iy].map((a) => a.map((v) => +v.toFixed(3))),

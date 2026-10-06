@@ -271,7 +271,12 @@ class CurtainField {
     near.clear(); far.clear(); this.glowNear.clear(); this.glowFar.clear();
     near.setDepth(e.y + 2); far.setDepth(e.y - 2);
     this.glowNear.setDepth(e.y + 3); this.glowFar.setDepth(e.y - 1.5);
-    const F = C.facets, SUB = C.sub, N = F * SUB;
+    // An idle field is ten FLAT panels, so one segment per panel draws the
+    // same geometry as five; the extra samples only exist to carry a dent, a
+    // gap or an energy gradient, i.e. while an event is live. (Measured: ~5x
+    // fewer triangles for every field not currently being hit.)
+    const F = C.facets, SUB = this.events.length ? C.sub : 1, N = F * SUB;
+    this._n = N;
     const ox = this._ox, oy = this._oy, ix = this._ix, iy = this._iy, rel = this._rel;
 
     // the flat panels: rims at the panel boundaries, interpolated inside
