@@ -343,6 +343,21 @@ The field redraws every frame, so its CPU cost was measured on this container
 A phone is slower. This is the number to watch if VANGUARD frame time is ever a
 complaint.
 
+**Orientation pass, before / after** (`node tests/shot-bulwark-orient.mjs perf`;
+one instrument for both builds: six fields at six facings, median of 5 × 240 frames,
+the old build served from a `d9e2d6d` worktree; two runs):
+
+| ms per field per frame | OLD `d9e2d6d` | NEW |
+|---|---|---|
+| idle | 0.064 / 0.061 | 0.058 / 0.065 |
+| every field hit every 3 frames | 0.375 / 0.356 | 0.347 / 0.364 |
+
+No measurable difference. The far half now draws its keyline (ten more lines), which
+is in the noise; nothing is drawn twice. The absolute "under fire" figure is higher
+than the 0.26 above because this instrument hits all six fields every third frame at
+spread offsets, so more five-sample panels are live; compare across the two columns,
+not with the older figure.
+
 ## Gameplay invariance (smoke-bulwark, 70 checks)
 
 - **Units:** hp, radius, body width and centring, speed, half-arc 1.35, turn 2.6,
