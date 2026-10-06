@@ -941,6 +941,48 @@ asserts separately that the ceiling is not reached.
   new mid-wave spawn source goes through the fill roll, never the queue. The
   mid Captain-VANGUARD row's `shieldSlot: 5` converts one FILL event into a
   guaranteed shield after placement — same budget, same draws elsewhere.
+- **THE BULWARK FIELD IS A RENDERER ON FROZEN SEAMS, AND `Enemy.js` IS NOT
+  TOUCHED — CANDIDATE, `HANDOVER.md` §0.** `systems/bulwarkCurtain.js` reads
+  `_shieldFacing`, `_shieldHalfArc` and the contact `GameScene` projects onto
+  the curtain AFTER the block is decided, and writes nothing back. The legacy
+  arc is still drawn every frame by the frozen class and merely hidden
+  (`shieldArc.setVisible(false)`). If a Bulwark change seems to need
+  `Enemy.js`, stop: `smoke-roster-2b` diffs the WHOLE file against `3ce5680`.
+- **SUPPRESSING A PARTICLE EMISSION CHANGES THE FIGHT.** The legacy block
+  sparkle (`fx.healingSparkle(x, y, 6)`) draws from `Math.random`, the same
+  stream the AI cooldowns use; skipping it under v1 shifted every random
+  number after the first block — measured, the seeded VANGUARD replay
+  diverged at checkpoint 20 and lost a shot. The v1 path emits the IDENTICAL
+  emission into an invisible twin built from the live emitter's `config`
+  (`__blwParity`). Any future "one author" suppression of an RNG-consuming
+  effect needs the same parity, and `smoke-bulwark` counts the draws.
+- **A V1 ELITE'S DEATH IS NOT THE LEGACY DEATH UNLESS IT SAYS SO.** The kill
+  juice (`enemy-died`) sizes its particle burst by `_baseScale`, and a v1
+  elite renders at 1.0 against legacy 1.4 — fewer particles, fewer random
+  draws, a different fight after the first elite dies. The Bulwark carries
+  `_threatScale` (its gameplay elite scale), which the juice reads first. The
+  Gunner / Rifleman / Marksman elites still diverge (since roster Phase 1);
+  frozen, flagged, not changed. A seeded replay with no elite death in its
+  window cannot see this — `smoke-bulwark` makes sure one dies.
+- **THE CURTAIN RADIUS IS ONE NUMBER FOR BOTH TIERS (46).** It used to be
+  `cfg.radius + 22`, and the Elite's gameplay radius is its historical 33, so
+  the Elite's field drew 9px bigger than the Regular's — a stronger-looking
+  defence that does not exist. Every block on either tier is decided at body
+  overlap (<= 41px), inside it.
+- **A FIELD THAT STRADDLES ITS BEARER NEEDS TWO DEPTHS.** One Graphics has one
+  depth; panels south of his centre draw over him (y+2), panels north under
+  him (y-2), softer. A single depth either paints the shield over his face
+  from behind or hides it from the front.
+- **THE FIRST PELLET TO CROSS IS OFTEN AN OUTER ONE.** A Super volley's
+  pellets reach the body over a frame or two, and the tear first went to the
+  edge of the shield. While the tear is under 50ms old a MORE CENTRAL pellet
+  takes the hole and the outer one becomes a pinprick. One readable hole per
+  volley; every pellet's contact is still recorded.
+- **A FULL SUPER USUALLY KILLS A BULWARK, SO THE TEAR IS RARE IN PLAY.**
+  Two pellets kill a sector-8 Regular, and the field goes with the body on
+  death, as the legacy arc did. Evidence of the re-knit needs an Elite at a
+  real higher-sector hp ramp, or a glancing Super — not an hp edit.
+
 - **THE STATE LANGUAGE'S ONE RULE SURVIVED HANDSET REVIEW AND ITS SUSTAINED
   HALF DID NOT — `HANDOVER.md` §10ah, §10ai.** **SYMBOL = TRANSITION, BODY / FX
   = SUSTAINED STATE.** A glyph lives a few hundred ms to say something CHANGED

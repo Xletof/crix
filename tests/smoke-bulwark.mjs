@@ -344,12 +344,19 @@ async function vanguard(q) {
       shots.push(`${tick}:${id(s)}:${a.toFixed(6)}:${s.x.toFixed(3)},${s.y.toFixed(3)}`);
       if (s.enemyType === 'shielded') { let d = a - s._aim; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; lag.push(Math.abs(d)); }
     });
-    const k = gs.keys;
-    for (; tick < 1200; tick++) {
-      const ph = Math.floor(tick / 100) % 4;
-      k.A.isDown = ph === 0; k.D.isDown = ph === 2; k.W.isDown = ph === 1; k.S.isDown = ph === 3;
-      if (tick > 300 && tick % 7 === 0) gs.player.keyboardFire();
-      if (tick === 700) { gs.player.superCharge = 999; gs.player.tryFireSuper(gs.player._autoAimAngle()); }
+    const k = gs.keys, P = gs.player;
+    // the SAME script as the evidence A/B (shot-bulwark.mjs): hold while the
+    // front forms, fire into the shields, strafe, two Supers — the first kills
+    // most of the formation, an Elite included, inside the window
+    const seg = [[0,420,''],[420,560,''],[560,640,'D'],[640,760,''],[760,840,'A'],[840,1000,''],[1000,1080,'S'],[1080,1200,''],[1200,1290,'W'],[1290,99999,'']];
+    let eliteDeaths = 0;
+    gs.events.on('enemy-died', (e) => { if (e.enemyType === 'shielded' && e._elite) eliteDeaths++; });
+    window.__eliteDeaths = () => eliteDeaths;
+    for (; tick < 1320; tick++) {
+      const cur = seg.find(([a, b]) => tick >= a && tick < b)[2];
+      k.A.isDown = cur === 'A'; k.D.isDown = cur === 'D'; k.W.isDown = cur === 'W'; k.S.isDown = cur === 'S';
+      if (tick >= 380 && tick % 9 === 0) P.keyboardFire();
+      if (tick === 900 || tick === 1240) { P.superCharge = 999; P.tryFireSuper(P._autoAimAngle()); }
       window.__adv(1);
       for (const e of gs.enemies.getChildren()) if (e._gait?.walking && e.enemyType === 'shielded') gaitFrames++;
       for (const e of gs.enemies.getChildren()) if (e._lastBlockContact && !e.__seenB) { e.__seenB = e._lastBlockContact; }
@@ -363,7 +370,7 @@ async function vanguard(q) {
     for (const e of gs.enemies.getChildren()) if (e._curtain) { blocks += e._curtain.stats.blocks; pierces += e._curtain.stats.pierces; }
     for (const e of ids.keys()) if (e._curtain && !e.active) { blocks += e._curtain.stats.blocks; pierces += e._curtain.stats.pierces; }
     lag.sort((a, b) => a - b);
-    return { shots, snaps, gaitFrames, blocks, pierces, front: gs._vanguardFront && { released: gs._vanguardFront.released, why: gs._vanguardFront.why }, lag: { n: lag.length, med: lag[lag.length >> 1], p90: lag[Math.floor(lag.length * 0.9)], max: lag[lag.length - 1] }, shielded: [...ids.keys()].filter((e) => e.enemyType === 'shielded').length };
+    return { eliteDeaths: window.__eliteDeaths(), shots, snaps, gaitFrames, blocks, pierces, front: gs._vanguardFront && { released: gs._vanguardFront.released, why: gs._vanguardFront.why }, lag: { n: lag.length, med: lag[lag.length >> 1], p90: lag[Math.floor(lag.length * 0.9)], max: lag[lag.length - 1] }, shielded: [...ids.keys()].filter((e) => e.enemyType === 'shielded').length };
   });
   await page.close();
   return r;
@@ -371,15 +378,39 @@ async function vanguard(q) {
 const vL = await vanguard(''), vV = await vanguard('&roster=v1'), vG = await vanguard('&roster=v1&gait=v2');
 for (const [a, b, tag] of [[vL, vV, 'legacy vs roster=v1'], [vV, vG, 'roster=v1: gait off vs gait=v2']]) {
   const d = a.snaps.findIndex((s, i) => s !== b.snaps[i]);
-  check(a.snaps.length === 80 && d === -1,
-    `VANGUARD (A, sector 8, wave 2, 1200 ticks, a Super at tick 700) ${tag}: the SAME FIGHT — positions, velocities, AI state, aim, SHIELD FACING, screen hold, lanes, cooldowns, hp, collider, player hp + meter, the FRONT (released / reason / time), the queue, bolts, every random draw (80 checkpoints)`,
+  check(a.snaps.length === 88 && d === -1,
+    `VANGUARD (A, sector 8, wave 2, 1320 ticks, Supers at 900 and 1240, ${b.eliteDeaths} Elite Bulwark death${b.eliteDeaths === 1 ? '' : 's'}) ${tag}: the SAME FIGHT — positions, velocities, AI state, aim, SHIELD FACING, screen hold, lanes, cooldowns, hp, collider, player hp + meter, the FRONT (released / reason / time), the queue, bolts, every random draw (88 checkpoints)`,
     d < 0 ? '' : `first divergence at ${d}\nA ${a.snaps[d]?.slice(0, 400)}\nB ${b.snaps[d]?.slice(0, 400)}`);
   check(JSON.stringify(a.shots) === JSON.stringify(b.shots) && a.shots.length > 10, `${tag}: the same ${b.shots.length} enemy shots on the same ticks from the same bodies`, `${a.shots.length} vs ${b.shots.length}`);
 }
+check(vV.eliteDeaths >= 1 && vL.eliteDeaths === vV.eliteDeaths, `(not vacuous) an ELITE Bulwark dies inside the replay window (${vV.eliteDeaths}) — the death that used to split the RNG stream`, JSON.stringify([vL.eliteDeaths, vV.eliteDeaths]));
 check(vV.blocks > 0 && vV.pierces > 0 && vV.shielded >= 4, `(not vacuous) the v1 run's fields absorbed ${vV.blocks} blocked bolts and ${vV.pierces} Super pellets across ${vV.shielded} Bulwarks`, JSON.stringify({ b: vV.blocks, p: vV.pierces, n: vV.shielded }));
 check(vG.gaitFrames > 200 && vV.gaitFrames === 0, `(not vacuous) gait v2 really drove ${vG.gaitFrames} Bulwark body-frames through the VANGUARD approach / hold / resume; off, it drove none`, `${vV.gaitFrames}/${vG.gaitFrames}`);
 check(vL.front && vV.front && JSON.stringify(vL.front) === JSON.stringify(vV.front) && vL.front.released, `VANGUARD front resolved identically: released (${vV.front?.why})`, JSON.stringify([vL.front, vV.front]));
 console.log(`  [info] shield-lag at fire time (|fire angle - drawn gun angle|, frozen gameplay): n=${vV.lag.n} median ${(vV.lag.med * 57.3).toFixed(1)}deg p90 ${(vV.lag.p90 * 57.3).toFixed(1)}deg max ${(vV.lag.max * 57.3).toFixed(1)}deg`);
+
+// ── 7b. A DEATH IS THE SAME DEATH ───────────────────────────────────────
+// The kill juice sizes its particle burst by the actor's scale and particles
+// draw from the gameplay RNG; a v1 Elite renders at 1.0 against legacy 1.4.
+const deaths = async (q) => {
+  const p = await stepped(q);
+  const r = await p.evaluate(() => {
+    const gs = window.__gs; window.__open(); window.__adv(5);
+    const out = {};
+    for (const [k, type, spec] of [['blwR', 'shielded', {}], ['blwE', 'shielded', { elite: true }], ['gunE', 'shooter', { elite: true }], ['rifE', 'grunt', { elite: true }]]) {
+      const e = gs.spawnEnemyAt(type, 700, 700, spec); window.__adv(2);
+      const d0 = window.__draws; e.damage(1e7); out[k] = window.__draws - d0;
+      window.__adv(60);
+    }
+    return out;
+  });
+  await p.close();
+  return r;
+};
+const dL = await deaths('?nodlg=1&nofreeze=1'), dV = await deaths('?nodlg=1&nofreeze=1&roster=v1');
+check(dL.blwR === dV.blwR && dL.blwE === dV.blwE && dV.blwE > dV.blwR,
+  `a Bulwark's DEATH makes the same random draws legacy vs v1 — Regular ${dV.blwR}, Elite ${dV.blwE} (the Elite keeps its gameplay scale for the kill juice)`, JSON.stringify({ dL, dV }));
+console.log(`  [info] PRE-EXISTING, frozen roles, not changed here: v1 Elite deaths draw differently from legacy — Gunner E ${dL.gunE} vs ${dV.gunE}, Rifleman E ${dL.rifE} vs ${dV.rifE} (render scale 1.0 feeds the kill juice)`);
 
 // ── 8. CLEANUP ───────────────────────────────────────────────────────────
 const clean = await pG.evaluate(() => {

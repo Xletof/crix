@@ -2087,6 +2087,14 @@ export class GameScene extends Phaser.Scene {
     if (art) {
       // v1: dedicated elite art at render scale 1, no tint, SAME physics.
       enemy._baseScale = 1;
+      // BULWARK: the kill juice (enemy-died) sizes its particle burst by
+      // `_baseScale`, and particles draw from the gameplay RNG — so an elite
+      // rendered at 1.0 dies with fewer random draws than the legacy 1.4 one
+      // and the fight diverges after it. The Bulwark keeps its GAMEPLAY elite
+      // scale for that read (`_threatScale`), so its death is the legacy death.
+      // (Gunner / Rifleman / Marksman elites carry the same divergence from
+      // roster Phase 1; they are frozen and deliberately left as they are.)
+      if (art.bulwark) enemy._threatScale = scale;
       enemy.setScale(1);
       enemy.clearTint();
       wearRosterArt(enemy, art, r * scale);
@@ -3193,7 +3201,7 @@ export class GameScene extends Phaser.Scene {
       // Threat scale: a kill pops bigger the bigger the thing was (swarmling
       // 0.7 through a 1.8-scale mini-boss), instead of every death being
       // identical regardless of size/danger.
-      const threatScale = enemy._baseScale || 1;
+      const threatScale = enemy._threatScale || enemy._baseScale || 1;
 
       // Big blood burst + persistent splatter pool that stays for the room.
       this.fx.burst(enemy.x, enemy.y, 'red', Phaser.Math.Clamp(Math.round(26 * threatScale), 14, 46));

@@ -79,8 +79,8 @@ export const CURTAIN = {
   key: 0x1b2940, keyA: 0.42,      // the restrained dark keyline just outside the rim
   seamA: 0.05,                    // panel seams
   sheenA: 0.07, sheen2A: 0.045,   // the two counter-running sheens (interference)
-  farMul: 0.55,                   // the far surface: softer
-  farRim: 0.45,                   // ...and its rim is not a crisp line over his head
+  farMul: 0.5,                    // the far surface: softer
+  farRim: 0.32,                   // ...and its rim is not a crisp line over his head
   bushMul: 0.55,
   maxBlocks: 12, maxPricks: 3,
 };
@@ -199,6 +199,15 @@ class CurtainField {
     this.stats.pierces++;
     const tear = this.events.find((v) => v.kind === 'tear' && v.t < TEAR.close);
     if (tear && tear.t < 120 && Math.abs(tear.off - off) < 0.3) { tear.n = Math.min(3, tear.n + 1); this.stats.merged++; return; }
+    // a volley's pellets cross the body over a frame or two, and the FIRST to
+    // arrive is often an outer one: while the tear is still opening, a more
+    // CENTRAL pellet takes the hole and the outer one becomes its pinprick —
+    // the one readable penetration sits where the volley actually went through
+    if (tear && tear.t < 50 && Math.abs(off) < Math.abs(tear.off)) {
+      if (this.events.filter((v) => v.kind === 'prick').length < CURTAIN.maxPricks) { this.events.push({ kind: 'prick', off: tear.off, t: tear.t }); this.stats.pricks++; }
+      tear.off = off;
+      return;
+    }
     if (tear) {
       if (this.events.filter((v) => v.kind === 'prick').length < CURTAIN.maxPricks) { this.events.push({ kind: 'prick', off, t: 0 }); this.stats.pricks++; }
       return;
@@ -306,18 +315,22 @@ class CurtainField {
     const sp1 = -half - 0.4 + ((this.clock % 3200) / 3200) * (2 * half + 0.8);
     const sp2 = half + 0.4 - ((this.clock % 4700) / 4700) * (2 * half + 0.8);
 
-    // energy per segment: the strongest event owns the colour, intensity sums
-    const segCol = new Array(N), segI = new Float32Array(N), segGap = new Uint8Array(N);
-    for (let j = 0; j < N; j++) {
-      const rm = (rel[j] + rel[j + 1]) / 2;
-      let best = 0, col = WHITE, sum = 0;
+    // ENERGY is sampled at every VERTEX (intensities sum, colours mix by
+    // intensity) and the panels are drawn as vertex-coloured triangles,
+    // so a reaction is a smooth local wave across the surface — sampled per
+    // segment it painted as hard-edged stripes. A tear's GAP is per segment.
+    const vCol = new Array(N + 1), vI = new Float32Array(N + 1), segGap = new Uint8Array(N);
+    const energy = (r, j) => {
+      let col = WHITE, sum = 0, cr = 0, cg = 0, cb = 0, wsum = 0;
       for (const v of ev) {
-        const dm = rm - v.off, t = v.t;
+        const dm = r - v.off, t = v.t;
         let I = 0, c = WHITE;
         if (v.kind === 'block') {
           // the contact cools first; the energy it shed travels outward along
           // the surface as two fronts, widening, and cools behind itself
-          const core = Math.exp(-t / 110) * gauss(dm, 0.08);
+          // (the energy floods the band from ~25ms; before that the frame is
+          // the smear's — the bolt flattening against the surface)
+          const core = Math.min(1, t / 40) * Math.exp(-t / 110) * gauss(dm, 0.08);
           const pos = 0.40 * (1 - Math.exp(-t / 150)), A = Math.exp(-t / 260), sg = 0.07 + 0.11 * Math.min(1, t / 300);
           const front = A * (gauss(dm - pos, sg) + gauss(dm + pos, sg));
           const haze = 0.55 * smooth(240, 380, t) * Math.exp(-Math.max(0, t - 380) / 200) * gauss(dm, 0.24);
@@ -325,8 +338,8 @@ class CurtainField {
           c = rampColor((core > front ? t * 1.25 : t) / 380);
         } else {
           const g = this._gap(v);
-          if (Math.abs(dm) < g) { segGap[j] = 1; continue; }
-          const edge = Math.abs(dm) - g;
+          const edge = Math.max(0, Math.abs(dm) - g);
+          if (j != null && Math.abs(dm) < g) segGap[j] = 1;
           if (v.kind === 'tear') {
             if (t < TEAR.close) I = 0.9 * gauss(edge, 0.05) * (0.8 + 0.2 * ((Math.floor(t / 45) % 2)));
             else I = 0.45 * Math.exp(-(t - TEAR.close) / 170) * gauss(Math.abs(dm) - 0.0022 * (t - TEAR.close), 0.05);
@@ -336,33 +349,46 @@ class CurtainField {
           }
           c = HEAL;
         }
+        const w = I * I;                     // squared: the stronger reaction still leads locally
+        if (w > 1e-6) { cr += ((c >> 16) & 255) * w; cg += ((c >> 8) & 255) * w; cb += (c & 255) * w; wsum += w; }
         sum += I;
-        if (I > best) { best = I; col = c; }
       }
-      segI[j] = Math.min(1, sum);
-      segCol[j] = col;
-    }
+      // intensity-WEIGHTED colour: where a fresh red front meets an older,
+      // whitening patch the surface passes through pink between them instead
+      // of switching colour on a pixel boundary
+      if (wsum > 1e-6) col = (Math.round(cr / wsum) << 16) | (Math.round(cg / wsum) << 8) | Math.round(cb / wsum);
+      return [Math.min(1, sum), col];
+    };
+    for (let j = 0; j <= N; j++) { const [I, c] = energy(rel[j], null); vI[j] = I; vCol[j] = c; }
+    for (let j = 0; j < N; j++) energy((rel[j] + rel[j + 1]) / 2, j);
+    const segI = (j) => (vI[j] + vI[j + 1]) / 2;
+    const segCol = (j) => (vI[j] >= vI[j + 1] ? vCol[j] : vCol[j + 1]);
 
     // ── panels ──
+    const tri = (g, ax, ay, ca, aa, bx, by, cb, ab, qx, qy, cq, aq) => {
+      g.fillGradientStyle(ca, cb, cq, cq, aa, ab, aq, aq);
+      g.fillTriangle(ax, ay, bx, by, qx, qy);
+    };
     for (let j = 0; j < N; j++) {
       if (segGap[j]) continue;
       const rm = (rel[j] + rel[j + 1]) / 2;
       const isNear = Math.sin(fac + rm) >= 0;
       const g = isNear ? near : far;
       const m = mul * (isNear ? 1 : C.farMul);
-      const k = Math.floor(j / SUB);
-      const base = C.facetVar[k % 3] + C.sheenA * gauss(rm - sp1, 0.22) + C.sheen2A * gauss(rm - sp2, 0.3);
-      const I = segI[j];
-      const col = I > 0.01 ? lerpCol(C.frost, segCol[j], Math.min(1, I * 1.25)) : C.frost;
-      const add = I * 0.55;
+      const k = Math.floor(j / SUB);                    // the panel this segment belongs to (crisp facets)
+      const bse = (jj) => C.facetVar[k % 3] + C.sheenA * gauss(rel[jj] - sp1, 0.22) + C.sheen2A * gauss(rel[jj] - sp2, 0.3);
+      const col = (jj) => (vI[jj] > 0.01 ? lerpCol(C.frost, vCol[jj], Math.min(1, vI[jj] * 1.25)) : C.frost);
+      const al = (jj, a0) => Math.min(0.92, (a0 + bse(jj) + vI[jj] * 0.55) * m);
       const sx = (a, b, u) => a + (b - a) * u;
       // outer sub-band (milkier, by the bright rim) then inner (thinner, toward him)
       const mx0 = sx(ox[j], ix[j], C.split), my0 = sx(oy[j], iy[j], C.split);
       const mx1 = sx(ox[j + 1], ix[j + 1], C.split), my1 = sx(oy[j + 1], iy[j + 1], C.split);
-      g.fillStyle(col, Math.min(0.92, (C.aHi + base + add) * m));
-      g.fillPoints([{ x: ox[j], y: oy[j] }, { x: ox[j + 1], y: oy[j + 1] }, { x: mx1, y: my1 }, { x: mx0, y: my0 }], true);
-      g.fillStyle(col, Math.min(0.92, (C.aLo + base + add) * m));
-      g.fillPoints([{ x: mx0, y: my0 }, { x: mx1, y: my1 }, { x: ix[j + 1], y: iy[j + 1] }, { x: ix[j], y: iy[j] }], true);
+      const c0 = col(j), c1 = col(j + 1);
+      const h0 = al(j, C.aHi), h1 = al(j + 1, C.aHi), l0 = al(j, C.aLo), l1 = al(j + 1, C.aLo);
+      tri(g, ox[j], oy[j], c0, h0, ox[j + 1], oy[j + 1], c1, h1, mx1, my1, c1, h1);
+      tri(g, ox[j], oy[j], c0, h0, mx1, my1, c1, h1, mx0, my0, c0, h0);
+      tri(g, mx0, my0, c0, l0, mx1, my1, c1, l1, ix[j + 1], iy[j + 1], c1, l1);
+      tri(g, mx0, my0, c0, l0, ix[j + 1], iy[j + 1], c1, l1, ix[j], iy[j], c0, l0);
     }
     // ── panel seams ──
     for (let k = 1; k < F; k++) {
@@ -383,14 +409,14 @@ class CurtainField {
       const isNear = Math.sin(fac + rm) >= 0;
       const g = isNear ? near : far;
       const m = mul * (isNear ? 1 : C.farMul);
-      const I = segI[j];
+      const I = segI(j), sc = segCol(j);
       if (isNear) {
         const a = fac + rm, kx = Math.cos(a) * 1.6, ky = Math.sin(a) * 1.6;
         g.lineStyle(1, C.key, C.keyA * m); g.lineBetween(ox[j] + kx, oy[j] + ky, ox[j + 1] + kx, oy[j + 1] + ky);
       }
-      g.lineStyle(1, I > 0.01 ? lerpCol(C.lowRim, segCol[j], Math.min(1, I)) : C.lowRim, Math.min(1, (C.lowRimA + I * 0.4) * m));
+      g.lineStyle(1, I > 0.01 ? lerpCol(C.lowRim, sc, Math.min(1, I)) : C.lowRim, Math.min(1, (C.lowRimA + I * 0.4) * m));
       g.lineBetween(ix[j], iy[j], ix[j + 1], iy[j + 1]);
-      g.lineStyle(I > 0.3 ? C.rimW + 0.5 : C.rimW, I > 0.01 ? lerpCol(C.rim, segCol[j], Math.min(1, I)) : C.rim, C.rimA * (isNear ? 1 : C.farRim) * mul);
+      g.lineStyle(I > 0.3 ? C.rimW + 0.5 : C.rimW, I > 0.01 ? lerpCol(C.rim, sc, Math.min(1, I)) : C.rim, C.rimA * (isNear ? 1 : C.farRim) * mul);
       g.lineBetween(ox[j], oy[j], ox[j + 1], oy[j + 1]);
     }
     // ── tips: the coverage ends are stated, not implied ──

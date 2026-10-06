@@ -10,7 +10,7 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-09-30. Pages builds only from `FRIX`, so the live build is
+*Updated 2026-10-06. Pages builds only from `FRIX`, so the live build is
 whatever `FRIX` points at: check `git rev-parse HEAD origin/FRIX` rather than
 trusting a hash written here, and `git rev-parse --abbrev-ref HEAD` for the
 branch name. This line has named a stale branch three times — trust the
@@ -521,44 +521,74 @@ Records:
 - `docs/evidence/roster-2b/rifleman-marksman-v1-notes.md`
 - `docs/evidence/roster-gait-v2/gait-v2-notes.md`
 
-### NEXT MILESTONE — BULWARK PRODUCTION INTEGRATION (`shielded`). **NOT STARTED.**
+### BULWARK PRODUCTION INTEGRATION (`shielded`) — **CANDIDATE, AWAITING HANDSET VERDICT**
 
-Wait for the human's implementation prompt. The source is `EnemyShielded` in
-`src/entities/Enemy.js` (`shieldArc`, `_shieldHalfArc`, `_shieldFacing`,
-frontal test), plus the VANGUARD screen role, which is FROZEN (§10au-§10av).
+Built as one vertical slice behind `?roster=v1` (body, sidearm, field) and
+`?gait=v2` (the shuffle). **Presentation only; `src/entities/Enemy.js` is
+UNTOUCHED** (`git diff 3ce5680 -- src/entities/Enemy.js` is empty). Record and
+evidence: `docs/evidence/roster-bulwark/bulwark-v1-notes.md`. Gate:
+`tests/smoke-bulwark.mjs` (59 checks, standalone like the other roster smokes).
 
-The approved concept to preserve:
+| piece | where |
+|---|---|
+| body R/E (`ro-blw-R/E`, 33 / 51 frames), sidearm (`ro-w-blw-R/E`), `BULWARK_GAIT`, `BULWARK_CORE` | `src/systems/rosterPaint.js` (appended) |
+| sidearm firing (cold pip on the frozen 300ms warning, 1-frame cold discharge, 1px kick) | `src/systems/bulwarkSidearm.js` |
+| the FROSTED HARD-LIGHT CURTAIN — a scene-side renderer on the frozen seams | `src/systems/bulwarkCurtain.js` |
+| hook (`art.bulwark` → `_rosterFx = 'sidearm'`, `_weaponFx`, `_curtain`) | `src/data/rosterArt.js` |
+| block / pierce routed to `e._curtain` | `GameScene.handleBulletEnemyHits` (the block branch only) |
+| curtain radius **46 for both tiers** (was 55 for the Elite) | `src/systems/shieldContact.js` |
 
-- **Body:** pale steel-blue, broad and defensive; an angular wedge / riot
-  helmet with ONE uninterrupted cold horizontal visor slit (no eyes).
-  - Regular: standard shield/projector hardware.
-  - Elite: a stronger projector gauntlet, brace, conduit and generator
-    support. Both tiers use the same field.
-- **Shield — FROSTED HARD-LIGHT CURTAIN.** The existing gameplay coverage
-  stays EXACTLY frozen.
-  - Look: pale white / cool-blue milky translucency, a bright ice-white
-    edge, subtle interference/faceting, tapered endpoints that state the
-    coverage.
-  - NOT clear glass, honeycomb, bubble or an opaque wall.
-- **Normal block:**
-  1. red bolt → compressed red smear;
-  2. local membrane dent;
-  3. red propagates along the field;
-  4. red → coral/pink → white → dissipates to idle.
+What the human is judging (the approved concept, now built):
 
-  Rapid hits are independent local reactions, never a global flash.
-- **Super passing through:**
-  1. contact → local white bloom;
-  2. the field tears, its edges peel outward, the Super passes;
-  3. the gap holds briefly;
-  4. the edges pull in, filaments re-knit (a zipper);
-  5. a bright snap, a small recovery ripple, a projector pulse.
-- **No** shield HP, break state, cooldown or other gameplay change.
+- **Body:** broad pale steel-blue, an angular wedge helmet with ONE unlit cold
+  slit, the projector on the LEFT forearm, the sidearm in the RIGHT hand, a
+  generator on the back. Elite = the same man with a bigger ringed gauntlet,
+  a brace, a conduit, a finned generator and a steel yoke; no size, no tint,
+  the historical 92.4px collider at render scale 1.
+- **Sidearm:** a 28px pistol on an armoured forearm. Its drawn muzzle sits at
+  the bolt's first drawn leading edge (74.0 vs 73.5px; Elite 83.0 vs 82.5).
+  Known and frozen: the gun follows the SHIELD facing while the bolt flies at
+  the player — usually 0° apart, occasionally large while the shield is still
+  turning.
+- **Gait v2:** a heavy tactical shuffle — one pelvis, hips 6 columns apart,
+  3-column legs, 4px boots, a LOW swing ('L', one row), a compact stride, and
+  a 40px cycle.
+- **Field:** ten flat panels on exactly facing ± 1.35 rad, tapering to points
+  at the coverage. A bright outer rim, near half over the body, far half soft
+  and under it.
+  - **Block:** a red-hot smear → a 5px dent → red fronts → coral → pink →
+    white → idle, as independent local events.
+  - **Super:** bloom → split + peel → an open gap held to ~420ms → filaments
+    → zipper → snap → ripple → one projector pulse. One tear per volley:
+    central pellet wins, near ones merge, others prick.
+- **One author:** under v1 the legacy clang + sparkle do not draw, but the
+  sparkle's random draws are still made into an invisible twin emitter, so
+  the RNG stream — and the fight — is identical (A/B: without it the seeded
+  VANGUARD replay diverges). A Bulwark ELITE's death is the legacy death too:
+  the kill juice sizes its burst by `_baseScale` (1.0 for v1 art), so the v1
+  Elite carries `_threatScale = 1.4` for that read.
+
+**FLAGGED, NOT CHANGED — a pre-existing roster-v1 leak in the frozen roles:**
+the Gunner / Rifleman / Marksman Elites die with fewer random draws under
+`?roster=v1` than under legacy, for the same reason (Gunner E 235 vs 195), so
+a v1 fight stops being draw-identical to legacy after one of their Elites
+dies. The fix is one line in `_makeElite` and would change their v1 death
+juice back to the legacy size. Not done: they are frozen. The human decides.
+
+**Known weak at 1x** (in the notes): a full Super usually KILLS a Bulwark, so
+the tear is mostly seen on Elites and glancing Supers. The first ~250ms of a
+real Super is the frozen generic hit FX. Blocked bolts still cross ~17px
+inside the field before gameplay kills them (predictive hiding deliberately
+NOT added). A north-facing field still sits above his head, softened.
+
+**Nothing else moved:** VANGUARD 140 / 165, front, lanes, queue and
+composition, shield arc / turn / hp / economy, the three frozen roles, the
+Captain, Vader. Demolisher is NOT started.
 
 ### The recommended next area of work
 
-**Superseded for now:** the human has named the next milestone — BULWARK
-PRODUCTION INTEGRATION (above). The options below are the older backlog.
+**Superseded for now:** BULWARK PRODUCTION INTEGRATION (above) is built and
+waiting on the handset. The options below are the older backlog.
 
 **Phase B Champion integration is CLOSED — human-approved and frozen on
 `a3563a4`** (above). The next

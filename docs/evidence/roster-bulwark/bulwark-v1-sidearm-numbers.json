@@ -1,0 +1,152 @@
+[
+ {
+  "tier": "REGULAR",
+  "aim": "E",
+  "radius": 24,
+  "pivot": 20,
+  "spawn": 28,
+  "firstDrawnHead": 73.5,
+  "muzzle": 74,
+  "overlayPx": 60
+ },
+ {
+  "tier": "REGULAR",
+  "aim": "SE",
+  "radius": 24,
+  "pivot": 20,
+  "spawn": 28,
+  "firstDrawnHead": 73.5,
+  "muzzle": 74,
+  "overlayPx": 60
+ },
+ {
+  "tier": "REGULAR",
+  "aim": "S",
+  "radius": 24,
+  "pivot": 20,
+  "spawn": 28,
+  "firstDrawnHead": 73.5,
+  "muzzle": 74,
+  "overlayPx": 60
+ },
+ {
+  "tier": "REGULAR",
+  "aim": "W",
+  "radius": 24,
+  "pivot": 20,
+  "spawn": 28,
+  "firstDrawnHead": 73.5,
+  "muzzle": 74,
+  "overlayPx": 60
+ },
+ {
+  "tier": "REGULAR",
+  "aim": "N",
+  "radius": 24,
+  "pivot": 20,
+  "spawn": 28,
+  "firstDrawnHead": 73.5,
+  "muzzle": 74,
+  "overlayPx": 60
+ },
+ {
+  "tier": "ELITE",
+  "aim": "E",
+  "radius": 33,
+  "pivot": 29,
+  "spawn": 37,
+  "firstDrawnHead": 82.5,
+  "muzzle": 83,
+  "overlayPx": 68
+ },
+ {
+  "tier": "ELITE",
+  "aim": "SE",
+  "radius": 33,
+  "pivot": 29,
+  "spawn": 37,
+  "firstDrawnHead": 82.5,
+  "muzzle": 83,
+  "overlayPx": 68
+ },
+ {
+  "tier": "ELITE",
+  "aim": "S",
+  "radius": 33,
+  "pivot": 29,
+  "spawn": 37,
+  "firstDrawnHead": 82.5,
+  "muzzle": 83,
+  "overlayPx": 68
+ },
+ {
+  "tier": "ELITE",
+  "aim": "W",
+  "radius": 33,
+  "pivot": 29,
+  "spawn": 37,
+  "firstDrawnHead": 82.5,
+  "muzzle": 83,
+  "overlayPx": 68
+ },
+ {
+  "tier": "ELITE",
+  "aim": "N",
+  "radius": 33,
+  "pivot": 29,
+  "spawn": 37,
+  "firstDrawnHead": 82.5,
+  "muzzle": 83,
+  "overlayPx": 68
+ },
+ {
+  "tier": "LEGACY",
+  "aim": "E",
+  "radius": 24,
+  "pivot": 20,
+  "spawn": 28,
+  "firstDrawnHead": 73.5,
+  "muzzle": 81.2,
+  "overlayPx": 72
+ },
+ {
+  "tier": "LEGACY",
+  "aim": "SE",
+  "radius": 24,
+  "pivot": 20,
+  "spawn": 28,
+  "firstDrawnHead": 73.5,
+  "muzzle": 81.2,
+  "overlayPx": 72
+ },
+ {
+  "tier": "LEGACY",
+  "aim": "S",
+  "radius": 24,
+  "pivot": 20,
+  "spawn": 28,
+  "firstDrawnHead": 73.5,
+  "muzzle": 81.2,
+  "overlayPx": 72
+ },
+ {
+  "tier": "LEGACY",
+  "aim": "W",
+  "radius": 24,
+  "pivot": 20,
+  "spawn": 28,
+  "firstDrawnHead": 73.5,
+  "muzzle": 81.2,
+  "overlayPx": 72
+ },
+ {
+  "tier": "LEGACY",
+  "aim": "N",
+  "radius": 24,
+  "pivot": 20,
+  "spawn": 28,
+  "firstDrawnHead": 73.5,
+  "muzzle": 81.2,
+  "overlayPx": 72
+ }
+]
