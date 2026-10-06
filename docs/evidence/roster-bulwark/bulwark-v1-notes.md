@@ -409,6 +409,24 @@ not with the older figure.
 | smoke-encdbg | 33/33 |
 | `npm run build` | OK (the chunk-size warning is pre-existing) |
 
+**Orientation pass** (same branch, after the correction):
+
+| suite | result |
+|---|---|
+| smoke-bulwark | **70/70** (59 + 11 orientation guards) |
+| smoke-roster-2b | 72/72 |
+| smoke-roster-gunner | 72/72 |
+| smoke-roster-seams | 70/70 |
+| smoke-gait-v2 | 16/16 |
+| smoke-move-v2 | 9/9 |
+| smoke-champion-placement | 60/60 |
+| smoke-vanguard-screen | 22/22 |
+| smoke-vanguard-front | 30/30 |
+| smoke-encounters | 25/25 |
+| smoke-encdbg | 33/33 |
+| smoke-vanguard-reinforce | **26/26, twice.** The 4 surge/queue checks that failed in the first pass (22/26, identically on the `577c487` baseline) passed both times here. Neither pass touches what they test, so they are intermittent / load-sensitive rather than fixed. Not chased. |
+| `npm run build` | OK |
+
 ## Handset URLs (Pages, after the FRIX fast-forward)
 
 1. **Isolated Bulwark (VANGUARD without the Captain):**
