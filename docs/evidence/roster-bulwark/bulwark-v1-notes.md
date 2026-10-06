@@ -6,6 +6,104 @@
 **Status:** CANDIDATE. Not human-approved. Presentation only — every gameplay value
 is the frozen one, and `src/entities/Enemy.js` is **untouched**.
 
+**Handset round 1 (`d9e2d6d`):** broadly approved, with ONE blocker — the shield
+changed strength as he turned. Corrected in the orientation pass below; waiting on
+the handset again.
+
+## Orientation invariance (the handset round-1 correction)
+
+**The rule:** DEPTH MAY CHANGE; ENERGY STRENGTH MAY NOT. FAR = BEHIND THE BODY,
+never FAR = WEAKER.
+
+**Cause.** The renderer used its near/far split for two jobs, depth and strength:
+
+| far-layer attenuation (removed) | value on `d9e2d6d` |
+|---|---|
+| panel material alpha | x0.5 (`farMul`) |
+| panel seams | x0.5 |
+| inner (soft) rim | x0.5 |
+| OUTER (bright) rim | x0.32 (`farRim`) |
+| dark keyline | not drawn at all on the far half |
+| tapered tips | x0.5 |
+| every event overlay (smear, bloom, filaments, zipper, snap, prick) and its light | x0.7 |
+
+Facing south the field is all near layer, facing north all far, side-on half and
+half. So it was a full shield south, half a shield east or west, a ghost north.
+
+**Correction, three parts:**
+
+1. **Strength.** Every style value is computed without knowing the layer.
+   `_layer()` is the ONE place near/far is decided and it returns a Graphics, never
+   a number. `farMul` / `farRim` are deleted. The keyline is drawn on both halves.
+2. **The band's cross-section (geometry).** Measuring the alpha-fixed field showed a
+   second orientation dependence. This floor has no foreshortening, so a band's
+   screen thickness is its radial depth plus its LEAN times sin(bearing). The first
+   cross-section leaned 7px (inner rim R−6, lifted 5px; outer R+6, 2px down), so it
+   read **19 / 12 / 5 px** thick south / side / north — a thin arc from behind at
+   any alpha. The inner rim is now R−11 on the plane (lean 2px): **19 / 17 / 15 px**.
+   - The south view is unchanged at its centre (outer and inner rim at the apex are
+     the same pixels).
+   - The arc (±1.35), the curtain radius (46) and the outer rim (R+6, the field's
+     visible size) are unchanged.
+   - With the bearer hidden, the idle field facing north is now 0.85 of the south
+     view's presence (was 0.55 with the old cross-section).
+3. **Reaction routing.** Measuring each reaction showed that a contact on the centre
+   line flipped layers on a hair. Side-on, a hit on the facing sits at his own depth,
+   where the sidearm crosses the field. So a tear 0.1 rad north of the line went under
+   the gun and one 0.1 rad south went over it: the same late tear measured 0.89 of
+   the south view facing east and **0.12** facing west. A reaction is now FAR only
+   when it is genuinely behind him, more than 30° north of his centre line
+   (`behindSin`). West is now 0.95. The panels keep the plain split, because their
+   depth is what puts him inside the field.
+
+**Measured** (`tests/diag-bulwark-orient.mjs`; a Regular alone, field photographed on
+and off):
+
+| idle field | OLD | NEW |
+|---|---|---|
+| per-pixel strength facing N, vs S | 0.60 | 1.13 (the thin band is mostly rim) |
+| rim brightness (top 10% luminance) S / E / N | 243 / 242 / **133** | 243 / 243 / 243 |
+| visible presence facing N, vs S | 0.21 | 0.63 (bearer hidden: 0.85) |
+| visible presence facing E, vs S | 0.62 | 0.88 (bearer hidden: 0.94) |
+
+| reaction (bearer HIDDEN: the energy alone) | S | E | N | W |
+|---|---|---|---|---|
+| block, 17ms | 1.00 | 0.95 | 0.90 | 0.94 |
+| block, 250ms | 1.00 | 0.90 | 0.84 | 0.89 |
+| tear, 90ms (bloom) | 1.00 | 0.99 | 1.02 | 1.01 |
+| tear, 640ms (snap) | 1.00 | 0.92 | 0.85 | 0.88 |
+
+The residual 10-15% is the band itself (15px from behind against 19 in front).
+
+**What is still orientation-dependent — body occlusion, and only that.** With the
+bearer drawn, a DEAD-CENTRE reaction facing NORTH lands directly behind his helmet
+and the north-pointing sidearm:
+
+| reaction (bearer drawn) | S | E | N | W |
+|---|---|---|---|---|
+| block 17ms (smear) | 1.00 | 0.58 | **0.07** | 0.52 |
+| block 250ms (pink) | 1.00 | 0.87 | 0.40 | 0.68 |
+| block 100ms, 0.5 rad off-centre | 1.00 | 0.91 | 0.64 | 0.60 |
+| tear 90ms (bloom) | 1.00 | 1.05 | 0.45 | 1.18 |
+| tear 640ms (snap) | 1.00 | 0.89 | **0.03** | 0.95 |
+
+That is the depth the human asked to keep: his body in front of what is behind it.
+Making a north-facing contact readable through his head would need the event's LIGHT
+drawn over the body, which this pass was told not to do. It is the human's call.
+
+**Guards:** `smoke-bulwark` §4b, 11 checks. It draws the same field at S vs N and
+E vs W across 22 states (idle and every block / tear / prick beat) and requires an
+identical style stream with only the layer swapped. It also pins:
+- the north rim at 0.92, the far keyline, and the far tips at 0.85;
+- paired same-age hits on opposite halves;
+- beside-him routing;
+- no `far*` constants;
+- the 19 / 17 / 15 thickness;
+- depth routing and draw order.
+
+8 of the 11 fail on `d9e2d6d` (`BLW_BASE` A/B). The depth checks pass on both, as they
+should, since depth was never the bug.
+
 ## Architecture
 
 | piece | where | what it is |
@@ -125,15 +223,15 @@ byte-identical to `6560c62`; `smoke-roster-2b`, `smoke-roster-gunner` and
     inner rim is soft.
   - A restrained dark keyline sits just outside the bright rim.
   - Two slow counter-running sheens are the interference.
-  - The cross-section is a short raised band: outer rim R+6 / 2px down, inner R−6 /
-    5px up.
+  - The cross-section is a band of near-constant depth: outer rim R+6 / 2px down,
+    inner R−11 on the plane (it was R−6 / 5px up, which thinned to 5px from behind;
+    see Orientation invariance).
   - A first build put the bright rim on the inner, upper edge, and from the front it
     read as a tub he was standing in.
 - **Depth:**
   - Panels south of his centre draw over the body and the sidearm (y+2). Panels north
-    of it draw under the body (y−2), at half strength with a faint rim.
-  - So the back view is a soft band behind him rather than a canopy, and the side view
-    is a curved plane.
+    of it draw under the body (y−2), at the SAME strength. Only his body hides them.
+  - Reactions go under him only when more than 30° behind his centre line.
   - The field follows the body centre and the shield facing — never the walk cycle.
 - **Tiers:** identical. Nothing in the field module reads `_elite` except where to put
   the core glow. Regular and Elite rim vertices match exactly.
@@ -245,7 +343,7 @@ The field redraws every frame, so its CPU cost was measured on this container
 A phone is slower. This is the number to watch if VANGUARD frame time is ever a
 complaint.
 
-## Gameplay invariance (smoke-bulwark, 59 checks)
+## Gameplay invariance (smoke-bulwark, 70 checks)
 
 - **Units:** hp, radius, body width and centring, speed, half-arc 1.35, turn 2.6,
   cadence 1500, bolt 700 / 120 / 520, and desired range 260 are identical legacy vs v1
@@ -337,6 +435,26 @@ The videos run at real 1× (30fps from every second tick). The rig is
     which is how the Elite-death leak was found.
 13. `roster-v1-hierarchy-4roles.png`.
 
+**Orientation pass** (rig `tests/shot-bulwark-orient.mjs`; old-build panels are served
+from a `d9e2d6d` worktree):
+
+14. `bulwark-orientation-idle.png` — the same field at S / E / N / W, Regular and
+    Elite, one frame, 1x and 2x. `bulwark-orientation-idle-OLD.png` is the same
+    frame on `d9e2d6d`.
+15. `bulwark-orientation-rotate.webm` — a Regular and an Elite turned through 360°
+    in 9s, 1x and 2x.
+16. `bulwark-block-4way.png` / `.webm` — the same real bolt at S / E / N / W on the
+    same tick (contact, red spread, pink, white, recovered).
+17. `bulwark-rapid-side.webm` — west- and east-facing fields, every hit PAIRED on the
+    near and far halves on the same tick.
+18. `bulwark-super-4way.webm` — part A: the same volley through the real pierce seam
+    at all four facings, twice. Part B: a REAL Super into an Elite at each facing in
+    turn (sector-25 hp ramp, so it survives the volley; generic FX included).
+19. `bulwark-vanguard-orientation-live.webm` — real VANGUARD, the player circling the
+    pair. The bearers' facings over the run: N 17%, E 27%, W 47%, S 9%.
+20. `bulwark-orientation-ab.webm` — OLD vs NEW MATERIAL ONLY (old cross-section) vs
+    NEW, one Regular turning with a real bolt into its facing every 0.9s.
+
 The videos were rendered before the last change: an idle field drawn as one segment
 per flat panel instead of five. That change leaves the geometry identical and moves
 only the sampling of the faint sheen. The stills were re-rendered after it.
@@ -357,9 +475,11 @@ only the sampling of the faint sheen. The stills were re-rendered after it.
   body overlap, ~17px inside the curtain (1-2 frames of travel). Predictive hiding was
   deliberately NOT added — for the human to judge.
 - **Back view:**
-  - A north-facing shield is drawn above his head (this projection puts the combat
-    plane there). It is softened (half strength, faint rim, under the body), but it is
-    still an arc behind the helmet.
+  - A north-facing shield sits behind his head and shoulders (this projection puts
+    the combat plane there). It is the same material as the front view, but his body
+    hides its middle.
+  - A dead-centre block or tear facing north is mostly hidden by the helmet and the
+    north-pointing sidearm (see Orientation invariance).
   - The sidearm pointing north also shows above the head, as every role's weapon does.
 - **Profile:** the legs are 2px in profile under a broad torso; heavy, but the side
   figure reads top-heavy.

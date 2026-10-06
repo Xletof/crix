@@ -971,8 +971,34 @@ asserts separately that the ceiling is not reached.
   overlap (<= 41px), inside it.
 - **A FIELD THAT STRADDLES ITS BEARER NEEDS TWO DEPTHS.** One Graphics has one
   depth; panels south of his centre draw over him (y+2), panels north under
-  him (y-2), softer. A single depth either paints the shield over his face
-  from behind or hides it from the front.
+  him (y-2). A single depth either paints the shield over his face from
+  behind or hides it from the front.
+- **DEPTH MAY CHANGE; ENERGY STRENGTH MAY NOT — FAR = BEHIND THE BODY, NEVER
+  FAR = WEAKER.** The first field ALSO dimmed its far layers (material x0.5,
+  outer rim x0.32, reactions x0.7, keyline near-only), and the handset saw
+  exactly that: a full shield facing south, half a shield side-on, a ghost
+  facing north, and reactions harder to read on the dimmed half. Rotating him
+  does not change the projector's output. `_layer()` in `bulwarkCurtain.js` is
+  the ONE place near/far is decided and it returns a layer, never a number;
+  `smoke-bulwark` draws the same field at opposite facings and requires the
+  style stream to be identical with only the layer swapped. The only
+  legitimate visibility loss is his body actually in front of it.
+- **A BAND THAT LEANS IS A BAND THAT THINS FROM BEHIND.** This floor has no
+  foreshortening, so a band's screen thickness is its radial depth plus its
+  lean (inner rim lifted over the outer) x sin(bearing): the lean ADDS facing
+  south and SUBTRACTS facing north. The first cross-section leaned 7px and read
+  19 / 12 / 5px south / side / north — a thin arc from behind at any alpha.
+  It leans 2px now (19 / 17 / 15). Measure presence with
+  `tests/diag-bulwark-orient.mjs` (`--nobody` separates projection from
+  occlusion), not by eye on the south view.
+- **A REACTION ON THE CENTRE LINE MUST NOT FLIP LAYERS ON A HAIR.** Side-on,
+  a contact on the facing sits at his own depth, exactly where his sidearm
+  crosses the field, so routing it by the plain sign of sin(bearing) drew a
+  hit a hair north of the line under the gun and a hair south over it — the
+  same Super read 0.89 of the south view facing east and 0.12 facing west. A
+  reaction is FAR only when it is genuinely behind him (`behindSin`, 30deg);
+  the panels keep the plain split, because their depth is what puts him
+  inside the field.
 - **THE FIRST PELLET TO CROSS IS OFTEN AN OUTER ONE.** A Super volley's
   pellets reach the body over a frame or two, and the tear first went to the
   edge of the shield. While the tear is under 50ms old a MORE CENTRAL pellet

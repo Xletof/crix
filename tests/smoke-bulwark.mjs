@@ -15,6 +15,13 @@
 //   - FIELD: the drawn arc IS the protected arc (tips at facing ± halfArc, on
 //     the curtain radius), identical between Regular and Elite, and the legacy
 //     arc hidden only while the field speaks;
+//   - ORIENTATION: DEPTH MAY CHANGE, ENERGY STRENGTH MAY NOT — the same field
+//     drawn at S vs N and E vs W (idle + every block / tear / prick beat) emits
+//     an identical style stream with only the layer swapped; the north rim,
+//     keyline and tips are full strength; paired hits on opposite halves
+//     match; a reaction beside him is not drawn under him; the band reads
+//     19 / 17 / 15px south / side / north; depth routing kept (BLW_BASE=<url>
+//     runs the suite against another build for the A/B);
 //   - EVENTS: a real blocked bolt makes ONE local block event at its projected
 //     contact; several coexist; they expire on their own clock; a real Super
 //     makes ONE tear (other pellets merge or prick); the field closes fully;
@@ -34,7 +41,7 @@ import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-const BASE = 'http://localhost:5173/';
+const BASE = process.env.BLW_BASE || 'http://localhost:5173/';   // BLW_BASE: A/B the checks against another build
 const ROOT = new URL('../', import.meta.url).pathname;
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 const checks = []; const check = (ok, l, d) => checks.push({ ok: !!ok, l, d });
@@ -260,6 +267,106 @@ function window_wrap(a) { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math
 check(JSON.stringify(geo.R.arr) === JSON.stringify(geo.E.arr) && geo.R.R === geo.E.R && geo.R46 === 46,
   'Regular and Elite fields are IDENTICAL — every rim vertex the same, curtain radius 46 for both (the Elite\'s gameplay radius is 33)', '');
 check(geo.R.nearDepth === 2 && geo.R.farDepth === -2, 'field depth: the near half draws over the body and the sidearm (y+2), the far half under the body (y-2)', JSON.stringify(geo.R));
+
+// ── 4b. ORIENTATION INVARIANCE — DEPTH MAY CHANGE, ENERGY STRENGTH MAY NOT ──
+// The first field dimmed whatever was routed to the FAR layers (material x0.5,
+// outer rim x0.32, reactions x0.7, keyline near-only), so it was a full shield
+// facing south, half a shield side-on and a ghost facing north. Here the SAME
+// field is drawn at opposite facings with every style call recorded along with
+// the layer it went to: the stream of style values must be identical and only
+// the layer may differ. A sweep of block / tear / prick ages covers the event
+// overlays, not just the idle material.
+const orient = await pG.evaluate(async () => {
+  const gs = window.__gs; window.__open();
+  const cur = await window.__mod(/systems\/bulwarkCurtain\.js/);
+  const e = gs.spawnEnemyAt('shielded', 800, 700, {});
+  e._performing = true; e._movePlanted = true; e._aim = 0; e._shieldFacing = 0;
+  window.__adv(2);
+  const f = e._curtain;
+  const L = { near: f.near, far: f.far, glowNear: f.glowNear, glowFar: f.glowFar };
+  let log = null;
+  for (const [name, g] of Object.entries(L)) for (const m of ['fillStyle', 'lineStyle', 'fillGradientStyle']) {
+    const orig = g[m];
+    g[m] = function (...a) { log?.push({ layer: name, m, a: a.map((v) => (typeof v === 'number' ? +v.toFixed(6) : v)) }); return orig.apply(this, a); };
+  }
+  const draw = (fac, events) => {
+    e._shieldFacing = fac; e._aim = fac;
+    f.clock = 1234; f.coreKick = 0; f.corePulse = 0; f.events = events.map((v) => ({ ...v }));
+    log = []; f.draw(); const out = log; log = null;
+    return out;
+  };
+  const S = Math.PI / 2, N = -Math.PI / 2, E = 0, W = Math.PI;
+  const styles = (lg) => JSON.stringify(lg.map((x) => [x.m, x.a]));
+  const layers = (lg) => [...new Set(lg.map((x) => x.layer))].sort();
+  const out = { cases: [] };
+  // idle, then every beat of every reaction
+  const sets = [['idle', []]];
+  for (const t of [5, 20, 60, 120, 200, 300, 450, 650]) sets.push([`block ${t}ms`, [{ kind: 'block', off: 0.15, t }]]);
+  for (const t of [20, 90, 200, 440, 560, 620, 700, 820]) sets.push([`tear ${t}ms`, [{ kind: 'tear', off: 0.1, t, n: 2, snapped: t >= 600 }]]);
+  for (const t of [20, 100, 210, 240]) sets.push([`prick ${t}ms`, [{ kind: 'prick', off: -0.4, t }]]);
+  sets.push(['rapid layer', [{ kind: 'block', off: -0.6, t: 15 }, { kind: 'block', off: 0.2, t: 140 }, { kind: 'block', off: 0.7, t: 330 }]]);
+  for (const [name, evs] of sets) {
+    const s = draw(S, evs), n = draw(N, evs), ea = draw(E, evs), w = draw(W, evs);
+    out.cases.push({ name, sn: styles(s) === styles(n), ew: styles(ea) === styles(w), nS: s.length,
+      sLayers: layers(s), nLayers: layers(n), eLayers: layers(ea) });
+  }
+  // explicit values on the FAR side, facing north (idle): the rim, the keyline, the tips
+  const C = cur.CURTAIN, nIdle = draw(N, []);
+  const rim = nIdle.filter((x) => x.m === 'lineStyle' && x.a[1] === 0xffffff && x.a[0] >= C.rimW);
+  out.north = { rimA: [...new Set(rim.map((x) => x.a[2]))], key: nIdle.filter((x) => x.m === 'lineStyle' && x.a[1] === C.key && x.layer === 'far').length,
+    tips: nIdle.filter((x) => x.m === 'fillStyle' && x.a[0] === 0xffffff).map((x) => [x.layer, x.a[1]]), rimLayers: [...new Set(rim.map((x) => x.layer))] };
+  // two simultaneous hits of the same age on OPPOSITE halves of a side-facing field
+  const pair = [{ kind: 'block', off: 0.6, t: 30 }, { kind: 'block', off: -0.6, t: 30 }];
+  // the smear is the only stroke wider than the rim's 2.5px (4.5 -> 2 over its 70ms); the rims
+  // under a red front are red too, and are covered by the stream comparison above
+  const smear = (lg) => lg.filter((x) => x.m === 'lineStyle' && x.a[1] === 0xff2828 && x.a[0] > 2.5);
+  const pe = smear(draw(E, pair));
+  out.pair = { layers: pe.map((x) => x.layer), args: pe.map((x) => JSON.stringify(x.a)) };
+  out.farKeys = Object.keys(C).filter((k) => /^far/i.test(k));
+  // a reaction BESIDE him (side-on, a hair either side of the facing) is not
+  // behind him: it must not be drawn under his body and sidearm on one side of
+  // his centre line and over them on the other
+  const glowOf = (fac, off) => [...new Set(draw(fac, [{ kind: 'tear', off, t: 90, n: 2 }]).filter((x) => x.layer.startsWith('glow')).map((x) => x.layer))].join();
+  out.beside = { Ep: glowOf(E, 0.1), Em: glowOf(E, -0.1), Wp: glowOf(W, 0.1), Wm: glowOf(W, -0.1), N0: glowOf(N, 0), NE: glowOf(E, -1.2) };
+  // band thickness at the apex (screen px) facing S / E / N
+  const apex = (fac) => { draw(fac, []); const j = f._n / 2; return Math.hypot(f._ox[j] - f._ix[j], f._oy[j] - f._iy[j]); };
+  out.thick = { S: apex(S), E: apex(E), N: apex(N), W: apex(W) };
+  out.depth = { body: e.depth, near: f.near.depth, far: f.far.depth, gNear: f.glowNear.depth, gFar: f.glowFar.depth };
+  gs._destroyEnemyFully(e);
+  return out;
+});
+{
+  const bad = orient.cases.filter((c) => !c.sn || !c.ew);
+  check(!bad.length && orient.cases.length === 22 && orient.cases.every((c) => c.nS > 20),
+    `orientation: the field's style stream (material, seams, keyline, inner edge, outer rim, tips, smear, bloom, filaments, zipper, snap, pinprick) is IDENTICAL facing south and north, and facing east and west, across ${orient.cases.length} states (idle + every block / tear / prick beat) — only the layer differs`,
+    JSON.stringify(bad.map((c) => c.name)));
+  const S0 = orient.cases.find((c) => c.name === 'idle');
+  check(S0.sLayers.join() === 'near' && S0.nLayers.join() === 'far' && S0.eLayers.join() === 'far,near',
+    'depth routing kept: facing south the whole field goes to the NEAR layer, facing north to the FAR layer, side-on it is split between the two', JSON.stringify(S0));
+  const tear = orient.cases.find((c) => c.name === 'tear 90ms');
+  check(tear.sLayers.includes('glowNear') && tear.nLayers.includes('glowFar') && !tear.nLayers.includes('glowNear'),
+    'event LIGHT is routed by depth too: a tear facing south lights the near glow layer, facing north the far one (under the body), at the same strength', JSON.stringify(tear));
+  const d = orient.depth;
+  check(d.near > d.body && d.gNear > d.body && d.far < d.body && d.gFar < d.body,
+    `near layers draw OVER the body, far layers UNDER it (body ${d.body}, near ${d.near}/${d.gNear}, far ${d.far}/${d.gFar})`, JSON.stringify(d));
+}
+check(orient.north.rimA.length === 1 && orient.north.rimA[0] === 0.92 && orient.north.rimLayers.join() === 'far',
+  `facing north the outer rim is the full ice-white rim (alpha ${orient.north.rimA.join('/')}), drawn on the far layer — not a dimmed copy`, JSON.stringify(orient.north));
+check(orient.north.key >= 10, `facing north the restrained dark keyline is still drawn (${orient.north.key} segments on the far layer) — it used to be near-only`, JSON.stringify(orient.north));
+check(orient.north.tips.length === 2 && orient.north.tips.every(([l, a]) => l === 'far' && a === 0.85),
+  'facing north both tapered tips are drawn at full strength (0.85) on the far layer', JSON.stringify(orient.north.tips));
+check(orient.pair.layers.slice().sort().join() === 'far,near' && orient.pair.args[0] === orient.pair.args[1],
+  'two hits of the same age on opposite halves of a side-facing field: one smear on each layer, with IDENTICAL width, colour and alpha', JSON.stringify(orient.pair));
+check(!orient.farKeys.length, 'no far-attenuation constants left in CURTAIN', JSON.stringify(orient.farKeys));
+check(['Ep', 'Em', 'Wp', 'Wm'].every((k) => orient.beside[k] === 'glowNear') && orient.beside.N0 === 'glowFar' && orient.beside.NE === 'glowFar',
+  'a reaction BESIDE him is drawn over him at either side of his centre line (east and west, offset ±0.1); one genuinely BEHIND him (facing north, or 69deg round the far side) still goes under his body',
+  JSON.stringify(orient.beside));
+{
+  const t = orient.thick;
+  check(Math.abs(t.S - 19) < 0.01 && t.N / t.S >= 0.75 && t.E / t.S >= 0.85 && Math.abs(t.E - t.W) < 0.01,
+    `the band reads at a similar thickness at every facing — ${t.S.toFixed(1)} / ${t.E.toFixed(1)} / ${t.N.toFixed(1)}px south / side / north (the first build was 19 / 14 / 5: a thin arc from behind); the south view unchanged`,
+    JSON.stringify(t));
+}
 
 // ── 5. EVENTS: real blocks and a real Super ──────────────────────────────
 const ev = await pG.evaluate(() => {

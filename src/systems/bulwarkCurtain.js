@@ -18,18 +18,33 @@
 // at), a soft inner rim toward the bearer, a restrained dark keyline just
 // outside the bright rim so it holds against pale plate and pale floors, and
 // two slow broad sheens running opposite ways across the facets (the
-// interference). Its cross-section is a short, slightly raised band: the outer
-// rim a little beyond the contact radius and just under the combat plane, the
-// inner rim a little inside it and above — so from the front it is a
-// substantial curved panel before his legs, from behind a thin softer band,
-// and from the side a curved plane, never a vertical plate. (A first build put
-// the bright rim on the INNER, upper edge and a taller band under it; from
-// the front that read as a tub he was standing in.)
+// interference). Its cross-section is a band of near-constant DEPTH: the
+// outer rim 6px beyond the contact radius and 2px under the combat plane, the
+// inner rim 11px inside it, on the plane. This game draws the floor with no
+// foreshortening, so a band's screen thickness is its radial depth plus its
+// LEAN (how far the inner rim is lifted above the outer) times sin(bearing) —
+// the lean adds facing south and subtracts facing north. The first build
+// leaned 7px (inner rim lifted 5), which read 19px thick facing south, 12
+// side-on and 5 facing north: a thin arc from behind, whatever its alpha, and
+// a band visibly thinner on its northern half when he faced east or west. The
+// lean is 2 now: 19 / 17 / 15, the south view unchanged at its centre, and
+// the same panel at every facing. (A first build also put the bright rim on
+// the INNER, upper edge; from the front that read as a tub he stood in.)
 //
-// DEPTH: every panel is routed by which side of the bearer it is on. Panels
-// south of his centre (nearer the camera) draw ABOVE the body and the sidearm;
-// panels north of it draw BELOW the body and at reduced strength — the softer
-// far surface that keeps the rear view from becoming a canopy or a hood.
+// DEPTH, AND ONLY DEPTH: every panel is routed by which side of the bearer it
+// is on. Panels south of his centre (nearer the camera) go to the NEAR layers
+// and draw ABOVE the body and the sidearm; panels north of it go to the FAR
+// layers and draw BELOW the body, so his own armour hides whatever of the
+// field is physically behind him. That routing decides WHICH Graphics and
+// WHICH depth — never alpha, colour, rim, keyline, tip or reaction strength.
+// FAR = BEHIND THE BODY, not FAR = WEAKER ENERGY: turning him round does not
+// change the projector's output, so every style value below is computed
+// without knowing which layer will receive it. (The first build also dimmed
+// the far layers — material x0.5, outer rim x0.32, reactions x0.7, keyline
+// near-only — and the handset saw exactly that: a full shield facing south,
+// half a shield facing east or west, a ghost facing north. `smoke-bulwark`
+// renders the same field at opposite facings and requires the style stream
+// to be identical with only the layer swapped.)
 //
 // The field follows the BODY CENTRE and the SHIELD FACING — never the walk
 // cycle, the bob or the gauntlet. The projector is the source, and says so
@@ -70,7 +85,7 @@ export const CURTAIN = {
   facets: 10, sub: 5,             // panels across the arc, samples per panel
   taperRad: 0.32,                 // the last stretch of each end narrows to the tip
   outR: 6, outH: 2,               // outer rim: radius +6, 2px below the combat plane
-  inR: 6, inH: 5,                 // inner rim: radius -6, 5px above it
+  inR: 11, inH: 0,                // inner rim: radius -11, on the plane (lean = outH + inH = 2; see above)
   split: 0.45,                    // the two milky sub-bands meet here (from the outer rim)
   frost: 0xcfe0f4, aLo: 0.30, aHi: 0.41,
   facetVar: [0, 0.05, -0.03],     // per-panel value step (broad faceting)
@@ -79,9 +94,8 @@ export const CURTAIN = {
   key: 0x1b2940, keyA: 0.42,      // the restrained dark keyline just outside the rim
   seamA: 0.05,                    // panel seams
   sheenA: 0.07, sheen2A: 0.045,   // the two counter-running sheens (interference)
-  farMul: 0.5,                    // the far surface: softer
-  farRim: 0.32,                   // ...and its rim is not a crisp line over his head
   bushMul: 0.55,
+  behindSin: 0.5,                 // a REACTION is behind him only past 30deg north of his centre line (see _layer)
   maxBlocks: 12, maxPricks: 3,
 };
 
@@ -377,9 +391,8 @@ class CurtainField {
     for (let j = 0; j < N; j++) {
       if (segGap[j]) continue;
       const rm = (rel[j] + rel[j + 1]) / 2;
-      const isNear = Math.sin(fac + rm) >= 0;
-      const g = isNear ? near : far;
-      const m = mul * (isNear ? 1 : C.farMul);
+      const g = this._layer(fac + rm);
+      const m = mul;
       const k = Math.floor(j / SUB);                    // the panel this segment belongs to (crisp facets)
       const bse = (jj) => C.facetVar[k % 3] + C.sheenA * gauss(rel[jj] - sp1, 0.22) + C.sheen2A * gauss(rel[jj] - sp2, 0.3);
       const col = (jj) => (vI[jj] > 0.01 ? lerpCol(C.frost, vCol[jj], Math.min(1, vI[jj] * 1.25)) : C.frost);
@@ -399,9 +412,8 @@ class CurtainField {
     for (let k = 1; k < F; k++) {
       const j = k * SUB;
       if ((j > 0 && segGap[j - 1]) || segGap[j]) continue;
-      const isNear = Math.sin(fac + rel[j]) >= 0;
-      const g = isNear ? near : far;
-      g.lineStyle(1, 0xffffff, C.seamA * mul * (isNear ? 1 : C.farMul));
+      const g = this._layer(fac + rel[j]);
+      g.lineStyle(1, 0xffffff, C.seamA * mul);
       g.lineBetween(ox[j], oy[j], ix[j], iy[j]);
     }
     // ── rims and keyline ──
@@ -411,30 +423,44 @@ class CurtainField {
     for (let j = 0; j < N; j++) {
       if (segGap[j]) continue;
       const rm = (rel[j] + rel[j + 1]) / 2;
-      const isNear = Math.sin(fac + rm) >= 0;
-      const g = isNear ? near : far;
-      const m = mul * (isNear ? 1 : C.farMul);
+      const g = this._layer(fac + rm);
+      const m = mul;
       const I = segI(j), sc = segCol(j);
-      if (isNear) {
-        const a = fac + rm, kx = Math.cos(a) * 1.6, ky = Math.sin(a) * 1.6;
-        g.lineStyle(1, C.key, C.keyA * m); g.lineBetween(ox[j] + kx, oy[j] + ky, ox[j + 1] + kx, oy[j + 1] + ky);
-      }
+      const a = fac + rm, kx = Math.cos(a) * 1.6, ky = Math.sin(a) * 1.6;
+      g.lineStyle(1, C.key, C.keyA * m); g.lineBetween(ox[j] + kx, oy[j] + ky, ox[j + 1] + kx, oy[j + 1] + ky);
       g.lineStyle(1, I > 0.01 ? lerpCol(C.lowRim, sc, Math.min(1, I)) : C.lowRim, Math.min(1, (C.lowRimA + I * 0.4) * m));
       g.lineBetween(ix[j], iy[j], ix[j + 1], iy[j + 1]);
-      g.lineStyle(I > 0.3 ? C.rimW + 0.5 : C.rimW, I > 0.01 ? lerpCol(C.rim, sc, Math.min(1, I)) : C.rim, C.rimA * (isNear ? 1 : C.farRim) * mul);
+      g.lineStyle(I > 0.3 ? C.rimW + 0.5 : C.rimW, I > 0.01 ? lerpCol(C.rim, sc, Math.min(1, I)) : C.rim, C.rimA * m);
       g.lineBetween(ox[j], oy[j], ox[j + 1], oy[j + 1]);
     }
     // ── tips: the coverage ends are stated, not implied ──
     for (const j of [0, N]) {
-      const isNear = Math.sin(fac + rel[j]) >= 0;
-      const g = isNear ? near : far;
-      g.fillStyle(0xffffff, 0.85 * mul * (isNear ? 1 : C.farMul));
+      const g = this._layer(fac + rel[j]);
+      g.fillStyle(0xffffff, 0.85 * mul);
       g.fillRect(ix[j] - 1, iy[j] - 1, 2, 2);
     }
 
     // ── per-event overlays (smear, bloom, filaments, snap) ──
     for (const v of ev) this._overlay(v, cx, cy, fac, half, mul, gaps);
     this._drawCore(mul);
+  }
+
+  // DEPTH ROUTING — the one place near / far is decided. South of his centre
+  // (screen y below him) is NEAR: drawn over the body. North is FAR: drawn
+  // under it. The return value is a layer, never a strength.
+  //
+  // A REACTION is a point, not a band, and it goes FAR only when it is BEHIND
+  // him — more than 30deg north of his centre line (`behindSin`). Side-on, a
+  // contact on the facing sits at his own depth, beside him, exactly where his
+  // sidearm crosses the field; split at the centre line, a hit a hair north of
+  // it was drawn under the gun and a hair south over it, so the same Super
+  // read whole facing east and vanished behind the barrel facing west
+  // (measured: 0.89 against 0.12 of the south view on its last beats). The
+  // panels keep the plain split — they are a continuous surface and it is
+  // their depth that makes him stand inside the field.
+  _layer(a, light = false, event = false) {
+    const isNear = Math.sin(a) >= (event ? -CURTAIN.behindSin : 0);
+    return light ? (isNear ? this.glowNear : this.glowFar) : (isNear ? this.near : this.far);
   }
 
   // a point on the field at relative angle r: the combat plane (h = 0) at the
@@ -448,10 +474,12 @@ class CurtainField {
 
   _overlay(v, cx, cy, fac, half, mul, gaps) {
     const R = CURTAIN_RADIUS, t = v.t;
-    const isNear = Math.sin(fac + v.off) >= 0;
-    const g = isNear ? this.near : this.far;            // material (the red smear dies INTO the surface)
-    const L = isNear ? this.glowNear : this.glowFar;    // light
-    const m = mul * (isNear ? 1 : CURTAIN.farMul + 0.2);
+    // the event's LAYERS follow where it is relative to the bearer (depth);
+    // its strength does not — a block, a tear or a prick behind him is the
+    // same event, and only his body may hide it
+    const g = this._layer(fac + v.off, false, true);    // material (the red smear dies INTO the surface)
+    const L = this._layer(fac + v.off, true, true);     // light
+    const m = mul;
     if (v.kind === 'block') {
       if (t >= 130) return;
       // the bolt DIES INTO the surface: a compressed red-hot smear laid along

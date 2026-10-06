@@ -393,7 +393,7 @@ async function shieldIdle() {
     title: 'BULWARK FIELD — idle, live runtime, 1x',
     cols: 1, cellW: 720, cellH: 760,
     cells: [{ label: '1x: front / back / side x Regular / Elite, then a VANGUARD pair', png: b64(buf) }],
-    legend: [['#ffffff', 'bright outer rim = the face the fire arrives at; tips at facing ± 1.35 rad = the coverage'], ['#9fb7d6', 'far half (behind him) softer and under the body — no canopy / hood']],
+    legend: [['#ffffff', 'bright outer rim = the face the fire arrives at; tips at facing ± 1.35 rad = the coverage'], ['#9fb7d6', 'far half (behind him) under the body at the SAME strength — only his body hides it']],
   });
   await compose(OUT + 'bulwark-shield-idle-2x.png', { title: 'BULWARK FIELD — idle, top two rows at 2x (nearest)', cols: 1, cellW: 500, cellH: 380, scale: 2, cells: [{ label: '', png: b64(x2) }] });
   await page.close();
