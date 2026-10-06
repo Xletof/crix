@@ -12,10 +12,21 @@
 // block happens, when, or what it costs. No predictive bolt hiding lives here
 // (deliberately deferred until handset evidence asks for it).
 
-/** Curtain radius for a shielded actor: the field's visual stand-off from its centre. */
-export function curtainRadius(enemy) {
-  return (enemy.cfg?.radius ?? 24) + 22;
-}
+import { ENEMY } from '../config.js';
+
+/**
+ * Curtain radius: the field's visual stand-off from the bearer's centre.
+ *
+ * ONE SIZE FOR BOTH TIERS. It used to read `enemy.cfg.radius + 22`, which is
+ * 46 for a Regular and 55 for an Elite — because the Elite's GAMEPLAY radius
+ * (33, its historical collider) is larger even though it renders at the same
+ * size. The field is identical between tiers by doctrine (a bigger field would
+ * claim a stronger defence that does not exist), so it is the Regular's
+ * number, always. Every block on either tier is decided at body overlap
+ * (<= 41px out), inside this, so the projection is still well defined.
+ */
+export const CURTAIN_RADIUS = ENEMY.shielded.radius + 22;   // 46
+export function curtainRadius(enemy) { return CURTAIN_RADIUS; }   // eslint-disable-line no-unused-vars
 
 const wrap = (a) => {
   a = (a + Math.PI) % (2 * Math.PI);

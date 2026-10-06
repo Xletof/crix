@@ -3,8 +3,8 @@
 // speed, AI or what spawns.
 //
 // Roles are registered by `PreloadScene` as their production art is painted
-// (`src/systems/rosterPaint.js`): the GUNNER (`shooter`), the RIFLEMAN (`grunt`)
-// and the MARKSMAN (`sniper`).
+// (`src/systems/rosterPaint.js`): the GUNNER (`shooter`), the RIFLEMAN (`grunt`),
+// the MARKSMAN (`sniper`) and the BULWARK (`shielded`).
 // Under `?roster=v1` a role with no registered art falls back to legacy art,
 // so the rest of the roster stays exactly as it was while one role is judged.
 //
@@ -22,6 +22,8 @@
 import { isRosterV1 } from '../systems/debug.js';
 import { makeGunnerWeaponFx } from '../systems/gunnerMuzzle.js';
 import { makeRosterWeaponFx } from '../systems/rosterWeaponFx.js';
+import { makeSidearmFx } from '../systems/bulwarkSidearm.js';
+import { makeBulwarkCurtain } from '../systems/bulwarkCurtain.js';
 
 const ROSTER_V1_ART = {};
 
@@ -77,6 +79,16 @@ export function wearRosterArt(enemy, art, bodyRadius) {
     enemy._rosterFx = art.fx;
     enemy._rosterFxObj = makeRosterWeaponFx(enemy, art.fx);
     if (art.fx === 'rifle') enemy._weaponFx = enemy._rosterFxObj;
+  }
+  // BULWARK (`art.bulwark`): the sidearm's own restrained firing cycle (also
+  // the body's `_weaponFx`, so the frozen fire tick hands it the warning and
+  // the shot) and the frosted hard-light FIELD, which takes over the shield's
+  // presentation from the legacy arc. Keyed on `_rosterFx = 'sidearm'`, which
+  // `rosterWeaponFx.js` has no entry for, so neither earlier cycle fires here.
+  if (art.bulwark && !enemy._curtain) {
+    enemy._rosterFx = 'sidearm';
+    enemy._weaponFx = makeSidearmFx(enemy);
+    enemy._curtain = makeBulwarkCurtain(enemy);
   }
   enemy.body.setCircle(bodyRadius, enemy.width / 2 - bodyRadius, enemy.height / 2 - bodyRadius);
 }

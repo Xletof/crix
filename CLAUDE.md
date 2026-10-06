@@ -66,7 +66,7 @@ asserts separately that the ceiling is not reached.
 
 - **Deploys only happen from the `FRIX` branch.** `.github/workflows/deploy.yml`
   triggers on pushes to `FRIX` only. Work lands on the dev branch
-  (`claude/bold-hypatia-iniqck` as of `e2e4109`); GitHub Pages will serve a **stale build**
+  (`claude/relaxed-faraday-swav9o` as of the Bulwark integration; it was `claude/bold-hypatia-iniqck` through `577c487`); GitHub Pages will serve a **stale build**
   until `FRIX` is fast-forwarded. If a session ever finds this name stale again,
   trust `git rev-parse --abbrev-ref HEAD` over this line and fix the line.
 - **Always deploy — don't ask.** The user tests on a phone against GitHub Pages,

@@ -25,6 +25,7 @@
 
 import { SpriteSheet, PixelCanvas } from './pixelArt.js';
 import { isGaitV2 } from './debug.js';
+import { ENEMY } from '../config.js';
 
 const S = 4;                   // world px per logical px — the trooper scale
 export const ROSTER_FRAME = { w: 24, h: 26 };
@@ -875,4 +876,385 @@ export function paintGaitV2Sheet(scene, key, elite, role) {
 }
 
 // what the presentation tick needs to know about each role's gait
-export const GAIT_CYCLE_PX = { 'ro-gun': 48, 'ro-rif': 48, 'ro-mrk': 44 };   // world px of travel per 6-frame walk cycle
+export const GAIT_CYCLE_PX = { 'ro-gun': 48, 'ro-rif': 48, 'ro-mrk': 44, 'ro-blw': 40 };   // world px of travel per 6-frame walk cycle
+
+// ════════════════════════════════════════════════════════════════════════
+// BULWARK (`shielded`) — the defensive heavy of the ordinary roster
+// ════════════════════════════════════════════════════════════════════════
+//
+// YOU IDENTIFY A BULWARK BY THE SHIELD. YOU IDENTIFY AN ELITE BULWARK BY THE
+// MACHINERY SUPPORTING THE SHIELD. The field itself is not painted here — it
+// is a runtime surface (`systems/bulwarkCurtain.js`) on the gameplay arc. This
+// is the man who carries it:
+//
+//   - the BROADEST body in the roster: a 12-wide chest under two 4x4
+//     pauldrons, 20 columns shoulder to shoulder against the Gunner's 18;
+//   - pale STEEL-BLUE plate, baked (the legacy one was the Gunner's sheet
+//     under a multiply tint, which `fx.hitFlash` erased on the first hit);
+//   - an ANGULAR WEDGE helmet: a hexagonal face with a vertical ridge, the two
+//     front planes lit differently, a chin that comes to a point. ONE
+//     uninterrupted horizontal visor slit in a cold, UNLIT blue — no eyes, no
+//     paired lights, no crest, no dome;
+//   - the PROJECTOR on the LEFT forearm (screen-right in front view, the far
+//     arm in profile) carrying a small ice-white emitter core, and the
+//     SIDEARM in the RIGHT hand, which is the separate weapon overlay;
+//   - a GENERATOR on the back, the back view's subject.
+//
+// The ELITE is the same body, the same helmet shell and the same face. Every
+// difference is machinery supporting the field: a bigger gauntlet with a
+// ringed core, a steel brace up the arm, a conduit from the yoke to the
+// projector, a finned generator housing and a reinforced steel yoke. No
+// scale, no tint, no light on the face, and the field it projects is
+// identical (the field module has no notion of tier at all).
+//
+// THE PROJECTOR ARM DOES NOT BOB. The upper body settles one row on a load
+// frame and shifts a column over the planted leg; the gauntlet is painted
+// against the BASE coordinates so it holds still while the torso moves over
+// it — the field is anchored to the body centre and the shield facing, and a
+// projector that bobbed four screen pixels under a still field would be two
+// authors arguing about one object. `BULWARK_CORE` therefore needs one point
+// per facing, not one per frame.
+const BW = { lit: '#c3d1e7', mid: '#92a6c7', dk: '#64799a', sh: '#455672' };   // pale steel-blue plate
+const BU = { lit: '#394150', mid: '#272d38', dk: '#191d25' };                  // undersuit
+const BH = { lit: '#69727f', mid: '#454c58', dk: '#2c3139', st: '#b2bdcd' };   // hardware graphite + steel
+const BCORE = { hot: '#f4faff', rim: '#a9d3f5', dim: '#6f93b6' };              // emitter / generator light
+const BSLIT = '#22364f';                                                       // the visor slit: cold, unlit
+const BBOOT = '#0b0c10';
+
+/**
+ * Where the emitter core is painted, per facing, in LOGICAL sheet pixels
+ * (centre of the 2px core). `null` = hidden (back view: the projector arm is
+ * held forward, on the far side of the body). West is the side block mirrored.
+ */
+export const BULWARK_CORE = {
+  regular: { front: [17.5, 16.5], side: [17.5, 17.5], back: null },
+  elite:   { front: [18.0, 17.0], side: [18.5, 17.0], back: null },
+};
+export const BULWARK_CORE_COLOR = BCORE.hot;
+
+// ── the gauntlet, painted against BASE coordinates (see above) ─────────────
+function bulwarkGauntletFront(g, e, dx) {
+  const X = (x) => x - dx;                                   // undo the gait's column shift
+  if (!e) {
+    g.rect(X(16), 15, 4, 3, BH.mid); g.hl(15, X(16), X(19), BH.lit);
+    g.px(X(19), 16, BH.dk); g.px(X(16), 17, BH.dk);
+    g.px(X(17), 16, BCORE.hot); g.px(X(18), 16, BCORE.rim);  // emitter, facing the field
+  } else {
+    g.rect(X(15), 14, 6, 5, BH.mid); g.hl(14, X(15), X(20), BH.lit);
+    g.vl(X(20), 14, 18, BH.st);                              // steel side plate
+    g.hl(18, X(15), X(19), BH.dk);
+    g.px(X(16), 16, BCORE.rim); g.px(X(19), 16, BCORE.rim);  // ringed core
+    g.px(X(16), 17, BCORE.dim); g.px(X(19), 17, BCORE.dim);
+    g.rect(X(17), 16, 2, 2, BCORE.hot);
+  }
+}
+function bulwarkGauntletSide(g, e) {
+  if (!e) {
+    g.rect(14, 16, 4, 3, BH.mid); g.hl(16, 14, 17, BH.lit); g.hl(18, 14, 16, BH.dk);
+    g.px(17, 16, BCORE.rim); g.px(17, 17, BCORE.hot);
+  } else {
+    g.rect(13, 15, 6, 4, BH.mid); g.hl(15, 13, 18, BH.lit); g.hl(18, 13, 17, BH.dk);
+    g.hl(14, 12, 15, BH.st);                                 // brace along the forearm
+    g.px(18, 16, BCORE.hot); g.px(18, 17, BCORE.hot); g.px(17, 16, BCORE.rim); g.px(17, 17, BCORE.rim);
+  }
+}
+
+// ── STOCK-CONTRACT LEGS (no `?gait=v2`): the shared channel tables ─────────
+// Armoured legs are three columns wide and the stance is wider than any other
+// role's — the base is what a defensive heavy is standing on.
+function bulwarkLegsFBStock(g, o, hipY) {
+  for (const [x, lift] of [[o.lx - 2, o.liftL], [o.rx + 1, o.liftR]]) {
+    const bootY = 23 - lift;
+    g.rect(x, hipY, 3, bootY - hipY, BW.mid);
+    g.hl(hipY, x, x + 2, BW.dk); g.vl(x < 12 ? x : x + 2, hipY + 1, bootY - 1, BW.dk);
+    g.hl(hipY + 2, x, x + 2, BW.lit);                                    // knee plate
+    g.rect(x, bootY, 3, 2, BBOOT); g.hl(bootY + 1, x, x + 2, BU.lit);    // boot, toe toward the viewer
+  }
+  g.rect(o.lx - 2, hipY - 1, o.rx - o.lx + 6, 2, BU.mid);
+}
+function bulwarkLegsSideStock(g, o, hipY) {
+  const leg = (x, lift, col) => { const bootY = 23 - lift; g.rect(x, hipY, 2, bootY - hipY, col); return bootY; };
+  const fb = leg(o.far, o.farLift, BW.sh); g.rect(o.far - 1, fb, 4, 2, BBOOT);
+  const nb = leg(o.near, o.nearLift, BW.dk); g.px(o.near + 1, hipY + 2, BW.lit);
+  g.rect(o.near - 1, nb, 4, 2, BBOOT); g.px(o.near + 2, nb, BU.lit);
+  g.rect(9, hipY - 1, 6, 2, BU.mid);
+}
+
+// ── FRONT / BACK ───────────────────────────────────────────────────────────
+function bulwarkFrontBack(g, dir, e, o) {
+  const front = dir === 'front', b = o.bob, dx = o.dx || 0;
+  // GENERATOR — front view: only its housing shows, behind the shoulders
+  if (front) {
+    if (e) { g.rect(5, 8 + b, 3, 2, BH.mid); g.hl(8 + b, 5, 7, BH.lit); g.rect(16, 8 + b, 3, 2, BH.mid); g.hl(8 + b, 16, 18, BH.lit); g.px(17, 9 + b, BCORE.dim); }
+    else { g.rect(15, 8 + b, 3, 2, BH.mid); g.hl(8 + b, 15, 17, BH.lit); }
+  }
+  if (!o.noLegs) bulwarkLegsFBStock(g, o, 18 + b);
+  // TORSO — 12 wide, a chevron breast plate (the wedge again), a belt
+  g.rect(6, 12 + b, 12, 6, BU.mid);                                       // undersuit under the plate
+  g.rect(6, 12 + b, 12, 3, BW.mid); g.sym(12 + b, 12, BW.lit);            // breast plate
+  if (front) {
+    g.hl(15 + b, 8, 15, BW.mid); g.hl(16 + b, 10, 13, BW.dk);            // its lower edge comes to a point (the wedge again)
+    g.px(11, 13 + b, BW.lit); g.px(12, 13 + b, BW.dk);                    // sternum ridge
+    g.hl(17 + b, 6, 17, BU.dk); g.px(11, 17 + b, BH.st); g.px(12, 17 + b, BH.st);   // belt + buckle
+  } else {
+    g.vl(6, 13 + b, 16 + b, BW.dk); g.vl(17, 13 + b, 16 + b, BW.dk);
+  }
+  // PAULDRONS — two broad angular plates, chamfered at the outer top corner
+  const ay = 10 + b + o.armDy;
+  for (const x of [3, 17]) {
+    const cx = x === 3 ? x + 1 : x;                           // chamfered at the OUTER top corner
+    g.hl(ay, cx, cx + 2, BW.lit);
+    g.rect(x, ay + 1, 4, 3, BW.mid); g.hl(ay + 1, x, x + 3, BW.lit); g.hl(ay + 3, x, x + 3, BW.sh);
+    g.vl(x === 3 ? 6 : 17, ay + 2, ay + 3, BW.sh);                        // a seam where plate meets chest
+  }
+  if (front) {
+    // RIGHT ARM (screen-left): elbow, then a forearm coming in across the
+    // belly to the hand that holds the sidearm (the overlay starts there)
+    g.rect(4, 14 + b, 2, 2, BW.dk); g.rect(5, 16 + b, 2, 1, BW.mid); g.px(5, 16 + b, BW.dk);
+    g.rect(7, 17 + b, 2, 1, BW.dk); g.px(9, 17 + b, BU.lit);
+    // LEFT ARM (screen-right): upper arm, then the projector held over the hip
+    g.rect(18, 14 + b, 2, 1, BW.dk);
+    bulwarkGauntletFront(g, e, dx);
+  } else {
+    // BACK: both forearms are forward, on the far side of him
+    g.rect(4, 14 + b, 2, 2, BW.dk); g.rect(18, 14 + b, 2, 2, BW.dk);
+    g.px(3, 16, BH.mid); g.px(4, 16, BH.dk);                 // the gauntlet's outer edge, char-left
+    // THE GENERATOR — the back view's subject
+    if (!e) {
+      g.rect(8, 10 + b, 8, 7, BH.mid); g.hl(10 + b, 8, 15, BH.lit); g.vl(8, 11 + b, 16 + b, BH.dk); g.hl(16 + b, 8, 15, BH.dk);
+      g.vl(11, 12 + b, 14 + b, BCORE.dim); g.vl(12, 12 + b, 14 + b, BCORE.dim); g.px(11, 13 + b, BCORE.rim); g.px(12, 13 + b, BCORE.rim);
+    } else {
+      g.rect(7, 9 + b, 10, 8, BH.mid); g.hl(9 + b, 7, 16, BH.lit); g.hl(16 + b, 7, 16, BH.dk);
+      for (const fx of [6, 17]) { g.vl(fx, 11 + b, 14 + b, BH.dk); g.px(fx, 11 + b, BH.lit); }       // fins
+      g.vl(11, 11 + b, 14 + b, BCORE.rim); g.vl(12, 11 + b, 14 + b, BCORE.rim); g.px(11, 12 + b, BCORE.hot); g.px(12, 12 + b, BCORE.hot);
+      g.hl(15 + b, 9, 14, BH.st);
+      g.px(7, 10 + b, BCORE.dim); g.px(6, 10 + b, BH.dk); g.px(5, 11 + b, BH.dk);   // conduit to the projector arm
+    }
+  }
+  // HELMET — the armoured wedge: a flat crown, full-width cheeks, and two
+  // face planes converging to a pointed chin either side of a vertical ridge
+  g.sym(11 + b, 4, BU.mid);                                                // gorget, under the chin point
+  const rows = [[3, 9, 14], [4, 8, 15], [5, 8, 15], [6, 8, 15], [7, 8, 15], [8, 8, 15], [9, 9, 14], [10, 10, 13], [11, 11, 12]];
+  for (const [y, x0, x1] of rows) { g.hl(y + b, x0, Math.min(x1, 11), BW.mid); if (x1 >= 12) g.hl(y + b, Math.max(x0, 12), x1, BW.dk); }
+  g.hl(3 + b, 9, 14, BW.lit); g.hl(4 + b, 8, 11, BW.lit);                 // the crown plane takes the light
+  g.vl(8, 5 + b, 8 + b, BW.lit);
+  if (front) {
+    g.vl(11, 4 + b, 6 + b, BW.lit); g.vl(12, 4 + b, 6 + b, BW.mid);        // the ridge — the wedge's apex
+    g.vl(11, 8 + b, 10 + b, BW.lit); g.vl(12, 8 + b, 10 + b, BW.mid);
+    g.hl(7 + b, 9, 14, BSLIT);                                             // ONE slit, edge to edge, unlit
+  } else {
+    g.vl(11, 3 + b, 9 + b, BW.lit); g.vl(12, 3 + b, 9 + b, BW.mid);        // rear ridge
+    g.hl(9 + b, 9, 14, BW.sh); g.hl(10 + b, 10, 13, BW.sh);
+  }
+  if (e) {
+    g.hl(11 + b, 7, 16, BH.st); g.hl(12 + b, 8, 15, BH.mid);               // REINFORCED YOKE
+    if (front) {
+      g.vl(21, 12 + b, 15, BH.st);                                         // brace up the projector arm
+      g.px(16, 12 + b, BH.dk); g.px(16, 13 + b, BCORE.dim); g.px(15, 14 + b, BH.dk);   // conduit, yoke -> projector
+    }
+  }
+}
+
+// ── SIDE (east). Near = char-RIGHT (the sidearm arm), far = the projector ──
+function bulwarkSide(g, e, o) {
+  const b = o.bob, L = o.lean;
+  // far arm first: the projector, held forward at the hip, steady
+  bulwarkGauntletSide(g, e);
+  // GENERATOR on the back (west)
+  if (!e) {
+    g.rect(4 + L, 9 + b, 4, 7, BH.mid); g.hl(9 + b, 4 + L, 7 + L, BH.lit); g.vl(4 + L, 10 + b, 15 + b, BH.dk);
+    g.px(5 + L, 12 + b, BCORE.dim); g.px(5 + L, 13 + b, BCORE.rim);
+  } else {
+    g.rect(3 + L, 8 + b, 5, 9, BH.mid); g.hl(8 + b, 3 + L, 7 + L, BH.lit); g.vl(3 + L, 9 + b, 16 + b, BH.dk);
+    g.vl(2 + L, 10 + b, 13 + b, BH.dk); g.px(2 + L, 10 + b, BH.lit);                      // fin
+    g.px(5 + L, 11 + b, BCORE.rim); g.px(5 + L, 12 + b, BCORE.hot); g.px(5 + L, 13 + b, BCORE.rim);
+  }
+  if (!o.noLegs) bulwarkLegsSideStock(g, o, 18 + b);
+  // TORSO — deep chest in profile
+  g.rect(8 + L, 12 + b, 8, 6, BW.mid); g.hl(12 + b, 8 + L, 15 + L, BW.lit); g.vl(15 + L, 13 + b, 16 + b, BW.lit);
+  g.hl(17 + b, 8 + L, 15 + L, BU.mid); g.vl(8 + L, 13 + b, 16 + b, BW.dk);
+  if (e) { g.px(13 + L, 15 + b, BCORE.dim); g.px(14 + L, 15 + b, BH.dk); }               // conduit to the projector
+  // NEAR PAULDRON + the sidearm arm, forward at chest height
+  const sy = 10 + b + o.armDy, sx = 9 + L - (o.fire ? 1 : 0);
+  g.hl(sy, sx + 1, sx + 4, BW.lit); g.rect(sx, sy + 1, 5, 3, BW.mid); g.hl(sy + 3, sx, sx + 4, BW.sh);
+  g.rect(11 + L, 14 + b, 2, 1, BW.dk);
+  g.rect(13 + L + o.hand - (o.fire ? 1 : 0), 14 + b + Math.min(0, o.armDy), 3, 1, BU.mid);
+  // HELMET — the wedge in profile: a long shallow upper face plane from the
+  // crown, a steep lower one from the chin, meeting in ONE edge at the slit
+  const prof = [[3, 10, 13], [4, 9, 14], [5, 9, 15], [6, 9, 15], [7, 9, 16], [8, 9, 15], [9, 9, 15], [10, 10, 14]];
+  for (const [y, x0, x1] of prof) g.hl(y + b, x0 + L, x1 + L, BW.mid);
+  g.hl(3 + b, 10 + L, 13 + L, BW.lit); g.hl(4 + b, 9 + L, 14 + L, BW.lit);
+  g.px(15 + L, 5 + b, BW.lit); g.px(15 + L, 6 + b, BW.lit); g.px(14 + L, 5 + b, BW.lit);  // upper face plane, lit
+  g.hl(7 + b, 13 + L, 16 + L, BSLIT);                                                    // the slit, to the front edge
+  g.px(15 + L, 8 + b, BW.dk); g.px(15 + L, 9 + b, BW.dk); g.px(14 + L, 10 + b, BW.dk);  // lower face plane, in shadow
+  g.hl(10 + b, 10 + L, 13 + L, BW.sh);
+  g.vl(9 + L, 5 + b, 9 + b, BW.dk);
+  g.rect(10 + L, 11 + b, 4, 1, BU.mid);                                                  // gorget
+  if (e) g.hl(11 + b, 9 + L, 14 + L, BH.st);                                             // yoke
+}
+
+function bulwarkFrame(dir, e, o) {
+  const g = grid(ROSTER_FRAME.w, ROSTER_FRAME.h);
+  if (dir === 'side') bulwarkSide(g, e, o); else bulwarkFrontBack(g, dir, e, o);
+  g.outline();
+  return g;
+}
+
+// ── GAIT v2 — THE HEAVY TACTICAL SHUFFLE ───────────────────────────────────
+//
+// The corrected anatomy (one pelvis, knees, both boots one way, the far leg
+// allowed to vanish) at a DEFENSIVE scale: hip sockets six columns apart
+// (the other roles: four), three-column armoured legs, four-pixel boots, a
+// compact stride (feet within +2/-3 of the hip in profile against +-3), and a
+// LOW swing — the travelling foot clears the deck by one row ('L'), never two.
+// Weight moves on the load frame only, one column, one row. The cycle is 40px
+// of real travel (GAIT_CYCLE_PX), because the planted foot slides back five
+// logical pixels per step.
+export const BULWARK_GAIT = {
+  fb: {
+    idle: { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'F' }, dx: 0, bob: 0 },
+    walk: [
+      { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'H' }, dx: 0, bob: 0 },
+      { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'L' }, dx: -1, bob: 1 },
+      { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'L' }, dx: 0, bob: 0 },
+      { L: { fx: 0, st: 'H' }, R: { fx: 0, st: 'F' }, dx: 0, bob: 0 },
+      { L: { fx: 0, st: 'L' }, R: { fx: 0, st: 'F' }, dx: 1, bob: 1 },
+      { L: { fx: 0, st: 'L' }, R: { fx: 0, st: 'F' }, dx: 0, bob: 0 },
+    ],
+    fire: { L: { fx: -1, st: 'F' }, R: { fx: 1, st: 'F' }, dx: 0, bob: 0 },
+    // side-step painted moving SCREEN-RIGHT (played backwards to go left)
+    strafe: [
+      { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'F' }, dx: 0, bob: 0 },
+      { L: { fx: 0, st: 'F' }, R: { fx: 1, st: 'L' }, dx: 0, bob: 0 },
+      { L: { fx: 0, st: 'F' }, R: { fx: 1, st: 'F' }, dx: 1, bob: 1 },
+      { L: { fx: 0, st: 'L' }, R: { fx: 1, st: 'F' }, dx: 1, bob: 0 },
+      { L: { fx: 1, st: 'L' }, R: { fx: 1, st: 'F' }, dx: 0, bob: 0 },
+      { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'F' }, dx: 0, bob: 1 },
+    ],
+  },
+  side: {
+    idle: { N: { k: 0, f: 1, st: 'F' }, F: { k: 0, f: -2, st: 'F' }, bob: 0 },
+    walk: [
+      { N: { k: 1, f: 2, st: 'F' }, F: { k: -1, f: -3, st: 'H' }, bob: 0 },
+      { N: { k: 1, f: 1, st: 'F' }, F: { k: 1, f: -1, st: 'L' }, bob: 1 },
+      { N: { k: 0, f: -1, st: 'F' }, F: { k: 1, f: 1, st: 'L' }, bob: 0 },
+      { N: { k: -1, f: -3, st: 'H' }, F: { k: 1, f: 2, st: 'F' }, bob: 0 },
+      { N: { k: 1, f: -1, st: 'L' }, F: { k: 1, f: 1, st: 'F' }, bob: 1 },
+      { N: { k: 1, f: 1, st: 'L' }, F: { k: 0, f: -1, st: 'F' }, bob: 0 },
+    ],
+    fire: { N: { k: 1, f: 2, st: 'F' }, F: { k: -1, f: -2, st: 'F' }, bob: 0 },
+    // toward / away from the camera in profile: marking time, low knees
+    strafe: [
+      { N: { k: 0, f: 1, st: 'F' }, F: { k: 0, f: -2, st: 'F' }, bob: 0 },
+      { N: { k: 1, f: 1, st: 'L' }, F: { k: 0, f: -2, st: 'F' }, bob: 0 },
+      { N: { k: 1, f: 1, st: 'F' }, F: { k: 0, f: -2, st: 'F' }, bob: 1 },
+      { N: { k: 0, f: 1, st: 'F' }, F: { k: 0, f: -2, st: 'F' }, bob: 0 },
+      { N: { k: 0, f: 1, st: 'F' }, F: { k: 1, f: -2, st: 'L' }, bob: 0 },
+      { N: { k: 0, f: 1, st: 'F' }, F: { k: 1, f: -2, st: 'F' }, bob: 1 },
+    ],
+  },
+};
+// boot top row per foot state: flat, heel up (toe on the deck), low swing, swing
+const blwFootTop = (st) => (st === 'S' ? 21 : (st === 'L' || st === 'H') ? 22 : 23);
+
+function blwLegFB(g, x, leg, hipY, back) {
+  const top = blwFootTop(leg.st), fx = x + leg.fx;
+  const kneeY = hipY + Math.max(1, Math.floor((top - hipY) / 2));
+  const inward = leg.st === 'L' ? (x < 12 ? 1 : -1) : 0;       // a travelling knee comes in under the pelvis
+  g.rect(x, hipY, 3, kneeY - hipY, BW.dk);                       // thigh
+  g.rect(x + inward, kneeY, 3, 1, BW.lit);                       // knee plate
+  for (let y = kneeY + 1; y < top; y++) g.rect(fx + (y === kneeY + 1 ? inward : 0), y, 3, 1, BW.mid);   // greave
+  // BOTH boots point the same way: the toe faces the viewer in front view
+  if (leg.st === 'H') { g.rect(fx, top, 3, 1, BBOOT); g.rect(fx, top + 1, 3, 1, back ? BBOOT : BU.lit); }
+  else { g.rect(fx, top, 3, 2, BBOOT); if (!back) g.hl(top + 1, fx, fx + 2, BU.lit); }
+}
+
+function blwLegSide(g, leg, hipY, col, near) {
+  const HX = 11, top = blwFootTop(leg.st);
+  const kneeY = hipY + Math.max(1, Math.floor((top - hipY) / 2)) - (leg.st === 'L' ? 1 : 0);
+  const kx = HX + leg.k, ax = HX + leg.f;
+  for (let y = hipY; y < top; y++) {
+    const x = y <= kneeY
+      ? Math.round(HX + (kx - HX) * ((y - hipY) / Math.max(1, kneeY - hipY)))
+      : Math.round(kx + (ax - kx) * ((y - kneeY) / Math.max(1, top - kneeY)));
+    g.rect(x, y, 2, 1, col);
+  }
+  if (near) g.px(kx + 1, kneeY, BW.lit);                         // the near knee plate
+  // the BOOT POINTS EAST on both legs: heel at the ankle, a heavy toe forward
+  if (leg.st === 'H') { g.rect(ax, top, 2, 1, BBOOT); g.rect(ax + 1, top + 1, 3, 1, BBOOT); }
+  else { g.rect(ax, top, 4, 2, BBOOT); if (near) g.px(ax + 3, top, BU.lit); }
+}
+
+function bulwarkGaitFrame(dir, e, spec, base) {
+  const g = grid(ROSTER_FRAME.w, ROSTER_FRAME.h), hip = 18 + spec.bob;
+  const dx = dir === 'side' ? 0 : (spec.dx || 0);
+  if (dir === 'side') {
+    blwLegSide(g, spec.F, hip, BW.sh, false);
+    blwLegSide(g, spec.N, hip, BW.dk, true);
+    g.rect(9, hip - 1, 6, 2, BU.mid);                            // the pelvis both legs hang from
+  } else {
+    blwLegFB(g, 7, spec.L, hip, dir === 'back');
+    blwLegFB(g, 14, spec.R, hip, dir === 'back');
+    g.rect(7 + dx, hip - 1, 10, 2, BU.mid);                      // a wide pelvis, carried over the planted leg
+  }
+  const s = shifted(g, dx, 0);
+  const up = { ...base, bob: spec.bob, noLegs: true, dx };
+  if (dir === 'side') bulwarkSide(s, e, up); else bulwarkFrontBack(s, dir, e, up);
+  g.outline();
+  return g;
+}
+
+function paintBulwarkGaitSheet(scene, key, elite) {
+  const ss = new SpriteSheet(scene, key, ROSTER_FRAME.w, ROSTER_FRAME.h, GAIT_FRAMES, S);
+  const pose = (P) => ({ fire: false, armDy: P ? P.armDy : 0, armDx: P ? P.armDx : 0, lean: P ? P.lean : 0, hand: P ? P.hand : 0 });
+  ['front', 'back', 'side'].forEach((dir, di) => {
+    const T = dir === 'side' ? BULWARK_GAIT.side : BULWARK_GAIT.fb;
+    bulwarkGaitFrame(dir, elite, T.idle, pose(null)).blit(ss.frame(di * 8));
+    T.walk.forEach((sp, k) => bulwarkGaitFrame(dir, elite, sp, pose(null)).blit(ss.frame(di * 8 + 1 + k)));
+    bulwarkGaitFrame(dir, elite, T.fire, { ...pose(null), fire: true }).blit(ss.frame(di * 8 + 7));
+    ['raise', 'thrust', 'recoil'].forEach((p, pi) => bulwarkGaitFrame(dir, elite, p === 'raise' ? T.idle : T.fire, pose(POSES[p])).blit(ss.frame(24 + di * 3 + pi)));
+    T.strafe.forEach((sp, k) => bulwarkGaitFrame(dir, elite, sp, pose(null)).blit(ss.frame(GAIT_STRAFE_BASE + di * 6 + k)));
+  });
+  ss.finish();
+}
+
+// ── THE SIDEARM — compact, one-handed, secondary ───────────────────────────
+//
+// Not the projector (the shield is not the gun), not the legacy rifle, not a
+// carbine. A short pistol in a gloved right hand, at the end of an armoured
+// forearm. The overlay carries the forearm because the base class (frozen)
+// rotates the overlay to the aim about a pivot `cfg.radius - 4` out, and a
+// pistol on its own out there would float off the body.
+//
+// THE MUZZLE IS PLACED BY THE GAMEPLAY SPAWN POINT, as for every role: the
+// Bulwark's bolt is 700px/s, so its leading edge on the first drawn frame is
+// `muzzlePastPivot(700)` = 54px past the pivot, and the drawn muzzle goes
+// there. A pistol at full arm's reach is exactly what a one-handed aimed shot
+// looks like from above. The ELITE pivots 9px further out (gameplay radius 33
+// against 24): its forearm is two gun-pixels longer at the BACK so the elbow
+// lands on the same place on the body; the pistol itself is identical.
+export const SIDEARM = { h: 5, barrelRow: 1 };
+export const BULWARK_MUZZLE_PAST_PIVOT = Math.round(muzzlePastPivot(ENEMY.shielded.bulletSpeed));   // 54
+function paintSidearm(scene, key, elite) {
+  const fore = elite ? 7 : 5, len = fore + 8;
+  const w = weaponGrid(len, SIDEARM.h);
+  w.rect(0, 1, fore, 3, BW.mid); w.hl(1, 0, fore - 1, BW.lit); w.hl(3, 0, fore - 1, BW.dk);   // armoured forearm
+  w.rect(fore, 1, 1, 3, BU.mid);                                                             // cuff
+  w.rect(fore + 1, 2, 2, 2, BU.dk);                                                          // glove round the grip
+  w.rect(fore + 1, 0, 7, 2, BH.mid); w.hl(0, fore + 1, fore + 7, BH.lit);                    // slide, lit top plane
+  w.px(fore + 7, 1, BH.dk);                                                                  // bore
+  w.rect(fore + 3, 2, 2, 1, BH.dk);                                                          // frame / guard
+  return paintWeaponGrid(scene, key, w, BULWARK_MUZZLE_PAST_PIVOT, SIDEARM.barrelRow);
+}
+
+/** Bulwark production art. Registered for `shielded` by PreloadScene. */
+export function paintRosterBulwark(scene) {
+  if (isGaitV2()) { paintBulwarkGaitSheet(scene, 'ro-blw-R', false); paintBulwarkGaitSheet(scene, 'ro-blw-E', true); }
+  else { paintRoleSheet(scene, 'ro-blw-R', false, bulwarkFrame); paintRoleSheet(scene, 'ro-blw-E', true, bulwarkFrame); }
+  const oR = paintSidearm(scene, 'ro-w-blw-R', false);
+  const oE = paintSidearm(scene, 'ro-w-blw-E', true);
+  return {
+    regular: { tex: 'ro-blw-R', prefix: 'ro-blw-R', weapon: 'ro-w-blw-R', weaponOrigin: oR, bulwark: true },
+    elite:   { tex: 'ro-blw-E', prefix: 'ro-blw-E', weapon: 'ro-w-blw-E', weaponOrigin: oE, bulwark: true },
+  };
+}

@@ -76,8 +76,9 @@ import {
   paintBustVader,
   paintNemesisBrute, paintNemesisDemolisher, paintNemesisMarksman,
 } from '../systems/pixelArt.js';
-import { paintRosterGunner, paintRosterRifleman, paintRosterMarksman } from '../systems/rosterPaint.js';
+import { paintRosterGunner, paintRosterRifleman, paintRosterMarksman, paintRosterBulwark } from '../systems/rosterPaint.js';
 import { paintRosterMuzzles } from '../systems/rosterWeaponFx.js';
+import { paintSidearmMuzzle } from '../systems/bulwarkSidearm.js';
 import { registerRosterArt } from '../data/rosterArt.js';
 import { paintGunnerMuzzle } from '../systems/gunnerMuzzle.js';
 
@@ -101,6 +102,10 @@ export class PreloadScene extends Phaser.Scene {
     registerRosterArt('grunt', paintRosterRifleman(this));
     registerRosterArt('sniper', paintRosterMarksman(this));
     paintRosterMuzzles(this);
+    // Bulwark (`shielded`): body, sidearm, and the sidearm's own discharge. Its
+    // FIELD is a runtime surface (systems/bulwarkCurtain.js), not a texture.
+    registerRosterArt('shielded', paintRosterBulwark(this));
+    paintSidearmMuzzle(this);
     // PHASE B CANDIDATE — the first Champion. See CHAMPION in config.js.
     paintInterdictor(this);
     // PHASE B.1 CANDIDATE — the Harrower. Driven frame-by-frame by its actor
@@ -290,6 +295,8 @@ export class PreloadScene extends Phaser.Scene {
       { key: 'ro-rif-E', tex: 'ro-rif-E' },
       { key: 'ro-mrk-R', tex: 'ro-mrk-R' },
       { key: 'ro-mrk-E', tex: 'ro-mrk-E' },
+      { key: 'ro-blw-R', tex: 'ro-blw-R' },
+      { key: 'ro-blw-E', tex: 'ro-blw-E' },
     ];
 
     for (const c of chars) {
@@ -361,6 +368,8 @@ export class PreloadScene extends Phaser.Scene {
       { key: 'ro-rif-E', tex: 'ro-rif-E' },
       { key: 'ro-mrk-R', tex: 'ro-mrk-R' },
       { key: 'ro-mrk-E', tex: 'ro-mrk-E' },
+      { key: 'ro-blw-R', tex: 'ro-blw-R' },
+      { key: 'ro-blw-E', tex: 'ro-blw-E' },
     ];
     for (const c of posed) {
       poseDirs.forEach((dirName, di) => {

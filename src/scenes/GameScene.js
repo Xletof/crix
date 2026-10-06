@@ -142,6 +142,8 @@ import { rosterArtFor, wearRosterArt } from '../data/rosterArt.js';
 import { attachGunnerMuzzle } from '../systems/gunnerMuzzle.js';
 import { attachRosterWeaponFx } from '../systems/rosterWeaponFx.js';
 import { attachRosterGait } from '../systems/rosterGait.js';
+import { attachBulwarkCurtains } from '../systems/bulwarkCurtain.js';
+import { attachBulwarkSidearms } from '../systems/bulwarkSidearm.js';
 import { projectCurtainContact, curtainRadius } from '../systems/shieldContact.js';
 
 export class GameScene extends Phaser.Scene {
@@ -269,6 +271,8 @@ export class GameScene extends Phaser.Scene {
     attachHazards(this);
     attachGunnerMuzzle(this);   // v1 Gunner muzzle discharge — presentation only
     attachRosterWeaponFx(this); // v1 Rifleman / Marksman firing — presentation only
+    attachBulwarkSidearms(this); // v1 Bulwark sidearm firing — presentation only
+    attachBulwarkCurtains(this); // v1 Bulwark hard-light field — presentation only
     if (isGaitV2()) attachRosterGait(this);   // ?gait=v2 locomotion presentation
     // ── CAPTAIN COMBAT-ECONOMY TELEMETRY — `?captel=1` ────────────────────
     // NOT CONSTRUCTED WITHOUT THE FLAG. No container, no listeners, no panel
@@ -4515,16 +4519,27 @@ export class GameScene extends Phaser.Scene {
           // Shielded troopers deflect non-piercing frontal hits. The super is
           // piercing, so it punches straight through the shield.
           if (e._blocksFrontal && !b.piercing && e.isFrontalHit?.(flightAng)) {
-            e.onBlock?.(this._curtainContact(e, b, flightAng));
-            this.fx.impactRing(b.x, b.y, 0x50b0ff);  // blue shield clang
-            this.fx.healingSparkle(b.x, b.y, 6);       // blue deflection sparks
+            const contact = this._curtainContact(e, b, flightAng);
+            e.onBlock?.(contact);
+            // ONE AUTHOR PER HIT. A roster-v1 Bulwark's field draws its own
+            // absorption at the contact (systems/bulwarkCurtain.js), so the
+            // generic clang and sparkle would be a second author on top of it.
+            // It still performs the legacy sparkle's random draws, unseen,
+            // so the fight after the block is the same fight.
+            if (e._curtain) e._curtain.block(contact, b.x, b.y);
+            else {
+              this.fx.impactRing(b.x, b.y, 0x50b0ff);  // blue shield clang
+              this.fx.healingSparkle(b.x, b.y, 6);       // blue deflection sparks
+            }
             b.kill();
             break; // bullet stopped by the shield — no damage, no super credit
           }
           // A piercing round through the FRONT of the field: tell the bearer
           // where it crossed (presentation only — the round is not touched).
           if (e._blocksFrontal && b.piercing && e.isFrontalHit?.(flightAng)) {
-            e.onPierce?.(this._curtainContact(e, b, flightAng));
+            const contact = this._curtainContact(e, b, flightAng);
+            e.onPierce?.(contact);
+            e._curtain?.pierce(contact);
           }
           b.hasHit = true;
           if (!isSuper && b.owner === 'player') this.player.onHitLanded();

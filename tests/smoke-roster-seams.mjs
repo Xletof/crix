@@ -154,7 +154,7 @@ for (const [k, v] of Object.entries(want)) check(legacy.units[k].play.rusher ===
 // Phase 2A gave the GUNNER (`shooter`) its production art (`smoke-roster-gunner`),
 // Phase 2B the RIFLEMAN (`grunt`) and MARKSMAN (`sniper`) (`smoke-roster-2b`).
 // Every other role still falls back.
-const V1_ROLES = { shooter: 'ro-gun-R', 'shooter+E': 'ro-gun-E', grunt: 'ro-rif-R', 'grunt+E': 'ro-rif-E', sniper: 'ro-mrk-R', 'sniper+E': 'ro-mrk-E' };
+const V1_ROLES = { shooter: 'ro-gun-R', 'shooter+E': 'ro-gun-E', grunt: 'ro-rif-R', 'grunt+E': 'ro-rif-E', sniper: 'ro-mrk-R', 'sniper+E': 'ro-mrk-E', shielded: 'ro-blw-R', 'shielded+E': 'ro-blw-E' };
 const pV = await boot('?nodlg=1&nofreeze=1&roster=v1');
 const v1 = await pV.evaluate(PROBE);
 const flags = await pV.evaluate(async () => {

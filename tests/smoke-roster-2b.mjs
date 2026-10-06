@@ -120,8 +120,12 @@ check(V.grunt.look.loco && V.grunt.look.v22 && V['grunt+E'].look.v22, 'Rifleman 
 check(!V.sniper.look.loco && !V.sniper.look.v22 && !V['sniper+E'].look.v22, 'Marksman does NOT get movement v2.2 — it keeps its own sniper logic', JSON.stringify(V.sniper.look));
 check(V.shooter.look.tex === 'ro-gun-R' && V.shooter.look.gunnerRotor && V.shooter.look.gunnerMuzzle && !V.shooter.look.rosterFx,
   'the Gunner is untouched: ro-gun-R, its own v5 rotor and muzzle, no 2B FX', JSON.stringify(V.shooter.look));
-check(V.bomber.look.tex === 'grunt' && V.swarmling.look.tex === 'grunt' && V.shielded.look.tex === 'shooter' && !V.bomber.look.rosterFx && !V.swarmling.look.rosterFx,
-  'Demolisher (bomber), swarmling and Bulwark (shielded) stay on legacy art with no 2B FX — though bomber and swarmling are grunt subclasses', JSON.stringify({ b: V.bomber.look, s: V.swarmling.look, sh: V.shielded.look }));
+// The Bulwark has its own production art since the Bulwark integration
+// (smoke-bulwark owns it); what this file still pins is that neither 2B
+// firing cycle attaches to it.
+check(V.bomber.look.tex === 'grunt' && V.swarmling.look.tex === 'grunt' && !V.bomber.look.rosterFx && !V.swarmling.look.rosterFx
+  && V.shielded.look.tex === 'ro-blw-R' && V.shielded.look.rosterFx === 'sidearm',
+  'Demolisher (bomber) and swarmling stay on legacy art with no 2B FX — though both are grunt subclasses; the Bulwark wears its own art and its own sidearm cycle, never a 2B one', JSON.stringify({ b: V.bomber.look, s: V.swarmling.look, sh: V.shielded.look }));
 
 // ── sheet contract ─────────────────────────────────────────────────────────
 const sheet = await pV.evaluate(() => {
