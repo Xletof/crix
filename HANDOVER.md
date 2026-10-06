@@ -470,30 +470,95 @@ Not started, and not to be started on the strength of this pass: the Elite
 redesign, Commander design, a second Champion, new arenas, Nemesis
 replacement.
 
-### ROSTER PHASE 2A — GUNNER + MOVEMENT v2.2. **HUMAN-APPROVED / FROZEN 🔒** (`3ce5680`)
+### ROSTER PHASE 2 (2A + 2B) — **CLOSED, HUMAN-APPROVED / FROZEN 🔒** (`e2e4109`)
 
-- **Gunner** Regular + Elite production art, weapon art and weapon fire **v5**
-  (the 3x3 chamber rotor) are human-approved and FROZEN. Do not reopen them
-  without NEW regression evidence.
-- **Movement v2.2** (destination ownership, `?move=v22`) is human-approved for
-  **Gunner + Rifleman only**. No speculative v2.3. Doctrine: **CHOOSE USEFUL
-  SPACE → COMMIT → SETTLE → PERFORM ROLE.** The `?roster=v1` and
-  `?move=v2|v21|v22` flags stay until the wider roster rollout is approved;
-  defaults are still legacy art and shipped movement.
-- Record: `docs/evidence/roster-gunner-v1/gunner-v5-move-v22-notes.md`.
+Closed on handset review. Do not reopen any of it without NEW human gameplay evidence.
 
-### IN FLIGHT — ROSTER PHASE 2B: RIFLEMAN + MARKSMAN. **AWAITING HANDSET VERDICT**
+- **GUNNER** (`shooter`): Regular + Elite production art, weapon art and
+  integration, **fire v5** (3x3 chamber rotor: feed → wind → compress →
+  one-frame snap → empty).
+- **RIFLEMAN** (`grunt`): Regular + Elite art (Elite = same man, graphite
+  kit), compact carbine, body/animation direction.
+- **MARKSMAN** (`sniper`): Regular + Elite art (lean; Elite = precision
+  hardware, no width), precision rifle, muzzle/bolt alignment (drawn muzzle =
+  the bolt's first drawn leading edge, `muzzlePastPivot`), existing sniper
+  laser/lock untouched.
+- **MOVEMENT v2.2** (Gunner + Rifleman only): destination ownership,
+  committed legs, settles, spacing, current combat pressure. Marksman keeps
+  its own sniper movement. Doctrine: CHOOSE USEFUL SPACE → COMMIT → SETTLE →
+  PERFORM ROLE.
+- **GAIT v2** (all three roles), handset verdict *"Perfect, it is very
+  good."*: one-pelvis articulated side gait, front/back weight transfer, both
+  feet facing one way, distance-driven cadence, walk/idle hysteresis, retreat
+  (walk played backwards), strafe frames. **No further gait polish.**
 
-Production art for `grunt` (Rifleman) and `sniper` (Marksman), Regular + Elite,
-through the same `?roster=v1` pipeline. Marksman movement is NOT v2.2 — it
-keeps its own sniper logic. Bulwark and Demolisher are NOT started and wait
-for this verdict. Record: `docs/evidence/roster-2b/rifleman-marksman-v1-notes.md`.
+**Defaults vs opt-in.** Every flag is still OPT-IN and defaults to legacy:
 
-**LOCOMOTION ANATOMY GATE (in flight):** the human rejected the shared roster gait
-(rear leg as a tail, opposite feet, skating). `?gait=v2` is the corrected,
-presentation-only candidate, default OFF. Record: `docs/evidence/roster-gait-v2/gait-v2-notes.md`.
+| Flag | Effect |
+|---|---|
+| `?roster=v1` | production art for the three roles |
+| `?move=v22` | movement (`v2` / `v21` also exist) |
+| `?gait=v2` | gait |
+| `?colliders=1` | debug footprints |
+
+Making them the default is a separate, unstarted human decision. The approved
+handset state is
+`?roster=v1&move=v22&gait=v2&encdbg=crossfire&room=corridor&sector=14&wave=1`.
+
+**Rejected; do not rediscover:**
+- the old Elite full-body gold tint / 1.4 enlargement as the v1 language;
+- the old Bulwark blue half-arc presentation;
+- clear polished-glass shields;
+- cartoon-eye Bulwark faces;
+- a detached / giant side-leg stride;
+- opposite-facing or duck feet;
+- a fixed 14fps walk independent of travel;
+- v2.1 permanent personal lanes (superseded by v2.2);
+- reopening Gunner fire without concrete gameplay evidence.
+
+Records:
+- `docs/evidence/roster-gunner-v1/gunner-v5-move-v22-notes.md`
+- `docs/evidence/roster-2b/rifleman-marksman-v1-notes.md`
+- `docs/evidence/roster-gait-v2/gait-v2-notes.md`
+
+### NEXT MILESTONE — BULWARK PRODUCTION INTEGRATION (`shielded`). **NOT STARTED.**
+
+Wait for the human's implementation prompt. The source is `EnemyShielded` in
+`src/entities/Enemy.js` (`shieldArc`, `_shieldHalfArc`, `_shieldFacing`,
+frontal test), plus the VANGUARD screen role, which is FROZEN (§10au-§10av).
+
+The approved concept to preserve:
+
+- **Body:** pale steel-blue, broad and defensive; an angular wedge / riot
+  helmet with ONE uninterrupted cold horizontal visor slit (no eyes).
+  - Regular: standard shield/projector hardware.
+  - Elite: a stronger projector gauntlet, brace, conduit and generator
+    support. Both tiers use the same field.
+- **Shield — FROSTED HARD-LIGHT CURTAIN.** The existing gameplay coverage
+  stays EXACTLY frozen.
+  - Look: pale white / cool-blue milky translucency, a bright ice-white
+    edge, subtle interference/faceting, tapered endpoints that state the
+    coverage.
+  - NOT clear glass, honeycomb, bubble or an opaque wall.
+- **Normal block:**
+  1. red bolt → compressed red smear;
+  2. local membrane dent;
+  3. red propagates along the field;
+  4. red → coral/pink → white → dissipates to idle.
+
+  Rapid hits are independent local reactions, never a global flash.
+- **Super passing through:**
+  1. contact → local white bloom;
+  2. the field tears, its edges peel outward, the Super passes;
+  3. the gap holds briefly;
+  4. the edges pull in, filaments re-knit (a zipper);
+  5. a bright snap, a small recovery ripple, a projector pulse.
+- **No** shield HP, break state, cooldown or other gameplay change.
 
 ### The recommended next area of work
+
+**Superseded for now:** the human has named the next milestone — BULWARK
+PRODUCTION INTEGRATION (above). The options below are the older backlog.
 
 **Phase B Champion integration is CLOSED — human-approved and frozen on
 `a3563a4`** (above). The next
