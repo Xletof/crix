@@ -998,17 +998,17 @@ async function facingVideo(file, which, title) {
   let last = [];
   for (let k = 0; k * 2 <= end; k++) {
     last = [await fr[0].evaluate(() => window.__frame()), await fr[1].evaluate(() => window.__frame())];
-    const buf = await page.screenshot({ clip: { x: 0, y: 84 + 120, width: 1440, height: 640 } });
+    const buf = await page.screenshot({ clip: { x: 0, y: 84 + 40, width: 1440, height: 720 } });   // the Bulwark at the centre, the player's whole 330px orbit in frame
     const T = [];
     last.forEach((st, i) => {
       const x = 360 + i * 720;
-      T.push({ text: i ? 'NEW' : 'bfb4a86', x, y: 640 + 26, align: 'center', bold: true, size: 18, color: i ? '#7dff9a' : '#ff9a8a' });
-      T.push({ text: `shield ${st.raw}deg (= ${st.wrap}deg) -> should show ${st.want}`, x, y: 640 + 50, align: 'center', size: 14, color: '#d0d4dc' });
-      T.push({ text: `body shows ${st.shows}${st.wrong ? '  <- WRONG' : ''}${st.back ? '   WALKING BACKWARDS' : ''}`, x, y: 640 + 72, align: 'center', bold: true, size: 15, color: st.wrong || st.back ? '#ff7a6a' : '#7dff9a' });
-      T.push({ text: `wrong-facing frames so far ${st.nw}   backwards ${st.nb}`, x, y: 640 + 94, align: 'center', size: 12, color: '#aab0bd' });
+      T.push({ text: i ? 'NEW' : 'bfb4a86', x, y: 720 + 26, align: 'center', bold: true, size: 18, color: i ? '#7dff9a' : '#ff9a8a' });
+      T.push({ text: `shield ${st.raw}deg (= ${st.wrap}deg) -> should show ${st.want}`, x, y: 720 + 50, align: 'center', size: 14, color: '#d0d4dc' });
+      T.push({ text: `body shows ${st.shows}${st.wrong ? '  <- WRONG' : ''}${st.back ? '   WALKING BACKWARDS' : ''}`, x, y: 720 + 72, align: 'center', bold: true, size: 15, color: st.wrong || st.back ? '#ff7a6a' : '#7dff9a' });
+      T.push({ text: `wrong-facing frames so far ${st.nw}   backwards ${st.nb}`, x, y: 720 + 94, align: 'center', size: 12, color: '#aab0bd' });
     });
-    await vw.write(await composite([buf], { W: 1440, H: 640 + 130, draws: [{ sx: 0, sy: 0, sw: 1440, sh: 640, dx: 0, dy: 0 }, { rect: '#ffffff', dx: 718, dy: 0, dw: 4, dh: 640 }],
-      texts: [{ text: title, x: 720, y: 640 + 120, align: 'center', size: 12, color: '#9fe6ff' }, ...T] }));
+    await vw.write(await composite([buf], { W: 1440, H: 720 + 130, draws: [{ sx: 0, sy: 0, sw: 1440, sh: 720, dx: 0, dy: 0 }, { rect: '#ffffff', dx: 718, dy: 0, dw: 4, dh: 720 }],
+      texts: [{ text: title, x: 720, y: 720 + 120, align: 'center', size: 12, color: '#9fe6ff' }, ...T] }));
   }
   await vw.end();
   console.log('wrote', OUT + name(file), `— bfb4a86: ${last[0].nw} wrong-facing / ${last[0].nb} backwards ticks; NEW: ${last[1].nw} / ${last[1].nb}`);

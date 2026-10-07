@@ -861,6 +861,30 @@ priority order:
     each facing (sector-25 hp; the generic FX are included).
 31. `roster-v1-hierarchy-bulwark-final.png` (`tests/shot-bulwark.mjs hierfinal`).
 
+**Final correction (round 3)** (rig `tests/shot-bulwark-orient.mjs`, steps in brackets;
+`bfb4a86` served from a worktree of that commit):
+
+32. `bulwark-wave-v2-strip.png` [wavestrip] — the same block staged at the same ages on
+    `bfb4a86` and NEW (contact 15 / early crest 60 / travelling 120 / mid 190 / coral
+    wake 260 / white wake 380 / recovered), front- and side-facing; 1x rows and 3x rows.
+33. `bulwark-wave-v2-live.webm` [wavelive] — repeated single blocks at real speed,
+    front- and side-facing, 1x and 2x.
+34. `bulwark-wave-v2-rapid.webm` [waverapid] — rapid fire walked across both fields.
+35. `bulwark-wave-v2-super.webm` [wavesuper] — the tear and the pale recovery waves:
+    part A staged at S / E / N / W, part B REAL Supers into an Elite at each facing.
+36. `bulwark-facing-wrap-proof.png` [facingproof] — the same shield direction written
+    four ways per cardinal (E: 0 / 360 / 720 / −360; S: 90 / 450 / −270 / 810; W: 180 /
+    −180 / 540 / −540; N: −90 / 270 / 630 / −450): **`bfb4a86` draws the wrong body on 9
+    of 16, NEW on 0.**
+37. `bulwark-facing-circle.webm` [facingcircle] — `bfb4a86` | NEW side by side, the same
+    seed: the player circles 2.25 times at 330px and the real AI turns the shield.
+    `bfb4a86`: 605 wrong-facing and 310 backwards ticks; NEW: 0 and 18 (the spawn turn).
+38. `bulwark-facing-human-case.webm` [facinghuman] — the human's path, side by side:
+    `bfb4a86` 350 wrong-facing / 142 backwards ticks, NEW 0 / 18.
+39. `bulwark-final-live.webm` [finallive] — real VANGUARD case A at 1x with the Captain:
+    the player holds, fires into the front, walks a loop round the pair, and fires two
+    Supers. Bearer facings over the run, in bearer-ticks: N 825, W 2512, E 1162, S 492.
+
 ## What is still weak at 1x
 
 - **A full Super usually KILLS a Bulwark, so the tear is rarely seen in play.**
@@ -892,6 +916,16 @@ priority order:
   inside a white rim and a navy outline, where the old band was a denser grey. On a
   dark deck it can read as mostly outline. The alphas are one table
   (`CURTAIN.face / shoulder / tip`) if the handset wants it denser.
+- **Rapid fire is busier.** Several broad swells at once cover more of the band than the
+  narrow crests did. Each is still its own local wave with white wake between, and
+  there is no single flash, but under sustained fire a side-on field carries a lot of
+  coral. The envelope's light is one number (`CURTAIN.envI`) if the handset wants it
+  quieter.
+- **The flex is one cell.** At 4px it is the most the brief allowed, and on a 4px grid it
+  is a one-cell kink of the rim and the keyline that travels with the wave. Judge it at
+  1x: a sub-cell flex cannot be drawn on this grid at all.
+- **Legacy (no flag) still has the facing bug**, in frozen code. Only the v1 Bulwark
+  carries the display fix.
 - **A pixel field re-rasterises as he turns.** At the diagonals the rim steps as any
   rotated pixel shape does; the tips end on rim cells within one cell of the coverage
   bearing at every facing. This is the trade for living on the sprite's own grid.
