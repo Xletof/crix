@@ -608,6 +608,71 @@ const fac = await pG.evaluate(async () => {
 const legacyFacing = await pL.evaluate(() => { const gs = window.__gs; window.__open(); const e = gs.spawnEnemyAt('shielded', 800, 700, {}); const own = Object.prototype.hasOwnProperty.call(e, '_facingSuffix') || Object.prototype.hasOwnProperty.call(e, 'preUpdate'); gs._destroyEnemyFully(e); return own; });
 check(legacyFacing === false, 'without ?roster=v1 the Bulwark keeps the frozen facing method and preUpdate untouched (legacy presentation is legacy)', String(legacyFacing));
 
+// ── 4e. THE BLOCK WAVE: two scales, a flexing membrane, still local ──────
+// A crest alone read as a narrow coloured bar sliding along the band. Each
+// wave now has a narrow bright CREST inside a broad soft PRESSURE ENVELOPE,
+// and the envelope flexes the membrane outward as it passes. Structure only
+// here — whether it is beautiful is the handset's call.
+const wave = await pG.evaluate(async () => {
+  const gs = window.__gs; window.__open();
+  const cur = await window.__mod(/systems\/bulwarkCurtain\.js/);
+  const C = cur.CURTAIN, out = {};
+  // the engine itself, mid-travel: how wide is each scale?
+  const t = 200, W = {}, span = (k, thr) => { const xs = []; for (let d = 0; d <= 90; d += 0.25) { cur.waveAt(d, t, C.wavePx, C.waveMs, C.crestPx, C.wakeMs, W); if ((W[k] ?? 0) > thr) xs.push(d); } return xs.length ? xs[xs.length - 1] - xs[0] : 0; };
+  out.crestW = span('crest', 0.25); out.envW = span('env', 0.25);
+  // bounded: nothing of the crest or the envelope more than 4 sigma ahead of it
+  const u = t / C.waveMs, s = C.wavePx * (1.5 * u - 0.5 * u * u); cur.waveAt(s + 4.5 * Math.max(C.crestPx, C.envAheadPx ?? 0), t, C.wavePx, C.waveMs, C.crestPx, C.wakeMs, W);
+  out.ahead = (W.crest || 0) + (W.env || 0);
+  // the field: one block, drawn at several ages, against the same field idle
+  const e = gs.spawnEnemyAt('shielded', 800, 700, {});
+  e._performing = true; e._movePlanted = true; e._aim = Math.PI / 2; e._shieldFacing = Math.PI / 2; window.__adv(2);
+  const f = e._curtain; f._record = true; f.tick = () => false;
+  const draw = (events) => { f.events = events.map((v) => ({ ...v })); f.clock = 1234; f.coreKick = 0; f.corePulse = 0; f._sig = null; f.draw(); return f._cells.map((c) => ({ k: c.kind, x: c.x - e.x, y: c.y - e.y, r: Math.hypot(c.x - e.x, c.y - e.y), th: c.th, col: c.col, a: +c.a.toFixed(3) })); };
+  const idle = draw([]), R = 46, band = ['rim', 'outer', 'inner', 'edge'];
+  const keyOf = (c) => `${c.x}|${c.y}`;
+  const idleMap = new Map(idle.map((c) => [keyOf(c), c]));
+  const idleOuter = (th) => Math.max(...idle.filter((c) => band.includes(c.k) && Math.abs(c.th - th) < 0.05).map((c) => c.r));
+  out.ages = [];
+  for (const age of [60, 140, 200, 300]) {
+    const cells = draw([{ kind: 'block', off: 0, t: age }]);
+    const changed = cells.filter((c) => { const i = idleMap.get(keyOf(c)); return !i || i.col !== c.col || i.a !== c.a || i.k !== c.k; });
+    const uu = Math.min(1, age / C.waveMs), sp = C.wavePx * (1.5 * uu - 0.5 * uu * uu);
+    // the membrane: band cells standing OUTSIDE the idle band's outer edge at the same bearing
+    const bulge = cells.filter((c) => band.includes(c.k) && c.r > idleOuter(c.th) + 1);
+    out.ages.push({ age, sp: +sp.toFixed(1),
+      changed: changed.length, total: cells.length,
+      farthest: +Math.max(0, ...changed.map((c) => Math.abs(c.th) * R)).toFixed(1),
+      bulge: bulge.length, bulgeAt: bulge.map((c) => +(Math.abs(c.th) * R).toFixed(1)), maxOut: +Math.max(0, ...bulge.map((c) => c.r - idleOuter(c.th))).toFixed(1) });
+  }
+  // rapid: three hits on one half, at different contacts and ages — each its
+  // own wave, the other half of the field untouched, never one flat colour
+  const hits = [{ kind: 'block', off: -1.1, t: 60 }, { kind: 'block', off: -0.8, t: 140 }, { kind: 'block', off: -0.5, t: 220 }];
+  const rap = draw(hits);
+  const touched = (c) => { const i = idleMap.get(keyOf(c)); return !i || i.col !== c.col || i.a !== c.a || i.k !== c.k; };
+  const warm = (c) => band.includes(c.k) && ((c.col >> 16) & 255) > 200 && ((c.col >> 8) & 255) < 190;
+  out.rapid = { perHit: hits.map((h) => rap.filter((c) => warm(c) && Math.abs(c.th - h.off) * R < 12 + C.wavePx * Math.min(1, h.t / C.waveMs)).length),
+    farTouched: rap.filter((c) => c.th > 0.75 && touched(c)).length, farCells: rap.filter((c) => c.th > 0.75).length,
+    colours: new Set(rap.filter(touched).map((c) => c.col)).size };
+  gs._destroyEnemyFully(e);
+  out.C = { crestPx: C.crestPx, envAheadPx: C.envAheadPx, envBehindPx: C.envBehindPx, flexPx: C.flexPx, flexMax: C.flexMax, wavePx: C.wavePx };
+  return out;
+});
+{
+  const w = wave;
+  check(w.envW >= 1.8 * w.crestW && w.crestW > 0 && w.envW >= 16,
+    `the wave has TWO SCALES: a pressure envelope ${w.envW.toFixed(1)}px wide around a ${w.crestW.toFixed(1)}px crest (each measured above a quarter of its peak, mid-travel)`, JSON.stringify(w));
+  check(w.ahead < 0.01, 'the crest and its envelope are bounded: nothing of either more than 4.5 sigma ahead of the wavefront', String(w.ahead));
+  const bad = w.ages.filter((a) => a.farthest > a.sp + 4 * w.C.envAheadPx + 8);
+  check(!bad.length,
+    `one block stays LOCAL — every cell it changes lies within its own wavefront plus 4 sigma of envelope (${w.ages.map((a) => `${a.age}ms: front ${a.sp}px, changed out to ${a.farthest}px`).join('; ')})`, JSON.stringify(bad));
+  const flexing = w.ages.filter((a) => a.age >= 140 && a.age <= 300);
+  const follows = flexing.every((a) => a.bulge > 0 && a.bulgeAt.every((d) => Math.abs(d - a.sp) <= 3 * w.C.envBehindPx) && a.maxOut <= w.C.flexMax + 4);
+  check(follows,
+    `the membrane FLEXES with the wave: band cells stand outside the idle edge only around the travelling wavefront (${flexing.map((a) => `${a.age}ms front ${a.sp}px: ${a.bulge} cells at ${[...new Set(a.bulgeAt.map(Math.round))].join('/')}px`).join('; ')}), at most ${w.C.flexMax}px of flex (one cell), and nowhere behind the pulse`, JSON.stringify(flexing));
+  check(w.rapid.perHit.every((n) => n > 0) && w.rapid.farTouched === 0 && w.rapid.farCells > 10 && w.rapid.colours >= 8,
+    `rapid hits stay separate local waves: three hits on one half each carry their own energy (${w.rapid.perHit.join(' / ')} warm cells), the far half is untouched (${w.rapid.farTouched} of ${w.rapid.farCells} cells), and the reaction is ${w.rapid.colours} colours, not one flash`, JSON.stringify(w.rapid));
+}
+
 // ── 5. EVENTS: real blocks and a real Super ──────────────────────────────
 const ev = await pG.evaluate(() => {
   const gs = window.__gs; window.__open();

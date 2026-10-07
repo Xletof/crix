@@ -84,17 +84,24 @@
 //
 //   BLOCK  CONTACT -> TRAVELLING WAVE -> CONVERSION -> SETTLE. The bolt
 //          flattens into a red-hot smear and dents the surface; then TWO
-//          wavefronts leave the contact in opposite directions along the curve.
-//          Each is a narrow saturated-red CREST and behind it a WAKE whose
-//          colour is the time since the crest went by: red -> coral -> pink ->
-//          white. The crest cools as it slows and dies about two thirds of the
-//          way to the tips; the wake whitens and settles. RED = energy still in
-//          the field; WHITE = absorbed.
+//          waves leave the contact in opposite directions along the curve.
+//          Each has TWO SCALES: a narrow saturated-red CREST (direction and
+//          speed) inside a broad soft PRESSURE ENVELOPE — the same energy,
+//          softened toward white, denser frost — that FLEXES the membrane
+//          outward by up to 4px (a cell) as it passes and lets it go behind.
+//          A crest alone read as a narrow bar sliding along the band; the
+//          envelope and the flex are what make it a wave travelling THROUGH a
+//          surface. Behind it the WAKE takes its colour from the time since the
+//          crest went by — red -> coral -> pink -> white — and thins toward the
+//          outer edge as it ages, so it tapers instead of filling the band like
+//          a slab. The crest cools as it slows and dies about two thirds of the
+//          way to the tips. RED = energy still in the field; WHITE = absorbed.
 //   TEAR   (a Super through the front) contact -> white bloom -> the field
 //          splits and its edges peel outward -> the gap holds -> the edges
 //          pull in while white-blue filaments re-knit across it -> the last of
 //          the gap zips shut -> a compact snap -> two PALE recovery crests run
-//          out from the healed seam on the block's own wave engine, and one
+//          out from the healed seam on the block's own wave engine and in its
+//          grammar (pale crest, soft envelope, a smaller flex), and one
 //          restrained projector pulse. PUNCTURE -> OPEN -> HEAL. No red.
 //   PRICK  every other pellet of the same Super: a small bloom and a pinhole
 //          that heals on its own. One readable hole per volley, not five.
@@ -120,10 +127,17 @@ export const CURTAIN = {
   bushMul: 0.55,
   behindSin: 0.5,                 // a REACTION is behind him only past 30deg north of his centre line (see _layer)
   maxBlocks: 12, maxPricks: 3,
-  // the absorption wave (arc px / ms)
-  wavePx: 42, waveMs: 420, crestPx: 3.4, wakeMs: 170,
-  // the Super's recovery wave after the snap
-  healPx: 34, healMs: 340,
+  // the absorption wave (arc px / ms). TWO SCALES: a narrow bright CREST
+  // inside a broader soft PRESSURE ENVELOPE (steeper ahead of the crest,
+  // longer behind it), which densifies and brightens the frost and FLEXES the
+  // membrane outward as it passes, returning behind it.
+  wavePx: 42, waveMs: 420, crestPx: 4.0, wakeMs: 170,
+  envAheadPx: 6, envBehindPx: 11,
+  envI: 0.45, envWhite: 0.6,      // the envelope's own light: the crest's colour, softened toward white
+  pressA: 0.30, pressCol: 0xfff6f4, pressMix: 0.6,
+  flexPx: 4, flexMax: 4,
+  // the Super's recovery wave after the snap: the same grammar, pale
+  healPx: 34, healMs: 340, healFlexPx: 2.4,
 };
 
 // the energy colours a blocked bolt passes through on its way to absorbed
@@ -168,17 +182,26 @@ export function rampColor(u) {
  * At arc distance `d` (px) from the source, `t` ms after it: the crest has
  * travelled s(t) = S * (1.5u - 0.5u^2), u = t / T — out of the contact at
  * speed and easing off, but still visibly moving through its whole life (a
- * plain ease-out put 75% of the travel in the first 45% and then crawled) —
- * with a narrow profile; behind it the WAKE fades with the time since the
- * crest passed (`tau`), which is also what its colour is read from.
- * Writes { crest, wake, tau, u } into `out` (u = the crest's own progress
+ * plain ease-out put 75% of the travel in the first 45% and then crawled).
+ *
+ * A wave has TWO SCALES. The CREST is narrow and bright: it carries the
+ * direction and the speed. Around it the ENVELOPE is broad and soft — the
+ * pressure the crest is the peak of — steeper ahead (`envA`) than behind
+ * (`envB`), so the front arrives and the swell trails off. A crest alone read
+ * as a coloured stripe sliding along the band; the envelope is what makes it
+ * a wave travelling THROUGH the surface. Behind it the WAKE fades with the
+ * time since the crest passed (`tau`), which is also what its colour is read
+ * from.
+ * Writes { crest, env, wake, tau, u } into `out` (u = the crest's own progress
  * 0..1) and returns it — no allocation, it runs per bin per event per frame.
  */
-const _WAVE = { crest: 0, wake: 0, tau: 0, u: 0 };
-export function waveAt(d, t, S, T, crestPx, wakeMs, out = _WAVE) {
+const _WAVE = { crest: 0, env: 0, wake: 0, tau: 0, u: 0 };
+export function waveAt(d, t, S, T, crestPx, wakeMs, out = _WAVE, envA = CURTAIN.envAheadPx, envB = CURTAIN.envBehindPx) {
   const u = Math.min(1, t / T), s = S * (1.5 * u - 0.5 * u * u);
   const A = t < T ? 1 - 0.45 * u : Math.max(0, 0.55 * (1 - (t - T) / 140));
-  out.crest = d - s > 4 * crestPx ? 0 : A * gauss(d - s, crestPx);
+  const x = d - s;
+  out.crest = x > 4 * crestPx ? 0 : A * gauss(x, crestPx);
+  out.env = x > 4 * envA ? 0 : A * gauss(x, x > 0 ? envA : envB);
   out.wake = 0; out.tau = 0; out.u = u;
   if (d < s) {
     const up = 1.5 - Math.sqrt(Math.max(0, 2.25 - 2 * d / S));     // the inverse of s(t)
@@ -188,8 +211,11 @@ export function waveAt(d, t, S, T, crestPx, wakeMs, out = _WAVE) {
   return out;
 }
 
-// the energy accumulator: intensities sum, colours mix by intensity squared
+// the energy accumulators: intensities sum, colours mix by intensity squared
+// (one for the crest / contact / tear energy, one for the wake)
 const _ACC = { sum: 0, r: 0, g: 0, b: 0, w: 0 };
+const _ACW = { sum: 0, r: 0, g: 0, b: 0, w: 0 };
+const mixed = (A) => (A.w > 1e-6 ? (Math.round(A.r / A.w) << 16) | (Math.round(A.g / A.w) << 8) | Math.round(A.b / A.w) : WHITE);
 function mixInto(A, I, c) {
   if (I <= 0.002) return;
   const w = I * I;
@@ -498,7 +524,7 @@ class CurtainField {
     // The bins are centred ON the facing and mirror about it, so two hits the
     // same distance either side of the apex sample identical bins.
     const H = half + 0.25, BIN = 0.03, K = Math.ceil(H / BIN), NB = 2 * K + 1;
-    if (!this._bins || this._bins.n !== NB) this._bins = { n: NB, stamp: new Int32Array(NB).fill(-1), w: new Float32Array(NB), d: new Float32Array(NB), I: new Float32Array(NB), c: new Int32Array(NB), hole: new Int8Array(NB) };
+    if (!this._bins || this._bins.n !== NB) this._bins = { n: NB, stamp: new Int32Array(NB).fill(-1), w: new Float32Array(NB), d: new Float32Array(NB), I: new Float32Array(NB), c: new Int32Array(NB), wI: new Float32Array(NB), wc: new Int32Array(NB), wt: new Float32Array(NB), P: new Float32Array(NB), hole: new Int8Array(NB) };
     const B = this._bins, stamp = (this._stamp = (this._stamp || 0) + 1);
     const bin = (th) => {
       const j = Math.round(Math.abs(th) / BIN), i = Math.max(0, Math.min(NB - 1, K + (th < 0 ? -j : j)));
@@ -517,8 +543,13 @@ class CurtainField {
         if (dd < 0 && hole < 0) hole = h;
         if (dd > 0 && dd < W && pe > 0) d += (v.kind === 'prick' ? 2 : 7) * pe * (1 - dd / W);   // a peeling edge (outward)
       }
-      B.d[i] = d; B.hole[i] = hole;
-      if (ev.length) { this._energy(tb, ev); B.I[i] = this._eI; B.c[i] = this._eC; } else { B.I[i] = 0; B.c[i] = WHITE; }
+      B.hole[i] = hole;
+      if (ev.length) {
+        this._energy(tb, ev);
+        B.I[i] = this._eI; B.c[i] = this._eC; B.wI[i] = this._wI; B.wc[i] = this._wC; B.wt[i] = this._wT; B.P[i] = this._eP;
+        d += this._eF;                                   // the membrane flexing as the pressure passes
+      } else { B.I[i] = 0; B.c[i] = WHITE; B.wI[i] = 0; B.P[i] = 0; }
+      B.d[i] = d;
       return i;
     };
 
@@ -564,26 +595,37 @@ class CurtainField {
       const rim = c.r > rOut - P || rOut - rIn < C.thinPx, edge = !rim && c.r < rIn + P * 0.75;
       if (hole) { this._holeCell(c, hole, f, rim, cell, mul); continue; }
 
-      const I = B.I[i], ec = B.c[i];
+      // the crest / contact energy, and the WAKE behind it — which thins
+      // toward the outer (energy) edge as it ages, so it tapers off behind the
+      // crest instead of filling the band's whole thickness like a slab
+      let I = B.I[i], ec = B.c[i];
+      const wI = B.wI[i];
+      if (wI > 0.002) {
+        const Iw = wI * clamp01(1.2 - f * (0.55 + B.wt[i] / 220));
+        if (Iw > 0.002) { const a2 = I * I, b2 = Iw * Iw; ec = lerpCol(ec, B.wc[i], b2 / (a2 + b2)); I = Math.min(1, I + Iw); }
+      }
+      // the PRESSURE envelope: denser, brighter frost where the wave is
+      const pr = B.P[i];
       const tint = Math.min(1, I * 1.25);
       const scan = scanTh != null && Math.abs(th - scanTh) < colAng / 2 ? C.scanA : 0;
+      const press = (base) => (pr > 0.01 ? lerpCol(base, C.pressCol, Math.min(1, pr * C.pressMix)) : base);
       let col, alpha;
       if (rim) {
         c.kind = 'rim';
         col = I > 0.01 ? lerpCol(C.rim, ec, Math.min(1, I * 1.1)) : C.rim;
-        alpha = Math.min(1, C.rimA * mul);
+        alpha = Math.min(1, (C.rimA + pr * 0.1) * mul);
       } else if (edge) {
         c.kind = 'edge';
-        col = I > 0.01 ? lerpCol(C.lowRim, ec, Math.min(1, I)) : C.lowRim;
-        alpha = Math.min(0.92, (C.lowRimA + scan + I * 0.4) * mul);
+        col = I > 0.01 ? lerpCol(press(C.lowRim), ec, Math.min(1, I)) : press(C.lowRim);
+        alpha = Math.min(0.92, (C.lowRimA + scan + I * 0.4 + pr * C.pressA) * mul);
       } else if (f < C.split) {
         c.kind = 'outer';
-        col = I > 0.01 ? lerpCol(m[0], ec, tint) : m[0];
-        alpha = Math.min(0.92, (m[1] + scan + I * 0.55) * mul);
+        col = I > 0.01 ? lerpCol(press(m[0]), ec, tint) : press(m[0]);
+        alpha = Math.min(0.92, (m[1] + scan + I * 0.55 + pr * C.pressA) * mul);
       } else {
         c.kind = 'inner';
-        col = I > 0.01 ? lerpCol(m[2], ec, tint) : m[2];
-        alpha = Math.min(0.92, (m[3] + scan * 0.7 + I * 0.5) * mul);
+        col = I > 0.01 ? lerpCol(press(m[2]), ec, tint) : press(m[2]);
+        alpha = Math.min(0.92, (m[3] + scan * 0.7 + I * 0.5 + pr * C.pressA) * mul);
       }
       cell(c, col, alpha);
     }
@@ -609,16 +651,22 @@ class CurtainField {
     }
   }
 
-  // energy at bearing th: intensity (0..1) and colour, all live events mixed
-  // (intensities sum; colours mix by intensity squared). Writes this._eI and
-  // this._eC — it runs once per bin per frame while anything is reacting.
+  // Everything the live events say at bearing th, all events mixed
+  // (intensities sum; colours mix by intensity squared), in four channels:
+  //   _eI / _eC   the crest, the contact smear and the tear's own light
+  //   _wI / _wC / _wT   the WAKE behind the crests, and its age (tau)
+  //   _eP         the PRESSURE envelope (denser, brighter frost)
+  //   _eF         the membrane FLEX in px, outward, riding the envelope
+  // It runs once per bin per frame while anything is reacting.
   _energy(th, ev) {
-    const C = CURTAIN, R = CURTAIN_RADIUS, W = _WAVE, A = _ACC;
+    const C = CURTAIN, R = CURTAIN_RADIUS, W = _WAVE, A = _ACC, K = _ACW;
     A.sum = 0; A.r = 0; A.g = 0; A.b = 0; A.w = 0;
+    K.sum = 0; K.r = 0; K.g = 0; K.b = 0; K.w = 0;
+    let P = 0, F = 0, wt = 0;
     for (let k = 0; k < ev.length; k++) {
       const v = ev[k], dm = th - v.off, t = v.t, d = Math.abs(dm) * R;
       if (v.kind === 'block') {
-        if (d > C.wavePx + 5 * C.crestPx && d > 17) continue;          // beyond anything this event can reach
+        if (d > C.wavePx + 4 * C.envAheadPx && d > 17) continue;       // beyond anything this event can reach
         waveAt(d, t, C.wavePx, C.waveMs, C.crestPx, C.wakeMs, W);
         // the bolt dies INTO the surface: a short red-hot smear on contact,
         // white-hot at its heart for the first beats
@@ -626,8 +674,14 @@ class CurtainField {
           const ell = 8 + 9 * Math.min(1, t / 70);
           if (d < ell) mixInto(A, 1 - t / 130, t < 85 && d < 4 ? 0xfff1e6 : RED);
         }
-        mixInto(A, Math.min(1, W.crest), rampColor(0.1 + 0.42 * W.u));   // the crest: saturated red, cooling as it slows
-        mixInto(A, W.wake, rampColor(0.3 + W.tau / 300));               // the wake: red -> coral -> pink -> white
+        const cc = rampColor(0.1 + 0.42 * W.u);
+        mixInto(A, Math.min(1, W.crest), cc);                           // the crest: saturated red, cooling as it slows
+        mixInto(A, C.envI * W.env, lerpCol(cc, WHITE, C.envWhite));     // the swell around it: the same energy, softer
+        mixInto(K, W.wake, rampColor(0.3 + W.tau / 300));               // the wake: red -> coral -> pink -> white
+        wt += W.wake * W.tau;
+        P += W.env;
+        // the flex comes in after the contact's own dent, then rides the wave
+        F += C.flexPx * W.env * Math.min(1, t / 70);
       } else {
         const g = this._gap(v), edge = Math.max(0, Math.abs(dm) - g);
         if (v.kind === 'tear') {
@@ -635,12 +689,18 @@ class CurtainField {
           if (t < 140) mixInto(A, (1 - t / 140) * gauss(dm, 0.12), HEAL);
           if (t >= TEAR.close) {
             if (t < TEAR.snapEnd && d < CURTAIN.cell) mixInto(A, 1 - (t - TEAR.close) / (TEAR.snapEnd - TEAR.close), WHITE);   // the SNAP: the seam itself
-            // RECOVERY: pale crests run out from the healed seam on the block's
-            // own engine — the field re-stabilising, not a second explosion
-            if (d <= C.healPx + 5 * C.crestPx) {
+            // RECOVERY: pale waves run out from the healed seam on the block's
+            // own engine and in its grammar — a pale crest inside a soft
+            // envelope that flexes the membrane as it passes — the field
+            // re-stabilising, not a second explosion. No red.
+            if (d <= C.healPx + 4 * C.envAheadPx) {
               waveAt(d, t - TEAR.close, C.healPx, C.healMs, C.crestPx, 120, W);
               mixInto(A, 0.9 * W.crest, WHITE);
-              mixInto(A, 0.75 * W.wake, lerpCol(WHITE, HEAL, Math.min(1, W.tau / 160)));
+              mixInto(A, 0.8 * C.envI * W.env, HEAL);
+              mixInto(K, 0.75 * W.wake, lerpCol(WHITE, HEAL, Math.min(1, W.tau / 160)));
+              wt += 0.75 * W.wake * W.tau;
+              P += 0.8 * W.env;
+              F += C.healFlexPx * W.env;
             }
           }
         } else {
@@ -648,8 +708,10 @@ class CurtainField {
         }
       }
     }
-    this._eI = Math.min(1, A.sum);
-    this._eC = A.w > 1e-6 ? (Math.round(A.r / A.w) << 16) | (Math.round(A.g / A.w) << 8) | Math.round(A.b / A.w) : WHITE;
+    this._eI = Math.min(1, A.sum); this._eC = mixed(A);
+    this._wI = Math.min(1, K.sum); this._wC = mixed(K); this._wT = K.sum > 1e-6 ? wt / K.sum : 0;
+    this._eP = Math.min(1, P);
+    this._eF = Math.min(C.flexMax, F);
   }
 
   // a point on the field at relative angle r, at the curtain radius (+dR)

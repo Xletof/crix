@@ -778,13 +778,13 @@ async function ripVideo(file, { rapid }) {
 }
 
 // ── V1. VANGUARD FINAL: real VANGUARD (with the Captain), the player circling
-async function vgFinal() {
+async function vgFinal(file = 'bulwark-vanguard-final.webm') {
   const page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
   page.on('pageerror', (e) => fail(`vanguard: ${e.message}`));
   await page.goto(BASE + `?nodlg=1&nofreeze=1&${FLAGS}&${VG_FINAL}`);
   await stepBoot(page);
   await page.evaluate(VG_SCRIPT);
-  await record(page, 'bulwark-vanguard-final.webm', 660, {
+  await record(page, file, 660, {
     clip: { x: 0, y: 84, width: 720, height: 960 }, W: 720, H: 960 + 36,
     draws: [{ sx: 0, sy: 0, sw: 720, sh: 960, dx: 0, dy: 0 }],
     texts: (st, f) => [{ text: `VANGUARD live, 1x — Bulwark shield facings: ${st || '(none on the floor yet)'}   t ${(f * 2 / 60).toFixed(1)}s`, x: 10, y: 960 + 23, color: '#9fe6ff', size: 13 }],
@@ -847,6 +847,174 @@ async function finalAB() {
   await page.close();
 }
 
+// ══ FINAL CORRECTION PASS: the broader membrane ripple + the display facing ══
+
+// ── W1. WAVE v2 STRIP: bfb4a86 vs NEW, the same block at the same ages ─────
+// A front-facing and a side-facing Regular on the open floor; the same block
+// event (contact 0.12 rad off the apex) is staged on both builds at each age
+// and drawn through the field's own draw(), so the two rows differ only in the
+// renderer. 1x rows, then 3x of the front-facing band.
+const WAVE_PH = [['contact', 15], ['early crest', 60], ['crest travelling', 120], ['mid travel', 190], ['coral wake', 260], ['white wake', 380], ['recovered', 760]];
+async function waveStrip() {
+  const grab = async (base) => {
+    const page = await stillPage(base);
+    const camY = await stageRow(page, [[{}, Math.PI / 2, 40, 0], [{}, 0, 60, 0]]);
+    const out = [];
+    for (const [, age] of WAVE_PH) {
+      await page.evaluate((age) => {
+        for (const e of window.__row) {
+          const f = e._curtain; f.tick = () => false;
+          f.events = age < 720 ? [{ kind: 'block', off: 0.12, t: age }] : []; f.clock = 1234; f.coreKick = 0; f.corePulse = 0; f._sig = null; f.draw();
+        }
+        window.__adv(1); window.__hold(); window.__quiet();
+        for (const e of window.__row) { const f = e._curtain; f._sig = null; f.draw(); }
+        window.__adv(1);
+      }, age);
+      out.push(await page.screenshot({ clip: { x: 102 + 40 - 100, y: camY + 330 - 80, width: 400, height: 150 } }));
+    }
+    await page.close();
+    return out;
+  };
+  const A = await grab(OLD), B = await grab(BASE);
+  const CW = 410, Z = 3, ZW = 120, ZH = 60, top = 70;
+  const bufs = [...A, ...B], draws = [], texts = [
+    { text: 'BLOCK WAVE v2 — the same block, the same ages: bfb4a86 (narrow crest) vs NEW (crest inside a broad pressure envelope + membrane flex)', x: 10, y: 22, bold: true, size: 15 },
+    { text: 'front-facing (left) and side-facing (right) Regular, contact 0.12 rad off the apex; the field drawn by its own draw() at each age', x: 10, y: 42, color: '#aab0bd', size: 12 }];
+  const rows = [['bfb4a86 — 1x', 0, 1, '#ff9a8a'], ['NEW — 1x', 1, 1, '#7dff9a'], ['bfb4a86 — 3x, front-facing band', 0, Z, '#ff9a8a'], ['NEW — 3x, front-facing band', 1, Z, '#7dff9a']];
+  let y = top;
+  for (const [lab, which, k, colr] of rows) {
+    texts.push({ text: lab, x: 10, y: y + 14, bold: true, size: 13, color: colr });
+    const h = k === 1 ? 150 : ZH * Z;
+    WAVE_PH.forEach(([ph, age], i) => {
+      const idx = which * WAVE_PH.length + i;
+      if (k === 1) draws.push({ i: idx, sx: 0, sy: 0, sw: 400, sh: 150, dx: 10 + i * CW, dy: y + 22 });
+      else draws.push({ i: idx, sx: 100 - ZW / 2, sy: 80 + 6, sw: ZW, sh: ZH, dx: 10 + i * CW + (CW - 10 - ZW * Z) / 2, dy: y + 22, k: Z });
+      if (which === 0 && k === 1) texts.push({ text: `${ph} — ${age < 720 ? `${age}ms` : 'event gone'}`, x: 10 + i * CW, y: top - 4, size: 12, color: '#9fe6ff' });
+    });
+    y += 22 + h + 14;
+  }
+  const png = await composite(bufs, { W: 10 + WAVE_PH.length * CW, H: y + 30, draws, type: 'png',
+    texts: [...texts, { text: 'RED crest = the bolt\'s energy still travelling; the soft envelope around it = the pressure moving through the membrane (denser frost, the rim flexing out a cell); the wake cools coral -> pink -> white and thins toward the outer edge as it ages', x: 10, y: y + 16, size: 12, color: '#d0d4dc' }] });
+  writeFileSync(OUT + name('bulwark-wave-v2-strip.png'), png);
+  console.log('wrote', OUT + name('bulwark-wave-v2-strip.png'));
+}
+
+// ── F1. FACING WRAP PROOF: equivalent angles, bfb4a86 vs NEW ────────────────
+// One Regular held on each angle (the AI yields, so _aim stays what is set);
+// every angle in a row points the same way, and the label says what the body
+// SHOWS.
+const WRAP_ROWS = [['EAST', 'E', [0, 360, 720, -360]], ['SOUTH', 'S', [90, 450, -270, 810]], ['WEST', 'W', [180, -180, 540, -540]], ['NORTH', 'N', [-90, 270, 630, -450]]];
+async function facingProof() {
+  const grab = async (base) => {
+    const page = await stillPage(base);
+    const camY = await stageRow(page, [[{}, Math.PI / 2, 0, 0]]);
+    const out = [];
+    for (const [, , angs] of WRAP_ROWS) for (const deg of angs) {
+      const r = await page.evaluate((deg) => {
+        const e = window.__row[0], a = deg * Math.PI / 180;
+        e._performing = true; e._movePlanted = true; e._aim = a; e._shieldFacing = a;
+        window.__adv(2); e.body.reset(e._homeX, e._homeY); window.__quiet();
+        e._aim = a; e._shieldFacing = a; window.__adv(1); window.__quiet();
+        const key = e.anims.currentAnim?.key || '';
+        return { shows: key.endsWith('-front') ? 'S' : key.endsWith('-back') ? 'N' : (e.flipX ? 'W' : 'E'), gunFlip: e.weaponSprite.flipY, gunBehind: e.weaponSprite.depth < e.y };
+      }, deg);
+      out.push({ deg, ...r, buf: await page.screenshot({ clip: { x: 102 - 70, y: camY + 330 - 76, width: 140, height: 140 } }) });
+    }
+    await page.close();
+    return out;
+  };
+  const A = await grab(OLD), B = await grab(BASE);
+  const CW = 150, n = 4, Z = 1.5, cw = CW * Z, top = 80, RH = 140 * Z + 44;
+  const draws = [], texts = [{ text: 'DISPLAY FACING — the same shield direction written four ways: what the body SHOWS (bfb4a86 left, NEW right; 1.5x nearest)', x: 10, y: 24, bold: true, size: 15 },
+    { text: 'gameplay accumulates the shield angle without wrapping it; only the PAINTED facing (and the sidearm\'s flip / draw order) read it raw', x: 10, y: 44, color: '#aab0bd', size: 12 },
+    { text: 'bfb4a86', x: 90 + (n * cw) / 2, y: 68, align: 'center', bold: true, size: 15, color: '#ff9a8a' }, { text: 'NEW', x: 90 + n * cw + 30 + (n * cw) / 2, y: 68, align: 'center', bold: true, size: 15, color: '#7dff9a' }];
+  let k = 0;
+  WRAP_ROWS.forEach(([name, want, angs], r) => {
+    texts.push({ text: name, x: 10, y: top + r * RH + 100, bold: true, size: 14 });
+    angs.forEach((deg, c) => {
+      for (const [side, set, idx] of [[0, A, k], [1, B, A.length + k]]) {
+        const g = set[k], x0 = 90 + side * (n * cw + 30) + c * cw, ok = g.shows === want;
+        draws.push({ i: idx, sx: 0, sy: 0, sw: 140, sh: 140, dx: x0, dy: top + r * RH, k: Z });
+        texts.push({ text: `raw ${deg}deg -> shows ${g.shows}`, x: x0 + 4, y: top + r * RH + 140 * Z + 16, size: 12, color: ok ? '#7dff9a' : '#ff7a6a', bold: !ok });
+        texts.push({ text: ok ? 'ok' : `WRONG (should be ${want})`, x: x0 + 4, y: top + r * RH + 140 * Z + 32, size: 11, color: ok ? '#7dff9a' : '#ff7a6a' });
+      }
+      k++;
+    });
+  });
+  const png = await composite([...A.map((g) => g.buf), ...B.map((g) => g.buf)], { W: 90 + 2 * n * cw + 40, H: top + 4 * RH + 20, draws, texts, type: 'png' });
+  writeFileSync(OUT + name('bulwark-facing-wrap-proof.png'), png);
+  console.log('wrote', OUT + name('bulwark-facing-wrap-proof.png'), '— OLD wrong', A.filter((g, i) => g.shows !== WRAP_ROWS[Math.floor(i / 4)][1]).length, '/ 16, NEW wrong', B.filter((g, i) => g.shows !== WRAP_ROWS[Math.floor(i / 4)][1]).length, '/ 16');
+}
+
+// ── F2 / F3. FACING LIVE: bfb4a86 vs NEW side by side, the same seed ───────
+// The real AI turns the shield; the player is placed each tick on a scripted
+// bearing round the live Bulwark (330px out, so it keeps following them), and
+// the camera rides the Bulwark. Each half prints what its body shows against
+// the facing its shield points, and flags a backwards walk.
+const FACE_CASES = {
+  human: [[0, 135], [70, 135], [160, 45], [310, -90], [420, -90]],
+  circle: [[0, 90], [40, 90], [40 + 2.25 * 330, 90 - 2.25 * 360], [40 + 2.25 * 330 + 40, 90 - 2.25 * 360]],
+};
+const FACE_SCRIPT = (sched) => `(() => {
+  const gs = window.__gs, cam = gs.cameras.main;
+  gs.cameraDirector.update = () => {};
+  const e = (window.__fe = gs.spawnEnemyAt('shielded', 800, 640, {})); e.fireCd = 1e9;
+  const sched = ${JSON.stringify(sched)}, P = gs.player, R = 330;
+  P.setVisible(true); P.weaponSprite?.setVisible(true);
+  const bearing = (i) => { for (let k = 1; k < sched.length; k++) { const [t0, a0] = sched[k - 1], [t1, a1] = sched[k]; if (i <= t1) return (a0 + (a1 - a0) * ((i - t0) / Math.max(1, t1 - t0))) * Math.PI / 180; } return sched[sched.length - 1][1] * Math.PI / 180; };
+  const cls = (d) => (d >= -45 && d <= 45 ? 'E' : d > 45 && d < 135 ? 'S' : d >= 135 || d <= -135 ? 'W' : 'N');
+  const NAME = { E: 'EAST', S: 'SOUTH', W: 'WEST', N: 'NORTH' };
+  window.__tick = 0; window.__drawn = e._aim; window.__wrong = 0; window.__backs = 0;
+  window.__frame = () => {
+    let st = null;
+    for (let k = 0; k < 2; k++) {
+      const i = window.__tick++, a = bearing(i);
+      P.setPosition(e.x + Math.cos(a) * R, e.y + Math.sin(a) * R); P.body.reset(P.x, P.y);
+      window.__adv(1);
+      cam.setScroll(e.x - 360, e.y - 400);
+      const key = e.anims.currentAnim?.key || '', shows = key.endsWith('-front') ? 'S' : key.endsWith('-back') ? 'N' : (e.flipX ? 'W' : 'E');
+      const raw = window.__drawn, d = Math.atan2(Math.sin(raw), Math.cos(raw)) * 180 / Math.PI;
+      const ok = new Set([cls(d)]); for (const b of [-135, -45, 45, 135]) if (Math.abs(d - b) < 1e-6) { ok.add(cls(b - 1e-3)); ok.add(cls(b + 1e-3)); }
+      const G = e._gait; let back = false;
+      if (G && G.walking && G.mode === 'walk') { const fx = shows === 'E' ? 1 : shows === 'W' ? -1 : 0, fy = shows === 'S' ? 1 : shows === 'N' ? -1 : 0; back = (G.vx * fx + G.vy * fy) / (Math.hypot(G.vx, G.vy) || 1) < -0.5; }
+      const wrong = !ok.has(shows); if (wrong) window.__wrong++; if (back) window.__backs++;
+      st = { raw: Math.round(raw * 180 / Math.PI), wrap: Math.round(d), shows: NAME[shows], want: NAME[cls(d)], wrong, back, nw: window.__wrong, nb: window.__backs, t: window.__tick };
+      window.__drawn = e._aim;
+    }
+    window.__quiet();
+    return st;
+  };
+})();`;
+async function facingVideo(file, which, title) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1280 } });
+  const q = `?nodlg=1&nofreeze=1&${FLAGS}&${STILL}`;
+  await page.setContent(`<body style="margin:0;background:#000;display:flex"><iframe src="${OLD}${q}&fv=0" width="720" height="1280" style="border:0"></iframe><iframe src="${BASE}${q}&fv=1" width="720" height="1280" style="border:0"></iframe></body>`);
+  await page.waitForTimeout(2000);
+  const fr = [0, 1].map((i) => page.frames().find((f) => f.url().includes(`&fv=${i}`)));
+  if (fr.some((f) => !f)) fail('facingVideo: iframes not found');
+  for (const f of fr) { await stillFrame(f); await f.evaluate(FACE_SCRIPT(FACE_CASES[which])); }
+  const vw = videoWriter(OUT + name(file));
+  const end = FACE_CASES[which][FACE_CASES[which].length - 1][0];
+  let last = [];
+  for (let k = 0; k * 2 <= end; k++) {
+    last = [await fr[0].evaluate(() => window.__frame()), await fr[1].evaluate(() => window.__frame())];
+    const buf = await page.screenshot({ clip: { x: 0, y: 84 + 120, width: 1440, height: 640 } });
+    const T = [];
+    last.forEach((st, i) => {
+      const x = 360 + i * 720;
+      T.push({ text: i ? 'NEW' : 'bfb4a86', x, y: 640 + 26, align: 'center', bold: true, size: 18, color: i ? '#7dff9a' : '#ff9a8a' });
+      T.push({ text: `shield ${st.raw}deg (= ${st.wrap}deg) -> should show ${st.want}`, x, y: 640 + 50, align: 'center', size: 14, color: '#d0d4dc' });
+      T.push({ text: `body shows ${st.shows}${st.wrong ? '  <- WRONG' : ''}${st.back ? '   WALKING BACKWARDS' : ''}`, x, y: 640 + 72, align: 'center', bold: true, size: 15, color: st.wrong || st.back ? '#ff7a6a' : '#7dff9a' });
+      T.push({ text: `wrong-facing frames so far ${st.nw}   backwards ${st.nb}`, x, y: 640 + 94, align: 'center', size: 12, color: '#aab0bd' });
+    });
+    await vw.write(await composite([buf], { W: 1440, H: 640 + 130, draws: [{ sx: 0, sy: 0, sw: 1440, sh: 640, dx: 0, dy: 0 }, { rect: '#ffffff', dx: 718, dy: 0, dw: 4, dh: 640 }],
+      texts: [{ text: title, x: 720, y: 640 + 120, align: 'center', size: 12, color: '#9fe6ff' }, ...T] }));
+  }
+  await vw.end();
+  console.log('wrote', OUT + name(file), `— bfb4a86: ${last[0].nw} wrong-facing / ${last[0].nb} backwards ticks; NEW: ${last[1].nw} / ${last[1].nb}`);
+  await page.close();
+}
+
 const steps = {
   // the orientation pass (5169399); `ab` needs that build's renderer
   idle4, rotate, block4, rapid, super4, vanguard: vanguardLive, ab, perf,
@@ -854,6 +1022,13 @@ const steps = {
   layer4, layerrot: layerRot, matab: matAB, ripstrip: ripStrip,
   riplive: () => ripVideo('bulwark-ripple-live.webm', { rapid: false }), riprapid: () => ripVideo('bulwark-ripple-rapid.webm', { rapid: true }),
   vgfinal: vgFinal, finalab: finalAB,
+  wavestrip: waveStrip,
+  wavelive: () => ripVideo('bulwark-wave-v2-live.webm', { rapid: false }), waverapid: () => ripVideo('bulwark-wave-v2-rapid.webm', { rapid: true }),
+  wavesuper: () => super4('bulwark-wave-v2-super.webm', 'PUNCTURE -> OPEN -> HEAL -> RE-STABILISE (a pale crest in a soft envelope, the membrane flexing), twice.'),
+  facingproof: facingProof,
+  facingcircle: () => facingVideo('bulwark-facing-circle.webm', 'circle', 'the player circles the Bulwark 2.25 times at 330px; the real AI turns the shield; the camera rides the Bulwark; 1x'),
+  facinghuman: () => facingVideo('bulwark-facing-human-case.webm', 'human', 'THE HUMAN CASE: Bulwark above the player, player south-west -> south-east -> north round its east side; 1x'),
+  finallive: () => vgFinal('bulwark-final-live.webm'),
   matrot: () => rotate('bulwark-material-rotate.webm', 'CRIX cells: one material at every facing, the gun under the field where they cross'),
   superheal: () => super4('bulwark-super-heal-v2.webm', 'PUNCTURE -> OPEN -> HEAL -> RE-STABILISE (pale crests from the seam), twice.'),
 };

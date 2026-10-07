@@ -981,6 +981,28 @@ asserts separately that the ceiling is not reached.
   depth (`WEAPON_STACK`), so rotation cannot reorder them. Do not answer
   WEAPON < SHIELD by lifting the whole far half over the body — that deletes
   the occlusion the handset approved.
+- **AN ACCUMULATED ANGLE IS RIGHT FOR GAMEPLAY AND WRONG FOR A RANGE TEST.**
+  `EnemyShielded._tickSwarm` turns the shield with `_shieldFacing +=
+  clamp(Wrap(toPlayer - _shieldFacing))` and never wraps the sum, and `_aim`
+  copies it. Every gameplay reader goes through sin / cos / Wrap, so the block
+  and the gun are right at any value. Three PRESENTATION reads in the frozen
+  `Enemy.preUpdate` are not periodic — `_facingSuffix` (raw degrees), the
+  overlay flip (`|aim| > 90deg`) and the overlay depth (`deg in (-135,-45)`) —
+  and a shield that reached a south-west player through west sat at -225deg,
+  so every later bearing drew the WEST sprite (-450deg, north, drawn west) and
+  gait v2 walked it backwards: 309 of 381 frames on the human's own path.
+  `systems/bulwarkFacing.js` resolves all three from the WRAPPED angle on the v1
+  Bulwark and writes neither `_shieldFacing` nor `_aim`. Two rules came with it:
+  **never wrap the gameplay value** (the replays compare it raw), and **in range
+  the display angle must be the value itself, not `Wrap(value)`** — Phaser's
+  `Wrap` is not bit-identical for an in-range input, so wrapping always would
+  move a ±45 / ±135 boundary by an ulp. Legacy (no flag) still carries the bug
+  in frozen code.
+- **JUDGE A FRAME BY THE ANGLE IT WAS DRAWN FROM.** `EnemyShooter.preUpdate`
+  runs the base class's presentation BEFORE the AI, so each frame is drawn from
+  the aim the AI left LAST tick. A rig that compares the sprite against the
+  current facing reports a one-frame lag at every cardinal boundary as a wrong
+  facing — `diag-bulwark-facing` tracks the drawn-from angle for that reason.
 - **A SPRITE'S FLIP IS NOT IN ITS WORLD MATRIX.** Phaser applies
   `flipX`/`flipY` in the renderer, mirroring the frame WITHIN ITSELF while
   the origin stays put, so `getWorldTransformMatrix()` and anything measured
@@ -1036,6 +1058,17 @@ asserts separately that the ceiling is not reached.
   Two pellets kill a sector-8 Regular, and the field goes with the body on
   death, as the legacy arc did. Evidence of the re-knit needs an Elite at a
   real higher-sector hp ramp, or a glancing Super — not an hp edit.
+- **A WAVE IS TWO SCALES, AND A CREST ALONE IS A BAR.** The first cell wave
+  was one 3.4px crest — about one 4px cell — and the handset read it as a
+  narrow rectangle sliding along the band. Each wave now has a narrow bright
+  CREST inside a broad soft PRESSURE ENVELOPE (6px ahead, 11px behind: the
+  front arrives, the swell trails), whose own light is the crest's colour
+  softened toward white, and the envelope FLEXES the membrane outward by up to
+  4px — one cell, so the rim visibly kinks where it passes and lets go behind
+  it. The WAKE is its own channel and thins toward the outer edge as it ages,
+  so it tapers instead of filling the band like a slab. Making the red patch
+  bigger was never the fix. `smoke-bulwark` §4e checks the two widths, the
+  flex riding the front and nothing past it.
 - **AN EASE-OUT WAVE CRAWLS.** The block's twin crests ran a plain ease-out
   and put 75% of their travel in the first 45% of their life, then sat still:
   a flash, then a smudge — never a wave. `waveAt` moves them
