@@ -58,7 +58,7 @@ const camY = await page.evaluate(async ({ XSEC, ELITE, NOBODY, EVENTS }) => {
   window.__set = (a, field) => {
     e._performing = true; e._movePlanted = true; e._aim = a; e._shieldFacing = a; e.setVelocity(0, 0); e.body.reset(700, 600);
     window.__adv(2);
-    const f = e._curtain; for (const gg of [f.near, f.far, f.glowNear, f.glowFar, f.coreG]) gg.setVisible(field);
+    const f = e._curtain; for (const gg of [f.near, f.far, f.farW, f.glowNear, f.glowFar, f.glowFarW, f.coreG].filter(Boolean)) gg.setVisible(field);
     e.threatRing?.setVisible(false); e.shadow?.setVisible?.(false);
     if (NOBODY) { e.setAlpha(0); e.weaponSprite?.setVisible(false); }
     gs.cameras.main.resetFX(); gs._sectorTint?.setAlpha(0);

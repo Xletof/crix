@@ -79,10 +79,11 @@ The vector renderer (ten flat panels with soft edges) was replaced by a CELL ren
 - **Restrained interference:** one stepped current pulse crosses tip to tip every 3.4s,
   a column of cells per step.
 - **Cross-section:** a flat band from R−11 to R+6 (17px of radial depth). The 2px lean
-  is gone, because a cell field on the floor plane has no lean to give it. It is the
-  same 17px at every facing (measured below). That is a geometry change from the
-  approved 19 / 17 / 15: the south view is about 2px thinner at its apex, and north is
-  about 2px thicker.
+  is gone, because a cell field on the floor plane has no lean to give it.
+  - Measured cell edge to cell edge, it is 16px on the axes (south, side and north
+    alike) and 18px on the diagonals. The approved vector band read 19 / 17 / 15.
+  - So this is a geometry change: the south apex is ~3px thinner and the north one
+    ~1px thicker. It is reported, not hidden; the human judges it at 1x.
 - **Unchanged:** the arc (±1.35), the curtain radius (46), the outer extent (R+6), the
   taper and the near/far rule. FAR = BEHIND THE BODY, never FAR = WEAKER.
 
@@ -134,6 +135,62 @@ the same single restrained one.
 
 The presentation tail is longer: `TEAR_MS` is 920 → 1110ms. The Super's gameplay
 (penetration, damage, timing) is untouched; nothing reads these events back.
+
+### Measured, `5169399` vs NEW
+
+**WEAPON < SHIELD** (`tests/diag-bulwark-layering.mjs`). This instrument does not care
+which renderer it measures. At each of 16 facings × 2 tiers:
+- the gun is tint-filled magenta;
+- the FIELD MASK is every pixel the field's six Graphics change (gun hidden, field on
+  vs off);
+- a LEAK is a mask pixel still pure magenta, i.e. the gun drawn on top of the field.
+
+| | idle | shot frame (gun + discharge) |
+|---|---|---|
+| `5169399` | **5415 px over 20 / 32 frames** (every facing from W through N to E and SSE) | 5408 px over 20 / 32 |
+| NEW | **0 px over 0 / 32** | 0 over 0 / 32 |
+
+The first version of this instrument toggled the projector core with the field. The
+core is painted on the gauntlet, under the gun by design, so it reported identical
+"leaks" on both builds at 23° / 45° / 135°. It is excluded now: that was the
+instrument, not the field.
+
+**Idle presence per facing** (`tests/diag-bulwark-orient.mjs`, a Regular; sum =
+visible pixels × mean luminance change, as a share of SOUTH):
+
+| | E | N | W | NE / NW |
+|---|---|---|---|---|
+| `5169399`, bearer drawn | 0.88 | 0.63 | 0.81 | 0.66 |
+| NEW, bearer drawn | **1.03** | **0.91** | **1.02** | 0.94 |
+| `5169399`, bearer hidden | 0.94 | 0.85 | 0.93 | 0.90 |
+| NEW, bearer hidden | 1.01 | **1.00** | 1.01 | 0.98 |
+
+The top-10% rim luminance is 223 on NEW (243 before). The rim is `0xf2f9ff` at 0.86, a
+pixel colour rather than a pure-white vector line.
+
+**Reaction presence per facing** (bearer drawn; event frame vs the same facing idle):
+
+| reaction | `5169399` E / N / W | NEW E / N / W |
+|---|---|---|
+| block 17ms (contact) | 0.58 / **0.07** / 0.52 | 1.00 / **0.77** / 0.99 |
+| block 100ms | 0.61 / 0.19 / 0.52 | 0.90 / 0.68 / 0.97 |
+| block 250ms (crests out) | 0.87 / 0.40 / 0.68 | 1.09 / 0.81 / 1.08 |
+| block 420ms (wake) | 0.71 / 0.24 / 0.64 | 1.03 / 0.91 / 1.02 |
+| block 100ms, 0.5 rad off-centre | 0.91 / 0.64 / 0.60 | 1.06 / 0.91 / 1.11 |
+| tear 90ms (bloom) | 1.05 / 0.45 / 1.18 | 1.04 / 0.80 / 1.03 |
+| tear 300ms (open) | 0.75 / 0.34 / 0.62 | 1.05 / 0.78 / 1.04 |
+| tear 560ms (zipper) | 0.86 / **0.04** / 0.56 | 1.00 / 0.43 / 1.00 |
+| tear 640ms (snap + recovery) | 0.89 / **0.03** / 0.95 | 1.00 / 0.41 / 0.99 |
+
+- Side-on, the reaction now matches south (it was half).
+- Facing north, a dead-centre contact is still behind his helmet. That occlusion is
+  real and is kept. The crests now carry it out to the shoulders, which is why the
+  block reads 0.68-0.91 where it read 0.07-0.40.
+- The remaining north deficit is the seam at the dead centre (zipper and snap, ~0.4).
+
+**Cross-section at the apex** (`smoke-bulwark`, cell edge to cell edge): 16px on the
+axes and 18.2px on the diagonals. That is the same band; a 4px lattice crossed
+diagonally spans a little more.
 
 ## Orientation invariance (the handset round-1 correction)
 

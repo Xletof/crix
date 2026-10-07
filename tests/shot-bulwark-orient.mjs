@@ -570,12 +570,13 @@ async function perf() {
       let t = 0;
       for (const e of es) { const d = e._curtain.draw.bind(e._curtain); e._curtain.draw = () => { const a = performance.now(); d(); t += performance.now() - a; }; }
       const hold = () => es.forEach((e, i) => { window.__face(e, facings[i]); e.body.reset(e._homeX, e._homeY); });
-      const run = (n, fire) => { t = 0; for (let i = 0; i < n; i++) { if (fire && i % 3 === 0) for (const e of es) window.__bolt(e, e._shieldFacing + ((i / 3) % 5 - 2) * 0.3); window.__adv(1); hold(); } return t / n / es.length; };
+      // every: 0 = idle, 3 = every field hit every 3rd frame (active), 1 = every frame (rapid: the 12-event cap full)
+      const run = (n, every) => { t = 0; let live = 0; for (let i = 0; i < n; i++) { if (every && i % every === 0) for (const e of es) window.__bolt(e, e._shieldFacing + (Math.floor(i / every) % 5 - 2) * 0.3); window.__adv(1); hold(); live = Math.max(live, ...es.map((e) => e._curtain.events.length)); } return [t / n / es.length, live]; };
       hold(); window.__adv(30);
-      const idle = [], fire = [];
-      for (let r = 0; r < 5; r++) { idle.push(run(240, false)); fire.push(run(240, true)); }
+      const idle = [], fire = [], rapid = []; let lr = 0;
+      for (let r = 0; r < 5; r++) { idle.push(run(240, 0)[0]); fire.push(run(240, 3)[0]); const q = run(240, 1); rapid.push(q[0]); lr = Math.max(lr, q[1]); }
       const med = (a) => a.slice().sort((p, q) => p - q)[2];
-      out.idle = +med(idle).toFixed(4); out.fire = +med(fire).toFixed(4);
+      out.idle = +med(idle).toFixed(4); out.fire = +med(fire).toFixed(4); out.rapid = +med(rapid).toFixed(4); out.rapidLiveEvents = lr;
       out.events = es.map((e) => e._curtain.stats.blocks);
       return out;
     });

@@ -1014,8 +1014,9 @@ asserts separately that the ceiling is not reached.
   lean (inner rim lifted over the outer) x sin(bearing): the lean ADDS facing
   south and SUBTRACTS facing north. The first cross-section leaned 7px and read
   19 / 12 / 5px south / side / north — a thin arc from behind at any alpha.
-  The 4px cell field has no lean at all: a flat band R-11..R+6, the same
-  17px at every facing (it read 19 / 17 / 15 with a 2px lean). Measure presence with
+  The 4px cell field has no lean at all: a flat band R-11..R+6, 16px at
+  every compass facing and 18 on the diagonals (it read 19 / 17 / 15 with a
+  2px lean). Measure presence with
   `tests/diag-bulwark-orient.mjs` (`--nobody` separates projection from
   occlusion), not by eye on the south view.
 - **A REACTION ON THE CENTRE LINE MUST NOT FLIP LAYERS ON A HAIR.** Side-on,

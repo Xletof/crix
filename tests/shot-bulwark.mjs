@@ -478,7 +478,7 @@ async function superStrip() {
 }
 
 // ── HIERARCHY ────────────────────────────────────────────────────────────
-async function hierarchy() {
+async function hierarchy(file = 'roster-v1-hierarchy-4roles.png') {
   const page = await stillPage();
   await page.evaluate(lab);
   const y = await page.evaluate(() => {
@@ -501,7 +501,7 @@ async function hierarchy() {
     return cam.y + 110;
   });
   const buf = await page.screenshot({ clip: { x: 0, y, width: 720, height: 400 } });
-  await compose(OUT + 'roster-v1-hierarchy-4roles.png', {
+  await compose(OUT + file, {
     title: 'ROSTER v1 HIERARCHY — 1x, live runtime: Rifleman / Gunner / Bulwark / Marksman (Regular, Elite) and the unchanged Shock Captain',
     cols: 1, cellW: 720, cellH: 400,
     cells: [{ label: 'top row aimed toward the camera (+20deg), bottom row aimed east. Deck: Detention escort floor. Production art only.', png: b64(buf) }],
@@ -616,7 +616,7 @@ async function ab(q, file, FR) {
 }
 
 const steps = {
-  sheets, facings, sidearm, colliders, gaitframes: gaitFrames, idle: shieldIdle, blockstrip: blockStrip, superstrip: superStrip, hier: hierarchy,
+  sheets, facings, sidearm, colliders, gaitframes: gaitFrames, idle: shieldIdle, blockstrip: blockStrip, superstrip: superStrip, hier: () => hierarchy(), hierfinal: () => hierarchy('roster-v1-hierarchy-bulwark-final.png'),
   gaitlive: () => encounterVideo(`${FLAGS}&${VANGUARD}`, 'bulwark-gait-v2-live.webm', 330),
   blocklive: blockLive, rapid: rapidLive, superlive: superLive,
   vanguard: () => encounterVideo(`${FLAGS}&${VANGUARD}`, 'bulwark-vanguard-live.webm', 700),
