@@ -605,7 +605,9 @@ const fac = await pG.evaluate(async () => {
   check(h.outside > 200 && h.wrong === 0 && h.aimIsShield,
     `the HUMAN's path with the real AI (south-west, south-east, round the east side to the north): the accumulated angle sits outside ±180 on ${h.outside} of ${h.n} frames (up to ${h.maxRawDeg} deg; it ends at ${h.sfRaw} deg, unwrapped, as gameplay keeps it) and the body shows the right facing on every frame`, JSON.stringify(h));
 }
-const legacyFacing = await pL.evaluate(() => { const gs = window.__gs; window.__open(); const e = gs.spawnEnemyAt('shielded', 800, 700, {}); const own = Object.prototype.hasOwnProperty.call(e, '_facingSuffix') || Object.prototype.hasOwnProperty.call(e, 'preUpdate'); gs._destroyEnemyFully(e); return own; });
+const pLF = await stepped('?nodlg=1&nofreeze=1');
+const legacyFacing = await pLF.evaluate(() => { const gs = window.__gs; window.__open(); const e = gs.spawnEnemyAt('shielded', 800, 700, {}); const own = Object.prototype.hasOwnProperty.call(e, '_facingSuffix') || Object.prototype.hasOwnProperty.call(e, 'preUpdate'); gs._destroyEnemyFully(e); return own; });
+await pLF.close();
 check(legacyFacing === false, 'without ?roster=v1 the Bulwark keeps the frozen facing method and preUpdate untouched (legacy presentation is legacy)', String(legacyFacing));
 
 // ── 4e. THE BLOCK WAVE: two scales, a flexing membrane, still local ──────

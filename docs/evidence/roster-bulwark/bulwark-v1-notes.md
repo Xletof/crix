@@ -15,6 +15,65 @@ field, a block reading as a flash rather than a wave, and a glass / windshield
 material. Answered in the final visual integration pass below; waiting on the
 handset for the final gate.
 
+## Final correction (handset round 3): the broader membrane ripple + the display-facing wrap
+
+**Round 3 on `bfb4a86`:** very close. Approved and protected:
+- the body, sidearm, gait, material, geometry and orientation invariance;
+- the layering, the absorption colours, rapid layering and the Super architecture;
+- VANGUARD and the gameplay.
+
+Two issues remained:
+1. **The ripple read as a narrow rectangle sliding along the band.**
+2. **After circling, a Bulwark sometimes kept the wrong body facing** and followed the
+   player walking backwards.
+
+### 1. The display-facing wrap (proved first, then fixed)
+
+**Cause, confirmed.**
+- `EnemyShielded._tickSwarm` turns the shield with
+  `_shieldFacing += clamp(Wrap(toPlayer - _shieldFacing))` and never wraps the sum;
+  `_aim = _shieldFacing`.
+- Gameplay reads it only through sin / cos / Wrap, so the block test, the gun, the bolt
+  and the vision cone are right at any value.
+- `Enemy._facingSuffix` classifies RAW degrees: anything ≥ 135° or ≤ −135° is WEST.
+
+**The human's case reproduces from spawn.** The shield starts north (−90°) and reaches a
+south-west player the short way, through west, to **−225°**. From then on:
+- south-east, east and north all draw the WEST sprite;
+- gait v2, which reads the facing the sprite shows, walks the Bulwark backwards
+  toward the player.
+
+**Concrete failing angles** (`tests/diag-bulwark-facing.mjs`, the real AI turning the
+shield):
+- raw **−450°** (≡ −90°, NORTH) is drawn WEST;
+- raw **−226°** (≡ 134°, SOUTH) is drawn WEST.
+
+The same raw angle also set the sidearm overlay's flip (`|aim| > 90°`: an east-pointing
+pistol drawn upside down) and its draw order (`deg ∈ (−135, −45)`: a north-pointing gun
+drawn OVER the helmet, which also lifted the field cells on the gun over his body).
+
+| path (frames judged against the angle they were drawn from) | `bfb4a86` wrong facing | `bfb4a86` walking backwards | NEW wrong | NEW backwards |
+|---|---|---|---|---|
+| the human's: SW → SE → round the east side to N (381 frames) | **309** | **142** | **0** | 18 |
+| three laps counter-clockwise (1031) | 730 | 327 | 0 | 18 |
+| three laps clockwise (1031) | 482 | 224 | 0 | 18 |
+
+The 18 backwards frames left are all correct-facing: the first 0.3s after spawn, while
+the shield is still turning toward a player behind it. `bfb4a86` has the same 18.
+
+**Fix: display-only** (`src/systems/bulwarkFacing.js`, installed from the v1 Bulwark
+hook).
+- `_facingSuffix` resolves through the frozen implementation on the WRAPPED angle, so
+  the boundary rules are its own.
+- The overlay's flip and depth are re-derived from that same wrapped angle with the base
+  class's own two rules, after the base has run.
+- In range (|aim| ≤ 180°) both are exact no-ops: the display angle is the value itself,
+  not `Wrap(value)`, because Phaser's `Wrap` is not bit-identical for an in-range input.
+- **`_shieldFacing` and `_aim` are never written**: the replays compare them raw and
+  match.
+- Legacy (no `?roster=v1`) keeps the frozen method; the bug is still there, in frozen
+  code.
+
 ## Final visual integration (handset round 2)
 
 **Round 2 on `5169399`:** the orientation fix was approved and is kept. Three things
