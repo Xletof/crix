@@ -564,7 +564,7 @@ overlay's depth offset, gun visibility) or a reaction is live; bearing-only work
 binned at 0.03 rad, and equal neighbouring cells merge into one rect per row. The first
 cell build, without these, cost 2-2.6x the old field.
 
-## Gameplay invariance (smoke-bulwark, 70 checks)
+## Gameplay invariance (smoke-bulwark, 78 checks)
 
 - **Units:** hp, radius, body width and centring, speed, half-arc 1.35, turn 2.6,
   cadence 1500, bolt 700 / 120 / 520, and desired range 260 are identical legacy vs v1
@@ -586,6 +586,15 @@ cell build, without these, cost 2-2.6x the old field.
   and give no meter.
 - **Deaths:** a Bulwark's death makes the same random draws legacy vs v1 (Regular 205,
   Elite 256).
+- **Final visual integration:**
+  - The two seeded replays above still match at every checkpoint on the cell field.
+    That covers positions, velocities, shield facing, blocks, Super penetration, hp,
+    meter, queue, VANGUARD release, shot ticks, projectile spawns and random draws.
+    So does the RNG-parity draw count (195 / 195).
+  - `5169399` vs NEW under the same VANGUARD script matches at 20/20 sampled
+    checkpoints (`bulwark-shield-final-ab.webm`).
+  - The field module still writes no gameplay field, owns no timer or tween, and draws
+    no random number (asserted).
 
 ## Tests
 
@@ -698,6 +707,36 @@ The videos were rendered before the last change: an idle field drawn as one segm
 per flat panel instead of five. That change leaves the geometry identical and moves
 only the sampling of the faint sheen. The stills were re-rendered after it.
 
+**Final visual integration** (rig `tests/shot-bulwark-orient.mjs`, steps named in
+brackets; `5169399` panels served from a worktree of that commit). In the brief's
+priority order:
+
+21. `bulwark-vanguard-final.webm` [vgfinal] — real VANGUARD case A, 1x, the player
+    holding while the front forms, firing into it, walking a loop round the pair, and
+    two Supers (ticks 900 and 1240). Bearer facings over the run, in bearer-ticks: N
+    825, W 2512, E 1162, S 492.
+22. `bulwark-shield-final-ab.webm` [finalab] — `5169399` (left) vs NEW (right), the
+    same VANGUARD, the same seed, the same script. **The same fight (sampled state
+    identical) at 20/20 checkpoints.**
+23. `bulwark-layering-rotate.webm` [layerrot] — a Regular and an Elite turned through
+    360° while the sidearm charges and fires; 1x and 2x.
+24. `bulwark-ripple-live.webm` [riplive] — single blocks at real speed, front-facing
+    and side-facing; 1x and 2x.
+25. `bulwark-material-ab.png` [matab] — `5169399` above, NEW below, at 1x: south /
+    east / north / south-east (Elite), and a VANGUARD pair facing the player.
+26. `bulwark-layering-4way.png` [layer4] — S / E / N / W × idle / charging / shot frame
+    at 2x, plus a PROOF row with the gun tint-filled magenta.
+27. `bulwark-material-rotate.webm` [matrot] — the cell material turned through 360°.
+28. `bulwark-ripple-strip.png` [ripstrip] — one real bolt into a south-facing field:
+    contact 17ms → compression 33 → twin crests leave 100 → travelling 167 → coral
+    wake 250 → pink / white 333 → absorbed 483 → recovered; 1x and 2x.
+29. `bulwark-ripple-rapid.webm` [riprapid] — rapid fire walked across a front-facing
+    and a side-facing field.
+30. `bulwark-super-heal-v2.webm` [superheal] — part A: the same volley through the
+    real pierce seam at S / E / N / W, twice. Part B: a REAL Super into an Elite at
+    each facing (sector-25 hp; the generic FX are included).
+31. `roster-v1-hierarchy-bulwark-final.png` (`tests/shot-bulwark.mjs hierfinal`).
+
 ## What is still weak at 1x
 
 - **A full Super usually KILLS a Bulwark, so the tear is rarely seen in play.**
@@ -717,9 +756,21 @@ only the sampling of the faint sheen. The stills were re-rendered after it.
   - A north-facing shield sits behind his head and shoulders (this projection puts
     the combat plane there). It is the same material as the front view, but his body
     hides its middle.
-  - A dead-centre block or tear facing north is mostly hidden by the helmet and the
-    north-pointing sidearm (see Orientation invariance).
-  - The sidearm pointing north also shows above the head, as every role's weapon does.
+  - A dead-centre block facing north starts behind his helmet, but its crests reach
+    the shoulders (0.68-0.91 of the south view). The dead-centre seam of a tear
+    (zipper and snap) is still mostly hidden there (~0.4); that is body occlusion,
+    kept as asked.
+  - The sidearm pointing north shows above the head, as every role's weapon does. Where
+    it crosses the band, the band is drawn over it.
+- **The cell band is ~3px thinner at the south apex** than the approved vector band
+  (16 vs 19px; 16 at every compass facing, 18 on the diagonals). Judge at 1x.
+- **The material is paler and airier than `5169399`.** The fill is translucent ice
+  inside a white rim and a navy outline, where the old band was a denser grey. On a
+  dark deck it can read as mostly outline. The alphas are one table
+  (`CURTAIN.face / shoulder / tip`) if the handset wants it denser.
+- **A pixel field re-rasterises as he turns.** At the diagonals the rim steps as any
+  rotated pixel shape does; the tips end on rim cells within one cell of the coverage
+  bearing at every facing. This is the trade for living on the sprite's own grid.
 - **Profile:** the legs are 2px in profile under a broad torso; heavy, but the side
   figure reads top-heavy.
 - **Sidearm vs shield lag:** see above — usually 0°, occasionally large when the player circles a held shield; frozen gameplay.
