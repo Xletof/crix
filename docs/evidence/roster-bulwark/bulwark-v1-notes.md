@@ -3,7 +3,7 @@
 **Flags:** `?roster=v1` (body, sidearm, field) and `?gait=v2` (the shuffle). Without
 `?roster=v1` the Bulwark is exactly the legacy one. Nothing is a default.
 
-**Status:** CANDIDATE for the final handset gate (final visual integration). Not human-approved. Presentation only — every gameplay value
+**Status:** CANDIDATE for the final handset gate (final correction: membrane ripple + display facing). Not human-approved. Presentation only — every gameplay value
 is the frozen one, and `src/entities/Enemy.js` is **untouched**.
 
 **Handset round 1 (`d9e2d6d`):** broadly approved, with ONE blocker — the shield
@@ -658,7 +658,28 @@ overlay's depth offset, gun visibility) or a reaction is live; bearing-only work
 binned at 0.03 rad, and equal neighbouring cells merge into one rect per row. The first
 cell build, without these, cost 2-2.6x the old field.
 
-## Gameplay invariance (smoke-bulwark, 78 checks)
+**Final correction (round 3), before / after** (the same instrument; `bfb4a86` served
+from a worktree; the numbers are medians, and this container's load moves single
+figures by ~10%):
+
+| ms per field per frame | `bfb4a86` | NEW (wave v2) |
+|---|---|---|
+| idle | 0.074 | 0.087 |
+| every field hit every 3 frames | 0.350 | 0.440 |
+| rapid (every frame, 12 live events) | 0.378 | 0.494 |
+
+**This is the envelope's real price, +0.1ms per field per frame under constant fire on
+desktop.** Where it comes from:
+- a second energy channel (the wake) and a pressure channel, accumulated per bin;
+- a per-cell wake taper;
+- pressure-varied colours, which merge into fewer fill runs per row.
+
+Two cheap savings went in, and both are pixel-equivalent: the wake alone skips the
+colour blend, and the taper slope is folded into the bin. A phone is slower. A VANGUARD
+under fire carries 3-4 Bulwarks, so this is the line to watch if the handset ever
+reports frame time.
+
+## Gameplay invariance (smoke-bulwark, 90 checks)
 
 - **Units:** hp, radius, body width and centring, speed, half-arc 1.35, turn 2.6,
   cadence 1500, bolt 700 / 120 / 520, and desired range 260 are identical legacy vs v1
