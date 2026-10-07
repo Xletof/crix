@@ -766,6 +766,20 @@ How the new guards were checked against the build they replace:
   four errors in the guards and two in the renderer: the bins were not mirror-symmetric
   about the facing, and the tips were grid-dependent at some facings.
 
+**Final correction (round 3):**
+
+| suite | result |
+|---|---|
+| smoke-bulwark | **90/90** (+12: §4d display facing ×5, §4e wave ×5, the replay's painted-facing pair ×2). **On `bfb4a86` 83/90 — the 7 new guards that can fail do** (the four facing checks, the envelope, the flex, the replay's facing difference). The bounded / local / rapid checks pass on both, as regression guards should. |
+| smoke-roster-2b / gunner / seams | 72/72 · 72/72 · 70/70 |
+| smoke-gait-v2 / move-v2 | 16/16 · 9/9 |
+| smoke-champion-placement | 60/60 |
+| smoke-encounters / encdbg | 25/25 · 33/33 |
+| smoke-vanguard-reinforce | 26/26 |
+| smoke-vanguard-screen | 22/22 on re-run. One batch run failed "resumes and re-settles in the band" (re-settled at 114px); it passed on the idle re-run. |
+| smoke-vanguard-front | **INTERMITTENT, and not this pass's gameplay.** It passed 4 of 8 runs on this build (twice on a fresh server) against 5 of 5 on `bfb4a86`. The failing check varies between runs: the surge check, or "the pair settles at the close hold / the lane is dropped". The surge check sleeps 2600ms of WALL time against a 3000ms GAME-time timeout, a fixed sleep racing a Phaser timer. The suite runs legacy presentation, which this pass does not touch: a seeded, stepped legacy VANGUARD replay is **bit-identical between `bfb4a86` and this build at all 88 checkpoints, all 30 shots and 14,002 random draws**. The instrument is the fix and was not changed here. |
+| `npm run build` | OK |
+
 ## Handset URLs (Pages, after the FRIX fast-forward)
 
 1. **Isolated Bulwark (VANGUARD without the Captain):**

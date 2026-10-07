@@ -211,6 +211,9 @@ export function waveAt(d, t, S, T, crestPx, wakeMs, out = _WAVE, envA = CURTAIN.
   return out;
 }
 
+// a material colour under the pressure envelope: denser, brighter frost
+const press = (base, pr) => (pr > 0.01 ? lerpCol(base, CURTAIN.pressCol, Math.min(1, pr * CURTAIN.pressMix)) : base);
+
 // the energy accumulators: intensities sum, colours mix by intensity squared
 // (one for the crest / contact / tear energy, one for the wake)
 const _ACC = { sum: 0, r: 0, g: 0, b: 0, w: 0 };
@@ -608,7 +611,6 @@ class CurtainField {
       const pr = B.P[i];
       const tint = Math.min(1, I * 1.25);
       const scan = scanTh != null && Math.abs(th - scanTh) < colAng / 2 ? C.scanA : 0;
-      const press = (base) => (pr > 0.01 ? lerpCol(base, C.pressCol, Math.min(1, pr * C.pressMix)) : base);
       let col, alpha;
       if (rim) {
         c.kind = 'rim';
@@ -616,15 +618,15 @@ class CurtainField {
         alpha = Math.min(1, (C.rimA + pr * 0.1) * mul);
       } else if (edge) {
         c.kind = 'edge';
-        col = I > 0.01 ? lerpCol(press(C.lowRim), ec, Math.min(1, I)) : press(C.lowRim);
+        col = I > 0.01 ? lerpCol(press(C.lowRim, pr), ec, Math.min(1, I)) : press(C.lowRim, pr);
         alpha = Math.min(0.92, (C.lowRimA + scan + I * 0.4 + pr * C.pressA) * mul);
       } else if (f < C.split) {
         c.kind = 'outer';
-        col = I > 0.01 ? lerpCol(press(m[0]), ec, tint) : press(m[0]);
+        col = I > 0.01 ? lerpCol(press(m[0], pr), ec, tint) : press(m[0], pr);
         alpha = Math.min(0.92, (m[1] + scan + I * 0.55 + pr * C.pressA) * mul);
       } else {
         c.kind = 'inner';
-        col = I > 0.01 ? lerpCol(press(m[2]), ec, tint) : press(m[2]);
+        col = I > 0.01 ? lerpCol(press(m[2], pr), ec, tint) : press(m[2], pr);
         alpha = Math.min(0.92, (m[3] + scan * 0.7 + I * 0.5 + pr * C.pressA) * mul);
       }
       cell(c, col, alpha);
