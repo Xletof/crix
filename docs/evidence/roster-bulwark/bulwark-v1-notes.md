@@ -3,7 +3,7 @@
 **Flags:** `?roster=v1` (body, sidearm, field) and `?gait=v2` (the shuffle). Without
 `?roster=v1` the Bulwark is exactly the legacy one. Nothing is a default.
 
-**Status:** CANDIDATE. Not human-approved. Presentation only — every gameplay value
+**Status:** CANDIDATE for the final handset gate (final visual integration). Not human-approved. Presentation only — every gameplay value
 is the frozen one, and `src/entities/Enemy.js` is **untouched**.
 
 **Handset round 1 (`d9e2d6d`):** broadly approved, with ONE blocker — the shield
@@ -641,6 +641,36 @@ cell build, without these, cost 2-2.6x the old field.
 | smoke-encdbg | 33/33 |
 | smoke-vanguard-reinforce | **26/26, twice.** The 4 surge/queue checks that failed in the first pass (22/26, identically on the `577c487` baseline) passed both times here. Neither pass touches what they test, so they are intermittent / load-sensitive rather than fixed. Not chased. |
 | `npm run build` | OK |
+
+**Final visual integration** (same branch, after the cell field, `farW` and the wave):
+
+| suite | result |
+|---|---|
+| smoke-bulwark | **78/78** — §4 / §4b rewritten for cells; §4c WEAPON < SHIELD by structure (1046 crossing cells, none on the under-body layer) and by magenta pixels (64 frames, 0 uncovered gun pixels inside the field) |
+| smoke-roster-2b | 72/72 |
+| smoke-roster-gunner | 72/72 |
+| smoke-roster-seams | 70/70 |
+| smoke-gait-v2 | 16/16 |
+| smoke-move-v2 | 9/9 |
+| smoke-champion-placement | 60/60 |
+| smoke-vanguard-screen | 22/22 |
+| smoke-vanguard-front | 30/30 |
+| smoke-encounters | 25/25 |
+| smoke-encdbg | 33/33 |
+| smoke-vanguard-reinforce | 26/26 (intermittent in the first pass; green here) |
+| `npm run build` | OK (the chunk-size warning is pre-existing) |
+
+How the new guards were checked against the build they replace:
+- §4c's cell records do not exist on `5169399`, so its renderer-agnostic twin
+  `tests/diag-bulwark-layering.mjs` is the A/B: 5415 leaking px on `5169399`, 0 on NEW.
+- The STRUCTURAL guard was first written against the world matrix alone and passed
+  blind on a real bug: `flipY` is applied in the renderer, and the flipped gun is wider
+  than the strip. The magenta guard caught it.
+- Made flip-aware, the structural guard finds 7 violations at the old strip width and
+  0 at the new one.
+- The 78-check suite went 72 → 77 → 78 over this pass. The six first-run failures were
+  four errors in the guards and two in the renderer: the bins were not mirror-symmetric
+  about the facing, and the tips were grid-dependent at some facings.
 
 ## Handset URLs (Pages, after the FRIX fast-forward)
 
