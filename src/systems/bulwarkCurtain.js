@@ -17,27 +17,31 @@
 // it (the second handset round's verdict on the first build: polished glass,
 // many small panes, a vector-clean rim, soft optical gradients):
 //
-//   - FEW VALUE MASSES. Eight flat facets, but the eye is given three masses:
-//     a pale off-white FACE across the middle, ice-blue SHOULDERS, and denser
-//     TIPS. No per-panel alternation, no seams, no sheen gradients.
-//   - FLAT HARD CELLS. Every cell of the band is ONE colour at ONE alpha (no
-//     per-vertex gradients); a reaction steps across the surface a cell at a
-//     time, ~4px, the size of one of the sprite's own pixels.
+//   - THE GAME'S OWN PIXEL. The field is drawn in 4px cells on the bearer's
+//     own pixel grid (see _candidates), never as vector panes.
+//   - FEW VALUE MASSES. The eye is given three: a pale off-white FACE across
+//     the middle, ice-blue SHOULDERS, and denser TIPS. No per-panel
+//     alternation, no seams, no sheen gradients.
+//   - FLAT HARD CELLS. Every cell is ONE colour at ONE alpha; a reaction steps
+//     across the surface a cell at a time.
 //   - TWO HARD BANDS across the thickness: a denser outer band by the rim (the
 //     energy edge) and a thinner inner band toward him.
-//   - AN AUTHORED EDGE. A 2px dark-navy keyline outside the bright rim, as the
-//     roster's sprites carry an outline, and chunky outlined tips. The inner
-//     edge is a soft line, so the field never becomes a black cage.
+//   - AN AUTHORED EDGE. One cell of bright rim on the outer edge, one cell of
+//     dark navy outside it, as the roster's sprites carry an outline, and a
+//     navy cap beyond each tip. The taper never thins below 6px and its last
+//     thin stretch is all rim, so every tip ENDS on bright cells at any
+//     facing. The inner edge is a soft row, so the field never becomes a
+//     black cage.
 //   - RESTRAINED INTERFERENCE. One stepped current pulse crosses the field tip
-//     to tip every few seconds, a cell per step. The ripple carries the motion.
+//     to tip every few seconds, a column of cells per step. The ripple carries
+//     the motion.
 //
-// Its cross-section is a band of near-constant DEPTH: the outer rim 6px beyond
-// the contact radius and 2px under the combat plane, the inner rim 11px inside
-// it, on the plane. This game draws the floor with no foreshortening, so a
-// band's screen thickness is its radial depth plus its LEAN (how far the inner
-// rim is lifted above the outer) times sin(bearing). The first build leaned
-// 7px, which read 19 / 12 / 5px thick south / side / north — a thin arc from
-// behind whatever its alpha. The lean is 2 now: 19 / 17 / 15.
+// Its cross-section is FLAT: from 11px inside the contact radius to 6px
+// outside it, the same at every facing. (The vector field leaned its band —
+// inner rim lifted over the outer — and this floor has no foreshortening, so a
+// lean ADDS thickness facing south and SUBTRACTS it facing north: 7px of lean
+// read 19 / 12 / 5px south / side / north, 2px read 19 / 17 / 15. A cell field
+// on the floor plane has no lean to give it.)
 //
 // ── DEPTH: THE BODY, AND THE WEAPON ──────────────────────────────────────
 // Every cell is routed by which side of the bearer it is on. South of his
@@ -78,14 +82,14 @@
 // flashes. Each event stores its offset from the facing, so it stays on the
 // surface while the shield turns.
 //
-//   BLOCK  the bolt flattens into a red-hot smear and dents the surface; then
-//          TWO wavefronts leave the contact in opposite directions along the
-//          curve. Each is a narrow saturated-red CREST (with a 1-2px bulge
-//          of the membrane, so the bright rim visibly kinks where it passes)
-//          and behind it a WAKE whose colour is the time since the crest went
-//          by: red -> coral -> pink -> white. The crest cools as it slows and
-//          dies about two thirds of the way to the tips; the wake whitens and
-//          settles. RED = energy still in the field; WHITE = absorbed.
+//   BLOCK  CONTACT -> TRAVELLING WAVE -> CONVERSION -> SETTLE. The bolt
+//          flattens into a red-hot smear and dents the surface; then TWO
+//          wavefronts leave the contact in opposite directions along the curve.
+//          Each is a narrow saturated-red CREST and behind it a WAKE whose
+//          colour is the time since the crest went by: red -> coral -> pink ->
+//          white. The crest cools as it slows and dies about two thirds of the
+//          way to the tips; the wake whitens and settles. RED = energy still in
+//          the field; WHITE = absorbed.
 //   TEAR   (a Super through the front) contact -> white bloom -> the field
 //          splits and its edges peel outward -> the gap holds -> the edges
 //          pull in while white-blue filaments re-knit across it -> the last of
@@ -117,7 +121,7 @@ export const CURTAIN = {
   behindSin: 0.5,                 // a REACTION is behind him only past 30deg north of his centre line (see _layer)
   maxBlocks: 12, maxPricks: 3,
   // the absorption wave (arc px / ms)
-  wavePx: 42, waveMs: 420, crestPx: 3.4, wakeMs: 170, bulgePx: 1.6,
+  wavePx: 42, waveMs: 420, crestPx: 3.4, wakeMs: 170,
   // the Super's recovery wave after the snap
   healPx: 34, healMs: 340,
 };
@@ -246,8 +250,8 @@ export function makeBulwarkCurtain(e) {
 
 // The sidearm overlay's opaque footprint across its own axis, read once per
 // texture from the painted canvas: the widest the gun is either side of the
-// bore row, in texture pixels. Conservative by construction (the whole gun,
-// forearm included), so no gun pixel can escape the strip.
+// bore row, flipped or not, in texture pixels. Conservative by construction
+// (the whole gun, forearm included), so no gun pixel can escape the strip.
 const _gunHalf = new Map();
 function gunHalfWidth(ws) {
   const key = ws.texture.key;
@@ -260,7 +264,9 @@ function gunHalfWidth(ws) {
       const px = x.getImageData(0, 0, c.width, c.height).data;
       let lo = Infinity, hi = -Infinity;
       for (let y = 0; y < c.height; y++) for (let xx = 0; xx < c.width; xx++) if (px[(y * c.width + xx) * 4 + 3] > 0) { lo = Math.min(lo, y); hi = Math.max(hi, y); }
-      if (hi >= lo) { const oy = ws.originY * ws.height; hw = Math.max(oy - lo, hi + 1 - oy); }
+      // either way up: `flipY` mirrors the rows within the frame while the
+      // origin stays put, so the flipped gun can be wider on one side
+      if (hi >= lo) { const oy = ws.originY * ws.height, H = c.height; hw = Math.max(oy - lo, hi + 1 - oy, oy - (H - 1 - hi), H - lo - oy); }
     } catch { /* keep the whole canvas height: conservative */ }
     _gunHalf.set(key, hw);
   }

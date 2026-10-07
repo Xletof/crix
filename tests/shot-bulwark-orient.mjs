@@ -717,7 +717,7 @@ async function ripStrip() {
   if (shots.length !== PH.length) fail(`ripStrip: ${shots.length}/${PH.length}`);
   const n = shots.length, W1 = 180, H1 = 150;
   const draws = [], texts = [{ text: 'ONE NORMAL BLOCK — contact -> twin crests -> coral -> pink / white -> absorbed -> recovered (a real bolt, the field facing south)', x: 10, y: 22, bold: true, size: 15 },
-    { text: '1x (handset scale)', x: 10, y: 46, color: '#aab0bd', size: 12 }, { text: '3x nearest — the same frames', x: 10, y: 46 + H1 + 40, color: '#aab0bd', size: 12 }];
+    { text: '1x (handset scale)', x: 10, y: 46, color: '#aab0bd', size: 12 }, { text: '2.25x nearest — the same frames', x: 10, y: 46 + H1 + 40, color: '#aab0bd', size: 12 }];
   shots.forEach((s, i) => {
     draws.push({ i, sx: 0, sy: 0, sw: W1, sh: H1, dx: 10 + i * (W1 + 10), dy: 56 });
     draws.push({ i, sx: 50, sy: 50, sw: 80, sh: 90, dx: 10 + i * (W1 + 10), dy: 56 + H1 + 50, k: 2.25 });

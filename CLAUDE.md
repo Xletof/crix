@@ -981,6 +981,15 @@ asserts separately that the ceiling is not reached.
   depth (`WEAPON_STACK`), so rotation cannot reorder them. Do not answer
   WEAPON < SHIELD by lifting the whole far half over the body — that deletes
   the occlusion the handset approved.
+- **A SPRITE'S FLIP IS NOT IN ITS WORLD MATRIX.** Phaser applies
+  `flipX`/`flipY` in the renderer, mirroring the frame WITHIN ITSELF while
+  the origin stays put, so `getWorldTransformMatrix()` and anything measured
+  from the origin describe the UNFLIPPED sprite. The Bulwark's sidearm is
+  drawn `flipY` whenever it aims west, and flipped it reaches 20px either side
+  of its bore against 16 unflipped: the first WEAPON < SHIELD strip used the
+  unflipped width and left gun pixels on the under-body layer at two
+  north-west facings — and the structural guard, built on the same matrix,
+  passed blind. Only the magenta pixel guard saw it. Mirror the rows yourself.
 - **A PIXEL GAME'S FIELD IS BUILT FROM THE GAME'S PIXEL.** The vector field
   (soft-edged panels, vertex colour) read as glass laid over a pixel game. It
   is 4px CELLS now on the SCREEN-ALIGNED grid anchored at the bearer's centre,

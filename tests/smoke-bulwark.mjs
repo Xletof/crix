@@ -436,7 +436,9 @@ const lay = await pLay.evaluate(async () => {
       e._aim = fac; e._shieldFacing = fac; window.__adv(2);
       f._record = true; f._sig = null; f.draw();
       const m = ws.getWorldTransformMatrix(), pt = new Phaser.Math.Vector2();
-      const gun = opaque.map(([x, y]) => { m.transformPoint(x - ws.displayOriginX, y - ws.displayOriginY, pt); return [pt.x, pt.y]; });
+      // flipX / flipY are applied by the renderer, not the world matrix: the
+      // frame is mirrored within itself while the origin stays put
+      const gun = opaque.map(([x, y]) => { m.transformPoint((ws.flipX ? ws.width - x : x) - ws.displayOriginX, (ws.flipY ? ws.height - y : y) - ws.displayOriginY, pt); return [pt.x, pt.y]; });
       let onFar = 0, crossings = 0;
       for (const c of f._cells) {
         if (!['rim', 'outer', 'inner', 'edge', 'key'].includes(c.kind)) continue;
@@ -451,7 +453,7 @@ const lay = await pLay.evaluate(async () => {
       const pipG = e._attachments.find((g) => g.type === 'Graphics' && !Object.values(f.L).includes(g) && g !== f.coreG && g !== e.shieldArc);
       gs.events.emit('shooter-fire', e);
       const dis = gs.children.list.filter((o) => o.texture?.key === 'fx-blw-muzzle' && o.visible).pop();
-      out.rows.push({ elite, k, crossings, onFar, ws: ws.depth, pip: pipG?.depth, pipVis: pipG?.visible, dis: dis?.depth, farW: f.farW.depth, near: f.near.depth, gW: f.glowFarW.depth });
+      out.rows.push({ elite, k, flipY: ws.flipY, crossings, onFar, ws: ws.depth, pip: pipG?.depth, pipVis: pipG?.visible, dis: dis?.depth, farW: f.farW.depth, near: f.near.depth, gW: f.glowFarW.depth });
       window.__adv(4);
     }
     gs._destroyEnemyFully(e);
@@ -461,7 +463,7 @@ const lay = await pLay.evaluate(async () => {
 });
 {
   const rows = lay.rows, viol = rows.filter((r) => r.onFar), cross = rows.filter((r) => r.crossings > 0);
-  check(rows.length === 32 && cross.length >= 16 && !viol.length,
+  check(rows.length === 32 && cross.length >= 16 && rows.some((r) => r.flipY && r.crossings) && !viol.length,
     `WEAPON < SHIELD (structure): at 16 facings x 2 tiers, every field cell the sidearm's opaque pixels reach is drawn ABOVE the weapon (${cross.reduce((p, r) => p + r.crossings, 0)} crossing cells, none left on the under-body layer)`,
     JSON.stringify(viol.slice(0, 3)));
   const bad = rows.filter((r) => !(r.ws < r.pip && r.pip < r.dis && r.dis < r.farW && r.farW < r.gW && r.gW < r.near));
