@@ -718,15 +718,17 @@ async function ripStrip() {
   if (shots.length !== PH.length) fail(`ripStrip: ${shots.length}/${PH.length}`);
   const n = shots.length, W1 = 180, H1 = 150;
   const draws = [], texts = [{ text: 'ONE NORMAL BLOCK — contact -> twin crests -> coral -> pink / white -> absorbed -> recovered (a real bolt, the field facing south)', x: 10, y: 22, bold: true, size: 15 },
-    { text: '1x (handset scale)', x: 10, y: 46, color: '#aab0bd', size: 12 }, { text: '2.25x nearest — the same frames', x: 10, y: 46 + H1 + 40, color: '#aab0bd', size: 12 }];
+    { text: '1x (handset scale)', x: 10, y: 46, color: '#aab0bd', size: 12 }, { text: '2x nearest — the same frames, the whole width of the band', x: 10, y: 56 + H1 + 52, color: '#aab0bd', size: 12 }];
+  const CW = 250, Z = 2, ZW = 120, ZH = 90, ZY = 56 + H1 + 60;     // the enlarged row: 120 x 90 around the band, at 2x
   shots.forEach((s, i) => {
-    draws.push({ i, sx: 0, sy: 0, sw: W1, sh: H1, dx: 10 + i * (W1 + 10), dy: 56 });
-    draws.push({ i, sx: 50, sy: 50, sw: 80, sh: 90, dx: 10 + i * (W1 + 10), dy: 56 + H1 + 50, k: 2.25 });
-    texts.push({ text: s.ph, x: 10 + i * (W1 + 10), y: 56 + H1 + 16, size: 11 });
-    texts.push({ text: s.age === 9999 ? '(event gone)' : `${s.age}ms`, x: 10 + i * (W1 + 10), y: 56 + H1 + 30, size: 11, color: '#9fe6ff' });
+    const x0 = 10 + i * CW;
+    draws.push({ i, sx: 0, sy: 0, sw: W1, sh: H1, dx: x0 + (CW - 10 - W1) / 2, dy: 56 });
+    draws.push({ i, sx: (W1 - ZW) / 2, sy: 50, sw: ZW, sh: ZH, dx: x0, dy: ZY, k: Z });
+    texts.push({ text: s.ph, x: x0 + (CW - 10 - W1) / 2, y: 56 + H1 + 16, size: 11 });
+    texts.push({ text: s.age === 9999 ? '(event gone)' : `${s.age}ms`, x: x0 + (CW - 10 - W1) / 2, y: 56 + H1 + 30, size: 11, color: '#9fe6ff' });
   });
-  const png = await composite(shots.map((s) => s.buf), { W: 10 + n * (W1 + 10), H: 56 + H1 + 50 + 90 * 2.25 + 50, draws, type: 'png',
-    texts: [...texts, { text: 'RED = the bolt\'s energy still in the field; the crest leads, the wake behind it cools coral -> pink -> white; WHITE = absorbed', x: 10, y: 56 + H1 + 50 + 90 * 2.25 + 30, size: 12, color: '#d0d4dc' }] });
+  const png = await composite(shots.map((s) => s.buf), { W: 10 + n * CW, H: ZY + ZH * Z + 50, draws, type: 'png',
+    texts: [...texts, { text: 'RED = the bolt\'s energy still in the field; the crest leads, the wake behind it cools coral -> pink -> white; WHITE = absorbed', x: 10, y: ZY + ZH * Z + 30, size: 12, color: '#d0d4dc' }] });
   writeFileSync(OUT + name('bulwark-ripple-strip.png'), png);
   console.log('wrote', OUT + name('bulwark-ripple-strip.png'));
   await page.close();
@@ -766,8 +768,8 @@ async function ripVideo(file, { rapid }) {
   }, rapid);
   await record(page, file, rapid ? 270 : 300, {
     clip: { x: 0, y: camY + 300 - 140, width: 720, height: 280 }, W: 720, H: 44 + 280 + 24 + 520 + 40,
-    draws: [{ sx: 0, sy: 0, sw: 720, sh: 280, dx: 0, dy: 44 }, { sx: 190, sy: 10, sw: 360, sh: 260, dx: 0, dy: 44 + 280 + 24, k: 2 }],
-    texts: (n, f) => [{ text: rapid ? 'RAPID FIRE — every hit its own local history (front-facing left, side-facing right)' : 'SINGLE BLOCKS, real speed — front-facing (left) and side-facing (right)', x: 10, y: 20, bold: true, size: 15 },
+    draws: [{ sx: 0, sy: 0, sw: 720, sh: 280, dx: 0, dy: 44 }, { sx: 155, sy: 10, sw: 360, sh: 260, dx: 0, dy: 44 + 280 + 24, k: 2 }],
+    texts: (n, f) => [{ text: rapid ? 'RAPID FIRE — every hit its own local history (front left, side right)' : 'SINGLE BLOCKS, real speed — front-facing (left) and side-facing (right)', x: 10, y: 20, bold: true, size: 15 },
       { text: `live block events ${n}     t ${(f * 2 / 60).toFixed(2)}s     1x`, x: 10, y: 38, color: '#9fe6ff', size: 12 },
       { text: '2x nearest — the same frame', x: 10, y: 44 + 280 + 16, color: '#aab0bd', size: 12 },
       { text: rapid ? 'fresh red contacts, red crests running, coral and white wakes — side by side, never one flash' : 'HIT -> two red crests running out along the curve -> coral / pink / white wake -> settled', x: 10, y: 44 + 280 + 24 + 520 + 22, color: '#d0d4dc', size: 12 }],
