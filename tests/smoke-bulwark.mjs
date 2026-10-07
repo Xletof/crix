@@ -526,6 +526,88 @@ const magentaInside = async ({ png, clip, cells }) => dec.evaluate(async ({ src,
 await dec.close();
 await pLay.close();
 
+// ── 4d. THE DISPLAYED FACING ─────────────────────────────────────────────
+// `_shieldFacing` is ACCUMULATED (never wrapped) by the frozen shield turn, and
+// `_aim` copies it. Gameplay reads it only through sin / cos / Wrap; the
+// painted facing (`_facingSuffix`) and the overlay's flip / draw order read raw
+// degrees, so a shield that reached a player through west showed the WEST
+// sprite for every bearing after it (and gait v2 walked it backwards). The v1
+// Bulwark resolves all three from the wrapped angle (systems/bulwarkFacing.js);
+// the gameplay angle itself is never touched.
+const fac = await pG.evaluate(async () => {
+  const gs = window.__gs; window.__open();
+  const out = { table: [], bound: [], overlay: [], kept: [] };
+  const T = Math.PI * 2, P = Math.PI;
+  const name = (r) => (r.dir === 'side' ? (r.flipX ? 'W' : 'E') : r.dir === 'front' ? 'S' : 'N');
+  for (const elite of [false, true]) {
+    const e = gs.spawnEnemyAt('shielded', 800, 700, elite ? { elite: true } : {});
+    e._performing = true; e._movePlanted = true;          // the AI yields: _aim stays what is set here
+    const proto = Object.getPrototypeOf(e)._facingSuffix;
+    const EQ = [['E', [0, T, 2 * T, -T]], ['S', [P / 2, P / 2 + T, P / 2 - T]], ['W', [P, -P, 3 * P]], ['N', [-P / 2, 3 * P / 2, 7 * P / 2]]];
+    for (const [want, as] of EQ) for (const a of as) { e._aim = a; out.table.push({ elite, a: +(a * 180 / P).toFixed(1), want, got: name(e._facingSuffix()), kept: e._aim === a }); }
+    // the boundaries: in range, exactly the frozen method's answer; out of range, a
+    // hair either side of a boundary answers as the same hair does in range
+    for (const b of [-135, -45, 45, 135]) {
+      const r = b * P / 180;
+      e._aim = r; out.bound.push({ elite, deg: b, k: 0, same: name(e._facingSuffix()) === name(proto.call(e)) });
+      for (const k of [1, -1, 2]) for (const h of [-0.5, 0.5]) {
+        const inr = (b + h) * P / 180;
+        e._aim = inr; const ref = name(proto.call(e));
+        e._aim = inr + k * T; out.bound.push({ elite, deg: b + h, k, same: name(e._facingSuffix()) === ref });
+      }
+    }
+    // the overlay through the REAL preUpdate: flip and draw order from the wrapped angle
+    const ws = e.weaponSprite;
+    for (const [want, as] of EQ) {
+      const res = [];
+      for (const a of as) {
+        e._aim = a; e._shieldFacing = a; window.__adv(1);
+        res.push({ a: +(a * 180 / P).toFixed(1), flipY: ws.flipY, depth: +(ws.depth - e.y).toFixed(2), key: e.anims.currentAnim?.key?.replace(/^.*-(walk|idle)-/, ''), flipX: e.flipX, aim: e._aim === a, sf: e._shieldFacing === a });
+      }
+      out.overlay.push({ elite, want, res });
+    }
+    gs._destroyEnemyFully(e);
+  }
+  // the HUMAN's path, with the real AI turning the shield: the player south-west
+  // of a Bulwark whose shield starts north, then south-east, then round its east
+  // side to the north. Each frame is judged against the angle it was drawn from.
+  const e = gs.spawnEnemyAt('shielded', 800, 640, {}); e.fireCd = 1e9;
+  const Pl = gs.player, R = 330, sched = [[0, 135], [70, 135], [160, 45], [310, -90], [380, -90]];
+  const bearing = (i) => { for (let k = 1; k < sched.length; k++) { const [t0, a0] = sched[k - 1], [t1, a1] = sched[k]; if (i <= t1) return (a0 + (a1 - a0) * ((i - t0) / Math.max(1, t1 - t0))) * P / 180; } return -P / 2; };
+  const cls = (d) => (d >= -45 && d <= 45 ? 'E' : d > 45 && d < 135 ? 'S' : d >= 135 || d <= -135 ? 'W' : 'N');
+  let drawn = e._aim, wrong = 0, outside = 0, n = 0, maxRaw = 0;
+  for (let i = 0; i <= 380; i++) {
+    const a = bearing(i); Pl.setPosition(e.x + Math.cos(a) * R, e.y + Math.sin(a) * R); Pl.body.reset(Pl.x, Pl.y);
+    window.__adv(1);
+    const key = e.anims.currentAnim?.key || '', shows = key.endsWith('-front') ? 'S' : key.endsWith('-back') ? 'N' : (e.flipX ? 'W' : 'E');
+    const d = Math.atan2(Math.sin(drawn), Math.cos(drawn)) * 180 / P;
+    const ok = new Set([cls(d)]); for (const b of [-135, -45, 45, 135]) if (Math.abs(d - b) < 1e-6) { ok.add(cls(b - 1e-3)); ok.add(cls(b + 1e-3)); }
+    if (Math.abs(drawn) > P) outside++;
+    maxRaw = Math.max(maxRaw, Math.abs(drawn));
+    if (!ok.has(shows)) wrong++;
+    n++; drawn = e._aim;
+  }
+  out.human = { n, outside, wrong, maxRawDeg: Math.round(maxRaw * 180 / P), sfRaw: +(e._shieldFacing * 180 / P).toFixed(1), aimIsShield: e._aim === e._shieldFacing };
+  gs._destroyEnemyFully(e);
+  return out;
+});
+{
+  const bad = fac.table.filter((r) => r.want !== r.got || !r.kept);
+  check(fac.table.length === 26 && !bad.length,
+    `display facing: equivalent angles resolve to the SAME painted facing (0 / 360 / 720 / -360 -> E; 90 / 450 / -270 -> S; 180 / -180 / 540 -> W; -90 / 270 / 630 -> N; both tiers), and _aim is left exactly as it was`, JSON.stringify(bad.slice(0, 4)));
+  const bb = fac.bound.filter((r) => !r.same);
+  check(fac.bound.length === 56 && !bb.length,
+    'display facing: the ±45 / ±135 boundaries keep the frozen ownership — in range it is the frozen method\'s own answer, and half a degree either side of each boundary answers the same one, two or three turns away', JSON.stringify(bb.slice(0, 4)));
+  const ov = fac.overlay.filter((o) => o.res.some((r) => r.flipY !== o.res[0].flipY || r.depth !== o.res[0].depth || r.key !== o.res[0].key || r.flipX !== o.res[0].flipX || !r.aim || !r.sf));
+  check(fac.overlay.length === 8 && !ov.length,
+    `display facing through the real preUpdate: at every equivalent angle the body sprite, the sidearm's flip and its draw order (north ${fac.overlay.find((o) => o.want === 'N').res[0].depth > 0 ? 'OVER' : 'behind'} the body) are the in-range ones, and neither _aim nor _shieldFacing moves`, JSON.stringify(ov.slice(0, 2)));
+  const h = fac.human;
+  check(h.outside > 200 && h.wrong === 0 && h.aimIsShield,
+    `the HUMAN's path with the real AI (south-west, south-east, round the east side to the north): the accumulated angle sits outside ±180 on ${h.outside} of ${h.n} frames (up to ${h.maxRawDeg} deg; it ends at ${h.sfRaw} deg, unwrapped, as gameplay keeps it) and the body shows the right facing on every frame`, JSON.stringify(h));
+}
+const legacyFacing = await pL.evaluate(() => { const gs = window.__gs; window.__open(); const e = gs.spawnEnemyAt('shielded', 800, 700, {}); const own = Object.prototype.hasOwnProperty.call(e, '_facingSuffix') || Object.prototype.hasOwnProperty.call(e, 'preUpdate'); gs._destroyEnemyFully(e); return own; });
+check(legacyFacing === false, 'without ?roster=v1 the Bulwark keeps the frozen facing method and preUpdate untouched (legacy presentation is legacy)', String(legacyFacing));
+
 // ── 5. EVENTS: real blocks and a real Super ──────────────────────────────
 const ev = await pG.evaluate(() => {
   const gs = window.__gs; window.__open();

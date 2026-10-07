@@ -24,6 +24,7 @@ import { makeGunnerWeaponFx } from '../systems/gunnerMuzzle.js';
 import { makeRosterWeaponFx } from '../systems/rosterWeaponFx.js';
 import { makeSidearmFx } from '../systems/bulwarkSidearm.js';
 import { makeBulwarkCurtain } from '../systems/bulwarkCurtain.js';
+import { installBulwarkFacing } from '../systems/bulwarkFacing.js';
 
 const ROSTER_V1_ART = {};
 
@@ -89,6 +90,9 @@ export function wearRosterArt(enemy, art, bodyRadius) {
     enemy._rosterFx = 'sidearm';
     enemy._weaponFx = makeSidearmFx(enemy);
     enemy._curtain = makeBulwarkCurtain(enemy);
+    // the facing the body is DRAWN with comes from the wrapped shield angle
+    // (the gameplay angle is accumulated, not wrapped; see bulwarkFacing.js)
+    installBulwarkFacing(enemy);
   }
   enemy.body.setCircle(bodyRadius, enemy.width / 2 - bodyRadius, enemy.height / 2 - bodyRadius);
 }
