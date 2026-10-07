@@ -521,7 +521,7 @@ Records:
 - `docs/evidence/roster-2b/rifleman-marksman-v1-notes.md`
 - `docs/evidence/roster-gait-v2/gait-v2-notes.md`
 
-### BULWARK PRODUCTION INTEGRATION (`shielded`) — **CANDIDATE, AWAITING THE FINAL HANDSET GATE (final visual integration)**
+### BULWARK PRODUCTION INTEGRATION (`shielded`) — **CANDIDATE, AWAITING THE FINAL HANDSET GATE (final correction: membrane ripple + display facing)**
 
 **Handset round 1 (on `d9e2d6d`):** the body, Elite machinery, gait, sidearm, the
 field's geometry concept, the absorption and the Super tear were broadly approved.
@@ -555,11 +555,39 @@ three are answered in the final visual integration pass, which waits on the hand
 
 Record: `docs/evidence/roster-bulwark/bulwark-v1-notes.md` § Final visual integration.
 
+**Handset round 3 (on `bfb4a86`):** very close. Approved and protected:
+- the body, sidearm, gait, material, geometry and orientation invariance;
+- the layering, the absorption colours, rapid layering and the Super architecture;
+- VANGUARD and the gameplay.
+
+Two issues remained, both answered in the final correction, which waits on the handset:
+1. **The ripple read as a narrow bar.** The crest was one 3.4px Gaussian, about one
+   cell. Each wave now has two scales: a narrow bright crest (4px σ) inside a broad soft
+   pressure envelope (6px ahead, 11px behind: 25.5px wide against a 12px crest).
+   - The envelope densifies and brightens the frost and flexes the membrane outward by
+     up to 4px (one cell), letting go behind the pulse.
+   - The wake thins toward the outer edge as it ages instead of filling the band like a
+     slab.
+   - The Super's recovery uses the same grammar, pale.
+2. **The Bulwark sometimes kept the wrong body facing and walked backwards.**
+   - Cause, proved: `_shieldFacing` is accumulated, never wrapped, and `_facingSuffix`
+     classified raw degrees. On the human's own path the shield reaches a south-west
+     player through west (−225°), and every bearing after that drew WEST (−450°, north,
+     drawn west): 309 of 381 frames wrong, 142 walking backwards.
+   - Fix: display-only (`systems/bulwarkFacing.js`). The facing, the sidearm's flip and
+     its draw order come from the wrapped angle; in range it is an exact no-op;
+     `_shieldFacing` and `_aim` are never written.
+   - Now 0 wrong frames on the human path and on three-lap circles both ways.
+
+Record: the notes' § Final correction.
+
 Built as one vertical slice behind `?roster=v1` (body, sidearm, field) and
 `?gait=v2` (the shuffle). **Presentation only; `src/entities/Enemy.js` is
 UNTOUCHED** (`git diff 3ce5680 -- src/entities/Enemy.js` is empty). Record and
 evidence: `docs/evidence/roster-bulwark/bulwark-v1-notes.md`. Gate:
-`tests/smoke-bulwark.mjs` (78 checks, standalone like the other roster smokes):
+`tests/smoke-bulwark.mjs` (90 checks, standalone like the other roster smokes; the
+final correction's 12 include display-facing and wave guards, 7 of which fail on
+`bfb4a86`):
 - the orientation guards, rewritten for the cell field;
 - WEAPON < SHIELD twice over, by structure and by magenta pixels at 16 facings × 2
   tiers.
@@ -573,7 +601,8 @@ NEW draws 0.
 | body R/E (`ro-blw-R/E`, 33 / 51 frames), sidearm (`ro-w-blw-R/E`), `BULWARK_GAIT`, `BULWARK_CORE` | `src/systems/rosterPaint.js` (appended) |
 | sidearm firing (cold pip on the frozen 300ms warning, 1-frame cold discharge, 1px kick) | `src/systems/bulwarkSidearm.js` |
 | the FROSTED HARD-LIGHT CURTAIN — a scene-side 4px-cell renderer on the frozen seams; `farW` puts the cells the gun crosses above it | `src/systems/bulwarkCurtain.js` |
-| hook (`art.bulwark` → `_rosterFx = 'sidearm'`, `_weaponFx`, `_curtain`) | `src/data/rosterArt.js` |
+| hook (`art.bulwark` → `_rosterFx = 'sidearm'`, `_weaponFx`, `_curtain`, display facing) | `src/data/rosterArt.js` |
+| the displayed facing (and the sidearm's flip / draw order) from the WRAPPED shield angle | `src/systems/bulwarkFacing.js` |
 | block / pierce routed to `e._curtain` | `GameScene.handleBulletEnemyHits` (the block branch only) |
 | curtain radius **46 for both tiers** (was 55 for the Elite) | `src/systems/shieldContact.js` |
 
