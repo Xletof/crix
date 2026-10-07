@@ -521,38 +521,58 @@ Records:
 - `docs/evidence/roster-2b/rifleman-marksman-v1-notes.md`
 - `docs/evidence/roster-gait-v2/gait-v2-notes.md`
 
-### BULWARK PRODUCTION INTEGRATION (`shielded`) — **CANDIDATE, AWAITING HANDSET VERDICT (orientation correction)**
+### BULWARK PRODUCTION INTEGRATION (`shielded`) — **CANDIDATE, AWAITING THE FINAL HANDSET GATE (final visual integration)**
 
-**Handset round 1 (on `d9e2d6d`):** body, Elite machinery, gait, sidearm, the
-field's geometry concept, the absorption and the Super tear were broadly
-approved. ONE blocker: **the shield changed strength as he turned** — full
-facing south, half a shield side-on, a ghost facing north, and its reactions
-harder to read on the weakened side. Cause: the renderer used its near/far
-split for DEPTH and for STRENGTH (far material x0.5, outer rim x0.32,
-reactions x0.7, keyline near-only). **Corrected, and waiting on the handset
-again:** near/far decides the layer and depth only; every style value is
-computed without knowing the layer. Two further orientation dependences found
-by measuring and corrected with it: the band's cross-section leaned 7px, so it
-read 19 / 12 / 5px thick south / side / north whatever its alpha (now 19 / 17
-/ 15, the south view unchanged at its centre), and a REACTION was routed by
-the centre line itself, so a hit a hair north of it vanished under his
-sidearm side-on (reactions are FAR only when more than 30° behind him now).
-What is left is genuine body occlusion: facing NORTH a dead-centre hit lands
-behind his helmet and the north-pointing sidearm. Record:
-`docs/evidence/roster-bulwark/bulwark-v1-notes.md` § Orientation invariance.
+**Handset round 1 (on `d9e2d6d`):** the body, Elite machinery, gait, sidearm, the
+field's geometry concept, the absorption and the Super tear were broadly approved.
+There was ONE blocker: **the shield changed strength as he turned.** It was corrected
+on `5169399` (near/far decides depth only), and that correction is approved and kept.
+
+**Handset round 2 (on `5169399`):** three things were left, all presentation. All
+three are answered in the final visual integration pass, which waits on the handset:
+1. **WEAPON < SHIELD.** The sidearm, its pip and its discharge were drawn ON the field
+   where they crossed it.
+   - Side-on, body > far > gun > body is a cycle.
+   - Fix: the far cells on the gun's own footprint go to a third layer (`farW`) just
+     above the weapon. Every other far cell stays under the body.
+   - The pip, the discharge and `farW` share one stack on the overlay's depth
+     (`WEAPON_STACK`).
+2. **The ripple.** A block now reads CONTACT → TRAVELLING WAVE → CONVERSION → SETTLE.
+   - Two narrow red crests run opposite ways along the curve on one wave engine.
+   - Behind each crest is a wake coloured by the time since the crest passed:
+     red → coral → pink → white.
+   - The Super keeps PUNCTURE → OPEN → HEAL and adds RE-STABILISE: pale crests from
+     the healed seam on the same engine.
+3. **CRIX material.** The field is now built from 4px CELLS on the bearer's own pixel
+   grid:
+   - three value masses (face / shoulders / tips) and two hard bands;
+   - a one-cell bright rim, a one-cell NAVY keyline and navy caps beyond the tips;
+   - one stepped current pulse;
+   - no gradients, panes, seams or sheens.
+   - The band is flat, R−11..R+6: 16px at every compass facing (18 on the
+     diagonals), where the lean made it 19 / 17 / 15. The south apex is ~3px
+     thinner; this is reported for the human to judge.
+
+Record: `docs/evidence/roster-bulwark/bulwark-v1-notes.md` § Final visual integration.
 
 Built as one vertical slice behind `?roster=v1` (body, sidearm, field) and
 `?gait=v2` (the shuffle). **Presentation only; `src/entities/Enemy.js` is
 UNTOUCHED** (`git diff 3ce5680 -- src/entities/Enemy.js` is empty). Record and
 evidence: `docs/evidence/roster-bulwark/bulwark-v1-notes.md`. Gate:
-`tests/smoke-bulwark.mjs` (70 checks, standalone like the other roster smokes;
-11 of them are the orientation guards, and 8 of those fail on `d9e2d6d`).
+`tests/smoke-bulwark.mjs` (78 checks, standalone like the other roster smokes):
+- the orientation guards, rewritten for the cell field;
+- WEAPON < SHIELD twice over, by structure and by magenta pixels at 16 facings × 2
+  tiers.
+
+The pixel guard is what caught the flipped gun. The renderer-agnostic measure is
+`tests/diag-bulwark-layering.mjs`: `5169399` draws 5415 gun pixels over the field,
+NEW draws 0.
 
 | piece | where |
 |---|---|
 | body R/E (`ro-blw-R/E`, 33 / 51 frames), sidearm (`ro-w-blw-R/E`), `BULWARK_GAIT`, `BULWARK_CORE` | `src/systems/rosterPaint.js` (appended) |
 | sidearm firing (cold pip on the frozen 300ms warning, 1-frame cold discharge, 1px kick) | `src/systems/bulwarkSidearm.js` |
-| the FROSTED HARD-LIGHT CURTAIN — a scene-side renderer on the frozen seams | `src/systems/bulwarkCurtain.js` |
+| the FROSTED HARD-LIGHT CURTAIN — a scene-side 4px-cell renderer on the frozen seams; `farW` puts the cells the gun crosses above it | `src/systems/bulwarkCurtain.js` |
 | hook (`art.bulwark` → `_rosterFx = 'sidearm'`, `_weaponFx`, `_curtain`) | `src/data/rosterArt.js` |
 | block / pierce routed to `e._curtain` | `GameScene.handleBulletEnemyHits` (the block branch only) |
 | curtain radius **46 for both tiers** (was 55 for the Elite) | `src/systems/shieldContact.js` |
@@ -572,15 +592,20 @@ What the human is judging (the approved concept, now built):
 - **Gait v2:** a heavy tactical shuffle — one pelvis, hips 6 columns apart,
   3-column legs, 4px boots, a LOW swing ('L', one row), a compact stride, and
   a 40px cycle.
-- **Field:** ten flat panels on exactly facing ± 1.35 rad, tapering to points
-  at the coverage. A bright outer rim and a band of near-constant depth; the
-  near half draws over the body and the far half under it, at the SAME
-  strength — FAR = BEHIND THE BODY, never FAR = WEAKER.
-  - **Block:** a red-hot smear → a 5px dent → red fronts → coral → pink →
-    white → idle, as independent local events.
-  - **Super:** bloom → split + peel → an open gap held to ~420ms → filaments
-    → zipper → snap → ripple → one projector pulse. One tear per volley:
-    central pellet wins, near ones merge, others prick.
+- **Field:** 4px cells on the bearer's pixel grid, on exactly facing ± 1.35
+  rad, tapering to points at the coverage.
+  - The material is three value masses, two hard bands, a one-cell bright rim
+    and a one-cell navy keyline with caps beyond the tips.
+  - Depth: the near half draws over the body, the far half under it, and the
+    far cells on the gun above the gun — all at the SAME strength. FAR =
+    BEHIND THE BODY, never FAR = WEAKER.
+  - **Block:** contact smear + 5px dent → twin red crests travelling opposite
+    ways along the curve → a wake red → coral → pink → white → settled, as
+    independent local events.
+  - **Super:** bloom → split + peel → an open gap held to ~420ms → stitches →
+    zipper → snap → pale recovery crests from the seam → one projector pulse.
+    One tear per volley: the central pellet wins, near ones merge, others
+    prick.
 - **One author:** under v1 the legacy clang + sparkle do not draw, but the
   sparkle's random draws are still made into an invisible twin emitter, so
   the RNG stream — and the fight — is identical (A/B: without it the seeded
@@ -599,9 +624,10 @@ juice back to the legacy size. Not done: they are frozen. The human decides.
 the tear is mostly seen on Elites and glancing Supers. The first ~250ms of a
 real Super is the frozen generic hit FX. Blocked bolts still cross ~17px
 inside the field before gameplay kills them (predictive hiding deliberately
-NOT added). Facing north, a dead-centre block or tear is mostly hidden by his
-helmet and sidearm (body occlusion, measured; the same reaction is 0.84-1.02
-of the south view with the body removed).
+NOT added). Facing north, a dead-centre seam (zipper, snap) is mostly hidden
+by his helmet — body occlusion, kept; the crests carry a block out to his
+shoulders (0.68-0.91 of the south view, was 0.07-0.40). The band is ~3px
+thinner at the south apex than the approved vector band (16 vs 19px).
 
 **Nothing else moved:** VANGUARD 140 / 165, front, lanes, queue and
 composition, shield arc / turn / hp / economy, the three frozen roles, the
@@ -610,7 +636,8 @@ Captain, Vader. Demolisher is NOT started.
 ### The recommended next area of work
 
 **Superseded for now:** BULWARK PRODUCTION INTEGRATION (above) is built and
-waiting on the handset. The options below are the older backlog.
+waiting on the final handset gate. Demolisher is NOT started. The options below are
+the older backlog.
 
 **Phase B Champion integration is CLOSED — human-approved and frozen on
 `a3563a4`** (above). The next

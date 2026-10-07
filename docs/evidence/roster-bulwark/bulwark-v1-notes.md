@@ -547,6 +547,23 @@ than the 0.26 above because this instrument hits all six fields every third fram
 spread offsets, so more five-sample panels are live; compare across the two columns,
 not with the older figure.
 
+**Final visual integration, before / after** (`node tests/shot-bulwark-orient.mjs perf`,
+the same instrument; `5169399` served from a worktree; a RAPID case added: every
+field hit every frame, which holds the 12-event cap full on both builds):
+
+| ms per field per frame | `5169399` | NEW (4px cells) |
+|---|---|---|
+| idle | 0.071 | 0.068 |
+| every field hit every 3 frames | 0.311 | 0.323 |
+| rapid (every frame, 12 live events) | 0.402 | 0.380 |
+
+This is parity. The cell field needs two things to get there. First, its Graphics sit
+at the bearer and are drawn in its frame, so a field that only walks is never redrawn.
+Second, it redraws only when its signature changes (facing, scan column, bush, the
+overlay's depth offset, gun visibility) or a reaction is live; bearing-only work is
+binned at 0.03 rad, and equal neighbouring cells merge into one rect per row. The first
+cell build, without these, cost 2-2.6x the old field.
+
 ## Gameplay invariance (smoke-bulwark, 70 checks)
 
 - **Units:** hp, radius, body width and centring, speed, half-arc 1.35, turn 2.6,
