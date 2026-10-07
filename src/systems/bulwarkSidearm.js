@@ -25,6 +25,7 @@
 
 import Phaser from 'phaser';
 import { SIDEARM } from './rosterPaint.js';
+import { WEAPON_STACK } from './bulwarkCurtain.js';
 
 const S = 4;
 const KEY = 'fx-blw-muzzle';
@@ -59,7 +60,7 @@ export function attachBulwarkSidearms(scene) {
     ws.getWorldTransformMatrix().transformPoint((1 - ws.originX) * ws.width, 0, m);
     const img = pool.pop() || scene.add.image(0, 0, KEY, 0).setOrigin(0.5 / CFG.w, 0.5);
     img.setTexture(KEY, 0).setPosition(m.x, m.y).setRotation(ws.rotation)
-      .setAlpha(1).setVisible(true).setActive(true).setDepth(s.y + 2);
+      .setAlpha(1).setVisible(true).setActive(true).setDepth(ws.depth + WEAPON_STACK.discharge);   // above the gun, under the field (WEAPON < SHIELD)
     live.push({ img, t: 0, peak: true });
   };
   const tick = (time, delta) => {
@@ -127,7 +128,7 @@ export function makeSidearmFx(e) {
       const grow = u > 0.66 ? 1 : 0;
       g.fillStyle(col, 0.55 + 0.45 * u).fillRect(cx - grow, cy - grow, S + grow * 2, S + grow * 2);
       g.setVisible(true).setPosition(ws.x, ws.y).setRotation(ws.rotation).setScale(ws.scaleX, ws.scaleY)
-        .setDepth(ws.depth + 0.5).setAlpha(ws.alpha);
+        .setDepth(ws.depth + WEAPON_STACK.pip).setAlpha(ws.alpha);
       return false;
     },
   };

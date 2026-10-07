@@ -9,42 +9,56 @@
 // those and draws; it writes nothing back, owns no timer, no tween and no
 // randomness, and cannot delay, move or decide a block.
 //
-// ── THE SURFACE ───────────────────────────────────────────────────────────
+// ── THE SURFACE, IN CRIX'S LANGUAGE ──────────────────────────────────────
 // A curved band standing in front of the bearer, on EXACTLY the protected
 // arc: facing ± `_shieldHalfArc`, tapering to a point at each end so the tips
-// ARE the coverage. It is built from flat panels (hard light, not glass, not a
-// bubble, not honeycomb): ten facets across the arc, each a slightly different
-// milky value, with a bright ice-white OUTER rim (the face the fire arrives
-// at), a soft inner rim toward the bearer, a restrained dark keyline just
-// outside the bright rim so it holds against pale plate and pale floors, and
-// two slow broad sheens running opposite ways across the facets (the
-// interference). Its cross-section is a band of near-constant DEPTH: the
-// outer rim 6px beyond the contact radius and 2px under the combat plane, the
-// inner rim 11px inside it, on the plane. This game draws the floor with no
-// foreshortening, so a band's screen thickness is its radial depth plus its
-// LEAN (how far the inner rim is lifted above the outer) times sin(bearing) —
-// the lean adds facing south and subtracts facing north. The first build
-// leaned 7px (inner rim lifted 5), which read 19px thick facing south, 12
-// side-on and 5 facing north: a thin arc from behind, whatever its alpha, and
-// a band visibly thinner on its northern half when he faced east or west. The
-// lean is 2 now: 19 / 17 / 15, the south view unchanged at its centre, and
-// the same panel at every facing. (A first build also put the bright rim on
-// the INNER, upper edge; from the front that read as a tub he stood in.)
+// ARE the coverage. Hard light, not glass, not a bubble, not honeycomb — and
+// drawn the way the roster is drawn rather than the way a shader would draw
+// it (the second handset round's verdict on the first build: polished glass,
+// many small panes, a vector-clean rim, soft optical gradients):
 //
-// DEPTH, AND ONLY DEPTH: every panel is routed by which side of the bearer it
-// is on. Panels south of his centre (nearer the camera) go to the NEAR layers
-// and draw ABOVE the body and the sidearm; panels north of it go to the FAR
-// layers and draw BELOW the body, so his own armour hides whatever of the
-// field is physically behind him. That routing decides WHICH Graphics and
-// WHICH depth — never alpha, colour, rim, keyline, tip or reaction strength.
-// FAR = BEHIND THE BODY, not FAR = WEAKER ENERGY: turning him round does not
-// change the projector's output, so every style value below is computed
-// without knowing which layer will receive it. (The first build also dimmed
-// the far layers — material x0.5, outer rim x0.32, reactions x0.7, keyline
-// near-only — and the handset saw exactly that: a full shield facing south,
-// half a shield facing east or west, a ghost facing north. `smoke-bulwark`
-// renders the same field at opposite facings and requires the style stream
-// to be identical with only the layer swapped.)
+//   - FEW VALUE MASSES. Eight flat facets, but the eye is given three masses:
+//     a pale off-white FACE across the middle, ice-blue SHOULDERS, and denser
+//     TIPS. No per-panel alternation, no seams, no sheen gradients.
+//   - FLAT HARD CELLS. Every cell of the band is ONE colour at ONE alpha (no
+//     per-vertex gradients); a reaction steps across the surface a cell at a
+//     time, ~4px, the size of one of the sprite's own pixels.
+//   - TWO HARD BANDS across the thickness: a denser outer band by the rim (the
+//     energy edge) and a thinner inner band toward him.
+//   - AN AUTHORED EDGE. A 2px dark-navy keyline outside the bright rim, as the
+//     roster's sprites carry an outline, and chunky outlined tips. The inner
+//     edge is a soft line, so the field never becomes a black cage.
+//   - RESTRAINED INTERFERENCE. One stepped current pulse crosses the field tip
+//     to tip every few seconds, a cell per step. The ripple carries the motion.
+//
+// Its cross-section is a band of near-constant DEPTH: the outer rim 6px beyond
+// the contact radius and 2px under the combat plane, the inner rim 11px inside
+// it, on the plane. This game draws the floor with no foreshortening, so a
+// band's screen thickness is its radial depth plus its LEAN (how far the inner
+// rim is lifted above the outer) times sin(bearing). The first build leaned
+// 7px, which read 19 / 12 / 5px thick south / side / north — a thin arc from
+// behind whatever its alpha. The lean is 2 now: 19 / 17 / 15.
+//
+// ── DEPTH: THE BODY, AND THE WEAPON ──────────────────────────────────────
+// Every cell is routed by which side of the bearer it is on. South of his
+// centre (nearer the camera) is the NEAR layer, drawn OVER the body and the
+// sidearm; north of it is the FAR layer, drawn UNDER the body, so his own
+// armour hides whatever of the field is physically behind him. That routing
+// decides WHICH Graphics and WHICH depth — never alpha, colour, rim, keyline,
+// tip or reaction strength: FAR = BEHIND THE BODY, never FAR = WEAKER.
+// (`smoke-bulwark` draws the same field at opposite facings and requires the
+// style stream to be identical with only the layer swapped.)
+//
+// The WEAPON has its own invariant: WEAPON < SHIELD wherever they cross. Side
+// on, the sidearm is drawn over his body, the far half of the field under it,
+// and the gun crosses the field at the apex — so body > far > gun > body is a
+// cycle no single depth can satisfy, and the gun used to sit ON the far half.
+// The far cells the gun's own footprint crosses therefore go to a third layer
+// (`farW`) just above the weapon; every other far cell stays under the body.
+// Facing north the weapon is under his body, so `farW` is too, and his helmet
+// still hides what is behind it. The pip, the discharge and that layer share
+// ONE stack above the weapon's own depth (`WEAPON_STACK`), so rotation cannot
+// swap them.
 //
 // The field follows the BODY CENTRE and the SHIELD FACING — never the walk
 // cycle, the bob or the gauntlet. The projector is the source, and says so
@@ -60,20 +74,24 @@
 //
 // ── REACTIONS ─────────────────────────────────────────────────────────────
 // Events are presentation state, held per field in a short bounded list, so
-// rapid hits layer as independent LOCAL reactions — a fresh red smear next to
-// a travelling front next to a pinking patch next to a whitening one — and the
-// whole field never flashes. Each event stores its offset from the facing,
-// so it stays on the surface while the shield turns.
+// rapid hits layer as independent LOCAL reactions and the whole field never
+// flashes. Each event stores its offset from the facing, so it stays on the
+// surface while the shield turns.
 //
-//   BLOCK  red bolt -> compressed red-hot smear -> local dent -> red energy
-//          propagating laterally -> coral -> pale pink -> white -> haze
-//          relaxing to idle. RED = projectile energy still inside the field;
-//          WHITE = absorbed. White is the END of the reaction.
+//   BLOCK  the bolt flattens into a red-hot smear and dents the surface; then
+//          TWO wavefronts leave the contact in opposite directions along the
+//          curve. Each is a narrow saturated-red CREST (with a 1-2px bulge
+//          of the membrane, so the bright rim visibly kinks where it passes)
+//          and behind it a WAKE whose colour is the time since the crest went
+//          by: red -> coral -> pink -> white. The crest cools as it slows and
+//          dies about two thirds of the way to the tips; the wake whitens and
+//          settles. RED = energy still in the field; WHITE = absorbed.
 //   TEAR   (a Super through the front) contact -> white bloom -> the field
 //          splits and its edges peel outward -> the gap holds -> the edges
 //          pull in while white-blue filaments re-knit across it -> the last of
-//          the gap zips shut -> a compact snap -> a small recovery ripple and
-//          one restrained projector pulse. PUNCTURE -> OPEN -> HEAL. No red.
+//          the gap zips shut -> a compact snap -> two PALE recovery crests run
+//          out from the healed seam on the block's own wave engine, and one
+//          restrained projector pulse. PUNCTURE -> OPEN -> HEAL. No red.
 //   PRICK  every other pellet of the same Super: a small bloom and a pinhole
 //          that heals on its own. One readable hole per volley, not five.
 
@@ -82,21 +100,25 @@ import { CURTAIN_RADIUS } from './shieldContact.js';
 import { BULWARK_CORE } from './rosterPaint.js';
 
 export const CURTAIN = {
-  facets: 10, sub: 5,             // panels across the arc, samples per panel
+  cell: 4,                        // the field's pixel: the roster's own (sprites are painted at 4x)
   taperRad: 0.32,                 // the last stretch of each end narrows to the tip
-  outR: 6, outH: 2,               // outer rim: radius +6, 2px below the combat plane
-  inR: 11, inH: 0,                // inner rim: radius -11, on the plane (lean = outH + inH = 2; see above)
-  split: 0.45,                    // the two milky sub-bands meet here (from the outer rim)
-  frost: 0xcfe0f4, aLo: 0.30, aHi: 0.41,
-  facetVar: [0, 0.05, -0.03],     // per-panel value step (broad faceting)
-  rim: 0xffffff, rimA: 0.92, rimW: 2,   // the OUTER edge: bright ice-white
-  lowRim: 0xe8f1ff, lowRimA: 0.38,      // the inner edge: soft
-  key: 0x1b2940, keyA: 0.42,      // the restrained dark keyline just outside the rim
-  seamA: 0.05,                    // panel seams
-  sheenA: 0.07, sheen2A: 0.045,   // the two counter-running sheens (interference)
+  outR: 6, inR: 11,               // the band: from 11px inside the curtain radius to 6px outside it, flat
+  split: 0.5,                     // the two hard bands meet here (from the outer edge)
+  // the three value MASSES: [outer-band colour, outer alpha, inner-band colour, inner alpha]
+  face:     [0xe9f5ff, 0.52, 0xd3e9ff, 0.36],
+  shoulder: [0xc4e2ff, 0.50, 0xadd5fb, 0.34],
+  tip:      [0xa3ccf6, 0.54, 0x92c0ea, 0.38],
+  rim: 0xf2f9ff, rimA: 0.86,              // the OUTER edge: one cell of bright ice-white
+  lowRim: 0xe2f0ff, lowRimA: 0.40,        // the inner edge: a soft row
+  key: 0x13223a, keyA: 0.66,              // the dark-navy keyline outside the rim (the roster's outline)
+  scanA: 0.09, scanMs: 3400, scanStepMs: 32, // the stepped current pulse
   bushMul: 0.55,
   behindSin: 0.5,                 // a REACTION is behind him only past 30deg north of his centre line (see _layer)
   maxBlocks: 12, maxPricks: 3,
+  // the absorption wave (arc px / ms)
+  wavePx: 42, waveMs: 420, crestPx: 3.4, wakeMs: 170, bulgePx: 1.6,
+  // the Super's recovery wave after the snap
+  healPx: 34, healMs: 340,
 };
 
 // the energy colours a blocked bolt passes through on its way to absorbed
@@ -104,18 +126,25 @@ const RED = 0xff2828, CORAL = 0xff7a5c, PINK = 0xffc4cc, WHITE = 0xffffff;
 const RAMP = [[0, RED], [0.22, RED], [0.42, CORAL], [0.65, PINK], [0.88, WHITE], [1, WHITE]];
 const HEAL = 0xdff0ff;            // the Super's white-blue
 
-export const BLOCK_MS = 720, TEAR_MS = 920, PRICK_MS = 260;
+export const BLOCK_MS = 720, PRICK_MS = 260;
 // The tear's beats (ms from contact). Long enough on purpose: a real Super
 // arrives with the frozen generic hit language on top of it (the body's white
 // hit flash, the pellet impact rings, CRIT numbers), which owns roughly the
 // first 250ms. The OPEN gap has to still be there when that clears, or the
-// player never sees the field heal — measured on the first build, whose gap
-// was already closing by the time the frame was readable.
-export const TEAR = { open: 80, hold: 420, zip: 540, close: 600, snapEnd: 690, ripEnd: 900, gapPx: 13, gapPerPellet: 3, gapMaxPx: 18 };
+// player never sees the field heal. The beats up to the snap are the approved
+// ones; only the recovery tail after it is longer, for the recovery crests.
+export const TEAR = { open: 80, hold: 420, zip: 540, close: 600, snapEnd: 690, gapPx: 13, gapPerPellet: 3, gapMaxPx: 18 };
+TEAR.ripEnd = TEAR.close + CURTAIN.healMs + 150;
+export const TEAR_MS = TEAR.ripEnd + 20;
+
+// WEAPON < SHIELD: everything the sidearm draws sits a fixed step above the
+// weapon overlay's own depth, and the field cells it crosses sit above all of
+// it. The near layer (y + 2) is above the whole stack, since the overlay is
+// never deeper than y + 1.
+export const WEAPON_STACK = { pip: 0.1, discharge: 0.2, shield: 0.3, light: 0.4 };
 
 const gauss = (d, s) => Math.exp(-(d * d) / (2 * s * s));
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
-const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
 function lerpCol(a, b, t) {
   const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
   const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
@@ -127,6 +156,39 @@ export function rampColor(u) {
     if (u <= RAMP[i][0]) { const [u0, c0] = RAMP[i - 1], [u1, c1] = RAMP[i]; return lerpCol(c0, c1, (u - u0) / (u1 - u0 || 1)) & 0xffffff; }
   }
   return WHITE;
+}
+
+/**
+ * ONE WAVE ENGINE for the block's crests and the Super's recovery crests.
+ * At arc distance `d` (px) from the source, `t` ms after it: the crest has
+ * travelled s(t) = S * (1.5u - 0.5u^2), u = t / T — out of the contact at
+ * speed and easing off, but still visibly moving through its whole life (a
+ * plain ease-out put 75% of the travel in the first 45% and then crawled) —
+ * with a narrow profile; behind it the WAKE fades with the time since the
+ * crest passed (`tau`), which is also what its colour is read from.
+ * Writes { crest, wake, tau, u } into `out` (u = the crest's own progress
+ * 0..1) and returns it — no allocation, it runs per bin per event per frame.
+ */
+const _WAVE = { crest: 0, wake: 0, tau: 0, u: 0 };
+export function waveAt(d, t, S, T, crestPx, wakeMs, out = _WAVE) {
+  const u = Math.min(1, t / T), s = S * (1.5 * u - 0.5 * u * u);
+  const A = t < T ? 1 - 0.45 * u : Math.max(0, 0.55 * (1 - (t - T) / 140));
+  out.crest = d - s > 4 * crestPx ? 0 : A * gauss(d - s, crestPx);
+  out.wake = 0; out.tau = 0; out.u = u;
+  if (d < s) {
+    const up = 1.5 - Math.sqrt(Math.max(0, 2.25 - 2 * d / S));     // the inverse of s(t)
+    out.tau = Math.max(0, t - up * T);
+    out.wake = 0.72 * Math.exp(-out.tau / wakeMs);
+  }
+  return out;
+}
+
+// the energy accumulator: intensities sum, colours mix by intensity squared
+const _ACC = { sum: 0, r: 0, g: 0, b: 0, w: 0 };
+function mixInto(A, I, c) {
+  if (I <= 0.002) return;
+  const w = I * I;
+  A.r += ((c >> 16) & 255) * w; A.g += ((c >> 8) & 255) * w; A.b += (c & 255) * w; A.w += w; A.sum += I;
 }
 
 // The legacy block drew `fx.healingSparkle(x, y, 6)`, a particle emission that
@@ -160,36 +222,65 @@ export function attachBulwarkCurtains(scene) {
   });
 }
 
-/** Per-bearer: three Graphics on the bearer's own attachment list. */
+/** Per-bearer: seven Graphics on the bearer's own attachment list. */
 export function makeBulwarkCurtain(e) {
   const scene = e.scene;
   // the surface is NORMAL-blended (frosted material: it can hide what is
   // behind it); everything that is LIGHT — the bloom, the filaments, the snap,
   // the projector core — is ADD, so it reads as light and not as grey paint
-  const far = scene.add.graphics(), near = scene.add.graphics();
-  const glowFar = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
-  const glowNear = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
-  const core = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
-  e._attachments.push(far, near, glowFar, glowNear, core);   // die() and room clear destroy them with the body
+  const add = (mode) => { const g = scene.add.graphics(); if (mode) g.setBlendMode(mode); return g; };
+  const L = {
+    far: add(), farW: add(), near: add(),
+    glowFar: add(Phaser.BlendModes.ADD), glowFarW: add(Phaser.BlendModes.ADD), glowNear: add(Phaser.BlendModes.ADD),
+  };
+  const core = add(Phaser.BlendModes.ADD);
+  e._attachments.push(...Object.values(L), core);   // die() and room clear destroy them with the body
   // ONE AUTHOR: the frozen class still draws its stroked arc every frame; it is
   // simply never shown while this field speaks for the shield.
   e.shieldArc?.setVisible(false);
-  const f = new CurtainField(e, far, near, glowFar, glowNear, core);
+  const f = new CurtainField(e, L, core);
   scene.__blwFields?.add(f);
   return f;
 }
 
+// The sidearm overlay's opaque footprint across its own axis, read once per
+// texture from the painted canvas: the widest the gun is either side of the
+// bore row, in texture pixels. Conservative by construction (the whole gun,
+// forearm included), so no gun pixel can escape the strip.
+const _gunHalf = new Map();
+function gunHalfWidth(ws) {
+  const key = ws.texture.key;
+  if (!_gunHalf.has(key)) {
+    let hw = ws.height / 2;
+    try {
+      const src = ws.texture.getSourceImage();
+      const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+      const x = c.getContext('2d'); x.drawImage(src, 0, 0);
+      const px = x.getImageData(0, 0, c.width, c.height).data;
+      let lo = Infinity, hi = -Infinity;
+      for (let y = 0; y < c.height; y++) for (let xx = 0; xx < c.width; xx++) if (px[(y * c.width + xx) * 4 + 3] > 0) { lo = Math.min(lo, y); hi = Math.max(hi, y); }
+      if (hi >= lo) { const oy = ws.originY * ws.height; hw = Math.max(oy - lo, hi + 1 - oy); }
+    } catch { /* keep the whole canvas height: conservative */ }
+    _gunHalf.set(key, hw);
+  }
+  return _gunHalf.get(key) * Math.abs(ws.scaleY) + 1;
+}
+
 class CurtainField {
-  constructor(e, far, near, glowFar, glowNear, core) {
-    this.e = e; this.far = far; this.near = near; this.glowFar = glowFar; this.glowNear = glowNear; this.coreG = core;
+  constructor(e, L, core) {
+    this.e = e; this.L = L; this.coreG = core;
+    // the named layers, for tests and rigs
+    this.near = L.near; this.far = L.far; this.farW = L.farW;
+    this.glowNear = L.glowNear; this.glowFar = L.glowFar; this.glowFarW = L.glowFarW;
     this.clock = 0;
     this.events = [];
     this.coreKick = 0; this.corePulse = 0;
     this.stats = { blocks: 0, pierces: 0, tears: 0, merged: 0, pricks: 0 };
-    const N = CURTAIN.facets * CURTAIN.sub + 1;
-    this._ox = new Float32Array(N); this._oy = new Float32Array(N);
-    this._ix = new Float32Array(N); this._iy = new Float32Array(N);
-    this._rel = new Float32Array(N);
+    this._gun = null;
+    this._cand = null;        // the candidate cells, computed once (see _candidates)
+    this._record = false;     // tests and rigs: keep a list of the cells drawn this frame (this._cells)
+    this._sig = null; this._dirty = false;
+    this._qb = new Float32Array(8);
   }
 
   // ── the seam ─────────────────────────────────────────────────────────────
@@ -237,7 +328,7 @@ class CurtainField {
   tick(delta) {
     const e = this.e;
     if (!this.near.active || !e.active) return true;
-    if (!e.alive) { for (const g of [this.near, this.far, this.glowNear, this.glowFar, this.coreG]) g.clear(); return false; }
+    if (!e.alive) { for (const g of [...Object.values(this.L), this.coreG]) g.clear(); this._sig = null; return false; }
     this.clock += delta;
     for (let i = this.events.length - 1; i >= 0; i--) {
       const v = this.events[i];
@@ -277,268 +368,308 @@ class CurtainField {
     return 0;
   }
 
-  draw() {
-    const e = this.e, C = CURTAIN, R = CURTAIN_RADIUS;
-    const cx = e.x, cy = e.y, fac = e._shieldFacing, half = e._shieldHalfArc;
-    const mul = e.hiddenInBush ? C.bushMul : 1;
-    const near = this.near, far = this.far;
-    near.clear(); far.clear(); this.glowNear.clear(); this.glowFar.clear();
-    near.setDepth(e.y + 2); far.setDepth(e.y - 2);
-    this.glowNear.setDepth(e.y + 3); this.glowFar.setDepth(e.y - 1.5);
-    // An idle field is ten FLAT panels, so one segment per panel draws the
-    // same geometry as five; the extra samples only exist to carry a dent, a
-    // gap or an energy gradient, i.e. while an event is live. (Measured: ~5x
-    // fewer triangles for every field not currently being hit.)
-    const F = C.facets, SUB = this.events.length ? C.sub : 1, N = F * SUB;
-    this._n = N;
-    const ox = this._ox, oy = this._oy, ix = this._ix, iy = this._iy, rel = this._rel;
-
-    // the flat panels: rims at the panel boundaries, interpolated inside
-    const tw = (r) => Math.pow(clamp01((half - Math.abs(r)) / C.taperRad), 0.75);
-    for (let k = 0; k < F; k++) {
-      const r0 = -half + (k / F) * 2 * half, r1 = -half + ((k + 1) / F) * 2 * half;
-      const w0 = tw(r0), w1 = tw(r1);
-      const p = (r, w, dr, dh) => { const a = fac + r, rr = R + dr * w; return [cx + rr * Math.cos(a), cy + rr * Math.sin(a) + dh * w]; };
-      const O0 = p(r0, w0, C.outR, C.outH), O1 = p(r1, w1, C.outR, C.outH);
-      const I0 = p(r0, w0, -C.inR, -C.inH), I1 = p(r1, w1, -C.inR, -C.inH);
-      for (let s = 0; s <= SUB; s++) {
-        const j = k * SUB + s, u = s / SUB;
-        rel[j] = r0 + (r1 - r0) * u;
-        ox[j] = O0[0] + (O1[0] - O0[0]) * u; oy[j] = O0[1] + (O1[1] - O0[1]) * u;
-        ix[j] = I0[0] + (I1[0] - I0[0]) * u; iy[j] = I0[1] + (I1[1] - I0[1]) * u;
-      }
+  // The sidearm's footprint this frame, in the bearer's frame: its axis (the
+  // overlay's own rotation), the stretch of that axis it covers, and its half
+  // width across it. Null when no gun is drawn.
+  _gunStrip(fac) {
+    const e = this.e, ws = e.weaponSprite;
+    if (!ws?.active || !ws.visible || ws.alpha <= 0) return null;
+    const rot = ws.rotation, dx = Math.cos(rot), dy = Math.sin(rot);
+    // where Enemy.preUpdate puts the overlay: (radius - 4) out along the aim
+    const off = (e.cfg?.radius ?? 24) - 4;
+    const dw = ws.displayWidth;
+    return { wx: dx * off, wy: dy * off, dx, dy, a0: -ws.originX * dw - 2, a1: (1 - ws.originX) * dw + 2, hw: gunHalfWidth(ws) + 1 };
+  }
+  // four corners into the reusable buffer (no per-cell allocation)
+  _quadBuf(x0, y0, x1, y1, x2, y2, x3, y3) {
+    const b = this._qb; b[0] = x0; b[1] = y0; b[2] = x1; b[3] = y1; b[4] = x2; b[5] = y2; b[6] = x3; b[7] = y3;
+    return b;
+  }
+  // does a polygon (flat [x0, y0, x1, y1, ...]) reach into the gun's footprint?
+  _onGun(pts) {
+    const G = this._gun;
+    if (!G) return false;
+    let lmin = Infinity, lmax = -Infinity, amin = Infinity, amax = -Infinity;
+    for (let i = 0; i < pts.length; i += 2) {
+      const px = pts[i] - G.wx, py = pts[i + 1] - G.wy;
+      const along = px * G.dx + py * G.dy, lat = py * G.dx - px * G.dy;
+      if (lat < lmin) lmin = lat; if (lat > lmax) lmax = lat;
+      if (along < amin) amin = along; if (along > amax) amax = along;
     }
-
-    // deformation: dents (inward) and peeling torn edges (outward)
-    const ev = this.events;
-    const gaps = [];
-    for (const v of ev) if (v.kind !== 'block') gaps.push({ v, g: this._gap(v), pe: this._peelEnv(v) });
-    for (let j = 0; j <= N; j++) {
-      let d = 0;
-      for (const v of ev) {
-        if (v.kind !== 'block') continue;
-        const t = v.t, env = t < 35 ? t / 35 : Math.exp(-(t - 35) / 65);
-        d -= 5 * env * gauss(rel[j] - v.off, 0.09);
-      }
-      for (const { v, g, pe } of gaps) {
-        const dd = Math.abs(rel[j] - v.off) - g, W = 0.16;
-        if (dd > 0 && dd < W && pe > 0) d += (v.kind === 'prick' ? 2 : 7) * pe * (1 - dd / W);
-      }
-      if (d !== 0) {
-        const a = fac + rel[j], c = Math.cos(a), s = Math.sin(a);
-        ox[j] += c * d; oy[j] += s * d; ix[j] += c * d; iy[j] += s * d;
-      }
-    }
-
-    // the two counter-running sheens — broad, slow, deterministic
-    const sp1 = -half - 0.4 + ((this.clock % 3200) / 3200) * (2 * half + 0.8);
-    const sp2 = half + 0.4 - ((this.clock % 4700) / 4700) * (2 * half + 0.8);
-
-    // ENERGY is sampled at every VERTEX (intensities sum, colours mix by
-    // intensity) and the panels are drawn as vertex-coloured triangles,
-    // so a reaction is a smooth local wave across the surface — sampled per
-    // segment it painted as hard-edged stripes. A tear's GAP is per segment.
-    const vCol = new Array(N + 1), vI = new Float32Array(N + 1), segGap = new Uint8Array(N);
-    const energy = (r, j) => {
-      let col = WHITE, sum = 0, cr = 0, cg = 0, cb = 0, wsum = 0;
-      for (const v of ev) {
-        const dm = r - v.off, t = v.t;
-        let I = 0, c = WHITE;
-        if (v.kind === 'block') {
-          // the contact cools first; the energy it shed travels outward along
-          // the surface as two fronts, widening, and cools behind itself
-          // (the energy floods the band from ~25ms; before that the frame is
-          // the smear's — the bolt flattening against the surface)
-          const core = Math.min(1, t / 40) * Math.exp(-t / 110) * gauss(dm, 0.08);
-          const pos = 0.40 * (1 - Math.exp(-t / 150)), A = Math.exp(-t / 260), sg = 0.07 + 0.11 * Math.min(1, t / 300);
-          const front = A * (gauss(dm - pos, sg) + gauss(dm + pos, sg));
-          const haze = 0.55 * smooth(240, 380, t) * Math.exp(-Math.max(0, t - 380) / 200) * gauss(dm, 0.24);
-          I = Math.min(1, Math.max(core, front, haze));
-          c = rampColor((core > front ? t * 1.25 : t) / 380);
-        } else {
-          const g = this._gap(v);
-          const edge = Math.max(0, Math.abs(dm) - g);
-          if (j != null && Math.abs(dm) < g) segGap[j] = 1;
-          if (v.kind === 'tear') {
-            if (t < TEAR.close) I = 0.9 * gauss(edge, 0.05) * (0.8 + 0.2 * ((Math.floor(t / 45) % 2)));
-            else I = 0.45 * Math.exp(-(t - TEAR.close) / 170) * gauss(Math.abs(dm) - 0.0022 * (t - TEAR.close), 0.05);
-            if (t < 140) I = Math.max(I, (1 - t / 140) * gauss(dm, 0.12));
-          } else {
-            I = (t < 200 ? 0.7 : 0) * gauss(edge, 0.04);
-          }
-          c = HEAL;
-        }
-        const w = I * I;                     // squared: the stronger reaction still leads locally
-        if (w > 1e-6) { cr += ((c >> 16) & 255) * w; cg += ((c >> 8) & 255) * w; cb += (c & 255) * w; wsum += w; }
-        sum += I;
-      }
-      // intensity-WEIGHTED colour: where a fresh red front meets an older,
-      // whitening patch the surface passes through pink between them instead
-      // of switching colour on a pixel boundary
-      if (wsum > 1e-6) col = (Math.round(cr / wsum) << 16) | (Math.round(cg / wsum) << 8) | Math.round(cb / wsum);
-      return [Math.min(1, sum), col];
-    };
-    for (let j = 0; j <= N; j++) { const [I, c] = energy(rel[j], null); vI[j] = I; vCol[j] = c; }
-    for (let j = 0; j < N; j++) energy((rel[j] + rel[j + 1]) / 2, j);
-    const segI = (j) => (vI[j] + vI[j + 1]) / 2;
-    const segCol = (j) => (vI[j] >= vI[j + 1] ? vCol[j] : vCol[j + 1]);
-
-    // ── panels ──
-    const tri = (g, ax, ay, ca, aa, bx, by, cb, ab, qx, qy, cq, aq) => {
-      g.fillGradientStyle(ca, cb, cq, cq, aa, ab, aq, aq);
-      g.fillTriangle(ax, ay, bx, by, qx, qy);
-    };
-    for (let j = 0; j < N; j++) {
-      if (segGap[j]) continue;
-      const rm = (rel[j] + rel[j + 1]) / 2;
-      const g = this._layer(fac + rm);
-      const m = mul;
-      const k = Math.floor(j / SUB);                    // the panel this segment belongs to (crisp facets)
-      const bse = (jj) => C.facetVar[k % 3] + C.sheenA * gauss(rel[jj] - sp1, 0.22) + C.sheen2A * gauss(rel[jj] - sp2, 0.3);
-      const col = (jj) => (vI[jj] > 0.01 ? lerpCol(C.frost, vCol[jj], Math.min(1, vI[jj] * 1.25)) : C.frost);
-      const al = (jj, a0) => Math.min(0.92, (a0 + bse(jj) + vI[jj] * 0.55) * m);
-      const sx = (a, b, u) => a + (b - a) * u;
-      // outer sub-band (milkier, by the bright rim) then inner (thinner, toward him)
-      const mx0 = sx(ox[j], ix[j], C.split), my0 = sx(oy[j], iy[j], C.split);
-      const mx1 = sx(ox[j + 1], ix[j + 1], C.split), my1 = sx(oy[j + 1], iy[j + 1], C.split);
-      const c0 = col(j), c1 = col(j + 1);
-      const h0 = al(j, C.aHi), h1 = al(j + 1, C.aHi), l0 = al(j, C.aLo), l1 = al(j + 1, C.aLo);
-      tri(g, ox[j], oy[j], c0, h0, ox[j + 1], oy[j + 1], c1, h1, mx1, my1, c1, h1);
-      tri(g, ox[j], oy[j], c0, h0, mx1, my1, c1, h1, mx0, my0, c0, h0);
-      tri(g, mx0, my0, c0, l0, mx1, my1, c1, l1, ix[j + 1], iy[j + 1], c1, l1);
-      tri(g, mx0, my0, c0, l0, ix[j + 1], iy[j + 1], c1, l1, ix[j], iy[j], c0, l0);
-    }
-    // ── panel seams ──
-    for (let k = 1; k < F; k++) {
-      const j = k * SUB;
-      if ((j > 0 && segGap[j - 1]) || segGap[j]) continue;
-      const g = this._layer(fac + rel[j]);
-      g.lineStyle(1, 0xffffff, C.seamA * mul);
-      g.lineBetween(ox[j], oy[j], ix[j], iy[j]);
-    }
-    // ── rims and keyline ──
-    // The BRIGHT rim is the OUTER edge — the face the fire arrives at. The inner
-    // edge (toward the bearer) is a soft line, so the surface reads as a plane
-    // standing in front of him rather than a tub he is standing in.
-    for (let j = 0; j < N; j++) {
-      if (segGap[j]) continue;
-      const rm = (rel[j] + rel[j + 1]) / 2;
-      const g = this._layer(fac + rm);
-      const m = mul;
-      const I = segI(j), sc = segCol(j);
-      const a = fac + rm, kx = Math.cos(a) * 1.6, ky = Math.sin(a) * 1.6;
-      g.lineStyle(1, C.key, C.keyA * m); g.lineBetween(ox[j] + kx, oy[j] + ky, ox[j + 1] + kx, oy[j + 1] + ky);
-      g.lineStyle(1, I > 0.01 ? lerpCol(C.lowRim, sc, Math.min(1, I)) : C.lowRim, Math.min(1, (C.lowRimA + I * 0.4) * m));
-      g.lineBetween(ix[j], iy[j], ix[j + 1], iy[j + 1]);
-      g.lineStyle(I > 0.3 ? C.rimW + 0.5 : C.rimW, I > 0.01 ? lerpCol(C.rim, sc, Math.min(1, I)) : C.rim, C.rimA * m);
-      g.lineBetween(ox[j], oy[j], ox[j + 1], oy[j + 1]);
-    }
-    // ── tips: the coverage ends are stated, not implied ──
-    for (const j of [0, N]) {
-      const g = this._layer(fac + rel[j]);
-      g.fillStyle(0xffffff, 0.85 * mul);
-      g.fillRect(ix[j] - 1, iy[j] - 1, 2, 2);
-    }
-
-    // ── per-event overlays (smear, bloom, filaments, snap) ──
-    for (const v of ev) this._overlay(v, cx, cy, fac, half, mul, gaps);
-    this._drawCore(mul);
+    return lmin <= G.hw && lmax >= -G.hw && amin <= G.a1 && amax >= G.a0;
   }
 
   // DEPTH ROUTING — the one place near / far is decided. South of his centre
   // (screen y below him) is NEAR: drawn over the body. North is FAR: drawn
-  // under it. The return value is a layer, never a strength.
+  // under it — unless the piece lies on the sidearm's footprint, where it goes
+  // to `farW`, above the weapon. The return value is a layer, never a strength.
   //
   // A REACTION is a point, not a band, and it goes FAR only when it is BEHIND
   // him — more than 30deg north of his centre line (`behindSin`). Side-on, a
-  // contact on the facing sits at his own depth, beside him, exactly where his
-  // sidearm crosses the field; split at the centre line, a hit a hair north of
-  // it was drawn under the gun and a hair south over it, so the same Super
-  // read whole facing east and vanished behind the barrel facing west
-  // (measured: 0.89 against 0.12 of the south view on its last beats). The
-  // panels keep the plain split — they are a continuous surface and it is
-  // their depth that makes him stand inside the field.
-  _layer(a, light = false, event = false) {
-    const isNear = Math.sin(a) >= (event ? -CURTAIN.behindSin : 0);
-    return light ? (isNear ? this.glowNear : this.glowFar) : (isNear ? this.near : this.far);
+  // contact on the facing sits at his own depth, beside him; split at the
+  // centre line, a hit a hair north of it was drawn under the gun and a hair
+  // south over it (measured: 0.89 against 0.12 of the south view on a tear's
+  // last beats). The panels keep the plain split — their depth is what puts
+  // him inside the field.
+  _layer(a, light = false, event = false, pts = null, dy = null) {
+    // a cell knows its own offset below his centre exactly (never zero: cell
+    // centres sit on half steps); anything else is decided by its bearing
+    const isNear = dy != null ? dy > 0 : Math.sin(a) >= (event ? -CURTAIN.behindSin : 0);
+    const L = this.L;
+    if (isNear) return light ? L.glowNear : L.near;
+    const onGun = pts ? this._onGun(pts) : false;
+    return light ? (onGun ? L.glowFarW : L.glowFar) : (onGun ? L.farW : L.far);
   }
 
-  // a point on the field at relative angle r: the combat plane (h = 0) at the
-  // curtain radius, or a fraction `f` from the lower rim to the upper
-  _pt(cx, cy, fac, r, f = null, dR = 0) {
-    const a = fac + r, C = CURTAIN, R = CURTAIN_RADIUS + dR;
-    if (f == null) return [cx + R * Math.cos(a), cy + R * Math.sin(a)];
-    const dr = C.outR + (-C.inR - C.outR) * f, dh = C.outH + (-C.inH - C.outH) * f;
-    return [cx + (R + dr) * Math.cos(a), cy + (R + dr) * Math.sin(a) + dh];
-  }
-
-  _overlay(v, cx, cy, fac, half, mul, gaps) {
-    const R = CURTAIN_RADIUS, t = v.t;
-    // the event's LAYERS follow where it is relative to the bearer (depth);
-    // its strength does not — a block, a tear or a prick behind him is the
-    // same event, and only his body may hide it
-    const g = this._layer(fac + v.off, false, true);    // material (the red smear dies INTO the surface)
-    const L = this._layer(fac + v.off, true, true);     // light
-    const m = mul;
-    if (v.kind === 'block') {
-      if (t >= 130) return;
-      // the bolt DIES INTO the surface: a compressed red-hot smear laid along
-      // it, short and thick on contact, spreading and thinning as it goes
-      const env = t < 35 ? t / 35 : Math.exp(-(t - 35) / 65);
-      const ell = (8 + 9 * Math.min(1, t / 70)) / R;
-      const pts = [];
-      for (let i = 0; i <= 6; i++) {
-        const r = Math.max(-half, Math.min(half, v.off - ell + (2 * ell * i) / 6));
-        const p = this._pt(cx, cy, fac, r, null, -5 * env - 1);
-        pts.push({ x: p[0], y: p[1] });
+  // ── THE CELLS ─────────────────────────────────────────────────────────────
+  // The field is built from the game's own pixel: a 4px CELL (`CURTAIN.cell`)
+  // on the SCREEN-ALIGNED grid anchored at the bearer's centre — the grid his
+  // own sprite is painted on (its pixels are 4px steps from his centre), so
+  // the field's pixels and his always line up, however he moves. The crescent
+  // is a clean pixel-art shape at any facing and is re-rasterised as he turns,
+  // as any rotating pixel object is. (Cells on a grid that TURNED with the
+  // facing were tried first: at the diagonals the rotated squares serrate the
+  // curved edge into a saw-toothed fringe, which reads as noise at 1x.)
+  //
+  // Candidates are computed once: every cell in the annulus the band, its
+  // keyline or a peeled edge could ever reach, with its distance from his
+  // centre and its absolute bearing; per frame a cell's place on the arc is
+  // just that bearing minus the facing.
+  _candidates() {
+    if (this._cand) return this._cand;
+    const C = CURTAIN, P = C.cell, R = CURTAIN_RADIUS;
+    const rMin = R - C.inR - 8, rMax = R + C.outR + P + 10;
+    const out = [];
+    const n = Math.ceil(rMax / P) + 1;
+    for (let b = -n; b < n; b++) {          // row by row, so a run of equal cells in a row merges into one rect
+      for (let a = -n; a < n; a++) {
+        const x = (a + 0.5) * P, y = (b + 0.5) * P, r = Math.hypot(x, y);
+        if (r < rMin || r > rMax) continue;
+        out.push({ a, b, x, y, r, phi: Math.atan2(y, x), th: 0, kind: '' });
       }
-      g.lineStyle(4.5 - 2.5 * Math.min(1, t / 70), RED, (1 - t / 130) * m);
-      g.strokePoints(pts, false);
-      if (t < 85) { g.lineStyle(1.5, 0xfff1e6, (1 - t / 85) * m); g.strokePoints(pts.slice(1, 6), false); }
-      return;
     }
+    return (this._cand = out);
+  }
+
+  draw() {
+    const e = this.e, C = CURTAIN, R = CURTAIN_RADIUS, L = this.L, P = C.cell;
+    const cx = e.x, cy = e.y, half = e._shieldHalfArc;
+    let fac = e._shieldFacing;
+    fac = Math.atan2(Math.sin(fac), Math.cos(fac));
+    const mul = e.hiddenInBush ? C.bushMul : 1;
+    const ws = e.weaponSprite, wd = ws?.active ? ws.depth : e.y + 1;
+    // Every layer is drawn in the BEARER'S frame and carried by its position:
+    // a field that only walks is never redrawn.
+    for (const g of Object.values(L)) g.setPosition(cx, cy);
+    L.near.setDepth(e.y + 2); L.far.setDepth(e.y - 2); L.farW.setDepth(wd + WEAPON_STACK.shield);
+    L.glowNear.setDepth(e.y + 3); L.glowFar.setDepth(e.y - 1.5); L.glowFarW.setDepth(wd + WEAPON_STACK.light);
+    const ev = this.events;
+
+    // the stepped current pulse: one column of cells, stepping tip to tip
+    const colAng = P / R, cols = Math.ceil((2 * half) / colAng);
+    const scanIdx = Math.floor((this.clock % C.scanMs) / C.scanStepMs);
+    const scanCol = scanIdx < cols ? ((Math.floor(this.clock / C.scanMs) % 2) ? cols - 1 - scanIdx : scanIdx) : -1;
+    const scanTh = scanCol >= 0 ? -half + (scanCol + 0.5) * colAng : null;
+
+    // Nothing that shapes the field changed and nothing is reacting: keep last
+    // frame's cells (they moved with him above).
+    const gunVis = !!(ws?.active && ws.visible && ws.alpha > 0);
+    const sig = `${Math.round(fac * 1e4)}|${scanCol}|${mul}|${Math.round(wd - e.y)}|${gunVis}|${this._record}`;
+    if (!ev.length && !this._dirty && sig === this._sig) { this._drawCore(mul); return; }
+    this._sig = sig; this._dirty = ev.length > 0;     // the frame after the last reaction must redraw clean
+    for (const g of Object.values(L)) g.clear();
+    this._gun = this._gunStrip(fac);
+    const rec = this._record ? (this._cells = []) : null;
+
+    // the tear's per-event shape this frame
+    const holes = [];
+    for (const v of ev) if (v.kind !== 'block') holes.push({ v, g: this._gap(v), pe: this._peelEnv(v) });
+
+    // Everything that depends only on the bearing is computed once per thin
+    // angular BIN (0.03 rad: 1.6px at the rim, under half a cell) rather than
+    // per cell.
+    const H = half + 0.25, BIN = 0.03, NB = Math.ceil((2 * H) / BIN) + 1;
+    if (!this._bins || this._bins.n !== NB) this._bins = { n: NB, stamp: new Int32Array(NB).fill(-1), w: new Float32Array(NB), d: new Float32Array(NB), I: new Float32Array(NB), c: new Int32Array(NB), hole: new Int8Array(NB) };
+    const B = this._bins, stamp = (this._stamp = (this._stamp || 0) + 1);
+    const bin = (th) => {
+      const i = Math.max(0, Math.min(NB - 1, Math.round((th + H) / BIN)));
+      if (B.stamp[i] === stamp) return i;
+      B.stamp[i] = stamp;
+      const tb = -H + i * BIN;
+      B.w[i] = Math.pow(clamp01((half - Math.abs(tb)) / C.taperRad), 0.75);
+      let d = 0, hole = -1;
+      for (const v of ev) {
+        if (v.kind !== 'block') continue;
+        const t = v.t, env = t < 35 ? t / 35 : Math.exp(-(t - 35) / 65);
+        d -= 5 * env * gauss(tb - v.off, 0.09);              // the contact's dent (inward)
+      }
+      for (let h = 0; h < holes.length; h++) {
+        const { v, g, pe } = holes[h], dd = Math.abs(tb - v.off) - g, W = 0.16;
+        if (dd < 0 && hole < 0) hole = h;
+        if (dd > 0 && dd < W && pe > 0) d += (v.kind === 'prick' ? 2 : 7) * pe * (1 - dd / W);   // a peeling edge (outward)
+      }
+      B.d[i] = d; B.hole[i] = hole;
+      if (ev.length) { this._energy(tb, ev); B.I[i] = this._eI; B.c[i] = this._eC; } else { B.I[i] = 0; B.c[i] = WHITE; }
+      return i;
+    };
+
+    // Runs of identical cells along a row are merged into one rect.
+    let run = null;
+    const flush = () => {
+      if (!run) return;
+      run.g.fillStyle(run.col, run.alpha);
+      run.g.fillRect(run.a0 * P, run.b * P, (run.a1 - run.a0 + 1) * P, P);
+      run = null;
+    };
+    const cell = (c, col, alpha, light = false) => {
+      const x0 = c.a * P, y0 = c.b * P;
+      const g = this._layer(fac + c.th, light, false, this._quadBuf(x0, y0, x0 + P, y0, x0 + P, y0 + P, x0, y0 + P), c.y);
+      if (run && run.g === g && run.b === c.b && run.a1 === c.a - 1 && run.col === col && run.alpha === alpha) run.a1 = c.a;
+      else { flush(); run = { g, b: c.b, a0: c.a, a1: c.a, col, alpha }; }
+      if (rec) rec.push({ kind: c.kind, x: cx + x0 + P / 2, y: cy + y0 + P / 2, q: [cx + x0, cy + y0, cx + x0 + P, cy + y0, cx + x0 + P, cy + y0 + P, cx + x0, cy + y0 + P], col, a: alpha, th: c.th, layer: Object.keys(L).find((k) => L[k] === g) });
+    };
+
+    for (const c of this._candidates()) {
+      let th = c.phi - fac;
+      if (th > Math.PI) th -= 2 * Math.PI; else if (th <= -Math.PI) th += 2 * Math.PI;
+      c.th = th;
+      if (th > H || th < -H) continue;
+      const i = bin(th), w = B.w[i], d = B.d[i];
+      const rOut = R + C.outR * w + d, rIn = R - C.inR * w + d;
+      const inArc = Math.abs(th) <= half;
+      const hole = B.hole[i] >= 0 ? holes[B.hole[i]] : null;
+      const inBand = inArc && w > 0 && c.r >= rIn && c.r <= rOut;
+      if (!inBand) {
+        // THE KEYLINE: one cell of dark navy outside the outer edge, and a cap
+        // beyond each tip — the field's outline, as every sprite has one
+        const outer = inArc && c.r > rOut && c.r <= rOut + P;
+        const cap = !inArc && Math.abs(th) <= half + (1.2 * P) / c.r && Math.abs(c.r - R) <= P;
+        if ((outer || cap) && !hole) { c.kind = 'key'; cell(c, C.key, C.keyA * mul); }
+        continue;
+      }
+      // which mass, which band
+      const q = Math.abs(th) / half;
+      const m = q < 0.25 ? C.face : q < 0.75 ? C.shoulder : C.tip;
+      const f = rOut - rIn > 0 ? (rOut - c.r) / (rOut - rIn) : 0;
+      const rim = c.r > rOut - P, edge = !rim && c.r < rIn + P * 0.75;
+      if (hole) { this._holeCell(c, hole, f, rim, cell, mul); continue; }
+
+      const I = B.I[i], ec = B.c[i];
+      const tint = Math.min(1, I * 1.25);
+      const scan = scanTh != null && Math.abs(th - scanTh) < colAng / 2 ? C.scanA : 0;
+      let col, alpha;
+      if (rim) {
+        c.kind = 'rim';
+        col = I > 0.01 ? lerpCol(C.rim, ec, Math.min(1, I * 1.1)) : C.rim;
+        alpha = Math.min(1, C.rimA * mul);
+      } else if (edge) {
+        c.kind = 'edge';
+        col = I > 0.01 ? lerpCol(C.lowRim, ec, Math.min(1, I)) : C.lowRim;
+        alpha = Math.min(0.92, (C.lowRimA + scan + I * 0.4) * mul);
+      } else if (f < C.split) {
+        c.kind = 'outer';
+        col = I > 0.01 ? lerpCol(m[0], ec, tint) : m[0];
+        alpha = Math.min(0.92, (m[1] + scan + I * 0.55) * mul);
+      } else {
+        c.kind = 'inner';
+        col = I > 0.01 ? lerpCol(m[2], ec, tint) : m[2];
+        alpha = Math.min(0.92, (m[3] + scan * 0.7 + I * 0.5) * mul);
+      }
+      cell(c, col, alpha);
+    }
+    flush();
+
+    // ── per-event LIGHT (blooms): soft, because it is light, not material ──
+    for (const v of ev) this._overlay(v, 0, 0, fac, mul);
+    this._drawCore(mul);
+  }
+
+  // A cell inside a tear's or prick's hole. Empty while it is open; the
+  // re-knit draws stitches across it, the zipper fills it from the outer rim
+  // inward, the snap flashes the seam — all in cells.
+  _holeCell(c, h, f, rim, cell, mul) {
+    const v = h.v, t = v.t;
+    if (v.kind !== 'tear') return;
+    const colIdx = Math.round((c.th - v.off) * CURTAIN_RADIUS / CURTAIN.cell);
+    if (t >= TEAR.hold && t < TEAR.close) {
+      const zip = t >= TEAR.zip ? (t - TEAR.zip) / (TEAR.close - TEAR.zip) : 0;
+      if (zip > 0 && f <= zip) { c.kind = 'zip'; cell(c, HEAL, 0.6 * mul); return; }
+      // stitches: every other cell, stepping (electronics, not a breathing glow)
+      if ((colIdx + Math.round(f * 3) + Math.floor(t / 45)) % 2 === 0 && !rim) { c.kind = 'stitch'; cell(c, Math.round(f * 3) === 1 ? 0xffffff : HEAL, 0.85 * mul, true); }
+    }
+  }
+
+  // energy at bearing th: intensity (0..1) and colour, all live events mixed
+  // (intensities sum; colours mix by intensity squared). Writes this._eI and
+  // this._eC — it runs once per bin per frame while anything is reacting.
+  _energy(th, ev) {
+    const C = CURTAIN, R = CURTAIN_RADIUS, W = _WAVE, A = _ACC;
+    A.sum = 0; A.r = 0; A.g = 0; A.b = 0; A.w = 0;
+    for (let k = 0; k < ev.length; k++) {
+      const v = ev[k], dm = th - v.off, t = v.t, d = Math.abs(dm) * R;
+      if (v.kind === 'block') {
+        if (d > C.wavePx + 5 * C.crestPx && d > 17) continue;          // beyond anything this event can reach
+        waveAt(d, t, C.wavePx, C.waveMs, C.crestPx, C.wakeMs, W);
+        // the bolt dies INTO the surface: a short red-hot smear on contact,
+        // white-hot at its heart for the first beats
+        if (t < 130) {
+          const ell = 8 + 9 * Math.min(1, t / 70);
+          if (d < ell) mixInto(A, 1 - t / 130, t < 85 && d < 4 ? 0xfff1e6 : RED);
+        }
+        mixInto(A, Math.min(1, W.crest), rampColor(0.1 + 0.42 * W.u));   // the crest: saturated red, cooling as it slows
+        mixInto(A, W.wake, rampColor(0.3 + W.tau / 300));               // the wake: red -> coral -> pink -> white
+      } else {
+        const g = this._gap(v), edge = Math.max(0, Math.abs(dm) - g);
+        if (v.kind === 'tear') {
+          if (t < TEAR.close) mixInto(A, 0.9 * gauss(edge, 0.05) * (0.8 + 0.2 * ((Math.floor(t / 45) % 2))), HEAL);
+          if (t < 140) mixInto(A, (1 - t / 140) * gauss(dm, 0.12), HEAL);
+          if (t >= TEAR.close) {
+            if (t < TEAR.snapEnd && d < CURTAIN.cell) mixInto(A, 1 - (t - TEAR.close) / (TEAR.snapEnd - TEAR.close), WHITE);   // the SNAP: the seam itself
+            // RECOVERY: pale crests run out from the healed seam on the block's
+            // own engine — the field re-stabilising, not a second explosion
+            if (d <= C.healPx + 5 * C.crestPx) {
+              waveAt(d, t - TEAR.close, C.healPx, C.healMs, C.crestPx, 120, W);
+              mixInto(A, 0.9 * W.crest, WHITE);
+              mixInto(A, 0.75 * W.wake, lerpCol(WHITE, HEAL, Math.min(1, W.tau / 160)));
+            }
+          }
+        } else {
+          mixInto(A, (t < 200 ? 0.7 : 0) * gauss(edge, 0.04), HEAL);
+        }
+      }
+    }
+    this._eI = Math.min(1, A.sum);
+    this._eC = A.w > 1e-6 ? (Math.round(A.r / A.w) << 16) | (Math.round(A.g / A.w) << 8) | Math.round(A.b / A.w) : WHITE;
+  }
+
+  // a point on the field at relative angle r, at the curtain radius (+dR)
+  _pt(cx, cy, fac, r, dR = 0) {
+    const a = fac + r, R = CURTAIN_RADIUS + dR;
+    return [cx + R * Math.cos(a), cy + R * Math.sin(a)];
+  }
+
+  // per-event LIGHT: the contact bloom of a tear or a prick, and the snap's
+  // glow. Soft, because it is light; the material is all cells.
+  _overlay(v, cx, cy, fac, mul) {
+    const t = v.t;
+    if (v.kind === 'block') return;
     const [px, py] = this._pt(cx, cy, fac, v.off);
+    const box = this._quadBuf(px - 14, py - 14, px + 14, py - 14, px + 14, py + 14, px - 14, py + 14);
+    const L = this._layer(fac + v.off, true, true, box);
+    const m = mul;
     if (v.kind === 'prick') {
       if (t < 90) { const u = t / 90; L.fillStyle(0xffffff, 0.8 * (1 - u) * m); L.fillCircle(px, py, 3 + 5 * u); }
       if (t >= 200 && t < 250) { L.fillStyle(0xffffff, (1 - (t - 200) / 50) * m); L.fillCircle(px, py, 2.5); }
       return;
     }
-    // TEAR
     if (t < 140) {                                   // white bloom, largest faintest
       const u = t / 140;
       L.fillStyle(HEAL, 0.4 * (1 - u) * m); L.fillCircle(px, py, 8 + 16 * u);
       L.fillStyle(0xffffff, 0.7 * (1 - u) * m); L.fillCircle(px, py, 5 + 9 * u);
       if (t < 100) { L.fillStyle(0xffffff, (1 - t / 100) * m); L.fillCircle(px, py, 2 + 3 * u); }
     }
-    const gap = gaps.find((x) => x.v === v);
-    const gw = gap ? gap.g : 0;
-    if (t >= TEAR.hold && t < TEAR.close && gw > 0) {
-      // filaments re-knit across the gap — three stitches, bowed alternately,
-      // stepping in brightness (electronics, not a breathing glow)
-      const fr = [0.2, 0.5, 0.8];
-      const zip = t >= TEAR.zip ? (t - TEAR.zip) / (TEAR.close - TEAR.zip) : 0;
-      fr.forEach((f, i) => {
-        const a = this._pt(cx, cy, fac, v.off - gw, f), b = this._pt(cx, cy, fac, v.off + gw, f);
-        const bow = (i % 2 ? 1.5 : -1.5);
-        const lit = (Math.floor(t / 45) + i) % 2 ? 0.95 : 0.6;
-        L.lineStyle(1.5, i === 1 ? 0xffffff : HEAL, lit * m);
-        L.strokePoints([{ x: a[0], y: a[1] }, { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 + bow }, { x: b[0], y: b[1] }], false);
-      });
-      if (zip > 0) {
-        // THE ZIPPER: the last of the gap closes from the lower rim upward
-        const lo0 = this._pt(cx, cy, fac, v.off - gw, 0), lo1 = this._pt(cx, cy, fac, v.off + gw, 0);
-        const hi0 = this._pt(cx, cy, fac, v.off - gw, zip), hi1 = this._pt(cx, cy, fac, v.off + gw, zip);
-        g.fillStyle(HEAL, 0.55 * m);
-        g.fillPoints([{ x: lo0[0], y: lo0[1] }, { x: lo1[0], y: lo1[1] }, { x: hi1[0], y: hi1[1] }, { x: hi0[0], y: hi0[1] }], true);
-        L.fillStyle(0xffffff, 0.9 * m);
-        L.fillCircle((hi0[0] + hi1[0]) / 2, (hi0[1] + hi1[1]) / 2, 2);
-      }
-    }
-    if (t >= TEAR.close && t < TEAR.snapEnd) {        // the SNAP: compact, bright, short
+    if (t >= TEAR.close && t < TEAR.snapEnd) {        // the SNAP's glow: compact, bright, short
       const u = (t - TEAR.close) / (TEAR.snapEnd - TEAR.close);
-      const lo = this._pt(cx, cy, fac, v.off, 0), hi = this._pt(cx, cy, fac, v.off, 1);
-      L.lineStyle(2, 0xffffff, (1 - u) * m); L.lineBetween(lo[0], lo[1], hi[0], hi[1]);
-      L.fillStyle(0xffffff, (1 - u) * m); L.fillCircle(px, py, 5 - 2 * u);
       L.fillStyle(HEAL, 0.35 * (1 - u) * m); L.fillCircle(px, py, 9 - 2 * u);
     }
   }
