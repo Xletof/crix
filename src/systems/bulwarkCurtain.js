@@ -549,7 +549,7 @@ class CurtainField {
       B.hole[i] = hole;
       if (ev.length) {
         this._energy(tb, ev);
-        B.I[i] = this._eI; B.c[i] = this._eC; B.wI[i] = this._wI; B.wc[i] = this._wC; B.wt[i] = this._wT; B.P[i] = this._eP;
+        B.I[i] = this._eI; B.c[i] = this._eC; B.wI[i] = this._wI; B.wc[i] = this._wC; B.wt[i] = 0.55 + this._wT / 220; B.P[i] = this._eP;
         d += this._eF;                                   // the membrane flexing as the pressure passes
       } else { B.I[i] = 0; B.c[i] = WHITE; B.wI[i] = 0; B.P[i] = 0; }
       B.d[i] = d;
@@ -604,8 +604,11 @@ class CurtainField {
       let I = B.I[i], ec = B.c[i];
       const wI = B.wI[i];
       if (wI > 0.002) {
-        const Iw = wI * clamp01(1.2 - f * (0.55 + B.wt[i] / 220));
-        if (Iw > 0.002) { const a2 = I * I, b2 = Iw * Iw; ec = lerpCol(ec, B.wc[i], b2 / (a2 + b2)); I = Math.min(1, I + Iw); }
+        const Iw = wI * clamp01(1.2 - f * B.wt[i]);          // B.wt: the taper's slope for this bin's wake age
+        if (Iw > 0.002) {
+          if (I <= 0.002) { ec = B.wc[i]; I = Iw; }          // wake alone: no blend to compute
+          else { const a2 = I * I, b2 = Iw * Iw; ec = lerpCol(ec, B.wc[i], b2 / (a2 + b2)); I = Math.min(1, I + Iw); }
+        }
       }
       // the PRESSURE envelope: denser, brighter frost where the wave is
       const pr = B.P[i];
