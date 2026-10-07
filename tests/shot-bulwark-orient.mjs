@@ -230,7 +230,7 @@ const compass = (a) => {
 // ── 2. ROTATE: one Regular and one Elite turned through 360 degrees ───────
 // 0.75s held facing south, then one full turn in 9s (clockwise on screen:
 // S -> W -> N -> E -> S), then held again. Nothing else moves.
-async function rotate() {
+async function rotate(file = 'bulwark-orientation-rotate.webm', note = 'ONE material at every facing: no fade, no half-ghost, no seam behind him') {
   const page = await stillPage();
   const camY = await page.evaluate(() => {
     const gs = window.__gs, cam = gs.cameras.main;
@@ -254,13 +254,13 @@ async function rotate() {
     return cam.y;
   });
   const clip = { x: 0, y: camY + 300 - 150, width: 720, height: 300 };
-  await record(page, 'bulwark-orientation-rotate.webm', 330, {
+  await record(page, file, 330, {
     clip, W: 720, H: 44 + 300 + 26 + 540 + 34,
     draws: [{ sx: 0, sy: 0, sw: 720, sh: 300, dx: 0, dy: 44 }, { sx: 180, sy: 15, sw: 360, sh: 270, dx: 0, dy: 44 + 300 + 26, k: 2 }],
     texts: (a, f) => [{ text: 'ONE FIELD, TURNED THROUGH 360 — Regular (left), Elite (right)', x: 10, y: 20, bold: true, size: 15 },
       { text: `shield facing ${compass(a)}     t ${(f * 2 / 60).toFixed(2)}s     1x`, x: 10, y: 38, color: '#9fe6ff', size: 13 },
       { text: '2x nearest — the same frame', x: 10, y: 44 + 300 + 18, color: '#aab0bd', size: 12 },
-      { text: 'ONE material at every facing: no fade, no half-ghost, no seam behind him', x: 10, y: 44 + 300 + 26 + 540 + 22, color: '#d0d4dc', size: 12 }],
+      { text: note, x: 10, y: 44 + 300 + 26 + 540 + 22, color: '#d0d4dc', size: 12 }],
   });
   await page.close();
 }
@@ -376,7 +376,7 @@ async function rapid() {
 // frame later — it takes the hole — and one more as a pinprick), twice.
 // Part B: a REAL Super into one Elite at each facing in turn, at the real
 // sector-25 hp ramp, generic hit FX and all.
-async function super4() {
+async function super4(file = 'bulwark-super-4way.webm', beats = 'PUNCTURE -> OPEN -> HEAL, twice.') {
   const page = await stillPage();
   const camY = await stageRow(page, COMPASS.map(([, a]) => [{ elite: true }, a]));
   await page.evaluate(() => {
@@ -426,7 +426,7 @@ async function super4() {
   const SW = 168, SH = 196;
   const H = 40 + 300 + 22 + 2 * (2 * SH) + 20;
   let lastB = null, lastDbg = null;
-  await record(page, 'bulwark-super-4way.webm', 100 + 4 * 42, {
+  await record(page, file, 100 + 4 * 42, {
     clip: (st) => ({ x: 0, y: camY + 330 - 150, width: 720, height: 300 }), W: 720, H,
     draws: (st) => (st.part === 'A'
       ? [{ sx: 0, sy: 0, sw: 720, sh: 300, dx: 0, dy: 40 },
@@ -437,7 +437,7 @@ async function super4() {
       if (st.part === 'B' && st.j !== lastB && /tear/.test(st.ev)) { lastB = st.j; console.log(`super4 B facing ${['S', 'E', 'N', 'W'][st.j]}: ${st.ev}${st.alive ? '' : ' (bearer died)'}`); }
       return st.part === 'A'
         ? [{ text: 'SUPER TEAR x 4 FACINGS — the same volley through the real pierce seam, same ticks', x: 10, y: 18, bold: true, size: 14 },
-          { text: `PUNCTURE -> OPEN -> HEAL, twice.  ${st.ev}`, x: 10, y: 34, color: '#9fe6ff', size: 11 },
+          { text: `${beats}  ${st.ev}`, x: 10, y: 34, color: '#9fe6ff', size: 11 },
           ...COMPASS.map(([n], i) => ({ text: n, x: (i % 2) * (2 * SW + 10) + 18, y: 40 + 300 + 18 + Math.floor(i / 2) * 2 * SH + (i > 1 ? 4 : 0), size: 12, color: '#9fe6ff' }))]
         : [{ text: `REAL SUPER, Elite at sector-25 hp — facing ${COMPASS[Math.max(0, st.j)][0]} (S, E, N, W in turn)`, x: 10, y: 18, bold: true, size: 14 },
           { text: `generic hit FX included (frozen).  ${st.ev}${st.alive ? '' : '  (bearer died)'}`, x: 10, y: 34, color: '#9fe6ff', size: 11 }];
@@ -584,7 +584,276 @@ async function perf() {
   console.log('field draw cost, ms per field per frame (median of 5 x 240 frames, 6 fields, desktop Chromium):', JSON.stringify(res));
 }
 
-const steps = { idle4, rotate, block4, rapid, super4, vanguard: vanguardLive, ab, perf };
-const ALL = ['idle4', 'rotate', 'block4', 'rapid', 'super4', 'vanguard', 'ab', 'perf'];
+
+// ══ FINAL VISUAL INTEGRATION PASS (the third handset round) ══════════════
+// 1. layering: the sidearm must never draw over the field; 2. CRIX
+// material; 3. the travelling absorption wave; 4. the Super's recovery wave.
+
+// a shooter cycle for a held bearer: the frozen 300ms warning on the pip, then
+// a shot (the scene event the sidearm FX listens to), every `period` ticks
+const CYCLE = `window.__cycle = (e, i, period = 48, phase = 0) => {
+  const k = (i + phase) % period;
+  if (k === 0) e._weaponFx?.charge(300);
+  if (k === 18) window.__gs.events.emit('shooter-fire', e);
+};`;
+
+// ── L1. LAYERING 4-WAY: idle, charge, shot — and the magenta proof ────────
+async function layer4() {
+  const page = await stillPage();
+  await page.evaluate(CYCLE);
+  const camY = await stageRow(page, COMPASS.map(([, a]) => [{}, a]));
+  const cells = [0, 1, 2, 3].map((i) => rowCell(camY, i, 168, 196));
+  const shots = [];
+  const grab = async (label) => shots.push({ label, buf: await page.screenshot({ clip: { x: 0, y: camY, width: 720, height: 660 } }) });
+  await page.evaluate(() => { window.__adv(2); window.__hold(); window.__quiet(); });
+  await grab('idle');
+  await page.evaluate(() => { for (const e of window.__row) e._weaponFx.charge(300); for (let i = 0; i < 14; i++) { window.__adv(1); window.__hold(); } window.__quiet(); });
+  await grab('sidearm charging (the cold pip)');
+  await page.evaluate(() => { for (const e of window.__row) window.__gs.events.emit('shooter-fire', e); window.__adv(1); window.__hold(); window.__quiet(); });
+  await grab('shot frame (the discharge)');
+  await page.evaluate(() => {
+    for (let i = 0; i < 6; i++) { window.__adv(1); window.__hold(); }
+    for (const e of window.__row) e.weaponSprite.setTintFill(0xff00ff);
+    window.__adv(1); window.__hold(); window.__quiet();
+  });
+  await grab('PROOF: the gun tint-filled magenta — wherever it crosses the field, the field is over it');
+  await page.evaluate(() => { for (const e of window.__row) e.weaponSprite.clearTint(); });
+  const k2 = 2, CW = 168 * k2, CH = 196 * k2, GX = 150, top = 64;
+  const draws = [], texts = [{ text: 'SIDEARM vs FIELD — the four compass facings: the field always draws OVER the gun where they cross (2x nearest)', x: 10, y: 24, bold: true, size: 16 },
+    { text: 'side-on the gun is over his body and the far half of the field under it — the cells the gun crosses go to a layer above it', x: 10, y: 46, color: '#aab0bd', size: 13 }];
+  COMPASS.forEach(([n], i) => texts.push({ text: n, x: GX + i * (CW + 10) + CW / 2, y: top - 4, align: 'center', bold: true, size: 15 }));
+  shots.forEach((sh, r) => {
+    const words = sh.label.split(' — ');
+    texts.push({ text: words[0], x: 10, y: top + r * (CH + 10) + 20, size: 12 });
+    if (words[1]) { texts.push({ text: 'wherever it', x: 10, y: top + r * (CH + 10) + 38, size: 11, color: '#aab0bd' }); texts.push({ text: 'crosses, the', x: 10, y: top + r * (CH + 10) + 52, size: 11, color: '#aab0bd' }); texts.push({ text: 'field is over it', x: 10, y: top + r * (CH + 10) + 66, size: 11, color: '#aab0bd' }); }
+    cells.forEach((c, i) => draws.push({ i: r, sx: c.x, sy: c.y - camY, sw: 168, sh: 196, dx: GX + i * (CW + 10), dy: top + r * (CH + 10), k: k2 }));
+  });
+  const png = await composite(shots.map((s) => s.buf), { W: GX + 4 * (CW + 10), H: top + shots.length * (CH + 10) + 10, draws, texts, type: 'png' });
+  writeFileSync(OUT + name('bulwark-layering-4way.png'), png);
+  console.log('wrote', OUT + name('bulwark-layering-4way.png'));
+  await page.close();
+}
+
+// ── L2. LAYERING ROTATE: 360 degrees while the sidearm charges and fires ──
+async function layerRot() {
+  const page = await stillPage();
+  await page.evaluate(CYCLE);
+  const camY = await page.evaluate(() => {
+    const gs = window.__gs, cam = gs.cameras.main;
+    const P = gs.player; P.setPosition(1200, 1300); P.body.reset(P.x, P.y); P.setVisible(false); P.weaponSprite?.setVisible(false);
+    cam.setScroll(780 - 360, 640 - 300);
+    const R = gs.spawnEnemyAt('shielded', 690, 640, {}), E = gs.spawnEnemyAt('shielded', 870, 640, { elite: true });
+    window.__pair = [R, E];
+    window.__frame = () => {
+      for (let k = 0; k < 2; k++) {
+        const i = (window.__tick = (window.__tick ?? -1) + 1);
+        const a = Math.PI / 2 + Math.min(1, Math.max(0, (i - 30) / 600)) * 2 * Math.PI;
+        window.__pair.forEach((e, j) => { window.__face(e, a); e.body.reset(j ? 870 : 690, 640); window.__cycle(e, i, 40, j * 20); });
+        window.__adv(1);
+      }
+      window.__quiet();
+      return window.__pair[0]._shieldFacing;
+    };
+    window.__adv(2);
+    return cam.y;
+  });
+  await record(page, 'bulwark-layering-rotate.webm', 330, {
+    clip: { x: 0, y: camY + 300 - 150, width: 720, height: 300 }, W: 720, H: 44 + 300 + 26 + 540 + 30,
+    draws: [{ sx: 0, sy: 0, sw: 720, sh: 300, dx: 0, dy: 44 }, { sx: 180, sy: 15, sw: 360, sh: 270, dx: 0, dy: 44 + 300 + 26, k: 2 }],
+    texts: (a, f) => [{ text: 'SIDEARM vs FIELD through 360 — charging and firing all the way round (Regular, Elite)', x: 10, y: 20, bold: true, size: 14 },
+      { text: `shield facing ${compass(a)}     t ${(f * 2 / 60).toFixed(2)}s     1x`, x: 10, y: 38, color: '#9fe6ff', size: 13 },
+      { text: '2x nearest — the same frame', x: 10, y: 44 + 300 + 18, color: '#aab0bd', size: 12 },
+      { text: 'there should be no frame in which the gun, its pip or its discharge sits ON the field', x: 10, y: 44 + 300 + 26 + 540 + 20, color: '#d0d4dc', size: 12 }],
+  });
+  await page.close();
+}
+
+// ── M1. MATERIAL A/B: 5169399 vs NEW, at 1x — south, side, north, a pair ──
+async function matAB() {
+  const shot = async (base) => {
+    const page = await stillPage(base);
+    const camY = await page.evaluate(() => {
+      const gs = window.__gs, cam = gs.cameras.main;
+      const P = gs.player; P.setPosition(720, 1200); P.body.reset(P.x, P.y);
+      cam.setScroll(720 - 360, 640 - 300);
+      const put = (x, y, a, spec = {}) => { const e = gs.spawnEnemyAt('shielded', x, y, spec); window.__face(e, a); e.body.reset(x, y); e._homeX = x; e._homeY = y; return e; };
+      window.__row = [put(470, 560, Math.PI / 2), put(600, 560, 0), put(730, 560, -Math.PI / 2), put(860, 560, Math.PI / 2 + 0.6, { elite: true }),
+        put(640, 730, Math.atan2(1200 - 730, 720 - 640)), put(800, 730, Math.atan2(1200 - 730, 720 - 800), { elite: true })];
+      window.__hold = () => { for (const e of window.__row) { window.__face(e, e._shieldFacing); e.body.reset(e._homeX, e._homeY); } };
+      for (let i = 0; i < 3; i++) { window.__adv(1); window.__hold(); }
+      window.__quiet();
+      return cam.y;
+    });
+    const buf = await page.screenshot({ clip: { x: 0, y: camY + 150, width: 720, height: 340 } });
+    await page.close();
+    return buf;
+  };
+  const a = await shot(OLD), b = await shot(BASE);
+  const png = await composite([a, b], {
+    W: 740, H: 40 + 2 * (340 + 30) + 40, type: 'png',
+    draws: [{ i: 0, sx: 0, sy: 0, sw: 720, sh: 340, dx: 10, dy: 64 }, { i: 1, sx: 0, sy: 0, sw: 720, sh: 340, dx: 10, dy: 64 + 340 + 30 }],
+    texts: [{ text: 'FIELD MATERIAL at 1x — the previous build (5169399) above, the new one below', x: 10, y: 22, bold: true, size: 15 },
+      { text: 'top row: facing south / east / north / south-east (Elite); below: a VANGUARD pair facing the player', x: 10, y: 42, color: '#aab0bd', size: 12 },
+      { text: '5169399 — smooth vector band, soft gradients, clean 2px white curve', x: 10, y: 60, color: '#ff9a8a', size: 13, bold: true },
+      { text: 'NEW — the roster\'s own 4px pixels, value masses, a navy outline, outlined tips', x: 10, y: 60 + 340 + 30, color: '#7dff9a', size: 13, bold: true }],
+  });
+  writeFileSync(OUT + name('bulwark-material-ab.png'), png);
+  console.log('wrote', OUT + name('bulwark-material-ab.png'));
+}
+
+// ── R1. RIPPLE STRIP: one real block, the wave logic beat by beat ─────────
+async function ripStrip() {
+  const page = await stillPage();
+  await page.evaluate(BOLT);
+  const camY = await stageRow(page, [[{}, Math.PI / 2, 1.5 * ROW.DX, 0]]);
+  const cx = Math.round(102 + 1.5 * ROW.DX), cyS = camY + 330;
+  const PH = [['contact', 1], ['compression', 30], ['twin red crests leave', 90], ['crests travelling', 160], ['coral wake', 240], ['pink / white wake', 330], ['absorbed', 470], ['recovered', 900]];
+  await page.evaluate(() => { const e = window.__row[0]; window.__bolt(e, e._shieldFacing, 84); });
+  const shots = [];
+  for (let i = 0, k = 0; k < PH.length && i < 160; i++) {
+    const age = await page.evaluate(() => { window.__adv(1); window.__hold(); window.__quiet(); const v = window.__row[0]._curtain.snapshot().find((x) => x.kind === 'block'); return v ? Math.round(v.t) : (window.__row[0]._curtain.stats.blocks ? 9999 : -1); });
+    if (age >= PH[k][1] || (k === PH.length - 1 && age === 9999)) { shots.push({ ph: PH[k][0], age, buf: await page.screenshot({ clip: { x: cx - 90, y: cyS - 80, width: 180, height: 150 } }) }); k++; }
+  }
+  if (shots.length !== PH.length) fail(`ripStrip: ${shots.length}/${PH.length}`);
+  const n = shots.length, W1 = 180, H1 = 150;
+  const draws = [], texts = [{ text: 'ONE NORMAL BLOCK — contact -> twin crests -> coral -> pink / white -> absorbed -> recovered (a real bolt, the field facing south)', x: 10, y: 22, bold: true, size: 15 },
+    { text: '1x (handset scale)', x: 10, y: 46, color: '#aab0bd', size: 12 }, { text: '3x nearest — the same frames', x: 10, y: 46 + H1 + 40, color: '#aab0bd', size: 12 }];
+  shots.forEach((s, i) => {
+    draws.push({ i, sx: 0, sy: 0, sw: W1, sh: H1, dx: 10 + i * (W1 + 10), dy: 56 });
+    draws.push({ i, sx: 50, sy: 50, sw: 80, sh: 90, dx: 10 + i * (W1 + 10), dy: 56 + H1 + 50, k: 2.25 });
+    texts.push({ text: s.ph, x: 10 + i * (W1 + 10), y: 56 + H1 + 16, size: 11 });
+    texts.push({ text: s.age === 9999 ? '(event gone)' : `${s.age}ms`, x: 10 + i * (W1 + 10), y: 56 + H1 + 30, size: 11, color: '#9fe6ff' });
+  });
+  const png = await composite(shots.map((s) => s.buf), { W: 10 + n * (W1 + 10), H: 56 + H1 + 50 + 90 * 2.25 + 50, draws, type: 'png',
+    texts: [...texts, { text: 'RED = the bolt\'s energy still in the field; the crest leads, the wake behind it cools coral -> pink -> white; WHITE = absorbed', x: 10, y: 56 + H1 + 50 + 90 * 2.25 + 30, size: 12, color: '#d0d4dc' }] });
+  writeFileSync(OUT + name('bulwark-ripple-strip.png'), png);
+  console.log('wrote', OUT + name('bulwark-ripple-strip.png'));
+  await page.close();
+}
+
+// ── R2/R3. RIPPLE LIVE (single repeated blocks) and RAPID (stress) ────────
+async function ripVideo(file, { rapid }) {
+  const page = await stillPage();
+  await page.evaluate(BOLT);
+  const camY = await page.evaluate((rapid) => {
+    const gs = window.__gs, cam = gs.cameras.main;
+    const P = gs.player; P.setPosition(1200, 1300); P.body.reset(P.x, P.y); P.setVisible(false); P.weaponSprite?.setVisible(false);
+    cam.setScroll(780 - 360, 640 - 300);
+    // front-facing on the left, side-facing (east) on the right
+    const A = gs.spawnEnemyAt('shielded', 650, 640, {}), B = gs.spawnEnemyAt('shielded', 880, 640, {});
+    window.__row = [A, B]; A._homeX = 650; B._homeX = 880; A._homeY = B._homeY = 640;
+    window.__face(A, Math.PI / 2); window.__face(B, 0);
+    window.__hold = () => { for (const e of window.__row) { window.__face(e, e._shieldFacing); e.body.reset(e._homeX, e._homeY); } };
+    // a fixed, irregular pattern of offsets (no randomness): rapid fire walks
+    // its hits across the face; single blocks land near the centre
+    const OFF = [0.05, -0.35, 0.5, -0.1, 0.8, -0.65, 0.25, -0.9, 0.6, -0.2, 0.95, -0.5];
+    window.__tick = 0;
+    window.__frame = () => {
+      for (let k = 0; k < 2; k++) {
+        const i = window.__tick++;
+        window.__row.forEach((e, j) => {
+          const per = rapid ? 9 : 60, ph = rapid ? j * 4 : j * 30;
+          if (i >= 20 && i < 520 && (i + ph) % per === 0) { const n = Math.floor((i + ph) / per); window.__bolt(e, e._shieldFacing + (rapid ? OFF[n % OFF.length] : (n % 2 ? 0.08 : -0.12)), 84); }
+        });
+        window.__adv(1); window.__hold();
+      }
+      window.__quiet();
+      return window.__row.map((e) => e._curtain.events.filter((v) => v.kind === 'block').length).join(' / ');
+    };
+    window.__adv(2); window.__hold(); window.__quiet();
+    return cam.y;
+  }, rapid);
+  await record(page, file, rapid ? 270 : 300, {
+    clip: { x: 0, y: camY + 300 - 140, width: 720, height: 280 }, W: 720, H: 44 + 280 + 24 + 520 + 40,
+    draws: [{ sx: 0, sy: 0, sw: 720, sh: 280, dx: 0, dy: 44 }, { sx: 190, sy: 10, sw: 360, sh: 260, dx: 0, dy: 44 + 280 + 24, k: 2 }],
+    texts: (n, f) => [{ text: rapid ? 'RAPID FIRE — every hit its own local history (front-facing left, side-facing right)' : 'SINGLE BLOCKS, real speed — front-facing (left) and side-facing (right)', x: 10, y: 20, bold: true, size: 15 },
+      { text: `live block events ${n}     t ${(f * 2 / 60).toFixed(2)}s     1x`, x: 10, y: 38, color: '#9fe6ff', size: 12 },
+      { text: '2x nearest — the same frame', x: 10, y: 44 + 280 + 16, color: '#aab0bd', size: 12 },
+      { text: rapid ? 'fresh red contacts, red crests running, coral and white wakes — side by side, never one flash' : 'HIT -> two red crests running out along the curve -> coral / pink / white wake -> settled', x: 10, y: 44 + 280 + 24 + 520 + 22, color: '#d0d4dc', size: 12 }],
+  });
+  await page.close();
+}
+
+// ── V1. VANGUARD FINAL: real VANGUARD (with the Captain), the player circling
+async function vgFinal() {
+  const page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
+  page.on('pageerror', (e) => fail(`vanguard: ${e.message}`));
+  await page.goto(BASE + `?nodlg=1&nofreeze=1&${FLAGS}&${VG_FINAL}`);
+  await stepBoot(page);
+  await page.evaluate(VG_SCRIPT);
+  await record(page, 'bulwark-vanguard-final.webm', 660, {
+    clip: { x: 0, y: 84, width: 720, height: 960 }, W: 720, H: 960 + 36,
+    draws: [{ sx: 0, sy: 0, sw: 720, sh: 960, dx: 0, dy: 0 }],
+    texts: (st, f) => [{ text: `VANGUARD live, 1x — Bulwark shield facings: ${st || '(none on the floor yet)'}   t ${(f * 2 / 60).toFixed(1)}s`, x: 10, y: 960 + 23, color: '#9fe6ff', size: 13 }],
+  });
+  console.log('facing bins (bearer-ticks):', JSON.stringify(await page.evaluate(() => window.__bins)));
+  await page.close();
+}
+const VG_FINAL = 'encdbg=vanguard&room=hangar&sector=8&wave=2';
+// hold while the front forms and closes, fire into it, walk a loop round the
+// pair (west, north, east, south, west) so the fields turn through every
+// facing, and fire a Super into them twice
+const VG_SCRIPT = `(() => {
+  const gs = window.__gs;
+  window.__tick = 0; window.__bins = {};
+  const seg = [[0, 400, ''], [400, 470, 'A'], [470, 600, 'W'], [600, 760, 'D'], [760, 880, 'S'], [880, 1000, 'A'], [1000, 1090, 'W'], [1090, 1200, 'D'], [1200, 99999, '']];
+  window.__frame = () => {
+    for (let k = 0; k < 2; k++) {
+      const i = window.__tick++;
+      const cur = seg.find(([a, b]) => i >= a && i < b)[2], K = gs.keys;
+      K.A.isDown = cur === 'A'; K.D.isDown = cur === 'D'; K.W.isDown = cur === 'W'; K.S.isDown = cur === 'S';
+      if (i >= 300 && i % 9 === 0) gs.player.keyboardFire();
+      if (i === 900 || i === 1240) { gs.player.superCharge = 999; gs.player.tryFireSuper(gs.player._autoAimAngle()); }
+      window.__adv(1);
+      for (const e of gs.enemies.getChildren()) {
+        if (!e.active || !e.alive || !e._curtain) continue;
+        const d = ((Math.round((e._shieldFacing * 180) / Math.PI) % 360) + 360) % 360;
+        const b = ['E', 'S', 'W', 'N'][Math.round(d / 90) % 4];
+        window.__bins[b] = (window.__bins[b] || 0) + 1;
+      }
+    }
+    window.__quiet();
+    return gs.enemies.getChildren().filter((e) => e.active && e.alive && e._curtain).map((e) => (e._elite ? 'E ' : 'R ') + ['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE'][Math.round((((e._shieldFacing * 180) / Math.PI % 360) + 360) % 360 / 45) % 8]).join('   ');
+  };
+})();`;
+
+// ── V2. FINAL A/B: 5169399 vs NEW, the same VANGUARD, the same seed ───────
+async function finalAB() {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1280 } });
+  const q = `?nodlg=1&nofreeze=1&${FLAGS}&${VG_FINAL}`;
+  await page.setContent(`<body style="margin:0;background:#000;display:flex"><iframe src="${OLD}${q}&ab=0" width="720" height="1280" style="border:0"></iframe><iframe src="${BASE}${q}&ab=1" width="720" height="1280" style="border:0"></iframe></body>`);
+  await page.waitForTimeout(2000);
+  const fr = [0, 1].map((i) => page.frames().find((f) => f.url().includes(`&ab=${i}`)));
+  if (fr.some((f) => !f)) fail('finalAB: iframes not found');
+  for (const f of fr) { await stepBoot(f); await f.evaluate(VG_SCRIPT); }
+  const vw = videoWriter(OUT + name('bulwark-shield-final-ab.webm'));
+  let same = 0, n = 0;
+  for (let k = 0; k < 600; k++) {
+    await fr[0].evaluate(() => window.__frame()); const st = await fr[1].evaluate(() => window.__frame());
+    if (k % 30 === 0) {
+      const probe = () => window.__gs.enemies.getChildren().filter((e) => e.active).map((e) => `${e.x.toFixed(2)},${e.y.toFixed(2)},${e.hp},${e._shieldFacing?.toFixed?.(4)}`).join('|') + `#${window.__gs.player.x.toFixed(2)}#${window.__gs.player.superCharge}`;
+      n++; if (await fr[0].evaluate(probe) === await fr[1].evaluate(probe)) same++;
+    }
+    const buf = await page.screenshot({ clip: { x: 0, y: 84, width: 1440, height: 960 } });
+    await vw.write(await composite([buf], { W: 1440, H: 960 + 40, draws: [{ sx: 0, sy: 0, sw: 1440, sh: 960, dx: 0, dy: 0 }, { rect: '#ffffff', dx: 718, dy: 0, dw: 4, dh: 960 }],
+      texts: [{ text: '5169399 (previous)', x: 360, y: 960 + 27, align: 'center', bold: true, size: 18, color: '#ff9a8a' },
+        { text: 'NEW — the same fight, the same seed', x: 1080, y: 960 + 27, align: 'center', bold: true, size: 18, color: '#7dff9a' }] }));
+  }
+  await vw.end();
+  console.log('wrote', OUT + name('bulwark-shield-final-ab.webm'), `— the same fight (sampled state identical) at ${same}/${n} checkpoints`);
+  await page.close();
+}
+
+const steps = {
+  // the orientation pass (5169399); `ab` needs that build's renderer
+  idle4, rotate, block4, rapid, super4, vanguard: vanguardLive, ab, perf,
+  // the final visual integration pass
+  layer4, layerrot: layerRot, matab: matAB, ripstrip: ripStrip,
+  riplive: () => ripVideo('bulwark-ripple-live.webm', { rapid: false }), riprapid: () => ripVideo('bulwark-ripple-rapid.webm', { rapid: true }),
+  vgfinal: vgFinal, finalab: finalAB,
+  matrot: () => rotate('bulwark-material-rotate.webm', 'CRIX cells: one material at every facing, the gun under the field where they cross'),
+  superheal: () => super4('bulwark-super-heal-v2.webm', 'PUNCTURE -> OPEN -> HEAL -> RE-STABILISE (pale crests from the seam), twice.'),
+};
+const ALL = ['layer4', 'layerrot', 'matab', 'matrot', 'ripstrip', 'riplive', 'riprapid', 'superheal', 'vgfinal', 'finalab', 'perf'];
 for (const s of (ARGS.length ? ARGS : ALL).flatMap((a) => (a === 'all' ? ALL : [a]))) { if (!steps[s]) fail(`unknown step ${s}`); console.log('──', s); await steps[s](); }
 await browser.close();

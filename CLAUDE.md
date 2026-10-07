@@ -969,10 +969,27 @@ asserts separately that the ceiling is not reached.
   the Elite's field drew 9px bigger than the Regular's — a stronger-looking
   defence that does not exist. Every block on either tier is decided at body
   overlap (<= 41px), inside it.
-- **A FIELD THAT STRADDLES ITS BEARER NEEDS TWO DEPTHS.** One Graphics has one
-  depth; panels south of his centre draw over him (y+2), panels north under
-  him (y-2). A single depth either paints the shield over his face from
-  behind or hides it from the front.
+- **A FIELD THAT STRADDLES ITS BEARER NEEDS TWO DEPTHS — AND A THIRD FOR HIS
+  GUN.** One Graphics has one depth; cells south of his centre draw over him
+  (y+2), cells north under him (y-2). A single depth either paints the shield
+  over his face from behind or hides it from the front. The sidearm's depth is
+  frozen in `Enemy.preUpdate` (y+1, y-1 aiming north) and it always lies on
+  the apex, so side-on body > far > gun > body is a CYCLE and the gun sat ON
+  the far half. The far cells the gun's own footprint crosses go to `farW` at
+  `weaponSprite.depth + WEAPON_STACK.shield`; every other far cell stays under
+  the body. The pip, the discharge and `farW` ride ONE stack on the overlay's
+  depth (`WEAPON_STACK`), so rotation cannot reorder them. Do not answer
+  WEAPON < SHIELD by lifting the whole far half over the body — that deletes
+  the occlusion the handset approved.
+- **A PIXEL GAME'S FIELD IS BUILT FROM THE GAME'S PIXEL.** The vector field
+  (soft-edged panels, vertex colour) read as glass laid over a pixel game. It
+  is 4px CELLS now on the SCREEN-ALIGNED grid anchored at the bearer's centre,
+  which is the grid his sprite is painted on. Cells on a grid that ROTATED
+  with the facing were tried first and serrate the curve into a saw-tooth at
+  the diagonals. The field only redraws when its signature changes (facing,
+  scan column, bush, the overlay's depth offset, gun visibility) or an event
+  is live, plus ONE clean frame after the last event; anything new that
+  shapes the field must join that signature or it will not appear.
 - **DEPTH MAY CHANGE; ENERGY STRENGTH MAY NOT — FAR = BEHIND THE BODY, NEVER
   FAR = WEAKER.** The first field ALSO dimmed its far layers (material x0.5,
   outer rim x0.32, reactions x0.7, keyline near-only), and the handset saw
@@ -988,7 +1005,8 @@ asserts separately that the ceiling is not reached.
   lean (inner rim lifted over the outer) x sin(bearing): the lean ADDS facing
   south and SUBTRACTS facing north. The first cross-section leaned 7px and read
   19 / 12 / 5px south / side / north — a thin arc from behind at any alpha.
-  It leans 2px now (19 / 17 / 15). Measure presence with
+  The 4px cell field has no lean at all: a flat band R-11..R+6, the same
+  17px at every facing (it read 19 / 17 / 15 with a 2px lean). Measure presence with
   `tests/diag-bulwark-orient.mjs` (`--nobody` separates projection from
   occlusion), not by eye on the south view.
 - **A REACTION ON THE CENTRE LINE MUST NOT FLIP LAYERS ON A HAIR.** Side-on,
@@ -996,9 +1014,9 @@ asserts separately that the ceiling is not reached.
   crosses the field, so routing it by the plain sign of sin(bearing) drew a
   hit a hair north of the line under the gun and a hair south over it — the
   same Super read 0.89 of the south view facing east and 0.12 facing west. A
-  reaction is FAR only when it is genuinely behind him (`behindSin`, 30deg);
-  the panels keep the plain split, because their depth is what puts him
-  inside the field.
+  reaction's LIGHT is FAR only when it is genuinely behind him (`behindSin`,
+  30deg); the cells keep the plain split (their own offset below his centre),
+  because their depth is what puts him inside the field.
 - **THE FIRST PELLET TO CROSS IS OFTEN AN OUTER ONE.** A Super volley's
   pellets reach the body over a frame or two, and the tear first went to the
   edge of the shield. While the tear is under 50ms old a MORE CENTRAL pellet
@@ -1008,6 +1026,14 @@ asserts separately that the ceiling is not reached.
   Two pellets kill a sector-8 Regular, and the field goes with the body on
   death, as the legacy arc did. Evidence of the re-knit needs an Elite at a
   real higher-sector hp ramp, or a glancing Super — not an hp edit.
+- **AN EASE-OUT WAVE CRAWLS.** The block's twin crests ran a plain ease-out
+  and put 75% of their travel in the first 45% of their life, then sat still:
+  a flash, then a smudge — never a wave. `waveAt` moves them
+  `S(1.5u - 0.5u^2)`, fast out of the contact and still visibly travelling at
+  the end, and the WAKE behind each crest takes its colour from the time since
+  the crest passed (red -> coral -> pink -> white), which is what makes the
+  conversion travel too. The Super's recovery crests run on the same engine,
+  pale, after the snap.
 
 - **THE STATE LANGUAGE'S ONE RULE SURVIVED HANDSET REVIEW AND ITS SUSTAINED
   HALF DID NOT — `HANDOVER.md` §10ah, §10ai.** **SYMBOL = TRANSITION, BODY / FX

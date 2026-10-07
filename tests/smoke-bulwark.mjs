@@ -237,6 +237,11 @@ const pistol = 7 * 4;
 check(pistol < 48 && muzzle[0].len === 60 && muzzle[8].len === 68, `sidearm is COMPACT: a ${pistol}px pistol at the end of an armoured forearm (overlay 60px; Elite 68 — the forearm, not the gun, is longer); carbine 68px, Gunner 84px`, '');
 
 // ── 4. FIELD GEOMETRY ──────────────────────────────────────────────────
+// The field is drawn in 4px CELLS on the bearer's own pixel grid. Recorded
+// cells (`_record`) carry their kind (rim / outer / inner / edge = the band,
+// key = the navy outline), screen centre, colour, alpha, bearing on the arc
+// and the layer they went to.
+const BAND = ['rim', 'outer', 'inner', 'edge'];
 const geo = await pG.evaluate(async () => {
   const gs = window.__gs; window.__open();
   const sc = await window.__mod(/systems\/shieldContact\.js/);
@@ -246,127 +251,278 @@ const geo = await pG.evaluate(async () => {
     const e = gs.spawnEnemyAt('shielded', 800, 700, elite ? { elite: true } : {});
     e._performing = true; e._movePlanted = true; e._aim = 0.7; e._shieldFacing = 0.7;
     window.__adv(2);
-    const f = e._curtain, N = f._n;
-    const rel = [...f._rel], ox = [...f._ox].map((v) => v - e.x), oy = [...f._oy].map((v) => v - e.y), ix = [...f._ix].map((v) => v - e.x), iy = [...f._iy].map((v) => v - e.y);
-    const tip = (j) => ({ ang: Math.atan2(oy[j], ox[j]), r: Math.hypot(ox[j], oy[j]), same: Math.hypot(ox[j] - ix[j], oy[j] - iy[j]) < 1e-3 });
-    out[elite ? 'E' : 'R'] = { rel0: rel[0], relN: rel[N], half: e._shieldHalfArc, t0: tip(0), tN: tip(N), R: sc.curtainRadius(e), arr: [ox, oy, ix, iy].map((a) => a.map((v) => +v.toFixed(3))),
-      graphics: e._attachments.filter((g) => g.type === 'Graphics').length, nearDepth: f.near.depth - e.y, farDepth: f.far.depth - e.y };
+    const f = e._curtain; f._record = true; f._sig = null; f.draw();
+    const P = cur.CURTAIN.cell, half = e._shieldHalfArc;
+    const cells = f._cells.map((c) => ({ k: c.kind, dx: c.x - e.x, dy: c.y - e.y, col: c.col, a: +c.a.toFixed(4), th: c.th }));
+    const band = cells.filter((c) => ['rim', 'outer', 'inner', 'edge'].includes(c.k));
+    const r = (c) => Math.hypot(c.dx, c.dy);
+    const onGrid = (v) => Math.abs((v - P / 2) / P - Math.round((v - P / 2) / P)) < 1e-6;
+    out[elite ? 'E' : 'R'] = {
+      half, n: band.length, maxTh: Math.max(...band.map((c) => c.th)), minTh: Math.min(...band.map((c) => c.th)),
+      rMin: Math.min(...band.map(r)), rMax: Math.max(...band.map(r)),
+      caps: [cells.filter((c) => c.k === 'key' && c.th > half).length, cells.filter((c) => c.k === 'key' && c.th < -half).length],
+      grid: cells.every((c) => onGrid(c.dx) && onGrid(c.dy)),
+      sig: JSON.stringify(cells.map((c) => [c.k, +c.dx.toFixed(3), +c.dy.toFixed(3), c.col, c.a])),
+      graphics: e._attachments.filter((g) => g.type === 'Graphics').length,
+      nearDepth: f.near.depth - e.y, farDepth: f.far.depth - e.y };
     gs._destroyEnemyFully(e);
   }
-  out.CR = cur.CURTAIN; out.R46 = sc.CURTAIN_RADIUS;
+  out.R46 = sc.CURTAIN_RADIUS; out.C = { outR: cur.CURTAIN.outR, inR: cur.CURTAIN.inR, cell: cur.CURTAIN.cell };
   return out;
 });
 for (const k of ['R', 'E']) {
   const g = geo[k];
-  check(Math.abs(g.rel0 + g.half) < 1e-6 && Math.abs(g.relN - g.half) < 1e-6 && g.half === 1.35,
-    `field (${k}): the drawn arc spans EXACTLY the frozen protected arc, facing ± ${g.half} rad`, JSON.stringify({ rel0: g.rel0, relN: g.relN }));
-  check(g.t0.same && g.tN.same && Math.abs(g.t0.r - 46) < 1e-3 && Math.abs(g.tN.r - 46) < 1e-3 && Math.abs(window_wrap(g.t0.ang - (0.7 - g.half))) < 1e-4 && Math.abs(window_wrap(g.tN.ang - (0.7 + g.half))) < 1e-4,
-    `field (${k}): both rims taper to ONE point at each end, on the curtain radius (46px) at exactly the coverage bearing`, JSON.stringify({ t0: g.t0, tN: g.tN }));
+  check(g.half === 1.35 && g.maxTh <= g.half + 1e-9 && g.minTh >= -g.half - 1e-9 && g.maxTh >= g.half - 0.12 && g.minTh <= -g.half + 0.12,
+    `field (${k}): the drawn band spans EXACTLY the frozen protected arc — every cell inside facing ± ${g.half} rad, and it reaches both ends`, JSON.stringify({ min: g.minTh, max: g.maxTh }));
+  check(g.caps[0] > 0 && g.caps[1] > 0, `field (${k}): both coverage ends are STATED — a navy cap beyond each tip (${g.caps.join(' / ')} cells)`, JSON.stringify(g.caps));
+  check(g.rMin >= 46 - geo.C.inR - 1e-6 && g.rMax <= 46 + geo.C.outR + 1e-6, `field (${k}): the band lies on the curtain radius — ${g.rMin.toFixed(1)} to ${g.rMax.toFixed(1)}px from his centre (46 - ${geo.C.inR} .. 46 + ${geo.C.outR})`, '');
+  check(g.grid, `field (${k}): every cell sits on the bearer's own ${geo.C.cell}px pixel grid (his sprite is painted at 4x from the same centre)`, '');
 }
-function window_wrap(a) { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; }
-check(JSON.stringify(geo.R.arr) === JSON.stringify(geo.E.arr) && geo.R.R === geo.E.R && geo.R46 === 46,
-  'Regular and Elite fields are IDENTICAL — every rim vertex the same, curtain radius 46 for both (the Elite\'s gameplay radius is 33)', '');
-check(geo.R.nearDepth === 2 && geo.R.farDepth === -2, 'field depth: the near half draws over the body and the sidearm (y+2), the far half under the body (y-2)', JSON.stringify(geo.R));
+check(geo.R.sig === geo.E.sig && geo.R46 === 46,
+  'Regular and Elite fields are IDENTICAL — every cell, colour and alpha the same, curtain radius 46 for both (the Elite\'s gameplay radius is 33)', '');
+check(geo.R.graphics === 8 && geo.R.nearDepth === 2 && geo.R.farDepth === -2, 'field depth: the near half draws over the body and the sidearm (y+2), the far half under the body (y-2); seven field Graphics + the sidearm pip', JSON.stringify(geo.R));
 
 // ── 4b. ORIENTATION INVARIANCE — DEPTH MAY CHANGE, ENERGY STRENGTH MAY NOT ──
 // The first field dimmed whatever was routed to the FAR layers (material x0.5,
-// outer rim x0.32, reactions x0.7, keyline near-only), so it was a full shield
-// facing south, half a shield side-on and a ghost facing north. Here the SAME
-// field is drawn at opposite facings with every style call recorded along with
-// the layer it went to: the stream of style values must be identical and only
-// the layer may differ. A sweep of block / tear / prick ages covers the event
-// overlays, not just the idle material.
+// outer rim x0.32, reactions x0.7, keyline near-only): a full shield facing
+// south, half a shield side-on and a ghost facing north. Here the SAME field is
+// drawn at the four compass facings (where the pixel grid maps cell to cell, so
+// the comparison is exact) and at the twelve facings between them, idle and
+// through every block / tear / prick beat: the cells' colours and alphas must
+// be the same set every time, and only the layer may differ.
 const orient = await pG.evaluate(async () => {
   const gs = window.__gs; window.__open();
   const cur = await window.__mod(/systems\/bulwarkCurtain\.js/);
   const e = gs.spawnEnemyAt('shielded', 800, 700, {});
   e._performing = true; e._movePlanted = true; e._aim = 0; e._shieldFacing = 0;
   window.__adv(2);
-  const f = e._curtain;
-  const L = { near: f.near, far: f.far, glowNear: f.glowNear, glowFar: f.glowFar };
-  let log = null;
-  for (const [name, g] of Object.entries(L)) for (const m of ['fillStyle', 'lineStyle', 'fillGradientStyle']) {
-    const orig = g[m];
-    g[m] = function (...a) { log?.push({ layer: name, m, a: a.map((v) => (typeof v === 'number' ? +v.toFixed(6) : v)) }); return orig.apply(this, a); };
-  }
+  const f = e._curtain; f._record = true;
+  const C = cur.CURTAIN;
   const draw = (fac, events) => {
-    e._shieldFacing = fac; e._aim = fac;
-    f.clock = 1234; f.coreKick = 0; f.corePulse = 0; f.events = events.map((v) => ({ ...v }));
-    log = []; f.draw(); const out = log; log = null;
-    return out;
+    e._shieldFacing = fac; e._aim = fac; f.events = []; window.__adv(1);   // the overlay turns with him
+    f.clock = 1234; f.coreKick = 0; f.corePulse = 0; f.events = events.map((v) => ({ ...v })); f._sig = null; f.draw();
+    return f._cells.map((c) => ({ k: c.kind, col: c.col, a: +c.a.toFixed(3), th: c.th, layer: c.layer, dy: c.y - e.y }));
   };
+  const style = (cells) => {
+    const by = {};
+    for (const c of cells) { const s = `${c.k}|${(c.col >> 18) & 63},${(c.col >> 10) & 63},${(c.col >> 2) & 63}|${c.a}`; by[s] = (by[s] || 0) + 1; }
+    return by;
+  };
+  const sameCounts = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
+  const sameValues = (a, b) => JSON.stringify(Object.keys(a).sort()) === JSON.stringify(Object.keys(b).sort());
   const S = Math.PI / 2, N = -Math.PI / 2, E = 0, W = Math.PI;
-  const styles = (lg) => JSON.stringify(lg.map((x) => [x.m, x.a]));
-  const layers = (lg) => [...new Set(lg.map((x) => x.layer))].sort();
-  const out = { cases: [] };
-  // idle, then every beat of every reaction
   const sets = [['idle', []]];
   for (const t of [5, 20, 60, 120, 200, 300, 450, 650]) sets.push([`block ${t}ms`, [{ kind: 'block', off: 0.15, t }]]);
-  for (const t of [20, 90, 200, 440, 560, 620, 700, 820]) sets.push([`tear ${t}ms`, [{ kind: 'tear', off: 0.1, t, n: 2, snapped: t >= 600 }]]);
+  for (const t of [20, 90, 200, 440, 560, 620, 700, 820, 980]) sets.push([`tear ${t}ms`, [{ kind: 'tear', off: 0.1, t, n: 2, snapped: t >= 600 }]]);
   for (const t of [20, 100, 210, 240]) sets.push([`prick ${t}ms`, [{ kind: 'prick', off: -0.4, t }]]);
   sets.push(['rapid layer', [{ kind: 'block', off: -0.6, t: 15 }, { kind: 'block', off: 0.2, t: 140 }, { kind: 'block', off: 0.7, t: 330 }]]);
+  const out = { cases: [] };
   for (const [name, evs] of sets) {
-    const s = draw(S, evs), n = draw(N, evs), ea = draw(E, evs), w = draw(W, evs);
-    out.cases.push({ name, sn: styles(s) === styles(n), ew: styles(ea) === styles(w), nS: s.length,
-      sLayers: layers(s), nLayers: layers(n), eLayers: layers(ea) });
+    const st = [S, E, N, W].map((fc) => style(draw(fc, evs)));
+    const bad = st.slice(1).filter((x) => !sameCounts(st[0], x)).length;
+    out.cases.push({ name, bad, n: Object.values(st[0]).reduce((p, q) => p + q, 0) });
   }
-  // explicit values on the FAR side, facing north (idle): the rim, the keyline, the tips
-  const C = cur.CURTAIN, nIdle = draw(N, []);
-  const rim = nIdle.filter((x) => x.m === 'lineStyle' && x.a[1] === 0xffffff && x.a[0] >= C.rimW);
-  out.north = { rimA: [...new Set(rim.map((x) => x.a[2]))], key: nIdle.filter((x) => x.m === 'lineStyle' && x.a[1] === C.key && x.layer === 'far').length,
-    tips: nIdle.filter((x) => x.m === 'fillStyle' && x.a[0] === 0xffffff).map((x) => [x.layer, x.a[1]]), rimLayers: [...new Set(rim.map((x) => x.layer))] };
-  // two simultaneous hits of the same age on OPPOSITE halves of a side-facing field
-  const pair = [{ kind: 'block', off: 0.6, t: 30 }, { kind: 'block', off: -0.6, t: 30 }];
-  // the smear is the only stroke wider than the rim's 2.5px (4.5 -> 2 over its 70ms); the rims
-  // under a red front are red too, and are covered by the stream comparison above
-  const smear = (lg) => lg.filter((x) => x.m === 'lineStyle' && x.a[1] === 0xff2828 && x.a[0] > 2.5);
-  const pe = smear(draw(E, pair));
-  out.pair = { layers: pe.map((x) => x.layer), args: pe.map((x) => JSON.stringify(x.a)) };
-  out.farKeys = Object.keys(C).filter((k) => /^far/i.test(k));
-  // a reaction BESIDE him (side-on, a hair either side of the facing) is not
-  // behind him: it must not be drawn under his body and sidearm on one side of
-  // his centre line and over them on the other
-  const glowOf = (fac, off) => [...new Set(draw(fac, [{ kind: 'tear', off, t: 90, n: 2 }]).filter((x) => x.layer.startsWith('glow')).map((x) => x.layer))].join();
+  // the twelve facings between the compass points, idle: the same colours and
+  // alphas (a rotated pixel shape has a slightly different cell count)
+  const idleS = draw(S, []), base = style(idleS);
+  out.between = [];
+  for (let k = 0; k < 16; k++) {
+    if (k % 4 === 0) continue;
+    const cells = draw(-Math.PI + k * Math.PI / 8 + 0.013, []), st = style(cells);
+    const kinds = {}; for (const c of cells) kinds[c.k] = (kinds[c.k] || 0) + 1;
+    out.between.push({ k, values: sameValues(base, st), kinds });
+  }
+  const kinds0 = {}; for (const c of idleS) kinds0[c.k] = (kinds0[c.k] || 0) + 1;
+  out.kinds0 = kinds0;
+  // explicit, facing NORTH (every cell behind him): the rim, the outline, the tips
+  const nCells = draw(N, []);
+  out.north = {
+    rim: [...new Set(nCells.filter((c) => c.k === 'rim').map((c) => `${c.col}|${c.a}`))],
+    key: nCells.filter((c) => c.k === 'key').length, keyA: [...new Set(nCells.filter((c) => c.k === 'key').map((c) => c.a))],
+    layers: [...new Set(nCells.map((c) => c.layer))].sort(),
+    tips: [Math.max(...nCells.filter((c) => c.k === 'rim').map((c) => c.th)), Math.min(...nCells.filter((c) => c.k === 'rim').map((c) => c.th))],
+    rimWant: `${C.rim}|${+C.rimA.toFixed(3)}`, keyWant: +C.keyA.toFixed(3),
+  };
+  // routing: near exactly when the cell is south of his centre
+  out.routing = {};
+  for (const [n, fc] of [['S', S], ['E', E], ['N', N], ['W', W]]) {
+    const cells = draw(fc, []);
+    out.routing[n] = { layers: [...new Set(cells.map((c) => c.layer))].sort(), wrong: cells.filter((c) => (c.layer === 'near') !== (c.dy > 0)).length };
+  }
+  // two hits of the same age on OPPOSITE halves of a side-facing field
+  const pair = draw(E, [{ kind: 'block', off: 0.6, t: 60 }, { kind: 'block', off: -0.6, t: 60 }]);
+  const side = (lo, hi) => style(pair.filter((c) => c.th >= lo && c.th <= hi && c.k !== 'key'));
+  out.pair = { same: sameCounts(side(0.25, 0.95), side(-0.95, -0.25)), red: pair.filter((c) => c.th > 0.25 && ((c.col >> 16) & 255) > 200 && ((c.col >> 8) & 255) < 140).length,
+    layers: [[...new Set(pair.filter((c) => c.th > 0.25).map((c) => c.layer))].join(), [...new Set(pair.filter((c) => c.th < -0.25).map((c) => c.layer))].join()] };
+  // the LIGHT of a reaction: beside him (side-on, a hair either side of the
+  // facing) it is drawn over him; genuinely behind him it goes under his body
+  const L = { glowNear: f.glowNear, glowFar: f.glowFar, glowFarW: f.glowFarW };
+  let hit = null;
+  for (const [n, g] of Object.entries(L)) { const o = g.fillCircle; g.fillCircle = function (...a) { if (hit) hit.add(n); return o.apply(this, a); }; }
+  const glowOf = (fac, off) => { hit = new Set(); draw(fac, [{ kind: 'tear', off, t: 90, n: 2 }]); const r = [...hit].join(); hit = null; return r; };
   out.beside = { Ep: glowOf(E, 0.1), Em: glowOf(E, -0.1), Wp: glowOf(W, 0.1), Wm: glowOf(W, -0.1), N0: glowOf(N, 0), NE: glowOf(E, -1.2) };
-  // band thickness at the apex (screen px) facing S / E / N
-  const apex = (fac) => { draw(fac, []); const j = f._n / 2; return Math.hypot(f._ox[j] - f._ix[j], f._oy[j] - f._iy[j]); };
-  out.thick = { S: apex(S), E: apex(E), N: apex(N), W: apex(W) };
+  out.farKeys = Object.keys(C).filter((k) => /^far/i.test(k));
+  // the band's depth across its thickness at the apex, every 45 degrees
+  out.thick = [];
+  for (let k = 0; k < 8; k++) {
+    const cells = draw(-Math.PI + k * Math.PI / 4, []).filter((c) => ['rim', 'outer', 'inner', 'edge'].includes(c.k) && Math.abs(c.th) < 0.06);
+    out.thick.push(cells.length);
+  }
   out.depth = { body: e.depth, near: f.near.depth, far: f.far.depth, gNear: f.glowNear.depth, gFar: f.glowFar.depth };
   gs._destroyEnemyFully(e);
   return out;
 });
 {
-  const bad = orient.cases.filter((c) => !c.sn || !c.ew);
-  check(!bad.length && orient.cases.length === 22 && orient.cases.every((c) => c.nS > 20),
-    `orientation: the field's style stream (material, seams, keyline, inner edge, outer rim, tips, smear, bloom, filaments, zipper, snap, pinprick) is IDENTICAL facing south and north, and facing east and west, across ${orient.cases.length} states (idle + every block / tear / prick beat) — only the layer differs`,
+  const bad = orient.cases.filter((c) => c.bad);
+  check(!bad.length && orient.cases.length === 23 && orient.cases.every((c) => c.n > 60),
+    `orientation: the field's cells — material, rim, inner edge, outline, tips, smear, crests, wake, tear, stitches, zipper, snap, recovery, pinprick — are the SAME colours and alphas, cell for cell, facing south / east / north / west, across ${orient.cases.length} states; only the layer differs`,
     JSON.stringify(bad.map((c) => c.name)));
-  const S0 = orient.cases.find((c) => c.name === 'idle');
-  check(S0.sLayers.join() === 'near' && S0.nLayers.join() === 'far' && S0.eLayers.join() === 'far,near',
-    'depth routing kept: facing south the whole field goes to the NEAR layer, facing north to the FAR layer, side-on it is split between the two', JSON.stringify(S0));
-  const tear = orient.cases.find((c) => c.name === 'tear 90ms');
-  check(tear.sLayers.includes('glowNear') && tear.nLayers.includes('glowFar') && !tear.nLayers.includes('glowNear'),
-    'event LIGHT is routed by depth too: a tear facing south lights the near glow layer, facing north the far one (under the body), at the same strength', JSON.stringify(tear));
+  const bt = orient.between.filter((b) => !b.values);
+  check(!bt.length, 'orientation: at the twelve facings between the compass points the field uses exactly the same set of colours and alphas (one material; only the pixel shape re-rasterises)', JSON.stringify(bt));
+  const k0 = orient.kinds0, spread = orient.between.map((b) => Math.abs((b.kinds.rim || 0) - k0.rim) / k0.rim);
+  check(Math.max(...spread) <= 0.2, `orientation: the bright rim has the same presence at every facing (${k0.rim} cells at south; worst diagonal within ${(Math.max(...spread) * 100).toFixed(0)}%)`, JSON.stringify(orient.between.map((b) => b.kinds.rim)));
+  const r = orient.routing;
+  check(r.S.layers.join() === 'near' && r.N.layers.every((l) => l !== 'near') && r.E.layers.includes('near') && r.E.layers.some((l) => l.startsWith('far')) && Object.values(r).every((x) => !x.wrong),
+    'depth routing kept: every cell south of his centre draws on the near layer, every cell north of it under him — the whole field facing south, none of it facing north, split side-on', JSON.stringify(r));
   const d = orient.depth;
   check(d.near > d.body && d.gNear > d.body && d.far < d.body && d.gFar < d.body,
     `near layers draw OVER the body, far layers UNDER it (body ${d.body}, near ${d.near}/${d.gNear}, far ${d.far}/${d.gFar})`, JSON.stringify(d));
 }
-check(orient.north.rimA.length === 1 && orient.north.rimA[0] === 0.92 && orient.north.rimLayers.join() === 'far',
-  `facing north the outer rim is the full ice-white rim (alpha ${orient.north.rimA.join('/')}), drawn on the far layer — not a dimmed copy`, JSON.stringify(orient.north));
-check(orient.north.key >= 10, `facing north the restrained dark keyline is still drawn (${orient.north.key} segments on the far layer) — it used to be near-only`, JSON.stringify(orient.north));
-check(orient.north.tips.length === 2 && orient.north.tips.every(([l, a]) => l === 'far' && a === 0.85),
-  'facing north both tapered tips are drawn at full strength (0.85) on the far layer', JSON.stringify(orient.north.tips));
-check(orient.pair.layers.slice().sort().join() === 'far,near' && orient.pair.args[0] === orient.pair.args[1],
-  'two hits of the same age on opposite halves of a side-facing field: one smear on each layer, with IDENTICAL width, colour and alpha', JSON.stringify(orient.pair));
-check(!orient.farKeys.length, 'no far-attenuation constants left in CURTAIN', JSON.stringify(orient.farKeys));
-check(['Ep', 'Em', 'Wp', 'Wm'].every((k) => orient.beside[k] === 'glowNear') && orient.beside.N0 === 'glowFar' && orient.beside.NE === 'glowFar',
-  'a reaction BESIDE him is drawn over him at either side of his centre line (east and west, offset ±0.1); one genuinely BEHIND him (facing north, or 69deg round the far side) still goes under his body',
+check(orient.north.rim.length === 1 && orient.north.rim[0] === orient.north.rimWant && orient.north.layers.every((l) => l !== 'near'),
+  'facing north the bright rim is the full rim (one colour, one alpha, the same as facing south), drawn behind him — not a dimmed copy', JSON.stringify(orient.north));
+check(orient.north.key >= 20 && orient.north.keyA.length === 1 && orient.north.keyA[0] === orient.north.keyWant,
+  `facing north the dark-navy outline is drawn in full (${orient.north.key} cells at ${orient.north.keyWant})`, JSON.stringify(orient.north));
+check(orient.north.tips[0] >= 1.35 - 0.12 && orient.north.tips[1] <= -1.35 + 0.12, 'facing north both tapered tips are drawn, out to the coverage bearing', JSON.stringify(orient.north.tips));
+check(orient.pair.same && orient.pair.red > 0 && orient.pair.layers[0] === 'near' && !orient.pair.layers[1].includes('near'),
+  'two hits of the same age on opposite halves of a side-facing field: the same cells, colours and alphas on each half — one half over him, one under', JSON.stringify(orient.pair));
+check(['Ep', 'Em', 'Wp', 'Wm'].every((k) => orient.beside[k] === 'glowNear') && /^glowFar/.test(orient.beside.N0) && /^glowFar/.test(orient.beside.NE),
+  'a reaction\'s LIGHT beside him is drawn over him at either side of his centre line (east and west, offset ±0.1); one genuinely BEHIND him (facing north, or 69deg round the far side) goes under his body',
   JSON.stringify(orient.beside));
+check(!orient.farKeys.length, 'no far-attenuation constants in CURTAIN', JSON.stringify(orient.farKeys));
+check(Math.min(...orient.thick) === Math.max(...orient.thick) && orient.thick[0] >= 4,
+  `the band is the same depth through its apex at every 45 degrees (${orient.thick.join(' / ')} cells — a flat band on the curtain radius, no lean to thin it from behind)`, JSON.stringify(orient.thick));
+
+// ── 4c. WEAPON < SHIELD ──────────────────────────────────────────────────
+// Side-on the sidearm is drawn over his body, the far half of the field under
+// it, and the gun crosses the field at the apex; facing north the gun crosses
+// the far half above his helmet. Wherever they cross, the field must be drawn
+// OVER the gun. Two independent proofs at 16 facings x 2 tiers:
+//   STRUCTURE — every opaque pixel of the overlay, put through the overlay's
+//     own world transform, that falls inside a far cell lies in a cell drawn on
+//     the layer ABOVE the weapon (farW); and the depth stack holds: weapon <
+//     charge pip < discharge < farW < near.
+//   PIXELS — the gun is tint-filled pure magenta and photographed; no pure
+//     magenta pixel may remain inside the field.
+const pLay = await stepped('?nodlg=1&nofreeze=1&roster=v1&gait=v2');
+const lay = await pLay.evaluate(async () => {
+  const gs = window.__gs; window.__open();
+  const cur = await window.__mod(/systems\/bulwarkCurtain\.js/);
+  const cam = gs.cameras.main; gs.cameraDirector.update = () => {};
+  const hud = window.game.scene.getScene('HUD'); hud?.scene.setVisible(false);
+  const P = gs.player; P.setPosition(820, 1300); P.body.reset(P.x, P.y); P.setVisible(false); P.weaponSprite?.setVisible(false);
+  const out = { rows: [] };
+  for (const elite of [false, true]) {
+    const e = gs.spawnEnemyAt('shielded', 820, 700, elite ? { elite: true } : {});
+    e._performing = true; e._movePlanted = true;
+    cam.setScroll(820 - 360, 700 - 400);
+    const f = e._curtain, ws = e.weaponSprite;
+    // the overlay's opaque texture pixels, once
+    const src = ws.texture.getSourceImage(), cv = document.createElement('canvas'); cv.width = src.width; cv.height = src.height;
+    cv.getContext('2d').drawImage(src, 0, 0);
+    const px = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data, opaque = [];
+    for (let y = 0; y < cv.height; y++) for (let x = 0; x < cv.width; x++) if (px[(y * cv.width + x) * 4 + 3] > 0) opaque.push([x + 0.5, y + 0.5]);
+    for (let k = 0; k < 16; k++) {
+      const fac = -Math.PI + k * Math.PI / 8 + 0.004;
+      e._aim = fac; e._shieldFacing = fac; window.__adv(2);
+      f._record = true; f._sig = null; f.draw();
+      const m = ws.getWorldTransformMatrix(), pt = new Phaser.Math.Vector2();
+      const gun = opaque.map(([x, y]) => { m.transformPoint(x - ws.displayOriginX, y - ws.displayOriginY, pt); return [pt.x, pt.y]; });
+      let onFar = 0, crossings = 0;
+      for (const c of f._cells) {
+        if (!['rim', 'outer', 'inner', 'edge', 'key'].includes(c.kind)) continue;
+        const [x0, y0] = c.q, x1 = c.q[4], y1 = c.q[5];
+        const hits = gun.some(([gx, gy]) => gx >= x0 && gx < x1 && gy >= y0 && gy < y1);
+        if (!hits) continue;
+        crossings++;
+        if (c.layer === 'far') onFar++;
+      }
+      // the stack, at this facing: charge pip and discharge
+      e._weaponFx.charge(300); window.__adv(12);
+      const pipG = e._attachments.find((g) => g.type === 'Graphics' && !Object.values(f.L).includes(g) && g !== f.coreG);
+      gs.events.emit('shooter-fire', e);
+      const dis = gs.children.list.filter((o) => o.texture?.key === 'fx-blw-muzzle' && o.visible).pop();
+      out.rows.push({ elite, k, crossings, onFar, ws: ws.depth, pip: pipG?.depth, pipVis: pipG?.visible, dis: dis?.depth, farW: f.farW.depth, near: f.near.depth, gW: f.glowFarW.depth });
+      window.__adv(4);
+    }
+    gs._destroyEnemyFully(e);
+  }
+  out.stack = cur.WEAPON_STACK;
+  return out;
+});
 {
-  const t = orient.thick;
-  check(Math.abs(t.S - 19) < 0.01 && t.N / t.S >= 0.75 && t.E / t.S >= 0.85 && Math.abs(t.E - t.W) < 0.01,
-    `the band reads at a similar thickness at every facing — ${t.S.toFixed(1)} / ${t.E.toFixed(1)} / ${t.N.toFixed(1)}px south / side / north (the first build was 19 / 14 / 5: a thin arc from behind); the south view unchanged`,
-    JSON.stringify(t));
+  const rows = lay.rows, viol = rows.filter((r) => r.onFar), cross = rows.filter((r) => r.crossings > 0);
+  check(rows.length === 32 && cross.length >= 16 && !viol.length,
+    `WEAPON < SHIELD (structure): at 16 facings x 2 tiers, every field cell the sidearm's opaque pixels reach is drawn ABOVE the weapon (${cross.reduce((p, r) => p + r.crossings, 0)} crossing cells, none left on the under-body layer)`,
+    JSON.stringify(viol.slice(0, 3)));
+  const bad = rows.filter((r) => !(r.ws < r.pip && r.pip < r.dis && r.dis < r.farW && r.farW < r.gW && r.gW < r.near));
+  check(!bad.length && rows.every((r) => r.pipVis),
+    'the sidearm stack holds at every facing: weapon < charge pip < discharge < field over the weapon < its light < near field', JSON.stringify(bad.slice(0, 2)));
 }
+const shoot = async (elite, k, charge) => {
+  const meta = await pLay.evaluate(({ elite, k, charge }) => {
+    const gs = window.__gs, cam = gs.cameras.main;
+    for (const e of gs.enemies.getChildren().slice()) gs._destroyEnemyFully(e);
+    const e = gs.spawnEnemyAt('shielded', 820, 700, elite ? { elite: true } : {});
+    e._performing = true; e._movePlanted = true;
+    const fac = -Math.PI + k * Math.PI / 8 + 0.004;
+    e._aim = fac; e._shieldFacing = fac;
+    cam.setScroll(820 - 360, 700 - 400);
+    window.__adv(3);
+    if (charge === 'pip') { e._weaponFx.charge(300); window.__adv(14); }
+    e.weaponSprite.setTintFill(0xff00ff);
+    if (charge === 'shot') { gs.events.emit('shooter-fire', e); for (const o of gs.children.list) if (o.texture?.key === 'fx-blw-muzzle' && o.visible) o.setTintFill(0xff00ff); }
+    const f = e._curtain; f._record = true; f._sig = null;
+    gs.cameras.main.resetFX();
+    window.__adv(1);                                  // the real update + render of this frame
+    const wv = cam.worldView, z = cam.zoom;
+    const cells = f._cells.filter((c) => ['rim', 'outer', 'inner', 'edge', 'key'].includes(c.kind))
+      .map((c) => [(c.q[0] - wv.x) * z + cam.x, (c.q[1] - wv.y) * z + cam.y, (c.q[4] - wv.x) * z + cam.x, (c.q[5] - wv.y) * z + cam.y]);
+    return { cells, clipX: (820 - 110 - wv.x) * z + cam.x, clipY: (700 - 110 - wv.y) * z + cam.y };
+  }, { elite, k, charge });
+  const clip = { x: Math.round(meta.clipX), y: Math.round(meta.clipY), width: 220, height: 220 };
+  const png = await pLay.screenshot({ clip });
+  return { png, clip, cells: meta.cells };
+};
+const dec = await browser.newPage();
+const magentaInside = async ({ png, clip, cells }) => dec.evaluate(async ({ src, clip, cells }) => {
+  const i = new Image(); i.src = src; await i.decode();
+  const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const x = c.getContext('2d'); x.drawImage(i, 0, 0);
+  const d = x.getImageData(0, 0, c.width, c.height).data;
+  let magenta = 0, inside = 0;
+  for (let y = 0; y < c.height; y++) for (let xx = 0; xx < c.width; xx++) {
+    const o = (y * c.width + xx) * 4;
+    if (d[o] === 255 && d[o + 1] === 0 && d[o + 2] === 255) {
+      magenta++;
+      const sx = clip.x + xx + 0.5, sy = clip.y + y + 0.5;
+      if (cells.some(([x0, y0, x1, y1]) => sx >= x0 + 0.5 && sx < x1 - 0.5 && sy >= y0 + 0.5 && sy < y1 - 0.5)) inside++;
+    }
+  }
+  return { magenta, inside };
+}, { src: `data:image/png;base64,${png.toString('base64')}`, clip, cells });
+{
+  const res = [];
+  for (const elite of [false, true]) for (let k = 0; k < 16; k++) for (const mode of ['idle', 'pip', 'shot']) {
+    if (mode !== 'idle' && k % 2) continue;
+    const r = await magentaInside(await shoot(elite, k, mode));
+    res.push({ elite, k, mode, ...r });
+  }
+  const leak = res.filter((r) => r.inside > 0), seen = res.filter((r) => r.magenta > 0);
+  check(seen.length === res.length && !leak.length,
+    `WEAPON < SHIELD (pixels): the gun tint-filled pure magenta and photographed at 16 facings x 2 tiers, idle, charging and on the shot frame (${res.length} frames, ${res.reduce((p, r) => p + r.magenta, 0)} gun pixels on screen): not one uncovered gun pixel inside the field`,
+    JSON.stringify(leak.slice(0, 4)));
+}
+await dec.close();
+await pLay.close();
 
 // ── 5. EVENTS: real blocks and a real Super ──────────────────────────────
 const ev = await pG.evaluate(() => {
