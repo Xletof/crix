@@ -103,6 +103,7 @@ export const CURTAIN = {
   cell: 4,                        // the field's pixel: the roster's own (sprites are painted at 4x)
   taperRad: 0.32,                 // the last stretch of each end narrows to the tip
   outR: 6, inR: 11,               // the band: from 11px inside the curtain radius to 6px outside it, flat
+  minPx: 6, thinPx: 8,            // the taper never thins below 6px, and under 8px it is all rim: every tip ENDS on bright cells
   split: 0.5,                     // the two hard bands meet here (from the outer edge)
   // the three value MASSES: [outer-band colour, outer alpha, inner-band colour, inner alpha]
   face:     [0xe9f5ff, 0.52, 0xd3e9ff, 0.36],
@@ -488,14 +489,16 @@ class CurtainField {
     // Everything that depends only on the bearing is computed once per thin
     // angular BIN (0.03 rad: 1.6px at the rim, under half a cell) rather than
     // per cell.
-    const H = half + 0.25, BIN = 0.03, NB = Math.ceil((2 * H) / BIN) + 1;
+    // The bins are centred ON the facing and mirror about it, so two hits the
+    // same distance either side of the apex sample identical bins.
+    const H = half + 0.25, BIN = 0.03, K = Math.ceil(H / BIN), NB = 2 * K + 1;
     if (!this._bins || this._bins.n !== NB) this._bins = { n: NB, stamp: new Int32Array(NB).fill(-1), w: new Float32Array(NB), d: new Float32Array(NB), I: new Float32Array(NB), c: new Int32Array(NB), hole: new Int8Array(NB) };
     const B = this._bins, stamp = (this._stamp = (this._stamp || 0) + 1);
     const bin = (th) => {
-      const i = Math.max(0, Math.min(NB - 1, Math.round((th + H) / BIN)));
+      const j = Math.round(Math.abs(th) / BIN), i = Math.max(0, Math.min(NB - 1, K + (th < 0 ? -j : j)));
       if (B.stamp[i] === stamp) return i;
       B.stamp[i] = stamp;
-      const tb = -H + i * BIN;
+      const tb = (i - K) * BIN;
       B.w[i] = Math.pow(clamp01((half - Math.abs(tb)) / C.taperRad), 0.75);
       let d = 0, hole = -1;
       for (const v of ev) {
@@ -535,7 +538,8 @@ class CurtainField {
       c.th = th;
       if (th > H || th < -H) continue;
       const i = bin(th), w = B.w[i], d = B.d[i];
-      const rOut = R + C.outR * w + d, rIn = R - C.inR * w + d;
+      let rOut = R + C.outR * w + d, rIn = R - C.inR * w + d;
+      if (rOut - rIn < C.minPx) { const mid = (rOut + rIn) / 2; rOut = mid + C.minPx / 2; rIn = mid - C.minPx / 2; }
       const inArc = Math.abs(th) <= half;
       const hole = B.hole[i] >= 0 ? holes[B.hole[i]] : null;
       const inBand = inArc && w > 0 && c.r >= rIn && c.r <= rOut;
@@ -551,7 +555,7 @@ class CurtainField {
       const q = Math.abs(th) / half;
       const m = q < 0.25 ? C.face : q < 0.75 ? C.shoulder : C.tip;
       const f = rOut - rIn > 0 ? (rOut - c.r) / (rOut - rIn) : 0;
-      const rim = c.r > rOut - P, edge = !rim && c.r < rIn + P * 0.75;
+      const rim = c.r > rOut - P || rOut - rIn < C.thinPx, edge = !rim && c.r < rIn + P * 0.75;
       if (hole) { this._holeCell(c, hole, f, rim, cell, mul); continue; }
 
       const I = B.I[i], ec = B.c[i];

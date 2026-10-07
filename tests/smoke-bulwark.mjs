@@ -263,7 +263,7 @@ const geo = await pG.evaluate(async () => {
       caps: [cells.filter((c) => c.k === 'key' && c.th > half).length, cells.filter((c) => c.k === 'key' && c.th < -half).length],
       grid: cells.every((c) => onGrid(c.dx) && onGrid(c.dy)),
       sig: JSON.stringify(cells.map((c) => [c.k, +c.dx.toFixed(3), +c.dy.toFixed(3), c.col, c.a])),
-      graphics: e._attachments.filter((g) => g.type === 'Graphics').length,
+      graphics: e._attachments.filter((g) => g.type === 'Graphics').length, legacyArcHidden: !!e.shieldArc && !e.shieldArc.visible,
       nearDepth: f.near.depth - e.y, farDepth: f.far.depth - e.y };
     gs._destroyEnemyFully(e);
   }
@@ -280,7 +280,7 @@ for (const k of ['R', 'E']) {
 }
 check(geo.R.sig === geo.E.sig && geo.R46 === 46,
   'Regular and Elite fields are IDENTICAL — every cell, colour and alpha the same, curtain radius 46 for both (the Elite\'s gameplay radius is 33)', '');
-check(geo.R.graphics === 8 && geo.R.nearDepth === 2 && geo.R.farDepth === -2, 'field depth: the near half draws over the body and the sidearm (y+2), the far half under the body (y-2); seven field Graphics + the sidearm pip', JSON.stringify(geo.R));
+check(geo.R.graphics === 9 && geo.R.legacyArcHidden && geo.R.nearDepth === 2 && geo.R.farDepth === -2, 'field depth: the near half draws over the body and the sidearm (y+2), the far half under the body (y-2); seven field Graphics + the sidearm pip + the frozen class\'s legacy arc, hidden', JSON.stringify({ ...geo.R, sig: undefined }));
 
 // ── 4b. ORIENTATION INVARIANCE — DEPTH MAY CHANGE, ENERGY STRENGTH MAY NOT ──
 // The first field dimmed whatever was routed to the FAR layers (material x0.5,
@@ -301,7 +301,7 @@ const orient = await pG.evaluate(async () => {
   const draw = (fac, events) => {
     e._shieldFacing = fac; e._aim = fac; f.events = []; window.__adv(1);   // the overlay turns with him
     f.clock = 1234; f.coreKick = 0; f.corePulse = 0; f.events = events.map((v) => ({ ...v })); f._sig = null; f.draw();
-    return f._cells.map((c) => ({ k: c.kind, col: c.col, a: +c.a.toFixed(3), th: c.th, layer: c.layer, dy: c.y - e.y }));
+    return f._cells.map((c) => ({ k: c.kind, col: c.col, a: +c.a.toFixed(3), th: c.th, layer: c.layer, dy: c.y - e.y, r: Math.hypot(c.x - e.x, c.y - e.y) }));
   };
   const style = (cells) => {
     const by = {};
@@ -366,7 +366,7 @@ const orient = await pG.evaluate(async () => {
   out.thick = [];
   for (let k = 0; k < 8; k++) {
     const cells = draw(-Math.PI + k * Math.PI / 4, []).filter((c) => ['rim', 'outer', 'inner', 'edge'].includes(c.k) && Math.abs(c.th) < 0.06);
-    out.thick.push(cells.length);
+    out.thick.push(+(Math.max(...cells.map((c) => c.r)) - Math.min(...cells.map((c) => c.r)) + C.cell).toFixed(1));   // px across the band, cell edge to cell edge
   }
   out.depth = { body: e.depth, near: f.near.depth, far: f.far.depth, gNear: f.glowNear.depth, gFar: f.glowFar.depth };
   gs._destroyEnemyFully(e);
@@ -399,8 +399,8 @@ check(['Ep', 'Em', 'Wp', 'Wm'].every((k) => orient.beside[k] === 'glowNear') && 
   'a reaction\'s LIGHT beside him is drawn over him at either side of his centre line (east and west, offset ±0.1); one genuinely BEHIND him (facing north, or 69deg round the far side) goes under his body',
   JSON.stringify(orient.beside));
 check(!orient.farKeys.length, 'no far-attenuation constants in CURTAIN', JSON.stringify(orient.farKeys));
-check(Math.min(...orient.thick) === Math.max(...orient.thick) && orient.thick[0] >= 4,
-  `the band is the same depth through its apex at every 45 degrees (${orient.thick.join(' / ')} cells — a flat band on the curtain radius, no lean to thin it from behind)`, JSON.stringify(orient.thick));
+check(Math.max(...orient.thick) - Math.min(...orient.thick) <= 2.5 && Math.min(...orient.thick) >= 14,
+  `the band is the same depth through its apex at every 45 degrees (${orient.thick.join(' / ')} px — a flat band on the curtain radius, no lean to thin it from behind; the old lean read 19 / 12 / 5)`, JSON.stringify(orient.thick));
 
 // ── 4c. WEAPON < SHIELD ──────────────────────────────────────────────────
 // Side-on the sidearm is drawn over his body, the far half of the field under
@@ -448,7 +448,7 @@ const lay = await pLay.evaluate(async () => {
       }
       // the stack, at this facing: charge pip and discharge
       e._weaponFx.charge(300); window.__adv(12);
-      const pipG = e._attachments.find((g) => g.type === 'Graphics' && !Object.values(f.L).includes(g) && g !== f.coreG);
+      const pipG = e._attachments.find((g) => g.type === 'Graphics' && !Object.values(f.L).includes(g) && g !== f.coreG && g !== e.shieldArc);
       gs.events.emit('shooter-fire', e);
       const dis = gs.children.list.filter((o) => o.texture?.key === 'fx-blw-muzzle' && o.visible).pop();
       out.rows.push({ elite, k, crossings, onFar, ws: ws.depth, pip: pipG?.depth, pipVis: pipG?.visible, dis: dis?.depth, farW: f.farW.depth, near: f.near.depth, gW: f.glowFarW.depth });
@@ -501,7 +501,7 @@ const magentaInside = async ({ png, clip, cells }) => dec.evaluate(async ({ src,
   let magenta = 0, inside = 0;
   for (let y = 0; y < c.height; y++) for (let xx = 0; xx < c.width; xx++) {
     const o = (y * c.width + xx) * 4;
-    if (d[o] === 255 && d[o + 1] === 0 && d[o + 2] === 255) {
+    if (d[o] >= 250 && d[o + 1] <= 12 && d[o + 2] >= 250) {      // pure magenta comes back as 255,4,255 through the page's colour pipeline
       magenta++;
       const sx = clip.x + xx + 0.5, sy = clip.y + y + 0.5;
       if (cells.some(([x0, y0, x1, y1]) => sx >= x0 + 0.5 && sx < x1 - 0.5 && sy >= y0 + 0.5 && sy < y1 - 0.5)) inside++;

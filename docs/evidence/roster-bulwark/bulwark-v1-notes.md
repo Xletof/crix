@@ -7,8 +7,133 @@
 is the frozen one, and `src/entities/Enemy.js` is **untouched**.
 
 **Handset round 1 (`d9e2d6d`):** broadly approved, with ONE blocker — the shield
-changed strength as he turned. Corrected in the orientation pass below; waiting on
-the handset again.
+changed strength as he turned. Corrected in the orientation pass below (`5169399`),
+which round 2 approved.
+
+**Handset round 2 (`5169399`):** three presentation issues — the sidearm drawn on the
+field, a block reading as a flash rather than a wave, and a glass / windshield
+material. Answered in the final visual integration pass below; waiting on the
+handset for the final gate.
+
+## Final visual integration (handset round 2)
+
+**Round 2 on `5169399`:** the orientation fix was approved and is kept. Three things
+were left:
+1. The sidearm was drawn ON the field where the two crossed.
+2. A block read as a flash, not as a wave travelling through the surface.
+3. The material read as glass or a windshield laid over a pixel game.
+
+This pass answers all three. It changes presentation only; every gameplay number
+is the frozen one.
+
+### 1. WEAPON < SHIELD
+
+**Diagnosis.** The weapon overlay's depth is frozen in `Enemy.preUpdate`: y+1, or
+y−1 when the aim points north. The field had two layers, near at y+2 over the body
+and far at y−2 under it. `_aim` is `_shieldFacing` for this enemy, so the gun always
+lies on the field's apex.
+- Side-on, the apex sits on his centre line. The far half of the field is under the
+  body (correct), the gun is over the body (frozen), and the gun therefore sat ON the
+  far half where the two crossed.
+- The cold pip (`ws.depth + 0.5`) and the discharge (`s.y + 2`, the same depth as the
+  near layer, with display order as the tie-break) sat over the far half as well.
+- body > far > gun > body is a CYCLE. No single depth for the far half satisfies it.
+
+**Solution: a third layer, not a new body rule.**
+- `farW` (and `glowFarW` for light) sits at `weaponSprite.depth + WEAPON_STACK.shield`.
+  It receives ONLY the far cells that intersect the gun's own footprint.
+- The footprint is the overlay's axis, from its origin to its tip plus 2px, and its
+  half-width across that axis. The half-width is read once per texture from the
+  painted canvas's opaque rows, so it is conservative by construction.
+- Every other far cell stays under the body. Body occlusion is unchanged.
+- Facing north, the overlay is at y−1, under his body, so `farW` is at y−0.7: under
+  the body too. His helmet still hides what is behind it.
+- The pip, the discharge and `farW` share ONE stack above the overlay's own depth:
+  `WEAPON_STACK = { pip: 0.1, discharge: 0.2, shield: 0.3, light: 0.4 }`. Rotation
+  cannot reorder them, because every entry rides the same base.
+- The near layer (y+2) is above the whole stack, since the overlay is never deeper
+  than y+1.
+- Result: wherever gun, pip or discharge cross the field, the field is drawn over
+  them, at every facing, for both tiers.
+
+### 2. CRIX material — the field is built from the game's own pixel
+
+The vector renderer (ten flat panels with soft edges) was replaced by a CELL renderer:
+- **4px cells** on the SCREEN-ALIGNED grid anchored at the bearer's centre. That is
+  the grid his sprite is painted on (sprite pixels are 4px steps from his centre), so
+  the field's pixels and his always line up, however he moves.
+- **Rejected:** cells on a grid that rotated with the facing. At the diagonals the
+  rotated squares serrate the curved edge into a saw-toothed fringe.
+- **Three value masses, not ten panels:**
+  - a pale off-white FACE across the middle (|θ| < 0.25 of the half-arc);
+  - ice-blue SHOULDERS;
+  - denser TIPS.
+- **Two hard bands across the thickness:** a denser outer band toward the energy edge
+  and a thinner inner one toward him. Every cell is one colour at one alpha. There are
+  no gradients, no seams and no sheens.
+- **An authored edge:**
+  - one cell of bright ice-white rim on the outer edge (`0xf2f9ff` at 0.86);
+  - one cell of dark NAVY keyline outside it (`0x13223a` at 0.66), with navy CAPS
+    beyond each tip so the coverage ends on an outline, as every sprite does;
+  - a soft inner edge row, so the field never becomes a black cage.
+- **Restrained interference:** one stepped current pulse crosses tip to tip every 3.4s,
+  a column of cells per step.
+- **Cross-section:** a flat band from R−11 to R+6 (17px of radial depth). The 2px lean
+  is gone, because a cell field on the floor plane has no lean to give it. It is the
+  same 17px at every facing (measured below). That is a geometry change from the
+  approved 19 / 17 / 15: the south view is about 2px thinner at its apex, and north is
+  about 2px thicker.
+- **Unchanged:** the arc (±1.35), the curtain radius (46), the outer extent (R+6), the
+  taper and the near/far rule. FAR = BEHIND THE BODY, never FAR = WEAKER.
+
+### 3. The ripple — CONTACT → TRAVELLING WAVE → CONVERSION → SETTLE
+
+ONE wave engine, `waveAt(d, t, S, T, crestPx, wakeMs)`, drives both the block and the
+Super's recovery.
+- **Contact:** the bolt flattens into a short red-hot smear, white-hot at its heart for
+  the first ~85ms, and the surface dents 5px inward.
+- **Twin wavefronts:** two narrow CRESTS leave the contact in opposite directions along
+  the curve.
+  - They travel s(t) = 42·(1.5u − 0.5u²), u = t / 420ms: fast out of the contact and
+    still visibly moving through their whole life. A plain ease-out put 75% of the
+    travel in the first 45% and then crawled.
+  - The crest profile is a 3.4px Gaussian. It starts saturated red and cools along the
+    ramp as it slows.
+- **Conversion:** behind each crest is a WAKE whose colour is the time since the crest
+  passed: RED → CORAL → PINK → WHITE.
+  - RED = energy still in the field; WHITE = absorbed.
+  - The wake fades on a 170ms time constant, so it settles behind the crest instead of
+    lighting the band.
+- **Settle:** the crests die about two thirds of the way to the tips. The event drops
+  at 720ms, as before.
+- **Local and bounded:** an event can colour nothing beyond 42 + 5 × 3.4px of arc from
+  its contact.
+- **Rapid fire:**
+  - Every event is independent, holding its own offset and its own age (max 12 blocks).
+  - Their intensities add, and colours mix weighted by intensity squared. A fresh red
+    crest crossing a whitening wake passes through coral and pink rather than
+    switching on a cell edge.
+  - It is never a whole-field flash, and there are no particles.
+- **North:** a dead-centre contact facing north is behind his helmet (legitimate
+  occlusion). The crests carry the reaction out to the shoulders he does not cover.
+  Reactions are still never drawn over the body.
+
+### 4. Super — PUNCTURE → OPEN → HEAL → RE-STABILISE
+
+The approved beats up to the snap are untouched: open 80, hold to 420, filaments
+(stitches) 420-600, zipper 540-600, snap at 600. In cells:
+- the gap is EMPTY cells;
+- the stitches step every 45ms (electronics, not a breathing glow);
+- the zipper fills from the outer edge inward;
+- the snap is a white seam.
+
+**New:** after the snap, two PALE crests run out from the healed seam on the block's
+own engine: white crest, white→white-blue wake, 34px over 340ms. That is the field
+re-stabilising, not a second explosion. There is no red in it. The projector pulse is
+the same single restrained one.
+
+The presentation tail is longer: `TEAR_MS` is 920 → 1110ms. The Super's gameplay
+(penetration, damage, timing) is untouched; nothing reads these events back.
 
 ## Orientation invariance (the handset round-1 correction)
 
@@ -111,8 +236,8 @@ should, since depth was never the bug.
 | body + sidearm art | `src/systems/rosterPaint.js` (appended section) | `ro-blw-R`, `ro-blw-E` (33 frames stock, 51 under `?gait=v2`), `ro-w-blw-R`, `ro-w-blw-E`; `BULWARK_GAIT`; `BULWARK_CORE`; `GAIT_CYCLE_PX['ro-blw'] = 40` |
 | registration | `src/scenes/PreloadScene.js` | `registerRosterArt('shielded', …)`, the 18 animation keys per tier, the sidearm discharge texture |
 | hook | `src/data/rosterArt.js` → `wearRosterArt` | `art.bulwark`: sets `_rosterFx = 'sidearm'`, `_weaponFx = makeSidearmFx(e)`, `_curtain = makeBulwarkCurtain(e)` |
-| sidearm firing | `src/systems/bulwarkSidearm.js` (new) | cold READY pip on the frozen 300ms warning, a 1-frame cold-white discharge, a 1px / 50ms kick, render-only undo of the shot squash |
-| the field | `src/systems/bulwarkCurtain.js` (new) | scene-side renderer on `POST_UPDATE`; per bearer: 2 material Graphics (near/far) + 2 ADD light Graphics + 1 ADD core, all on the bearer's `_attachments` |
+| sidearm firing | `src/systems/bulwarkSidearm.js` (new) | cold READY pip on the frozen 300ms warning, a 1-frame cold-white discharge, a 1px / 50ms kick, render-only undo of the shot squash; pip and discharge ride `WEAPON_STACK` on the overlay's depth, under the field |
+| the field | `src/systems/bulwarkCurtain.js` (new) | scene-side renderer on `POST_UPDATE`; per bearer: 3 material Graphics (near / far / `farW` over the weapon) + 3 ADD light Graphics + 1 ADD core, all on the bearer's `_attachments`; 4px cells on the bearer's pixel grid, redrawn only when the field's signature changes or a reaction is live |
 | block / pierce routing | `src/scenes/GameScene.js` (the block branch only) | `e._curtain.block(contact, x, y)` instead of the legacy clang + sparkle; `e._curtain?.pierce(contact)` after `onPierce` |
 | contact radius | `src/systems/shieldContact.js` | `CURTAIN_RADIUS = ENEMY.shielded.radius + 22` = **46 for both tiers** (it was 55 for the Elite) |
 
@@ -214,27 +339,31 @@ byte-identical to `6560c62`; `smoke-roster-2b`, `smoke-roster-gunner` and
 
 ## The field — frosted hard-light curtain
 
+(As of the final visual integration pass; the history is in the sections above.)
+
 - **Shape:**
   - The arc is exactly facing ± `_shieldHalfArc` (1.35 rad).
-  - Both rims taper to ONE point at each end, on the curtain radius, at exactly the
-    coverage bearing.
-  - It is built from 10 flat panels, each a slightly different milky value.
-  - The bright ice-white rim is on the OUTER edge (the face the fire arrives at); the
-    inner rim is soft.
-  - A restrained dark keyline sits just outside the bright rim.
-  - Two slow counter-running sheens are the interference.
-  - The cross-section is a band of near-constant depth: outer rim R+6 / 2px down,
-    inner R−11 on the plane (it was R−6 / 5px up, which thinned to 5px from behind;
-    see Orientation invariance).
+  - The band is built from 4px cells on the bearer's own pixel grid and tapers to a
+    point at each end, so the tips ARE the coverage.
+  - The taper never thins below 6px, and the last thin stretch is all rim, so every
+    tip ends on bright cells. A navy cap sits beyond each tip.
+  - Three value masses (face / shoulders / tips) and two hard bands (a denser outer
+    band and a thinner inner one).
+  - A one-cell bright ice-white rim on the OUTER edge, a one-cell dark-navy keyline
+    outside it, and a soft inner edge row.
+  - Interference is one stepped current pulse, a column of cells every 3.4s.
+  - The cross-section is flat: R−11..R+6, the same at every facing.
   - A first build put the bright rim on the inner, upper edge, and from the front it
     read as a tub he was standing in.
 - **Depth:**
-  - Panels south of his centre draw over the body and the sidearm (y+2). Panels north
+  - Cells south of his centre draw over the body and the sidearm (y+2). Cells north
     of it draw under the body (y−2), at the SAME strength. Only his body hides them.
-  - Reactions go under him only when more than 30° behind his centre line.
+  - Far cells on the sidearm's footprint draw on `farW`, just above the weapon:
+    WEAPON < SHIELD.
+  - A reaction's LIGHT goes under him only when more than 30° behind his centre line.
   - The field follows the body centre and the shield facing — never the walk cycle.
 - **Tiers:** identical. Nothing in the field module reads `_elite` except where to put
-  the core glow. Regular and Elite rim vertices match exactly.
+  the core glow. The Regular and Elite fields are the same cells, colours and alphas.
 
 ## Block events
 
@@ -244,19 +373,21 @@ byte-identical to `6560c62`; `smoke-roster-2b`, `smoke-roster-gunner` and
 - **Storage:** not the single overwritten `_lastBlockContact`. `GameScene` hands
   every contact to `_curtain.block()`. Ages run on the field's own clock, advanced by
   the frame delta in `POST_UPDATE`, and an event drops at 720ms.
-- **The sequence:**
-  1. A compressed red-hot smear is laid along the surface: short and thick on contact,
-     spreading and thinning over ~130ms, with a white-hot core line.
-  2. A 5px inward dent: 35ms in, ~100ms out, no overshoot.
-  3. Red energy floods the band at the contact from ~25ms and sheds two fronts that
-     travel outward (±0.4 rad) and widen.
-  4. The colour ramps by age: red → coral → pale pink → white. The contact cools first.
-  5. A white haze relaxes to idle by ~700ms.
+- **The sequence** (final pass; see § Final visual integration):
+  1. Contact: a short red-hot smear, white-hot at its heart for ~85ms, and a 5px
+     inward dent (35ms in, ~100ms out, no overshoot).
+  2. Twin wavefronts: two narrow red crests leave the contact in opposite
+     directions along the curve. They travel 42px of arc in 420ms
+     (`S(1.5u − 0.5u²)`) and cool as they slow.
+  3. Conversion: behind each crest, a wake coloured by the time since the crest
+     passed: red → coral → pink → white.
+  4. Settle: the crests die about two thirds of the way to the tips; the event drops
+     at 720ms.
 - **Rapid hits:**
-  - Energy is sampled at every vertex: intensities add, and colours mix weighted by
-    intensity squared. The panels are drawn as vertex-coloured triangles.
-  - So a fresh red front next to a whitening patch passes through pink rather than
-    switching on a pixel edge.
+  - Energy is sampled per angular bin: intensities add, and colours mix weighted by
+    intensity squared, drawn a cell at a time.
+  - So a fresh red crest crossing a whitening wake passes through coral and pink
+    rather than switching on a cell edge.
   - It is never a whole-field flash, and there are no particles.
 - **Gameplay isolation:** presentation only. Nothing waits on these events, and nothing
   reads them back.
@@ -282,9 +413,10 @@ byte-identical to `6560c62`; `smoke-roster-2b`, `smoke-roster-gunner` and
   - 80-420: the gap holds open (13px half-gap).
   - 420-600: the edges pull in; three white-blue filaments re-knit across.
   - 540-600: the zipper closes the last of the gap from the outer rim up.
-  - 600: a compact snap (seam line + flash) and one restrained projector-core pulse.
-  - 600-900: a recovery ripple travelling outward.
-  - Settled by ~920ms. There is no red phase.
+  - 600: a compact snap (seam cells + glow) and one restrained projector-core pulse.
+  - 600-940: RE-STABILISE — two pale crests run 34px out from the healed seam on the
+    block's own wave engine (white crest, white→white-blue wake).
+  - Settled by ~1100ms (`TEAR_MS` 1110; it was 920). There is no red phase.
 - **Why it is long:** a real Super arrives under the frozen generic hit language (the
   body's white hit flash, the pellet rings, CRIT numbers), which owns roughly the first
   250ms. The first build's gap was already closing by the time the frame was readable.
