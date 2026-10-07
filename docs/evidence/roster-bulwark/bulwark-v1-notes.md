@@ -74,6 +74,41 @@ hook).
 - Legacy (no `?roster=v1`) keeps the frozen method; the bug is still there, in frozen
   code.
 
+### 2. The broader membrane ripple
+
+**Cause, verified in the code.** The crest was one 3.4px Gaussian. With 4px cells that is
+about one cell of colour, so each wave was a one-cell coloured stripe sliding along the
+band. Behind it the wake filled the band's whole thickness from the contact up to the
+crest: a flat slab. Nothing flexed: the old `bulgePx` constant was never wired into the
+cell renderer.
+
+**The new grammar: TWO SCALES on the same engine** (`waveAt`, same travel law, same
+timings: 42px over 420ms, events still 720ms):
+
+| | `bfb4a86` | NEW |
+|---|---|---|
+| crest | 3.4px σ (10px wide above a quarter of peak) | **4.0px σ (12px)**, saturated, cooling as it slows |
+| pressure envelope | none | **asymmetric, 6px ahead / 11px behind — 25.5px wide.** Its light is the crest's colour softened 60% toward white (`envI` 0.45), and it densifies and brightens the frost (+0.30 alpha toward `0xfff6f4`) |
+| membrane flex | none | **up to 4px outward** (`flexPx`, capped by `flexMax`). One cell: the rim and the navy keyline visibly kink where the envelope passes, and let go behind it. It ramps in over 70ms so the contact's own 5px dent reads first |
+| wake | a full-thickness slab, contact to crest | its own channel, the same red → coral → pink → white by `tau`, **thinning toward the outer edge as it ages** (`clamp01(1.2 − f·(0.55 + tau/220))`), so it tapers behind the crest |
+
+- **Rapid fire:** every hit is still its own event; the channels sum and the colours mix
+  by intensity squared, so overlapping waves combine and stay readable.
+- **Super recovery:** the same grammar, pale. A white crest inside a white-blue envelope
+  (0.8 of the block's), a 2.4px flex, and a white → white-blue wake. No red.
+  PUNCTURE → OPEN → HEAL is unchanged.
+
+**Guards** (`smoke-bulwark` §4e, structure only; `bfb4a86` fails the envelope and the
+flex):
+- the envelope is at least 1.8× the crest width;
+- both are bounded 4.5σ ahead of the front;
+- a single block changes nothing beyond its own front plus 4σ (60ms: front 8.6px,
+  changed to 29px; 300ms: front 34px, changed to 54px);
+- band cells stand outside the idle edge ONLY around the moving front, at most one cell
+  out;
+- three rapid hits on one half each carry their own energy, the other half is untouched,
+  and the reaction is 79 colours rather than one flash.
+
 ## Final visual integration (handset round 2)
 
 **Round 2 on `5169399`:** the orientation fix was approved and is kept. Three things

@@ -655,6 +655,7 @@ const wave = await pG.evaluate(async () => {
   out.rapid = { perHit: hits.map((h) => rap.filter((c) => warm(c) && Math.abs(c.th - h.off) * R < 12 + C.wavePx * Math.min(1, h.t / C.waveMs)).length),
     farTouched: rap.filter((c) => c.th > 0.75 && touched(c)).length, farCells: rap.filter((c) => c.th > 0.75).length,
     colours: new Set(rap.filter(touched).map((c) => c.col)).size };
+  delete f.tick;                                       // the stub, not = undefined: the field must deregister itself again
   gs._destroyEnemyFully(e);
   out.C = { crestPx: C.crestPx, envAheadPx: C.envAheadPx, envBehindPx: C.envBehindPx, flexPx: C.flexPx, flexMax: C.flexMax, wavePx: C.wavePx };
   return out;
@@ -753,7 +754,7 @@ async function vanguard(q) {
   const r = await page.evaluate(() => {
     const gs = window.__gs, ids = new Map(); let nid = 0;
     const id = (e) => { if (!ids.has(e)) ids.set(e, nid++); return ids.get(e); };
-    const shots = [], snaps = [], lag = []; let tick = 0, gaitFrames = 0, blocks = 0, pierces = 0;
+    const shots = [], snaps = [], faces = [], lag = []; let tick = 0, gaitFrames = 0, blocks = 0, pierces = 0;
     gs.events.on('shooter-fire', (s, a) => {
       shots.push(`${tick}:${id(s)}:${a.toFixed(6)}:${s.x.toFixed(3)},${s.y.toFixed(3)}`);
       if (s.enemyType === 'shielded') { let d = a - s._aim; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; lag.push(Math.abs(d)); }
@@ -771,20 +772,24 @@ async function vanguard(q) {
       k.A.isDown = cur === 'A'; k.D.isDown = cur === 'D'; k.W.isDown = cur === 'W'; k.S.isDown = cur === 'S';
       if (tick >= 380 && tick % 9 === 0) P.keyboardFire();
       if (tick === 900 || tick === 1240) { P.superCharge = 999; P.tryFireSuper(P._autoAimAngle()); }
+      // the angle each body's frame is DRAWN from (its presentation runs before its AI)
+      if (tick % 15 === 14) for (const e of gs.enemies.getChildren()) e.__drawnFrom = e._aim;
       window.__adv(1);
       for (const e of gs.enemies.getChildren()) if (e._gait?.walking && e.enemyType === 'shielded') gaitFrames++;
       for (const e of gs.enemies.getChildren()) if (e._lastBlockContact && !e.__seenB) { e.__seenB = e._lastBlockContact; }
       if (tick % 15 === 14) {
         const f = gs._vanguardFront;
-        snaps.push(gs.enemies.getChildren().filter((e) => e.active).map((e) => `${id(e)}:${e.enemyType}:${e.x.toFixed(3)},${e.y.toFixed(3)},${e.body.velocity.x.toFixed(3)},${e.body.velocity.y.toFixed(3)},${e.hp},${e.state},${e._aim.toFixed(4)},${e._shieldFacing?.toFixed?.(4)},${e._screenHolding},${e._lane ? 'L' : '-'},${e.fireCd?.toFixed?.(2)},${e.anims.currentAnim?.key?.replace(/^ro-blw-[RE]|^shooter|^ro-[a-z]{3}-[RE]/, 'K')},${e.body.width}`).join('|')
+        snaps.push(gs.enemies.getChildren().filter((e) => e.active).map((e) => `${id(e)}:${e.enemyType}:${e.x.toFixed(3)},${e.y.toFixed(3)},${e.body.velocity.x.toFixed(3)},${e.body.velocity.y.toFixed(3)},${e.hp},${e.state},${e._aim.toFixed(4)},${e._shieldFacing?.toFixed?.(4)},${e._screenHolding},${e._lane ? 'L' : '-'},${e.fireCd?.toFixed?.(2)},${e.anims.currentAnim?.key?.replace(/^ro-blw-[RE]|^shooter|^ro-[a-z]{3}-[RE]/, 'K').replace(/-(front|back|side)$/, '')},${e.body.width}`).join('|')
           + `#P${gs.player.x.toFixed(3)},${gs.player.y.toFixed(3)},${gs.player.hp},${gs.player.superCharge}#F${f ? `${f.released}/${f.why}/${f.releasedAt}/${f.holdMs.toFixed(1)}` : '-'}#Q${gs._spawnQueue?.length},${gs._waveSpawned}`
           + `#B${gs.enemyBullets.getChildren().filter((b) => b.active).map((b) => `${b.x.toFixed(2)},${b.y.toFixed(2)}`).join(';')}#R${window.__draws}`);
+        // the PAINTED facing, kept apart: the one thing the v1 display-facing fix may change
+        faces.push(gs.enemies.getChildren().filter((e) => e.active).map((e) => ({ id: id(e), type: e.enemyType, face: (e.anims.currentAnim?.key?.match(/-(front|back|side)$/) || [])[1] || '', flipX: e.flipX, from: e.__drawnFrom ?? e._aim })));
       }
     }
     for (const e of gs.enemies.getChildren()) if (e._curtain) { blocks += e._curtain.stats.blocks; pierces += e._curtain.stats.pierces; }
     for (const e of ids.keys()) if (e._curtain && !e.active) { blocks += e._curtain.stats.blocks; pierces += e._curtain.stats.pierces; }
     lag.sort((a, b) => a - b);
-    return { eliteDeaths: window.__eliteDeaths(), shots, snaps, gaitFrames, blocks, pierces, front: gs._vanguardFront && { released: gs._vanguardFront.released, why: gs._vanguardFront.why }, lag: { n: lag.length, med: lag[lag.length >> 1], p90: lag[Math.floor(lag.length * 0.9)], max: lag[lag.length - 1] }, shielded: [...ids.keys()].filter((e) => e.enemyType === 'shielded').length };
+    return { eliteDeaths: window.__eliteDeaths(), shots, snaps, faces, gaitFrames, blocks, pierces, front: gs._vanguardFront && { released: gs._vanguardFront.released, why: gs._vanguardFront.why }, lag: { n: lag.length, med: lag[lag.length >> 1], p90: lag[Math.floor(lag.length * 0.9)], max: lag[lag.length - 1] }, shielded: [...ids.keys()].filter((e) => e.enemyType === 'shielded').length };
   });
   await page.close();
   return r;
@@ -793,8 +798,25 @@ const vL = await vanguard(''), vV = await vanguard('&roster=v1'), vG = await van
 for (const [a, b, tag] of [[vL, vV, 'legacy vs roster=v1'], [vV, vG, 'roster=v1: gait off vs gait=v2']]) {
   const d = a.snaps.findIndex((s, i) => s !== b.snaps[i]);
   check(a.snaps.length === 88 && d === -1,
-    `VANGUARD (A, sector 8, wave 2, 1320 ticks, Supers at 900 and 1240, ${b.eliteDeaths} Elite Bulwark death${b.eliteDeaths === 1 ? '' : 's'}) ${tag}: the SAME FIGHT — positions, velocities, AI state, aim, SHIELD FACING, screen hold, lanes, cooldowns, hp, collider, player hp + meter, the FRONT (released / reason / time), the queue, bolts, every random draw (88 checkpoints)`,
+    `VANGUARD (A, sector 8, wave 2, 1320 ticks, Supers at 900 and 1240, ${b.eliteDeaths} Elite Bulwark death${b.eliteDeaths === 1 ? '' : 's'}) ${tag}: the SAME FIGHT — positions, velocities, AI state, aim, SHIELD FACING (raw, as accumulated), screen hold, lanes, cooldowns, hp, collider, walk / idle / fire state, player hp + meter, the FRONT (released / reason / time), the queue, bolts, every random draw (88 checkpoints)`,
     d < 0 ? '' : `first divergence at ${d}\nA ${a.snaps[d]?.slice(0, 400)}\nB ${b.snaps[d]?.slice(0, 400)}`);
+  // the painted facing: identical, except where the legacy class drew a
+  // Bulwark from an out-of-range angle — and there v1 shows what the wrapped
+  // angle resolves to
+  const cls = (r) => { const g = Math.atan2(Math.sin(r), Math.cos(r)) * 180 / Math.PI; return g >= -45 && g <= 45 ? 'side/E' : g > 45 && g < 135 ? 'front' : g >= 135 || g <= -135 ? 'side/W' : 'back'; };
+  const tok = (x) => (x.face === 'side' ? `side/${x.flipX ? 'W' : 'E'}` : x.face);
+  let diff = 0, badDiff = [];
+  a.faces.forEach((row, i) => row.forEach((x, j) => {
+    const y = b.faces[i]?.[j];
+    if (!y || tok(x) === tok(y)) return;
+    diff++;
+    const ok = tag.startsWith('legacy') && y.type === 'shielded' && Math.abs(y.from) > Math.PI && tok(y) === cls(y.from);
+    if (!ok) badDiff.push({ i, id: x.id, a: tok(x), b: tok(y), from: +(y.from * 180 / Math.PI).toFixed(1) });
+  }));
+  check(!badDiff.length && (tag.startsWith('legacy') ? diff > 0 : diff === 0),
+    tag.startsWith('legacy')
+      ? `${tag}: the PAINTED facing is the only thing that differs, on ${diff} bearer-checkpoints — every one a Bulwark drawn from a shield angle outside ±180 (the legacy class shows the raw angle's facing, v1 the wrapped one)`
+      : `${tag}: the painted facing is identical at every checkpoint`, JSON.stringify(badDiff.slice(0, 4)));
   check(JSON.stringify(a.shots) === JSON.stringify(b.shots) && a.shots.length > 10, `${tag}: the same ${b.shots.length} enemy shots on the same ticks from the same bodies`, `${a.shots.length} vs ${b.shots.length}`);
 }
 check(vV.eliteDeaths >= 1 && vL.eliteDeaths === vV.eliteDeaths, `(not vacuous) an ELITE Bulwark dies inside the replay window (${vV.eliteDeaths}) — the death that used to split the RNG stream`, JSON.stringify([vL.eliteDeaths, vV.eliteDeaths]));
