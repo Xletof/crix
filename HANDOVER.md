@@ -680,11 +680,51 @@ thinner at the south apex than the approved vector band (16 vs 19px).
 composition, shield arc / turn / hp / economy, the three frozen roles, the
 Captain, Vader.
 
+### DEMOLISHER PRODUCTION (`bomber`) — **CANDIDATE, AWAITING THE HANDSET GATE (Phase 2D)**
+
+The fifth ordinary production role, built as one vertical slice behind
+`?roster=v1` (body, payload warning, detonation hand-off) and `?gait=v2` (the
+run). **Presentation only; `Enemy.js` UNTOUCHED.** Record:
+`docs/evidence/roster-demolisher-v1/demolisher-v1-notes.md`. Gate:
+`tests/smoke-demolisher.mjs`.
+
+- **Body:** a squat payload carrier — compact angular blast helmet (one slot,
+  no dome, no mouth), reinforced collar, two rear canisters on a harness frame
+  standing above the shoulders, a solid dark containment plate, a two-charge
+  hip rack, ONE off-centre arming indicator, no weapon. Elite = the same body
+  with caged canisters, valves, a clamp, a graphite plate frame, a hooded
+  indicator and an unlit detonator; same size, no tint, historical 75.6px
+  collider at scale 1.
+- **Run (gait v2):** one pelvis, a ±5 stride, 80px cycle under a 32fps ceiling
+  (`GAIT_MAX_FPS`, every other role still 24) so the feet hold the deck at
+  300px/s; the payload is RIGID on the torso (checked per frame).
+- **Warning:** the frozen `_tickSwarm` still computes `t` and `_bombPulse` and
+  still asks for its whole-body tint every tick; on the v1 body that write is
+  SWALLOWED (one author) and the same two numbers light the hardware —
+  indicator steady when armed then blinking, canister lights (they carry it
+  from behind), and an ADD payload-heat layer derived from each frame. Timing
+  is the frozen telegraph's by construction; contact at 48px is t 0.84.
+- **Detonation:** both frozen blasts unchanged; the payload overlays, the body
+  and its shadow go with the blast (no 440ms corpse slide through the
+  explosion).
+- **Nemesis:** excluded by the existing seam (`legacyArt` / `legacyLook`); a
+  nemesis bomber under `?roster=v1` is the legacy nemesis, survivable bursts
+  and all.
+- **Invariance:** seeded BOMBER RUN replays, legacy vs v1 and gait off vs v2,
+  are the same fight at every checkpoint and random draw (the frozen roles'
+  known Elite-death leak is equalized in the rig only; the Demolisher's own
+  `_threatScale` is what keeps its Elite death draw-identical).
+
+**Known weak at 1x** (in the notes): the Elite's warning covers ~75% of the
+legacy Elite's area (legacy rendered it 1.4x larger) at 90-100% of its energy;
+the rack and lamps are 1-2 logical pixels; a fresh rusher's pre-existing 600ms
+stuck-sidestep is visible in the clips (frozen code).
+
 ### The recommended next area of work
 
-**The next milestone is PHASE 2D — DEMOLISHER PRODUCTION** (`bomber`, Regular +
-Elite, on the roster-v1 pipeline), now that the Bulwark is closed. The options below
-are the older backlog.
+**PHASE 2D — DEMOLISHER PRODUCTION is built and waiting on the handset gate**
+(above). Do not start an Elite gameplay redesign, another Champion or Commander
+work until it is judged. The options below are the older backlog.
 
 **Phase B Champion integration is CLOSED — human-approved and frozen on
 `a3563a4`** (above). The next

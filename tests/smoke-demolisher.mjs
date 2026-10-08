@@ -36,6 +36,7 @@ import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 const BASE = process.env.DEM_BASE || 'http://localhost:5173/';
+const BASE_OVERRIDE = { v: null };   // section 6b points one replay at another build
 const ROOT = new URL('../', import.meta.url).pathname;
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 const checks = []; const check = (ok, l, d) => checks.push({ ok: !!ok, l, d });
@@ -44,7 +45,7 @@ const fail = (m) => { console.error('FAIL', m); process.exit(1); };
 async function stepped(q, god = true) {
   const page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
   page.on('pageerror', (e) => fail(`${q}: ${e.message}`));
-  await page.goto(BASE + q);
+  await page.goto((BASE_OVERRIDE.v || BASE) + q);
   await page.waitForFunction(() => window.game?.scene?.getScene('Title')?.sys?.isActive(), null, { timeout: 45000 });
   await page.evaluate(async (god) => {
     const g = window.game; g.loop.sleep();
@@ -169,7 +170,7 @@ for (const t of ['R', 'E']) {
   check(s.fr.every((x) => x.payLow < x.bootTop), `ro-dem-${t}: legs under the payload in every frame (lowest payload row above the boots)`, JSON.stringify(s.fr.filter((x) => !(x.payLow < x.bootTop)).map((x) => [x.f, x.payLow, x.bootTop])));
   // ONE off-centre indicator; no lit row across the chest
   const front = [0, 1, 2, 3, 4, 5, 6, 7].map((f) => s.fr[f]);
-  check(front.every((x) => x.ind.length === 2 && x.ind.every(([lx]) => lx >= 13) && x.st.length === 2 && x.st.every(([, ly]) => ly <= 6)),
+  check(front.every((x) => x.ind.length === 2 && x.ind.every(([lx]) => lx >= 13) && x.st.length === 4 && x.st.every(([, ly]) => ly <= 6)),
     `ro-dem-${t} front: ONE arming indicator, off-centre (char-left strap), and the only other lamps are on the canister caps above the shoulders — no lit row on the containment plate`, JSON.stringify(front.map((x) => [x.ind, x.st])));
   // the payload is RIGID: every walk frame's payload = the idle one moved by that frame's body offset
   const G = SH.gait; let rigid = 0, total = 0, worst = [];
@@ -225,8 +226,8 @@ const RV = await rush(pV), RL = await rush(pL);
   // the layers join in order as he closes
   const at = (lo, hi) => RV.rows.filter((r) => r.t >= lo && r.t < hi);
   const far = RV.rows.filter((r) => r.t === 0), near = at(0.6, 1);
-  check(far.length > 3 && far.every((r) => Math.abs(r.w.lamp - 0.55) < 1e-9 && r.w.status === 0 && r.w.heat === 0 && !r.heatVis),
-    `ARMED at range (${far.length} ticks beyond 300px): the indicator lit steady, the canisters dark, no heat`, '');
+  check(far.length > 3 && far.every((r) => Math.abs(r.w.lamp - 0.55) < 1e-9 && Math.abs(r.w.status - 0.35) < 1e-9 && r.w.heat === 0 && !r.heatVis),
+    `ARMED at range (${far.length} ticks beyond 300px): the indicator and the canister lights lit steady (no blink), the payload cold`, '');
   check(near.length >= 2 && near.every((r) => r.w.heat > 0.2 && r.heatVis) && Math.max(...near.map((r) => r.w.status)) > 0.6,
     `IMMINENT (t >= 0.6, inside 120px): the payload is HOT (heat ${near.map((r) => r.w.heat.toFixed(2)).join(', ')}) and the canister lights are on`, '');
   check(RV.rows.at(-1).t > 0.6 && RV.rows.at(-1).t <= 0.85, `the warning stays inside the frozen window: last live tick at t ${RV.rows.at(-1).t.toFixed(3)} (contact at 48px is t 0.84 — nothing extends it)`, '');
@@ -241,7 +242,7 @@ const RV = await rush(pV), RL = await rush(pL);
 // the law itself
 const law = await pV.evaluate(async () => { const m = await window.__mod(/systems\/demolisherPayload\.js/); return [0, 0.1, 0.2, 0.3, 0.45, 0.6, 0.75, 0.84].map((t) => ({ t, on: m.payloadWarning(t, 1), off: m.payloadWarning(t, 0) })); });
 check(law.every((r, i) => i === 0 || (r.on.heat >= law[i - 1].on.heat && r.on.status >= law[i - 1].on.status)) && law[0].on.lamp === law[0].off.lamp && law[3].on.lamp - law[3].off.lamp > 0.95,
-  'the warning law: heat and status only rise as he closes; at range the indicator is steady (armed), from ~255px it blinks fully on the pulse', JSON.stringify(law.map((r) => [r.t, +r.on.heat.toFixed(2), +r.on.status.toFixed(2), +r.on.lamp.toFixed(2), +r.off.lamp.toFixed(2)])));
+  'the warning law: heat and status only rise as he closes; at range the lamps are steady (armed), from ~255px the indicator blinks fully on the pulse', JSON.stringify(law.map((r) => [r.t, +r.on.heat.toFixed(2), +r.on.status.toFixed(2), +r.on.lamp.toFixed(2), +r.off.lamp.toFixed(2)])));
 
 // the hit flash still lands on the v1 body (and is not left behind)
 const flash = await pV.evaluate(() => {
@@ -364,6 +365,21 @@ for (const [a, b, tag] of [[bL, bV, 'legacy vs roster=v1'], [bV, bG, 'roster=v1:
 }
 check(bV.demDeaths >= 4 && bV.eliteDeaths >= 1 && bV.hurts.length >= 1, `(not vacuous) ${bV.demDeaths} Demolishers detonate inside the window, ${bV.eliteDeaths} of them Elite, and the player takes ${bV.hurts.length} damage events`, JSON.stringify({ d: bV.demDeaths, e: bV.eliteDeaths, h: bV.hurts.length }));
 check(bG.demFrames > 100 && bV.demFrames === 0, `(not vacuous) gait v2 really drove ${bG.demFrames} Demolisher body-frames through the rush; off, none`, `${bV.demFrames}/${bG.demFrames}`);
+
+// ── 6b. OLD vs NEW (DEM_OLD=<url of a cd4b0e9 server>) ───────────────────
+// The same replay on the build before this pass: its legacy run must equal
+// this build's legacy run (the default game did not move), and its v1 run —
+// where the bomber still wore legacy art — must equal this build's v1 run.
+if (process.env.DEM_OLD) {
+  const saved = BASE_OVERRIDE.v; BASE_OVERRIDE.v = process.env.DEM_OLD;
+  const oL = await bomberRun(''), oV = await bomberRun('&roster=v1');
+  BASE_OVERRIDE.v = saved;
+  for (const [a, b, tag] of [[oL, bL, 'cd4b0e9 vs NEW, default (legacy)'], [oV, bV, 'cd4b0e9 vs NEW, ?roster=v1']]) {
+    const d = a.snaps.findIndex((x, i) => x !== b.snaps[i]);
+    check(a.snaps.length === 72 && d === -1 && JSON.stringify(a.hurts) === JSON.stringify(b.hurts) && JSON.stringify(a.blasts) === JSON.stringify(b.blasts),
+      `OLD vs NEW BOMBER RUN, ${tag}: the SAME FIGHT at all 72 checkpoints, the same detonations and the same damage to the player`, d < 0 ? '' : `first divergence at ${d}\nA ${a.snaps[d]?.slice(0, 400)}\nB ${b.snaps[d]?.slice(0, 400)}`);
+  }
+}
 
 // ── 7. FROZEN ────────────────────────────────────────────────────────────
 {

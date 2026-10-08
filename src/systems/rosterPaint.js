@@ -1304,6 +1304,10 @@ const DH = { lit: '#7a7e88', mid: '#50545d', dk: '#2f3238', st: '#bfc4cc' };   /
 // THE PAYLOAD — used by nothing else on the body
 const DC = { lit: '#8f969f', mid: '#606770', dk: '#3e444c', band: '#e2b53a', bandDk: '#8a6a1c', cap: '#2b2e34' };
 const DC_SET = new Set(Object.values(DC));
+// the ELITE'S CONTAINMENT CAGE — graphite to the eye, but its own two values,
+// because the cage is part of the payload housing: when the payload heats,
+// the housing carries it as CONTAINED red light (`DHEAT`)
+const DCG = { bar: '#34373e', lit: '#7d818b' };
 // the lamps, unlit (lit at runtime over exactly these pixels)
 const DL = { ind: '#5e2d0f', st: '#4c2711' };
 const DVIS = '#101116', DGLINT = '#3c4553', DBOOT = '#17181d', DBOOT_T = '#2b2c33';   // boots lighter than the outline, or two of them are one slab
@@ -1313,7 +1317,7 @@ const DVIS = '#101116', DGLINT = '#3c4553', DBOOT = '#17181d', DBOOT_T = '#2b2c3
 function demoCanister(g, x, top, bot, w, o = {}) {
   g.hl(top, x + 1, x + w - 2, DC.cap);
   g.rect(x, top + 1, w, 1, DC.cap);
-  if (o.lamp) g.px(o.lamp[0], o.lamp[1], DL.st);
+  if (o.lamp) g.hl(o.lamp[1], o.lamp[0], o.lamp[0] + (o.lamp[2] || 1) - 1, DL.st);
   for (let y = top + 2; y <= bot; y++) {
     g.px(x, y, DC.dk); g.px(x + 1, y, DC.lit);
     for (let i = 2; i < w - 1; i++) g.px(x + i, y, DC.mid);
@@ -1323,8 +1327,8 @@ function demoCanister(g, x, top, bot, w, o = {}) {
 }
 // the Elite's cage: steel uprights on both edges and steel rings
 function demoCage(g, x, top, bot, w, rings) {
-  g.vl(x - 1, top + 2, bot, DH.dk); g.vl(x + w, top + 2, bot, DH.dk);
-  for (const ry of rings) { g.hl(ry, x - 1, x + w, DH.dk); g.px(x - 1, ry, DH.lit); g.px(x + w, ry, DH.lit); }
+  g.vl(x - 1, top + 2, bot, DCG.bar); g.vl(x + w, top + 2, bot, DCG.bar);
+  for (const ry of rings) { g.hl(ry, x - 1, x + w, DCG.bar); g.px(x - 1, ry, DCG.lit); g.px(x + w, ry, DCG.lit); }
   g.px(x + Math.floor(w / 2), top - 1, DH.st);                // pressure valve
 }
 
@@ -1333,8 +1337,8 @@ function demoFrontBack(g, dir, e, o) {
   const front = dir === 'front', b = o.bob;
   if (front) {
     // CANISTER TOPS above the shoulders, behind everything else
-    demoCanister(g, 3, 4 + b, 12 + b, 4, { lamp: [4, 5 + b], bands: [8 + b] });
-    demoCanister(g, 17, 4 + b, 12 + b, 4, { lamp: [19, 5 + b], bands: [8 + b] });
+    demoCanister(g, 3, 4 + b, 12 + b, 4, { lamp: [4, 5 + b, 2], bands: [8 + b] });
+    demoCanister(g, 17, 4 + b, 12 + b, 4, { lamp: [18, 5 + b, 2], bands: [8 + b] });
     if (e) { demoCage(g, 3, 4 + b, 11 + b, 4, [7 + b, 10 + b]); demoCage(g, 17, 4 + b, 11 + b, 4, [7 + b, 10 + b]); }
     // harness frame: the shoulder supports reaching in to the collar
     g.hl(10 + b, 5, 7, DU.mid); g.hl(10 + b, 16, 18, DU.mid);
@@ -1370,8 +1374,8 @@ function demoFrontBack(g, dir, e, o) {
   for (const cx of [rx, rx + 2]) { g.px(cx, 16 + b, DC.band); g.px(cx, 17 + b, DC.mid); }
   if (!front) {
     // BACK — the payload is the subject: two full canisters on the frame
-    demoCanister(g, 4, 3 + b, 15 + b, 5, { lamp: [6, 4 + b], bands: [7 + b, 12 + b] });
-    demoCanister(g, 15, 3 + b, 15 + b, 5, { lamp: [17, 4 + b], bands: [7 + b, 12 + b] });
+    demoCanister(g, 4, 3 + b, 15 + b, 5, { lamp: [5, 4 + b, 2], bands: [7 + b, 12 + b] });
+    demoCanister(g, 15, 3 + b, 15 + b, 5, { lamp: [17, 4 + b, 2], bands: [7 + b, 12 + b] });
     if (e) { demoCage(g, 4, 3 + b, 15 + b, 5, [6 + b, 10 + b, 14 + b]); demoCage(g, 15, 3 + b, 15 + b, 5, [6 + b, 10 + b, 14 + b]); }
     // the frame and the manifold between them
     g.rect(10, 11 + b, 4, 5, DH.mid); g.hl(11 + b, 10, 13, DH.lit); g.vl(10, 12 + b, 15 + b, DH.dk);
@@ -1401,7 +1405,7 @@ function demoSide(g, e, o) {
   const b = o.bob, L = o.lean;
   // CANISTERS on the back (west): the far one peeks above and behind
   demoCanister(g, 2 + L, 3 + b, 13 + b, 3, { lamp: [3 + L, 4 + b] });
-  demoCanister(g, 4 + L, 4 + b, 15 + b, 4, { lamp: [5 + L, 5 + b], bands: [8 + b, 13 + b] });
+  demoCanister(g, 4 + L, 4 + b, 15 + b, 4, { lamp: [5 + L, 5 + b, 2], bands: [8 + b, 13 + b] });
   if (e) demoCage(g, 4 + L, 4 + b, 15 + b, 4, [7 + b, 11 + b, 14 + b]);
   // harness supports across the dark structural space (column 8)
   g.hl(7 + b, 8 + L, 9 + L, DU.mid); g.hl(13 + b, 8 + L, 9 + L, DU.mid);
@@ -1532,10 +1536,12 @@ function demoGaitFrame(dir, e, spec, base) {
 }
 
 // THE WARNING HARDWARE, DERIVED FROM THE FINISHED FRAME. The payload heat
-// layer is every payload pixel recoloured hot, plus the outline pixels that
-// bound the payload (its silhouette rim); the lamps are the pixels wearing
-// an unlit lens colour. Nothing is placed by hand, so nothing can drift.
-const DHEAT = new Map([[DC.lit, '#ffc27e'], [DC.mid, '#ff8a30'], [DC.dk, '#e2581a'], [DC.band, '#fff0b4'], [DC.bandDk, '#ffa246'], [DC.cap, '#ff6c24']]);
+// layer is every payload pixel recoloured hot (the Elite's cage a contained
+// red), plus the outline pixels that bound the payload (its silhouette rim);
+// the lamps are the pixels wearing an unlit lens colour. Nothing is placed by
+// hand, so nothing can drift.
+const DHEAT = new Map([[DC.lit, '#ffc27e'], [DC.mid, '#ff8a30'], [DC.dk, '#e2581a'], [DC.band, '#fff0b4'], [DC.bandDk, '#ffa246'], [DC.cap, '#ff6c24'],
+  [DCG.bar, '#b02a10'], [DCG.lit, '#ff7040']]);   // the Elite's cage: contained red
 const DRIM = '#d8300c';
 function demoDerive(g) {
   const { w, h, c } = g, heat = grid(w, h), lamps = { ind: [], st: [] };

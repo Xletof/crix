@@ -56,16 +56,18 @@ const lerpCol = (a, b, u) => {
  * tests read one implementation.
  *   lamp    the arming indicator — steady at range (armed), blinking fully
  *           on the pulse from t ≈ 0.15 (about 255px)
- *   status  the canister lights, joining from t 0.12 to 0.4
- *   heat    the payload itself, from t 0.3 to 0.75 (225px to 75px)
+ *   status  the canister status lights — the same armed-then-blinking law,
+ *           dimmer at range and a little later; they are what carries the
+ *           warning from BEHIND, where the indicator is out of sight
+ *   heat    the payload itself, warming from t 0.15 to 0.7 (255px to 90px)
  *   hot     how far the colours have gone from amber toward white / red
  */
 export function payloadWarning(t, flash) {
-  const blink = ramp(0, 0.15, t);
+  const blink = ramp(0, 0.15, t), sb = ramp(0, 0.25, t);
   return {
     lamp: 0.55 * (1 - blink) + blink * flash,
-    status: ramp(0.12, 0.4, t) * (0.25 + 0.75 * flash),
-    heat: ramp(0.3, 0.75, t) * (0.4 + 0.6 * flash),
+    status: 0.35 * (1 - sb) + sb * flash,
+    heat: ramp(0.15, 0.7, t) * (0.4 + 0.6 * flash),
     hot: ramp(0.35, 0.8, t),
   };
 }

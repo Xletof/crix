@@ -1084,6 +1084,37 @@ asserts separately that the ceiling is not reached.
   conversion travel too. The Super's recovery crests run on the same engine,
   pale, after the snap.
 
+- **THE DEMOLISHER'S WARNING IS ITS OWN AI'S NUMBERS ON ITS OWN HARDWARE —
+  CANDIDATE, `HANDOVER.md` §0.** The frozen `_tickSwarm` paints the WHOLE BODY
+  with `setTint` every tick; on baked v1 art that is a second author. It is
+  SWALLOWED, not fought: `systems/demolisherPayload.js` shadows `setTint` for the
+  length of the class's own update (recording the request on
+  `_legacyWarnTint`), so nothing else about the tick changes and a rig can
+  prove the AI still asked. The warning then reads the SAME `t` and
+  `_bombPulse` — `smoke-demolisher` decodes the swallowed tint back to exactly
+  `t·flash` on every tick. A restore-after approach would also have worked;
+  overriding `setTint` for good would have eaten every future legitimate tint.
+  Installed only from `wearRosterArt`, so the nemesis (always legacy art) can
+  never get it.
+- **A WARNING MUST BE MEASURED FROM EVERY FACING.** The first hardware warning
+  beat legacy from the front and the side and was NOTHING from behind until
+  165px — the indicator is on the chest. `tests/diag-demolisher-warning.mjs`
+  measures screen change per facing against legacy; the canister lights carry
+  it from behind now. Same family as the Bulwark's "measure presence by
+  orientation, not on the south view".
+- **A FAST BODY NEEDS ITS OWN STRIDE, NOT A FASTER CLOCK.** The gait tick caps
+  cadence at 24fps; at 300px/s a 48px cycle would need 37fps and skate. The
+  Demolisher runs a ±5 stride (80px cycle) under its own 32fps ceiling
+  (`GAIT_MAX_FPS`); every approved role keeps 24.
+- **A RIG EQUALIZER MAY NEVER COVER THE THING UNDER TEST.** The BOMBER RUN
+  replay equalizes the frozen roles' known v1 Elite-death leak; the first
+  version equalized EVERY Elite and the replay passed with the Demolisher's own
+  `_threatScale` deleted. A/B the check against the fix removed.
+- **THE FIRST STUCK CHECK ALWAYS FIRES (pre-existing, frozen, not changed).**
+  `Enemy.preUpdate` measures `hypot(x - (_stuckRefX ?? x))` and the reference
+  starts undefined, so every fresh swarm rusher sidesteps for 600ms about 0.6s
+  after spawning. It looks like a Demolisher veering off before it commits; it
+  is in both builds.
 - **THE STATE LANGUAGE'S ONE RULE SURVIVED HANDSET REVIEW AND ITS SUSTAINED
   HALF DID NOT — `HANDOVER.md` §10ah, §10ai.** **SYMBOL = TRANSITION, BODY / FX
   = SUSTAINED STATE.** A glyph lives a few hundred ms to say something CHANGED
