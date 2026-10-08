@@ -195,6 +195,14 @@ each).
 | `smoke-demolisher` (new) | **57/57** with `DEM_OLD` (the old-vs-new replays); 55/55 without |
 | `smoke-demolisher` against `cd4b0e9` (`DEM_BASE`) | 26/43: every new-feature check fails, the guards hold; the 14 sheet checks cannot run there |
 | `smoke-roster-2b` | 72/72 (its "Demolisher stays legacy" check updated to pin the new art) |
+| `smoke-roster-seams` | 70/70 (`V1_ROLES` gains the bomber — the same intended change) |
+| `smoke-bulwark` | 90/90 |
+| `smoke-roster-gunner` | 72/72 |
+| `smoke-gait-v2` / `smoke-move-v2` | 16/16 / 9/9 |
+| `smoke-champion-placement`, `smoke-encounters`, `smoke-encdbg` | pass |
+| `smoke-vanguard-reinforce` / `-screen` / `-front` | pass (front is the known wall-clock instrument; green this run) |
+| `smoke-captain` + closeout / state / step / rifle / damage / visual, `smoke-arcgrenade`, `smoke-captel` | pass |
+| production build | OK |
 
 Old vs new: the seeded BOMBER RUN on `cd4b0e9` and on this build is the same
 fight at all 72 checkpoints, default and `?roster=v1` — the default game did
@@ -208,3 +216,15 @@ six 4px rects and their bloom, and one sprite's frame/position/alpha. Whole-fram
 timings in this headless, software-rendered harness are noise at this scale
 (the run measured 64.6ms with the tick and 75.3ms without) and are not
 evidence either way.
+
+## Commits
+
+`93da5d0` (the Bulwark closure, docs only) · `cd89703` art + warning ·
+`9f7dfeb` warning tuned from measurement, rig, docs · `cb6e118`, `1a6a5e3`,
+`13722fc`, `ac81f4f` evidence · the final candidate commit after them.
+
+## Handset
+
+- BOMBER RUN, Demolisher-heavy: `https://xletof.github.io/crix/?roster=v1&gait=v2&move=v22&encdbg=bomberRun&room=hangar&sector=8&wave=2`
+- MIXED, beside the other four roles: `https://xletof.github.io/crix/?roster=v1&gait=v2&move=v22&encdbg=mixed&room=detention&sector=12&wave=1`
+- legacy A/B: `https://xletof.github.io/crix/?move=v22&encdbg=bomberRun&room=hangar&sector=8&wave=2`
