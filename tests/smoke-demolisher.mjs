@@ -13,6 +13,12 @@
 //     moved by the frame's own body offset), ONE off-centre indicator and no
 //     lit row on the chest, the heat layer only ever over payload pixels and
 //     their rim, Elite = same size, different hardware;
+//   - THE SIDE RUN (Phase 2D correction): one pelvis both legs leave from
+//     under, both boots toe-capped and pointing east (west = the same frames
+//     mirrored, live), a compact stride, no backward knee, a continuous
+//     six-phase loop within the unchanged 80px / 32fps cadence contract, and
+//     every front/back frame and every profile frame above the pelvis
+//     pixel-identical to 785999f;
 //   - WARNING: the v1 warning reads the frozen telegraph's OWN numbers (the
 //     tint the AI asked for decodes to exactly t·flash), the body is never
 //     tinted by it (ONE AUTHOR) while legacy still is, the hit flash still
@@ -194,6 +200,160 @@ if (SH) {
 }
 check(SH && SH.cyc['ro-dem'] === 80 && SH.fps['ro-dem'] === 32 && SH.cyc['ro-gun'] === 48 && SH.cyc['ro-rif'] === 48 && SH.cyc['ro-mrk'] === 44 && SH.cyc['ro-blw'] === 40 && Object.keys(SH.fps).join() === 'ro-dem',
   'gait: the Demolisher runs an 80px cycle under a 32fps ceiling (a 300px/s body); every other role keeps its approved cycle and the 24fps ceiling', JSON.stringify({ c: SH?.cyc, f: SH?.fps }));
+
+// ── 2b. THE SIDE RUN (Phase 2D correction) ───────────────────────────────
+// Handset review of 785999f rejected the profile run: the hip socket sat
+// behind his centre, so the trailing leg hung off his back under the rear
+// canister; a +5/-5 split on five-row legs; a trailing boot that read as
+// reversed. Measured from the PAINTED PIXELS of every side frame (idle, the
+// six run frames, the brace, the three pose hooks, the six strafe frames):
+const sideRun = async (page) => page.evaluate(async () => {
+  const gs = window.__gs, rp = await window.__mod(/systems\/rosterPaint\.js/);
+  const N = 0xa8541d, F = 0x6e3415, KNEE = 0xf4a55a, PELVIS = 0x1d1e23, BOOT = new Set([0x17181d, 0x2b2c33]), CAP = new Set([0x4b4c53, 0x303137]);
+  const read = (key) => {
+    const src = gs.textures.get(key).getSourceImage();
+    const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+    const x = c.getContext('2d'); x.drawImage(src, 0, 0);
+    return { w: src.width, d: x.getImageData(0, 0, src.width, src.height).data };
+  };
+  const at = (S, f, lx, ly) => { const o = ((ly * 4 + 2) * S.w + f * 96 + lx * 4 + 2) * 4; return S.d[o + 3] ? (S.d[o] << 16) | (S.d[o + 1] << 8) | S.d[o + 2] : null; };
+  const fnv = (h, v) => { for (let k = 0; k < 4; k++) { h ^= (v >>> (k * 8)) & 255; h = Math.imul(h, 16777619) >>> 0; } return h; };
+  const SIDE = [16, 17, 18, 19, 20, 21, 22, 23, 30, 31, 32, ...[0, 1, 2, 3, 4, 5].map((k) => rp.GAIT_STRAFE_BASE + 12 + k)];
+  const out = {};
+  for (const tier of ['R', 'E']) {
+    const key = `ro-dem-${tier}`, B = read(key), H = read(`${key}-heat`);
+    const n = gs.textures.get(key).getFrameNames().filter((x) => x !== '__BASE').length;
+    // everything that is NOT a profile frame, and the profile frames ABOVE the
+    // pelvis (rows 0-16: torso, helmet, canisters, rack, plate), body + heat
+    let hNon = 2166136261, hUp = 2166136261;
+    for (let f = 0; f < n; f++) {
+      const side = SIDE.includes(f);
+      for (let y = 0; y < (side ? 17 : 26); y++) for (let x = 0; x < 24; x++) {
+        const v = ((at(B, f, x, y) ?? 0x1000000) ^ ((at(H, f, x, y) ?? 0x2000000) * 3)) >>> 0;
+        if (side) hUp = fnv(hUp, v); else hNon = fnv(hNon, v);
+      }
+    }
+    const fr = SIDE.map((f) => {
+      // the pelvis band: the lowest row carrying pelvis/webbing pixels under the body
+      let rp0 = -1; for (let y = 15; y < 22; y++) for (let x = 6; x < 18; x++) if (at(B, f, x, y) === PELVIS) rp0 = y;
+      const pel = []; for (let x = 0; x < 24; x++) if (at(B, f, x, rp0) === PELVIS) pel.push(x);
+      const root = []; for (let x = 0; x < 24; x++) { const c = at(B, f, x, rp0 + 1); if (c === N || c === F || c === KNEE) root.push(x); }
+      // boots: connected boot + toe-cap pixels on the deck rows
+      const bootPx = [], caps = [];
+      for (let y = rp0 + 1; y < 26; y++) for (let x = 0; x < 24; x++) {
+        const c = at(B, f, x, y);
+        if (BOOT.has(c)) bootPx.push([x, y]);
+        else if (CAP.has(c)) caps.push([x, y]);
+      }
+      const isBoot = (x, y) => BOOT.has(at(B, f, x, y));
+      // a toe-cap closes a heel-to-toe run: boot to its WEST (a cap with nothing
+      // of a boot behind it would be a toe pointing the other way)
+      const capsEast = caps.filter(([x, y]) => isBoot(x - 1, y)).length;
+      // the boots as separate objects (4-connected boot + cap pixels): where the
+      // two feet are apart, EACH must carry its own toe-cap; where one stands in
+      // front of the other the near boot may hide the far one's toe
+      const all = new Map([...bootPx, ...caps].map(([x, y]) => [`${x},${y}`, [x, y]])), seen = new Set(), comps = [];
+      for (const [k0, p0] of all) {
+        if (seen.has(k0)) continue;
+        const q = [p0], comp = []; seen.add(k0);
+        while (q.length) { const [x, y] = q.pop(); comp.push([x, y]); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const k = `${x + dx},${y + dy}`; if (all.has(k) && !seen.has(k)) { seen.add(k); q.push(all.get(k)); } } }
+        comps.push(comp.filter(([x, y]) => CAP.has(at(B, f, x, y))).length);
+      }
+      const xs = [...bootPx, ...caps].map(([x]) => x);
+      let knee = 0; for (let y = rp0 + 1; y < 24; y++) for (let x = 0; x < 24; x++) if (at(B, f, x, y) === KNEE) knee++;
+      return { f, rp0, pel: [Math.min(...pel), Math.max(...pel)], root, caps: caps.length, capsEast, comps, span: Math.max(...xs) - Math.min(...xs), west: Math.min(...xs), east: Math.max(...xs), knee };
+    });
+    out[tier] = { hNon: hNon.toString(16), hUp: hUp.toString(16), fr };
+  }
+  out.side = rp.DEMO_GAIT.side; out.fb = rp.DEMO_GAIT.fb;
+  return out;
+}).catch(() => null);
+const SR = SH ? await sideRun(pV) : null;
+// 785999f, measured: the frames this correction must not touch (FNV-1a over
+// body + heat logical pixels). The pre-correction build reproduces both.
+const H785 = { R: { hNon: '57fad92b', hUp: 'd2cf96c0' }, E: { hNon: '92613eee', hUp: 'f4ce2023' } };
+for (const t of SR ? ['R', 'E'] : []) {
+  const s = SR[t], run = s.fr.filter((x) => x.f >= 17 && x.f <= 22);
+  // the first leg row below the pelvis band: a thigh may extend back ONE
+  // column in one row (toe-off) or drive its knee forward (the swing), but it
+  // never starts two or three columns behind the pelvis
+  const inPel = (x) => x.root.length && x.root.every((rx) => rx >= x.pel[0] - 1 && rx <= x.pel[1] + 2);
+  check(s.fr.every(inPel),
+    `ro-dem-${t} profile: ONE PELVIS — in every side frame both legs leave the pelvis band from UNDER it (785999f started the trailing thigh 2-3 columns behind it, off his back under the rear canister)`,
+    JSON.stringify(s.fr.filter((x) => !inPel(x)).map((x) => [x.f, x.pel, x.root])));
+  // every side frame: each visible toe-cap closes a heel-to-toe run. The run
+  // (idle, six run frames, brace): wherever the two boots stand apart, EACH
+  // carries its own. (The unchanged profile strafe hides the far toe behind
+  // the near shin in one frame — occlusion, not a reversed boot.)
+  const capOk = (x) => x.caps >= 1 && x.capsEast === x.caps;
+  const apartOk = (x) => x.comps.length < 2 || x.comps.every((c) => c === 1);
+  const runSet = s.fr.filter((x) => x.f >= 16 && x.f <= 23);
+  check(s.fr.every(capOk) && runSet.every(apartOk),
+    `ro-dem-${t} profile: BOTH BOOTS POINT EAST — every visible toe-cap closes a heel-to-toe run (toe east), and through idle, run and brace, wherever the two boots stand apart EACH carries its own (785999f: the trailing boot had none); WEST is the same frame mirrored`,
+    JSON.stringify(s.fr.filter((x) => !capOk(x) || (x.f <= 23 && !apartOk(x))).map((x) => [x.f, x.caps, x.capsEast, x.comps])));
+  check(run.every((x) => x.span <= 10),
+    `ro-dem-${t} profile: a COMPACT stride — heel-to-toe across both boots never wider than 10 logical px in a run frame (785999f split them 13 wide)`, JSON.stringify(run.map((x) => [x.f, x.span])));
+  check(run.every((x) => x.knee >= 1),
+    `ro-dem-${t} profile: the near knee is drawn in every run frame (articulated leg, not a post)`, JSON.stringify(run.map((x) => [x.f, x.knee])));
+  check(s.hNon === H785[t].hNon, `ro-dem-${t}: every FRONT and BACK frame (idle, run, brace, pose hooks, strafe) and its heat layer is pixel-identical to 785999f — the correction is profile-only`, `${s.hNon} vs ${H785[t].hNon}`);
+  check(s.hUp === H785[t].hUp, `ro-dem-${t}: every profile frame ABOVE THE PELVIS (helmet, torso, canisters, rack, containment plate) and its heat layer is pixel-identical to 785999f — body, equipment and attachment unchanged`, `${s.hUp} vs ${H785[t].hUp}`);
+}
+if (SR) {
+  // the table the painter draws from: the leg geometry the pixels above came from
+  const W = SR.side.walk, legs = ['N', 'F'];
+  const top = (st) => (st === 'S' ? 20 : (st === 'H' || st === 'L') ? 21 : 22);
+  // a knee BEHIND the straight hip-ankle line bends backwards
+  const back = [];
+  W.forEach((sp, k) => legs.forEach((L) => {
+    const g = sp[L], hip = 18 + sp.bob, t0 = top(g.st), kneeY = hip + Math.max(1, Math.floor((t0 - hip) / 2)) - (g.st === 'S' ? 1 : 0);
+    const u = (kneeY - hip) / Math.max(1, t0 - hip);
+    if (g.k < g.f * u - 1e-9) back.push([k + 1, L, g.k, g.f]);
+  }));
+  check(!back.length, 'profile run: no knee ever bends backwards (every knee on or ahead of its hip-ankle line)', JSON.stringify(back));
+  const fs = W.flatMap((sp) => legs.map((L) => sp[L].f));
+  check(Math.min(...fs) >= -3 && Math.max(...fs) <= 4,
+    `profile run: no giant trailing extension — the feet stay within -3..+4 of the hip (785999f: -5..+5)`, JSON.stringify([Math.min(...fs), Math.max(...fs)]));
+  // the loop: consecutive frames, including 6 -> 1, move each foot by at most 4 px
+  const jump = []; W.forEach((sp, k) => legs.forEach((L) => { const nx = W[(k + 1) % 6][L]; if (Math.abs(nx.f - sp[L].f) > 4 || Math.abs(nx.k - sp[L].k) > 3) jump.push([k + 1, L]); }));
+  check(!jump.length, 'profile run: a continuous loop — no foot or knee jumps between consecutive frames, the 6 -> 1 wrap included', JSON.stringify(jump));
+  // six-phase doctrine: each leg is planted (F, or H toeing off) for three
+  // frames and swings for three, in antiphase; and a planted foot only travels BACKWARD
+  const planted = (g) => g.st === 'F' || g.st === 'H';
+  const phaseOk = legs.every((L) => W.filter((sp) => planted(sp[L])).length === 3) && W.every((sp) => planted(sp.N) !== planted(sp.F));
+  const travel = []; legs.forEach((L) => W.forEach((sp, k) => { const nx = W[(k + 1) % 6][L]; if (planted(sp[L]) && planted(nx)) travel.push(sp[L].f - nx.f); }));
+  check(phaseOk && travel.every((d) => d > 0),
+    'profile run: SIX PHASES in antiphase (contact, load, toe-off on one leg while the other swings low and reaches), and a planted foot only ever moves backward under him', JSON.stringify({ phaseOk, travel }));
+  // CADENCE CONTRACT: the planted foot's travel per frame against the cycle's
+  // own 80px / 6 frames (at sheet scale 4) — the foot holds the deck
+  const per = (SH.cyc['ro-dem'] / 6) / 4, mean = travel.reduce((a, b) => a + b, 0) / travel.length;
+  check(Math.abs(mean / per - 1) <= 0.1 && travel.every((d) => d / per >= 0.75 && d / per <= 1.25),
+    `profile run: CADENCE CONTRACT — the planted foot travels ${travel.join('/')} logical px per frame against ${per.toFixed(2)} for the 80px cycle (mean within 10%, no frame outside 25%): no skate at the unchanged cycle and ceiling`, JSON.stringify({ travel, per }));
+  check(JSON.stringify(SR.fb) === JSON.stringify(SH.gait.fb) && JSON.stringify(SR.side.idle) === '{"N":{"k":1,"f":2,"st":"F"},"F":{"k":-1,"f":-3,"st":"F"},"bob":0}',
+    'the FRONT/BACK gait table and the profile idle table are the approved ones (the correction rebuilt the profile run only)', JSON.stringify(SR.side.idle));
+}
+// WEST IS THE SAME RUN MIRRORED, live: a v1 Demolisher running west plays the
+// profile run frames under flipX, running east the same frames unflipped —
+// and it turns, on the gait v2 clock, without leaving the run
+// (its own page: a run on pV would advance that page's random stream before section 3 compares it with pL)
+const pM = SH ? await stepped('?nodlg=1&nofreeze=1&roster=v1&gait=v2&move=v22') : null;
+const MIR = SH ? await pM.evaluate(() => {
+  const gs = window.__gs; window.__open();
+  if (gs.arenaCfg) gs.arenaCfg = { ...gs.arenaCfg, speedMult: undefined };
+  const P = gs.player; P.setPosition(200, 700); P.body.reset(200, 700);
+  const e = gs.spawnEnemyAt('bomber', 1000, 700, {});
+  const look = () => ({ f: +e.frame.name, flip: e.flipX, key: e.anims.currentAnim?.key, vx: Math.round(e.body.velocity.x) });
+  // (sampled clear of the 600ms stuck checks, so this asks only about the mirror)
+  const west = []; for (let i = 0; i < 31; i++) { window.__adv(1); if (i >= 12) west.push(look()); }
+  P.setPosition(1560, 700); P.body.reset(1560, 700);
+  const east = []; for (let i = 31; i < 96; i++) { window.__adv(1); if (i >= 80) east.push(look()); }
+  gs._destroyEnemyFully(e);
+  return { west, east };
+}) : null;
+await pM?.close();
+check(MIR && MIR.west.every((x) => x.flip === true && x.vx < 0 && x.f >= 17 && x.f <= 22) && MIR.east.every((x) => x.flip === false && x.vx > 0 && x.f >= 17 && x.f <= 22)
+  && new Set(MIR.west.map((x) => x.f)).size >= 4 && new Set(MIR.east.map((x) => x.f)).size >= 4,
+  'WEST is EAST mirrored, live: running west the body plays the profile run frames under flipX (both boots point WEST), running east the same frames unflipped; it turns back into the run on the gait clock',
+  JSON.stringify(MIR && { w: MIR.west.slice(0, 6), e: MIR.east.slice(0, 6) }));
 
 // ── 3. THE WARNING ───────────────────────────────────────────────────────
 // A real rush: the AI ticks, the body closes on a still player from 420px.

@@ -1439,13 +1439,24 @@ function demoSide(g, e, o) {
 // ── GAIT v2 — THE PAYLOAD RUN ──────────────────────────────────────────────
 //
 // He is the fastest thing in the ordinary roster (300px/s at sector 1, 1.6x
-// that at the top of the ramp), so the WALK cycle is a short-legged RUN: a
-// stride of +5/-5 about one pelvis in profile, 80px of real travel per cycle
-// (GAIT_CYCLE_PX), so the planted foot holds the deck at his real speed
-// instead of skating under a capped cadence. The LOAD frames settle the
-// whole upper body — payload with it, rigidly — one row: that, and a one
-// column lean into the run, is what the weight is. The canisters never move
-// relative to the torso; nothing on him is loose.
+// that at the top of the ramp), so the WALK cycle is a short-legged RUN, 80px
+// of real travel per cycle (GAIT_CYCLE_PX) under its own cadence ceiling, so
+// the planted foot holds the deck at his real speed instead of skating. The
+// LOAD frames settle the whole upper body — payload with it, rigidly — one
+// row: that, and a one column lean into the run, is what the weight is. The
+// canisters never move relative to the torso; nothing on him is loose.
+//
+// PROFILE (the correction after handset review of 785999f, which rejected
+// the first side run): the hip socket is UNDER THE TORSO (x 12; it was 11,
+// behind his centre, so both legs hung off his back under the rack and the
+// rear canister), and the stride is COMPACT — the planted foot lands +4,
+// loads under the pelvis at 0 and toes off at -3 (it was +5 / -5: an inverted
+// V on five-row legs, a split). The free leg kicks up behind (-2), passes
+// UNDER the pelvis with the knee forward (+1) and reaches (+3) — a low swing
+// ('L', one row clear), never a giant stride. Both boots point EAST, with a
+// toe-cap at the east end of each (the far one darker), so the trailing foot
+// cannot read as reversed. The planted foot travels 4 then 3 logical px per
+// frame against 80/24 = 3.3 for the cycle: within 5% of a perfect hold.
 export const DEMO_GAIT = {
   fb: {
     idle: { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'F' }, dx: 0, bob: 0 },
@@ -1469,15 +1480,16 @@ export const DEMO_GAIT = {
   },
   side: {
     idle: { N: { k: 1, f: 2, st: 'F' }, F: { k: -1, f: -3, st: 'F' }, bob: 0 },
+    //   1 contact N   2 load N   3 toe-off N / reach F   4 contact F   5 load F   6 toe-off F / reach N
     walk: [
-      { N: { k: 3, f: 5, st: 'F' }, F: { k: -2, f: -5, st: 'H' }, bob: 0 },
-      { N: { k: 1, f: 2, st: 'F' }, F: { k: 2, f: -1, st: 'S' }, bob: 1 },
-      { N: { k: 0, f: -2, st: 'F' }, F: { k: 3, f: 2, st: 'S' }, bob: 0 },
-      { N: { k: -2, f: -5, st: 'H' }, F: { k: 3, f: 5, st: 'F' }, bob: 0 },
-      { N: { k: 2, f: -1, st: 'S' }, F: { k: 1, f: 2, st: 'F' }, bob: 1 },
-      { N: { k: 3, f: 2, st: 'S' }, F: { k: 0, f: -2, st: 'F' }, bob: 0 },
+      { N: { k: 2, f: 4, st: 'F' }, F: { k: 0, f: -2, st: 'L' }, bob: 0 },
+      { N: { k: 1, f: 0, st: 'F' }, F: { k: 2, f: 1, st: 'L' }, bob: 1 },
+      { N: { k: -1, f: -3, st: 'H' }, F: { k: 3, f: 3, st: 'L' }, bob: 0 },
+      { N: { k: 0, f: -2, st: 'L' }, F: { k: 2, f: 4, st: 'F' }, bob: 0 },
+      { N: { k: 2, f: 1, st: 'L' }, F: { k: 1, f: 0, st: 'F' }, bob: 1 },
+      { N: { k: 3, f: 3, st: 'L' }, F: { k: -1, f: -3, st: 'H' }, bob: 0 },
     ],
-    fire: { N: { k: 1, f: 2, st: 'F' }, F: { k: -1, f: -2, st: 'F' }, bob: 1 },
+    fire: { N: { k: 1, f: 2, st: 'F' }, F: { k: -1, f: -3, st: 'F' }, bob: 1 },
     strafe: [
       { N: { k: 0, f: 1, st: 'F' }, F: { k: 0, f: -2, st: 'F' }, bob: 0 },
       { N: { k: 2, f: 1, st: 'S' }, F: { k: 0, f: -2, st: 'F' }, bob: 0 },
@@ -1488,9 +1500,9 @@ export const DEMO_GAIT = {
     ],
   },
 };
-// boot top row: flat, heel up, swinging (shorter legs than the troopers: the
-// flat boot stands on rows 22-23)
-const demoFootTop = (st) => (st === 'S' ? 20 : st === 'H' ? 21 : 22);
+// boot top row: flat, heel up, low swing (one row clear), swinging (shorter
+// legs than the troopers: the flat boot stands on rows 22-23)
+const demoFootTop = (st) => (st === 'S' ? 20 : (st === 'H' || st === 'L') ? 21 : 22);
 
 function demoLegFB(g, x, leg, hipY, back) {
   const top = demoFootTop(leg.st), fx = x + leg.fx;
@@ -1502,8 +1514,9 @@ function demoLegFB(g, x, leg, hipY, back) {
   if (leg.st === 'H') { g.rect(fx, top, 3, 1, DBOOT_T); g.rect(fx, top + 1, 3, 1, back ? DBOOT : DU.lit); }
   else { g.rect(fx, top, 3, 2, DBOOT); g.hl(top, fx, fx + 2, DBOOT_T); if (!back) g.hl(top + 1, fx, fx + 2, DU.lit); }
 }
+const DEMO_HIP_X = 12;   // the profile hip socket, under the torso
 function demoLegSide(g, leg, hipY, col, near) {
-  const HX = 11, top = demoFootTop(leg.st);
+  const HX = DEMO_HIP_X, top = demoFootTop(leg.st);
   const kneeY = hipY + Math.max(1, Math.floor((top - hipY) / 2)) - (leg.st === 'S' ? 1 : 0);
   const kx = HX + leg.k, ax = HX + leg.f;
   for (let y = hipY; y < top; y++) {
@@ -1513,8 +1526,13 @@ function demoLegSide(g, leg, hipY, col, near) {
     g.rect(x, y, 2, 1, col);
   }
   if (near) g.px(kx + 1, kneeY, DO.lit);
-  if (leg.st === 'H') { g.rect(ax, top, 2, 1, DBOOT_T); g.rect(ax + 1, top + 1, 3, 1, DBOOT); }
-  else { g.rect(ax, top, 4, 2, DBOOT); g.hl(top, ax, ax + 2, near ? DBOOT_T : DBOOT); if (near) g.px(ax + 3, top, DU.lit); }
+  // BOTH BOOTS POINT EAST: heel at the ankle, a toe-cap at the east end
+  const cap = near ? DU.lit : DU.mid;
+  if (leg.st === 'H') {                                           // heel lifted, toe on the deck
+    g.rect(ax, top, 2, 1, near ? DBOOT_T : DBOOT); g.rect(ax + 1, top + 1, 3, 1, DBOOT); g.px(ax + 3, top + 1, cap);
+  } else {
+    g.rect(ax, top, 4, 2, DBOOT); g.hl(top, ax, ax + 2, near ? DBOOT_T : DBOOT); g.px(ax + 3, top, cap);
+  }
 }
 function demoGaitFrame(dir, e, spec, base) {
   const g = grid(ROSTER_FRAME.w, ROSTER_FRAME.h), hip = 18 + spec.bob;
@@ -1522,7 +1540,7 @@ function demoGaitFrame(dir, e, spec, base) {
   if (dir === 'side') {
     demoLegSide(g, spec.F, hip, DO.sh, false);
     demoLegSide(g, spec.N, hip, DO.dk, true);
-    g.rect(9, hip - 1, 6, 2, DU.dk);
+    g.rect(DEMO_HIP_X - 2, hip - 1, 5, 2, DU.dk);                // the one pelvis both legs hang from
   } else {
     demoLegFB(g, 8, spec.L, hip, dir === 'back');
     demoLegFB(g, 13, spec.R, hip, dir === 'back');
