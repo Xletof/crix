@@ -489,7 +489,7 @@ async function contact() {
 async function death() {
   const page = await livePage(`${FLAGS}&${STILL}`);
   await quietRoom(page);
-  const cfg = { px: 820, py: 820, keep: true, fire: [[30, 200], [220, 400], [430, 640]], spawns: [{ at: 20, a: -Math.PI / 2, d: 560, label: 'REGULAR' }, { at: 210, a: -Math.PI / 2 - 0.5, d: 560, label: 'REGULAR' }, { at: 420, a: -Math.PI / 2 + 0.4, d: 560, elite: true, label: 'ELITE' }] };
+  const cfg = { px: 820, py: 820, keep: true, fire: [[30, 200], [220, 400], [424, 640]], spawns: [{ at: 20, a: -Math.PI / 2, d: 560, label: 'REGULAR' }, { at: 210, a: -Math.PI / 2 - 0.5, d: 560, label: 'REGULAR' }, { at: 420, a: -Math.PI / 2 + 0.3, d: 700, elite: true, label: 'ELITE' }] };
   await page.evaluate(RUSH(cfg));
   await page.evaluate(() => { const gs = window.__gs; gs.events.on('enemy-died', (e) => { if (e.enemyType === 'bomber') window.__deaths = (window.__deaths || []).concat(`${e._elite ? 'E' : 'R'} shot down at ${Math.round(Math.hypot(gs.player.x - e.x, gs.player.y - e.y))}px`); }); });
   await run(page, 'demolisher-death-detonation.webm', 330, { label: (st, f) => `1x — shot down: the frozen death blast where he falls (x0.8). ${st}` });
