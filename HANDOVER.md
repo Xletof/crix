@@ -10,7 +10,7 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-10-06. Pages builds only from `FRIX`, so the live build is
+*Updated 2026-10-08. Pages builds only from `FRIX`, so the live build is
 whatever `FRIX` points at: check `git rev-parse HEAD origin/FRIX` rather than
 trusting a hash written here, and `git rev-parse --abbrev-ref HEAD` for the
 branch name. This line has named a stale branch three times — trust the
@@ -521,7 +521,25 @@ Records:
 - `docs/evidence/roster-2b/rifleman-marksman-v1-notes.md`
 - `docs/evidence/roster-gait-v2/gait-v2-notes.md`
 
-### BULWARK PRODUCTION INTEGRATION (`shielded`) — **CANDIDATE, AWAITING THE FINAL HANDSET GATE (final correction: membrane ripple + display facing)**
+### BULWARK PRODUCTION INTEGRATION (`shielded`) — **HUMAN-APPROVED / FROZEN 🔒 — PHASE 2C CLOSED** (`cd4b0e9`)
+
+**Final handset verdict on `cd4b0e9`: "Playtest pass all three."** Circling a Bulwark
+no longer produces a wrong body facing or false backward-following; sustained rapid
+fire against several Bulwarks stays readable and satisfying; real VANGUARD with the
+Captain stays playable and coherent. **The whole vertical slice is frozen:** the
+Regular and Elite bodies (wedge helmet, cold unbroken visor, Elite projector
+machinery), the short sidearm and its muzzle alignment, gait v2; the 4px-cell
+hard-light field — geometry, directional coverage, orientation-invariant strength,
+near/far body depth, weapon-under-shield layering, the frosted pale blue/white
+identity, the navy keyline, one field size for both tiers; the normal absorption
+(compressed red contact, local dent, twin travelling crests, the broader pressure
+envelope, membrane flex, red → coral/pink → white, independent rapid-hit layering);
+the Super (puncture, open gap, reconnect, zipper, snap, pale recovery wave); the
+display-facing correction (wrapped presentation angle, gameplay `_shieldFacing`
+unchanged); VANGUARD compatibility and the frozen gameplay. **The human approved the
+current effect strength, rapid-fire waves included. No further ripple, facing or
+performance revision without concrete NEW evidence.** The rounds below are how it
+got here.
 
 **Handset round 1 (on `d9e2d6d`):** the body, Elite machinery, gait, sidearm, the
 field's geometry concept, the absorption and the Super tear were broadly approved.
@@ -529,7 +547,7 @@ There was ONE blocker: **the shield changed strength as he turned.** It was corr
 on `5169399` (near/far decides depth only), and that correction is approved and kept.
 
 **Handset round 2 (on `5169399`):** three things were left, all presentation. All
-three are answered in the final visual integration pass, which waits on the handset:
+three are answered in the final visual integration pass, approved on round 3:
 1. **WEAPON < SHIELD.** The sidearm, its pip and its discharge were drawn ON the field
    where they crossed it.
    - Side-on, body > far > gun > body is a cycle.
@@ -560,7 +578,7 @@ Record: `docs/evidence/roster-bulwark/bulwark-v1-notes.md` § Final visual integ
 - the layering, the absorption colours, rapid layering and the Super architecture;
 - VANGUARD and the gameplay.
 
-Two issues remained, both answered in the final correction, which waits on the handset:
+Two issues remained, both answered in the final correction, approved on the final gate:
 1. **The ripple read as a narrow bar.** The crest was one 3.4px Gaussian, about one
    cell. Each wave now has two scales: a narrow bright crest (4px σ) inside a broad soft
    pressure envelope (6px ahead, 11px behind: 25.5px wide against a 12px crest).
@@ -660,13 +678,13 @@ thinner at the south apex than the approved vector band (16 vs 19px).
 
 **Nothing else moved:** VANGUARD 140 / 165, front, lanes, queue and
 composition, shield arc / turn / hp / economy, the three frozen roles, the
-Captain, Vader. Demolisher is NOT started.
+Captain, Vader.
 
 ### The recommended next area of work
 
-**Superseded for now:** BULWARK PRODUCTION INTEGRATION (above) is built and
-waiting on the final handset gate. Demolisher is NOT started. The options below are
-the older backlog.
+**The next milestone is PHASE 2D — DEMOLISHER PRODUCTION** (`bomber`, Regular +
+Elite, on the roster-v1 pipeline), now that the Bulwark is closed. The options below
+are the older backlog.
 
 **Phase B Champion integration is CLOSED — human-approved and frozen on
 `a3563a4`** (above). The next

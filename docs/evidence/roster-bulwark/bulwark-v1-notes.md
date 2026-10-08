@@ -1,9 +1,9 @@
-# Bulwark production integration (`shielded`) — candidate for handset review
+# Bulwark production integration (`shielded`) — HUMAN-APPROVED / FROZEN
 
 **Flags:** `?roster=v1` (body, sidearm, field) and `?gait=v2` (the shuffle). Without
 `?roster=v1` the Bulwark is exactly the legacy one. Nothing is a default.
 
-**Status:** CANDIDATE for the final handset gate (final correction: membrane ripple + display facing). Not human-approved. Presentation only — every gameplay value
+**Status:** HUMAN-APPROVED / FROZEN 🔒 — PHASE 2C CLOSED on `cd4b0e9`. Final handset verdict: "Playtest pass all three" (circling facing, rapid fire against several Bulwarks, real VANGUARD with the Captain). Presentation only — every gameplay value
 is the frozen one, and `src/entities/Enemy.js` is **untouched**.
 
 **Handset round 1 (`d9e2d6d`):** broadly approved, with ONE blocker — the shield

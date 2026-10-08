@@ -941,8 +941,14 @@ asserts separately that the ceiling is not reached.
   new mid-wave spawn source goes through the fill roll, never the queue. The
   mid Captain-VANGUARD row's `shieldSlot: 5` converts one FILL event into a
   guaranteed shield after placement — same budget, same draws elsewhere.
+- **THE BULWARK IS HUMAN-APPROVED / FROZEN 🔒 — PHASE 2C CLOSED on
+  `cd4b0e9` ("Playtest pass all three").** Body, sidearm, gait, field material
+  and layering, absorption (envelope and rapid waves at their CURRENT strength),
+  the Super tear and the display facing are all closed; the notes below are how
+  it works and how it breaks, not an invitation to tune. No ripple, facing or
+  performance revision without NEW handset evidence. `HANDOVER.md` §0.
 - **THE BULWARK FIELD IS A RENDERER ON FROZEN SEAMS, AND `Enemy.js` IS NOT
-  TOUCHED — CANDIDATE, `HANDOVER.md` §0.** `systems/bulwarkCurtain.js` reads
+  TOUCHED.** `systems/bulwarkCurtain.js` reads
   `_shieldFacing`, `_shieldHalfArc` and the contact `GameScene` projects onto
   the curtain AFTER the block is decided, and writes nothing back. The legacy
   arc is still drawn every frame by the frozen class and merely hidden
