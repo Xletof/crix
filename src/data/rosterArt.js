@@ -4,7 +4,7 @@
 //
 // Roles are registered by `PreloadScene` as their production art is painted
 // (`src/systems/rosterPaint.js`): the GUNNER (`shooter`), the RIFLEMAN (`grunt`),
-// the MARKSMAN (`sniper`) and the BULWARK (`shielded`).
+// the MARKSMAN (`sniper`), the BULWARK (`shielded`) and the DEMOLISHER (`bomber`).
 // Under `?roster=v1` a role with no registered art falls back to legacy art,
 // so the rest of the roster stays exactly as it was while one role is judged.
 //
@@ -25,6 +25,7 @@ import { makeRosterWeaponFx } from '../systems/rosterWeaponFx.js';
 import { makeSidearmFx } from '../systems/bulwarkSidearm.js';
 import { makeBulwarkCurtain } from '../systems/bulwarkCurtain.js';
 import { installBulwarkFacing } from '../systems/bulwarkFacing.js';
+import { installDemolisherPayload } from '../systems/demolisherPayload.js';
 
 const ROSTER_V1_ART = {};
 
@@ -94,5 +95,9 @@ export function wearRosterArt(enemy, art, bodyRadius) {
     // (the gameplay angle is accumulated, not wrapped; see bulwarkFacing.js)
     installBulwarkFacing(enemy);
   }
+  // DEMOLISHER (`art.demolisher`): the proximity warning moves off the body
+  // tint (swallowed: one author) onto the payload hardware, on the frozen
+  // telegraph's own numbers; the payload goes with the blast.
+  if (art.demolisher && !enemy._payload) installDemolisherPayload(enemy, art.demolisher);
   enemy.body.setCircle(bodyRadius, enemy.width / 2 - bodyRadius, enemy.height / 2 - bodyRadius);
 }

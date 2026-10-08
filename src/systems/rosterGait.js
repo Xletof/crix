@@ -10,7 +10,8 @@
 //
 //   CADENCE  a gait phase advanced by REAL displacement (world px travelled
 //            / the role's cycle length), so a planted foot roughly holds the
-//            deck at any speed; clamped to 24 frames/s.
+//            deck at any speed; clamped to 24 frames/s (a role may carry its
+//            own ceiling: `GAIT_MAX_FPS`).
 //   STATE    walking on above 30px/s, off below 12px/s (measured, smoothed):
 //            no walk/idle thrash while v2.2 eases in and out of a settle.
 //   MODE     movement against the FACING THE SPRITE SHOWS: within 60° of it,
@@ -21,7 +22,7 @@
 // timers or RNG, and leaves fire / scripted-move poses to the base class.
 
 import Phaser from 'phaser';
-import { GAIT_STRAFE_BASE, GAIT_CYCLE_PX } from './rosterPaint.js';
+import { GAIT_STRAFE_BASE, GAIT_CYCLE_PX, GAIT_MAX_FPS } from './rosterPaint.js';
 
 const ON = 30, OFF = 12, MAX_FPS = 24, HOLD_MS = 120;
 
@@ -62,7 +63,8 @@ export function attachRosterGait(scene) {
       let signed;
       if (G.mode === 'walk') signed = (mx * fx + my * fy) || 0;
       else signed = dir === 'side' ? d : mx;
-      const step = Phaser.Math.Clamp(signed / cyc * 6, -MAX_FPS * delta / 1000, MAX_FPS * delta / 1000);
+      const fps = GAIT_MAX_FPS[pre.slice(0, 6)] || MAX_FPS;
+      const step = Phaser.Math.Clamp(signed / cyc * 6, -fps * delta / 1000, fps * delta / 1000);
       G.phase = ((G.phase + step) % 6 + 6) % 6;
       const f = Math.floor(G.phase);
       const frame = G.mode === 'walk' ? di * 8 + 1 + f : GAIT_STRAFE_BASE + di * 6 + f;

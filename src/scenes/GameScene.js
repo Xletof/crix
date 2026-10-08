@@ -142,6 +142,7 @@ import { rosterArtFor, wearRosterArt } from '../data/rosterArt.js';
 import { attachGunnerMuzzle } from '../systems/gunnerMuzzle.js';
 import { attachRosterWeaponFx } from '../systems/rosterWeaponFx.js';
 import { attachRosterGait } from '../systems/rosterGait.js';
+import { attachDemolisherPayloads } from '../systems/demolisherPayload.js';
 import { attachBulwarkCurtains } from '../systems/bulwarkCurtain.js';
 import { attachBulwarkSidearms } from '../systems/bulwarkSidearm.js';
 import { projectCurtainContact, curtainRadius } from '../systems/shieldContact.js';
@@ -274,6 +275,7 @@ export class GameScene extends Phaser.Scene {
     attachBulwarkSidearms(this); // v1 Bulwark sidearm firing — presentation only
     attachBulwarkCurtains(this); // v1 Bulwark hard-light field — presentation only
     if (isGaitV2()) attachRosterGait(this);   // ?gait=v2 locomotion presentation
+    attachDemolisherPayloads(this); // v1 Demolisher payload warning — presentation only; AFTER the gait (it reads the chosen frame)
     // ── CAPTAIN COMBAT-ECONOMY TELEMETRY — `?captel=1` ────────────────────
     // NOT CONSTRUCTED WITHOUT THE FLAG. No container, no listeners, no panel
     // and no `postupdate` hook exist in a normal run, which is the same shape
@@ -2092,9 +2094,10 @@ export class GameScene extends Phaser.Scene {
       // rendered at 1.0 dies with fewer random draws than the legacy 1.4 one
       // and the fight diverges after it. The Bulwark keeps its GAMEPLAY elite
       // scale for that read (`_threatScale`), so its death is the legacy death.
+      // The Demolisher too: its Elite dies the legacy death, draw for draw.
       // (Gunner / Rifleman / Marksman elites carry the same divergence from
       // roster Phase 1; they are frozen and deliberately left as they are.)
-      if (art.bulwark) enemy._threatScale = scale;
+      if (art.bulwark || art.demolisher) enemy._threatScale = scale;
       enemy.setScale(1);
       enemy.clearTint();
       wearRosterArt(enemy, art, r * scale);

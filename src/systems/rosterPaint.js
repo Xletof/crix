@@ -876,7 +876,11 @@ export function paintGaitV2Sheet(scene, key, elite, role) {
 }
 
 // what the presentation tick needs to know about each role's gait
-export const GAIT_CYCLE_PX = { 'ro-gun': 48, 'ro-rif': 48, 'ro-mrk': 44, 'ro-blw': 40 };   // world px of travel per 6-frame walk cycle
+export const GAIT_CYCLE_PX = { 'ro-gun': 48, 'ro-rif': 48, 'ro-mrk': 44, 'ro-blw': 40, 'ro-dem': 80 };   // world px of travel per 6-frame walk cycle
+// the cadence ceiling, frames/s, where a role needs its own (default 24): the
+// Demolisher runs at 300px/s and up to 1.6x that, and a capped cadence under
+// a fast body is a skating foot
+export const GAIT_MAX_FPS = { 'ro-dem': 32 };
 
 // ════════════════════════════════════════════════════════════════════════
 // BULWARK (`shielded`) — the defensive heavy of the ordinary roster
@@ -1256,5 +1260,335 @@ export function paintRosterBulwark(scene) {
   return {
     regular: { tex: 'ro-blw-R', prefix: 'ro-blw-R', weapon: 'ro-w-blw-R', weaponOrigin: oR, bulwark: true },
     elite:   { tex: 'ro-blw-E', prefix: 'ro-blw-E', weapon: 'ro-w-blw-E', weaponOrigin: oE, bulwark: true },
+  };
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// DEMOLISHER (`bomber`) — the mobile explosive-payload carrier
+// ════════════════════════════════════════════════════════════════════════
+//
+// YOU IDENTIFY A DEMOLISHER BY WHAT HE CARRIES. Orange is his armour, not his
+// threat: the threat is the payload, and the payload is EQUIPMENT —
+//
+//   - SQUAT and STOCKY: the helmet sits two rows lower than the Bulwark's and
+//     the torso is compact, over a short, wide-set pair of legs;
+//   - a COMPACT ANGULAR BLAST HELMET: a flat crown, a heavy brow plate over ONE
+//     dark visor slot, angled cheek plates and a graphite chin guard — no dome
+//     (the legacy globe helmet read as a diving suit), no mouth, no teeth;
+//   - a REINFORCED graphite COLLAR under it;
+//   - TWO REAR PAYLOAD CANISTERS on a harness frame, their capped tops standing
+//     above both shoulders, separated from the torso by DARK STRUCTURAL SPACE
+//     (an empty column the outline fills), carried by visible shoulder straps
+//     and a yoke — mounted, never floating;
+//   - a SOLID dark front CONTAINMENT PLATE on the chest. Nothing on it but its
+//     own rim: the explosives live on the back and on the hip, never in a
+//     glowing row across the chest;
+//   - an ASYMMETRIC secondary CHARGE RACK on the right hip (two small charges);
+//   - ONE off-centre ARMING INDICATOR on the left chest strap;
+//   - legs clearly under all of it, and no firearm (`weaponSprite` stays the
+//     hidden legacy overlay the frozen class made).
+//
+// The ELITE is the same carrier with better CONTAINMENT: steel cages and
+// reinforcement bands on the canisters, a graphite frame round the chest
+// plate, a steel yoke, a hooded housing round the indicator, pressure valves
+// and a clamp, and an unlit detonator module on the manifold. Same size, no
+// tint, no extra light anywhere — containment is darker, not brighter.
+//
+// THE WARNING IS NOT PAINTED HERE. The payload pixels and the lamp pixels are
+// painted in colours nothing else on the body uses, so the heat overlay and
+// the lamp anchors are DERIVED from each finished frame (`demoDerive`) and
+// register with it by construction. `systems/demolisherPayload.js` lights them.
+const DO = { lit: '#f4a55a', mid: '#dc7a2e', dk: '#a8541d', sh: '#6e3415' };   // orange armour
+const DU = { lit: '#4b4c53', mid: '#303137', dk: '#1d1e23' };                  // undersuit / webbing
+const DH = { lit: '#7a7e88', mid: '#50545d', dk: '#2f3238', st: '#bfc4cc' };   // hardware graphite + steel
+// THE PAYLOAD — used by nothing else on the body
+const DC = { lit: '#8f969f', mid: '#606770', dk: '#3e444c', band: '#e2b53a', bandDk: '#8a6a1c', cap: '#2b2e34' };
+const DC_SET = new Set(Object.values(DC));
+// the lamps, unlit (lit at runtime over exactly these pixels)
+const DL = { ind: '#5e2d0f', st: '#4c2711' };
+const DVIS = '#101116', DGLINT = '#3c4553', DBOOT = '#17181d', DBOOT_T = '#2b2c33';   // boots lighter than the outline, or two of them are one slab
+
+// one upright canister: capped top, cylindrical shading lit from the upper
+// left, a hazard band, a status lens in the cap
+function demoCanister(g, x, top, bot, w, o = {}) {
+  g.hl(top, x + 1, x + w - 2, DC.cap);
+  g.rect(x, top + 1, w, 1, DC.cap);
+  if (o.lamp) g.px(o.lamp[0], o.lamp[1], DL.st);
+  for (let y = top + 2; y <= bot; y++) {
+    g.px(x, y, DC.dk); g.px(x + 1, y, DC.lit);
+    for (let i = 2; i < w - 1; i++) g.px(x + i, y, DC.mid);
+    g.px(x + w - 1, y, DC.dk);
+  }
+  for (const by of o.bands || []) { g.hl(by, x + 1, x + w - 2, DC.band); g.px(x, by, DC.bandDk); g.px(x + w - 1, by, DC.bandDk); }
+}
+// the Elite's cage: steel uprights on both edges and steel rings
+function demoCage(g, x, top, bot, w, rings) {
+  g.vl(x - 1, top + 2, bot, DH.dk); g.vl(x + w, top + 2, bot, DH.dk);
+  for (const ry of rings) { g.hl(ry, x - 1, x + w, DH.dk); g.px(x - 1, ry, DH.lit); g.px(x + w, ry, DH.lit); }
+  g.px(x + Math.floor(w / 2), top - 1, DH.st);                // pressure valve
+}
+
+// ── FRONT / BACK ───────────────────────────────────────────────────────────
+function demoFrontBack(g, dir, e, o) {
+  const front = dir === 'front', b = o.bob;
+  if (front) {
+    // CANISTER TOPS above the shoulders, behind everything else
+    demoCanister(g, 3, 4 + b, 12 + b, 4, { lamp: [4, 5 + b], bands: [8 + b] });
+    demoCanister(g, 17, 4 + b, 12 + b, 4, { lamp: [19, 5 + b], bands: [8 + b] });
+    if (e) { demoCage(g, 3, 4 + b, 11 + b, 4, [7 + b, 10 + b]); demoCage(g, 17, 4 + b, 11 + b, 4, [7 + b, 10 + b]); }
+    // harness frame: the shoulder supports reaching in to the collar
+    g.hl(10 + b, 5, 7, DU.mid); g.hl(10 + b, 16, 18, DU.mid);
+  }
+  // TORSO — compact, orange sides round the containment plate
+  g.rect(6, 12 + b, 12, 6, DO.mid); g.vl(6, 13 + b, 16 + b, DO.dk); g.vl(17, 13 + b, 16 + b, DO.sh);
+  if (front) {
+    // THE CONTAINMENT PLATE — solid, dark, nothing on it but its rim
+    g.rect(8, 13 + b, 8, 4, DH.dk); g.hl(13 + b, 8, 15, DH.mid); g.vl(8, 14 + b, 16 + b, DH.mid);
+    if (e) { g.hl(13 + b, 7, 16, DH.lit); g.vl(7, 13 + b, 16 + b, DH.mid); g.vl(16, 13 + b, 16 + b, DH.mid); g.px(7, 13 + b, DH.st); }   // graphite frame
+    // straps over the plate edges, from the collar
+    g.vl(9, 12 + b, 14 + b, DU.mid); g.vl(14, 12 + b, 13 + b, DU.mid);
+    // THE ARMING INDICATOR, off-centre on the left strap (screen-right)
+    g.rect(13, 13 + b, 3, 2, DH.mid); g.px(14, 14 + b, DL.ind); g.px(15, 14 + b, DL.ind);
+    if (e) { g.hl(12 + b, 13, 16, DH.lit); g.px(16, 12 + b, DH.st); g.px(16, 13 + b, DH.dk); g.px(16, 14 + b, DH.dk); }   // hooded housing
+    g.hl(17 + b, 6, 17, DU.dk); g.px(11, 17 + b, DH.lit);              // belt
+  } else {
+    g.hl(17 + b, 6, 17, DU.dk);
+  }
+  // PAULDRONS — angular, chamfered outward
+  const ay = 11 + b + o.armDy;
+  for (const x of [4, 17]) {
+    g.hl(ay, x === 4 ? x + 1 : x, x === 4 ? x + 2 : x + 1, DO.lit);
+    g.rect(x, ay + 1, 3, 2, DO.mid); g.hl(ay + 1, x, x + 2, DO.lit); g.hl(ay + 2, x, x + 2, DO.dk);
+  }
+  // ARMS hanging to the fists
+  const hy = 14 + b + o.armDy;
+  g.rect(4, hy, 2, 2, DO.dk); g.rect(18, hy, 2, 2, DO.dk); g.rect(4, hy + 2, 2, 1, DU.mid); g.rect(18, hy + 2, 2, 1, DU.mid);
+  if (e) { g.hl(hy, 4, 5, DH.mid); g.hl(hy, 18, 19, DH.mid); }        // blast bands
+  // THE CHARGE RACK on the RIGHT hip (screen-left front, screen-right back)
+  const rx = front ? 2 : 19;          // never closer than 2 to the edge: the run shifts the body a column
+  g.hl(15 + b, rx, rx + 2, DH.mid); g.hl(18 + b, rx, rx + 2, DH.mid); g.vl(rx + 1, 16 + b, 17 + b, DH.dk);
+  for (const cx of [rx, rx + 2]) { g.px(cx, 16 + b, DC.band); g.px(cx, 17 + b, DC.mid); }
+  if (!front) {
+    // BACK — the payload is the subject: two full canisters on the frame
+    demoCanister(g, 4, 3 + b, 15 + b, 5, { lamp: [6, 4 + b], bands: [7 + b, 12 + b] });
+    demoCanister(g, 15, 3 + b, 15 + b, 5, { lamp: [17, 4 + b], bands: [7 + b, 12 + b] });
+    if (e) { demoCage(g, 4, 3 + b, 15 + b, 5, [6 + b, 10 + b, 14 + b]); demoCage(g, 15, 3 + b, 15 + b, 5, [6 + b, 10 + b, 14 + b]); }
+    // the frame and the manifold between them
+    g.rect(10, 11 + b, 4, 5, DH.mid); g.hl(11 + b, 10, 13, DH.lit); g.vl(10, 12 + b, 15 + b, DH.dk);
+    g.hl(9 + b, 9, 14, DU.mid); g.hl(14 + b, 9, 14, DU.mid);          // cross straps
+    if (e) { g.rect(11, 12 + b, 2, 2, DH.dk); g.px(11, 12 + b, DH.lit); g.hl(16 + b, 9, 14, DH.lit); }   // detonator module (unlit) + clamp
+  }
+  // HELMET — the compact blast helmet: flat crown, heavy brow, one slot
+  const rows = [[5, 9, 14], [6, 8, 15], [7, 8, 15], [8, 8, 15], [9, 8, 15], [10, 9, 14]];
+  for (const [y, x0, x1] of rows) { g.hl(y + b, x0, Math.min(x1, 11), DO.mid); if (x1 >= 12) g.hl(y + b, Math.max(x0, 12), x1, DO.dk); }
+  g.hl(5 + b, 9, 13, DO.lit); g.vl(8, 6 + b, 8 + b, DO.lit);
+  if (front) {
+    g.hl(6 + b, 8, 15, DO.lit); g.hl(6 + b, 12, 15, DO.mid);           // the brow plate
+    g.hl(7 + b, 9, 14, DVIS); g.px(9, 7 + b, DGLINT);                 // ONE visor slot
+    g.vl(11, 8 + b, 10 + b, DO.lit); g.vl(12, 8 + b, 9 + b, DO.mid);   // the face plate's centre bevel
+    g.px(8, 9 + b, DO.sh); g.px(15, 9 + b, DO.sh);                      // cheeks angle in
+  } else {
+    g.hl(9 + b, 8, 15, DO.dk); g.hl(10 + b, 9, 14, DO.dk);             // the rear plate, one tone
+    g.vl(11, 5 + b, 9 + b, DO.lit);                                     // rear ridge
+  }
+  // REINFORCED COLLAR
+  g.hl(11 + b, 8, 15, DH.mid); g.hl(11 + b, 9, 14, DH.lit);
+  if (e) { g.hl(11 + b, 6, 17, DH.mid); g.hl(11 + b, 8, 15, DH.lit); g.px(6, 11 + b, DH.st); g.px(17, 11 + b, DH.st); }   // the yoke, steel at its ends
+}
+
+// ── SIDE (east). Near = char-RIGHT (the rack hip) ─────────────────────────
+function demoSide(g, e, o) {
+  const b = o.bob, L = o.lean;
+  // CANISTERS on the back (west): the far one peeks above and behind
+  demoCanister(g, 2 + L, 3 + b, 13 + b, 3, { lamp: [3 + L, 4 + b] });
+  demoCanister(g, 4 + L, 4 + b, 15 + b, 4, { lamp: [5 + L, 5 + b], bands: [8 + b, 13 + b] });
+  if (e) demoCage(g, 4 + L, 4 + b, 15 + b, 4, [7 + b, 11 + b, 14 + b]);
+  // harness supports across the dark structural space (column 8)
+  g.hl(7 + b, 8 + L, 9 + L, DU.mid); g.hl(13 + b, 8 + L, 9 + L, DU.mid);
+  // TORSO — deep and compact
+  g.rect(9 + L, 12 + b, 8, 6, DO.mid); g.hl(12 + b, 9 + L, 14 + L, DO.lit); g.vl(9 + L, 13 + b, 16 + b, DO.dk);
+  g.rect(15 + L, 13 + b, 2, 4, DH.dk); g.vl(15 + L, 13 + b, 16 + b, DH.mid);   // the containment plate, in profile
+  if (e) g.vl(17 + L, 13 + b, 16 + b, DH.lit);                                // its graphite frame
+  g.hl(17 + b, 9 + L, 16 + L, DU.dk);
+  // the arming indicator, standing proud of the strap at the front
+  g.rect(16 + L, 12 + b, 2, 1, DH.mid); g.px(17 + L, 13 + b, DL.ind); g.px(16 + L, 13 + b, DL.ind);
+  if (e) { g.hl(11 + b, 16 + L, 17 + L, DH.lit); g.px(18 + L, 12 + b, DH.dk); g.px(18 + L, 13 + b, DH.dk); }   // hooded housing
+  // near pauldron and arm
+  const ay = 11 + b + o.armDy;
+  g.hl(ay, 11 + L, 13 + L, DO.lit); g.rect(10 + L, ay + 1, 4, 2, DO.mid); g.hl(ay + 2, 10 + L, 13 + L, DO.dk);
+  g.rect(11 + L + o.hand, 14 + b + o.armDy, 2, 2, DO.dk); g.rect(11 + L + o.hand, 16 + b + o.armDy, 2, 1, DU.mid);
+  if (e) g.hl(14 + b + o.armDy, 11 + L + o.hand, 12 + L + o.hand, DH.st);
+  // the charge rack on the near hip
+  g.hl(15 + b, 8 + L, 10 + L, DH.mid); g.hl(18 + b, 8 + L, 10 + L, DH.mid); g.vl(9 + L, 16 + b, 17 + b, DH.dk);
+  for (const cx of [8 + L, 10 + L]) { g.px(cx, 16 + b, DC.band); g.px(cx, 17 + b, DC.mid); }
+  // HELMET in profile: flat crown, the brow overhanging the slot
+  const prof = [[5, 10, 15], [6, 9, 16], [7, 9, 16], [8, 9, 15], [9, 10, 15], [10, 10, 14]];
+  for (const [y, x0, x1] of prof) g.hl(y + b, x0 + L, x1 + L, DO.mid);
+  g.hl(5 + b, 10 + L, 14 + L, DO.lit); g.hl(6 + b, 12 + L, 16 + L, DO.lit);   // the brow plate's lit edge
+  g.hl(7 + b, 14 + L, 16 + L, DVIS);                                         // the slot, to the front
+  g.vl(9 + L, 6 + b, 8 + b, DO.dk); g.hl(9 + b, 10 + L, 12 + L, DO.dk);
+  g.rect(14 + L, 8 + b, 2, 2, DO.dk); g.px(15 + L, 9 + b, DO.sh);          // the face plate, in profile
+  g.hl(11 + b, 10 + L, 15 + L, DH.mid); g.hl(11 + b, 11 + L, 14 + L, DH.lit); // collar
+  if (e) { g.hl(11 + b, 9 + L, 14 + L, DH.mid); g.px(9 + L, 11 + b, DH.st); }
+}
+
+// ── GAIT v2 — THE PAYLOAD RUN ──────────────────────────────────────────────
+//
+// He is the fastest thing in the ordinary roster (300px/s at sector 1, 1.6x
+// that at the top of the ramp), so the WALK cycle is a short-legged RUN: a
+// stride of +5/-5 about one pelvis in profile, 80px of real travel per cycle
+// (GAIT_CYCLE_PX), so the planted foot holds the deck at his real speed
+// instead of skating under a capped cadence. The LOAD frames settle the
+// whole upper body — payload with it, rigidly — one row: that, and a one
+// column lean into the run, is what the weight is. The canisters never move
+// relative to the torso; nothing on him is loose.
+export const DEMO_GAIT = {
+  fb: {
+    idle: { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'F' }, dx: 0, bob: 0 },
+    walk: [
+      { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'H' }, dx: 0, bob: 0 },
+      { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'S' }, dx: -1, bob: 1 },
+      { L: { fx: 0, st: 'H' }, R: { fx: 0, st: 'S' }, dx: 0, bob: 0 },
+      { L: { fx: 0, st: 'H' }, R: { fx: 0, st: 'F' }, dx: 0, bob: 0 },
+      { L: { fx: 0, st: 'S' }, R: { fx: 0, st: 'F' }, dx: 1, bob: 1 },
+      { L: { fx: 0, st: 'S' }, R: { fx: 0, st: 'H' }, dx: 0, bob: 0 },
+    ],
+    fire: { L: { fx: -1, st: 'F' }, R: { fx: 1, st: 'F' }, dx: 0, bob: 1 },
+    strafe: [
+      { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'F' }, dx: 0, bob: 0 },
+      { L: { fx: 0, st: 'F' }, R: { fx: 1, st: 'S' }, dx: 0, bob: 0 },
+      { L: { fx: 0, st: 'F' }, R: { fx: 1, st: 'F' }, dx: 1, bob: 1 },
+      { L: { fx: 0, st: 'S' }, R: { fx: 1, st: 'F' }, dx: 1, bob: 0 },
+      { L: { fx: 1, st: 'S' }, R: { fx: 1, st: 'F' }, dx: 0, bob: 0 },
+      { L: { fx: 0, st: 'F' }, R: { fx: 0, st: 'F' }, dx: 0, bob: 1 },
+    ],
+  },
+  side: {
+    idle: { N: { k: 1, f: 2, st: 'F' }, F: { k: -1, f: -3, st: 'F' }, bob: 0 },
+    walk: [
+      { N: { k: 3, f: 5, st: 'F' }, F: { k: -2, f: -5, st: 'H' }, bob: 0 },
+      { N: { k: 1, f: 2, st: 'F' }, F: { k: 2, f: -1, st: 'S' }, bob: 1 },
+      { N: { k: 0, f: -2, st: 'F' }, F: { k: 3, f: 2, st: 'S' }, bob: 0 },
+      { N: { k: -2, f: -5, st: 'H' }, F: { k: 3, f: 5, st: 'F' }, bob: 0 },
+      { N: { k: 2, f: -1, st: 'S' }, F: { k: 1, f: 2, st: 'F' }, bob: 1 },
+      { N: { k: 3, f: 2, st: 'S' }, F: { k: 0, f: -2, st: 'F' }, bob: 0 },
+    ],
+    fire: { N: { k: 1, f: 2, st: 'F' }, F: { k: -1, f: -2, st: 'F' }, bob: 1 },
+    strafe: [
+      { N: { k: 0, f: 1, st: 'F' }, F: { k: 0, f: -2, st: 'F' }, bob: 0 },
+      { N: { k: 2, f: 1, st: 'S' }, F: { k: 0, f: -2, st: 'F' }, bob: 0 },
+      { N: { k: 1, f: 1, st: 'F' }, F: { k: 0, f: -2, st: 'F' }, bob: 1 },
+      { N: { k: 0, f: 1, st: 'F' }, F: { k: 0, f: -2, st: 'F' }, bob: 0 },
+      { N: { k: 0, f: 1, st: 'F' }, F: { k: 2, f: -2, st: 'S' }, bob: 0 },
+      { N: { k: 0, f: 1, st: 'F' }, F: { k: 1, f: -2, st: 'F' }, bob: 1 },
+    ],
+  },
+};
+// boot top row: flat, heel up, swinging (shorter legs than the troopers: the
+// flat boot stands on rows 22-23)
+const demoFootTop = (st) => (st === 'S' ? 20 : st === 'H' ? 21 : 22);
+
+function demoLegFB(g, x, leg, hipY, back) {
+  const top = demoFootTop(leg.st), fx = x + leg.fx;
+  const kneeY = hipY + Math.max(1, Math.floor((top - hipY) / 2));
+  const inward = leg.st === 'S' ? (x < 12 ? 1 : -1) : 0;
+  g.rect(x, hipY, 3, kneeY - hipY, DO.dk); g.hl(hipY, x, x + 2, DO.mid);      // thigh plate
+  g.rect(x + inward, kneeY, 3, 1, DO.lit);                                   // knee
+  for (let y = kneeY + 1; y < top; y++) g.rect(fx + (y === kneeY + 1 ? inward : 0), y, 3, 1, DU.mid);   // shin
+  if (leg.st === 'H') { g.rect(fx, top, 3, 1, DBOOT_T); g.rect(fx, top + 1, 3, 1, back ? DBOOT : DU.lit); }
+  else { g.rect(fx, top, 3, 2, DBOOT); g.hl(top, fx, fx + 2, DBOOT_T); if (!back) g.hl(top + 1, fx, fx + 2, DU.lit); }
+}
+function demoLegSide(g, leg, hipY, col, near) {
+  const HX = 11, top = demoFootTop(leg.st);
+  const kneeY = hipY + Math.max(1, Math.floor((top - hipY) / 2)) - (leg.st === 'S' ? 1 : 0);
+  const kx = HX + leg.k, ax = HX + leg.f;
+  for (let y = hipY; y < top; y++) {
+    const x = y <= kneeY
+      ? Math.round(HX + (kx - HX) * ((y - hipY) / Math.max(1, kneeY - hipY)))
+      : Math.round(kx + (ax - kx) * ((y - kneeY) / Math.max(1, top - kneeY)));
+    g.rect(x, y, 2, 1, col);
+  }
+  if (near) g.px(kx + 1, kneeY, DO.lit);
+  if (leg.st === 'H') { g.rect(ax, top, 2, 1, DBOOT_T); g.rect(ax + 1, top + 1, 3, 1, DBOOT); }
+  else { g.rect(ax, top, 4, 2, DBOOT); g.hl(top, ax, ax + 2, near ? DBOOT_T : DBOOT); if (near) g.px(ax + 3, top, DU.lit); }
+}
+function demoGaitFrame(dir, e, spec, base) {
+  const g = grid(ROSTER_FRAME.w, ROSTER_FRAME.h), hip = 18 + spec.bob;
+  const dx = dir === 'side' ? 0 : (spec.dx || 0);
+  if (dir === 'side') {
+    demoLegSide(g, spec.F, hip, DO.sh, false);
+    demoLegSide(g, spec.N, hip, DO.dk, true);
+    g.rect(9, hip - 1, 6, 2, DU.dk);
+  } else {
+    demoLegFB(g, 8, spec.L, hip, dir === 'back');
+    demoLegFB(g, 13, spec.R, hip, dir === 'back');
+    g.rect(8 + dx, hip - 1, 8, 2, DU.dk);
+  }
+  const s = shifted(g, dx, 0);
+  const up = { ...base, bob: spec.bob, noLegs: true };
+  if (dir === 'side') demoSide(s, e, up); else demoFrontBack(s, dir, e, up);
+  g.outline();
+  return g;
+}
+
+// THE WARNING HARDWARE, DERIVED FROM THE FINISHED FRAME. The payload heat
+// layer is every payload pixel recoloured hot, plus the outline pixels that
+// bound the payload (its silhouette rim); the lamps are the pixels wearing
+// an unlit lens colour. Nothing is placed by hand, so nothing can drift.
+const DHEAT = new Map([[DC.lit, '#ffc27e'], [DC.mid, '#ff8a30'], [DC.dk, '#e2581a'], [DC.band, '#fff0b4'], [DC.bandDk, '#ffa246'], [DC.cap, '#ff6c24']]);
+const DRIM = '#d8300c';
+function demoDerive(g) {
+  const { w, h, c } = g, heat = grid(w, h), lamps = { ind: [], st: [] };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const col = c[y * w + x];
+    if (!col) continue;
+    if (DHEAT.has(col)) heat.px(x, y, DHEAT.get(col));
+    else if (col === DL.ind) lamps.ind.push([x, y]);
+    else if (col === DL.st) lamps.st.push([x, y]);
+    else if (col === OUTLINE) {
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const X = x + dx, Y = y + dy;
+        if (X >= 0 && Y >= 0 && X < w && Y < h && DC_SET.has(c[Y * w + X])) { heat.px(x, y, DRIM); break; }
+      }
+    }
+  }
+  return { heat, lamps };
+}
+
+/**
+ * Where the lamps are, per frame, in LOGICAL sheet pixels (east-facing; the
+ * runtime mirrors them with the body). `ind` is the arming indicator, `st`
+ * the canister status lights. Filled by `paintRosterDemolisher`.
+ */
+export const DEMO_LAMPS = {};
+
+function paintDemoSheets(scene, key, elite, frames) {
+  const ss = new SpriteSheet(scene, key, ROSTER_FRAME.w, ROSTER_FRAME.h, frames, S);
+  const hs = new SpriteSheet(scene, `${key}-heat`, ROSTER_FRAME.w, ROSTER_FRAME.h, frames, S);
+  const lamps = (DEMO_LAMPS[key] = new Array(frames));
+  const put = (g, f) => { g.blit(ss.frame(f)); const d = demoDerive(g); d.heat.blit(hs.frame(f)); lamps[f] = d.lamps; };
+  const pose = (P) => ({ fire: false, armDy: P ? P.armDy : 0, armDx: P ? P.armDx : 0, lean: P ? P.lean : 0, hand: P ? P.hand : 0 });
+  ['front', 'back', 'side'].forEach((dir, di) => {
+    const T = dir === 'side' ? DEMO_GAIT.side : DEMO_GAIT.fb;
+    const run = { ...pose(null), lean: dir === 'side' ? 1 : 0 };          // he leans into the run
+    put(demoGaitFrame(dir, elite, T.idle, pose(null)), di * 8);
+    T.walk.forEach((sp, k) => put(demoGaitFrame(dir, elite, sp, run), di * 8 + 1 + k));
+    put(demoGaitFrame(dir, elite, T.fire, { ...pose(null), fire: true }), di * 8 + 7);
+    ['raise', 'thrust', 'recoil'].forEach((p, pi) => put(demoGaitFrame(dir, elite, p === 'raise' ? T.idle : T.fire, pose(POSES[p])), 24 + di * 3 + pi));
+    if (frames > 33) T.strafe.forEach((sp, k) => put(demoGaitFrame(dir, elite, sp, pose(null)), GAIT_STRAFE_BASE + di * 6 + k));
+  });
+  ss.finish(); hs.finish();
+}
+
+/** Demolisher production art. Registered for `bomber` by PreloadScene. */
+export function paintRosterDemolisher(scene) {
+  // one anatomy either way: without `?gait=v2` the stock 33 frames are the
+  // same run, played by the base class's fixed-rate walk
+  const frames = isGaitV2() ? GAIT_FRAMES : 33;
+  paintDemoSheets(scene, 'ro-dem-R', false, frames);
+  paintDemoSheets(scene, 'ro-dem-E', true, frames);
+  return {
+    regular: { tex: 'ro-dem-R', prefix: 'ro-dem-R', demolisher: { heat: 'ro-dem-R-heat', lamps: DEMO_LAMPS['ro-dem-R'] } },
+    elite:   { tex: 'ro-dem-E', prefix: 'ro-dem-E', demolisher: { heat: 'ro-dem-E-heat', lamps: DEMO_LAMPS['ro-dem-E'] } },
   };
 }
