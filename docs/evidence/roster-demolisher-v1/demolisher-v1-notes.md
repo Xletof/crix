@@ -85,20 +85,29 @@ window.
 
 ### Measured against legacy, 1x (`tests/diag-demolisher-warning.mjs`)
 
-Screen change against the resting body, 140×150px around it, pulse peak
-(area = px changed by > 48 RGB; energy = luminance change / 1000):
+Screen change against the resting body, 140×150px around it, at the pulse
+peak. `area` = pixels changed by more than 48 (RGB sum); `energy` = luminance
+change / 1000; `pulse` = peak vs trough energy (what visibly BLINKS). Final law.
 
-| t | front: legacy → v1 | side: legacy → v1 | back: legacy → v1 |
+REGULAR, `area/energy` (pulse energy):
+
+| t (dist) | front: legacy → v1 | side: legacy → v1 | back: legacy → v1 |
 |---|---|---|---|
-| 0.15 | 76/3 → 528/23 | 87/3 → 491/21 | 76/3 → 384/17 |
-| 0.30 | 1248/37 → 1878/68 | 1480/43 → (re-measure pending) | 1649/48 → 2716/92 |
-| 0.45 | 1896/72 → 1909/130 | 1824/72 → (re-measure pending) | 2041/82 → 2730/205 |
-| 0.60 | 2065/97 → 1968/169 | 1987/97 → (re-measure pending) | 2210/110 → 2732/267 |
-| 0.80 | 3224/160 → 3217/216 | 2989/159 → 3096/230 | 3409/175 → 3924/315 |
+| 0.15 (255px) | 76/3 (2) → 528/23 (47) | 87/3 (3) → 491/21 (41) | 76/3 (2) → 384/17 (27) |
+| 0.30 (210px) | 1248/37 (21) → 1878/68 (70) | 1480/43 (27) → 2045/71 (64) | 1649/48 (33) → 2716/92 (64) |
+| 0.45 (165px) | 1896/72 (45) → 1909/130 (106) | 1824/72 (44) → 2077/144 (109) | 2041/82 (55) → 2730/205 (132) |
+| 0.60 (120px) | 2065/97 (62) → 1968/169 (115) | 1987/97 (60) → 2095/184 (116) | 2210/110 (75) → 2732/267 (145) |
+| 0.75 (75px) | 3109/155 (81) → 2989/211 (116) | 2561/139 (79) → 2643/214 (117) | 2918/159 (98) → 3411/302 (144) |
+| 0.80 (60px) | 3224/160 (86) → 3217/216 (115) | 2989/159 (84) → 3096/230 (117) | 3409/175 (104) → 3924/315 (144) |
 
-The Regular matches or beats legacy at every range
-and facing. **The Elite** (legacy renders it 1.4x larger) reaches ~75% of the
-legacy Elite's area and 90-100%+ of its energy once the cage joins the heat.
+The Regular's warning matches or beats legacy at every range and facing, in
+energy and in what blinks (area within 4% at the two closest front stages).
+
+ELITE (legacy renders it 1.4x LARGER, v1 at 1.0 by design): energy at or above
+legacy out to t 0.6 front and side and at every range from behind; at contact
+range 90-99% (front 205 vs 229, side 215 vs 227, back 289 vs 261); area 76-84%
+of legacy's; the blinking part 60-70% of legacy's (front 111 vs 162, side 115
+vs 160, back 134 vs 196 at t 0.8). **This is the weakest number in the pass.**
 
 Two real findings came out of this instrument: the BACK view had no warning at
 all until 165px (the indicator is on the chest) — fixed by giving the canister
@@ -159,3 +168,43 @@ Elite Rifleman's death. The Demolisher is never equalized: A/B without its own
 Texture keys: `ro-dem-R`, `ro-dem-E` (body), `ro-dem-R-heat`, `ro-dem-E-heat`
 (payload heat, same layout). Animation prefixes `ro-dem-R` / `ro-dem-E` (18 keys
 each).
+
+## Evidence (`tests/shot-demolisher.mjs`, live runtime, seeded, stepped)
+
+| # | file | what |
+|---|---|---|
+| 1 | `demolisher-v1-sheet-regular.png` | all 51 frames + the derived heat layer + an imminent composite |
+| 2 | `demolisher-v1-sheet-elite.png` | the same for the Elite |
+| 3 | `demolisher-v1-facings.png` | S / N / E / W: Regular, Elite, legacy, the v1 Rifleman, the Captain — 1x |
+| 4 | `demolisher-v1-gait.webm` | two live Demolishers chasing a player round a 330px loop at 300px/s (every facing), 1x + a 3.6x inset |
+| 5 | `demolisher-v1-colliders.png` | `?colliders=1`: legacy / v1 Regular and Elite, nemesis for reference |
+| 6 | `demolisher-warning-strip.png` | ARMED → DISTANT → APPROACH → NEAR → IMMINENT → DETONATE: legacy, v1, v1 Elite (1x) and v1 2x |
+| 7 | `demolisher-warning-live.webm` | four real approaches at 1x (front, side, back, Elite) to the frozen contact blast |
+| 8 | `demolisher-warning-ab.webm` | legacy vs v1 side by side, the same scripted movement (identical state 38/38) |
+| 9 | `demolisher-contact-detonation.webm` | contact at 1x, again at x4 slow motion, and an Elite |
+| 10 | `demolisher-death-detonation.webm` | shot down at range (265 / 144px), the Elite by a Super (403px) |
+| 11 | `demolisher-bomber-run-live.webm` | the real BOMBER RUN (hangar, sector 8, wave 2), firing + strafing + a Super |
+| 12 | `demolisher-mixed-live.webm` | a real MIXED ASSAULT (detention, sector 12): Demolishers beside v1 Riflemen, Gunners, Bulwarks, Marksmen |
+| 13 | `demolisher-nemesis-guard.webm` | `?roster=v1`: a nemesis bomber (legacy art, survivable bursts) beside an ordinary v1 Demolisher |
+| 14 | `roster-v1-complete-hierarchy.png` | all five production roles, Regular + Elite, and the Captain — 1x |
+
+## Tests
+
+| suite | result |
+|---|---|
+| `smoke-demolisher` (new) | **57/57** with `DEM_OLD` (the old-vs-new replays); 55/55 without |
+| `smoke-demolisher` against `cd4b0e9` (`DEM_BASE`) | 26/43: every new-feature check fails, the guards hold; the 14 sheet checks cannot run there |
+| `smoke-roster-2b` | 72/72 (its "Demolisher stays legacy" check updated to pin the new art) |
+
+Old vs new: the seeded BOMBER RUN on `cd4b0e9` and on this build is the same
+fight at all 72 checkpoints, default and `?roster=v1` — the default game did
+not move, and v1 changed nothing but presentation.
+
+## Performance
+
+`samplePayload` + `drawPayload`: **3.5 µs per Demolisher per frame** (8 on the
+floor, 4000 iterations; `demolisher-perf.json`). One Graphics clear + at most
+six 4px rects and their bloom, and one sprite's frame/position/alpha. Whole-frame
+timings in this headless, software-rendered harness are noise at this scale
+(the run measured 64.6ms with the tick and 75.3ms without) and are not
+evidence either way.

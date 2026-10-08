@@ -161,8 +161,9 @@ const sheet = async (page) => page.evaluate(async () => {
   out.gait = rp.DEMO_GAIT; out.cyc = rp.GAIT_CYCLE_PX; out.fps = rp.GAIT_MAX_FPS;
   return out;
 });
-const SH = await sheet(pV);
-for (const t of ['R', 'E']) {
+const SH = await sheet(pV).catch((err) => null);   // null on a build with no Demolisher sheets (the A/B)
+check(!!SH, 'the Demolisher sheets exist (ro-dem-R / ro-dem-E and their heat layers)', '');
+for (const t of SH ? ['R', 'E'] : []) {
   const s = SH[t];
   check(s.n === 51 && s.nh === 51 && s.anims === 18, `ro-dem-${t}: 51 frames (33 stock + 18 strafe) and a 51-frame heat layer; all 18 animation keys`, JSON.stringify({ n: s.n, nh: s.nh, a: s.anims }));
   check(s.fr.every((x) => x.op > 150 && x.edge === 0), `ro-dem-${t}: no empty frame, nothing clipped at the canvas edge`, JSON.stringify(s.fr.filter((x) => !(x.op > 150 && x.edge === 0)).map((x) => [x.f, x.op, x.edge])));
@@ -186,13 +187,13 @@ for (const t of ['R', 'E']) {
   });
   check(!worst.length && rigid / total > 0.98, `ro-dem-${t}: the payload is RIGID on the torso — every run frame's canisters and charges are the idle ones moved by the body's own offset (${(100 * rigid / total).toFixed(1)}% of ${total} px)`, JSON.stringify(worst));
 }
-{
+if (SH) {
   const r = SH.R.fr, e = SH.E.fr;
   const sizeOk = [0, 8, 16].every((f) => Math.abs((r[f].bbox[2] - r[f].bbox[0]) - (e[f].bbox[2] - e[f].bbox[0])) <= 1 && Math.abs(r[f].bbox[3] - e[f].bbox[3]) === 0 && r[f].bbox[1] - e[f].bbox[1] <= 1);
   check(sizeOk, 'Elite Demolisher: the SAME size as the Regular (bounding box within one logical pixel: a valve stub, never a bigger body)', JSON.stringify([0, 8, 16].map((f) => [r[f].bbox, e[f].bbox])));
 }
-check(SH.cyc['ro-dem'] === 80 && SH.fps['ro-dem'] === 32 && SH.cyc['ro-gun'] === 48 && SH.cyc['ro-rif'] === 48 && SH.cyc['ro-mrk'] === 44 && SH.cyc['ro-blw'] === 40 && Object.keys(SH.fps).join() === 'ro-dem',
-  'gait: the Demolisher runs an 80px cycle under a 32fps ceiling (a 300px/s body); every other role keeps its approved cycle and the 24fps ceiling', JSON.stringify({ c: SH.cyc, f: SH.fps }));
+check(SH && SH.cyc['ro-dem'] === 80 && SH.fps['ro-dem'] === 32 && SH.cyc['ro-gun'] === 48 && SH.cyc['ro-rif'] === 48 && SH.cyc['ro-mrk'] === 44 && SH.cyc['ro-blw'] === 40 && Object.keys(SH.fps).join() === 'ro-dem',
+  'gait: the Demolisher runs an 80px cycle under a 32fps ceiling (a 300px/s body); every other role keeps its approved cycle and the 24fps ceiling', JSON.stringify({ c: SH?.cyc, f: SH?.fps }));
 
 // ── 3. THE WARNING ───────────────────────────────────────────────────────
 // A real rush: the AI ticks, the body closes on a still player from 420px.
@@ -214,7 +215,7 @@ const rush = async (page) => page.evaluate(() => {
 const RV = await rush(pV), RL = await rush(pL);
 {
   // the tint the AI asked for decodes to EXACTLY t·flash (g = round(106 + 130·t·flash))
-  const dec = RV.rows.filter((r) => r.req != null).map((r) => Math.abs((((r.req >> 8) & 255) - 106) - 130 * r.t * r.flash));
+  const dec = RV.rows.filter((r) => r.req != null).map((r) => (r.t == null ? 1e9 : Math.abs((((r.req >> 8) & 255) - 106) - 130 * r.t * r.flash)));
   check(dec.length > 20 && Math.max(...dec) <= 0.5 + 1e-9,
     `WARNING reads the frozen telegraph's own numbers: on all ${dec.length} ticks the tint the AI asked for decodes to exactly the warning's t·flash (max error ${Math.max(...dec).toFixed(3)} of a colour step)`, '');
   check(RV.rows.every((r) => r.tint === 0xffffff && !r.tinted) && RV.rows.some((r) => r.req !== 0xff6a33 && r.req != null),
@@ -225,24 +226,25 @@ const RV = await rush(pV), RL = await rush(pL);
     `the same rush on both builds: the same distance and pulse on every one of ${RV.rows.length} ticks, contact detonation on the same tick (${RV.detonated})`, `${RV.rows.length}/${RL.rows.length} det ${RV.detonated}/${RL.detonated}`);
   // the layers join in order as he closes
   const at = (lo, hi) => RV.rows.filter((r) => r.t >= lo && r.t < hi);
-  const far = RV.rows.filter((r) => r.t === 0), near = at(0.6, 1);
+  const far = RV.rows.filter((r) => r.t === 0 && r.w), near = at(0.6, 1).filter((r) => r.w);
   check(far.length > 3 && far.every((r) => Math.abs(r.w.lamp - 0.55) < 1e-9 && Math.abs(r.w.status - 0.35) < 1e-9 && r.w.heat === 0 && !r.heatVis),
     `ARMED at range (${far.length} ticks beyond 300px): the indicator and the canister lights lit steady (no blink), the payload cold`, '');
   check(near.length >= 2 && near.every((r) => r.w.heat > 0.2 && r.heatVis) && Math.max(...near.map((r) => r.w.status)) > 0.6,
     `IMMINENT (t >= 0.6, inside 120px): the payload is HOT (heat ${near.map((r) => r.w.heat.toFixed(2)).join(', ')}) and the canister lights are on`, '');
-  check(RV.rows.at(-1).t > 0.6 && RV.rows.at(-1).t <= 0.85, `the warning stays inside the frozen window: last live tick at t ${RV.rows.at(-1).t.toFixed(3)} (contact at 48px is t 0.84 — nothing extends it)`, '');
+  check(RV.rows.at(-1).t > 0.6 && RV.rows.at(-1).t <= 0.85, `the warning stays inside the frozen window: last live tick at t ${RV.rows.at(-1).t?.toFixed(3)} (contact at 48px is t 0.84 — nothing extends it)`, '');
   // the pulse quickens: the frozen pulse rate, per ms, far vs near
   const rate = (r0, r1) => (r1.pulse - r0.pulse) / (1000 / 60);
-  const rf = rate(far[0], far[1]), rn = rate(RV.rows.at(-2), RV.rows.at(-1));
+  const far2 = RV.rows.filter((r) => r.d >= 300);
+  const rf = rate(far2[0], far2[1]), rn = rate(RV.rows.at(-2), RV.rows.at(-1));
   check(rn > 3 * rf, `the pulse quickens with proximity: ${rf.toFixed(4)} rad/ms far, ${rn.toFixed(4)} near (the frozen rate)`, '');
   check(RV.detonated >= 0 && !RV.alive && RV.visible === false && RV.shadowVis === false && RV.att.every((a) => !a),
     'CONTACT DETONATION: the frozen blast fires, and the payload (heat, lamps, bloom), the body and its shadow are gone with it', JSON.stringify(RV));
   check(RL.visible === true, 'legacy keeps its corpse fade (the hand-off change is v1 only)', '');
 }
 // the law itself
-const law = await pV.evaluate(async () => { const m = await window.__mod(/systems\/demolisherPayload\.js/); return [0, 0.1, 0.2, 0.3, 0.45, 0.6, 0.75, 0.84].map((t) => ({ t, on: m.payloadWarning(t, 1), off: m.payloadWarning(t, 0) })); });
-check(law.every((r, i) => i === 0 || (r.on.heat >= law[i - 1].on.heat && r.on.status >= law[i - 1].on.status)) && law[0].on.lamp === law[0].off.lamp && law[3].on.lamp - law[3].off.lamp > 0.95,
-  'the warning law: heat and status only rise as he closes; at range the lamps are steady (armed), from ~255px the indicator blinks fully on the pulse', JSON.stringify(law.map((r) => [r.t, +r.on.heat.toFixed(2), +r.on.status.toFixed(2), +r.on.lamp.toFixed(2), +r.off.lamp.toFixed(2)])));
+const law = await pV.evaluate(async () => { const m = await window.__mod(/systems\/demolisherPayload\.js/); if (!m) return null; return [0, 0.1, 0.2, 0.3, 0.45, 0.6, 0.75, 0.84].map((t) => ({ t, on: m.payloadWarning(t, 1), off: m.payloadWarning(t, 0) })); });
+check(!!law && law.every((r, i) => i === 0 || (r.on.heat >= law[i - 1].on.heat && r.on.status >= law[i - 1].on.status)) && law[0].on.lamp === law[0].off.lamp && law[3].on.lamp - law[3].off.lamp > 0.95,
+  'the warning law: heat and status only rise as he closes; at range the lamps are steady (armed), from ~255px the indicator blinks fully on the pulse', JSON.stringify(law?.map((r) => [r.t, +r.on.heat.toFixed(2), +r.on.status.toFixed(2), +r.on.lamp.toFixed(2), +r.off.lamp.toFixed(2)])));
 
 // the hit flash still lands on the v1 body (and is not left behind)
 const flash = await pV.evaluate(() => {

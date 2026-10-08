@@ -715,8 +715,9 @@ run). **Presentation only; `Enemy.js` UNTOUCHED.** Record:
   known Elite-death leak is equalized in the rig only; the Demolisher's own
   `_threatScale` is what keeps its Elite death draw-identical).
 
-**Known weak at 1x** (in the notes): the Elite's warning covers ~75% of the
-legacy Elite's area (legacy rendered it 1.4x larger) at 90-100% of its energy;
+**Known weak at 1x** (in the notes): the Elite's warning reaches 76-84% of the
+legacy Elite's changed area and 60-70% of its blink (legacy rendered it 1.4x
+larger), at 90-99%+ of its energy;
 the rack and lamps are 1-2 logical pixels; a fresh rusher's pre-existing 600ms
 stuck-sidestep is visible in the clips (frozen code).
 

@@ -371,6 +371,7 @@ const RUSH = (cfg) => `(() => {
       const i = window.__tick++;
       for (const s of cfg.spawns) if (s.at === i) { const e = gs.spawnEnemyAt('bomber', cfg.px + Math.cos(s.a) * s.d, cfg.py + Math.sin(s.a) * s.d, s.elite ? { elite: true } : {}); e.__label = s.label; }
       if (cfg.fire) for (const f of cfg.fire) if (i >= f[0] && i < f[1] && i % 7 === 0) P.keyboardFire();
+      if (cfg.supers?.includes(i)) { P.superCharge = 999; P.tryFireSuper(P._autoAimAngle()); }
       if (cfg.keep) { P.setPosition(cfg.px, cfg.py); P.body.reset(P.x, P.y); }
       window.__adv(1);
     }
@@ -489,10 +490,11 @@ async function contact() {
 async function death() {
   const page = await livePage(`${FLAGS}&${STILL}`);
   await quietRoom(page);
-  const cfg = { px: 820, py: 820, keep: true, fire: [[30, 200], [220, 400], [424, 640]], spawns: [{ at: 20, a: -Math.PI / 2, d: 560, label: 'REGULAR' }, { at: 210, a: -Math.PI / 2 - 0.5, d: 560, label: 'REGULAR' }, { at: 420, a: -Math.PI / 2 + 0.3, d: 700, elite: true, label: 'ELITE' }] };
+  // the Elite (500hp) outruns the pistol alone, so the player commits a Super into it
+  const cfg = { px: 820, py: 820, keep: true, fire: [[30, 200], [220, 400], [424, 640]], supers: [500], spawns: [{ at: 20, a: -Math.PI / 2, d: 560, label: 'REGULAR' }, { at: 210, a: -Math.PI / 2 - 0.5, d: 560, label: 'REGULAR' }, { at: 420, a: -Math.PI / 2 + 0.3, d: 700, elite: true, label: 'ELITE' }] };
   await page.evaluate(RUSH(cfg));
-  await page.evaluate(() => { const gs = window.__gs; gs.events.on('enemy-died', (e) => { if (e.enemyType === 'bomber') window.__deaths = (window.__deaths || []).concat(`${e._elite ? 'E' : 'R'} shot down at ${Math.round(Math.hypot(gs.player.x - e.x, gs.player.y - e.y))}px`); }); });
-  await run(page, 'demolisher-death-detonation.webm', 330, { label: (st, f) => `1x — shot down: the frozen death blast where he falls (x0.8). ${st}` });
+  await page.evaluate(() => { const gs = window.__gs; gs.events.on('enemy-died', (e) => { if (e.enemyType === 'bomber') window.__deaths = (window.__deaths || []).concat(`${e._elite ? 'E' : 'R'} died at ${Math.round(Math.hypot(gs.player.x - e.x, gs.player.y - e.y))}px from the player`); }); });
+  await run(page, 'demolisher-death-detonation.webm', 330, { label: (st, f) => `1x — shot down (the Elite by a Super): the frozen death blast where he falls (x0.8). ${st}` });
   console.log(await page.evaluate(() => window.__deaths));
   await page.close();
 }
