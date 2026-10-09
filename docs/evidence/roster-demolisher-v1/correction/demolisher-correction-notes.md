@@ -1,10 +1,13 @@
 # Demolisher Phase 2D — correction: side-run anatomy + the false first stuck check
 
-**Status:** CANDIDATE. **Phase 2D is NOT frozen** — it closes only when the
-human accepts both corrections on a handset.
+**Status: HUMAN-APPROVED / FROZEN 🔒 — PHASE 2D CLOSED on `23bf202`.** Handset
+verdict: *"Decent enough to approve and freeze."* Both corrections are accepted,
+and so are the remaining minor animation imperfections; "Remaining defects at
+1x" below are the ACCEPTED limitations, and "What the human should judge" has
+been judged. `HANDOVER.md` §0 carries the frozen contract.
 
 **Refs.** Rejected build `785999f`. Side-gait correction `a7d18d2`. False-stuck
-correction `fca7fa5`. This evidence and the docs: the commit after it.
+correction `fca7fa5`. This evidence and the docs: `23bf202`.
 Flags unchanged: `?roster=v1` (body, warning, detonation hand-off) and
 `?gait=v2` (the run). The false-stuck correction is NOT behind a flag — it is
 gameplay, and it holds in legacy and v1 alike. No roster default changed.
@@ -248,7 +251,7 @@ comparison is not interrupted by the old build's veer (the veer clip is the
 veer); the turn clip puts a runner that catches the player back across the
 loop (both halves) — a staging device, labelled.
 
-## Remaining defects at 1x
+## Remaining defects at 1x (accepted on handset)
 
 - The profile stride is short by design; at 300px/s and 32fps the six frames
   turn over fast and the low swing reads mostly as a shuffle of the boots
@@ -262,7 +265,7 @@ loop (both halves) — a staging device, labelled.
 - The other five archetypes (and the nemesis) still take the false first
   sidestep at 0.6s — not reviewed as defective, deliberately not changed.
 
-## What the human should judge
+## What the human should judge (judged: approved and frozen)
 
 1. The profile run at 1x on a phone: does he read as running on two legs from
    one pelvis, with both feet pointing the way he runs, east AND west — no

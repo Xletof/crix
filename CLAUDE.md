@@ -953,7 +953,9 @@ asserts separately that the ceiling is not reached.
   the curtain AFTER the block is decided, and writes nothing back. The legacy
   arc is still drawn every frame by the frozen class and merely hidden
   (`shieldArc.setVisible(false)`). If a Bulwark change seems to need
-  `Enemy.js`, stop: `smoke-roster-2b` diffs the WHOLE file against `3ce5680`.
+  `Enemy.js`, stop: `smoke-roster-2b` pins every class outside `EnemyBomber`
+  to `3ce5680` (`tests/enemy-frozen.mjs`; the Demolisher's veto is the one
+  authorized change in the file).
 - **SUPPRESSING A PARTICLE EMISSION CHANGES THE FIGHT.** The legacy block
   sparkle (`fx.healingSparkle(x, y, 6)`) draws from `Math.random`, the same
   stream the AI cooldowns use; skipping it under v1 shifted every random
@@ -1084,8 +1086,20 @@ asserts separately that the ceiling is not reached.
   conversion travel too. The Super's recovery crests run on the same engine,
   pale, after the snap.
 
+- **THE DEMOLISHER IS HUMAN-APPROVED / FROZEN 🔒 — PHASE 2D CLOSED on
+  `23bf202` ("Decent enough to approve and freeze.").** Body, Elite
+  containment, the warning (the Elite's strength was approved explicitly — do
+  not reopen brightness or intensity), the detonation hand-off, the corrected
+  profile run and the false-stuck veto are all closed; the notes below are how
+  it works and how it breaks, not an invitation to tune. No further Demolisher
+  correction and no speculative gait v1.2 without NEW handset evidence.
+  **With it, FIVE-ROLE ORDINARY ROSTER PRODUCTION IS COMPLETE** — Gunner,
+  Rifleman, Marksman, Bulwark, Demolisher, Regular and Elite. That is the
+  production VISUALS only: `?roster=v1`, `?gait=v2` and `?move=v22` are still
+  opt-in, and a default rollout, an Elite gameplay redesign and the shared
+  stuck-detection audit are separate human decisions. `HANDOVER.md` §0.
 - **THE DEMOLISHER'S WARNING IS ITS OWN AI'S NUMBERS ON ITS OWN HARDWARE —
-  CANDIDATE, `HANDOVER.md` §0.** The frozen `_tickSwarm` paints the WHOLE BODY
+  FROZEN, `HANDOVER.md` §0.** The frozen `_tickSwarm` paints the WHOLE BODY
   with `setTint` every tick; on baked v1 art that is a second author. It is
   SWALLOWED, not fought: `systems/demolisherPayload.js` shadows `setTint` for the
   length of the class's own update (recording the request on
@@ -1116,7 +1130,8 @@ asserts separately that the ceiling is not reached.
   at the east end of BOTH boots. `smoke-demolisher` §2b measures it from the
   painted pixels (pelvis band vs the first leg row, toe-caps per boot,
   heel-to-toe span) and pins every pixel above the pelvis and every
-  front/back frame to 785999f by hash — the correction was legs only.
+  front/back frame to 785999f by hash — the correction was legs only. Approved
+  on handset; the remaining fast, short shuffle is an ACCEPTED limitation.
 - **A RIG EQUALIZER MAY NEVER COVER THE THING UNDER TEST.** The BOMBER RUN
   replay equalizes the frozen roles' known v1 Elite-death leak; the first
   version equalized EVERY Elite and the replay passed with the Demolisher's own
@@ -1134,8 +1149,10 @@ asserts separately that the ceiling is not reached.
   moving. The random draw is kept (the base made it before the veto runs),
   every later check is untouched, so a genuinely blocked Demolisher still
   recovers on the base's next check (600ms later than before when it spawns
-  within 600ms of a wall), and the nemesis is excluded. **Do not generalise it
-  into the base without the human**: it changes five frozen roles' movement.
+  within 600ms of a wall — an ACCEPTED limitation), and the nemesis is
+  excluded. Approved on handset. **Do not generalise it into the base without
+  the human**: it changes five frozen roles' movement, and the shared audit is
+  a pending, UNAUTHORIZED backlog item (`HANDOVER.md` §0 debt list).
   `tests/enemy-frozen.mjs` is the narrowed guard (identical outside
   EnemyBomber; inside, only the pinned veto), and `smoke-demolisher` proves
   the replay with the veto switched off IS the pre-correction game.

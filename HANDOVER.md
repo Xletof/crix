@@ -10,7 +10,7 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-10-08. Pages builds only from `FRIX`, so the live build is
+*Updated 2026-10-09. Pages builds only from `FRIX`, so the live build is
 whatever `FRIX` points at: check `git rev-parse HEAD origin/FRIX` rather than
 trusting a hash written here, and `git rev-parse --abbrev-ref HEAD` for the
 branch name. This line has named a stale branch three times — trust the
@@ -173,6 +173,29 @@ boss scheduler's timing while fixing it.
   likely cause is the instrument (a plan still firing when the sample window
   closes is compared as fired < drawn). Carried as test debt — do not read it
   as a rifle regression, and do not touch the rifle over it.
+- **THE SHARED FIRST STUCK CHECK — SHARED SWARM STUCK-DETECTION AUDIT,
+  PENDING, NOT AUTHORIZED.** `Enemy.preUpdate`'s stuck reference starts
+  undefined, so every swarm mover's FIRST 600ms check reads 0px moved and arms
+  a perpendicular sidestep. Only the Demolisher is corrected (Phase 2D). The
+  same base logic still runs for the Rifleman, Gunner, Bulwark, Marksman,
+  Swarmling and nemesis variants. **Do not apply the Demolisher fix globally
+  and do not touch shared `Enemy` movement without the human.** The audit's
+  questions: (1) which archetypes genuinely show the false positive; (2) how
+  often the first check produces an unnecessary lateral move; (3) whether
+  movement v2.2 masks, amplifies or bypasses it; (4) its effect on VANGUARD;
+  (5) whether fixing shared initialization alters frozen gameplay; (6) whether
+  first-check false positives can go without touching legitimate obstacle
+  recovery; (7) which regression and seeded-encounter tests it needs.
+  `tests/diag-demolisher-veer.mjs` is the per-tick instrument to start from.
+- **The frozen roles' v1 Elite-death RNG mismatch.** A Gunner / Rifleman /
+  Marksman v1 Elite dies with a smaller kill juice than legacy (render scale
+  1.0 vs 1.4), so fewer random draws and a different fight after the first
+  such death. The Bulwark and Demolisher carry `_threatScale` and are
+  draw-identical; the three earlier roles are not, and the seeded replays
+  equalize them in the RIG ONLY. Not fixed.
+- **The historical Elite collider vs the v1 visual footprint.** Elites keep
+  their historical collider at render scale 1. Unchanged; collider redesign is
+  not authorized.
 
 ### THE ROSTER, PHASE A — ENCOUNTER IDENTITY IS HUMAN-APPROVED AND FROZEN 🔒
 
@@ -496,7 +519,7 @@ Closed on handset review. Do not reopen any of it without NEW human gameplay evi
 
 | Flag | Effect |
 |---|---|
-| `?roster=v1` | production art for the three roles |
+| `?roster=v1` | production art for the roles (all five since Phase 2D) |
 | `?move=v22` | movement (`v2` / `v21` also exist) |
 | `?gait=v2` | gait |
 | `?colliders=1` | debug footprints |
@@ -600,8 +623,10 @@ Two issues remained, both answered in the final correction, approved on the fina
 Record: the notes' § Final correction.
 
 Built as one vertical slice behind `?roster=v1` (body, sidearm, field) and
-`?gait=v2` (the shuffle). **Presentation only; `src/entities/Enemy.js` is
-UNTOUCHED** (`git diff 3ce5680 -- src/entities/Enemy.js` is empty). Record and
+`?gait=v2` (the shuffle). **Presentation only; `src/entities/Enemy.js` was
+UNTOUCHED** at `cd4b0e9`; since Phase 2D its only change is the Demolisher's veto
+inside `EnemyBomber`, and every other class, `EnemyShielded` included, is still
+byte-identical to `3ce5680` (`tests/enemy-frozen.mjs`). Record and
 evidence: `docs/evidence/roster-bulwark/bulwark-v1-notes.md`. Gate:
 `tests/smoke-bulwark.mjs` (90 checks, standalone like the other roster smokes; the
 final correction's 12 include display-facing and wave guards, 7 of which fail on
@@ -680,100 +705,105 @@ thinner at the south apex than the approved vector band (16 vs 19px).
 composition, shield arc / turn / hp / economy, the three frozen roles, the
 Captain, Vader.
 
-### DEMOLISHER PRODUCTION (`bomber`) — **CANDIDATE, CORRECTION BUILT, AWAITING THE HANDSET GATE (Phase 2D, NOT FROZEN)**
+### DEMOLISHER PRODUCTION (`bomber`) — **HUMAN-APPROVED / FROZEN 🔒 — PHASE 2D CLOSED** (`23bf202`)
 
-The fifth ordinary production role, built as one vertical slice behind
-`?roster=v1` (body, payload warning, detonation hand-off) and `?gait=v2` (the
-run). Record: `docs/evidence/roster-demolisher-v1/demolisher-v1-notes.md`, and
-for the correction `docs/evidence/roster-demolisher-v1/correction/demolisher-correction-notes.md`.
-Gate: `tests/smoke-demolisher.mjs`.
+**Final handset verdict on `23bf202`: "Decent enough to approve and freeze."**
+The remaining minor animation imperfections are accepted. Do not begin another
+Demolisher correction; nothing below reopens without NEW human play evidence.
+Records: `docs/evidence/roster-demolisher-v1/demolisher-v1-notes.md` (the
+slice) and `docs/evidence/roster-demolisher-v1/correction/demolisher-correction-notes.md`
+(the correction and its A/B against `785999f`). Gate: `tests/smoke-demolisher.mjs`.
+Commits: `785999f` slice · `a7d18d2` side-gait anatomy · `fca7fa5` false
+stuck-recovery correction · `23bf202` evidence and docs.
 
-**Handset review of `785999f`:** PASSED the Regular body / helmet / payload,
-the Elite containment, the Elite proximity warning and its progression, the
-contact and death explosions, Nemesis compatibility. REJECTED two things, and
-the correction addresses exactly those two — nothing else moved:
+**Frozen:**
 
-1. **The side-view run** (art, `rosterPaint.js` only): the profile hip socket
-   sat at x 11, behind his centre, so the trailing thigh left the body 2-3
-   columns back under the rear canister; a +5/-5 split on five-row legs; a
-   trailing boot with no toe that read as reversed. Now: the hip under the
-   torso (x 12), a compact +4 / 0 / -3 stride, a low swing passing under the
-   pelvis, a toe-cap at the east end of both boots (WEST is the same frames
-   mirrored). Cycle 80px and ceiling 32fps unchanged; every front/back frame
-   and every profile pixel above the pelvis is identical to `785999f`.
-2. **The initial sideways veer** (gameplay, the ONE authorized `Enemy.js`
-   change): the frozen base's FIRST stuck check reads 0px moved because its
-   reference starts undefined, so every fresh swarm mover sidesteps for 600ms
-   at 0.6s — on a Demolisher, ~91deg off its target in open floor.
-   `EnemyBomber._vetoFalseStuck` re-measures that one check from the spawn
-   point and stands the sidestep down when the body was moving; the random
-   draw is kept, every later check is untouched (a real obstruction is still
-   recovered from, on the base's next check), the nemesis is excluded. **The
-   base class and the other five archetypes still carry the behaviour** (they
-   were not reviewed as defective; changing them is a human decision). The
-   replay with the veto switched off is the `785999f` game at all 72
-   checkpoints; with it, the fight differs from the first vetoed check on.
-   `tests/enemy-frozen.mjs` narrows the three `Enemy.js` guards to that seam.
+- **Regular:** squat explosive-carrier silhouette; angular blast helmet (one
+  slot, no dome, no mouth); reinforced collar; solid containment chest plate;
+  twin carried canisters on a harness frame; asymmetric hip charge rack;
+  orange / graphite equipment identity; weaponless — he IS the weapon.
+- **Elite:** the same production scale; reinforced canister cages, graphite
+  containment framing, upgraded support hardware (valves, clamp, unlit
+  detonator), a protected (hooded) warning indicator — better-issued
+  containment, never a gold rank tint or an enlargement. Historical 75.6px
+  collider at render scale 1.
+- **Warning:** proximity-driven arming indication read from the frozen
+  telegraph's own `t` and `_bombPulse` (the legacy whole-body tint swallowed —
+  one author); front and back canister visibility; pulse progression; payload
+  heat; the imminent state; the Elite's warning strength. **The handset
+  approved the Elite warning explicitly — do not reopen brightness or
+  intensity.**
+- **Explosion integration:** contact and death detonation presentation, the
+  body consumed at once, attachments cleaned up, the existing explosion FX,
+  every gameplay value preserved.
+- **Locomotion:** the corrected profile run (hip under the torso at x 12,
+  compact +4 / 0 / -3 stride, low swing under the pelvis, a toe-cap at the
+  east end of both boots, WEST mirrored), the existing front/back gait, the
+  distance-driven cadence (80px cycle, 32fps ceiling). **The somewhat
+  mechanical fast shuffle is accepted — no speculative gait v1.2.**
+- **False stuck-recovery correction** (the ONE authorized `Enemy.js` change):
+  `EnemyBomber._vetoFalseStuck` re-measures the base's FIRST stuck check from
+  the spawn point, so an unobstructed charge no longer sidesteps at 0.6s; the
+  random draw is kept; legitimate later recovery is untouched; legacy and
+  roster-v1 Demolishers share it; the nemesis is excluded; every other
+  archetype is unchanged. `tests/enemy-frozen.mjs` is the narrowed guard.
 
-**Original slice (unchanged by the correction):**
+**Accepted limitations** (acknowledged, not open):
 
-- **Body:** a squat payload carrier — compact angular blast helmet (one slot,
-  no dome, no mouth), reinforced collar, two rear canisters on a harness frame
-  standing above the shoulders, a solid dark containment plate, a two-charge
-  hip rack, ONE off-centre arming indicator, no weapon. Elite = the same body
-  with caged canisters, valves, a clamp, a graphite plate frame, a hooded
-  indicator and an unlit detonator; same size, no tint, historical 75.6px
-  collider at scale 1.
-- **Run (gait v2):** one pelvis, 80px cycle under a 32fps ceiling
-  (`GAIT_MAX_FPS`, every other role still 24) so the feet hold the deck at
-  300px/s; the payload is RIGID on the torso (checked per frame). The profile
-  stride is the corrected one above.
-- **Warning:** the frozen `_tickSwarm` still computes `t` and `_bombPulse` and
-  still asks for its whole-body tint every tick; on the v1 body that write is
-  SWALLOWED (one author) and the same two numbers light the hardware —
-  indicator steady when armed then blinking, canister lights (they carry it
-  from behind), and an ADD payload-heat layer derived from each frame. Timing
-  is the frozen telegraph's by construction; contact at 48px is t 0.84.
-- **Detonation:** both frozen blasts unchanged; the payload overlays, the body
-  and its shadow go with the blast (no 440ms corpse slide through the
-  explosion).
-- **Nemesis:** excluded by the existing seam (`legacyArt` / `legacyLook`); a
-  nemesis bomber under `?roster=v1` is the legacy nemesis, survivable bursts
-  and all.
-- **Invariance:** seeded BOMBER RUN replays, legacy vs v1 and gait off vs v2,
-  are the same fight at every checkpoint and random draw (the frozen roles'
-  known Elite-death leak is equalized in the rig only; the Demolisher's own
-  `_threatScale` is what keeps its Elite death draw-identical).
+- **A. Gait** — at speed a short, rapid shuffle with limited knee
+  articulation.
+- **B. Obstacle recovery** — a Demolisher that meets genuine cover inside its
+  first stuck-check window recovers ~600ms later than before (on the base's
+  second check). The fix favours no false lateral movement in open charges.
+- **C. Legacy Elite collider** — the historical collider relationship is
+  unchanged; collider redesign is not authorized.
+- **D. RNG fixture caveat** — the old-vs-new replays equalize a known v1
+  Elite-death RNG difference in the FROZEN earlier roles (Gunner / Rifleman /
+  Marksman). It is not fixed; it is separate debt (below).
 
-**Known weak at 1x** (in the notes): the Elite's warning reaches 76-84% of the
-legacy Elite's changed area and 60-70% of its blink (legacy rendered it 1.4x
-larger), at 90-99%+ of its energy;
-the rack and lamps are 1-2 logical pixels. (The fresh-spawn sidestep visible
-in the `785999f` clips is the defect correction 2 removes.)
+### FIVE-ROLE ORDINARY ROSTER PRODUCTION — **COMPLETE, HUMAN-APPROVED / FROZEN 🔒**
+
+| Phase | Role | Status |
+|---|---|---|
+| 2A | Gunner (`shooter`) Regular / Elite | HUMAN-APPROVED / FROZEN |
+| 2B | Rifleman (`grunt`) Regular / Elite | HUMAN-APPROVED / FROZEN |
+| 2B | Marksman (`sniper`) Regular / Elite | HUMAN-APPROVED / FROZEN |
+| 2C | Bulwark (`shielded`) Regular / Elite | HUMAN-APPROVED / FROZEN |
+| 2D | Demolisher (`bomber`) Regular / Elite | HUMAN-APPROVED / FROZEN |
+
+Also approved and frozen with them: Gunner fire v5; movement v2.2 (Gunner and
+Rifleman); gait v2 across all five production roles, including the
+Demolisher's own cadence; the Bulwark hard-light curtain and its complete FX
+system, its display-facing correction and its VANGUARD integration.
+
+This closes PRODUCTION VISUALS for the ordinary roster. It does NOT mean an
+Elite gameplay redesign, a default rollout or the technical debt is done.
+
+**Defaults are unchanged.** `?roster=v1`, `?gait=v2` and `?move=v22` all
+remain OPT-IN; the default game is legacy, except for the separately approved
+Demolisher false-stuck gameplay fix, which is not behind a flag. Do NOT enable
+roster, gait or movement globally — that is a separate human decision — and do
+not delete legacy art or the old debug flags.
 
 ### The recommended next area of work
 
-**PHASE 2D — DEMOLISHER PRODUCTION: the correction (side run + the false
-first stuck check) is built and waiting on the handset gate** (above). Phase 2D
-is NOT frozen until the human accepts both corrections on a phone. Do not
-start an Elite gameplay redesign, another Champion, Commander work or another
-roster role until it is judged. The options below are the older backlog.
+**PHASE 2D IS CLOSED and five-role ordinary roster production is complete**
+(above). **No milestone is started or authorized.** The next direction comes
+from the human; the candidates, none begun:
 
-**Phase B Champion integration is CLOSED — human-approved and frozen on
-`a3563a4`** (above). The next
-direction comes from the human. The camera (`§21`), the four arenas, Phase A
-and Shock Captain V1 are all closed. What the Captain's closure unblocks
-besides placement is listed in his section above — the Elite hierarchy and
-Commander planning. The older standing options are still honest:
+- **Shared swarm stuck-detection audit** — technical cleanup (debt list
+  above). Investigation first; no shared `Enemy` change without the human.
+- **Elite gameplay redesign** — content. Elites today are the production art
+  over the historical gameplay scale and collider.
+- **Production roster default-rollout assessment** — whether `?roster=v1`,
+  `?gait=v2` and `?move=v22` become the default game.
+- **Commander / Lieutenant planning** — content; unblocked by the Captain's
+  closure, not started.
 
-1. **Content breadth** — the arena rotation is four rooms and `_arenaCycle`
-   walks them in order; more rooms are now an application of a proven
-   language rather than an experiment.
-2. **The super registry** (see debt above), the one structural gap that blocks
-   a whole class of player-facing content.
-3. **The flat-depth cleanup** for bullets and shared emitters.
-
-Pick with the human. Do not start one on the strength of this list.
+The older standing options are still honest: more arenas (an application of a
+proven language), the super registry, and the flat-depth cleanup. Additional
+Champions also wait on the human. Pick with the human. Do not start one on the
+strength of this list.
 
 ### Process and evidence caveats the next session needs
 

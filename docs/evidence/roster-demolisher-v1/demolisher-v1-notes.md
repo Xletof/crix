@@ -4,8 +4,8 @@
 (the run). Without `?roster=v1` the Demolisher is exactly the legacy one — the
 grunt sheet under the hot whole-body tint. Nothing is a default.
 
-**Status:** CANDIDATE for the handset gate (Phase 2D). Not human-approved.
-This file records the slice as built on `785999f`. **The handset review of
+**Status: HUMAN-APPROVED / FROZEN 🔒 — PHASE 2D CLOSED on `23bf202`**, after
+the correction below. This file records the slice as built on `785999f`. **The handset review of
 `785999f` rejected two things — the side-view run and the initial sideways
 veer — and both are corrected: see `correction/demolisher-correction-notes.md`.**
 The correction rebuilt the profile run frames and made the ONE authorized
