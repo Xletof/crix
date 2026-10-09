@@ -1104,17 +1104,41 @@ asserts separately that the ceiling is not reached.
   orientation, not on the south view".
 - **A FAST BODY NEEDS ITS OWN STRIDE, NOT A FASTER CLOCK.** The gait tick caps
   cadence at 24fps; at 300px/s a 48px cycle would need 37fps and skate. The
-  Demolisher runs a ±5 stride (80px cycle) under its own 32fps ceiling
-  (`GAIT_MAX_FPS`); every approved role keeps 24.
+  Demolisher runs an 80px cycle under its own 32fps ceiling (`GAIT_MAX_FPS`);
+  every approved role keeps 24.
+- **TWO SEPARATED VERTICAL LEGS ARE NOT TWO LEGS.** The first Demolisher
+  profile run (785999f) passed every sheet check and was rejected on handset:
+  the hip socket sat at x 11, BEHIND his centre, so the trailing thigh left
+  the body 2-3 columns back under the rear canister; a +5/-5 split on
+  five-row legs; a trailing boot with no toe that read as reversed. The
+  correction (`HANDOVER.md` §0) is the hip under the torso (x 12), a compact
+  +4 / 0 / -3 stride with a low swing passing under the pelvis, and a toe-cap
+  at the east end of BOTH boots. `smoke-demolisher` §2b measures it from the
+  painted pixels (pelvis band vs the first leg row, toe-caps per boot,
+  heel-to-toe span) and pins every pixel above the pelvis and every
+  front/back frame to 785999f by hash — the correction was legs only.
 - **A RIG EQUALIZER MAY NEVER COVER THE THING UNDER TEST.** The BOMBER RUN
   replay equalizes the frozen roles' known v1 Elite-death leak; the first
   version equalized EVERY Elite and the replay passed with the Demolisher's own
   `_threatScale` deleted. A/B the check against the fix removed.
-- **THE FIRST STUCK CHECK ALWAYS FIRES (pre-existing, frozen, not changed).**
+- **THE FIRST STUCK CHECK ALWAYS FIRES — AND ONLY THE DEMOLISHER IS EXCUSED.**
   `Enemy.preUpdate` measures `hypot(x - (_stuckRefX ?? x))` and the reference
-  starts undefined, so every fresh swarm rusher sidesteps for 600ms about 0.6s
-  after spawning. It looks like a Demolisher veering off before it commits; it
-  is in both builds.
+  starts undefined, so every fresh swarm mover's FIRST check reads 0px moved
+  and arms a 600ms perpendicular sidestep — measured on a Demolisher in an
+  empty lane at exactly 600ms, 175px from spawn, ~91deg off its target for
+  600ms, in legacy and v1 alike. The base class is FROZEN and still does it
+  for every other archetype (Rifleman rush, Gunner approach, Bulwark,
+  Marksman, Swarmling, the nemesis bomber); the handset rejected it on the
+  Demolisher only, so `EnemyBomber._vetoFalseStuck` re-measures that ONE check
+  from where the window began and stands the sidestep down when the body was
+  moving. The random draw is kept (the base made it before the veto runs),
+  every later check is untouched, so a genuinely blocked Demolisher still
+  recovers on the base's next check (600ms later than before when it spawns
+  within 600ms of a wall), and the nemesis is excluded. **Do not generalise it
+  into the base without the human**: it changes five frozen roles' movement.
+  `tests/enemy-frozen.mjs` is the narrowed guard (identical outside
+  EnemyBomber; inside, only the pinned veto), and `smoke-demolisher` proves
+  the replay with the veto switched off IS the pre-correction game.
 - **THE STATE LANGUAGE'S ONE RULE SURVIVED HANDSET REVIEW AND ITS SUSTAINED
   HALF DID NOT — `HANDOVER.md` §10ah, §10ai.** **SYMBOL = TRANSITION, BODY / FX
   = SUSTAINED STATE.** A glyph lives a few hundred ms to say something CHANGED

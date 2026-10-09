@@ -5,9 +5,12 @@
 grunt sheet under the hot whole-body tint. Nothing is a default.
 
 **Status:** CANDIDATE for the handset gate (Phase 2D). Not human-approved.
-Presentation only — every gameplay value is the frozen one, and
-`src/entities/Enemy.js` is **untouched** (`git diff 3ce5680 -- src/entities/Enemy.js`
-is empty).
+This file records the slice as built on `785999f`. **The handset review of
+`785999f` rejected two things — the side-view run and the initial sideways
+veer — and both are corrected: see `correction/demolisher-correction-notes.md`.**
+The correction rebuilt the profile run frames and made the ONE authorized
+gameplay change in `src/entities/Enemy.js` (an `EnemyBomber`-only veto of the
+false first stuck check); everything else below is unchanged.
 
 ## What it is
 
@@ -146,7 +149,8 @@ Elite Rifleman's death. The Demolisher is never equalized: A/B without its own
   `Enemy.preUpdate`'s stuck check measures `hypot(x - (_stuckRefX ?? x))` and
   the reference starts undefined, so the first check always reads zero
   movement. Visible in the warning clips (a Demolisher veering before it
-  commits). Frozen code; both builds.
+  commits). **Rejected on handset for the Demolisher and corrected for it
+  alone** (`correction/`); the base class and the other archetypes still do it.
 - The stock threat ring (radius + 12) is hidden under every 96px v1 body, as on
   the four approved roles.
 

@@ -680,13 +680,42 @@ thinner at the south apex than the approved vector band (16 vs 19px).
 composition, shield arc / turn / hp / economy, the three frozen roles, the
 Captain, Vader.
 
-### DEMOLISHER PRODUCTION (`bomber`) — **CANDIDATE, AWAITING THE HANDSET GATE (Phase 2D)**
+### DEMOLISHER PRODUCTION (`bomber`) — **CANDIDATE, CORRECTION BUILT, AWAITING THE HANDSET GATE (Phase 2D, NOT FROZEN)**
 
 The fifth ordinary production role, built as one vertical slice behind
 `?roster=v1` (body, payload warning, detonation hand-off) and `?gait=v2` (the
-run). **Presentation only; `Enemy.js` UNTOUCHED.** Record:
-`docs/evidence/roster-demolisher-v1/demolisher-v1-notes.md`. Gate:
-`tests/smoke-demolisher.mjs`.
+run). Record: `docs/evidence/roster-demolisher-v1/demolisher-v1-notes.md`, and
+for the correction `docs/evidence/roster-demolisher-v1/correction/demolisher-correction-notes.md`.
+Gate: `tests/smoke-demolisher.mjs`.
+
+**Handset review of `785999f`:** PASSED the Regular body / helmet / payload,
+the Elite containment, the Elite proximity warning and its progression, the
+contact and death explosions, Nemesis compatibility. REJECTED two things, and
+the correction addresses exactly those two — nothing else moved:
+
+1. **The side-view run** (art, `rosterPaint.js` only): the profile hip socket
+   sat at x 11, behind his centre, so the trailing thigh left the body 2-3
+   columns back under the rear canister; a +5/-5 split on five-row legs; a
+   trailing boot with no toe that read as reversed. Now: the hip under the
+   torso (x 12), a compact +4 / 0 / -3 stride, a low swing passing under the
+   pelvis, a toe-cap at the east end of both boots (WEST is the same frames
+   mirrored). Cycle 80px and ceiling 32fps unchanged; every front/back frame
+   and every profile pixel above the pelvis is identical to `785999f`.
+2. **The initial sideways veer** (gameplay, the ONE authorized `Enemy.js`
+   change): the frozen base's FIRST stuck check reads 0px moved because its
+   reference starts undefined, so every fresh swarm mover sidesteps for 600ms
+   at 0.6s — on a Demolisher, ~91deg off its target in open floor.
+   `EnemyBomber._vetoFalseStuck` re-measures that one check from the spawn
+   point and stands the sidestep down when the body was moving; the random
+   draw is kept, every later check is untouched (a real obstruction is still
+   recovered from, on the base's next check), the nemesis is excluded. **The
+   base class and the other five archetypes still carry the behaviour** (they
+   were not reviewed as defective; changing them is a human decision). The
+   replay with the veto switched off is the `785999f` game at all 72
+   checkpoints; with it, the fight differs from the first vetoed check on.
+   `tests/enemy-frozen.mjs` narrows the three `Enemy.js` guards to that seam.
+
+**Original slice (unchanged by the correction):**
 
 - **Body:** a squat payload carrier — compact angular blast helmet (one slot,
   no dome, no mouth), reinforced collar, two rear canisters on a harness frame
@@ -695,9 +724,10 @@ run). **Presentation only; `Enemy.js` UNTOUCHED.** Record:
   with caged canisters, valves, a clamp, a graphite plate frame, a hooded
   indicator and an unlit detonator; same size, no tint, historical 75.6px
   collider at scale 1.
-- **Run (gait v2):** one pelvis, a ±5 stride, 80px cycle under a 32fps ceiling
+- **Run (gait v2):** one pelvis, 80px cycle under a 32fps ceiling
   (`GAIT_MAX_FPS`, every other role still 24) so the feet hold the deck at
-  300px/s; the payload is RIGID on the torso (checked per frame).
+  300px/s; the payload is RIGID on the torso (checked per frame). The profile
+  stride is the corrected one above.
 - **Warning:** the frozen `_tickSwarm` still computes `t` and `_bombPulse` and
   still asks for its whole-body tint every tick; on the v1 body that write is
   SWALLOWED (one author) and the same two numbers light the hardware —
@@ -718,14 +748,16 @@ run). **Presentation only; `Enemy.js` UNTOUCHED.** Record:
 **Known weak at 1x** (in the notes): the Elite's warning reaches 76-84% of the
 legacy Elite's changed area and 60-70% of its blink (legacy rendered it 1.4x
 larger), at 90-99%+ of its energy;
-the rack and lamps are 1-2 logical pixels; a fresh rusher's pre-existing 600ms
-stuck-sidestep is visible in the clips (frozen code).
+the rack and lamps are 1-2 logical pixels. (The fresh-spawn sidestep visible
+in the `785999f` clips is the defect correction 2 removes.)
 
 ### The recommended next area of work
 
-**PHASE 2D — DEMOLISHER PRODUCTION is built and waiting on the handset gate**
-(above). Do not start an Elite gameplay redesign, another Champion or Commander
-work until it is judged. The options below are the older backlog.
+**PHASE 2D — DEMOLISHER PRODUCTION: the correction (side run + the false
+first stuck check) is built and waiting on the handset gate** (above). Phase 2D
+is NOT frozen until the human accepts both corrections on a phone. Do not
+start an Elite gameplay redesign, another Champion, Commander work or another
+roster role until it is judged. The options below are the older backlog.
 
 **Phase B Champion integration is CLOSED — human-approved and frozen on
 `a3563a4`** (above). The next
