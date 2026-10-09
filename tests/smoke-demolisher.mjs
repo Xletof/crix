@@ -34,12 +34,21 @@
 //     are the SAME FIGHT: positions, velocities, hp, pulse, detonations,
 //     damage to the player, every random draw — with Elite Demolishers dying
 //     inside the window (their death juice draws the same);
-//   - FROZEN: Enemy.js and the encounter table unchanged since 3ce5680,
-//     ENEMY.bomber unchanged, the Bulwark's and the other roles' art keys and
-//     gait cycles unchanged.
+//   - THE FIRST STUCK CHECK (Phase 2D correction): a fresh Demolisher in a
+//     clear lane arms no sidestep (legacy, v1, Regular, Elite, six at once),
+//     a REAL obstruction is still recovered from on the base's next check,
+//     the nemesis never sees the veto, and the replay with the veto switched
+//     off is the pre-correction game at all 72 checkpoints (DEM_OLD) and
+//     differs from this build only from the first vetoed check;
+//   - FROZEN: Enemy.js unchanged since 3ce5680 except the authorized
+//     EnemyBomber veto (tests/enemy-frozen.mjs), the encounter table and
+//     ENEMY.bomber unchanged, the other roles' art keys and gait cycles
+//     unchanged.
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { enemyJsGuard } from './enemy-frozen.mjs';
+import { veerRun, veerSummary } from './diag-demolisher-veer.mjs';
 
 const BASE = process.env.DEM_BASE || 'http://localhost:5173/';
 const BASE_OVERRIDE = { v: null };   // section 6b points one replay at another build
@@ -468,6 +477,7 @@ const nemesis = async (page) => page.evaluate(async () => {
   out.minGapMs = Math.round(minGap * 1000 / 60);
   out.alive = e.alive; out.bursts = bursts; out.hp1 = e.hp; out.tinted = e.isTinted; out.req = e._legacyWarnTint ?? null;
   out.draws = window.__draws;
+  out.vetoSeen = e._stuckFirstSeen ?? null;
   return out;
 });
 const NL = await nemesis(await stepped('?nodlg=1&nofreeze=1')), NV = await nemesis(await stepped('?nodlg=1&nofreeze=1&roster=v1&gait=v2'));
@@ -477,11 +487,12 @@ check(NV.alive && NV.bursts >= 2 && NV.minGapMs >= 1700 && NV.tinted && NV.req =
   `NEMESIS survives contact: ${NV.bursts} survivable bursts in 7s, never closer than the frozen 1700ms cooldown (${NV.minGapMs}ms), still alive, its tint still written by its own tick`, JSON.stringify({ a: NV.alive, b: NV.bursts, g: NV.minGapMs, t: NV.tinted }));
 check(JSON.stringify(NL.ticks) === JSON.stringify(NV.ticks) && NL.bursts === NV.bursts && NL.draws === NV.draws,
   'NEMESIS: the same fight with and without ?roster=v1 — position, hp, burst cooldown, tint, every random draw', `${JSON.stringify(NL.ticks.slice(0, 3))} vs ${JSON.stringify(NV.ticks.slice(0, 3))}`);
+check(NL.vetoSeen === null && NV.vetoSeen === null, "NEMESIS: the Demolisher's false-first-stuck veto never runs on a nemesis bomber (its movement is the frozen nemesis's, first check included)", JSON.stringify([NL.vetoSeen, NV.vetoSeen]));
 
 // ── 6. INVARIANCE: seeded BOMBER RUN replays ─────────────────────────────
-async function bomberRun(q) {
+async function bomberRun(q, { noVeto = false } = {}) {
   const page = await stepped(`?nodlg=1&nofreeze=1&move=v22&encdbg=bomberRun&room=hangar&sector=14&wave=1${q}`);
-  const r = await page.evaluate(() => {
+  const r = await page.evaluate(async (noVeto) => {
     const gs = window.__gs, ids = new Map(); let nid = 0;
     const id = (e) => { if (!ids.has(e)) ids.set(e, nid++); return ids.get(e); };
     const snaps = [], hurts = [], blasts = []; let tick = 0, eliteDeaths = 0, demDeaths = 0, demFrames = 0;
@@ -495,6 +506,21 @@ async function bomberRun(q) {
     // what is under test (A/B: without it this replay diverges).
     const mk = gs._makeElite.bind(gs);
     gs._makeElite = (en, o = {}) => { const r = mk(en, o); if (['grunt', 'shooter', 'sniper'].includes(en.enemyType)) en._threatScale ||= (o.scale ?? 1.4); return r; };
+    // THE FALSE-FIRST-STUCK VETO, recorded: every first check it stood down
+    // (`vetoes`). With `noVeto` the method only RECORDS what it would have
+    // vetoed and leaves the sidestep armed — the counterfactual build, which
+    // must be the pre-correction game exactly.
+    const vetoes = [], EB = (await window.__mod(/entities\/Enemy\.js/))?.EnemyBomber;
+    if (EB?.prototype._vetoFalseStuck) {
+      const veto = EB.prototype._vetoFalseStuck;
+      EB.prototype._vetoFalseStuck = function () {
+        const first = !this._stuckFirstSeen && !this._miniBoss && this._stuckRefX !== undefined, armed = this._stuckSidestepMs > 0;
+        const moved = first ? Math.hypot(this._stuckRefX - this._stuckOriginX, this._stuckRefY - this._stuckOriginY) : 0;
+        if (noVeto) { if (first) { this._stuckFirstSeen = true; if (armed && moved >= 12) vetoes.push(`${tick}:${id(this)}:${moved.toFixed(1)}`); } return; }
+        veto.call(this);
+        if (first && armed && !(this._stuckSidestepMs > 0)) vetoes.push(`${tick}:${id(this)}:${moved.toFixed(1)}`);
+      };
+    }
     const P = gs.player, k = gs.keys;
     const hurt = P.damage.bind(P);
     P.damage = (a, ang) => { hurts.push(`${tick}:${(+a).toFixed(3)}:${(ang ?? 0).toFixed(4)}`); return hurt(a, ang); };
@@ -511,8 +537,8 @@ async function bomberRun(q) {
           + `#P${P.x.toFixed(3)},${P.y.toFixed(3)},${P.hp},${P.superCharge}#Q${gs._spawnQueue?.length},${gs._waveSpawned}#R${window.__draws}`);
       }
     }
-    return { snaps, hurts, blasts, eliteDeaths, demDeaths, demFrames, demolishers: [...ids.keys()].filter((e) => e.enemyType === 'bomber').length };
-  });
+    return { snaps, hurts, blasts, eliteDeaths, demDeaths, demFrames, vetoes, demolishers: [...ids.keys()].filter((e) => e.enemyType === 'bomber').length };
+  }, noVeto);
   await page.close();
   return r;
 }
@@ -527,26 +553,116 @@ for (const [a, b, tag] of [[bL, bV, 'legacy vs roster=v1'], [bV, bG, 'roster=v1:
 }
 check(bV.demDeaths >= 4 && bV.eliteDeaths >= 1 && bV.hurts.length >= 1, `(not vacuous) ${bV.demDeaths} Demolishers detonate inside the window, ${bV.eliteDeaths} of them Elite, and the player takes ${bV.hurts.length} damage events`, JSON.stringify({ d: bV.demDeaths, e: bV.eliteDeaths, h: bV.hurts.length }));
 check(bG.demFrames > 100 && bV.demFrames === 0, `(not vacuous) gait v2 really drove ${bG.demFrames} Demolisher body-frames through the rush; off, none`, `${bV.demFrames}/${bG.demFrames}`);
+// THE ONE PERMITTED DIVERGENCE. The same replay with the veto switched off
+// (the counterfactual — the pre-correction game) must be the same fight up to
+// the first first-check the veto stood down, and may differ only from there.
+const bN = await bomberRun('', { noVeto: true }), bNV = await bomberRun('&roster=v1', { noVeto: true });
+for (const [a, b, tag] of [[bN, bL, 'legacy'], [bNV, bV, '?roster=v1']]) {
+  const d = a.snaps.findIndex((x, i) => x !== b.snaps[i]), v0 = +(b.vetoes[0] || '').split(':')[0];
+  check(b.vetoes.length >= 1 && a.vetoes[0] === b.vetoes[0],
+    `BOMBER RUN ${tag}: the veto really ran — ${b.vetoes.length} fresh Demolishers' first checks armed a sidestep after moving ${b.vetoes.map((x) => x.split(':')[2]).join(' / ')}px, and were stood down (the first at tick ${v0}); the counterfactual armed the same first one`, JSON.stringify({ veto: b.vetoes, cf: a.vetoes }));
+  check(d === -1 || d * 15 + 14 >= v0,
+    `BOMBER RUN ${tag}, veto vs NO veto: the SAME FIGHT until the first vetoed first check (tick ${v0}) — ${d < 0 ? 'and after it' : `first difference at checkpoint ${d} (tick ${d * 15 + 14})`}; nothing else in the fight moved`, d < 0 ? '' : `A ${a.snaps[d]?.slice(0, 300)}\nB ${b.snaps[d]?.slice(0, 300)}`);
+  console.log(`  [replay ${tag}] veto: ${b.blasts.length} Demolisher deaths, ${b.hurts.length} hits on the player; counterfactual: ${a.blasts.length} deaths, ${a.hurts.length} hits; first divergence ${d < 0 ? 'none' : `checkpoint ${d}`}`);
+}
 
-// ── 6b. OLD vs NEW (DEM_OLD=<url of a cd4b0e9 server>) ───────────────────
-// The same replay on the build before this pass: its legacy run must equal
-// this build's legacy run (the default game did not move), and its v1 run —
-// where the bomber still wore legacy art — must equal this build's v1 run.
+// ── 6b. OLD vs NEW (DEM_OLD=<url of a pre-correction server: 785999f or cd4b0e9>)
+// The same replay on the build before the Phase 2D correction must equal this
+// build's COUNTERFACTUAL (the veto switched off) exactly — at all 72
+// checkpoints, every detonation, every hit — which is what proves the veto is
+// the ONLY gameplay change; and this build with the veto may differ from it
+// only from the first first-check the veto stood down.
 if (process.env.DEM_OLD) {
   const saved = BASE_OVERRIDE.v; BASE_OVERRIDE.v = process.env.DEM_OLD;
   const oL = await bomberRun(''), oV = await bomberRun('&roster=v1');
   BASE_OVERRIDE.v = saved;
-  for (const [a, b, tag] of [[oL, bL, 'cd4b0e9 vs NEW, default (legacy)'], [oV, bV, 'cd4b0e9 vs NEW, ?roster=v1']]) {
+  for (const [a, b, tag] of [[oL, bN, 'default (legacy)'], [oV, bNV, '?roster=v1']]) {
     const d = a.snaps.findIndex((x, i) => x !== b.snaps[i]);
     check(a.snaps.length === 72 && d === -1 && JSON.stringify(a.hurts) === JSON.stringify(b.hurts) && JSON.stringify(a.blasts) === JSON.stringify(b.blasts),
-      `OLD vs NEW BOMBER RUN, ${tag}: the SAME FIGHT at all 72 checkpoints, the same detonations and the same damage to the player`, d < 0 ? '' : `first divergence at ${d}\nA ${a.snaps[d]?.slice(0, 400)}\nB ${b.snaps[d]?.slice(0, 400)}`);
+      `OLD vs NEW-WITHOUT-THE-VETO BOMBER RUN, ${tag}: the SAME FIGHT at all 72 checkpoints, the same detonations and the same damage to the player — the veto is the only gameplay change`, d < 0 ? '' : `first divergence at ${d}\nA ${a.snaps[d]?.slice(0, 400)}\nB ${b.snaps[d]?.slice(0, 400)}`);
+  }
+  for (const [a, b, tag] of [[oL, bL, 'default (legacy)'], [oV, bV, '?roster=v1']]) {
+    const d = a.snaps.findIndex((x, i) => x !== b.snaps[i]), v0 = +(b.vetoes[0] || '').split(':')[0];
+    check(d === -1 || d * 15 + 14 >= v0, `OLD vs NEW BOMBER RUN, ${tag}: identical until the first vetoed first check (tick ${v0}); first difference ${d < 0 ? 'none' : `at checkpoint ${d}`}`, d < 0 ? '' : `A ${a.snaps[d]?.slice(0, 300)}\nB ${b.snaps[d]?.slice(0, 300)}`);
+  }
+}
+
+// ── 6c. THE FIRST STUCK CHECK (Phase 2D correction) ──────────────────────
+// `Enemy.preUpdate` measures `hypot(x - (_stuckRefX ?? x))` every 600ms and the
+// reference starts undefined, so its FIRST check always reads 0px and arms a
+// 600ms perpendicular sidestep — on 785999f a fresh Demolisher in an empty
+// lane veered ~90deg off its target 600ms after spawning, in legacy and v1.
+// The veto re-measures that one check from where the window began; a REAL
+// obstruction must still be recovered from on the base's own cadence.
+{
+  const lane = async (flags, elite, kase = 'clear', ticks = 110) => veerRun(browser, { base: BASE_OVERRIDE.v || BASE, flags, kase, elite, ticks });
+  const runs = {
+    'legacy Regular': await lane('', false), 'v1 Regular': await lane('roster=v1&gait=v2', false),
+    'legacy Elite': await lane('', true), 'v1 Elite': await lane('roster=v1&gait=v2', true),
+  };
+  for (const [tag, r] of Object.entries(runs)) {
+    const rows = r.rows.filter((x) => !x.dead), first = rows.findIndex((x) => x.refX != null), sm = veerSummary(r);
+    const maxOff = Math.max(0, ...rows.filter((x) => x.off != null).map((x) => x.off));
+    check(first >= 30 && rows[first].draws >= 1 && rows[first].fromSpawn >= 12 && !sm.first && sm.sideTicks === 0 && maxOff <= 3,
+      `FRESH SPAWN, clear lane (${tag}): the first stuck check runs at ${rows[first]?.ms}ms, ${rows[first]?.fromSpawn}px from spawn, still draws its random number — and NO sidestep is armed; the body never leaves the bearing to the player by more than ${maxOff}deg (785999f: ~91deg for 600ms)`,
+      JSON.stringify({ first: rows[first], armed: sm.first, sideTicks: sm.sideTicks, maxOff }));
+  }
+  const strip = (r) => JSON.stringify(r.rows.map(({ i, x, y, vx, vy, side, draws }) => [i, x, y, vx, vy, side, draws]));
+  check(strip(runs['legacy Regular']) === strip(runs['v1 Regular']) && strip(runs['legacy Elite']) === strip(runs['v1 Elite']),
+    'FRESH SPAWN: legacy and ?roster=v1 run the identical rush tick for tick — position, velocity, sidestep state, random draws (the fix is not a roster flag)', '');
+  // a REAL obstruction: a wall square across the lane 140px out
+  for (const [tag, flags] of [['legacy', ''], ['v1', 'roster=v1&gait=v2']]) {
+    const r = await lane(flags, false, 'wall', 300), rows = r.rows.filter((x) => !x.dead);
+    const first = rows.findIndex((x) => x.refX != null), ai = rows.findIndex((x) => x.side > 0), armed = rows[ai], pre = rows[ai - 1], sm = veerSummary(r);
+    // pinned: in contact with the wall on the tick before, and less than the base's 12px over the window since the first check
+    const pinned = armed && pre?.blocked && Math.hypot(pre.x - rows[first].x, pre.y - rows[first].y) < 12;
+    check(first >= 0 && rows[first].side === 0 && armed && pinned && armed.ms > rows[first].ms && sm.sideTicks >= 20 && (!r.alive || rows.at(-1).y > 600),
+      `REAL OBSTRUCTION (${tag}): stuck recovery still works — the first check (moved ${rows[first]?.fromSpawn}px in its window) is not a stall, the body then pins on the wall and the base's NEXT check arms the sidestep at ${armed?.ms}ms (${sm.sideTicks} ticks of sidestep), and it gets round: ${!r.alive ? 'detonated on the player' : `past the wall at y ${rows.at(-1).y}`}`,
+      JSON.stringify({ first: rows[first], pre, armed, sideTicks: sm.sideTicks, alive: r.alive, last: rows.at(-1) }));
+  }
+  // MULTIPLE fresh Demolishers, staggered, Regular and Elite, from six bearings
+  const multi = async (q) => {
+    const page = await stepped(q);
+    const out = await page.evaluate(() => {
+      const gs = window.__gs; window.__open();
+      if (gs.arenaCfg) gs.arenaCfg = { ...gs.arenaCfg, speedMult: undefined };
+      const P = gs.player; P.setPosition(1000, 800); P.body.reset(1000, 800);
+      const L = [];
+      for (let i = 0; i < 132; i++) {
+        if (i % 9 === 0 && L.length < 6) {
+          const a = L.length * Math.PI / 3 + 0.3;
+          L.push({ e: gs.spawnEnemyAt('bomber', 1000 + Math.cos(a) * 560, 800 + Math.sin(a) * 560, L.length % 3 === 2 ? { elite: true } : {}), born: i, first: null, armed: 0 });
+        }
+        window.__adv(1);
+        for (const o of L) {
+          if (!o.e.alive || i - o.born > 66) continue;
+          if (o.first == null && o.e._stuckRefX !== undefined) o.first = i - o.born;
+          if (o.e._stuckSidestepMs > 0) o.armed++;
+        }
+      }
+      const r = L.map((o) => ({ first: o.first, armed: o.armed, elite: !!o.e._elite }));
+      for (const o of L) if (o.e.active) gs._destroyEnemyFully(o.e);
+      return r;
+    });
+    await page.close();
+    return out;
+  };
+  for (const [tag, q] of [['legacy', '?nodlg=1&nofreeze=1'], ['v1', '?nodlg=1&nofreeze=1&roster=v1&gait=v2']]) {
+    const M = await multi(q);
+    check(M.length === 6 && M.every((m) => m.first != null && m.armed === 0) && M.filter((m) => m.elite).length === 2,
+      `SIX fresh Demolishers (${tag}; four Regular, two Elite; spawned 150ms apart from six bearings): every one runs its first stuck check (${M.map((m) => m.first).join('/')} ticks after spawning) and NONE arms a sidestep in its first 1.1s`, JSON.stringify(M));
   }
 }
 
 // ── 7. FROZEN ────────────────────────────────────────────────────────────
 {
   const run = (cmd) => execSync(cmd, { cwd: ROOT, encoding: 'utf8' });
-  check(run('git diff --stat 3ce5680 -- src/entities/Enemy.js src/data/encounters.js').trim() === '', 'src/entities/Enemy.js and the encounter table are UNCHANGED (since 3ce5680)', '');
+  // NARROWED, not removed: Enemy.js was authorized ONE change since 3ce5680 —
+  // the Demolisher's false-first-stuck veto (Phase 2D correction).
+  const eg = enemyJsGuard(ROOT);
+  check(eg.outside, 'src/entities/Enemy.js OUTSIDE class EnemyBomber is UNCHANGED since 3ce5680 (the base, Gunner, Rifleman, Bulwark, Marksman, Swarmling classes)', eg.detail);
+  check(eg.bomberOnlyVeto && eg.vetoCode, 'EnemyBomber differs from 3ce5680 ONLY by the authorized false-first-stuck veto (two origin fields, one call, one pinned method)', eg.detail);
+  check(run('git diff --stat 3ce5680 -- src/data/encounters.js').trim() === '', 'the encounter table is UNCHANGED (since 3ce5680)', '');
   const blk = (src) => { const a = src.indexOf('  bomber: {'); return src.slice(a, src.indexOf('  },', a)); };
   check(blk(run('git show cd4b0e9:src/config.js')) === blk(readFileSync(ROOT + 'src/config.js', 'utf8')), 'ENEMY.bomber (hp 200, speed 300, radius 20, contact 48, blast 155 / 240, death x0.8) is unchanged', '');
   const paint = readFileSync(ROOT + 'src/systems/rosterPaint.js', 'utf8'), old = run('git show cd4b0e9:src/systems/rosterPaint.js');

@@ -20,6 +20,7 @@
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { enemyJsGuard } from './enemy-frozen.mjs';
 
 const BASE = 'http://localhost:5173/';
 const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
@@ -348,8 +349,13 @@ check(clean.alive >= clean.start + 4 && clean.afterDeath === clean.start && clea
   check(run(`git diff --stat 6560c62 -- ${frozen.join(' ')}`).trim() === '', 'Captain actor, grenade, champions data and pixelArt.js unchanged since 6560c62', '');
   const base = (src) => { const a = src.indexOf('export class Enemy extends'); return src.slice(0, src.indexOf('\nexport class ', a + 10)); };
   check(base(run('git show 6560c62:src/entities/Enemy.js')) === base(readFileSync(ROOT + 'src/entities/Enemy.js', 'utf8')), 'the Enemy BASE CLASS is byte-identical to 6560c62', '');
-  check(run('git diff --stat 3ce5680 -- src/systems/gunnerMuzzle.js src/entities/Enemy.js src/data/encounters.js').trim() === '',
-    'Gunner fire v5, every enemy class (incl. v2.2 movement and the sniper AI) and the encounter table unchanged since the approved 3ce5680', '');
+  check(run('git diff --stat 3ce5680 -- src/systems/gunnerMuzzle.js src/data/encounters.js').trim() === '',
+    'Gunner fire v5 and the encounter table unchanged since the approved 3ce5680', '');
+  // NARROWED, not removed: Enemy.js was authorized ONE change since 3ce5680 —
+  // the Demolisher's false-first-stuck veto (Phase 2D correction).
+  const eg = enemyJsGuard(ROOT);
+  check(eg.outside, 'every enemy class OUTSIDE EnemyBomber (incl. v2.2 movement, the shared stuck recovery and the sniper AI) is UNCHANGED since 3ce5680', eg.detail);
+  check(eg.bomberOnlyVeto && eg.vetoCode, 'EnemyBomber differs from 3ce5680 ONLY by the authorized false-first-stuck veto (two origin fields, one call, one pinned method)', eg.detail);
 }
 
 await browser.close();

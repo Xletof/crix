@@ -1743,6 +1743,9 @@ export class EnemyBomber extends EnemyGrunt {
     this._swipeCd = 0;
     this._shoveMs = 0;
     this._burstOrbit = 1;
+    // where the shared stuck test's FIRST window begins — see _vetoFalseStuck
+    this._stuckOriginX = x;
+    this._stuckOriginY = y;
     this.setTint(0xff6a33);
     this.weaponSprite?.setVisible(false); // no gun — it IS the weapon
     this.body.setCircle(
@@ -1753,6 +1756,7 @@ export class EnemyBomber extends EnemyGrunt {
   }
 
   _tickSwarm(delta, player) {
+    this._vetoFalseStuck();
     this.lastKnownX = player.x;
     this.lastKnownY = player.y;
     const dx = player.x - this.x, dy = player.y - this.y;
@@ -1785,6 +1789,42 @@ export class EnemyBomber extends EnemyGrunt {
       return;
     }
     this._moveToward(player.x, player.y, this.cfg.speed);
+  }
+
+  /**
+   * THE FIRST STUCK CHECK MEASURES NOTHING, AND A RUSHER MUST NOT VEER ON IT.
+   *
+   * `Enemy.preUpdate`'s stuck recovery compares the body against
+   * `_stuckRefX ?? this.x` every 600ms, and the reference starts undefined —
+   * so its FIRST check always reads 0px moved and arms a 600ms perpendicular
+   * sidestep (and draws one random number for its side). Measured on a fresh
+   * Demolisher in a clear lane: armed at exactly 600ms after spawn, 175px
+   * from where it started and touching nothing, then 600ms at 91deg off the
+   * bearing to the player, ~190px sideways — in legacy and in roster v1. A
+   * committed explosive rusher veering in open floor reads as a dodge it
+   * never decided to make.
+   *
+   * So the Demolisher re-measures that ONE check the way it was meant to be
+   * measured — from where its first window began — and stands the sidestep
+   * down when it was in fact moving. Narrow on purpose:
+   *   - the base class is untouched, and every LATER check (whose reference is
+   *     set) is left alone, so a genuinely blocked Demolisher still recovers
+   *     (on the base's own 600ms cadence);
+   *   - the check's random draw has already been made by the base, so the RNG
+   *     stream is the stream it always was;
+   *   - not the nemesis, whose contact bursts own its movement;
+   *   - every other archetype shares the same first-check behaviour in the
+   *     base and is deliberately NOT changed here (`HANDOVER.md` §0).
+   * It runs at the top of the tick, before `_moveToward` reads the sidestep,
+   * and after the base's own block — the order `EnemyShooter.preUpdate` keeps.
+   */
+  _vetoFalseStuck() {
+    if (this._stuckFirstSeen || this._miniBoss) return;
+    if (this._stuckRefX === undefined) return;          // the first check has not run yet
+    this._stuckFirstSeen = true;
+    // the reference the base set at its first check IS where the body was then
+    const moved = Math.hypot(this._stuckRefX - this._stuckOriginX, this._stuckRefY - this._stuckOriginY);
+    if (moved >= 12 && this._stuckSidestepMs > 0) this._stuckSidestepMs = 0;
   }
 
   /**

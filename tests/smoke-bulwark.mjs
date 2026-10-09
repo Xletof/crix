@@ -40,6 +40,7 @@
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { enemyJsGuard } from './enemy-frozen.mjs';
 
 const BASE = process.env.BLW_BASE || 'http://localhost:5173/';   // BLW_BASE: A/B the checks against another build
 const ROOT = new URL('../', import.meta.url).pathname;
@@ -873,7 +874,12 @@ await pG.close();
 // ── 9. FROZEN ────────────────────────────────────────────────────────────
 {
   const run = (cmd) => execSync(cmd, { cwd: ROOT, encoding: 'utf8' });
-  check(run('git diff --stat 3ce5680 -- src/entities/Enemy.js src/data/encounters.js').trim() === '', 'src/entities/Enemy.js and the encounter table are UNCHANGED (since 3ce5680)', '');
+  // NARROWED, not removed: Enemy.js was authorized ONE change since 3ce5680 —
+  // the Demolisher's false-first-stuck veto (Phase 2D correction).
+  const eg = enemyJsGuard(ROOT);
+  check(eg.outside, 'src/entities/Enemy.js OUTSIDE class EnemyBomber is UNCHANGED since 3ce5680 (the base, Gunner, Rifleman, Bulwark, Marksman, Swarmling classes)', eg.detail);
+  check(eg.bomberOnlyVeto && eg.vetoCode, 'EnemyBomber differs from 3ce5680 ONLY by the authorized false-first-stuck veto (two origin fields, one call, one pinned method)', eg.detail);
+  check(run('git diff --stat 3ce5680 -- src/data/encounters.js').trim() === '', 'the encounter table is UNCHANGED (since 3ce5680)', '');
   const base = (src) => { const a = src.indexOf('export class Enemy extends'); return src.slice(0, src.indexOf('\nexport class ', a + 10)); };
   check(base(run('git show 6560c62:src/entities/Enemy.js')) === base(readFileSync(ROOT + 'src/entities/Enemy.js', 'utf8')), 'the Enemy BASE CLASS is byte-identical to 6560c62', '');
   const blk = (src) => { const a = src.indexOf('  shielded: {'); return src.slice(a, src.indexOf('  },', a)); };
