@@ -10,7 +10,7 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-10-09. Pages builds only from `FRIX`, so the live build is
+*Updated 2026-10-12. Pages builds only from `FRIX`, so the live build is
 whatever `FRIX` points at: check `git rev-parse HEAD origin/FRIX` rather than
 trusting a hash written here, and `git rev-parse --abbrev-ref HEAD` for the
 branch name. This line has named a stale branch three times — trust the
@@ -173,20 +173,33 @@ boss scheduler's timing while fixing it.
   likely cause is the instrument (a plan still firing when the sample window
   closes is compared as fired < drawn). Carried as test debt — do not read it
   as a rifle regression, and do not touch the rifle over it.
-- **THE SHARED FIRST STUCK CHECK — SHARED SWARM STUCK-DETECTION AUDIT,
-  PENDING, NOT AUTHORIZED.** `Enemy.preUpdate`'s stuck reference starts
-  undefined, so every swarm mover's FIRST 600ms check reads 0px moved and arms
-  a perpendicular sidestep. Only the Demolisher is corrected (Phase 2D). The
-  same base logic still runs for the Rifleman, Gunner, Bulwark, Marksman,
-  Swarmling and nemesis variants. **Do not apply the Demolisher fix globally
-  and do not touch shared `Enemy` movement without the human.** The audit's
-  questions: (1) which archetypes genuinely show the false positive; (2) how
-  often the first check produces an unnecessary lateral move; (3) whether
-  movement v2.2 masks, amplifies or bypasses it; (4) its effect on VANGUARD;
-  (5) whether fixing shared initialization alters frozen gameplay; (6) whether
-  first-check false positives can go without touching legitimate obstacle
-  recovery; (7) which regression and seeded-encounter tests it needs.
-  `tests/diag-demolisher-veer.mjs` is the per-tick instrument to start from.
+- **SHARED STUCK AUDIT COMPLETE — CORRECTION NOT AUTHORIZED.** (Phase 3A,
+  diagnosis only; `src/` untouched.) Record:
+  `docs/evidence/shared-stuck-audit/stuck-shared-audit-notes.md`, the role
+  matrix beside it, `tests/diag-stuck-audit.mjs` (the instrument and every
+  counterfactual, all page-side), `tests/smoke-stuck-audit.mjs` (proves the
+  instrument sees the real game). Findings:
+  - **TWO false classes**, not one. The FIRST CHECK (reference undefined,
+    reads 0px) moves every ordinary role still approaching at 0.6s —
+    Rifleman, Gunner, Bulwark (all
+    three VANGUARD forms), Marksman, Swarmling, all five nemesis bases
+    (the nemesis Demolisher included). And HOLD → RESUME: `spec.behavior`
+    is 'swarm' for every enemy, so the check cannot see a deliberate stop —
+    a Bulwark / VANGUARD screen / Marksman / v2 settle that holds 600ms
+    sidesteps on the first tick it walks again. The Demolisher veto covers
+    only the first class.
+  - In six real encounters, 87% of the stuck sidesteps actually taken by
+    ordinary roles are false (371 first-check, 166 hold → resume, 3 other,
+    against 83 on real contact).
+  - Legitimate recovery IS necessary (switched off, no role gets round
+    cover), and a shared fix delays it ~600ms for cover met inside the
+    first window.
+  - **VANGUARD:** with the player near the gates, the frozen opening front
+    releases on TIMEOUT 4/4 with one opener still far; fixed, 4/4 ESTABLISH.
+    The human approved VANGUARD with the bug in it, so any fix changes an
+    approved fight.
+  - **Do not apply the Demolisher fix globally and do not touch shared
+    `Enemy` movement without the human.** The decision gate is in the notes.
 - **The frozen roles' v1 Elite-death RNG mismatch.** A Gunner / Rifleman /
   Marksman v1 Elite dies with a smaller kill juice than legacy (render scale
   1.0 vs 1.4), so fewer random draws and a different fight after the first
@@ -791,8 +804,9 @@ not delete legacy art or the old debug flags.
 (above). **No milestone is started or authorized.** The next direction comes
 from the human; the candidates, none begun:
 
-- **Shared swarm stuck-detection audit** — technical cleanup (debt list
-  above). Investigation first; no shared `Enemy` change without the human.
+- **Shared swarm stuck-detection correction** — the AUDIT IS DONE (debt list
+  above); a correction is a separate human decision at the gate in its notes.
+  No shared `Enemy` change without the human.
 - **Elite gameplay redesign** — content. Elites today are the production art
   over the historical gameplay scale and collider.
 - **Production roster default-rollout assessment** — whether `?roster=v1`,

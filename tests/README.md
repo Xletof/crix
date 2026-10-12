@@ -1614,3 +1614,39 @@ distance is 112 screen pixels, and the difference between a lit display and a
 lit haze cannot be judged there — the three `dark-near-*` frames and one normal
 control exist for that and nothing else. Every other frame is reset to zoom 1,
 because a picture of the room taken at 2x is a picture of a different room.
+
+## The shared stuck-check audit rigs (Phase 3A)
+
+`diag-stuck-audit.mjs` is the instrument: it wraps `Enemy.prototype.preUpdate`,
+`_moveToward` and the outer per-class `preUpdate` IN THE PAGE, observes every
+600ms stuck check (and classifies what it armed), and installs each
+counterfactual as a page-side patch — `src/` is never touched.
+`smoke-stuck-audit.mjs` (standalone, not in run-all) proves the instrument is
+watching the real game; `shot-stuck-audit.mjs` films it. Metrics runs use
+`Game.headlessStep` (same update, no render) — about 250x faster, and the smoke
+checks it is tick-for-tick identical to the rendered game.
+
+### Three ways it lied before it told the truth
+
+- **A STAGED "EMPTY" ROOM WAS ONLY EMPTY FOR PHYSICS.** Disabling a cover
+  body's `body.enable` leaves it in `gs.losRects` and in the nav grid, both
+  cached at `loadRoom`. So invisible consoles kept blocking every enemy's line
+  of sight and every path in the "clear lane" — the first matrix reported a
+  Gunner with LOS on 45% of ticks in an empty room (84% even with the false
+  sidestep removed). The staged setup rebuilds
+  both from what the staged room actually holds, and the smoke asserts LOS on
+  100% of a clear-lane run.
+- **ANYTHING THAT DRAWS RANDOM NUMBERS CARRIES ACROSS RUNS ON ONE PAGE.**
+  Back-to-back staged runs parted at tick 200 (the ambient mote clock), and
+  later a nemesis Marksman's last hit left a CAMERA SHAKE running into the next
+  run — Phaser's Shake draws `Math.random` every frame, 12 extra draws by 0.6s.
+  The setup now zeroes `_moteTimer`, `resetFX()`, `tweens.killAll()` and
+  `time.removeAllEvents()`, and the smoke replays a run after a nemesis
+  Marksman to prove independence. (The evidence overlay must NOT `resetFX()`
+  every frame for the same reason — it would film a different game.)
+- **AN OVERLAY DRAWN AFTER THE STEP IS ONE FRAME BEHIND THE CANVAS, AND A
+  CLIP COMPUTED BEFORE A RENDER USES THE OLD ZOOM.** The first proof sheet
+  showed every panel wearing the PREVIOUS role's trail, and the first video
+  cropped off-arena, because `cam.worldView` only updates on a render pass.
+  `__render()` repaints the current state (render only, no update) before every
+  shutter and before the clip is measured.

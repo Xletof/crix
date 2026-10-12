@@ -1151,8 +1151,13 @@ asserts separately that the ceiling is not reached.
   recovers on the base's next check (600ms later than before when it spawns
   within 600ms of a wall — an ACCEPTED limitation), and the nemesis is
   excluded. Approved on handset. **Do not generalise it into the base without
-  the human**: it changes five frozen roles' movement, and the shared audit is
-  a pending, UNAUTHORIZED backlog item (`HANDOVER.md` §0 debt list).
+  the human**: it changes five frozen roles' movement. The shared audit is
+  COMPLETE and its correction is NOT AUTHORIZED
+  (`docs/evidence/shared-stuck-audit/`). It found a SECOND false class this
+  veto does not touch: HOLD → RESUME. Every enemy is `behavior: 'swarm'`, so
+  a body that stands still on purpose for 600ms (Bulwark hold, VANGUARD
+  screen, Marksman band, v2 settle) sidesteps on its first tick back on the
+  move.
   `tests/enemy-frozen.mjs` is the narrowed guard (identical outside
   EnemyBomber; inside, only the pinned veto), and `smoke-demolisher` proves
   the replay with the veto switched off IS the pre-correction game.
