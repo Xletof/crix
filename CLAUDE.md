@@ -1161,6 +1161,24 @@ asserts separately that the ceiling is not reached.
   `tests/enemy-frozen.mjs` is the narrowed guard (identical outside
   EnemyBomber; inside, only the pinned veto), and `smoke-demolisher` proves
   the replay with the veto switched off IS the pre-correction game.
+- **THE BULWARK STUCK CANDIDATES ARE OPT-IN AND NOT FROZEN — Phase 3B,
+  `HANDOVER.md` §0.**
+  - **Flags:** `?bulwarkStuck=prog` (A) and `=early` (B), installed per
+    ordinary Bulwark from `spawnEnemyAt`, never on a nemesis. Absent, nothing
+    is installed and the game is `690ed9b` tick for tick.
+  - **Seam:** the module shadows the bearer's own `_tickSwarm` /
+    `_moveToward`; `Enemy.js` is not touched. It REVIEWS each base check
+    before the AI can take it, and it never draws a random number.
+  - **Intent comes from the AI's own `_moveToward` calls, never from
+    velocity** — a body pinned on a wall has zero velocity and is very much
+    trying to move.
+  - **B's two bars are deliberately asymmetric.** KEEPING an arm accepts
+    "pressing into the face it is blocked on" right now: a wrong keep is the
+    frozen game, and a Regular meets a 70×70 console ONE TICK before the
+    first check, with its arrival step still showing 72% progress. ARMING a
+    declined check needs a 50ms pinned run.
+  - Do not make either the default, freeze it or extend it to another
+    archetype without the human.
 - **THE STATE LANGUAGE'S ONE RULE SURVIVED HANDSET REVIEW AND ITS SUSTAINED
   HALF DID NOT — `HANDOVER.md` §10ah, §10ai.** **SYMBOL = TRANSITION, BODY / FX
   = SUSTAINED STATE.** A glyph lives a few hundred ms to say something CHANGED

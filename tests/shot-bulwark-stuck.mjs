@@ -290,6 +290,7 @@ async function front() {
           }
           if (f?.released && !rel) rel = { t: i / 60, why: f.why, pos: f.pair.map((e) => e && { x: Math.round(e.x), y: Math.round(e.y), d: Math.round(Math.hypot(e.x - P.x, e.y - P.y)) }), since: f.sinceSecondMs };
         }
+        window.__place(1150, 650, 0.62);   // (see the live run: the impact punch resets zoom)
         window.__draw(); window.__render();
         const f = gs._vanguardFront;
         const d = (f?.pair || []).map((e) => (e?.alive ? Math.round(Math.hypot(e.x - P.x, e.y - P.y)) : null));
@@ -355,6 +356,10 @@ async function live() {
           if (i === 900 || i === 1700) { P.superCharge = 999; P.tryFireSuper(P._autoAimAngle()); }
           window.__adv(1);
         }
+        // the impact camera punch (GameScene._cameraPunch) sets zoom 1 and
+        // tweens it: re-place the FILMING camera every frame, after the step
+        // and before the render. Presentation only — the tween still runs.
+        window.__place(800, 700, 0.4);
         window.__draw(); window.__render();
         const f = gs._vanguardFront;
         if (f?.released && !rel) rel = `front ${f.why.toUpperCase()} at ${(i / 60).toFixed(1)}s`;

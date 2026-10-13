@@ -10,7 +10,7 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-10-12. Pages builds only from `FRIX`, so the live build is
+*Updated 2026-10-13. Pages builds only from `FRIX`, so the live build is
 whatever `FRIX` points at: check `git rev-parse HEAD origin/FRIX` rather than
 trusting a hash written here, and `git rev-parse --abbrev-ref HEAD` for the
 branch name. This line has named a stale branch three times — trust the
@@ -200,6 +200,8 @@ boss scheduler's timing while fixing it.
     approved fight.
   - **Do not apply the Demolisher fix globally and do not touch shared
     `Enemy` movement without the human.** The decision gate is in the notes.
+  - **Phase 3B** (Bulwark only, opt-in `?bulwarkStuck=prog|early`) is the one
+    authorized follow-up. See its section above; it is not the default.
 - **The frozen roles' v1 Elite-death RNG mismatch.** A Gunner / Rifleman /
   Marksman v1 Elite dies with a smaller kill juice than legacy (render scale
   1.0 vs 1.4), so fewer random draws and a different fight after the first
@@ -798,15 +800,47 @@ Demolisher false-stuck gameplay fix, which is not behind a flag. Do NOT enable
 roster, gait or movement globally — that is a separate human decision — and do
 not delete legacy art or the old debug flags.
 
+### PHASE 3B — BULWARK STUCK-RECOVERY CANDIDATES. **OPT-IN, NOT THE DEFAULT, NOT FROZEN — AWAITING HUMAN HANDSET**
+
+The first authorized correction from the Phase 3A audit, on the ordinary
+Bulwark ONLY. Record: `docs/evidence/bulwark-stuck-v3b/bulwark-stuck-candidate-notes.md`.
+
+| flag | candidate |
+|---|---|
+| *(none)* | the frozen game — `690ed9b` tick for tick, draw for draw |
+| `?bulwarkStuck=prog` | **A** — the false first check and intentional holds are stood down |
+| `?bulwarkStuck=early` | **B** — A, plus physics evidence: a pinned / pressing arm is kept, a pinned walk-in check is armed (the base's own instant, length and last drawn direction — no new draw) |
+
+- **Seam:** `src/systems/bulwarkStuck.js` shadows the bearer's own
+  `_tickSwarm` / `_moveToward` at spawn. It is installed from `spawnEnemyAt`
+  for `shielded && !legacyArt` only — free, screen and opener, Regular and
+  Elite. Never on a nemesis.
+- **`Enemy.js` and every entity are byte-identical.** `smoke-stuck-audit` §0
+  is narrowed in the open to exactly the four candidate files.
+- **It reviews; it never arms on its own clock and never draws.** Intent is
+  read from the AI's own `_moveToward` calls, never from velocity.
+- **Measured:**
+  - The false first sidestep and every hold → resume sidestep are gone in all
+    five Bulwark forms, and the approach arrives 600ms sooner.
+  - A pays a window on cover met before the first check. B does not.
+  - Staged obstacles: 188 / 183 / 195 of 200 runs reach the player for
+    baseline / A / B.
+  - VANGUARD front: 11 / 16 / 16 of 36 runs establish. The FIRST shield also
+    stands alone with the player 0.3-0.5s longer near the gates.
+- **Do not make either the default, do not freeze it, and do not extend it to
+  another archetype** (Marksman included) without the human.
+
 ### The recommended next area of work
 
 **PHASE 2D IS CLOSED and five-role ordinary roster production is complete**
 (above). **No milestone is started or authorized.** The next direction comes
 from the human; the candidates, none begun:
 
-- **Shared swarm stuck-detection correction** — the AUDIT IS DONE (debt list
-  above); a correction is a separate human decision at the gate in its notes.
-  No shared `Enemy` change without the human.
+- **Phase 3B handset verdict** — A, B or neither, from the URLs in the
+  Phase 3B notes. Nothing else in stuck recovery moves until then.
+- **Shared swarm stuck-detection correction** for the OTHER roles — the
+  AUDIT IS DONE (debt list above). It is a separate human decision at the gate
+  in its notes. No shared `Enemy` change without the human.
 - **Elite gameplay redesign** — content. Elites today are the production art
   over the historical gameplay scale and collider.
 - **Production roster default-rollout assessment** — whether `?roster=v1`,
