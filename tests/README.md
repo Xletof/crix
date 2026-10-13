@@ -1650,3 +1650,43 @@ checks it is tick-for-tick identical to the rendered game.
   cropped off-arena, because `cam.worldView` only updates on a render pass.
   `__render()` repaints the current state (render only, no update) before every
   shutter and before the clip is measured.
+
+## The Bulwark stuck-recovery candidate rigs (Phase 3B)
+
+`?bulwarkStuck=prog` (Candidate A) and `?bulwarkStuck=early` (Candidate B) are
+opt-in, on the ordinary Bulwark only (`src/systems/bulwarkStuck.js`). Every rig
+here runs the REAL URL flag on a real page — never a page-side patch — with the
+Phase 3A instrument installed in observe-only mode ('A').
+
+- `smoke-bulwark-stuck.mjs` (standalone) — the twelve-item suite. Section 1
+  needs a `690ed9b` server (`--old=`, default :5174) and proves flag-off is
+  that build tick for tick and draw for draw. Pointed at that build as
+  `--base=`, every candidate check FAILS (18 pass / 23 fail): that is the A/B.
+- `diag-bulwark-stuck.mjs` — the metrics matrix (staged lanes, holds,
+  obstacles; the VANGUARD front under six player conditions with and without
+  the Captain; a live VANGUARD; encounters with no Bulwark; ms per tick).
+  Per-section CSVs, then `--merge` writes
+  `docs/evidence/bulwark-stuck-v3b/bulwark-stuck-candidate-metrics.csv`.
+- `shot-bulwark-stuck.mjs` — the five videos, 1x, AI live.
+
+### Four ways it lied before it told the truth
+
+- **A STAGED RESET DOES NOT REWIND THE GAME'S OWN SEEDED STREAMS.**
+  `__audSetup` reseeds `Math.random`, but `gs.rng.nemesis` is the scene's own
+  stream and `rollNemesis` advances it. Section 8 ran nemeses on the candidate
+  pages only, and section 9's crowd — which contains a nemesis — parted from
+  baseline at tick 349 with no Bulwark in it. Every page must carry the same
+  history into a comparison, and a crowd with a nemesis in it gets FRESH pages.
+- **THE AUDIT'S `stood` FIELD ONLY KNOWS THE AUDIT'S OWN COUNTERFACTUALS.** A
+  candidate standing an arm down is invisible to it (`armed`, `stood: false`,
+  `cons: 0` — which also describes a baseline arm that ran out during a hold).
+  The candidate's decisions are read from its own `e._bulwarkStuck.log`, and
+  the evidence overlay diffs that log every tick to colour each ring.
+- **"PINNED" AS A SHARE OF A FIXED WINDOW MISSED THE CASE IT EXISTED FOR.** A
+  140px/s Bulwark meets a near console ~517ms after spawning, so at the first
+  check it has ~80ms of contact in a 200ms window. B's rule is the most recent
+  UNBROKEN commanded + in-contact run (>= 50ms), not a fraction.
+- **A REFUSED READ ON THE OLD BUILD IS A CRASH, NOT A FAILURE.** On `690ed9b`
+  there is no `_bulwarkStuck`, so `logs[0].stoodHold` threw and killed the
+  whole A/B run. Every log read is null-safe so the old build reports FAIL per
+  check instead of one stack trace.
