@@ -339,7 +339,18 @@ bomberRun, 3 seeds each, 1800 ticks, real spawner, scripted fire and Supers.
 
 ## 8. Performance
 
-{{PERF}}
+12 Bulwarks (6 screen, 6 free) on a lateral-moving player, 600 ticks, the
+median of 5 runs, idle box, headless step:
+
+| | mean ms / tick | p50 | p95 |
+|---|---|---|---|
+| baseline | 0.679 | 0.6 | 1.4 |
+| A | 0.581 | 0.5 | 1.3 |
+| B | 0.615 | 0.5 | 1.2 |
+
+All three are within run-to-run noise. The candidate's work per Bulwark per
+tick is one sample push and a trim of a ~200ms history, plus a scan of that
+history at a check (every 600ms). It owns no timer, tween or listener.
 
 ## 9. Known limits
 
