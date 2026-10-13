@@ -380,3 +380,47 @@ history at a check (every 600ms). It owns no timer, tween or listener.
 Rigs: `tests/diag-bulwark-stuck.mjs` (metrics), `tests/shot-bulwark-stuck.mjs`
 (videos) and `tests/smoke-bulwark-stuck.mjs` (42 checks). The smoke's
 candidate checks fail on `690ed9b`.
+
+## 11. Regressions
+
+**Targeted suites, standalone, all green:**
+
+| suite | result |
+|---|---|
+| `smoke-bulwark-stuck` | 42/42, §1 run against a live `690ed9b` server |
+| `smoke-stuck-audit` | 40/40 |
+| `smoke-bulwark` | 92/92 |
+| `smoke-demolisher` | 91/91 (the approved veto still runs) |
+| `smoke-roster-2b` | 74/74 |
+| `smoke-roster-gunner` | 72/72 |
+| `smoke-roster-seams` | 70/70 |
+| `smoke-move-v2` | 9/9 |
+| `smoke-gait-v2` | 16/16 |
+| production build | OK |
+
+**`run-all`: 38/52, and it is the container, not this change.**
+
+- This container renders headless pages at about **6 fps while idle**: 98% CPU
+  idle, load under 2. The real-time suites were written against roughly
+  20 fps.
+- Measured on matched pages of the same VANGUARD cell: the new build at
+  5.92 / 5.82 fps, `690ed9b` at 5.98 / 5.83 fps. **The two builds run at the
+  same speed.**
+- The 14 red suites are all wall-clock real-time:
+  - Vader, DEFLECTION, the camera, the Captain, moves, nemesis, readability,
+    champion, VANGUARD screen and front.
+  - In a matched new-vs-`690ed9b` A/B, run one suite at a time, **the frozen
+    baseline fails the same suites**, on a DIFFERENT check each run:
+    - vanguard-screen: new 1/22 (close band) vs old 1/22 (positive control);
+    - vanguard-front: new crashed vs old 1/30 (surge);
+    - captain: new 7/38 vs old 2/38.
+- **The vanguard-front "crash" is the instrument.** Its `&nofront=1` section
+  polls 15 wall-clock seconds for three gate events, the poll returns silently
+  on timeout, and the next line reads `g[2].t` from a 2-element array. At
+  6 fps a timeout is a coin flip.
+- With the flag absent this build is `690ed9b` tick for tick and draw for
+  draw. That is a deterministic stepped replay, not a real-time sample
+  (`smoke-bulwark-stuck` §1), and it is the authoritative statement that the
+  default game is unchanged.
+- **A `run-all` on a normal-speed container is still owed** before anyone
+  reads the suite's own totals as green.
