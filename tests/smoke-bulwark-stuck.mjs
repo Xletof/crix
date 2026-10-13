@@ -12,7 +12,7 @@
 //   3  an intentional hold leaves no actionable recovery behind
 //   4  hold -> resume walks toward the player, not across
 //   5  real contact still triggers recovery, and the Bulwark gets round
-//   6  early obstacles: B keeps the pinned first arm, A waits a window
+//   6  early obstacles: B keeps the pinned / pressing first arm, A waits a window
 //   7  every Bulwark mode is covered (free / screen / opener, Regular / Elite)
 //   8  the nemesis shielded is excluded
 //   9  every other archetype is untouched, with all of them on the floor at once
@@ -137,6 +137,13 @@ const all = [['baseline', P0], ['A', PA], ['B', PB]];
   check('6a baseline: cover met inside the first window — the (false) first arm happens to free it at 0.6s', first(rn.baseline) === 35, `first sidestep tick ${first(rn.baseline)}`);
   check('6b A: the same cover waits a whole window for the second check (the known cost)', first(rn.A) === 71, `first sidestep tick ${first(rn.A)}`);
   check('6c B: keeps the first arm because the Bulwark is PINNED — recovery at 0.6s, like baseline', first(rn.B) === 35 && rn.B.logs[0]?.keptPinned === 1, `first sidestep tick ${first(rn.B)} log ${JSON.stringify(rn.B.logs[0])}`);
+  // a REAL cover body (70x70) met ONE TICK before the first check: the arrival
+  // step still shows 72% of the commanded travel, so only "pressing into the
+  // face it is blocked on" can see it (a 50ms-run-only B stood it down: 71)
+  const rc = {};
+  for (const [k, p] of all) rc[k] = await run(p, { ...lane(SH, { wall: [800, 390, 70, 70], ticks: 600 }), rows: true });
+  check('6e B: a 70x70 console met one tick before the check — B keeps the arm (pressing), A waits a window', first(rc.baseline) === 35 && first(rc.A) === 71 && first(rc.B) === 35 && rc.B.logs[0]?.keptPinned === 1,
+    `first sidestep tick baseline ${first(rc.baseline)} A ${first(rc.A)} B ${first(rc.B)} log ${JSON.stringify(rc.B.logs[0])}`);
   const rw = {};
   for (const [k, p] of all) rw[k] = await run(p, { ...lane(SH, { wall: [800, 700, 240, 40], ticks: 600 }), rows: true });
   check('6d B: cover met mid-window (the base check is fooled by the walk-in) — B arms the very next check', first(rw.B) < first(rw.A) && rw.B.logs[0]?.armedPinned >= 1, `first sidestep tick A ${first(rw.A)} B ${first(rw.B)}`);

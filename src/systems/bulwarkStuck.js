@@ -38,13 +38,11 @@
 // CANDIDATE B ('early') adds ONE exception. An arm is never stood down while
 // the body is demonstrably PINNED at the moment of the check: its most recent
 // unbroken run of ticks that were BOTH commanded to move AND in wall / bounds
-// contact lasts at least 50ms, and over that run it made under 30% of its
-// commanded progress toward its own target. A run, not a share of a fixed
-// window: a 140px/s Bulwark that meets a console 517ms after spawning has
-// only ~80ms of contact when the first check comes, and that is the case.
-// That is the case Candidate A gets wrong — cover met INSIDE the first window
-// (or straight out of a hold), where the "false" arm happens to be the right
-// call and standing it down delays real recovery by a whole 600ms window.
+// contact, over which it made under 30% of its commanded progress toward its
+// own target. A run, not a share of a fixed window. That is the case
+// Candidate A gets wrong — cover met INSIDE the first window (or straight out
+// of a hold), where the "false" arm happens to be the right call and standing
+// it down delays real recovery by a whole 600ms window.
 // And B recognises the mirror case the base's own test misses: a body that
 // walked 40px and THEN hit cover inside the same window has "moved" >= 12px,
 // so the base does not arm and recovery waits another full window while it
@@ -53,13 +51,27 @@
 // in the direction the base last drew (`_stuckSideDir`): NO new random draw,
 // and the recovery itself is unchanged. It is physics evidence
 // (`body.blocked`) plus the AI's own target, read only at a check.
+//
+// THE TWO BARS ARE DELIBERATELY ASYMMETRIC. KEEPING a base arm also accepts
+// "pressing right now": the physics step that just ran blocked the body on
+// the face it was commanded into, so that with the blocked components taken
+// out of the command it keeps under 30% of its progress (1 - bx^2 - by^2 —
+// the run test's own criterion, evaluated for this instant). A wrong keep is
+// exactly the frozen game's behaviour, so the bar can be low — and it has to
+// be: a Regular Bulwark meets a 70x70 console ONE TICK before the first
+// check, and that arrival step still shows 72% of its commanded travel (it
+// moved up to the face inside the step), so no run-of-progress test can see
+// it; a 50ms run stood that arm down and cost the real case a whole window
+// (measured, `bulwark-stuck-v3b`). ARMING a check the base declined adds a
+// sidestep the frozen game never takes, so it needs the real run
+// (`pinRunMs`, 50ms of commanded contact under 30% progress).
 
 export const BULWARK_STUCK = {
   minMovePx: 12,       // the base block's own threshold (read-only mirror)
   holdFrac: 0.5,       // under this share of commanded decision time = a hold
   minDecideMs: 100,    // a window with less AI decision time than this is left to the base
   pinMs: 200,          // B: the history kept for "pinned right now"
-  pinRunMs: 50,        // B: the commanded + in-contact run must be at least this long
+  pinRunMs: 50,        // B: to ARM a check the base declined, the run must be at least this long
   pinProgFrac: 0.3,    // B: and made under this share of its commanded progress
 };
 
@@ -116,7 +128,7 @@ function review(e, S) {
     let stand = null;
     if (S.first && Math.hypot(e._stuckRefX - S.ox, e._stuckRefY - S.oy) >= BULWARK_STUCK.minMovePx) stand = 'F1';
     else if (S.winDecide >= BULWARK_STUCK.minDecideMs && S.winMove < BULWARK_STUCK.holdFrac * S.winDecide) stand = 'Hold';
-    if (stand && S.mode === 'early' && pinned(e, S)) { stand = null; S.log.keptPinned++; }
+    if (stand && S.mode === 'early' && (pressing(e, S) || pinned(e, S))) { stand = null; S.log.keptPinned++; }
     if (stand) { e._stuckSidestepMs = 0; S.log['stood' + stand]++; } else S.log.kept++;
   } else if (S.mode === 'early' && e._stuckSideDir !== undefined && pinned(e, S)) {
     e._stuckSidestepMs = 600;   // the base's own length; its last drawn direction
@@ -126,7 +138,20 @@ function review(e, S) {
   S.winDecide = 0; S.winMove = 0;
 }
 
-// B: commanded, in contact, and not getting anywhere — right now.
+// B, to keep an arm: the step that just ran was commanded INTO a face the body
+// is blocked on (or the world bound), head-on enough to leave it under 30% of
+// its commanded progress.
+function pressing(e, S) {
+  if (!S.pcmd) return false;
+  const b = e.body.blocked;
+  if (b.none) return false;
+  const bx = (b.right && S.pux > 0) || (b.left && S.pux < 0) ? S.pux : 0;
+  const by = (b.down && S.puy > 0) || (b.up && S.puy < 0) ? S.puy : 0;
+  return 1 - bx * bx - by * by < BULWARK_STUCK.pinProgFrac;
+}
+
+// B: commanded, in contact, and not getting anywhere — an unbroken run of at
+// least `pinRunMs`.
 function pinned(e, S) {
   let t = 0, prog = 0;
   for (let i = S.recent.length - 1; i >= 0; i--) {
