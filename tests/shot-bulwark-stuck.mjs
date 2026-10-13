@@ -174,7 +174,7 @@ async function evPage(mode, q) {
 }
 
 // ── staged videos: N pages in lockstep ───────────────────────────────────
-async function stagedVideo(file, panels, { region, zoom, frames, per = 2, label, cols = panels.length, foot = (st) => '' }) {
+async function stagedVideo(file, panels, { region, zoom, frames, per = 2, label, cols = panels.length, foot = (st) => [], rowTitles = null }) {
   const pages = [];
   for (const pn of panels) {
     const p = await evPage(pn.mode);
@@ -188,8 +188,10 @@ async function stagedVideo(file, panels, { region, zoom, frames, per = 2, label,
   }
   const clip = await pages[0].evaluate((r) => window.__clipFor(...r), region);
   const vw = videoWriter(OUT + file);
-  const lab = 26, ft = 38, gap = 8, rows = Math.ceil(panels.length / cols);
-  const W = cols * clip.width + (cols - 1) * gap, H = rows * (clip.height + lab + ft) + 46;
+  // short lines only: a 3-column panel is ~200-340px of 11px monospace
+  const head = rowTitles ? 20 : 0, lab = 22, ft = 52, gap = 8, rows = Math.ceil(panels.length / cols);
+  const rowH = head + lab + clip.height + ft;
+  const W = Math.max(cols * clip.width + (cols - 1) * gap, 640), H = rows * rowH + 46;
   let last;
   for (let f = 0; f < frames; f++) {
     const shots = [];
@@ -203,13 +205,15 @@ async function stagedVideo(file, panels, { region, zoom, frames, per = 2, label,
       shots.push({ buf: await p.screenshot({ clip }), st });
     }
     const draws = [], texts = [];
+    if (rowTitles) rowTitles.forEach((rt, r) => texts.push({ text: rt, x: 6, y: r * rowH + 15, size: 13, bold: true, color: '#ffd9a0' }));
     panels.forEach((pn, j) => {
-      const x = (j % cols) * (clip.width + gap), y = Math.floor(j / cols) * (clip.height + lab + ft);
+      const x = (j % cols) * (clip.width + gap), y = Math.floor(j / cols) * rowH + head;
       draws.push({ i: j, sx: 0, sy: 0, sw: clip.width, sh: clip.height, dx: x, dy: y + lab });
-      texts.push({ text: pn.title, x: x + 6, y: y + 18, size: 13, bold: true, color: MODE[pn.mode].color });
+      texts.push({ text: pn.title, x: x + 6, y: y + 16, size: 12, bold: true, color: MODE[pn.mode].color });
       const st = shots[j].st;
-      texts.push({ text: `taken ${st.taken} (F1 ${st.takenF1}·hold ${st.takenHold}·contact ${st.takenBlock}) stood ${st.stood} B ${st.bArms}`, x: x + 6, y: y + lab + clip.height + 15, size: 11, color: MODE[pn.mode].color });
-      texts.push({ text: foot(st, pn), x: x + 6, y: y + lab + clip.height + 31, size: 11, color: '#cfd6e4' });
+      const lines = [[`taken ${st.taken} · stood ${st.stood} · B ${st.bArms}`, MODE[pn.mode].color],
+        [`F1 ${st.takenF1} · hold ${st.takenHold} · contact ${st.takenBlock}`, MODE[pn.mode].color], ...[].concat(foot(st, pn)).map((t) => [t, '#cfd6e4'])];
+      lines.forEach(([t, color], k) => texts.push({ text: t, x: x + 6, y: y + lab + clip.height + 14 + k * 13, size: 11, color }));
     });
     texts.push({ text: label(f), x: 8, y: H - 24, size: 12, color: '#ffd9a0' });
     texts.push({ text: LEGEND, x: 8, y: H - 7, size: 11, color: '#cfd6e4' });
@@ -221,8 +225,8 @@ async function stagedVideo(file, panels, { region, zoom, frames, per = 2, label,
   console.log('wrote', OUT + file, JSON.stringify(last));
 }
 const t = (f, per = 2) => (f * per / 60).toFixed(1);
-const LEGEND = 'rings: RED armed + taken · GREEN stood down by the candidate · BLUE armed by B (pinned) · AMBER armed, ran out unused   (overlay = rig only)';
-const engagedTxt = (st) => `${st.engage != null ? `ENGAGED ${(st.engage / 60).toFixed(2)}s` : `to player ${st.d ?? '-'}px`}${st.contact != null ? ` · contact ${(st.contact / 60).toFixed(2)}s` : ''} · side ${st.sideMs}ms`;
+const LEGEND = 'rings: RED taken · GREEN stood down (candidate) · BLUE armed by B · AMBER armed, unused';
+const engagedTxt = (st) => [st.engage != null ? `ENGAGED at ${(st.engage / 60).toFixed(2)}s` : `to player ${st.d ?? '-'}px`, `contact ${st.contact != null ? `${(st.contact / 60).toFixed(2)}s` : '-'} · side ${st.sideMs}ms`];
 
 // ── 1. CLEAR LANE: free Regular, free Elite, VANGUARD screen ─────────────
 async function clear() {
@@ -231,8 +235,8 @@ async function clear() {
     { type: 'shielded', spec: { vanguardScreen: { holdPx: 140, resumePx: 165 } }, x: 1080, y: 220, at: 0, label: 'SCREEN' }] };
   await stagedVideo('bulwark-stuck-clear-ab.webm', ['baseline', 'A', 'B'].map((m) => ({ mode: m, title: MODE[m].title, sc })), {
     region: [380, 150, 840, 1060], zoom: 0.4, frames: 270,
-    foot: (st) => `sidestep time, all three Bulwarks: ${st.sideMs}ms`,
-    label: (f) => `1x real speed — same seed, empty lane, standing player. The base stuck check runs 0.60s after spawning.  t ${t(f)}s`,
+    foot: (st) => `sideways, all three: ${st.sideMs}ms`,
+    label: (f) => `1x — same seed, empty lane, standing player. First base check at 0.60s.  t ${t(f)}s`,
   });
 }
 
@@ -242,8 +246,8 @@ async function hold() {
     { type: 'shielded', x: 680, y: 200, at: 0, label: 'BULWARK' }, { type: 'shielded', spec: { vanguardScreen: { holdPx: 140, resumePx: 165 } }, x: 920, y: 200, at: 0, label: 'SCREEN' }] };
   await stagedVideo('bulwark-stuck-hold-resume.webm', ['baseline', 'A', 'B'].map((m) => ({ mode: m, title: MODE[m].title, sc })), {
     region: [480, 120, 640, 1260], zoom: 0.42, frames: 360,
-    foot: (st) => `sidestep time: ${st.sideMs}ms`,
-    label: (f) => `1x — a free Bulwark (holds at 290px) and a VANGUARD screen (holds at 140, resumes past 165). Player stands 4s, backs off at 4.0s and 8.0s.  t ${t(f)}s`,
+    foot: (st) => `sideways: ${st.sideMs}ms`,
+    label: (f) => `1x — free Bulwark (holds 290) + screen (140/165). Player backs off at 4s and 8s.  t ${t(f)}s`,
   });
 }
 
@@ -252,11 +256,12 @@ async function obstacle() {
   const near = { seed: 1001, ticks: 99999, player: { path: 'stand', x: 800, y: 1150 }, wall: [800, 390, 240, 40], actors: [{ type: 'shielded', x: 800, y: 250, at: 0, label: 'BULWARK' }] };
   const far = { ...near, wall: [800, 700, 240, 40] };
   const panels = [];
-  for (const [sc, tag] of [[near, 'EARLY wall (met ~0.6s)'], [far, 'LATER wall (met ~2.8-3.5s)']]) for (const m of ['baseline', 'A', 'B']) panels.push({ mode: m, title: `${m === 'baseline' ? 'BASELINE' : `CANDIDATE ${m}`} · ${tag}`, sc });
+  for (const sc of [near, far]) for (const m of ['baseline', 'A', 'B']) panels.push({ mode: m, title: m === 'baseline' ? 'BASELINE' : `CANDIDATE ${m}`, sc });
   await stagedVideo('bulwark-stuck-obstacle-ab.webm', panels, {
-    region: [560, 160, 480, 1060], zoom: 0.36, frames: 390, cols: 3,
+    region: [580, 180, 440, 1020], zoom: 0.48, frames: 390, cols: 3,
+    rowTitles: ['EARLY WALL — met ~0.6s, around the first check', 'LATER WALL — met ~2.8-3.5s, after it'],
     foot: (st) => engagedTxt(st),
-    label: (f) => `1x — a 240x40 wall dead on the lane, seed 1001 (the 8-seed matrix is in the CSV). Elapsed  t ${t(f)}s`,
+    label: (f) => `1x — 240x40 wall on the lane, seed 1001 (8 seeds: CSV)  t ${t(f)}s`,
   });
 }
 
