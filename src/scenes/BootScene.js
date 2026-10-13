@@ -3,6 +3,7 @@ import {
   setDialogueMuted, setDuelRequest, parseDuelParams, setHitstopMuted, setMoveNamesMuted,
   setEncDebug, setEncForce, parseEncDebugParams, setChampDebug, setChampWhich, setChampPlacementOff, setVanguardScreenOff, setVanguardFrontOff,
   setCapTel, setRosterVersion, setShowColliders, setMoveV2, setMoveV21, setMoveV22, setGaitV2,
+  setBulwarkStuck,
 } from '../systems/debug.js';
 import { ENCOUNTERS } from '../data/encounters.js';
 import { CAMERA } from '../config.js';
@@ -31,6 +32,9 @@ export class BootScene extends Phaser.Scene {
     if (params.get('move') === 'v21') setMoveV21(true);
     if (params.get('move') === 'v22') setMoveV22(true);
     if (params.get('gait') === 'v2') setGaitV2(true);
+    // `?bulwarkStuck=prog|early` — the Phase 3B Bulwark-only stuck-recovery
+    // candidates; anything else is the frozen default. See systems/debug.js.
+    if (params.has('bulwarkStuck')) setBulwarkStuck(params.get('bulwarkStuck'));
     // `?nonames=1` hides Vader's ATTACK-NAME callouts, and only those, so a
     // reviewer can judge whether each move reads without its label.
     if (params.has('nonames')) setMoveNamesMuted(true);

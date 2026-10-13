@@ -292,6 +292,15 @@ export function isMoveV21() { return moveV2 === 'v21'; }
 export function setMoveV22(on) { moveV2 = on ? 'v22' : moveV2; }
 export function isMoveV22() { return moveV2 === 'v22'; }
 
+// `?bulwarkStuck=prog|early` — Phase 3B CANDIDATE stuck recovery for the
+// ORDINARY BULWARK ONLY (see systems/bulwarkStuck.js). THIS CHANGES GAMEPLAY
+// (where a Bulwark goes when the frozen base check fires falsely), which is
+// why it is its own flag and coupled to neither `?move=` nor `?roster=`.
+// Default off: the frozen base check, exactly as shipped.
+let bulwarkStuck = null;
+export function setBulwarkStuck(v) { bulwarkStuck = v === 'prog' || v === 'early' ? v : null; }
+export function getBulwarkStuck() { return bulwarkStuck; }
+
 // `?gait=v2` — the corrected roster-v1 LOCOMOTION PRESENTATION (anatomy gait,
 // distance-driven cadence, retreat / strafe playback). Presentation only: it
 // repaints the roster-v1 leg frames and picks the displayed frame after the

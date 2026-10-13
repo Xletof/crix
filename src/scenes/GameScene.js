@@ -30,8 +30,9 @@ import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
   isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff, isVanguardScreenOff, isVanguardFrontOff,
-  isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2,
+  isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2, getBulwarkStuck,
 } from '../systems/debug.js';
+import { installBulwarkStuck } from '../systems/bulwarkStuck.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { attachHazards } from '../systems/Hazard.js';
 import { attachCaptainTelemetry } from '../systems/CaptainTelemetry.js';
@@ -2041,6 +2042,12 @@ export class GameScene extends Phaser.Scene {
       // v2.2: each leg chooses and publishes a firing spot instead
       if (isMoveV22()) enemy._v22 = true;
     }
+    // `?bulwarkStuck=prog|early` — the Phase 3B CANDIDATE stuck recovery, on
+    // the ordinary Bulwark only (free, VANGUARD screen and opening pair,
+    // Regular and Elite). Never a nemesis (`legacyArt`). Absent, nothing is
+    // installed and the frozen base check runs exactly as shipped.
+    const bulwarkStuck = getBulwarkStuck();
+    if (bulwarkStuck && type === 'shielded' && !spec.legacyArt) installBulwarkStuck(enemy, bulwarkStuck, x, y);
     // Room modifier speed (FRENZY): stacks on top of the elite's adjusted speed.
     const sm = this.arenaCfg?.speedMult;
     if (sm) enemy.cfg = { ...enemy.cfg, speed: enemy.cfg.speed * sm };
