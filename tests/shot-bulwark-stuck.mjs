@@ -189,7 +189,7 @@ async function stagedVideo(file, panels, { region, zoom, frames, per = 2, label,
   const clip = await pages[0].evaluate((r) => window.__clipFor(...r), region);
   const vw = videoWriter(OUT + file);
   const lab = 26, ft = 38, gap = 8, rows = Math.ceil(panels.length / cols);
-  const W = cols * clip.width + (cols - 1) * gap, H = rows * (clip.height + lab + ft) + 30;
+  const W = cols * clip.width + (cols - 1) * gap, H = rows * (clip.height + lab + ft) + 46;
   let last;
   for (let f = 0; f < frames; f++) {
     const shots = [];
@@ -208,10 +208,11 @@ async function stagedVideo(file, panels, { region, zoom, frames, per = 2, label,
       draws.push({ i: j, sx: 0, sy: 0, sw: clip.width, sh: clip.height, dx: x, dy: y + lab });
       texts.push({ text: pn.title, x: x + 6, y: y + 18, size: 13, bold: true, color: MODE[pn.mode].color });
       const st = shots[j].st;
-      texts.push({ text: `sidesteps taken ${st.taken} (false-first ${st.takenF1} · hold ${st.takenHold} · contact ${st.takenBlock}) · stood down ${st.stood} · B-armed ${st.bArms}`, x: x + 6, y: y + lab + clip.height + 15, size: 11, color: MODE[pn.mode].color });
+      texts.push({ text: `taken ${st.taken} (F1 ${st.takenF1}·hold ${st.takenHold}·contact ${st.takenBlock}) stood ${st.stood} B ${st.bArms}`, x: x + 6, y: y + lab + clip.height + 15, size: 11, color: MODE[pn.mode].color });
       texts.push({ text: foot(st, pn), x: x + 6, y: y + lab + clip.height + 31, size: 11, color: '#cfd6e4' });
     });
-    texts.push({ text: label(f), x: 8, y: H - 9, size: 13, color: '#ffd9a0' });
+    texts.push({ text: label(f), x: 8, y: H - 24, size: 12, color: '#ffd9a0' });
+    texts.push({ text: LEGEND, x: 8, y: H - 7, size: 11, color: '#cfd6e4' });
     await vw.write(await composite(shots.map((s) => s.buf), { W, H, draws, texts }));
     last = shots.map((s) => s.st);
   }
@@ -220,7 +221,8 @@ async function stagedVideo(file, panels, { region, zoom, frames, per = 2, label,
   console.log('wrote', OUT + file, JSON.stringify(last));
 }
 const t = (f, per = 2) => (f * per / 60).toFixed(1);
-const engagedTxt = (st) => `${st.engage != null ? `ENGAGED at ${(st.engage / 60).toFixed(2)}s` : `distance to player ${st.d ?? '-'}px`}${st.contact != null ? ` · first contact ${(st.contact / 60).toFixed(2)}s` : ''} · sidestep time ${st.sideMs}ms`;
+const LEGEND = 'rings: RED armed + taken · GREEN stood down by the candidate · BLUE armed by B (pinned) · AMBER armed, ran out unused   (overlay = rig only)';
+const engagedTxt = (st) => `${st.engage != null ? `ENGAGED ${(st.engage / 60).toFixed(2)}s` : `to player ${st.d ?? '-'}px`}${st.contact != null ? ` · contact ${(st.contact / 60).toFixed(2)}s` : ''} · side ${st.sideMs}ms`;
 
 // ── 1. CLEAR LANE: free Regular, free Elite, VANGUARD screen ─────────────
 async function clear() {
@@ -307,12 +309,12 @@ async function front() {
       draws.push({ i: j, sx: 0, sy: 0, sw: clip.width, sh: clip.height, dx: x, dy: lab });
       texts.push({ text: MODE[m].title, x: x + 6, y: 18, size: 13, bold: true, color: MODE[m].color });
       const y0 = lab + clip.height + 15;
-      const status = st.rel ? `RELEASED: ${st.rel.why.toUpperCase()} at ${st.rel.t.toFixed(2)}s (${Math.round(st.rel.since)}ms after opener 2)` : st.held ? (st.second ? `front HOLDING — ${(st.sinceSecond / 1000).toFixed(2)}s of the 3.00s timeout` : 'front HOLDING — opening events') : 'front: none yet';
+      const status = st.rel ? `RELEASED ${st.rel.why.toUpperCase()} ${st.rel.t.toFixed(2)}s (+${Math.round(st.rel.since)}ms)` : st.held ? (st.second ? `HOLDING ${(st.sinceSecond / 1000).toFixed(2)} / 3.00s timeout` : 'HOLDING — opening events') : 'front: none yet';
       texts.push({ text: status, x: x + 6, y: y0, size: 12, bold: true, color: st.rel ? (st.rel.why === 'established' ? '#9fe0a8' : '#ffb070') : '#ffffff' });
-      const pos = st.rel ? st.rel.pos.map((q, k) => (q ? `opener ${k + 1} (${q.x},${q.y}) ${q.d}px` : `opener ${k + 1} -`)).join(' · ') : st.d.map((dd, k) => `opener ${k + 1} ${dd ?? '-'}px`).join(' · ');
+      const pos = st.rel ? st.rel.pos.map((q, k) => (q ? `op${k + 1} (${q.x},${q.y}) ${q.d}px` : `op${k + 1} -`)).join(' · ') : st.d.map((dd, k) => `op${k + 1} ${dd ?? '-'}px`).join(' · ');
       texts.push({ text: `${st.rel ? 'at release: ' : 'now: '}${pos}`, x: x + 6, y: y0 + 16, size: 11, color: '#cfd6e4' });
-      texts.push({ text: `alone inside 200px: opener 1 ${st.iso[0]}ms · opener 2 ${st.iso[1]}ms`, x: x + 6, y: y0 + 32, size: 11, color: '#cfd6e4' });
-      texts.push({ text: `Bulwark sidesteps taken ${st.ss.taken} (false-first ${st.ss.takenF1} · hold ${st.ss.takenHold}) · stood down ${st.ss.stood}`, x: x + 6, y: y0 + 48, size: 11, color: MODE[m].color });
+      texts.push({ text: `alone in 200px: op1 ${st.iso[0]}ms · op2 ${st.iso[1]}ms`, x: x + 6, y: y0 + 32, size: 11, color: '#cfd6e4' });
+      texts.push({ text: `taken ${st.ss.taken} (F1 ${st.ss.takenF1}·hold ${st.ss.takenHold}) stood ${st.ss.stood}`, x: x + 6, y: y0 + 48, size: 11, color: MODE[m].color });
     });
     texts.push({ text: `VANGUARD + Captain (hangar, sector 8, wave 2), the real spawner and front, seed 1001 — 1x. Player held at the east gates (1150,700).  t ${shots[0].st.t.toFixed(1)}s`, x: 8, y: H - 8, size: 12, color: '#ffd9a0' });
     await vw.write(await composite(shots.map((s) => s.buf), { W, H, draws, texts }));
