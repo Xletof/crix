@@ -10,7 +10,7 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-10-13. Pages builds only from `FRIX`, so the live build is
+*Updated 2026-10-16. Pages builds only from `FRIX`, so the live build is
 whatever `FRIX` points at: check `git rev-parse HEAD origin/FRIX` rather than
 trusting a hash written here, and `git rev-parse --abbrev-ref HEAD` for the
 branch name. This line has named a stale branch three times — trust the
@@ -200,8 +200,10 @@ boss scheduler's timing while fixing it.
     approved fight.
   - **Do not apply the Demolisher fix globally and do not touch shared
     `Enemy` movement without the human.** The decision gate is in the notes.
-  - **Phase 3B** (Bulwark only, opt-in `?bulwarkStuck=prog|early`) is the one
-    authorized follow-up. See its section above; it is not the default.
+  - **Phase 3B CLOSED for the ordinary Bulwark only** — Candidate B
+    (`?bulwarkStuck=early`) is HUMAN-APPROVED / FROZEN and still opt-in (its
+    section above). Every other archetype still carries both false classes;
+    Phase 3C (Marksman) is proposed, not started.
 - **The frozen roles' v1 Elite-death RNG mismatch.** A Gunner / Rifleman /
   Marksman v1 Elite dies with a smaller kill juice than legacy (render scale
   1.0 vs 1.4), so fewer random draws and a different fight after the first
@@ -800,35 +802,69 @@ Demolisher false-stuck gameplay fix, which is not behind a flag. Do NOT enable
 roster, gait or movement globally — that is a separate human decision — and do
 not delete legacy art or the old debug flags.
 
-### PHASE 3B — BULWARK STUCK-RECOVERY CANDIDATES. **OPT-IN, NOT THE DEFAULT, NOT FROZEN — AWAITING HUMAN HANDSET**
+### PHASE 3B — BULWARK STUCK-RECOVERY CORRECTION. **HUMAN-APPROVED / FROZEN 🔒 — CANDIDATE B (`?bulwarkStuck=early`), STILL OPT-IN**
 
-The first authorized correction from the Phase 3A audit, on the ordinary
-Bulwark ONLY. Record: `docs/evidence/bulwark-stuck-v3b/bulwark-stuck-candidate-notes.md`.
+Handset verdict on Candidate B: *"Yes it does, approved."* That covers
+movement (approach, hold and resume read as deliberate; the unexplained
+sideways movement is gone), navigation (it still recovers on real walls,
+crates and furniture) and VANGUARD (the corrected opening is fair,
+challenging and enjoyable, Captain included). Final implementation
+`4f09af6` + `f8ea738` (`src/systems/bulwarkStuck.js`); evidence closed on
+`79f243a`. Record: `docs/evidence/bulwark-stuck-v3b/bulwark-stuck-candidate-notes.md`.
 
-| flag | candidate |
+This is a MOVEMENT milestone, separate from the Bulwark's VISUAL production
+freeze (Phase 2C, `cd4b0e9`, below) — both are frozen, for different things.
+
+| flag | status |
 |---|---|
-| *(none)* | the frozen game — `690ed9b` tick for tick, draw for draw |
-| `?bulwarkStuck=prog` | **A** — the false first check and intentional holds are stood down |
-| `?bulwarkStuck=early` | **B** — A, plus physics evidence: a pinned / pressing arm is kept, a pinned walk-in check is armed (the base's own instant, length and last drawn direction — no new draw) |
+| *(none)* | **the default** — the frozen game, `690ed9b` tick for tick, draw for draw |
+| `?bulwarkStuck=early` | **B — HUMAN-APPROVED / FROZEN** |
+| `?bulwarkStuck=prog` | A — experimental, REJECTED for production, kept as the comparison path |
 
-- **Seam:** `src/systems/bulwarkStuck.js` shadows the bearer's own
-  `_tickSwarm` / `_moveToward` at spawn. It is installed from `spawnEnemyAt`
-  for `shielded && !legacyArt` only — free, screen and opener, Regular and
-  Elite. Never on a nemesis.
-- **`Enemy.js` and every entity are byte-identical.** `smoke-stuck-audit` §0
-  is narrowed in the open to exactly the four candidate files.
-- **It reviews; it never arms on its own clock and never draws.** Intent is
-  read from the AI's own `_moveToward` calls, never from velocity.
-- **Measured:**
-  - The false first sidestep and every hold → resume sidestep are gone in all
-    five Bulwark forms, and the approach arrives 600ms sooner.
-  - A pays a window on cover met before the first check. B does not.
-  - Staged obstacles: 188 / 183 / 195 of 200 runs reach the player for
-    baseline / A / B.
-  - VANGUARD front: 11 / 16 / 16 of 36 runs establish. The FIRST shield also
-    stands alone with the player 0.3-0.5s longer near the gates.
-- **Do not make either the default, do not freeze it, and do not extend it to
-  another archetype** (Marksman included) without the human.
+**What B is, frozen:** it reviews each frozen base 600ms check at the top of
+the bearer's next AI tick and never arms on its own clock or draws a random
+number. It stands down the two FALSE classes (the first check after real open
+travel; a window in which the AI commanded movement on under half its
+decision time — intent read from the AI's own `_moveToward` calls, never from
+velocity), KEEPS an arm while the body is pinned (50ms commanded contact run
+under 30% progress) or pressing into the face it is blocked on, and ARMS a
+check the base declined when the 50ms pinned run holds — at the base's
+instant, for its 600ms, at its 1.1x speed, in the direction it last drew. The
+recovery itself is the base's own. Installed from `spawnEnemyAt` for
+`shielded && !legacyArt` only: free, screen and opener, Regular and Elite.
+Never the nemesis shielded, and no other archetype. `Enemy.js` and every
+entity are byte-identical; `smoke-stuck-audit` §0 allows exactly the four
+files.
+
+**VANGUARD with B is HUMAN-APPROVED.** The openers form the screen more
+reliably — an accepted consequence. Every VANGUARD number is untouched and
+frozen: hold 140, resume 165, establish 200, timeout 3000, stall 7000, lane
+60, queue and Captain order, shield arc and 2.6 turn, blocking and the Super
+economy. No balance change is authorized.
+
+**Measured (mechanical, not a fun verdict):** false first sidestep and every
+hold → resume sidestep gone in all five forms, ~600ms earlier arrival in the
+staged lanes; staged obstacles reach the player 188 / 183 / **195** of 200
+(baseline / A / B); VANGUARD front establishes 11 / 16 / **16** of 36 — a
+measured consistency gain, not a promise every opening establishes — and the
+first shield stands alone with the player 0.3-0.5s longer near the gates;
+live, B cuts Bulwark sidestep time ~33s → ~16s per six fights with contact
+time at or below baseline (A grinds cover ~33% longer). Hits, blocks and
+kills move within run-to-run noise. Perf: 12 Bulwarks, 0.68 / 0.58 / 0.62 ms
+per tick — noise.
+
+**Accepted limitations — not reasons to reopen:** wide walls are still the
+base's random-direction recovery (B helps, does not replace NavGrid); an
+Elite that meets cover just after the first check gets A's timing; B's armed
+recoveries reuse the last drawn direction (no new draw — sometimes helps on
+walls; retained); encounter-level outcomes differ downstream of corrected
+movement (authorized). **The shared defect is NOT fixed for any other
+archetype.**
+
+**Default activation is NOT AUTHORIZED** — making `early` the default is a
+separate rollout decision, like `?roster=v1` / `?gait=v2` / `?move=v22`. Do
+not delete A or the baseline path as cleanup. Nothing here reopens without
+NEW handset evidence.
 
 ### The recommended next area of work
 
@@ -836,8 +872,15 @@ Bulwark ONLY. Record: `docs/evidence/bulwark-stuck-v3b/bulwark-stuck-candidate-n
 (above). **No milestone is started or authorized.** The next direction comes
 from the human; the candidates, none begun:
 
-- **Phase 3B handset verdict** — A, B or neither, from the URLs in the
-  Phase 3B notes. Nothing else in stuck recovery moves until then.
+- **PHASE 3C — MARKSMAN STUCK-RECOVERY CORRECTION. PROPOSED / NOT STARTED /
+  HUMAN IMPLEMENTATION PROMPT REQUIRED.** Phase 3A measured stuck sidesteps as
+  ~82% of the Marksman's lateral movement and 125 of its 126 sharp direction
+  changes, from BOTH false classes (first check and hold → resume — its band
+  hold is a deliberate stop). Its identity is not the Bulwark's: long-range
+  positioning, controlled retreat, the sniper charge, the laser telegraph,
+  firing cadence and aim/lock must all survive. Bulwark B is a REFERENCE,
+  not a template — do not copy it blindly, and do not start without the
+  human's prompt.
 - **Shared swarm stuck-detection correction** for the OTHER roles — the
   AUDIT IS DONE (debt list above). It is a separate human decision at the gate
   in its notes. No shared `Enemy` change without the human.

@@ -1,16 +1,28 @@
 # Phase 3B — Bulwark-only stuck-recovery candidates
 
-**Status: CANDIDATES, OPT-IN, NOT THE DEFAULT, NOT FROZEN. HUMAN HANDSET
-DECISION REQUIRED.** The default game is unchanged: with no flag nothing is
-installed, and the build is `690ed9b` tick for tick and draw for draw
-(`smoke-bulwark-stuck` §1, the VANGUARD + Captain and MIXED encounters over
-1200 ticks).
+**Status: PHASE 3B — BULWARK STUCK-RECOVERY CORRECTION: HUMAN-APPROVED /
+FROZEN 🔒.** Handset verdict on Candidate B (`?bulwarkStuck=early`):
+*"Yes it does, approved."* — movement (deliberate approach, hold and resume;
+the unexplained sideways movement gone), navigation (still recovers on real
+walls, crates and furniture) and VANGUARD (the corrected opening is fair,
+challenging and enjoyable, Captain included). Final implementation
+`4f09af6` + `f8ea738`; evidence closed on `79f243a`.
+
+**B stays OPT-IN.** Approval does not authorize making it the default — that
+is a separate rollout decision. With no flag nothing is installed and the
+build is `690ed9b` tick for tick and draw for draw (`smoke-bulwark-stuck` §1,
+the VANGUARD + Captain and MIXED encounters over 1200 ticks). Candidate A is
+rejected for production and kept as the comparison path.
+
+The sections below are the record that led to the verdict (B was the
+recommendation put to the handset). Section 9's limitations are ACCEPTED and
+are not reasons to reopen.
 
 | URL flag | what it is |
 |---|---|
 | *(none)* | the frozen game |
-| `?bulwarkStuck=prog` | **Candidate A** — progress-aware: false arms stood down |
-| `?bulwarkStuck=early` | **Candidate B** — A, plus pinned arms kept and pinned checks armed |
+| `?bulwarkStuck=prog` | **Candidate A** — progress-aware: false arms stood down. REJECTED for production |
+| `?bulwarkStuck=early` | **Candidate B** — A, plus pinned arms kept and pinned checks armed. **HUMAN-APPROVED / FROZEN** |
 
 Neither is coupled to `?move=v22`, `?roster=v1` or `?gait=v2`.
 
@@ -424,3 +436,16 @@ candidate checks fail on `690ed9b`.
   default game is unchanged.
 - **A `run-all` on a normal-speed container is still owed** before anyone
   reads the suite's own totals as green.
+
+## 12. Closure
+
+- **Phase 3B is HUMAN-APPROVED / FROZEN for the ordinary Bulwark only** —
+  Candidate B, opt-in.
+- **Not fixed:** the shared stuck defect on every other archetype.
+- **Next proposed:** PHASE 3C — MARKSMAN STUCK-RECOVERY CORRECTION.
+  PROPOSED / NOT STARTED / HUMAN IMPLEMENTATION PROMPT REQUIRED.
+  - Phase 3A: about 82% of its lateral movement and 125 of its 126 sharp
+    turns are stuck sidesteps, from both false classes.
+  - Its range, retreat, charge, laser telegraph, cadence and aim/lock must
+    survive.
+  - B is a reference, not a template.
