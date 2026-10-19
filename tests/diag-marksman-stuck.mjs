@@ -4,6 +4,7 @@
 //
 //   baseline  no flag (the frozen game)
 //   A         ?marksmanStuck=prog
+//   B         ?marksmanStuck=early
 //
 // The Phase 3A instrument (`diag-stuck-audit.mjs`, observe-only 'A') records
 // each base check and which branch `_moveToward` took. On top of it this rig
@@ -20,7 +21,7 @@ import { CHROME, bootPage, installAudit, installStaged } from './diag-stuck-audi
 
 const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').split('=').slice(1).join('=') || d;
 const OUT = opt('out', new URL('../docs/evidence/marksman-stuck-v3c/', import.meta.url).pathname);
-export const MODES = [['baseline', ''], ['A', 'marksmanStuck=prog']];
+export const MODES = [['baseline', ''], ['A', 'marksmanStuck=prog'], ['B', 'marksmanStuck=early']];
 export const MK = { type: 'sniper' };
 export const MKE = { type: 'sniper', elite: true };
 
@@ -168,6 +169,34 @@ export const SC = {
   crossBehind: (a, seed) => ({ seed, ticks: 600, actors: [{ ...a, x: 800, y: 600, at: 0 }], player: [[0, 300, 1100], [120, 300, 1100], [360, 1300, 150], [600, 1300, 150]] }),
 };
 
+// the charge contract under player behaviours (sniper in its band unless noted)
+export const CHARGE = {
+  still: (a, seed) => ({ seed, ticks: 720, actors: [{ ...a, x: 800, y: 500, at: 0 }], player: [[0, 800, 1000]] }),
+  lateral: (a, seed) => ({ seed, ticks: 720, actors: [{ ...a, x: 800, y: 500, at: 0 }], player: [[0, 500, 1000], [120, 1100, 1000], [240, 500, 1000], [360, 1100, 1000], [480, 500, 1000], [600, 1100, 1000], [720, 500, 1000]] }),
+  crossBehind: (a, seed) => ({ ...SC.crossBehind(a, seed), ticks: 720 }),
+  // a 120px lateral dash (6 ticks, ~1200px/s) every 50 ticks — lands in lock windows by phase
+  dashLock: (a, seed) => ({ seed, ticks: 720, actors: [{ ...a, x: 800, y: 500, at: 0 }],
+    player: Array.from({ length: 15 }, (_, k) => [[k * 50, 740 + (k % 2) * 120, 1000], [k * 50 + 44, 740 + (k % 2) * 120, 1000], [k * 50 + 50, 740 + ((k + 1) % 2) * 120, 1000]]).flat() }),
+  closeIn: (a, seed) => ({ ...SC.holdRetreat(a, seed), ticks: 720 }),
+  outRange: (a, seed) => ({ ...SC.holdApproach(a, seed), ticks: 720 }),
+  // strafe across a pillar's shadow (period 4s): charges started in the open
+  // are cut when the pillar comes between, and re-armed in the open again
+  losBreak: (a, seed) => ({ seed, ticks: 720, actors: [{ ...a, x: 800, y: 450, at: 0 }], wall: [800, 700, 160, 40],
+    player: [[0, 500, 1000], [120, 1100, 1000], [240, 500, 1000], [360, 1100, 1000], [480, 500, 1000], [600, 1100, 1000], [720, 500, 1000]] }),
+};
+// genuine obstruction (approach unless noted). The approach ends when the
+// player is within 640px, so every obstacle sits between y 150 and ~600.
+export const OBST = {
+  'console70-early': (a, seed) => ({ seed, ticks: 720, actors: [{ ...a, x: 800, y: 150, at: 0 }], wall: [800, 240, 70, 70], player: [[0, 800, 1250]] }),
+  'console70-late': (a, seed) => ({ seed, ticks: 720, actors: [{ ...a, x: 800, y: 150, at: 0 }], wall: [800, 420, 70, 70], player: [[0, 800, 1250]] }),
+  cover90: (a, seed) => ({ seed, ticks: 720, actors: [{ ...a, x: 800, y: 150, at: 0 }], wall: [800, 420, 90, 90], player: [[0, 800, 1250]] }),
+  angled: (a, seed) => ({ seed, ticks: 720, actors: [{ ...a, x: 600, y: 150, at: 0 }], wall: [670, 420, 90, 90], player: [[0, 800, 1250]] }),
+  'wall320': (a, seed) => ({ seed, ticks: 900, actors: [{ ...a, x: 800, y: 150, at: 0 }], wall: [800, 420, 320, 40], player: [[0, 800, 1250]] }),
+  holdBesideWall: (a, seed) => ({ seed, ticks: 600, actors: [{ ...a, x: 800, y: 600, at: 0 }], wall: [880, 600, 40, 240], player: [[0, 800, 1100]] }),
+  retreatIntoCover: (a, seed) => ({ seed, ticks: 600, actors: [{ ...a, x: 800, y: 700, at: 0 }], wall: [800, 560, 240, 40], player: [[0, 800, 1200], [120, 800, 1200], [200, 800, 920]] }),
+  holdApproachIntoCover: (a, seed) => ({ seed, ticks: 900, actors: [{ ...a, x: 800, y: 500, at: 0 }], wall: [800, 640, 240, 40], player: [[0, 800, 950], [240, 800, 950], [300, 800, 1350]] }),
+};
+
 const firstDiff = (a, b, k) => { const n = Math.min(a.length, b.length); for (let i = 0; i < n; i++) if (a[i][k] !== b[i][k]) return i; return a.length === b.length ? -1 : n; };
 const diverge = (a, b, k) => { if (!a || !b) return ''; const d = firstDiff(a, b, k); return d < 0 ? 'none' : ms(d); };
 
@@ -192,7 +221,8 @@ export function stagedRow(scn, role, mode, seed, res, base) {
     section: 'staged', scenario: scn, role, mode, seed, installed: +!!res.meta?.installed,
     F1armed: armed('F1').length, F1taken: taken('F1'), HOLDarmed: armed('H').length, HOLDtaken: taken('H'),
     BLOCKarmed: armed('B').length, BLOCKtaken: taken('B'), OTHERarmed: armed('O').length, OTHERtaken: taken('O'),
-    stoodF1: res.log?.stoodF1 ?? '', stoodHold: res.log?.stoodHold ?? '', kept: res.log?.kept ?? '',
+    stoodF1: res.log?.stoodF1 ?? '', stoodHold: res.log?.stoodHold ?? '', stoodRetreat: res.log?.stoodRetreat ?? '', kept: res.log?.kept ?? '',
+    keptPinned: res.log?.keptPinned ?? '', armedPinned: res.log?.armedPinned ?? '',
     sideMs: ms(lat.sideTicks), sideLatPx: lat.sideLat, otherLatPx: lat.otherLat, pathPx: lat.path,
     approachMs: ms(branches.A || 0), holdMs: ms(branches.H || 0), retreatMs: ms(branches.R || 0),
     resumes: rs.length, resumeSide: rs.filter((r) => r.sideTaken).length, resumeErrMax: rs.length ? Math.max(...rs.map((r) => r.errMax ?? 0)) : '',
@@ -205,6 +235,90 @@ export function stagedRow(scn, role, mode, seed, res, base) {
     endX: rows.at(-1)?.x ?? '', endY: rows.at(-1)?.y ?? '', draws: res.draws,
     posDivergeMs: base ? diverge(res.trace, base.trace, 0) : '', drawDivergeMs: base ? diverge(res.trace, base.trace, 1) : '',
   };
+}
+
+// obstacle-specific: reaching the band, contact, recovery, LOS
+export function obstacleExtra(res) {
+  const rows = rowsOf(res);
+  const firstHit = rows.find((w) => w.hit)?.i ?? null;
+  const lastHit = [...rows].reverse().find((w) => w.hit)?.i ?? null;
+  const approachRows = rows.filter((w) => w.branch === 'A');
+  const reached = rows.find((w, k) => k > 0 && w.branch === 'H' && rows[k - 1].branch === 'A')?.i ?? null;
+  const eps = [];
+  for (let k = 0; k < rows.length; k++) if (rows[k].br === 2 && (k === 0 || rows[k - 1].br !== 2)) eps.push(rows[k].i);
+  const firstSideAfterHit = firstHit == null ? null : eps.find((i) => i >= firstHit) ?? null;
+  const losAfterHit = firstHit == null ? null : rows.find((w) => w.i >= firstHit && w.los)?.i ?? null;
+  const end = rows.slice(-60);
+  return {
+    firstContactMs: ms(firstHit), lastContactMs: ms(lastHit), escapeMs: firstHit == null ? '' : ms(lastHit - firstHit),
+    activationDelayMs: firstHit == null || firstSideAfterHit == null ? '' : ms(firstSideAfterHit - firstHit),
+    episodes: eps.length, episodesAfterContact: firstHit == null ? 0 : eps.filter((i) => i >= firstHit).length,
+    falseSideMs: ms(rows.filter((w) => w.br === 2 && (firstHit == null || w.i < firstHit)).length),
+    reachBandMs: ms(reached), approachMs: ms(approachRows.length),
+    pinnedEnd: +(end.length > 0 && end.some((w) => w.hit) && end.at(-1).branch === 'A'),
+    losAfterContactMs: firstHit == null || losAfterHit == null ? '' : ms(losAfterHit - firstHit),
+    firstShotMs: ms(rows.find((w) => w.shot !== '')?.i ?? null),
+  };
+}
+
+// ── a real encounter: real spawner, scripted player, every sniper sampled ──
+export const ENC_SEG = [[0, 120, ''], [120, 260, 'D'], [260, 420, ''], [420, 520, 'W'], [520, 640, 'D'], [640, 780, 'S'], [780, 900, 'A'],
+  [900, 1040, ''], [1040, 1160, 'D'], [1160, 1280, 'SD'], [1280, 1420, 'A'], [1420, 1540, 'W'], [1540, 1680, ''], [1680, 1800, 'D'],
+  [1800, 1940, 'A'], [1940, 2080, 'S'], [2080, 2200, 'D'], [2200, 99999, '']];
+export async function encRun(page, { seed, ticks = 2400, seg = ENC_SEG, fire = 7, superAt = [900, 1700] }) {
+  return page.evaluate(async ({ seed, ticks, seg, fire, superAt }) => {
+    window.__headless = true;
+    const gs = window.__gs, P = gs.player, A = window.__aud;
+    let hits = 0, snHits = 0;
+    const pd = P.damage;
+    P.damage = function (amt, ...rest) { hits++; if (amt === 220) snHits++; return pd.call(this, amt, ...rest); };
+    const fired = new Map();
+    gs.events.on('shooter-fire', (e) => { if (e.enemyType === 'sniper') fired.set(e, (fired.get(e) || 0) + 1); });
+    window.__seed(seed); window.__draws = 0; A.tick = 0; A.trace.length = 0;
+    const tr = [], sn = new Map();
+    let interv = null;
+    for (let i = 0; i < ticks; i++) {
+      const cur = seg.find(([a, b]) => i >= a && i < b)[2], K = gs.keys;
+      K.A.isDown = cur.includes('A'); K.D.isDown = cur.includes('D'); K.W.isDown = cur.includes('W'); K.S.isDown = cur.includes('S');
+      if (fire && i >= 60 && i % fire === 0) P.keyboardFire();
+      if (superAt.includes(i)) { P.superCharge = 999; P.tryFireSuper(P._autoAimAngle()); }
+      window.__adv(1);
+      tr.push([A.hash(), window.__draws]);
+      for (const r of A.recs) {
+        const e = r.e;
+        if (e.enemyType !== 'sniper' || r.nem) continue;
+        let s = sn.get(e);
+        if (!s) { s = { r, starts: 0, cancels: 0, lockSide: 0, prevC: false, lockHadSide: false, rows: 0, los: 0, dist: 0, bA: 0, bH: 0, bR: 0, holdMove: 0 }; sn.set(e, s); }
+        if (!(e.alive && e.active)) continue;
+        s.rows++;
+        if (e._hasLOS(e.x, e.y, P.x, P.y)) s.los++;
+        const dP = Math.hypot(P.x - e.x, P.y - e.y);
+        s.dist += dP;
+        if (dP < e.cfg.retreatRange) s.bR++; else if (dP > e.cfg.desiredRange + 80) s.bA++;
+        else { s.bH++; if (Math.hypot(e.body.velocity.x, e.body.velocity.y) > 5) s.holdMove++; }
+        const c = !!e._charging;
+        if (c && !s.prevC) { s.starts++; s.lockHadSide = false; }
+        if (c && e._chargeMs <= 260 && r.pbr === 2 && !s.lockHadSide) { s.lockHadSide = true; s.lockSide++; }
+        s.prevC = c;
+      }
+      if (interv == null && A.recs.some((q) => { const l = q.e._marksmanStuck?.log; return l && (l.stoodF1 + l.stoodHold + l.stoodRetreat + l.armedPinned) > 0; })) interv = i;
+    }
+    const K = gs.keys; K.A.isDown = K.D.isDown = K.W.isDown = K.S.isDown = false;
+    const by = {};
+    for (const r of A.recs) {
+      const k = r.nem ? `nemesis-${r.type}` : r.type === 'captain' ? 'captain' : r.type + (r.elite ? '-E' : '');
+      const b = (by[k] ||= { spawns: 0, installed: 0, F1: 0, F1taken: 0, HOLD: 0, HOLDtaken: 0, BLOCK: 0, BLOCKtaken: 0, OTHER: 0, OTHERtaken: 0, sideTicks: 0, sideLat: 0, otherLat: 0, turns: 0, turnsSide: 0, contact: 0, shots: 0, starts: 0, fired: 0, cancels: 0, lockSide: 0, losTicks: 0, liveTicks: 0, distSum: 0, bandA: 0, bandH: 0, bandR: 0, holdMove: 0, stoodF1: 0, stoodHold: 0, stoodRetreat: 0, keptPinned: 0, armedPinned: 0 });
+      b.spawns++;
+      for (const c of r.checks) if (c.armed) { const g = { F: 'F1', H: 'HOLD', B: 'BLOCK', O: 'OTHER' }[c.cls[0]]; b[g]++; if (c.cons > 0) b[g + 'taken']++; }
+      b.sideTicks += r.sideTicks; b.sideLat += r.sideLat; b.otherLat += r.otherLat; b.turns += r.turns; b.turnsSide += r.turnsSide; b.contact += r.contactTicks; b.shots += r.shots;
+      const s = sn.get(r.e);
+      if (s) { b.starts += s.starts; b.fired += fired.get(r.e) || 0; b.lockSide += s.lockSide; b.losTicks += s.los; b.liveTicks += s.rows; b.distSum += s.dist; b.bandA += s.bA; b.bandH += s.bH; b.bandR += s.bR; b.holdMove += s.holdMove; }
+      const l = r.e._marksmanStuck?.log;
+      if (l) { b.installed++; b.stoodF1 += l.stoodF1; b.stoodHold += l.stoodHold; b.stoodRetreat += l.stoodRetreat; b.keptPinned += l.keptPinned || 0; b.armedPinned += l.armedPinned || 0; }
+    }
+    for (const b of Object.values(by)) b.cancels = Math.max(0, b.starts - b.fired);
+    return { by, hits, snHits, interv, draws: window.__draws, spawned: A.recs.length, killed: A.recs.filter((r) => !(r.e.alive && r.e.active)).length, trace: tr };
+  }, { seed, ticks, seg, fire, superAt });
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -252,6 +366,153 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     save('diag', rows);
     for (const r of rows.filter((q) => q.seed === SEEDS[0])) console.log(`${r.scenario.padEnd(16)} ${r.role}  side ${String(r.sideMs).padStart(5)}ms ${String(r.sideLatPx).padStart(4)}px  shots ${r.fired}/${r.charges}  ${r.sequence}`);
   }
+  // STAGED: every movement transition, Regular and Elite, baseline vs A
+  if (ONLY.includes('staged') || ONLY.includes('charge') || ONLY.includes('obstacle')) {
+    const pages = {};
+    for (const [m, flags] of MODES) pages[m] = await mkPage(browser, flags);
+    const sets = [];
+    if (ONLY.includes('staged')) sets.push(['staged', SC]);
+    if (ONLY.includes('charge')) sets.push(['charge', CHARGE]);
+    if (ONLY.includes('obstacle')) sets.push(['obstacle', OBST]);
+    for (const [tag, set] of sets) {
+      const rows = [];
+      const chargeRows = [];
+      for (const [rk, role] of [['R', MK], ['E', MKE]]) for (const [scn, mk] of Object.entries(set)) for (const seed of SEEDS) {
+        const sc = { ...mk(role, seed), trace: true };
+        const res = {};
+        for (const [m] of MODES) res[m] = await pages[m].evaluate((sc) => window.__mkRun(sc), sc);
+        for (const [m] of MODES) {
+          const row = stagedRow(scn, rk, m, seed, res[m], m === 'baseline' ? null : res.baseline);
+          row.section = tag;
+          if (tag === 'obstacle') Object.assign(row, obstacleExtra(res[m]));
+          rows.push(row);
+          if (tag === 'charge') for (const c of charges(rowsOf(res[m]))) chargeRows.push({ section: 'charge-each', scenario: scn, role: rk, mode: m, seed,
+            start: ms(c.start), fired: +c.fired, ticks: c.ticks, lockTicks: c.lockTicks, lockSteady: +c.lockSteady, shotEqLock: c.fired ? +(c.shotAng === c.lockFirst) : '',
+            cdAfter: c.cdAfter ?? '', sideDuring: c.sideDuring, sideDuringLock: c.sideDuringLock });
+        }
+      }
+      // summaries
+      const groups = new Map();
+      for (const r of rows) { const k = `${r.scenario}|${r.role}|${r.mode}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
+      for (const [k, g] of groups) {
+        const [scenario, role, mode] = k.split('|');
+        const sum = (f) => g.reduce((a, r) => a + (+r[f] || 0), 0);
+        const mean = (f) => { const v = g.map((r) => r[f]).filter((x) => x !== '' && x != null); return v.length ? Math.round(v.reduce((a, x) => a + +x, 0) / v.length) : ''; };
+        const out = { section: `${tag}-summary`, scenario, role, mode, seed: 'all', runs: g.length,
+          F1taken_n: sum('F1taken'), HOLDtaken_n: sum('HOLDtaken'), BLOCKtaken_n: sum('BLOCKtaken'), OTHERtaken_n: sum('OTHERtaken'),
+          sideMs: mean('sideMs'), sideLatPx: mean('sideLatPx'), resumes_n: sum('resumes'), resumeSide_n: sum('resumeSide'),
+          charges_n: sum('charges'), fired_n: sum('fired'), cancelled_n: sum('cancelled'), sideDuringLock_n: sum('sideDuringLock'),
+          lockSteady_all: g.every((r) => r.lockSteady === 1) ? 1 : 0, shotEqLock_all: g.every((r) => r.shotEqLock === 1) ? 1 : 0,
+          stoodF1_n: sum('stoodF1'), stoodHold_n: sum('stoodHold'), stoodRetreat_n: sum('stoodRetreat'), keptPinned_n: sum('keptPinned'), armedPinned_n: sum('armedPinned') };
+        if (tag === 'obstacle') Object.assign(out, { reached_n: g.filter((r) => r.reachBandMs !== '').length, pinnedEnd_n: sum('pinnedEnd'), reachBandMs: mean('reachBandMs'),
+          firstContactMs: mean('firstContactMs'), activationDelayMs: mean('activationDelayMs'), escapeMs: mean('escapeMs'), contactMs: mean('contactMs'),
+          episodes: mean('episodes'), falseSideMs: mean('falseSideMs'), firstShotMs: mean('firstShotMs'), losAfterContactMs: mean('losAfterContactMs') });
+        rows.push(out);
+      }
+      save(tag, [...rows, ...chargeRows]);
+    }
+    for (const p of Object.values(pages)) await p.close();
+  }
+
+  // ENCOUNTERS: SNIPER NEST and MIXED, real spawner, fresh page per run
+  if (ONLY.includes('enc')) {
+    const rows = [];
+    const ENC = [
+      ['sniperNest', 'encdbg=sniperNest&room=detention&sector=8&wave=2', ''],
+      ['sniperNest-v1', 'encdbg=sniperNest&room=detention&sector=8&wave=2', 'roster=v1&gait=v2&move=v22'],
+      ['mixed', 'encdbg=mixed&room=detention&sector=12&wave=2', ''],
+      ['mixed-bulwarkB', 'encdbg=mixed&room=detention&sector=12&wave=2', 'bulwarkStuck=early'],
+    ];
+    for (const [enc, q, shared] of ENC) for (const seed of SEEDS) {
+      const res = {};
+      for (const [m, flags] of MODES) {
+        const p = await bootPage(browser, { q, flags: [shared, flags].filter(Boolean).join('&'), seed });
+        await installAudit(p, 'A');
+        await p.evaluate(() => { window.__headless = true; });
+        res[m] = await encRun(p, { seed });
+        await p.close();
+      }
+      for (const [m] of MODES) {
+        const r = res[m];
+        const common = { section: 'enc', scenario: enc, mode: m, seed, hits: r.hits, sniperHits: r.snHits, spawned: r.spawned, killed: r.killed, draws: r.draws,
+          interveneMs: ms(r.interv), posDivergeMs: m === 'baseline' ? '' : diverge(r.trace, res.baseline.trace, 0), drawDivergeMs: m === 'baseline' ? '' : diverge(r.trace, res.baseline.trace, 1) };
+        for (const [role, b] of Object.entries(r.by)) rows.push({ ...common, role, ...b, sideMs: ms(b.sideTicks), contactMs: ms(b.contact), losFrac: b.liveTicks ? +(b.losTicks / b.liveTicks).toFixed(3) : '', sideLat: Math.round(b.sideLat), otherLat: Math.round(b.otherLat), distSum: Math.round(b.distSum) });
+      }
+      console.log(`  enc ${enc} seed ${seed} (${Math.round((Date.now() - t0) / 1000)}s)`);
+    }
+    // per encounter x mode: every ordinary Marksman (Regular + Elite) pooled,
+    // as rates per live Marksman-minute, because the fights diverge downstream
+    // (kills, spawns) and raw totals would compare different fights
+    const sums = [];
+    for (const [enc] of ENC) for (const [m] of MODES) {
+      const g = rows.filter((r) => r.scenario === enc && r.mode === m && (r.role === 'sniper' || r.role === 'sniper-E'));
+      const sum = (f) => g.reduce((a, r) => a + (+r[f] || 0), 0);
+      const live = sum('liveTicks'), min = live / 3600;
+      const per = (f) => (min ? (sum(f) / min).toFixed(2) : '');
+      const uniq = (f) => { const seen = new Map(); for (const r of rows.filter((r) => r.scenario === enc && r.mode === m)) seen.set(r.seed, +r[f] || 0); return [...seen.values()]; };
+      const hitsV = uniq('hits'), snV = uniq('sniperHits');
+      sums.push({ section: 'enc-summary', scenario: enc, mode: m, role: 'marksman (R+E)', seed: 'all', runs: new Set(g.map((r) => r.seed)).size,
+        spawns: sum('spawns'), liveSec: Math.round(live / 60),
+        F1taken_n: sum('F1taken'), HOLDtaken_n: sum('HOLDtaken'), BLOCKtaken_n: sum('BLOCKtaken'), OTHERtaken_n: sum('OTHERtaken'),
+        stoodF1_n: sum('stoodF1'), stoodHold_n: sum('stoodHold'), stoodRetreat_n: sum('stoodRetreat'), keptPinned_n: sum('keptPinned'), armedPinned_n: sum('armedPinned'),
+        sideSecPerMin: min ? (sum('sideTicks') / 60 / min).toFixed(2) : '', sideLatPerMin: per('sideLat'), otherLatPerMin: per('otherLat'),
+        turnsPerMin: per('turns'), turnsSidePerMin: per('turnsSide'), contactSecPerMin: min ? (sum('contact') / 60 / min).toFixed(2) : '',
+        startsPerMin: per('starts'), firedPerMin: per('fired'), cancelsPerMin: per('cancels'), lockSide_n: sum('lockSide'),
+        losFrac: live ? (sum('losTicks') / live).toFixed(3) : '', meanDist: live ? Math.round(sum('distSum') / live) : '',
+        bandA: live ? (sum('bandA') / live).toFixed(3) : '', bandH: live ? (sum('bandH') / live).toFixed(3) : '', bandR: live ? (sum('bandR') / live).toFixed(3) : '',
+        holdMoveFrac: sum('bandH') ? (sum('holdMove') / sum('bandH')).toFixed(3) : '',
+        hitsMean: (hitsV.reduce((a, x) => a + x, 0) / (hitsV.length || 1)).toFixed(1), sniperHitsMean: (snV.reduce((a, x) => a + x, 0) / (snV.length || 1)).toFixed(2) });
+    }
+    save('enc', [...rows, ...sums]);
+  }
+
+  // ISOLATION: encounters with no ordinary Marksman must be identical
+  if (ONLY.includes('iso')) {
+    const rows = [];
+    const ENC = [['crossfire', 'encdbg=crossfire&room=corridor&sector=14&wave=2'], ['swarmTide', 'encdbg=swarmTide&room=hangar&sector=8&wave=2'],
+      ['vanguard', 'encdbg=vanguard&room=hangar&sector=8&wave=2'], ['bomberRun', 'encdbg=bomberRun&room=hangar&sector=8&wave=2']];
+    for (const [enc, q] of ENC) for (const seed of SEEDS.slice(0, 3)) {
+      const res = {};
+      for (const [m, flags] of MODES) {
+        const p = await bootPage(browser, { q, flags, seed });
+        await installAudit(p, 'A');
+        await p.evaluate(() => { window.__headless = true; });
+        res[m] = await encRun(p, { seed, ticks: 1800 });
+        await p.close();
+      }
+      for (const [m] of MODES) {
+        const r = res[m];
+        rows.push({ section: 'iso', scenario: `iso-${enc}`, role: 'all', mode: m, seed, snipers: Object.entries(r.by).filter(([k]) => k.startsWith('sniper')).reduce((s, [, b]) => s + b.spawns, 0),
+          spawned: r.spawned, draws: r.draws, posDivergeMs: m === 'baseline' ? '' : diverge(r.trace, res.baseline.trace, 0), drawDivergeMs: m === 'baseline' ? '' : diverge(r.trace, res.baseline.trace, 1) });
+      }
+      console.log(`  iso ${enc} seed ${seed}`);
+    }
+    save('iso', rows);
+  }
+
+  // PERF: 12 Marksmen, ms per tick
+  if (ONLY.includes('perf')) {
+    const rows = [];
+    const sc = { seed: 77, ticks: 600, player: [[0, 500, 1250], [150, 1100, 1250], [300, 500, 1250], [450, 1100, 1250], [600, 500, 1250]],
+      actors: Array.from({ length: 12 }, (_, k) => ({ ...(k % 2 ? MKE : MK), x: 200 + (k % 6) * 240, y: 150 + Math.floor(k / 6) * 220, at: 0 })) };
+    for (const [m, flags] of MODES) {
+      const p = await mkPage(browser, flags);
+      const runs = [];
+      for (let rep = 0; rep < 5; rep++) runs.push(await p.evaluate(async (sc) => {
+        await window.__mkSetup(sc);
+        const t = [];
+        for (let i = 0; i < sc.ticks; i++) { const a = performance.now(); window.__mkStep(); t.push(performance.now() - a); }
+        window.__mkCollect();
+        t.sort((x, y) => x - y);
+        return { mean: t.reduce((s, x) => s + x, 0) / t.length, p50: t[t.length >> 1], p95: t[Math.floor(t.length * 0.95)] };
+      }, sc));
+      await p.close();
+      runs.sort((x, y) => x.mean - y.mean);
+      rows.push({ section: 'perf', scenario: 'perf-12-marksmen', role: 'sniper x12', mode: m, seed: 77, runs: 5, msPerTickMean: runs[2].mean.toFixed(3), msPerTickP50: runs[2].p50.toFixed(3), msPerTickP95: runs[2].p95.toFixed(3) });
+    }
+    save('perf', rows);
+  }
+
   await browser.close();
   console.log(`done in ${Math.round((Date.now() - t0) / 1000)}s`);
 }

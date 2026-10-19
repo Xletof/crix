@@ -1,0 +1,4 @@
+section,scenario,role,mode,seed,runs,msPerTickMean,msPerTickP50,msPerTickP95
+perf,perf-12-marksmen,sniper x12,baseline,77,5,0.342,0.300,0.700
+perf,perf-12-marksmen,sniper x12,A,77,5,0.334,0.300,0.700
+perf,perf-12-marksmen,sniper x12,B,77,5,0.446,0.400,0.800
