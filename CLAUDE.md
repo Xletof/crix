@@ -1182,9 +1182,34 @@ asserts separately that the ceiling is not reached.
     first check, with its arrival step still showing 72% progress. ARMING a
     declined check needs a 50ms pinned run, and it reuses the base's last
     drawn direction — accepted, retained.
-  - **It fixes the Bulwark ONLY.** Every other archetype still has both false
-    classes. Phase 3C (Marksman) is PROPOSED / NOT STARTED and needs its own
-    human prompt — B is a reference, not a template.
+  - **It fixes the Bulwark ONLY.** Every other archetype except the Marksman
+    (next bullet) still has both false classes. B is a reference, not a
+    template.
+- **MARKSMAN STUCK RECOVERY: PHASE 3C CANDIDATES — OPT-IN, IN HANDSET REVIEW,
+  NOT FROZEN.** `?marksmanStuck=prog` (A) / `?marksmanStuck=early` (B),
+  `src/systems/marksmanStuck.js`, ordinary `sniper` only (never the nemesis).
+  No flag is the frozen game, `f752b3f` tick for tick. Nothing here is
+  approved; the human decides. `HANDOVER.md` §0 and
+  `docs/evidence/marksman-stuck-v3c/marksman-stuck-candidate-notes.md`.
+  - **A RETREAT IS NOT APPROACH EVIDENCE.** The Marksman retreats with
+    `setVelocity`, never `_moveToward`, and the base's ONE consumer is the
+    approach, which runs the other way. So a pinned retreat neither keeps nor
+    arms anything under B — it is stood down and logged as `retreatBlocked`.
+    A blocked retreat is a separate, tracked defect, not this milestone.
+  - **REMOVING THE FALSE SKATE EXPOSES HEAD-ON COVER.** The frozen F1 skate
+    pre-offsets every approach by ~65px, which accidentally clears cover
+    placed dead on the line. Without it A met that cover square and reached
+    its band later on every head-on case (Elite past a 320px wall: 1/6 vs 4/6).
+    That — not a wish to match the Bulwark — is why B exists; its two parts
+    are each pinned to a failed test.
+  - **A SIDESTEP STEP IS NOT AN APPROACH STEP.** B's pinned run counts only
+    `_moveToward` calls made with no sidestep live; a recovery blocked by a
+    second obstacle breaks the run instead of re-arming the same direction
+    into it.
+  - **THE STAGED HANGAR STILL HAS ITS OWN BUSH ON THE x=800 AXIS near
+    y≈1100.** A keyframed player crossing it is `hiddenInBush`, so a charge
+    cancelled there is concealment, not the candidate — and a Marksman that
+    no longer skates off-axis meets it on different ticks.
 - **THE STATE LANGUAGE'S ONE RULE SURVIVED HANDSET REVIEW AND ITS SUSTAINED
   HALF DID NOT — `HANDOVER.md` §10ah, §10ai.** **SYMBOL = TRANSITION, BODY / FX
   = SUSTAINED STATE.** A glyph lives a few hundred ms to say something CHANGED

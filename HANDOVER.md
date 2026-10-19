@@ -10,7 +10,7 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-10-16. Pages builds only from `FRIX`, so the live build is
+*Updated 2026-10-19. Pages builds only from `FRIX`, so the live build is
 whatever `FRIX` points at: check `git rev-parse HEAD origin/FRIX` rather than
 trusting a hash written here, and `git rev-parse --abbrev-ref HEAD` for the
 branch name. This line has named a stale branch three times — trust the
@@ -203,7 +203,8 @@ boss scheduler's timing while fixing it.
   - **Phase 3B CLOSED for the ordinary Bulwark only** — Candidate B
     (`?bulwarkStuck=early`) is HUMAN-APPROVED / FROZEN and still opt-in (its
     section above). Every other archetype still carries both false classes;
-    Phase 3C (Marksman) is proposed, not started.
+    the Marksman's Phase 3C candidates are opt-in and IN HANDSET REVIEW
+    (their section below), not approved.
 - **The frozen roles' v1 Elite-death RNG mismatch.** A Gunner / Rifleman /
   Marksman v1 Elite dies with a smaller kill juice than legacy (render scale
   1.0 vs 1.4), so fewer random draws and a different fight after the first
@@ -866,21 +867,61 @@ separate rollout decision, like `?roster=v1` / `?gait=v2` / `?move=v22`. Do
 not delete A or the baseline path as cleanup. Nothing here reopens without
 NEW handset evidence.
 
+### PHASE 3C — MARKSMAN STUCK-RECOVERY CORRECTION. **CANDIDATES OPT-IN, AWAITING HANDSET REVIEW — NOT APPROVED, NOT FROZEN**
+
+Record: `docs/evidence/marksman-stuck-v3c/marksman-stuck-candidate-notes.md`
+(metrics, five 1x videos, the decision on B). Module
+`src/systems/marksmanStuck.js`; installed from `spawnEnemyAt` for
+`sniper && !legacyArt` only (Regular and Elite; never the nemesis Marksman).
+`Enemy.js`, `EnemySniper`, the laser, the config and every encounter are
+byte-identical; `smoke-stuck-audit` §0 allows exactly the five opt-in files.
+
+| flag | status |
+|---|---|
+| *(none)* | **the default** — the frozen game, `f752b3f` tick for tick, draw for draw |
+| `?marksmanStuck=early` | B — candidate, the recommended one; **not approved** |
+| `?marksmanStuck=prog` | A — candidate; fails two real-cover tests (below) |
+
+**The rule (both):** review each frozen 600ms check at the top of the
+Marksman's next AI tick, never arm on its own clock, never draw. Stand down
+the FALSE arms: the first check after real open travel (F1), and a window
+whose decision time was under half APPROACH — the band HOLD (a deliberate
+`setVelocity(0,0)`) and the RETREAT (a commanded `setVelocity` move the
+recovery cannot serve, logged as `retreatBlocked`). Intent is the tick's own
+command, never measured motion. **B adds**, on two failed tests: KEEP an arm
+while the body is approach-pinned or pressing (a console met inside the first
+window — A delayed real recovery a whole window), and ARM a check the base
+declined when approach-pinned (cover met head-on after a moving window — at
+the base's instant, its 600ms, its last drawn direction). A retreat and a
+sidestep step are never pinned evidence.
+
+**Measured (mechanical, not a fun verdict):** every false F1 / HOLD / RETREAT
+sidestep gone in all ten staged transitions, Regular and Elite; hold-only
+sequences byte-identical to baseline; the charge, lock, locked angle,
+cooldown, LOS cancel, retreat speed and band thresholds identical in every
+mode. On cover B reaches the band exactly as often as the frozen game in
+every obstacle cell, with mean time-to-band from 0.4s faster to 0.6s slower;
+A falls short in three cells (console inside the first window: B ==
+baseline, A +600ms; 90px cover head-on B 12/12, A 10/12; 320px wall B 9/12
+== baseline, A 6/12 — Regular and Elite pooled, 12 runs a cell). In SNIPER
+NEST, per live Marksman-minute: sidestep time 3.23s → A 0.67 → B 0.99, fire
+rate and cancels unchanged, locks that skated 10 → 0, cover contact 1.50s →
+A 2.20 → B 1.59. All five evidence films are verified tick for tick against
+the metrics' headless replay.
+
+**Default activation is NOT AUTHORIZED. Nothing is frozen.** Rifleman,
+Gunner, Swarmling, Nemesis and the shared movement change are not started.
+
 ### The recommended next area of work
 
 **PHASE 2D IS CLOSED and five-role ordinary roster production is complete**
 (above). **No milestone is started or authorized.** The next direction comes
 from the human; the candidates, none begun:
 
-- **PHASE 3C — MARKSMAN STUCK-RECOVERY CORRECTION. PROPOSED / NOT STARTED /
-  HUMAN IMPLEMENTATION PROMPT REQUIRED.** Phase 3A measured stuck sidesteps as
-  ~82% of the Marksman's lateral movement and 125 of its 126 sharp direction
-  changes, from BOTH false classes (first check and hold → resume — its band
-  hold is a deliberate stop). Its identity is not the Bulwark's: long-range
-  positioning, controlled retreat, the sniper charge, the laser telegraph,
-  firing cadence and aim/lock must all survive. Bulwark B is a REFERENCE,
-  not a template — do not copy it blindly, and do not start without the
-  human's prompt.
+- **PHASE 3C — MARKSMAN STUCK-RECOVERY CORRECTION — CANDIDATES IN HANDSET
+  REVIEW** (section above). The next step is the human's verdict on the
+  handset URLs in the notes (frozen / B / A for SNIPER NEST and MIXED);
+  nothing else in 3C moves before it.
 - **Shared swarm stuck-detection correction** for the OTHER roles — the
   AUDIT IS DONE (debt list above). It is a separate human decision at the gate
   in its notes. No shared `Enemy` change without the human.
@@ -920,6 +961,17 @@ strength of this list.
   Kill `HUD.banner`, `cameras.main.resetFX()` and `_sectorTint` at the shutter.
 - **One tracked PID, no pattern-matched process discovery.** `CLAUDE.md`'s
   background-process section is the record of what that cost once already.
+- **A FILMED RUN IS NOT THE MEASURED RUN UNTIL IT IS VERIFIED (Phase 3C).**
+  Rendering, the overlay's `Text` labels (Phaser `UUID()`) and a filming
+  camera (gameplay reads `cam.worldView`) all reached the seeded gameplay
+  stream, and two films came out different fights from the CSV rows they
+  claimed to show. `shot-marksman-stuck.mjs` verifies every film tick for
+  tick against the headless replay and fails otherwise; the Phase 3B films
+  predate that check. `tests/README.md` has the three mechanisms.
+- **A LONG-RUNNING DEV SERVER THAT HOT-RELOADED A MODULE SERVES IT TWICE.**
+  After a mid-session edit to `debug.js`, a suite's dynamic import got a
+  second module instance and `smoke-encdbg` went 31/33 on a correct build;
+  a fresh server gave 33/33. Restart the server before blaming the code.
 
 ---
 
