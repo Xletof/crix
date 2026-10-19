@@ -30,9 +30,10 @@ import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
   isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff, isVanguardScreenOff, isVanguardFrontOff,
-  isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2, getBulwarkStuck,
+  isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2, getBulwarkStuck, getMarksmanStuck,
 } from '../systems/debug.js';
 import { installBulwarkStuck } from '../systems/bulwarkStuck.js';
+import { installMarksmanStuck } from '../systems/marksmanStuck.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { attachHazards } from '../systems/Hazard.js';
 import { attachCaptainTelemetry } from '../systems/CaptainTelemetry.js';
@@ -2048,6 +2049,10 @@ export class GameScene extends Phaser.Scene {
     // installed and the frozen base check runs exactly as shipped.
     const bulwarkStuck = getBulwarkStuck();
     if (bulwarkStuck && type === 'shielded' && !spec.legacyArt) installBulwarkStuck(enemy, bulwarkStuck, x, y);
+    // `?marksmanStuck=prog` — the Phase 3C CANDIDATE, on the ordinary Marksman
+    // only (Regular and Elite); never the nemesis Marksman (`legacyArt`).
+    const marksmanStuck = getMarksmanStuck();
+    if (marksmanStuck && type === 'sniper' && !spec.legacyArt) installMarksmanStuck(enemy, marksmanStuck, x, y);
     // Room modifier speed (FRENZY): stacks on top of the elite's adjusted speed.
     const sm = this.arenaCfg?.speedMult;
     if (sm) enemy.cfg = { ...enemy.cfg, speed: enemy.cfg.speed * sm };

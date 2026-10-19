@@ -4,9 +4,9 @@
 // the real game and can tell apart what the audit reports:
 //
 //   0  production is untouched (src/ identical to the closure baseline EXCEPT
-//      the Phase 3B opt-in Bulwark candidate — its own module, the flag in
-//      debug.js / BootScene.js and its two-line install in GameScene.js — and
-//      the narrowed Enemy.js guard still holds)
+//      the opt-in Phase 3B Bulwark and Phase 3C Marksman candidates — their
+//      own modules, the flags in debug.js / BootScene.js and their two-line
+//      installs in GameScene.js — and the narrowed Enemy.js guard still holds)
 //   1  the instrument perturbs nothing (instrumented A == an uninstrumented page)
 //   2  the headless metrics path == the rendered path, and staged runs are
 //      independent of what ran before them
@@ -32,27 +32,32 @@ let pass = 0, fail = 0;
 const check = (name, ok, detail = '') => { if (ok) pass++; else fail++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`); };
 
 // ── 0. production untouched ─────────────────────────────────────────────
-// NARROWED for Phase 3B (`?bulwarkStuck=prog|early`, opt-in): src/ may differ
-// from 04cd882 in exactly four files, and GameScene.js only by the candidate's
-// import and its install. Every entity file — Enemy.js above all — still has
-// to be byte-identical; with the flag absent nothing is installed, which
-// `smoke-bulwark-stuck` §1 proves against the 690ed9b build trace for trace.
-const P3B = ['src/scenes/BootScene.js', 'src/scenes/GameScene.js', 'src/systems/bulwarkStuck.js', 'src/systems/debug.js'];
+// NARROWED for Phase 3B (`?bulwarkStuck=prog|early`) and Phase 3C
+// (`?marksmanStuck=prog`), both opt-in: src/ may differ from 04cd882 in
+// exactly five files, and GameScene.js only by each candidate's import and
+// its flag-gated install. Every entity file — Enemy.js above all — still has
+// to be byte-identical; with no flag nothing is installed, which
+// `smoke-bulwark-stuck` §1 and `smoke-marksman-stuck` §1 prove against the
+// frozen builds trace for trace.
+const OPT_IN = ['src/scenes/BootScene.js', 'src/scenes/GameScene.js', 'src/systems/bulwarkStuck.js', 'src/systems/debug.js', 'src/systems/marksmanStuck.js'];
 const srcFiles = execSync('git diff --name-only 04cd882 -- src/ && git ls-files --others --exclude-standard -- src/', { cwd: ROOT, encoding: 'utf8' })
   .split('\n').filter(Boolean).sort();
-const extra = srcFiles.filter((f) => !P3B.includes(f));
-check('src/ == the Phase 2D closure baseline 04cd882, apart from the four Phase 3B opt-in files', extra.length === 0, extra.join(', ') || srcFiles.join(', ') || 'no diff');
+const extra = srcFiles.filter((f) => !OPT_IN.includes(f));
+check('src/ == the Phase 2D closure baseline 04cd882, apart from the five Phase 3B / 3C opt-in files', extra.length === 0, extra.join(', ') || srcFiles.join(', ') || 'no diff');
 const gsLines = execSync('git diff -U0 04cd882 -- src/scenes/GameScene.js', { cwd: ROOT, encoding: 'utf8' })
   .split('\n').filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---) /.test(l));
 const GS_OK = new Set([
   '-  isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2,',
-  '+  isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2, getBulwarkStuck,',
+  '+  isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2, getBulwarkStuck, getMarksmanStuck,',
   "+import { installBulwarkStuck } from '../systems/bulwarkStuck.js';",
+  "+import { installMarksmanStuck } from '../systems/marksmanStuck.js';",
   '+    const bulwarkStuck = getBulwarkStuck();',
   "+    if (bulwarkStuck && type === 'shielded' && !spec.legacyArt) installBulwarkStuck(enemy, bulwarkStuck, x, y);",
+  '+    const marksmanStuck = getMarksmanStuck();',
+  "+    if (marksmanStuck && type === 'sniper' && !spec.legacyArt) installMarksmanStuck(enemy, marksmanStuck, x, y);",
 ]);
 const gsBad = gsLines.filter((l) => !GS_OK.has(l) && !/^\+    \/\/ /.test(l));
-check('GameScene.js differs from 04cd882 only by the bulwarkStuck import and its two-line, flag-gated install', gsBad.length === 0 && gsLines.length === 9,
+check('GameScene.js differs from 04cd882 only by the two candidates\' imports and their flag-gated installs', gsBad.length === 0 && gsLines.length === 14,
   gsBad.join(' | ') || `${gsLines.length} lines`);
 const entDiff = execSync('git diff --stat 04cd882 -- src/entities/ src/config.js src/data/', { cwd: ROOT, encoding: 'utf8' }).trim();
 check('src/entities/, config.js and data/ are byte-identical to 04cd882', entDiff === '', entDiff || 'no diff');

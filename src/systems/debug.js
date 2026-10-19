@@ -301,6 +301,14 @@ let bulwarkStuck = null;
 export function setBulwarkStuck(v) { bulwarkStuck = v === 'prog' || v === 'early' ? v : null; }
 export function getBulwarkStuck() { return bulwarkStuck; }
 
+// `?marksmanStuck=prog` — Phase 3C CANDIDATE stuck recovery for the ORDINARY
+// MARKSMAN ONLY (see systems/marksmanStuck.js). Gameplay, so its own flag,
+// coupled to none of `?move=`, `?roster=`, `?gait=` or `?bulwarkStuck=`.
+// Default off: the frozen base check, exactly as shipped.
+let marksmanStuck = null;
+export function setMarksmanStuck(v) { marksmanStuck = v === 'prog' ? v : null; }
+export function getMarksmanStuck() { return marksmanStuck; }
+
 // `?gait=v2` — the corrected roster-v1 LOCOMOTION PRESENTATION (anatomy gait,
 // distance-driven cadence, retreat / strafe playback). Presentation only: it
 // repaints the roster-v1 leg frames and picks the displayed frame after the
