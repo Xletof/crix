@@ -8,6 +8,16 @@
 // 2 game ticks per 30fps frame — real 1x speed. The AI is never frozen, and
 // the sniper laser in frame is the game's own (nothing here draws a beam).
 //
+// RENDERING IS NOT RNG-NEUTRAL, SO THE FILM IS SIMULATED HEADLESS. A real
+// `game.step` renders, and render-time code (camera shake on a Super, the HUD)
+// draws from `Math.random` — the seeded gameplay stream — so a filmed fight
+// drifted off the measured one (first divergence tick 675 in SNIPER NEST).
+// The simulation steps exactly as the metrics do (`headlessStep`), every
+// shutter render and overlay draw runs on a throwaway generator (an overlay
+// label is a Phaser Text, keyed by UUID() — 31 draws), and each video VERIFIES
+// itself: the audit hash and draw count of every tick are compared with a
+// plain headless replay of the same case, and a mismatch fails the run.
+//
 // THE OVERLAY IS DIAGNOSTIC, drawn by this rig only, on Marksmen only:
 //   trail          the path the Marksman actually ran (spawn dot at its start)
 //   RED ring       a base stuck check armed a sidestep and the body TOOK it
@@ -23,9 +33,10 @@ import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { CHROME, bootPage, installAudit } from './diag-stuck-audit.mjs';
-import { installMkRig, ENC_SEG, MK, MKE, OBST } from './diag-marksman-stuck.mjs';
+import { installMkRig, encRun, ENC_SEG, MK, MKE, OBST } from './diag-marksman-stuck.mjs';
 
 const ARGS = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').split('=').slice(1).join('=') || d;
 const OUT = new URL('../docs/evidence/marksman-stuck-v3c/', import.meta.url).pathname;
 const FFMPEG = '/opt/pw-browsers/ffmpeg-1011/ffmpeg-linux';
 mkdirSync(OUT, { recursive: true });
@@ -77,7 +88,8 @@ async function evPage(mode, { q, shared = '', seed } = {}) {
   await installMkRig(p);
   await p.evaluate(() => {
     const gs = window.__gs, A = window.__aud;
-    window.__headless = false;
+    window.__headless = true;   // simulate exactly as the metrics do; see the header
+    window.__tr = [];
     const g = gs.add.graphics().setDepth(9500);
     const T = [];
     const txt = (i) => T[i] || (T[i] = gs.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '15px', color: '#fff', stroke: '#000', strokeThickness: 4 }).setDepth(9501).setOrigin(0.5, 1));
@@ -98,7 +110,7 @@ async function evPage(mode, { q, shared = '', seed } = {}) {
       }
     };
     const adv = window.__adv;
-    window.__adv = (n = 1) => { for (let i = 0; i < n; i++) { adv(1); track(); } };
+    window.__adv = (n = 1) => { for (let i = 0; i < n; i++) { adv(1); window.__tr.push([A.hash(), window.__draws, A.recs.map((q) => `${q.type}@${q.e.x.toFixed(2)},${q.e.y.toFixed(2)}`).join(' ')]); track(); } };
     window.__quietStaged = () => {
       window.game.scene.getScene('HUD')?.scene.setVisible(false);
       for (const o of gs.roomLayer.getChildren()) if ((o.displayWidth || 0) < 1000 && !o.__audWall) o.setVisible(false);
@@ -107,7 +119,15 @@ async function evPage(mode, { q, shared = '', seed } = {}) {
       for (const q of gs.envLight?.parts || []) (q.img || q.image || q)?.setVisible?.(false);
       gs.cameraDirector.update = () => {};
     };
-    window.__render = () => { const gm = window.game; gm.renderer.preRender(); gm.scene.render(gm.renderer); gm.renderer.postRender(); };
+    // the shutter render AND the overlay run on their own generator: whatever
+    // they draw never reaches the seeded gameplay stream (or its counter).
+    // The overlay needs it as much as the render — every `add.text` label
+    // keys its canvas texture with Phaser's UUID(), 31 Math.random calls each,
+    // and a label is created the first time a Marksman needs one.
+    let rs = 0x2545f491;
+    const renderRng = () => ((rs = (Math.imul(rs, 1664525) + 1013904223) >>> 0) / 4294967296);
+    const isolated = (fn) => (...a) => { const keep = Math.random; Math.random = renderRng; try { return fn(...a); } finally { Math.random = keep; } };
+    window.__render = isolated(() => { const gm = window.game; gm.renderer.preRender(); gm.scene.render(gm.renderer); gm.renderer.postRender(); });
     window.__place = (cx, cy, zoom) => { const cam = gs.cameras.main; cam.setZoom(zoom); cam.centerOn(cx, cy); };
     window.__clipFor = (x0, y0, w, h) => {
       const cam = gs.cameras.main, wv = cam.worldView, z = cam.zoom;
@@ -145,6 +165,7 @@ async function evPage(mode, { q, shared = '', seed } = {}) {
       for (let i = k; i < T.length; i++) T[i].setVisible(false);
       gs._sectorTint?.setAlpha(0);
     };
+    window.__draw = isolated(window.__draw);
     // per-panel counts for the caption (ordinary Marksmen only)
     window.__stats = () => {
       const s = { taken: 0, takenF1: 0, takenHold: 0, takenBlock: 0, stood: 0, bArms: 0, sideMs: 0, n: 0 };
@@ -165,11 +186,13 @@ async function evPage(mode, { q, shared = '', seed } = {}) {
 
 // ── staged videos: N pages in lockstep, the diag's own player keyframes ──
 async function stagedVideo(file, panels, { region, zoom, frames, per = 2, label, cols = panels.length, foot = () => [], rowTitles = null }) {
+  frames = +opt('frames', frames);   // a shorter debug pass; the evidence uses the default
   const pages = [];
   for (const pn of panels) {
     const p = await evPage(pn.mode);
     await p.evaluate(async ({ sc, region, zoom }) => {
       await window.__mkSetup(sc);
+      window.__tr = [];
       window.__quietStaged(); window.__ov.trails.clear();
       window.__place(region[0] + region[2] / 2, region[1] + region[3] / 2, zoom);
       window.__draw(); window.__render();
@@ -210,8 +233,38 @@ async function stagedVideo(file, panels, { region, zoom, frames, per = 2, label,
     last = shots.map((s) => s.st);
   }
   await vw.end();
-  for (const p of pages) { await p.evaluate(() => window.__mkCollect()); await p.close(); }
+  // the film must BE the measured runtime: replay each panel's case headless
+  // on a plain page and compare every tick
+  for (let j = 0; j < pages.length; j++) {
+    const got = await pages[j].evaluate(() => window.__tr);
+    await pages[j].evaluate(() => window.__mkCollect()); await pages[j].close();
+    const ref = await page0(panels[j].mode).then(async (p) => {
+      const r = await p.evaluate(async ({ sc, n }) => {
+        await window.__mkSetup(sc);
+        const A = window.__aud, tr = [];
+        for (let i = 0; i < n; i++) { window.__mkStep(); tr.push([A.hash(), window.__draws, A.recs.map((q) => `${q.type}@${q.e.x.toFixed(2)},${q.e.y.toFixed(2)}`).join(' ')]); }
+        window.__mkCollect();
+        return tr;
+      }, { sc: panels[j].sc, n: got.length });
+      await p.close();
+      return r;
+    });
+    verify(file, panels[j].mode, got, ref);
+  }
   console.log('wrote', OUT + file, JSON.stringify(last));
+}
+// a plain metrics page: the real flag, the instrument, the Marksman rig, no overlay
+async function page0(mode, { q, shared = '', seed } = {}) {
+  const p = await bootPage(browser, { flags: [shared, MODE[mode].flags].filter(Boolean).join('&'), ...(q ? { q } : {}), ...(seed ? { seed } : {}) });
+  await installAudit(p, 'A');
+  await installMkRig(p);
+  await p.evaluate(() => { window.__headless = true; });
+  return p;
+}
+function verify(file, mode, got, ref) {
+  const d = got.findIndex((x, i) => x[0] !== ref[i]?.[0] || x[1] !== ref[i]?.[1]);
+  if (d !== -1 || got.length !== ref.length) fail(`${file} ${mode}: the filmed run left the measured one at tick ${d} (${got.length} vs ${ref.length} ticks)\n  film ${JSON.stringify(got.slice(Math.max(0, d - 1), d + 2))}\n  ref  ${JSON.stringify(ref.slice(Math.max(0, d - 1), d + 2))}`);
+  console.log(`  verified ${file} ${mode}: ${got.length} ticks identical to the headless metrics replay`);
 }
 const t = (f, per = 2) => (f * per / 60).toFixed(1);
 const LEGEND = 'rings: RED taken · GREEN stood down (candidate) · BLUE armed by B · AMBER armed, unused';
@@ -252,6 +305,7 @@ async function obstacle() {
 
 // ── D / E. REAL ENCOUNTERS: the diag's encRun script, all three modes ────
 async function encounter(file, { q, shared = '', title, ticks = 2400, seed = 1001 }) {
+  ticks = +opt('ticks', ticks);
   const pages = [];
   for (const m of ALL) {
     const p = await evPage(m, { q, shared, seed });
@@ -260,6 +314,7 @@ async function encounter(file, { q, shared = '', title, ticks = 2400, seed = 100
       window.game.scene.getScene('HUD')?.scene.setVisible(false);
       gs.cameraDirector.update = () => {};
       window.__seed(seed); window.__draws = 0; A.tick = 0; A.trace.length = 0;
+      window.__tr = [];
       window.__place(800, 700, 0.4);
       let i = 0;
       window.__encStep = (per) => {
@@ -302,8 +357,18 @@ async function encounter(file, { q, shared = '', title, ticks = 2400, seed = 100
     last = shots.map((s) => s.st.ss);
   }
   await vw.end();
+  // the film must BE the measured runtime: the same encounter, seed and
+  // script through the metrics' own `encRun`, compared tick for tick
+  for (let j = 0; j < ALL.length; j++) {
+    const got = await pages[j].evaluate(() => window.__tr);
+    await pages[j].close();
+    const p = await bootPage(browser, { q, flags: [shared, MODE[ALL[j]].flags].filter(Boolean).join('&'), seed });
+    await installAudit(p, 'A');
+    const ref = (await encRun(p, { seed, ticks })).trace;
+    await p.close();
+    verify(file, ALL[j], got, ref);
+  }
   console.log('wrote', OUT + file, JSON.stringify(last));
-  for (const p of pages) await p.close();
 }
 const nest = () => encounter('marksman-stuck-sniper-nest.webm', { q: 'encdbg=sniperNest&room=detention&sector=8&wave=2', title: 'SNIPER NEST (detention, sector 8, wave 2)' });
 const mixed = () => encounter('marksman-stuck-mixed.webm', { q: 'encdbg=mixed&room=detention&sector=12&wave=2', shared: 'bulwarkStuck=early', title: 'MIXED (detention, sector 12, wave 2) — ?bulwarkStuck=early on in ALL three' });

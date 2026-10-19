@@ -1690,3 +1690,58 @@ Phase 3A instrument installed in observe-only mode ('A').
   there is no `_bulwarkStuck`, so `logs[0].stoodHold` threw and killed the
   whole A/B run. Every log read is null-safe so the old build reports FAIL per
   check instead of one stack trace.
+
+## The Marksman stuck-recovery candidate rigs (Phase 3C)
+
+`?marksmanStuck=prog` (Candidate A) and `?marksmanStuck=early` (Candidate B)
+are opt-in, on the ordinary Marksman only (`src/systems/marksmanStuck.js`).
+Same discipline as Phase 3B: the REAL URL flag on a real page, the Phase 3A
+instrument in observe-only mode ('A'), seeded and fixed-step.
+
+- `smoke-marksman-stuck.mjs` (standalone) — the sixteen-item suite. Section 1
+  needs an `f752b3f` server (`--old=`, default :5174) and proves flag-off is
+  that build tick for tick and draw for draw in a real SNIPER NEST and MIXED.
+  Pointed at that build as `--base=`, every candidate check FAILS: that is the
+  A/B, recorded in the candidate notes.
+- `diag-marksman-stuck.mjs` — the metrics matrix: Part A diagnosis on the
+  frozen build, ten staged transitions, seven charge / player behaviours,
+  eight obstacles, SNIPER NEST and MIXED (with shared roster flags, and with
+  `?bulwarkStuck=early` in every half), four encounters with no ordinary
+  Marksman, ms per tick. It also records the branch the SNIPER'S OWN TICK
+  chose (the class formula, read before it runs) and the whole charge state
+  per tick. `--merge` writes `marksman-stuck-metrics.csv`.
+- `shot-marksman-stuck.mjs` — the five videos, 1x, AI live, laser the game's
+  own. Staged panels are the diag's `__mkStep`; encounters replay `encRun`'s
+  script tick for tick.
+
+### What it taught
+
+- **A ROW-COUNTED CHARGE IS 49 ROWS, NOT 48.** 800ms at 60Hz is 48 decrements,
+  but the rig samples the row the charge starts on and the row it fires on.
+  Assert the constant the rig measures, and assert it is the SAME in every
+  mode — that is the invariance claim.
+- **A LOS-BREAK SCENARIO THAT NEVER BREAKS A CHARGE TESTS NOTHING.** The first
+  one walked the player behind a wall on a schedule no charge ever overlapped:
+  zero cancels in every mode, so "cancels identical" passed vacuously. The
+  player now strafes across a pillar's shadow on a 4s period.
+- **THE STAGED HANGAR KEEPS ITS OWN BUSH.** A player keyframed through
+  (800, ~1100) is `hiddenInBush`; charges cancel there and a sniper parked
+  dead on the axis meets it on different ticks from one that skated 60px off
+  it. Read `canSee` and `_hasLOS` SEPARATELY before blaming the candidate.
+- **ENCOUNTERS DIVERGE DOWNSTREAM, SO COMPARE RATES.** Once one Marksman moves
+  differently the spawns, kills and wave clock differ; raw totals compare
+  different fights. The encounter summary is per live Marksman-minute.
+- **A FILMED RUN IS NOT THE MEASURED RUN UNTIL IT IS PROVED TO BE.** The
+  first SNIPER NEST film ended on different sidestep totals from the CSV row
+  for the same seed. Two things the camera rig does drew from the SEEDED
+  gameplay `Math.random`: a real `game.step` renders, and render-time code
+  (camera shake on a Super) draws — first divergence tick 675; and every
+  overlay label is a Phaser `Text`, whose canvas texture is keyed by
+  `UUID()` — 31 `Math.random` calls, 62 for two labels, on the tick a new
+  Marksman first needs one. Neither moves a body by itself; both shift every
+  draw after them. `shot-marksman-stuck` now simulates headless exactly as
+  the metrics do, runs the shutter render and the overlay on a throwaway
+  generator, and VERIFIES each video: every tick's audit hash and draw count
+  against a plain headless replay of the same case (`encRun` for encounters),
+  failing the run on any mismatch. The Phase 3B films used the earlier
+  approach and were never checked this way.
