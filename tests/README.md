@@ -1745,3 +1745,19 @@ instrument in observe-only mode ('A'), seeded and fixed-step.
   against a plain headless replay of the same case (`encRun` for encounters),
   failing the run on any mismatch. The Phase 3B films used the earlier
   approach and were never checked this way.
+- **GAMEPLAY READS THE CAMERA, SO A FILMING CAMERA CHANGES THE FIGHT.**
+  `_tickTraitTells` draws `Math.random` only for nemeses inside
+  `cam.worldView`, and the ambient motes sample it. The first MIXED film
+  parked a whole-room camera and disabled the director, and failed its own
+  verification at tick 1033. In the headless metrics `worldView` is never
+  even refreshed (nothing renders), so the encounter shutter BORROWS the game
+  camera: save scroll, zoom and `worldView`, film, put all three back.
+- **A DEV SERVER THAT HAS HOT-RELOADED A MODULE SERVES IT AS A SECOND
+  INSTANCE.** After `src/systems/debug.js` was edited mid-session, Vite served
+  it to the game as `/src/systems/debug.js?t=<stamp>`, so `smoke-encdbg`'s
+  `await import('/src/systems/debug.js')` got a DIFFERENT module and
+  `setEncForce` never reached the game: every forced archetype "resolved" to
+  `mixed`, 2/33 failed twice in a row, while the frozen server passed. The
+  same tree on a FRESH server: 33/33. Restart the dev server (or use a fresh
+  one) before any suite that dynamic-imports game state — the same trap
+  CLAUDE.md records for `config.js`, arriving through HMR instead.

@@ -127,12 +127,28 @@ async function evPage(mode, { q, shared = '', seed } = {}) {
     let rs = 0x2545f491;
     const renderRng = () => ((rs = (Math.imul(rs, 1664525) + 1013904223) >>> 0) / 4294967296);
     const isolated = (fn) => (...a) => { const keep = Math.random; Math.random = renderRng; try { return fn(...a); } finally { Math.random = keep; } };
-    window.__render = isolated(() => { const gm = window.game; gm.renderer.preRender(); gm.scene.render(gm.renderer); gm.renderer.postRender(); });
+    const renderNow = () => { const gm = window.game; gm.renderer.preRender(); gm.scene.render(gm.renderer); gm.renderer.postRender(); };
+    // ENCOUNTERS: the GAME camera stays the metrics' camera (director running,
+    // and `worldView` never refreshed — the headless run never renders), because
+    // gameplay reads it: `_tickTraitTells` draws Math.random only for on-screen
+    // nemeses, and the ambient motes sample `worldView`. The shutter BORROWS
+    // the camera — filming view in, render, every field it touched put back.
+    window.__film = null;
+    const borrow = (fn) => {
+      const cam = gs.cameras.main, wv = cam.worldView;
+      const keep = { z: cam.zoom, sx: cam.scrollX, sy: cam.scrollY, wx: wv.x, wy: wv.y, ww: wv.width, wh: wv.height };
+      cam.setZoom(window.__film.zoom); cam.centerOn(window.__film.cx, window.__film.cy);
+      try { return fn(cam); } finally { cam.setZoom(keep.z); cam.setScroll(keep.sx, keep.sy); wv.setTo(keep.wx, keep.wy, keep.ww, keep.wh); }
+    };
+    window.__placeFilm = (cx, cy, zoom) => { window.__film = { cx, cy, zoom }; };
+    window.__render = isolated(() => (window.__film ? borrow(renderNow) : renderNow()));
     window.__place = (cx, cy, zoom) => { const cam = gs.cameras.main; cam.setZoom(zoom); cam.centerOn(cx, cy); };
-    window.__clipFor = (x0, y0, w, h) => {
-      const cam = gs.cameras.main, wv = cam.worldView, z = cam.zoom;
+    const clip = (cam, x0, y0, w, h) => {
+      cam.preRender();
+      const wv = cam.worldView, z = cam.zoom;
       return { x: Math.round(cam.x + (x0 - wv.x) * z), y: Math.round(cam.y + (y0 - wv.y) * z), width: Math.round(w * z), height: Math.round(h * z) };
     };
+    window.__clipFor = isolated((x0, y0, w, h) => (window.__film ? borrow((cam) => clip(cam, x0, y0, w, h)) : clip(gs.cameras.main, x0, y0, w, h)));
     window.__draw = () => {
       const P = gs.player;
       g.clear();
@@ -312,10 +328,9 @@ async function encounter(file, { q, shared = '', title, ticks = 2400, seed = 100
     await p.evaluate(({ seed, SEG }) => {
       const gs = window.__gs, P = gs.player, A = window.__aud;
       window.game.scene.getScene('HUD')?.scene.setVisible(false);
-      gs.cameraDirector.update = () => {};
       window.__seed(seed); window.__draws = 0; A.tick = 0; A.trace.length = 0;
       window.__tr = [];
-      window.__place(800, 700, 0.4);
+      window.__placeFilm(800, 700, 0.4);
       let i = 0;
       window.__encStep = (per) => {
         // exactly encRun's script: keys per segment, fire every 7 ticks from 1s, Supers at 15s and 28.3s
@@ -326,9 +341,8 @@ async function encounter(file, { q, shared = '', title, ticks = 2400, seed = 100
           if (i === 900 || i === 1700) { P.superCharge = 999; P.tryFireSuper(P._autoAimAngle()); }
           window.__adv(1);
         }
-        // the impact camera punch sets zoom and tweens it: re-place the
-        // FILMING camera every frame, after the step and before the render
-        window.__place(800, 700, 0.4);
+        // (the impact camera punch tweens the GAME camera's zoom; the filming
+        // view is applied inside the shutter and taken back after it)
         window.__draw(); window.__render();
         const mk = gs.enemies.getChildren().filter((e) => e.enemyType === 'sniper' && e.alive && e.active && !e._miniBoss);
         return { t: i / 60, ss: window.__stats(), alive: gs.enemies.getChildren().filter((e) => e.alive && e.active).length, mkAlive: mk.length, charging: mk.filter((e) => e._charging).length };
