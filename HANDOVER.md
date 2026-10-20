@@ -10,7 +10,7 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-10-19. Pages builds only from `FRIX`, so the live build is
+*Updated 2026-10-20. Pages builds only from `FRIX`, so the live build is
 whatever `FRIX` points at: check `git rev-parse HEAD origin/FRIX` rather than
 trusting a hash written here, and `git rev-parse --abbrev-ref HEAD` for the
 branch name. This line has named a stale branch three times — trust the
@@ -867,7 +867,7 @@ separate rollout decision, like `?roster=v1` / `?gait=v2` / `?move=v22`. Do
 not delete A or the baseline path as cleanup. Nothing here reopens without
 NEW handset evidence.
 
-### PHASE 3C — MARKSMAN STUCK-RECOVERY CORRECTION. **CANDIDATES OPT-IN, AWAITING HANDSET REVIEW — NOT APPROVED, NOT FROZEN**
+### PHASE 3C — MARKSMAN STUCK-RECOVERY CORRECTION. **CANDIDATES OPT-IN — HANDSET REJECTED THE GAMEPLAY RESULT (see 3C-B below) — NOT APPROVED, NOT FROZEN**
 
 Record: `docs/evidence/marksman-stuck-v3c/marksman-stuck-candidate-notes.md`
 (metrics, five 1x videos, the decision on B). Module
@@ -912,16 +912,52 @@ the metrics' headless replay.
 **Default activation is NOT AUTHORIZED. Nothing is frozen.** Rifleman,
 Gunner, Swarmling, Nemesis and the shared movement change are not started.
 
+### PHASE 3C-B — TACTICAL ENGAGEMENT FAILURE (Marksman + Bulwark). **DIAGNOSED AND DESIGNED, NOT FIXED — HUMAN DECISION REQUIRED**
+
+The handset played MIXED, Detention, sector 12, wave 2 on the 3C URL and
+rejected it: *"They keep waiting instead of attacking me or going around
+visual obstacles. I don't even notice much between original and candidate B.
+It feels like snipers only have push pull tied to me, nothing else."* —
+*"Shielded enemies do same."* The recording was not available to the
+diagnosis; everything is a RECONSTRUCTION (same URL, real spawner, real room,
+seven autopilot player behaviours, 123 encounter runs, 72 staged).
+Record: `docs/evidence/tactical-engagement-audit/` — start at
+`failed-handset-analysis.md`.
+
+**It is not a stuck-recovery problem, and neither stuck candidate can fix
+it.** Both roles HOLD on distance alone — the Marksman anywhere in 300..640,
+the free Bulwark inside 290 — and never ask whether they can shoot from there.
+In MIXED the Marksman stands still with its line cut **42.6%** of its life
+(41.0% on the handset URL), the Bulwark **20.1%**; the Gunner and Rifleman in
+the same fights, whose approved v2.2 movement chooses spots by whether a shot
+exists, **4.7% and 2.1%**. A reachable firing spot existed in every blind
+sample (the long Marksman holds: a straight-line step along its own band, a
+median 40px at some moment, 119px of NavGrid path). The player was
+NavGrid-reachable in all 33,160 samples. Concealment near cover is dead (a
+colliding player can never get inside the 48.4px bush radius).
+
+**Proposed, not implemented** (`tactical-recovery-proposal.md`): T1 a
+Marksman firing-angle recovery, T2 a free-Bulwark pressure-angle recovery,
+both per-instance seams over the frozen classes (`tests/enemy-frozen.mjs`),
+opt-in, sharing one pure spot search built from `_standable` / `_hasLOS` /
+`_scoreSpot`'s body test; VANGUARD screens excluded by construction; T3
+(reachability-checked `_navigatePath`) only on evidence. **The gameplay
+problem is OPEN.** Also found, frozen code, reported only: v2.2's
+plant-for-the-shot deadlocks a Gunner whose line drops in the last 160ms of
+its warning (16-28s blind holds, Hangar).
+
 ### The recommended next area of work
 
 **PHASE 2D IS CLOSED and five-role ordinary roster production is complete**
 (above). **No milestone is started or authorized.** The next direction comes
 from the human; the candidates, none begun:
 
-- **PHASE 3C — MARKSMAN STUCK-RECOVERY CORRECTION — CANDIDATES IN HANDSET
-  REVIEW** (section above). The next step is the human's verdict on the
-  handset URLs in the notes (frozen / B / A for SNIPER NEST and MIXED);
-  nothing else in 3C moves before it.
+- **PHASE 3C-B — TACTICAL ENGAGEMENT** (section above). The handset rejected
+  3C's gameplay result; the diagnosis is done and the next step is the
+  human's decision on T1 (Marksman firing-angle recovery) in
+  `docs/evidence/tactical-engagement-audit/tactical-recovery-proposal.md`.
+  Nothing is implemented, and nothing in 3C or 3C-B moves before that
+  decision.
 - **Shared swarm stuck-detection correction** for the OTHER roles — the
   AUDIT IS DONE (debt list above). It is a separate human decision at the gate
   in its notes. No shared `Enemy` change without the human.

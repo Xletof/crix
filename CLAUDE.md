@@ -1185,8 +1185,8 @@ asserts separately that the ceiling is not reached.
   - **It fixes the Bulwark ONLY.** Every other archetype except the Marksman
     (next bullet) still has both false classes. B is a reference, not a
     template.
-- **MARKSMAN STUCK RECOVERY: PHASE 3C CANDIDATES — OPT-IN, IN HANDSET REVIEW,
-  NOT FROZEN.** `?marksmanStuck=prog` (A) / `?marksmanStuck=early` (B),
+- **MARKSMAN STUCK RECOVERY: PHASE 3C CANDIDATES — OPT-IN, HANDSET REJECTED
+  THE GAMEPLAY RESULT (next bullet), NOT FROZEN.** `?marksmanStuck=prog` (A) / `?marksmanStuck=early` (B),
   `src/systems/marksmanStuck.js`, ordinary `sniper` only (never the nemesis).
   No flag is the frozen game, `f752b3f` tick for tick. Nothing here is
   approved; the human decides. `HANDOVER.md` §0 and
@@ -1210,6 +1210,23 @@ asserts separately that the ceiling is not reached.
     y≈1100.** A keyframed player crossing it is `hiddenInBush`, so a charge
     cancelled there is concealment, not the candidate — and a Marksman that
     no longer skates off-axis meets it on different ticks.
+- **A BLIND HOLD IS NOT STUCK — PHASE 3C-B, DIAGNOSED, NOT FIXED.** The
+  handset rejected 3C ("they keep waiting instead of attacking me", "shielded
+  enemies do same"), and no stuck correction could have answered it: the
+  Marksman (300..640) and the free Bulwark (inside 290) HOLD on distance alone
+  and never ask whether they can shoot from there, so they stand behind a
+  console with the line cut for as long as the player stays — 42.6% / 20.1%
+  of their life in a reconstructed MIXED, against 4.7% / 2.1% for the v2.2
+  Gunner / Rifleman in the same fights. The body is exactly where its rule put
+  it. Measure "is it waiting" as BLIND STANDING (still, `canSee && _hasLOS`
+  false, not charging), never as stuck sidesteps. The proposal (T1 Marksman
+  angle, T2 free Bulwark, both seams — `Enemy.js` is frozen — VANGUARD screens
+  excluded by construction) is NOT IMPLEMENTED and waits on the human:
+  `docs/evidence/tactical-engagement-audit/`. Two side findings, both
+  reported, neither fixed: cover's bush registration can never hide a
+  colliding player (56.5px reachable against a 48.4px radius), and v2.2's
+  plant-for-the-shot holds a Gunner still for good once its line drops inside
+  the last 160ms of its warning (`fireCd` does not count down blind).
 - **THE STATE LANGUAGE'S ONE RULE SURVIVED HANDSET REVIEW AND ITS SUSTAINED
   HALF DID NOT — `HANDOVER.md` §10ah, §10ai.** **SYMBOL = TRANSITION, BODY / FX
   = SUSTAINED STATE.** A glyph lives a few hundred ms to say something CHANGED
