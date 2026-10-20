@@ -1761,3 +1761,48 @@ instrument in observe-only mode ('A'), seeded and fixed-step.
   same tree on a FRESH server: 33/33. Restart the dev server (or use a fresh
   one) before any suite that dynamic-imports game state — the same trap
   CLAUDE.md records for `config.js`, arriving through HMR instead.
+
+## The tactical-engagement rigs (Phase 3C-B — diagnosis only)
+
+Three rigs, no gameplay change, nothing asserted about behaviour. Evidence in
+`docs/evidence/tactical-engagement-audit/`.
+
+- `diag-tactical-engagement.mjs` — the instrument and the matrix. Wraps each
+  ordinary Marksman's and Bulwark's OWN `_tickSwarm` / `_moveToward` (and, as a
+  CONTROL, each Gunner's and Rifleman's) and records per tick what the tick
+  read (`canSee`, `_hasLOS`), what it commanded and what physics did; every
+  0.5s it also asks two PURE questions — is the player NavGrid-reachable, and
+  is there a firing spot (NavGrid-reachable, and separately one walkable in a
+  straight line along the role's own band). `--check` proves the recorder is
+  inert (same seed, recorder on vs off, identical trace). `--only=geo` dumps
+  the live room geometry, `staged` runs M1-M7 / B1-B7 in the REAL Detention
+  room, `enc` the 123-run encounter matrix (`--encs= --pilots= --vars=` to
+  narrow it), `--report` prints the tables the root-cause notes quote.
+- `shot-tactical-map.mjs` — `detention-obstacle-map.png` (the room as each
+  system sees it) and the concealment probe.
+- `shot-tactical-engagement.mjs` — three films, simulated headless and
+  VERIFIED tick for tick against a plain replay (the Phase 3C discipline).
+
+### What it taught
+
+- **THE ROOM AS IT LOADS IS NOT THE ROOM IN `rooms.js`.** Cover is snapped to
+  nav-cell centres at load: the authored `(400, 300)` is a body at
+  `(440, 280)`, and the checkpoint consoles are at y 680, not 700. Every staged
+  case placed from the data file was 20-40px off its cover. Read
+  `detention-geometry.json`, never the spec.
+- **AN AUTOPILOT THAT STEERS IN A STRAIGHT LINE PINS ITSELF ON A CONSOLE.** The
+  first `handset` pilot walked into the console it meant to hide behind and
+  stood there for the whole run — a measurement of the pilot. Player pilots
+  route on the room's own NavGrid now (a pure read), with a per-step timeout.
+- **A CAMERA WITH BOUNDS IGNORES A BORROWED `centerOn`.** Whenever the filming
+  view is larger than the room, Phaser clamps the scroll back to the room's
+  centre — every panel of the first film showed the same view whatever centre
+  it asked for. The shutter lifts `useBounds` for the borrowed render and puts
+  it back with zoom, scroll and `worldView`.
+- **A PER-FRAME COUNTER IN A 2-TICKS-PER-FRAME FILM IS HALF THE TIME.** The
+  first overlay's idle clock counted draws and read 6.0s at t 12s. Count the
+  row's own ticks.
+- **KILLING A JOB THAT LOADED THE OLD MODULE IS CHEAPER THAN MERGING ITS CSV.**
+  A long matrix imports the analysis once; editing the file mid-run changes
+  nothing in the running process. Stop it by its own PID and relaunch, so
+  every row comes from one instrument version.
