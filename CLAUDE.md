@@ -1227,6 +1227,29 @@ asserts separately that the ceiling is not reached.
   colliding player (56.5px reachable against a 48.4px radius), and v2.2's
   plant-for-the-shot holds a Gunner still for good once its line drops inside
   the last 160ms of its warning (`fireCd` does not count down blind).
+- **THE RESPONSIVE MARKSMAN IS A CANDIDATE — PHASE 3C-T1, `?marksmanAngle=1`,
+  OPT-IN, NOT APPROVED, NOT FROZEN.** `HANDOVER.md` §0 and
+  `docs/evidence/marksman-angle-t1/t1-candidate-notes.md`. Ordinary `sniper`
+  only, a seam over the frozen `_tickSwarm`; `Enemy.js` untouched; no flag is
+  the frozen game, `95adb1f` tick for tick. How it breaks:
+  - **NO IDLE WAIT BEFORE THE SEARCH — the human rejected one by name.** It
+    evaluates on the first blind tick and confirms for 140–260ms by the walk's
+    length. A commitment guard that becomes a cooldown is the rejected design
+    coming back; anti-thrash is the 450ms minimum before a TARGET-caused
+    re-plan, failed-spot memory, side memory, hold-and-watch and overwatch.
+  - **READ THE PLAYER'S MOTION FROM DISPLACEMENT, NEVER ONE FRAME'S
+    VELOCITY.** A keyboard walker toward a moving target is stop-and-go: one
+    frame says 0, the next 380. Reading `body.velocity` made the transient
+    hold and the lead noise, and on a circling player the Marksman committed
+    toward the side being LEFT at the start of 4 of 5 episodes, walked half a
+    second and turned round. 250ms of real displacement on scene time: 0.
+  - **A SIDE FLIP IS NOT A TURN-AROUND.** `log.reversals` compares sides of
+    the player, which flip on their own when the player runs round the room.
+    What a handset sees is the world heading turning >120° at a re-plan —
+    `tests/diag-marksman-angle-turns.mjs` measures that.
+  - **THE WALK TEST IS THE WHOLE BODY.** v2.2's `_scoreSpot` offsets its edge
+    rays 0.8x the radius; at 0.9x one walk grazed a console corner. The spot
+    search uses radius + 2px.
 - **THE STATE LANGUAGE'S ONE RULE SURVIVED HANDSET REVIEW AND ITS SUSTAINED
   HALF DID NOT — `HANDOVER.md` §10ah, §10ai.** **SYMBOL = TRANSITION, BODY / FX
   = SUSTAINED STATE.** A glyph lives a few hundred ms to say something CHANGED

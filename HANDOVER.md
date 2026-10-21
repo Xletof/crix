@@ -10,7 +10,7 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-10-20. Pages builds only from `FRIX`, so the live build is
+*Updated 2026-10-21. Pages builds only from `FRIX`, so the live build is
 whatever `FRIX` points at: check `git rev-parse HEAD origin/FRIX` rather than
 trusting a hash written here, and `git rev-parse --abbrev-ref HEAD` for the
 branch name. This line has named a stale branch three times — trust the
@@ -946,18 +946,63 @@ problem is OPEN.** Also found, frozen code, reported only: v2.2's
 plant-for-the-shot deadlocks a Gunner whose line drops in the last 160ms of
 its warning (16-28s blind holds, Hangar).
 
+### PHASE 3C-T1 — RESPONSIVE MARKSMAN TACTICAL ENGAGEMENT. **CANDIDATE, OPT-IN (`?marksmanAngle=1`) — NOT APPROVED, NOT A DEFAULT, NOT FROZEN — HUMAN DECISION REQUIRED**
+
+The human authorized T1 and rejected its proposed 700ms idle wait before it
+was built (*"1–2 seconds to wait idle and freeze before moving is still too
+laggy and robotic"*). Record: `docs/evidence/marksman-angle-t1/` — start at
+`t1-candidate-notes.md`; five films, each verified tick for tick.
+
+| flag | status |
+|---|---|
+| *(none)* | **the default** — the frozen hold, `95adb1f` tick for tick and draw for draw (MIXED and SNIPER NEST, seeded) |
+| `?marksmanAngle=1` | the candidate — **not approved**; independent of `?marksmanStuck=` |
+
+**Two files, one install line, `Enemy.js` untouched.**
+`src/systems/firingSpot.js` is a pure spot search (arcs around the player on
+the band [340, 610], `_standable`, `_hasLOS`, a full-body straight walk or a
+reachability-checked NavGrid route, claims, failed spots, a bounded lead on
+where the player is going). `src/systems/marksmanAngle.js` shadows the
+ordinary Marksman's own `_tickSwarm` (installed after the stuck candidate,
+`sniper && !legacyArt` only), calls it FIRST and unchanged, and only ever
+writes `setVelocity` at the frozen speeds, in the hold and approach bands,
+with the line cut and no charge running. **The rule:** evaluate on the first
+blind tick (no idle wait) → confirm 140–260ms by the length of the walk (held
+while the player's own motion is about to bring them back into the line) →
+commit to ONE spot and walk there facing the player → abandon only for a
+reason (line opens, retreat, a stale spot after 450ms — unless the target is
+mid-crossing, then stop and watch — a failed walk, arrival still blind) →
+OVERWATCH (hold the angle 1.4 / 2.2 / 3.0s) after three target-caused
+re-plans in 3s. No `Math.random`, listeners, timers or tweens.
+
+**Measured (the bot is not the balance authority):** staged in the real
+Detention room, the blind-console acceptance case went from 0 shots in 20s
+to evaluation 0ms, first movement 233ms, 21 shots a minute (Regular and
+Elite); clear line, crossing-behind-cover, retreat-into-cover and no-spot are
+tick-identical to the frozen game. In the reconstructed MIXED (Detention s12
+w2, 7 pilots × 3 seeds) Marksman blind standing went 36.5% → 7.0% on the
+rejected handset URL + the flag, longest blind hold 35.7s → 3.3s, first
+movement median 150ms / p90 233ms; SNIPER NEST 51.9% → 6.9%, 36.1s → 2.5s.
+Marksman hits on a god-mode player rise ~1.5× (MIXED) and ~2× (NEST) — **a
+harder encounter, with no weapon number changed.** Residuals the handset has
+to judge: under one visible turn-around per Marksman-minute in encounters;
+an adversarial re-hider can keep ONE Marksman blind for 20–30s while the
+others shoot them; overwatch holds of up to 3.0s.
+
+**Default activation is NOT AUTHORIZED. Phase 3C is NOT frozen. The free
+Bulwark (T2) is NOT started.**
+
 ### The recommended next area of work
 
 **PHASE 2D IS CLOSED and five-role ordinary roster production is complete**
 (above). **No milestone is started or authorized.** The next direction comes
 from the human; the candidates, none begun:
 
-- **PHASE 3C-B — TACTICAL ENGAGEMENT** (section above). The handset rejected
-  3C's gameplay result; the diagnosis is done and the next step is the
-  human's decision on T1 (Marksman firing-angle recovery) in
-  `docs/evidence/tactical-engagement-audit/tactical-recovery-proposal.md`.
-  Nothing is implemented, and nothing in 3C or 3C-B moves before that
-  decision.
+- **PHASE 3C-T1 — THE RESPONSIVE MARKSMAN** (section above). The candidate
+  is built and deployed opt-in; the next step is the human's handset verdict
+  on `?marksmanAngle=1` against the same URL without it. Nothing in 3C, 3C-B
+  or 3C-T1 is frozen, nothing becomes a default, and the free-Bulwark T2 does
+  not start before that verdict.
 - **Shared swarm stuck-detection correction** for the OTHER roles — the
   AUDIT IS DONE (debt list above). It is a separate human decision at the gate
   in its notes. No shared `Enemy` change without the human.
