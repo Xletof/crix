@@ -194,7 +194,8 @@ function review(e, M, delta, P) {
     if (M.clock > K.deadline) { M.log.failedDeadline++; return fail(e, M, P, branch, delta); }
     if (steer(e, M, delta)) {
       // ARRIVED, still blind: the player has moved since the choice — go on,
-      // the same way round if it still works, without stopping to think
+      // the same way round if it still works, unless the target is crossing
+      // back into the line from here (then stop and watch)
       M.log.arrivals++;
       end(e, M);
       if (chased(e, M)) return done(M);
