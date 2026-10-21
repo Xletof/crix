@@ -967,7 +967,8 @@ ordinary Marksman's own `_tickSwarm` (installed after the stuck candidate,
 `sniper && !legacyArt` only), calls it FIRST and unchanged, and only ever
 writes `setVelocity` at the frozen speeds, in the hold and approach bands,
 with the line cut and no charge running. **The rule:** evaluate on the first
-blind tick (no idle wait) → confirm 140–260ms by the length of the walk (held
+blind tick (no idle wait; only an overwatch hold already running, or the
+approach band's live stuck sidestep, defers it) → confirm 140–260ms by the length of the walk (held
 while the player's own motion is about to bring them back into the line) →
 commit to ONE spot and walk there facing the player → abandon only for a
 reason (line opens, retreat, a stale spot after 450ms — unless the target is
@@ -985,7 +986,8 @@ rejected handset URL + the flag, longest blind hold 35.7s → 3.3s, first
 movement median 150ms / p90 233ms; SNIPER NEST 51.9% → 6.9%, 36.1s → 2.5s.
 Marksman hits on a god-mode player rise ~1.5× (MIXED) and ~2× (NEST) — **a
 harder encounter, with no weapon number changed.** Residuals the handset has
-to judge: under one visible turn-around per Marksman-minute in encounters;
+to judge: about 1.3 visible turn-arounds (>120°) per Marksman-minute in
+encounters, most after a half-second walk;
 an adversarial re-hider can keep ONE Marksman blind for 20–30s while the
 others shoot them; overwatch holds of up to 3.0s.
 

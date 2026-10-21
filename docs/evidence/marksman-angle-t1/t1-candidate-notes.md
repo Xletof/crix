@@ -61,8 +61,13 @@ byte the frozen class).
 ## The decision, tick by tick
 
 1. **Immediate evaluation.** On the FIRST tick the line is cut, it searches.
-   There is no idle wait before the search. (Measured: eval at 0ms in every
-   staged and encounter episode.)
+   There is no idle wait before the search. Two states defer it by design: an
+   OVERWATCH hold already running (step 4), and the approach band's live stuck
+   sidestep (which owns that step). Measured over every candidate episode in
+   the staged and encounter runs (1,109): evaluation at 0ms in 1,046; later
+   in 50 (up to 1,350ms — the ones traced began inside an overwatch hold and
+   were evaluated the tick it expired); never reached in 13 (the line came
+   back, or the branch changed, first).
 2. **Situation-dependent confirmation, 140–260ms.** `140 + 0.25ms per px of
    planned walk`, capped at 260: a one-step fix commits almost at once, a long
    walk is worth a beat more certainty. During it the body holds, as a person
@@ -118,9 +123,10 @@ byte the frozen class).
 
 ## Staged results (real Detention, 2 seeds per case, fresh page per case)
 
-`tactical-t1-staged.csv` rows → `t1-responsiveness-metrics.csv`. "frozen" is no
-flag; `mkB` is `?marksmanStuck=early` (the rejected handset URL); `ang` and
-`angB` add `?marksmanAngle=1` to each. In every staged case `ang` = `angB`
+`tactical-t1-staged.csv` rows → `t1-responsiveness-metrics.csv`. Every build
+carries the handset's presentation flags `roster=v1 gait=v2 move=v22`;
+"frozen" adds neither candidate, `mkB` adds `marksmanStuck=early` (the rejected
+handset URL), and `ang` / `angB` add `marksmanAngle=1` to each. In every staged case `ang` = `angB`
 except the two cover-hop pilots.
 
 | case | frozen (and mkB) | candidate (ang / angB) |
@@ -216,7 +222,22 @@ per Marksman and per episode, is in `t1-responsiveness-metrics.csv`.
 
 `tests/diag-marksman-angle-turns.mjs` — at every commitment replaced by
 another in the same tick, the turn between the old walk's heading and the
-new one. TURNS_SECTION
+new one. MIXED × 7 pilots and SNIPER NEST × 4, 2 seeds, 22 runs a
+build (~15 minutes of fight, 4–6 Marksmen each):
+
+| build | commitments | replaced in the same tick | turned round (>120°) | of those inside 450ms | walk before turning, median / p10 | px walked, median / p10 |
+|---|---|---|---|---|---|---|
+| angB (URL + flag) | 681 | 266 | 41 | 9 | 533 / 317ms | 89 / 35px |
+| ang | 615 | 208 | 36 | 7 | 533 / 300ms | 86 / 46px |
+
+That is **about 1.3 visible turn-arounds per Marksman-minute** (41 in 31.7
+live Marksman-minutes under angB, 36 in 28.7 under ang — the same runs as the
+t1enc matrix's seeds 1001 and 8920). Most come after the
+full half-second walk the 450ms rule guarantees; the short ones follow an
+arrival or a failed walk. The adversarial `hop` pilot (re-hides opposite the
+Marksmen EVERY TICK) carries 14 of the 41 under angB. `log.reversals` (a
+side-of-the-player flip) over-counts this: a player running round the room
+flips the side without the body ever turning.
 
 ## The films (all 1x, real AI, verified tick for tick against the headless replay)
 
