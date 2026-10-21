@@ -30,6 +30,10 @@ export const VARIANTS = {
   frozen: HANDSET,
   mkB: `${HANDSET}&marksmanStuck=early`,
   bwB: `${HANDSET}&bulwarkStuck=early`,
+  // Phase 3C-T1: the Marksman angle candidate, with the stuck flag OFF and ON
+  // (the comparison keeps the stuck flag identical in both halves)
+  ang: `${HANDSET}&marksmanAngle=1`,
+  angB: `${HANDSET}&marksmanStuck=early&marksmanAngle=1`,
 };
 export const Q = {
   mixed: 'encdbg=mixed&room=detention&sector=12&wave=2',
@@ -41,13 +45,16 @@ export const Q = {
 
 // row layout (one flat array per actor per tick)
 export const R = { tick: 0, x: 1, y: 2, px: 3, py: 4, branch: 5, cmd: 6, ivx: 7, ivy: 8, dx: 9, dy: 10, blk: 11, see: 12, los: 13, blocker: 14, hidden: 15,
-  fireCd: 16, charging: 17, shot: 18, stag: 19, mvx: 20, mvy: 21, mates: 22, reach: 23, alt: 24, perf: 25, warn: 26, chargeStart: 27, chargeCancel: 28, line: 29 };
+  fireCd: 16, charging: 17, shot: 18, stag: 19, mvx: 20, mvy: 21, mates: 22, reach: 23, alt: 24, perf: 25, warn: 26, chargeStart: 27, chargeCancel: 28, line: 29,
+  astate: 30, adx: 31, ady: 32 };
+// `?marksmanAngle=1` module state, read (never set) each tick
+export const ASTATE = ['none', 'idle', 'line', 'charge', 'retreat', 'confirm', 'move', 'settle', 'noSpot', 'sidestep', 'overwatch'];
 export const BRANCH = ['NOTICK', 'APPROACH', 'HOLD', 'RETREAT', 'SCREEN_HOLD', 'SCREEN_MOVE'];
 export const CMD = ['NOTICK', 'MOVE', 'SIDESTEP', 'STOP', 'VELOCITY'];
 
 // ── page side ──────────────────────────────────────────────────────────────
 export async function installTac(page) {
-  await page.evaluate(() => {
+  await page.evaluate((ASTATE) => {
     const gs = window.__gs, P = gs.player;
     const T = window.__tac = { tick: 0, list: [], trace: [], hits: [], on: true, pilot: null, fire: 0, firedP: 0 };
 
@@ -215,7 +222,9 @@ export async function installTac(page) {
           c ? Math.round(c.ivx) : 0, c ? Math.round(c.ivy) : 0, +(e.x - b[0]).toFixed(2), +(e.y - b[1]).toFixed(2), blk,
           c ? +c.see : -1, c ? +c.los : -1, c && !c.los ? T.blocker(x0, y0, P.x, P.y) : -1, +!!P.hiddenInBush,
           Math.round(e.fireCd ?? 0), +chg, shot, +((e._staggerMs || 0) > 0), c?.mv ? Math.round(c.mv.tx) : -1, c?.mv ? Math.round(c.mv.ty) : -1,
-          mates, reach, alt, +!!e._performing, +(warn && !r.warnPrev), +(chg && !r.chgPrev), +(!chg && r.chgPrev && shot === 0), line]);
+          mates, reach, alt, +!!e._performing, +(warn && !r.warnPrev), +(chg && !r.chgPrev), +(!chg && r.chgPrev && shot === 0), line,
+          e._marksmanAngle ? Math.max(1, ASTATE.indexOf(e._marksmanAngle.state)) : 0,
+          e._marksmanAngle?.commit ? Math.round(e._marksmanAngle.commit.x) : -1, e._marksmanAngle?.commit ? Math.round(e._marksmanAngle.commit.y) : -1]);
         r.warnPrev = warn; r.chgPrev = chg;
       }
       T.trace.push([T.hash(), window.__draws]);
@@ -230,6 +239,15 @@ export async function installTac(page) {
     // pure BFS read) and press toward the next node; straight at the target
     // once it is in the same cell or the grid has no route
     const route = { tx: null, ty: null, path: null, k: 0, age: 0 };
+    // a case must not inherit the previous case's route (or key state)
+    T.resetPilot = () => {
+      route.tx = route.ty = route.path = null; route.k = route.age = 0;
+      const K = gs.keys; K.A.isDown = K.D.isDown = K.W.isDown = K.S.isDown = false;
+      // the player's own per-object clocks: the footstep dust draws from the
+      // seeded Math.random on `_stepTimer`, so a case inherited the previous
+      // case's puff phase and every draw after it
+      P._stepTimer = 0; P._moveTargetX = 0; P._moveTargetY = 0; P.body.setVelocity(0, 0);
+    };
     const keys = (tx, ty, dead = 10) => {
       if (route.tx == null || Math.hypot(tx - route.tx, ty - route.ty) > 40 || ++route.age > 45) {
         route.tx = tx; route.ty = ty; route.age = 0; route.k = 0;
@@ -284,6 +302,22 @@ export async function installTac(page) {
       },
       // stay behind whichever console is nearest, on the far side from the threat
       hide: () => { let tgt = null; return (i) => { if (i % 60 === 0 || !tgt) { const c = centroid(); const cs = covers(); cs.sort((a, b) => Math.hypot(a.x - P.x, a.y - P.y) - Math.hypot(b.x - P.x, b.y - P.y)); tgt = hideAt(cs[0], c); } keys(tgt.x, tgt.y); }; },
+      // a person hopping cover: every 4s run to the other checkpoint console and
+      // take the spot opposite the threat AS IT IS ON ARRIVAL — then stay put
+      // (`hop` re-hides opposite the threat EVERY TICK: an adversarial dancer)
+      hop2: () => { const B = gs.roomSpec.bounds, cps = covers().sort((a, b) => Math.hypot(a.x - B.w / 2, a.y - B.h / 2) - Math.hypot(b.x - B.w / 2, b.y - B.h / 2)).slice(0, 2);
+        let k = -1, tgt = null; return (i) => {
+          const kk = Math.floor(i / 240) % 2;
+          if (kk !== k) { k = kk; tgt = hideAt(cps[k], centroid()); }
+          keys(tgt.x, tgt.y);
+        }; },
+      // walk (real keys, real velocity) through waypoints, holding at each:
+      // wp [x, y, holdTicks]; loops
+      patrol: (o) => { let k = 0, held = 0; return () => {
+        const [tx, ty, hold] = o.wp[k];
+        if (Math.hypot(tx - P.x, ty - P.y) < 14) { stop(); if (++held >= hold) { held = 0; k = (k + 1) % o.wp.length; } }
+        else keys(tx, ty, 6);          // routed round furniture, as a person walks
+      }; },
       // orbit one console
       circle: (o = {}) => { let c = null; return (i) => {
         if (!c) { const cs = covers().sort((a, b) => Math.hypot(a.x - P.x, a.y - P.y) - Math.hypot(b.x - P.x, b.y - P.y)); c = { x: o.cx ?? cs[0].x, y: o.cy ?? cs[0].y }; }
@@ -313,9 +347,11 @@ export async function installTac(page) {
       window.__seed(sc.seed); window.__draws = 0;
       T.tick = 0; T.list.length = 0; T.trace.length = 0; T.hits.length = 0; T.firedP = 0;
       T.fire = sc.fire || 0;
+      T.resetPilot();
       const pl = sc.player;
       T.pilot = T.pilots[pl.mode](pl);
       if (pl.x != null) { P.setPosition(pl.x, pl.y); P.body.reset(pl.x, pl.y); }
+      else if (pl.wp) { P.setPosition(pl.wp[0][0], pl.wp[0][1]); P.body.reset(pl.wp[0][0], pl.wp[0][1]); }
       P.hp = P.hpMax;
       for (const a of sc.actors) { const e = gs.spawnEnemyAt(a.type, a.x, a.y, { ...(a.elite ? { elite: true } : {}), ...(a.spec || {}) }); T.wrap(e); }
     };
@@ -324,6 +360,7 @@ export async function installTac(page) {
       window.__seed(seed); window.__draws = 0;
       T.tick = 0; T.list.length = 0; T.trace.length = 0; T.hits.length = 0; T.firedP = 0;
       T.fire = fire;
+      T.resetPilot();
       T.pilot = T.pilots[pilot.mode](pilot);
       for (const e of gs.enemies.getChildren()) if (e.active && e.alive && tracked(e)) T.wrap(e);
     };
@@ -331,9 +368,10 @@ export async function installTac(page) {
       const roles = {};
       for (const e of gs.enemies.getChildren()) { if (!(e.active && e.alive)) continue; const k = (e.enemyType ?? (e.isChampion ? 'champion' : '?')) + (e._elite ? '-E' : '') + (e._miniBoss ? '-nem' : ''); roles[k] = (roles[k] || 0) + 1; }
       return { actors: T.list.map((r) => ({ id: r.id, type: r.type, ref: r.ref, elite: r.elite, screen: r.screen, born: r.born, dead: r.dead, rows: r.rows })),
-        hits: T.hits.slice(), draws: window.__draws, trace: T.trace.slice(), firedP: T.firedP, roles, geo: T.geo() };
+        hits: T.hits.slice(), draws: window.__draws, trace: T.trace.slice(), firedP: T.firedP, roles, geo: T.geo(),
+        angLogs: T.list.map((r) => (r.e._marksmanAngle ? { ...r.e._marksmanAngle.log } : null)) };
     };
-  });
+  }, ASTATE);
 }
 
 // ── node side: what each tick MEANS ───────────────────────────────────────
@@ -344,6 +382,9 @@ export function reasonOf(w, type) {
   const iv = Math.hypot(w[R.ivx], w[R.ivy]);
   const br = w[R.branch], valid = w[R.see] === 1 && w[R.los] === 1;
   if (w[R.perf]) return 'SCRIPTED_MOVE';
+  const ast = ASTATE[w[R.astate] || 0];
+  if ((ast === 'move' || ast === 'settle') && sp >= MOVING_PX) return 'ANGLE_REPOSITION';
+  if ((ast === 'move' || ast === 'settle') && iv > 1) return 'ANGLE_REPOSITION_BLOCKED';
   if (w[R.cmd] === 0) return w[R.stag] ? 'STAGGERED' : 'NO_AI_TICK';
   if (w[R.cmd] === 2) return sp < MOVING_PX ? 'STUCK_RECOVERY_BLOCKED' : 'STUCK_RECOVERY';
   if (sp >= MOVING_PX) {
@@ -455,12 +496,66 @@ export function analyse(res, meta, geo) {
       matesMean: +(mates / n).toFixed(2), matesMax,
       ...Object.fromEntries(Object.entries(reasons).map(([k, v]) => [`r_${k}`, ms(v)])) });
   }
+  // ── RESPONSIVENESS (Phase 3C-T1), Marksmen only: one row per persistent
+  // blind episode in the HOLD band — the line (geometric `_hasLOS`, the fire
+  // gate's test) cut for >= 250ms while it stands in its own band
+  const respRows = [];
+  for (const a of res.actors) {
+    if (a.type !== 'sniper' || a.ref) continue;
+    const rows = a.rows;
+    for (let k = 0; k < rows.length; k++) {
+      const w = rows[k];
+      if (!(w[R.branch] === 2 && w[R.los] === 0 && !w[R.charging])) continue;
+      if (k > 0 && rows[k - 1][R.branch] === 2 && rows[k - 1][R.los] === 0 && !rows[k - 1][R.charging]) continue;
+      // the episode: until the line opens, the branch leaves HOLD, or the actor is gone
+      let j = k, endWhy = 'runEnd';
+      for (; j < rows.length; j++) {
+        const q = rows[j];
+        if (q[R.los] === 1) { endWhy = 'line'; break; }
+        if (q[R.branch] !== 2) { endWhy = q[R.branch] === 3 ? 'retreat' : q[R.branch] === 1 ? 'approach' : 'other'; break; }
+      }
+      const dur = j - k;
+      if (dur < 15) continue;
+      const t0 = w[R.tick];
+      let evalT = '', selectT = '', moveT = '', standT = 0, stopStarts = 0, moving = false, moved = false;
+      for (let i = k; i < j; i++) {
+        const q = rows[i], st = ASTATE[q[R.astate]], sp = Math.hypot(q[R.dx], q[R.dy]);
+        if (evalT === '' && (st === 'confirm' || st === 'move' || st === 'noSpot')) evalT = ms(q[R.tick] - t0);
+        if (selectT === '' && st === 'move') selectT = ms(q[R.tick] - t0);
+        const mv = sp >= MOVING_PX;
+        if (mv && moveT === '') moveT = ms(q[R.tick] - t0);
+        if (!mv) standT++;
+        if (moved && moving && !mv) stopStarts++;
+        if (mv) moved = true;
+        moving = mv;
+      }
+      let chargeT = '', shotT = '';
+      if (endWhy === 'line') {
+        const tl = rows[j][R.tick];
+        for (let i = j; i < Math.min(rows.length, j + 150); i++) {
+          if (rows[i][R.chargeStart] && chargeT === '') { chargeT = ms(rows[i][R.tick] - tl); for (let h = i; h < Math.min(rows.length, i + 80); h++) if (rows[h][R.shot]) { shotT = ms(rows[h][R.tick] - rows[i][R.tick]); break; } break; }
+          if (rows[i][R.los] === 0 && i > j + 2) break;
+        }
+      }
+      respRows.push({ section: 'resp', ...meta, actor: a.id, elite: +a.elite, startMs: ms(t0), durMs: ms(dur), end: endWhy,
+        evalMs: evalT, selectMs: selectT, firstMoveMs: moveT, reacquireAfterMoveMs: endWhy === 'line' && moveT !== '' ? ms(dur) - moveT : '',
+        lineCameBackUnmoved: +(endWhy === 'line' && moveT === ''), chargeAfterLineMs: chargeT, shotAfterChargeMs: shotT,
+        standBlindMs: ms(standT), stopStarts });
+    }
+  }
+  // the module's own decision counts, per Marksman (null on frozen builds)
+  for (const a of res.actors) {
+    const L = res.angLogs?.[a.id];
+    if (!L || a.type !== 'sniper') continue;
+    respRows.push({ section: 'anglog', ...meta, actor: a.id, elite: +a.elite, ...L });
+  }
+
   // the player's side: what the enemies actually did to them
   const by = (amt) => res.hits.filter((h) => h[1] === amt).length;
   const run = { section: 'run', ...meta, ticks: res.trace.length, draws: res.draws, roles: Object.entries(res.roles).map(([k, v]) => `${k}:${v}`).join(' '),
     hitsAll: res.hits.length, hitsMarksman: by(220), hitsBulwark: by(120), hitsGunner: by(130), hitsRifleman: by(80), playerShots: res.firedP,
     subjects: res.actors.filter((a) => !a.ref).length, controls: res.actors.filter((a) => a.ref).length };
-  return { actorRows, intervals, run };
+  return { actorRows, intervals, run, respRows };
 }
 
 // ── staged cases, in the real Detention Block ─────────────────────────────
@@ -492,9 +587,33 @@ export const STAGED = {
   B7b_screen_clear: { ticks: 900, actors: [{ ...SH, x: 1300, y: 1000, spec: SCREEN }], player: { mode: 'stand', x: 1000, y: 1000 } },
 };
 
+// ── Phase 3C-T1: the brief's T1-T10, in the same real room ───────────────
+// Marksman at 520px north of a player standing behind the heavy console
+// (1000,680) is the primary acceptance case (old: zero attempts in 20s).
+const MKS = (x, y, elite) => ({ type: 'sniper', x, y, ...(elite ? { elite: true } : {}) });
+export const T1_STAGED = {
+  T1_clear_los: { ticks: 900, actors: [MKS(1450, 1000)], player: { mode: 'stand', x: 950, y: 1000 } },
+  T2_blind_console: { ticks: 1200, actors: [MKS(1000, 250)], player: { mode: 'stand', x: 1000, y: 770 } },
+  T2e_blind_console_elite: { ticks: 1200, actors: [MKS(1000, 250, true)], player: { mode: 'stand', x: 1000, y: 770 } },
+  // crossing behind the console at full speed and coming straight out
+  T3_brief_cross: { ticks: 1200, actors: [MKS(1000, 250)], player: { mode: 'patrol', wp: [[860, 770, 75], [1140, 770, 75]] } },
+  T4_circle_console: { ticks: 1500, actors: [MKS(1000, 200)], player: { mode: 'circle', x: 1112, y: 680, cx: 1000, cy: 680 } },
+  T5_cover_hop: { ticks: 1500, actors: [MKS(800, 200)], player: { mode: 'hop2', x: 600, y: 760 } },
+  T5b_cover_dancer: { ticks: 1500, actors: [MKS(800, 200)], player: { mode: 'hop', x: 600, y: 760 } },
+  T6_rush: { ticks: 900, actors: [MKS(1000, 250)], player: { mode: 'charge', x: 1000, y: 900 } },
+  // the player walks far south and stops behind the south-middle bench
+  T7_far_behind_cover: { ticks: 1500, actors: [MKS(800, 250)], player: { mode: 'patrol', x: 800, y: 600, wp: [[800, 600, 30], [840, 1170, 99999]] } },
+  // south of the post: a bearing with NO reachable spot on the band (scanned)
+  T8_no_spot: { ticks: 1200, actors: [MKS(260, 780)], player: { mode: 'stand', x: 260, y: 1300 } },
+  T9_four_marksmen: { ticks: 1200, actors: [MKS(600, 250), MKS(1000, 250), MKS(1400, 300, true), MKS(1250, 420)], player: { mode: 'stand', x: 1000, y: 770 } },
+  T10_regular_elite_pair: { ticks: 1200, actors: [MKS(940, 250), MKS(1060, 250, true)], player: { mode: 'stand', x: 1000, y: 770 } },
+  T11_los_flicker: { ticks: 1200, actors: [MKS(1000, 250)], player: { mode: 'keys', kf: Array.from({ length: 22 }, (_, k) => [[k * 54, k % 2 ? 1085 : 1000, 770], [k * 54 + 6, k % 2 ? 1000 : 1085, 770]]).flat() } },
+  T12_retreat_into_cover: { ticks: 900, actors: [MKS(1000, 600)], player: { mode: 'keys', kf: [[0, 1000, 250], [60, 1000, 250], [120, 1000, 400], [900, 1000, 400]] } },
+};
+
 // ── run one case ──────────────────────────────────────────────────────────
-export async function tacPage(browser, flags, q, seed = 4242) {
-  const p = await bootPage(browser, { flags, q, seed });
+export async function tacPage(browser, flags, q, seed = 4242, base) {
+  const p = await bootPage(browser, { flags, q, seed, ...(base ? { base } : {}) });
   await installTac(p);
   await p.evaluate(() => { window.__headless = true; });
   return p;
@@ -594,9 +713,54 @@ export function report(rows) {
   return out.join('\n');
 }
 
+// ── the T1 report: Marksmen only ───────────────────────────────────────
+const q = (arr, f) => { if (!arr.length) return ''; const a = arr.slice().sort((x, y) => x - y); return a[Math.min(a.length - 1, Math.floor(f * a.length))]; };
+export function t1report(rows, { byFamily = false } = {}) {
+  const out = [];
+  const P = (...a) => out.push(a.join(' '));
+  const pct = (x) => `${(100 * x).toFixed(1)}%`;
+  const key = (r) => (byFamily ? String(r.scenario).split(':')[0] : r.scenario);
+  const grp = (arr, f) => arr.reduce((o, r) => ((o[f(r)] ||= []).push(r), o), {});
+  const act = rows.filter((r) => r.section === 'actor' && r.type === 'sniper');
+  const resp = rows.filter((r) => r.section === 'resp');
+  const logs = rows.filter((r) => r.section === 'anglog');
+  const runs = rows.filter((r) => r.section === 'run');
+  P('## Marksmen: engagement (pooled over seeds)');
+  P('scenario | variant | n | live s | attempts/min | shots/min | line open | blind standing | longest blind s | angle reposition | stuck sidestep | Marksman hits/min');
+  const g1 = grp(act, (r) => `${key(r)}|${r.variant}`);
+  for (const [k, a] of Object.entries(g1).sort()) {
+    const live = a.reduce((x, r) => x + r.liveMs, 0), min = live / 60000;
+    const sum = (c) => a.reduce((x, r) => x + (+r[c] || 0), 0);
+    const rr = runs.filter((r) => `${key(r)}|${r.variant}` === k);
+    const hm = rr.reduce((x, r) => x + r.hitsMarksman, 0) / Math.max(1e-9, rr.reduce((x, r) => x + r.ticks, 0) / 3600);
+    P(k.replace('|', ' | '), '|', a.length, '|', (live / 1000).toFixed(0), '|', (sum('attempts') / min).toFixed(1), '|', (sum('shots') / min).toFixed(1), '|',
+      pct(a.reduce((x, r) => x + r.validLineFrac * r.liveMs, 0) / live), '|', pct(sum('standNoLineMs') / live), '|', (Math.max(...a.map((r) => r.longestPassiveMs)) / 1000).toFixed(1), '|',
+      pct((sum('r_ANGLE_REPOSITION') + sum('r_ANGLE_REPOSITION_BLOCKED')) / live), '|', pct(sum('stuckRecoveryMs') / live), '|', hm.toFixed(1));
+  }
+  P('', '## Marksmen: responsiveness per persistent blind episode in the HOLD band (>= 250ms)');
+  P('scenario | variant | episodes | moved | first move ms median / p90 / max | committed ms median | eval ms median | line back unmoved | reacquire after move ms median / p90 | charge after line ms median | shot after charge ms median | stand-blind ms per episode median / p90 / max | stop-starts');
+  const g2 = grp(resp, (r) => `${key(r)}|${r.variant}`);
+  for (const [k, a] of Object.entries(g2).sort()) {
+    const num = (c) => a.map((r) => r[c]).filter((v) => v !== '' && v !== undefined).map(Number);
+    const fm = num('firstMoveMs'), ra = num('reacquireAfterMoveMs'), sb = num('standBlindMs');
+    P(k.replace('|', ' | '), '|', a.length, '|', fm.length, '|', `${q(fm, 0.5)} / ${q(fm, 0.9)} / ${fm.length ? Math.max(...fm) : ''}`, '|', q(num('selectMs'), 0.5), '|', q(num('evalMs'), 0.5), '|',
+      a.reduce((x, r) => x + r.lineCameBackUnmoved, 0), '|', `${q(ra, 0.5)} / ${q(ra, 0.9)}`, '|', q(num('chargeAfterLineMs'), 0.5), '|', q(num('shotAfterChargeMs'), 0.5), '|',
+      `${q(sb, 0.5)} / ${q(sb, 0.9)} / ${sb.length ? Math.max(...sb) : ''}`, '|', a.reduce((x, r) => x + r.stopStarts, 0));
+  }
+  if (logs.length) {
+    P('', '## the candidate\'s own decisions (summed)');
+    const g3 = grp(logs, (r) => `${key(r)}|${r.variant}`);
+    const cols = ['episodes', 'commits', 'routed', 'arrivals', 'reacquired', 'settled', 'failedProgress', 'failedDeadline', 'replans', 'reversals', 'noSpot', 'transientHeld', 'retreatPreempt', 'chargePreempt', 'branchReplan', 'invalidReplan', 'overwatch', 'arrivedNoSpot', 'watched', 'branchKept'];
+    P('scenario | variant | ' + cols.join(' | '));
+    for (const [k, a] of Object.entries(g3).sort()) P(k.replace('|', ' | '), '|', cols.map((c) => a.reduce((x, r) => x + (+r[c] || 0), 0)).join(' | '));
+  }
+  return out.join('\n');
+}
+
 // ════════════════════════════════════════════════════════════════════════
 if (import.meta.url === `file://${process.argv[1]}`) {
   if (process.argv.includes('--report')) { console.log(report(opt('csv', `${OUT}tactical-metrics-all.csv`).split('+').flatMap(readCsv))); process.exit(0); }
+  if (process.argv.includes('--t1report')) { console.log(t1report(opt('csv', `${OUT}tactical-t1-staged.csv`).split('+').flatMap(readCsv), { byFamily: process.argv.includes('--family') })); process.exit(0); }
   const ONLY = opt('only', 'geo,staged,enc').split(',');
   const SEEDS = Array.from({ length: +opt('seeds', '3') }, (_, i) => 1001 + i * 7919);
   mkdirSync(OUT, { recursive: true });
@@ -640,8 +804,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   if (ONLY.includes('staged')) {
     const rows = [];
-    for (const [vk, flags] of Object.entries(VARIANTS)) {
-      const p = await tacPage(browser, flags, Q.stagedRoom);
+    for (const vk of ['frozen', 'mkB', 'bwB']) {
+      const p = await tacPage(browser, VARIANTS[vk], Q.stagedRoom);
       for (const [name, sc] of Object.entries(STAGED)) {
         // Marksman cases need the Marksman variant, Bulwark cases the Bulwark one
         if (vk === 'mkB' && !name.startsWith('M')) continue;
@@ -649,7 +813,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         for (const seed of SEEDS.slice(0, 2)) {
           const res = await runStaged(p, { ...sc, seed });
           const a = analyse(res, { scenario: name, variant: vk, seed }, res.geo);
-          rows.push(a.run, ...a.actorRows, ...a.intervals);
+          rows.push(a.run, ...a.actorRows, ...a.intervals, ...a.respRows);
         }
         console.log(`  staged ${vk} ${name} (${Math.round((Date.now() - t0) / 1000)}s)`);
       }
@@ -674,7 +838,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const res = await runEnc(p, { seed, ticks: 2400, pilot: { mode: pilot }, fire: 7 });
       await p.close();
       const a = analyse(res, { scenario: `${enc}:${pilot}`, variant: vk, seed }, res.geo);
-      rows.push(a.run, ...a.actorRows, ...a.intervals);
+      rows.push(a.run, ...a.actorRows, ...a.intervals, ...a.respRows);
       if (enc === 'mixed' && pilot === 'handset' && seed === SEEDS[0] && !opt('encs', '')) {
         // the per-tick evidence for the reproduction, every tracked actor
         const tick = [];
@@ -684,6 +848,55 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     }
     console.log(`  enc done (${Math.round((Date.now() - t0) / 1000)}s)`);
     save('enc', rows);
+    all.push(...rows);
+  }
+
+  // ── Phase 3C-T1: the candidate against the frozen hold, with the stuck
+  // flag identical in both halves of each comparison
+  const T1V = ['frozen', 'ang', 'mkB', 'angB'];
+  if (ONLY.includes('t1staged')) {
+    const rows = [];
+    // A FRESH PAGE PER CASE AND SEED: a staged case otherwise inherits the
+    // previous case's per-object clocks (the player's footstep dust draws from
+    // the seeded stream on its own timer, and it is not the only one), so the
+    // same case measured differently depending on what ran before it
+    for (const vk of opt('vars', T1V.join(',')).split(',')) {
+      for (const [name, sc] of Object.entries(T1_STAGED)) {
+        if (opt('cases', '') && !opt('cases', '').split(',').includes(name)) continue;
+        for (const seed of SEEDS.slice(0, 2)) {
+          const p = await tacPage(browser, VARIANTS[vk], Q.stagedRoom);
+          const res = await runStaged(p, { ...sc, seed });
+          await p.close();
+          const a = analyse(res, { scenario: name, variant: vk, seed }, res.geo);
+          rows.push(a.run, ...a.actorRows, ...a.intervals, ...a.respRows);
+        }
+        console.log(`  t1 staged ${vk} ${name} (${Math.round((Date.now() - t0) / 1000)}s)`);
+      }
+    }
+    save('t1-staged', rows);
+    all.push(...rows);
+  }
+  if (ONLY.includes('t1enc')) {
+    const rows = [];
+    const PLAN = [
+      ['mixed', ['handset', 'hide', 'circle', 'hop', 'charge', 'retreat', 'behind']],
+      ['nest', ['handset', 'hide', 'hop', 'charge']],
+    ];
+    const VARS = opt('vars', T1V.join(',')).split(','), ENCS = opt('encs', ''), PILOTS = opt('pilots', '');
+    for (const [enc, pilots] of PLAN) for (const pilot of pilots) for (const vk of VARS) for (const seed of SEEDS) {
+      if ((ENCS && !ENCS.split(',').includes(enc)) || (PILOTS && !PILOTS.split(',').includes(pilot))) continue;
+      const p = await tacPage(browser, VARIANTS[vk], Q[enc], seed);
+      const tStart = Date.now();
+      const res = await runEnc(p, { seed, ticks: 2400, pilot: { mode: pilot }, fire: 7 });
+      const wallMs = Date.now() - tStart;
+      await p.close();
+      const a = analyse(res, { scenario: `${enc}:${pilot}`, variant: vk, seed }, res.geo);
+      a.run.wallMsPer1000Ticks = Math.round(wallMs / res.trace.length * 1000);
+      rows.push(a.run, ...a.actorRows, ...a.intervals, ...a.respRows);
+      save('t1-enc', rows);        // after every run: a 45-minute matrix must not die with its last page
+    }
+    console.log(`  t1 enc done (${Math.round((Date.now() - t0) / 1000)}s)`);
+    save('t1-enc', rows);
     all.push(...rows);
   }
 
