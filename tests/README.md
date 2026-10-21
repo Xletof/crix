@@ -1806,3 +1806,55 @@ Three rigs, no gameplay change, nothing asserted about behaviour. Evidence in
   A long matrix imports the analysis once; editing the file mid-run changes
   nothing in the running process. Stop it by its own PID and relaunch, so
   every row comes from one instrument version.
+
+## The responsive-Marksman rigs (Phase 3C-T1 — `?marksmanAngle=1`, a candidate)
+
+Evidence in `docs/evidence/marksman-angle-t1/`.
+
+- `smoke-marksman-angle.mjs` (standalone, needs a `95adb1f` server on :5174
+  for §1, `--old=URL` to point elsewhere) — fifteen sections: flag-off
+  identity against the build the human last played, the cases where the
+  frozen hold is right left tick-identical, the blind-console acceptance case
+  (Regular and Elite), the weapon (windup ticks, lock drift, every shot on the
+  locked angle, cancels only on a cut line), retreat priority, thrash and
+  turn-round bounds, several Marksmen, exclusions, stuck independence, speed,
+  no listeners/timers/tweens, the `Enemy.js` guard, cost. Every candidate
+  check is paired with the frozen hold, so it fails pointed at a build
+  without the flag.
+- `diag-tactical-engagement.mjs --only=t1staged` (T1-T12 in the real
+  Detention room, fresh page per case and seed) and `--only=t1enc` (MIXED × 7
+  pilots and SNIPER NEST × 4, × frozen / ang / mkB / angB × 3 seeds; saves
+  after every run); `--t1report [--family] --csv=` prints the tables.
+- `diag-marksman-angle-turns.mjs` — what a player SEES of re-planning: the
+  world heading turn at every same-tick commitment replacement.
+- `shot-marksman-angle.mjs` — five films, verified tick for tick against a
+  headless replay; on a divergence it prints `[hash, draws]` on both sides.
+
+### What it taught
+
+- **A STAGED CASE INHERITS THE LAST CASE'S PER-OBJECT CLOCKS.** The player's
+  footstep dust draws from the seeded stream on its own `_stepTimer`, so the
+  same staged case measured differently depending on what ran before it on
+  that page. `T.resetPilot` clears the route, keys, `_stepTimer`, the move
+  target and velocity — and the t1 modes still boot a FRESH PAGE per case and
+  seed, because that one was not the only clock.
+- **A KEYFRAMED PILOT TELEPORTS, SO ITS VELOCITY IS ZERO.** Anything that
+  reads the player's motion needs the `patrol` pilot (real keys, routed on the
+  NavGrid — the straight-press version stuck north of a bench and measured a
+  pilot, not a Marksman).
+- **A KEYBOARD PILOT STEERING AT A MOVING TARGET IS STOP-AND-GO.** The
+  `circle` pilot's velocity is 0 one frame and 380 the next. A module that
+  reads one frame of `body.velocity` reads noise — see the CLAUDE.md
+  displacement note.
+- **THE `shooter-fire` EVENT TICK IS ONE LESS THAN THE CAPTURE ROW'S.** The
+  event fires inside the step that the row then records as `tick + 1`; a
+  windup check matching them exactly found zero shots on a correct build.
+- **AN UNEXPLAINED FILM DIVERGENCE, CAUGHT BY THE VERIFICATION.** Twice the
+  `t1-cover-hop` circling-candidate panel left its headless replay at tick
+  479 — both times with another heavy browser job (the encounter matrix, a
+  probe) running alongside. It never reproduced alone (full length, twice),
+  nor truncated under artificial load; four fresh headless replays of the
+  same case are identical. Mechanism NOT found (hitstop is muted by
+  `nofreeze`, music needs a real input event, nothing in `src/` uses
+  `Phaser.Math.RND`). Render films with nothing else running; the
+  verification is what keeps it out of the evidence.

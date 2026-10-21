@@ -12,7 +12,9 @@
 // THE OVERLAY, read from the instrument's row and the module's own state for
 // the tick (never set):
 //   line to player   GREEN = the AI can see and shoot this tick; RED = cut,
-//                    the blocking body outlined
+//                    the blocking body outlined; BLUE = geometrically open
+//                    but not SEEN (the frozen patrol vision cone, or
+//                    concealment) — not a cut line, and not this module's
 //   amber path       the candidate's committed route and destination ring
 //   label            role, then what it is doing: HOLD · LINE OPEN, CHARGE /
 //                    LOCK, CONFIRMING, REPOSITIONING, OVERWATCH, NO SPOT —
@@ -61,7 +63,7 @@ await comp.evaluate(() => {
     const x = c.getContext('2d'); x.imageSmoothingEnabled = false;
     x.fillStyle = bg; x.fillRect(0, 0, W, H);
     for (const d of draws) x.drawImage(imgs[d.i || 0], d.sx, d.sy, d.sw, d.sh, d.dx, d.dy, d.sw, d.sh);
-    for (const t of texts) { x.font = `${t.bold ? 'bold ' : ''}${t.size || 14}px monospace`; x.fillStyle = t.color || '#e4e7ee'; x.textAlign = t.align || 'left'; x.fillText(t.text, t.x, t.y); }
+    for (const t of texts) { x.font = `${t.bold ? 'bold ' : ''}${t.size || 14}px monospace`; x.fillStyle = t.color || '#e4e7ee'; x.textAlign = t.align || 'left'; if (t.maxW) x.fillText(t.text, t.x, t.y, t.maxW); else x.fillText(t.text, t.x, t.y); }
     return c.toDataURL('image/jpeg', 0.92);
   };
 });
@@ -116,6 +118,9 @@ async function filmPage(vk, q, seed) {
         const w = r.rows[r.rows.length - 1];
         if (!w) continue;
         const valid = w[R.see] === 1 && w[R.los] === 1;
+        // the line is open but the AI does not see the player (its patrol
+        // vision cone, or concealment): the frozen awareness, not a cut line
+        const unseen = !valid && w[R.los] === 1;
         const standing = Math.hypot(w[R.dx], w[R.dy]) < 0.5;
         const dt = w[R.tick] - (lastT.get(r) ?? w[R.tick]);
         lastT.set(r, w[R.tick]);
@@ -125,7 +130,7 @@ async function filmPage(vk, q, seed) {
         let ep = epi.get(r);
         if (w[R.los] === 0 && !w[R.charging]) { if (!ep) { ep = { start: w[R.tick], moved: null }; epi.set(r, ep); } if (ep.moved == null && !standing) ep.moved = w[R.tick]; }
         else if (ep) { epi.delete(r); ep = null; }
-        G.lineStyle(2.2 / z, valid ? 0x50ff80 : 0xff4040, valid ? 0.6 : 0.85);
+        G.lineStyle(2.2 / z, valid ? 0x50ff80 : unseen ? 0x8fa6ff : 0xff4040, valid ? 0.6 : 0.85);
         G.beginPath(); G.moveTo(e.x, e.y); G.lineTo(P.x, P.y); G.strokePath();
         if (w[R.blocker] >= 0) { const b = gs.losRects[w[R.blocker]]; G.lineStyle(2.5 / z, 0xff4040, 1); G.strokeRect(b.x, b.y, b.width, b.height); }
         const M = e._marksmanAngle;
@@ -142,11 +147,11 @@ async function filmPage(vk, q, seed) {
         let act;
         if (M) {
           const st = M.state;
-          act = chg || ({ line: valid ? 'HOLD · LINE OPEN' : 'HOLD', confirm: 'LINE CUT · CONFIRMING', move: 'REPOSITIONING', settle: 'SETTLING ON A LINE',
+          act = chg || ({ line: valid ? 'HOLD · LINE OPEN' : 'HOLD · NOT SEEN', confirm: 'LINE CUT · CONFIRMING', move: 'REPOSITIONING', settle: 'SETTLING ON A LINE',
             overwatch: 'OVERWATCH (target keeps moving)', noSpot: 'NO SPOT · HOLDING', retreat: 'RETREAT', sidestep: 'STUCK SIDESTEP', idle: 'HOLD', charge: 'CHARGE' }[st] || st.toUpperCase());
           if (st === 'move' && M.branch === 'approach') act = 'APPROACHING A FIRING SPOT';
         } else {
-          act = chg || `${BRANCH[w[R.branch]].replace('_', ' ')} · ${valid ? 'LINE OPEN' : 'LOS BLOCKED'}${pv > 30 ? ` · idle ${(pv / 60).toFixed(1)}s` : ''}`;
+          act = chg || `${BRANCH[w[R.branch]].replace('_', ' ')} · ${valid ? 'LINE OPEN' : unseen ? 'NOT SEEN' : 'LOS BLOCKED'}${pv > 30 ? ` · idle ${(pv / 60).toFixed(1)}s` : ''}`;
         }
         let tim = '';
         if (ep) tim = `line lost ${((w[R.tick] - ep.start) / 60).toFixed(2)}s · ${ep.moved != null ? `moving after ${Math.round((ep.moved - ep.start) * 1000 / 60)}ms` : 'not moving'}`;
@@ -206,14 +211,16 @@ async function film(file, panels, { region, zoom, frames, per = 2, cols = panels
     panels.forEach((pn, j) => {
       const x = (j % cols) * (clip.width + gap), y = Math.floor(j / cols) * rowH;
       draws.push({ i: j, sx: 0, sy: 0, sw: clip.width, sh: clip.height, dx: x, dy: y + lab });
-      texts.push({ text: pn.title, x: x + 6, y: y + 16, size: 12, bold: true, color: VCOL[pn.vk] });
+      // every line is squeezed to its own panel (fillText maxWidth), so a long
+      // footer can never run into the panel beside it
+      const mw = clip.width - 12;
+      texts.push({ text: pn.title, x: x + 6, y: y + 16, size: 12, bold: true, color: VCOL[pn.vk], maxW: mw });
       const st = shots[j].st;
-      const ln = [`Marksman shots ${st.mkFire} · standing blind >1s now ${st.mkIdle}/${st.mk} · repositioning now ${st.moving}`, `Marksman hits taken ${st.hits}`];
-      texts.push({ text: ln.join('   '), x: x + 6, y: y + lab + clip.height + 14, size: 11, color: '#cfd6e4' });
-      if (pn.sub) texts.push({ text: pn.sub, x: x + 6, y: y + lab + clip.height + 28, size: 11, color: VCOL[pn.vk] });
+      texts.push({ text: `Marksman shots ${st.mkFire} · hits on player ${st.hits} · blind >1s now ${st.mkIdle}/${st.mk} · moving now ${st.moving}`, x: x + 6, y: y + lab + clip.height + 14, size: 11, color: '#cfd6e4', maxW: mw });
+      if (pn.sub) texts.push({ text: pn.sub, x: x + 6, y: y + lab + clip.height + 28, size: 11, color: VCOL[pn.vk], maxW: mw });
     });
-    texts.push({ text: `${caption}  t ${t(f, per)}s`, x: 8, y: H - 22, size: 12, color: '#ffd9a0' });
-    texts.push({ text: note, x: 8, y: H - 6, size: 11, color: '#cfd6e4' });
+    texts.push({ text: `${caption}  t ${t(f, per)}s`, x: 8, y: H - 22, size: 12, color: '#ffd9a0', maxW: W - 16 });
+    texts.push({ text: note, x: 8, y: H - 6, size: 11, color: '#cfd6e4', maxW: W - 16 });
     await vw.write(await composite(shots.map((s) => s.buf), { W, H, draws, texts }));
     last = shots.map((s) => s.st);
   }
@@ -235,13 +242,16 @@ async function film(file, panels, { region, zoom, frames, per = 2, cols = panels
       return tr;
     })();
     const d = got.findIndex((x, i) => x[0] !== ref[i]?.[0] || x[1] !== ref[i]?.[1]);
+    // a divergence prints the trace on both sides ([position hash, random draws]):
+    // a draw count that moves first means the seeded stream was reached
+    if (d !== -1) console.error(`  ${file} panel ${j}: film ${JSON.stringify(got.slice(Math.max(0, d - 2), d + 2))} replay ${JSON.stringify(ref.slice(Math.max(0, d - 2), d + 2))}`);
     if (d !== -1 || got.length !== ref.length) fail(`${file} panel ${j} (${pn.title}): the filmed run left the measured one at tick ${d} (${got.length} vs ${ref.length})`);
     console.log(`  verified ${file} panel ${j} (${pn.title}): ${got.length} ticks identical to the headless replay`);
   }
   console.log('wrote', OUT + file, JSON.stringify(last));
 }
 
-const NOTE = 'line GREEN = can see and shoot this tick · RED = cut (body outlined) · amber = the candidate\'s committed route · labels read from the game, never set';
+const NOTE = 'line GREEN = can see and shoot · RED = cut (body outlined) · BLUE = open but not seen (patrol vision / concealment) · amber = committed route · labels read from the game';
 const S = (name, vk, title, sub, center) => ({ vk, q: Q.stagedRoom, seed: 1001, staged: T1_STAGED[name], title, sub, center });
 const BASEV = 'mkB', CANDV = 'angB';   // the human's URL, and the same URL + ?marksmanAngle=1
 
@@ -251,7 +261,7 @@ async function blind() {
     S('T2_blind_console', CANDV, 'CANDIDATE — same URL + marksmanAngle=1', 'immediate evaluation, short confirmation, one committed walk'),
     S('T2e_blind_console_elite', BASEV, 'BASELINE — Elite Marksman', ''),
     S('T2e_blind_console_elite', CANDV, 'CANDIDATE — Elite Marksman', ''),
-  ], { region: [700, 120, 760, 760], zoom: 0.46, frames: 360, cols: 2,
+  ], { region: [700, 40, 860, 840], zoom: 0.46, frames: 360, cols: 2,
     caption: '1x — real Detention Block, Marksman 520px north of a player who stays behind the heavy console (god mode), seed 1001. Nothing is frozen.',
     note: NOTE });
 }
@@ -261,17 +271,17 @@ async function hop() {
     S('T5_cover_hop', CANDV, 'CANDIDATE', 'follows each hop with one walk, no pauses between decisions'),
     S('T4_circle_console', BASEV, 'BASELINE — player circles a console', ''),
     S('T4_circle_console', CANDV, 'CANDIDATE', ''),
-  ], { region: [400, 120, 1000, 780], zoom: 0.4, frames: 600, cols: 2,
+  ], { region: [240, 40, 1160, 860], zoom: 0.4, frames: 600, cols: 2,
     caption: '1x — real Detention Block, player moving between cover (real keys, real physics, god mode), seed 1001.',
     note: NOTE });
 }
 async function charge() {
   await film('t1-charge-integrity.webm', [
-    S('T1_clear_los', CANDV, 'CANDIDATE — clear line: charge, lock, shot (identical to baseline)', 'nothing moves: the frozen weapon, untouched'),
+    S('T1_clear_los', CANDV, 'CANDIDATE — clear line: charge, lock, shot (identical to baseline)', 'nothing moves: the frozen weapon, untouched', [1200, 1000]),
     S('T11_los_flicker', BASEV, 'BASELINE — line flickering behind the console', 'charges cancelled by the cut line, re-armed in 500ms'),
     S('T11_los_flicker', CANDV, 'CANDIDATE — the same flicker', 'a cancelled charge, then a walk to a line that holds'),
-    S('T6_rush', CANDV, 'CANDIDATE — the player rushes it', 'retreat always wins; charge logic unchanged'),
-  ], { region: [700, 120, 800, 800], zoom: 0.44, frames: 420, cols: 2,
+    S('T6_rush', CANDV, 'CANDIDATE — the player rushes it', 'retreat always wins; charge logic unchanged', [620, 440]),
+  ], { region: [700, 40, 800, 880], zoom: 0.44, frames: 420, cols: 2,
     caption: '1x — the sniper\'s weapon is the frozen one: 800ms windup, 260ms lock, laser, locked shot, cancel on a cut line. Seed 1001.',
     note: NOTE });
 }
