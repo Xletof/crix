@@ -309,6 +309,15 @@ let marksmanStuck = null;
 export function setMarksmanStuck(v) { marksmanStuck = v === 'prog' || v === 'early' ? v : null; }
 export function getMarksmanStuck() { return marksmanStuck; }
 
+// `?marksmanAngle=1` — Phase 3C-T1 CANDIDATE firing-angle recovery for the
+// ORDINARY MARKSMAN ONLY (see systems/marksmanAngle.js): a Marksman whose line
+// to the player is cut walks to a spot on its own band that has one. Gameplay,
+// so its own flag, coupled to none of `?move=`, `?roster=`, `?gait=`,
+// `?bulwarkStuck=` or `?marksmanStuck=`. Default off: the frozen hold.
+let marksmanAngle = false;
+export function setMarksmanAngle(on) { marksmanAngle = !!on; }
+export function isMarksmanAngle() { return marksmanAngle; }
+
 // `?gait=v2` — the corrected roster-v1 LOCOMOTION PRESENTATION (anatomy gait,
 // distance-driven cadence, retreat / strafe playback). Presentation only: it
 // repaints the roster-v1 leg frames and picks the displayed frame after the

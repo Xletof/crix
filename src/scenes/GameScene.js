@@ -30,10 +30,11 @@ import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
   isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff, isVanguardScreenOff, isVanguardFrontOff,
-  isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2, getBulwarkStuck, getMarksmanStuck,
+  isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2, getBulwarkStuck, getMarksmanStuck, isMarksmanAngle,
 } from '../systems/debug.js';
 import { installBulwarkStuck } from '../systems/bulwarkStuck.js';
 import { installMarksmanStuck } from '../systems/marksmanStuck.js';
+import { installMarksmanAngle } from '../systems/marksmanAngle.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { attachHazards } from '../systems/Hazard.js';
 import { attachCaptainTelemetry } from '../systems/CaptainTelemetry.js';
@@ -2053,6 +2054,10 @@ export class GameScene extends Phaser.Scene {
     // only (Regular and Elite); never the nemesis Marksman (`legacyArt`).
     const marksmanStuck = getMarksmanStuck();
     if (marksmanStuck && type === 'sniper' && !spec.legacyArt) installMarksmanStuck(enemy, marksmanStuck, x, y);
+    // `?marksmanAngle=1` — the Phase 3C-T1 CANDIDATE firing-angle recovery, on
+    // the ordinary Marksman only; installed AFTER the stuck candidate so it
+    // wraps it and reads nothing that candidate decides from.
+    if (isMarksmanAngle() && type === 'sniper' && !spec.legacyArt) installMarksmanAngle(enemy);
     // Room modifier speed (FRENZY): stacks on top of the elite's adjusted speed.
     const sm = this.arenaCfg?.speedMult;
     if (sm) enemy.cfg = { ...enemy.cfg, speed: enemy.cfg.speed * sm };

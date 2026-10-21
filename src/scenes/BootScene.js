@@ -3,7 +3,7 @@ import {
   setDialogueMuted, setDuelRequest, parseDuelParams, setHitstopMuted, setMoveNamesMuted,
   setEncDebug, setEncForce, parseEncDebugParams, setChampDebug, setChampWhich, setChampPlacementOff, setVanguardScreenOff, setVanguardFrontOff,
   setCapTel, setRosterVersion, setShowColliders, setMoveV2, setMoveV21, setMoveV22, setGaitV2,
-  setBulwarkStuck, setMarksmanStuck,
+  setBulwarkStuck, setMarksmanStuck, setMarksmanAngle,
 } from '../systems/debug.js';
 import { ENCOUNTERS } from '../data/encounters.js';
 import { CAMERA } from '../config.js';
@@ -37,6 +37,8 @@ export class BootScene extends Phaser.Scene {
     if (params.has('bulwarkStuck')) setBulwarkStuck(params.get('bulwarkStuck'));
     // `?marksmanStuck=prog` — the Phase 3C Marksman-only candidate.
     if (params.has('marksmanStuck')) setMarksmanStuck(params.get('marksmanStuck'));
+    // `?marksmanAngle=1` — the Phase 3C-T1 Marksman firing-angle candidate.
+    if (params.get('marksmanAngle') === '1') setMarksmanAngle(true);
     // `?nonames=1` hides Vader's ATTACK-NAME callouts, and only those, so a
     // reviewer can judge whether each move reads without its label.
     if (params.has('nonames')) setMoveNamesMuted(true);
