@@ -22,7 +22,11 @@
 // T1 search is frozen) looks for a spot at its CURRENT range or CLOSER, on the
 // band [140, 280] (inside the frozen 290 hold, so arriving never flips the
 // branch), within 60 degrees of its current bearing round the player, and
-// pays for every radian it swings and every pixel it would give up. The shield
+// pays for every radian it swings and every pixel it would give up. Only when
+// nothing at its range or closer has a line and a walk does it look farther
+// out, still inside the band — close behind a console the shadow can swallow
+// its whole sweep, and a little farther out the same console casts a narrower
+// one. The shield
 // itself is the frozen class's: this never writes `_shieldFacing`, `_aim` or
 // the turn rate, so walking round cover leaves the shield exactly as slow to
 // follow as it ever was — a flank is still a flank.
@@ -75,7 +79,8 @@ export const BULWARK_ANGLE = {
   transientCapMs: 520,     // ...trusted for at most this long
   bandLo: 140,             // never closer than the VANGUARD screen's own hold
   bandHiUnder: 10,         // band top = desiredRange + 30 - 10 = 280: inside the frozen hold
-  radialSteps: [0, -40, -80],   // its current range, or closer — never searched farther out
+  radialSteps: [0, -40, -80],   // its current range, or closer, first...
+  outSteps: [50, 100],     // ...and farther out (to the band top) ONLY when nothing closer has a line
   stepPx: 30,              // candidate spacing along each arc
   maxSweep: 1.05,          // rad (60 deg) round the player from its current bearing
   sweepCost: 80,           // px of cost per radian swung — the shield has to come round too
@@ -345,18 +350,31 @@ function search(e, M, P) {
 // unchanged). Pure: reads the actor, the player, the room and the other
 // bodies, writes nothing, and ties break on a fixed order.
 export function findBulwarkSpot(e, P, o) {
+  const d0 = Math.hypot(e.x - P.x, e.y - P.y) || 1;
+  const lo = C.bandLo, hi = e.cfg.desiredRange + 30 - C.bandHiUnder;
+  const anchor = Math.min(d0, hi);
+  const ring = (steps, seen) => {
+    const radii = [];
+    for (const dr of steps) {
+      const r = Math.max(lo, Math.min(hi, anchor + dr));
+      if (![...seen, ...radii].some((q) => Math.abs(q - r) < 15)) radii.push(r);
+    }
+    return radii;
+  };
+  const near = ring(C.radialSteps, []);
+  // CURRENT RANGE OR CLOSER FIRST. Only when none of that has a line and a walk
+  // does it give ground — close behind a console the shadow can swallow its
+  // whole sweep, and from a little farther out the same console casts a
+  // narrower one (each pixel given up is still priced at `outCost`)
+  return scanRing(e, P, o, near, d0) || scanRing(e, P, o, ring(C.outSteps, near), d0);
+}
+
+function scanRing(e, P, o, radii, d0) {
+  if (!radii.length) return null;
   const px = P.x, py = P.y;
-  const d0 = Math.hypot(e.x - px, e.y - py) || 1;
   const phi = Math.atan2(e.y - py, e.x - px);
   const bodyR = Math.max(e.body?.width || 0, e.body?.height || 0) / 2 || e.cfg.radius;
   const off = bodyR + 2;              // the WHOLE body clears
-  const lo = C.bandLo, hi = e.cfg.desiredRange + 30 - C.bandHiUnder;
-  const anchor = Math.min(d0, hi);
-  const radii = [];
-  for (const dr of C.radialSteps) {
-    const r = Math.max(lo, Math.min(hi, anchor + dr));
-    if (!radii.some((q) => Math.abs(q - r) < 15)) radii.push(r);
-  }
   const straight = [], other = [];
   for (const r of radii) {
     const kMax = Math.floor(C.maxSweep * r / C.stepPx);
