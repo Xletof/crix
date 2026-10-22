@@ -1258,6 +1258,55 @@ asserts separately that the ceiling is not reached.
   - **THE WALK TEST IS THE WHOLE BODY.** v2.2's `_scoreSpot` offsets its edge
     rays 0.8x the radius; at 0.9x one walk grazed a console corner. The spot
     search uses radius + 2px.
+- **THE FREE BULWARK'S TACTICAL ENGAGEMENT IS A CANDIDATE — PHASE T2,
+  `?bulwarkAngle=1`, OPT-IN, NOT APPROVED, NOT FROZEN.** `HANDOVER.md` §0 and
+  `docs/evidence/bulwark-angle-t2/t2-candidate-notes.md`. Ordinary FREE
+  `shielded` only — `!legacyArt && !vanguardScreen` at the spawn site, and
+  every VANGUARD opener carries `vanguardScreen` too — a seam over the frozen
+  `_tickSwarm`, called first; `Enemy.js` untouched; no flag is the frozen game
+  tick for tick. How it breaks:
+  - **IT NEVER WRITES THE SHIELD, AND THAT IS WHAT KEEPS IT A BULWARK.**
+    `_shieldFacing`, `_aim`, the turn rate and the cooldown stay the frozen
+    class's, so a body walking round cover turns its shield exactly as slowly
+    as it ever did — a flank is still a flank. `smoke-bulwark-angle` §6/§7
+    reproduce the turn law and the cooldown law bit for bit on every AI tick,
+    from OUTSIDE every wrapper. It reads `fireCd` to notice a shot; a source
+    grep for "gun state" has to tell a read from a write.
+  - **CURRENT RANGE OR CLOSER FIRST, NEVER THE MARKSMAN'S ORBIT.** Its own
+    search (T1's is frozen and shared only through two exported helpers):
+    arcs round the player on [140, 280] — inside the frozen 290 hold so
+    arriving never flips the frozen branch — within 60° of its bearing,
+    priced per radian swung and per pixel given up. "Never farther" was
+    wrong: close behind a console the shadow swallows the whole sweep and a
+    Bulwark stood 23s blind 172px out while its comrades held both shadow
+    edges. Farther out (still ≤ 280) is searched only when nothing closer
+    works.
+  - **A WORKING SPOT IS NOT GIVEN UP FOR A MOVING TARGET'S CORNER.** Chasing
+    a player circling one console traded a spot that held the line 78% of the
+    time for a walk round it (54%); a spot it has fought from (line ≥ 600ms,
+    ≤ 40px) is kept up to 600ms while the target moves, and decided the
+    moment they stop. Responsiveness to a STILL target is untouched.
+  - **A REPOSITIONING ACTOR STUTTERS IN FOUR PLACES, AND EACH NEEDS ITS OWN
+    RULE.** A sliver of a line opening mid-walk stopped it and the next
+    tick's cut started a fresh confirmation (finish the walk unless the line
+    survives a ±40px shuffle; resume within 400ms with no new confirmation);
+    a walk taken mid-approach eased in from ZERO and dipped to 0.48px/tick
+    (ease from the velocity the body had BEFORE the frozen tick wrote its
+    command — by review time the frozen hold has already zeroed
+    `body.velocity` — and only its component along the new walk, or a turn
+    keeps pushing into the face it is leaving); and braced just outside the
+    frozen 290 hold, the frozen tick stepped one tick and stood ten as the
+    target shifted (braced or keeping, it holds its ground) — and a fourth: a
+    body that has just stopped walking decides on its first blind tick
+    instead of confirming from a standstill. Count stops of ≤ 300ms
+    between walks (`bulwarkQuality.stopGo`) — a shot count never sees them.
+  - **THE COOLDOWN DOES NOT RUN BLIND, SO A REACQUIRED LINE WAITS FOR ITS
+    WARNING.** `_maybeFireAt` gates the countdown on the line; a Bulwark that
+    walks to a line shows its WARN ~0.8s later on average. Frozen pipeline,
+    measured and reported for the human, not changed.
+  - **IT PUBLISHES `_angDest`**, the same claim field T1 publishes, so with
+    both flags T1 Marksmen avoid a Bulwark's destination — by design, through
+    T1's existing generic read; T1's own code is byte-identical.
 - **THE STATE LANGUAGE'S ONE RULE SURVIVED HANDSET REVIEW AND ITS SUSTAINED
   HALF DID NOT — `HANDOVER.md` §10ah, §10ai.** **SYMBOL = TRANSITION, BODY / FX
   = SUSTAINED STATE.** A glyph lives a few hundred ms to say something CHANGED

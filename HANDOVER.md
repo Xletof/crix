@@ -1024,15 +1024,85 @@ others shoot them; overwatch holds of up to 3.0s.
 every approved opt-in flag). The free Bulwark (T2) is its own candidate and
 does not touch this one.
 
+### PHASE T2 — FREE BULWARK TACTICAL ENGAGEMENT. **A CANDIDATE: OPT-IN (`?bulwarkAngle=1`), NOT APPROVED, NOT FROZEN — AWAITING HANDSET REVIEW**
+
+The free-Bulwark half of 3C-B: the frozen free Bulwark walks straight at the
+player to 290px and then STANDS, line or no line (20–21% of its life standing
+blind in MIXED, holds of 30s+). Record: `docs/evidence/bulwark-angle-t2/` —
+start at `t2-candidate-notes.md`; five films, each verified tick for tick;
+`t2-responsiveness-metrics.csv`.
+
+| flag | status |
+|---|---|
+| *(none)* | **the default** — the frozen hold, the pre-T2 build tick for tick and draw for draw (MIXED and both VANGUARDs, seeded) |
+| `?bulwarkAngle=1` | **candidate** — free Bulwarks only (Regular and Elite); independent of `?bulwarkStuck=`, reviewed WITH `bulwarkStuck=early` in both halves |
+
+**One new file, one install line, `Enemy.js` untouched.**
+`src/systems/bulwarkAngle.js` shadows the bearer's own `_tickSwarm` (after
+the stuck candidate), calls it FIRST and unchanged, and only ever writes
+`setVelocity` at the frozen `cfg.speed` while the geometric line is cut.
+Installed from `spawnEnemyAt` for `shielded` with neither `legacyArt` (the
+nemesis) nor `vanguardScreen` (screens AND openers). Its search is its own —
+arcs round the player on [140, 280] (inside the frozen 290 hold), within 60°
+of its bearing, current range or closer first and farther out only when
+nothing closer has a line — reusing T1's walk and reachability tests through
+two exported helpers (`clearOf`, `route`); T1 proved byte-equivalent (34/34).
+**The rule:** evaluate on the first blind tick → confirm 150–250ms (held while
+the player's own displacement is bringing them back) → one committed walk →
+re-plan only for a reason (line opens, a stale spot after 450ms unless the
+target is crossing back, a failed walk, arrival still blind) → BRACE (1.2 /
+1.8 / 2.4s) after three target-caused re-plans in 3s → KEEP a spot it has
+fought from up to 600ms for a moving target → no stop-go (finish through a
+sliver of a line, resume within 400ms, decide at once after a walk, ease in
+from the motion it has, hold ground while braced or keeping) → a stable,
+bounded fallback when no spot exists. **It never writes the shield, the gun,
+the cooldown or config**: `smoke-bulwark-angle` §6/§7 reproduce the frozen
+turn law and cooldown law bit for bit on every AI tick. No `Math.random`,
+listeners, timers or tweens.
+
+**Measured (the bot is not the balance authority):** staged, the
+blind-console acceptance case went from 0 shots in 20s to evaluation 0ms,
+moving 200ms, first shot 2.2s, 36 shots/min (Regular and Elite); clear line,
+a flank loop, a VANGUARD screen and a no-spot pocket are tick-identical. In
+MIXED (7 pilots × 3 seeds, stuck-B on in both halves) free-Bulwark blind
+standing 21.4% → 2.9%, longest blind hold 34.6s → 1.4s, shots 22.1 → 27.6 a
+minute, hits on a god-mode player 22.9 → 27.0 a minute; with the approved T1
+on in both halves 20.4% → 2.7%, 34.6s → 1.4s; T1's own numbers unchanged.
+VANGUARD ± Captain: 18/18 seeded runs identical. Residuals the handset has to
+judge: a player CIRCLING one console gets fewer Bulwark shots and hits than
+the frozen hold (the frozen Bulwark happens to stand where the shadow is
+narrowest), with rear exposure 1.0% → 4.6% there; KEEP holds up to 600ms for a
+moving target; 15–19 destinations per Bulwark-minute; 0.29–0.37 turn-arounds
+per Bulwark-minute. **The frozen cooldown does not run blind**, so a Bulwark
+that walks to a line still waits ~0.5–0.9s (median) for its warning —
+measured, NOT changed, reported for a human decision.
+
+**Test status.** `smoke-bulwark-angle` 75/75; every targeted regression
+green against its own named frozen build (Bulwark, both stuck candidates, T1,
+the stuck audit, roster seams/2b/gunner, movement v2.2, gait v2, Demolisher,
+VANGUARD reinforce, encounters, encdbg, Champion placement); build OK.
+**Full `run-all` 47/52 — NOT green**: `smoke-camera`, `smoke-deflect`,
+`smoke-vanguard-front`, `smoke-vanguard-screen`, `smoke-captain`, each A/B'd
+alone against the pre-T2 build `b1ab701` and reproduced there (or passing on
+both) — frame-rate measurements on a container running slower than at T1.
+The previous three (`smoke-nemesis`, `smoke-music-tiers`,
+`smoke-champion-placement`) passed this time. The debt is CARRIED.
+**`smoke-encdbg` needs a FRESH dev server** — it read 31/33 on one with six
+hours of HMR edits behind it and 33/33 after a restart.
+
+**HUMAN DECISION REQUIRED — T2.** Nothing here is approved, frozen or a
+default. `bulwarkAngle=1` stays opt-in until a handset verdict.
+
 ### The recommended next area of work
 
 **PHASE 2D IS CLOSED and five-role ordinary roster production is complete**
 (above). **No milestone is started or authorized.** The next direction comes
 from the human; the candidates, none begun:
 
-- **PHASE T2 — FREE BULWARK TACTICAL ENGAGEMENT.** Authorized by the human
-  after T1's approval, as an opt-in candidate (`?bulwarkAngle=1`). T1 is
-  frozen and does not move with it.
+- **PHASE T2 — FREE BULWARK TACTICAL ENGAGEMENT: BUILT, AWAITING HANDSET
+  REVIEW** (above). Opt-in (`?bulwarkAngle=1`); T1 is frozen and does not move
+  with it. No shared AI redesign, VANGUARD tactical change or other archetype
+  is started.
 - **Shared swarm stuck-detection correction** for the OTHER roles — the
   AUDIT IS DONE (debt list above). It is a separate human decision at the gate
   in its notes. No shared `Enemy` change without the human.

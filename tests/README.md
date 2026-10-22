@@ -1858,3 +1858,63 @@ Evidence in `docs/evidence/marksman-angle-t1/`.
   `nofreeze`, music needs a real input event, nothing in `src/` uses
   `Phaser.Math.RND`). Render films with nothing else running; the
   verification is what keeps it out of the evidence.
+
+## The free-Bulwark rigs (Phase T2 — `?bulwarkAngle=1`, a candidate)
+
+Evidence in `docs/evidence/bulwark-angle-t2/`.
+
+- `smoke-bulwark-angle.mjs` (standalone, needs a pre-T2 server — `b1ab701`
+  or any build without the flag — on :5174 for §1 and §13, `--old=URL` to
+  point elsewhere) — sixteen sections: flag-off identity (MIXED and both
+  VANGUARDs) against the pre-T2 build; installation on every free Bulwark and
+  on nothing else (screens, openers, the nemesis, every other role); VANGUARD
+  with and without the Captain tick-identical with the flag on, stuck-B off
+  and on; the cases where the frozen hold is right left tick-identical
+  (including a pocket with no spot at all); the acceptance cases; THE SHIELD
+  and THE COOLDOWN laws checked on every AI tick of every staged case from
+  outside everything; blocking and the Super; the four stuck × angle
+  combinations; thrash and turn-around bounds; three Bulwarks; Regular and
+  Elite; T1 byte-equivalence (its staged acceptance case against the pre-T2
+  server, and the two source files against `0b772cf`); RNG; no
+  listeners/timers/tweens; the `Enemy.js` guard; cost.
+- `diag-tactical-engagement.mjs --only=t2staged` (B1-B14, fresh page per case
+  and seed, × frozen / bwA / bwB / bwAB) and `--only=t2enc` (MIXED × 7 pilots
+  × bwB / bwAB / t1base / t1bw, VANGUARD and VANGUARD+Captain × 3 pilots ×
+  frozen / bwA, × 3 seeds; saves after every run); `--t2report --csv=`
+  prints the pressure, responsiveness, movement-quality and identity tables.
+  The row carries a shield-block column (`sblk`) and the actor rows a
+  Bulwark movement/exposure block (`bulwarkQuality`) — read from the rows
+  alone, so it measures the frozen build exactly as the candidate.
+- `shot-bulwark-angle.mjs` — five films (blind console, cover navigation,
+  shield/flanking, MIXED with T1 on in both halves, VANGUARD invariance),
+  verified tick for tick against a headless replay. The cyan arc is the live
+  shield.
+
+### What it taught
+
+- **A POSITIVE CONTROL NEEDS THE THING IT CONTROLS FOR.** B1 ("hold, block
+  and shoot") first ran with the player not firing: zero blocks, and the
+  check failed on a correct build. It carries `fire: 7` now.
+- **A SOURCE GREP MUST SEPARATE READS FROM WRITES.** The module reads
+  `fireCd` to notice that a shot left (and reset its brace ladder); "names
+  none of the gun state" failed on that read. The check forbids WRITES to the
+  cooldown and config and any mention of the shield, the gun's warning, the
+  fire call or the damage path — and the cooldown law proves the read changes
+  nothing.
+- **A COMBINATION CHECK MUST KNOW WHAT EACH HALF ALREADY SOLVES.** In B4 the
+  approved stuck correction alone walks the Bulwark round the post (15 shots
+  with stuck-B, 0 frozen); "stuck-B alone never shoots" was a claim about B2,
+  not about every geometry.
+- **A NO-SPOT CASE HAS TO BE SCANNED FOR, NOT GUESSED.** The first B10 put
+  the player 20px further south and the search found a routed spot — a
+  routing case, not a fallback case. `findBulwarkSpot` run over the whole
+  room found the few real pockets; (260, 1280) from (260, 1030) is one.
+- **A RELAUNCH MUST STOP EVERY JOB THE LAST LAUNCH STARTED — BY PID — BEFORE
+  THE NEW ONE OPENS THE SAME FILES.** One T2 encounter matrix was left
+  running when its replacement launched: both wrote `tactical-t2-enc.csv`
+  (each process re-saves its WHOLE accumulated row set after every run, so
+  the file flipped between two different matrices) and both appended to the
+  same log, and the orphan had been running across a `src/` edit. The
+  symptom was a CSV with 112 "runs" ten minutes into a fresh launch. Keep the
+  PID of every job in the launch and check `kill -0` on all of them before
+  relaunching; a matrix whose code changed mid-run is discarded whole.
