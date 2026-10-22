@@ -318,6 +318,15 @@ let marksmanAngle = false;
 export function setMarksmanAngle(on) { marksmanAngle = !!on; }
 export function isMarksmanAngle() { return marksmanAngle; }
 
+// `?bulwarkAngle=1` — Phase T2 CANDIDATE tactical engagement for the ORDINARY
+// FREE BULWARK ONLY (see systems/bulwarkAngle.js): a Bulwark whose line to the
+// player is cut presses round the obstacle to a spot at its own range or closer
+// that has one. Never a VANGUARD screen, never a nemesis. Gameplay, so its own
+// flag, coupled to none of the others. Default off: the frozen hold.
+let bulwarkAngle = false;
+export function setBulwarkAngle(on) { bulwarkAngle = !!on; }
+export function isBulwarkAngle() { return bulwarkAngle; }
+
 // `?gait=v2` — the corrected roster-v1 LOCOMOTION PRESENTATION (anatomy gait,
 // distance-driven cadence, retreat / strafe playback). Presentation only: it
 // repaints the roster-v1 leg frames and picks the displayed frame after the

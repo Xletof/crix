@@ -30,11 +30,12 @@ import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
   isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff, isVanguardScreenOff, isVanguardFrontOff,
-  isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2, getBulwarkStuck, getMarksmanStuck, isMarksmanAngle,
+  isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2, getBulwarkStuck, getMarksmanStuck, isMarksmanAngle, isBulwarkAngle,
 } from '../systems/debug.js';
 import { installBulwarkStuck } from '../systems/bulwarkStuck.js';
 import { installMarksmanStuck } from '../systems/marksmanStuck.js';
 import { installMarksmanAngle } from '../systems/marksmanAngle.js';
+import { installBulwarkAngle } from '../systems/bulwarkAngle.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { attachHazards } from '../systems/Hazard.js';
 import { attachCaptainTelemetry } from '../systems/CaptainTelemetry.js';
@@ -2050,6 +2051,10 @@ export class GameScene extends Phaser.Scene {
     // installed and the frozen base check runs exactly as shipped.
     const bulwarkStuck = getBulwarkStuck();
     if (bulwarkStuck && type === 'shielded' && !spec.legacyArt) installBulwarkStuck(enemy, bulwarkStuck, x, y);
+    // `?bulwarkAngle=1` — the Phase T2 CANDIDATE tactical engagement, on the
+    // ordinary FREE Bulwark only: never a VANGUARD screen (openers carry it
+    // too), never a nemesis. Installed after the stuck candidate so it wraps it.
+    if (isBulwarkAngle() && type === 'shielded' && !spec.legacyArt && !spec.vanguardScreen) installBulwarkAngle(enemy);
     // `?marksmanStuck=prog` — the Phase 3C CANDIDATE, on the ordinary Marksman
     // only (Regular and Elite); never the nemesis Marksman (`legacyArt`).
     const marksmanStuck = getMarksmanStuck();

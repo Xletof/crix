@@ -101,8 +101,9 @@ export function bodyPath(e, x1, y1, x2, y2, off) {
 }
 
 // the segment keeps at least `floor` from the player (so walking a chord of the
-// arc never carries the body inside its own retreat ring)
-function clearOf(px, py, x1, y1, x2, y2, floor) {
+// arc never carries the body inside its own retreat ring). Exported, unchanged,
+// for the Bulwark's own search (`systems/bulwarkAngle.js`).
+export function clearOf(px, py, x1, y1, x2, y2, floor) {
   const dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy || 1;
   const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / L2));
   return Math.hypot(x1 + dx * t - px, y1 + dy * t - py) >= floor;
@@ -116,8 +117,9 @@ function crowd(list, x, y) {
 
 // NavGrid route to `c`, then string-pulled with the body ray so a 4-connected
 // cell path becomes a few straight legs. Null when the grid has no route (its
-// single-node fallback in another cell is treated as exactly that).
-function route(e, c, off) {
+// single-node fallback in another cell is treated as exactly that). Exported,
+// unchanged, for the Bulwark's own search.
+export function route(e, c, off) {
   const g = e.scene.navGrid;
   const cell = (x, y) => g.getNearestWalkable(Math.max(0, Math.min(g.cols - 1, Math.floor(x / g.gridSize))), Math.max(0, Math.min(g.rows - 1, Math.floor(y / g.gridSize))));
   const a = cell(e.x, e.y), b = cell(c.x, c.y);

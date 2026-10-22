@@ -34,6 +34,13 @@ export const VARIANTS = {
   // (the comparison keeps the stuck flag identical in both halves)
   ang: `${HANDSET}&marksmanAngle=1`,
   angB: `${HANDSET}&marksmanStuck=early&marksmanAngle=1`,
+  // Phase T2: the free-Bulwark candidate, with the approved Bulwark stuck
+  // correction OFF and ON, and the MIXED pair with the approved Marksman T1 on
+  // in BOTH halves (so the only difference is `bulwarkAngle`)
+  bwA: `${HANDSET}&bulwarkAngle=1`,
+  bwAB: `${HANDSET}&bulwarkStuck=early&bulwarkAngle=1`,
+  t1base: `${HANDSET}&marksmanStuck=early&marksmanAngle=1&bulwarkStuck=early`,
+  t1bw: `${HANDSET}&marksmanStuck=early&marksmanAngle=1&bulwarkStuck=early&bulwarkAngle=1`,
 };
 export const Q = {
   mixed: 'encdbg=mixed&room=detention&sector=12&wave=2',
@@ -46,9 +53,10 @@ export const Q = {
 // row layout (one flat array per actor per tick)
 export const R = { tick: 0, x: 1, y: 2, px: 3, py: 4, branch: 5, cmd: 6, ivx: 7, ivy: 8, dx: 9, dy: 10, blk: 11, see: 12, los: 13, blocker: 14, hidden: 15,
   fireCd: 16, charging: 17, shot: 18, stag: 19, mvx: 20, mvy: 21, mates: 22, reach: 23, alt: 24, perf: 25, warn: 26, chargeStart: 27, chargeCancel: 28, line: 29,
-  astate: 30, adx: 31, ady: 32 };
+  astate: 30, adx: 31, ady: 32, shErr: 33, sblk: 34 };
 // `?marksmanAngle=1` module state, read (never set) each tick
-export const ASTATE = ['none', 'idle', 'line', 'charge', 'retreat', 'confirm', 'move', 'settle', 'noSpot', 'sidestep', 'overwatch'];
+// (and, appended so every T1 index keeps its meaning, the T2 Bulwark's `brace`)
+export const ASTATE = ['none', 'idle', 'line', 'charge', 'retreat', 'confirm', 'move', 'settle', 'noSpot', 'sidestep', 'overwatch', 'brace', 'keep'];
 export const BRANCH = ['NOTICK', 'APPROACH', 'HOLD', 'RETREAT', 'SCREEN_HOLD', 'SCREEN_MOVE'];
 export const CMD = ['NOTICK', 'MOVE', 'SIDESTEP', 'STOP', 'VELOCITY'];
 
@@ -153,8 +161,10 @@ export async function installTac(page) {
     T.wrap = (e) => {
       if (e.__tac) return;
       const r = { id: T.list.length, e, type: e.enemyType, ref: control(e), elite: !!e._elite, screen: !!e._screen, born: T.tick, rows: [], cur: null,
-        shotsN: 0, warnPrev: false, chgPrev: false, dead: null, alt: null };
+        shotsN: 0, blocksN: 0, warnPrev: false, chgPrev: false, dead: null, alt: null };
       e.__tac = r; T.list.push(r);
+      // shield blocks, counted (the scene's own call, passed straight through)
+      if (typeof e.onBlock === 'function') { const ob = e.onBlock; e.onBlock = function (...a) { r.blocksN++; return ob.apply(this, a); }; }
       const tick0 = e._tickSwarm, mv0 = e._moveToward;
       e._tickSwarm = function (delta, player) {
         if (!T.on) return tick0.call(this, delta, player);
@@ -184,7 +194,7 @@ export async function installTac(page) {
       if (T.pilot) T.pilot(i);
       if (T.fire && i >= 60 && i % T.fire === 0) { P.keyboardFire(); T.firedP++; }
       for (const r of T.list) r.cur = null;
-      const before = new Map(T.list.map((r) => [r, [r.e.x, r.e.y, r.shotsN]]));
+      const before = new Map(T.list.map((r) => [r, [r.e.x, r.e.y, r.shotsN, r.blocksN]]));
       window.__adv(1);
       T.tick++;
       for (const e of gs.enemies.getChildren()) if (e.active && e.alive && tracked(e) && !e.__tac) T.wrap(e);
@@ -217,14 +227,18 @@ export async function installTac(page) {
           }
         }
         const warn = !!e._warnFlashed, chg = !!e._charging;
+        const AM = e._marksmanAngle || e._bulwarkAngle;   // T1's or T2's module state, read only
         const shot = r.shotsN - b[2];
         r.rows.push([T.tick, +e.x.toFixed(1), +e.y.toFixed(1), Math.round(P.x), Math.round(P.y), branch, cmd,
           c ? Math.round(c.ivx) : 0, c ? Math.round(c.ivy) : 0, +(e.x - b[0]).toFixed(2), +(e.y - b[1]).toFixed(2), blk,
           c ? +c.see : -1, c ? +c.los : -1, c && !c.los ? T.blocker(x0, y0, P.x, P.y) : -1, +!!P.hiddenInBush,
           Math.round(e.fireCd ?? 0), +chg, shot, +((e._staggerMs || 0) > 0), c?.mv ? Math.round(c.mv.tx) : -1, c?.mv ? Math.round(c.mv.ty) : -1,
           mates, reach, alt, +!!e._performing, +(warn && !r.warnPrev), +(chg && !r.chgPrev), +(!chg && r.chgPrev && shot === 0), line,
-          e._marksmanAngle ? Math.max(1, ASTATE.indexOf(e._marksmanAngle.state)) : 0,
-          e._marksmanAngle?.commit ? Math.round(e._marksmanAngle.commit.x) : -1, e._marksmanAngle?.commit ? Math.round(e._marksmanAngle.commit.y) : -1]);
+          AM ? Math.max(1, ASTATE.indexOf(AM.state)) : 0,
+          AM?.commit ? Math.round(AM.commit.x) : -1, AM?.commit ? Math.round(AM.commit.y) : -1,
+          // the shield's error off the player, degrees (rear exposure), shielded only
+          r.type === 'shielded' ? Math.round(Math.abs(Math.atan2(Math.sin(Math.atan2(P.y - e.y, P.x - e.x) - e._shieldFacing), Math.cos(Math.atan2(P.y - e.y, P.x - e.x) - e._shieldFacing))) * 180 / Math.PI) : -1,
+          r.blocksN - b[3]]);
         r.warnPrev = warn; r.chgPrev = chg;
       }
       T.trace.push([T.hash(), window.__draws]);
@@ -369,7 +383,7 @@ export async function installTac(page) {
       for (const e of gs.enemies.getChildren()) { if (!(e.active && e.alive)) continue; const k = (e.enemyType ?? (e.isChampion ? 'champion' : '?')) + (e._elite ? '-E' : '') + (e._miniBoss ? '-nem' : ''); roles[k] = (roles[k] || 0) + 1; }
       return { actors: T.list.map((r) => ({ id: r.id, type: r.type, ref: r.ref, elite: r.elite, screen: r.screen, born: r.born, dead: r.dead, rows: r.rows })),
         hits: T.hits.slice(), draws: window.__draws, trace: T.trace.slice(), firedP: T.firedP, roles, geo: T.geo(),
-        angLogs: T.list.map((r) => (r.e._marksmanAngle ? { ...r.e._marksmanAngle.log } : null)) };
+        angLogs: T.list.map((r) => { const AM = r.e._marksmanAngle || r.e._bulwarkAngle; return AM ? { ...AM.log } : null; }) };
     };
   }, ASTATE);
 }
@@ -402,6 +416,44 @@ export function reasonOf(w, type) {
 }
 
 const ms = (t) => Math.round(t * 1000 / 60);
+// Phase T2: how a Bulwark MOVES and how it is EXPOSED — per actor, from the
+// per-tick rows alone (so it reads the frozen build exactly as the candidate)
+const qtl = (arr, f) => { if (!arr.length) return ''; const s = arr.slice().sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(f * s.length))]; };
+function bulwarkQuality(rows) {
+  const dist = rows.map((w) => Math.hypot(w[R.px] - w[R.x], w[R.py] - w[R.y]));
+  const err = rows.map((w) => w[R.shErr]).filter((v) => v >= 0);
+  let rear = 0, flank = 0, ineff = 0, away = 0, wall = 0, stutter = 0, stopRun = 0, wasMoving = false, movedOnce = false;
+  let commits = 0, turnArounds = 0, shortCommits = 0, cur = null;
+  for (let k = 0; k < rows.length; k++) {
+    const w = rows[k], sp = Math.hypot(w[R.dx], w[R.dy]), mv = sp >= MOVING_PX, st = ASTATE[w[R.astate] || 0];
+    if (w[R.shErr] > 90) { rear++; if (k > 0 && rows[k - 1][R.shErr] <= 90) flank++; }
+    if (dist[k] > 290) ineff++;
+    // its OWN displacement away from the player (never the change in distance,
+    // which the player's motion makes up most of)
+    if (dist[k] > 1 && (w[R.dx] * (w[R.x] - w[R.px]) + w[R.dy] * (w[R.y] - w[R.py])) / dist[k] > MOVING_PX) away++;
+    if ((st === 'move' || st === 'settle') && w[R.blk]) wall++;
+    // a stop of 300ms or less between two walks
+    if (mv) { if (movedOnce && stopRun > 0 && stopRun <= 18) stutter++; stopRun = 0; movedOnce = true; } else if (movedOnce) stopRun++;
+    wasMoving = mv;
+    // commitments: a new destination is a commitment; one replaced in the same
+    // tick by another is a re-plan, and >120deg between the two walks a turn-around
+    const has = w[R.adx] >= 0, same = cur && has && w[R.adx] === cur.x && w[R.ady] === cur.y;
+    if (has && !same) {
+      commits++;
+      if (cur && cur.live) {
+        const a0 = Math.atan2(cur.y - cur.fy, cur.x - cur.fx), a1 = Math.atan2(w[R.ady] - w[R.y], w[R.adx] - w[R.x]);
+        let d = Math.abs(a1 - a0) % (2 * Math.PI); if (d > Math.PI) d = 2 * Math.PI - d;
+        if (d > 2 * Math.PI / 3) turnArounds++;
+        if (w[R.tick] - cur.t < 27) shortCommits++;     // replaced inside 450ms
+      }
+      cur = { x: w[R.adx], y: w[R.ady], fx: w[R.x], fy: w[R.y], t: w[R.tick], live: true };
+    } else if (!has && cur) cur.live = false;
+  }
+  void wasMoving;
+  return { distMedPx: Math.round(qtl(dist, 0.5)), distP90Px: Math.round(qtl(dist, 0.9)), shieldErrMedDeg: qtl(err, 0.5), shieldErrP90Deg: qtl(err, 0.9),
+    rearExposedMs: ms(rear), flankEvents: flank, ineffectiveRangeMs: ms(ineff), movingAwayMs: ms(away), wallContactMovingMs: ms(wall), stopGo: stutter,
+    destCommits: commits, turnArounds, shortCommits, shieldBlocks: rows.reduce((x, w) => x + (w[R.sblk] || 0), 0) };
+}
 export function analyse(res, meta, geo) {
   const label = (i) => (i < 0 || !geo[i] ? '' : `${geo[i].key}@${geo[i].cx},${geo[i].cy}`);
   const actorRows = [], intervals = [];
@@ -494,6 +546,7 @@ export function analyse(res, meta, geo) {
       losLossEpisodes: losLossEp, losLossReacted: losLossReact, losLossNeverMoved: losLossNever,
       reacqEpisodes: reacqN, reacqToAttackMeanMs: reacqN ? ms(reacqSum / reacqN) : '', reacqToAttackMaxMs: reacqN ? ms(reacqMax) : '', reacqLostAgainFirst: reacqCens,
       matesMean: +(mates / n).toFixed(2), matesMax,
+      ...(a.type === 'shielded' && !a.ref ? bulwarkQuality(rows) : {}),
       ...Object.fromEntries(Object.entries(reasons).map(([k, v]) => [`r_${k}`, ms(v)])) });
   }
   // ── RESPONSIVENESS (Phase 3C-T1), Marksmen only: one row per persistent
@@ -501,7 +554,9 @@ export function analyse(res, meta, geo) {
   // gate's test) cut for >= 250ms while it stands in its own band
   const respRows = [];
   for (const a of res.actors) {
-    if (a.type !== 'sniper' || a.ref) continue;
+    // the Marksman (T1) and the FREE Bulwark (T2) — never a VANGUARD screen
+    if (!(a.type === 'sniper' || (a.type === 'shielded' && !a.screen)) || a.ref) continue;
+    const ATT = a.type === 'sniper' ? R.chargeStart : R.warn;   // its attack's onset
     const rows = a.rows;
     for (let k = 0; k < rows.length; k++) {
       const w = rows[k];
@@ -520,7 +575,7 @@ export function analyse(res, meta, geo) {
       let evalT = '', selectT = '', moveT = '', standT = 0, stopStarts = 0, moving = false, moved = false;
       for (let i = k; i < j; i++) {
         const q = rows[i], st = ASTATE[q[R.astate]], sp = Math.hypot(q[R.dx], q[R.dy]);
-        if (evalT === '' && (st === 'confirm' || st === 'move' || st === 'noSpot')) evalT = ms(q[R.tick] - t0);
+        if (evalT === '' && (st === 'confirm' || st === 'move' || st === 'noSpot' || st === 'keep')) evalT = ms(q[R.tick] - t0);
         if (selectT === '' && st === 'move') selectT = ms(q[R.tick] - t0);
         const mv = sp >= MOVING_PX;
         if (mv && moveT === '') moveT = ms(q[R.tick] - t0);
@@ -533,7 +588,7 @@ export function analyse(res, meta, geo) {
       if (endWhy === 'line') {
         const tl = rows[j][R.tick];
         for (let i = j; i < Math.min(rows.length, j + 150); i++) {
-          if (rows[i][R.chargeStart] && chargeT === '') { chargeT = ms(rows[i][R.tick] - tl); for (let h = i; h < Math.min(rows.length, i + 80); h++) if (rows[h][R.shot]) { shotT = ms(rows[h][R.tick] - rows[i][R.tick]); break; } break; }
+          if (rows[i][ATT] && chargeT === '') { chargeT = ms(rows[i][R.tick] - tl); for (let h = i; h < Math.min(rows.length, i + 80); h++) if (rows[h][R.shot]) { shotT = ms(rows[h][R.tick] - rows[i][R.tick]); break; } break; }
           if (rows[i][R.los] === 0 && i > j + 2) break;
         }
       }
@@ -546,7 +601,7 @@ export function analyse(res, meta, geo) {
   // the module's own decision counts, per Marksman (null on frozen builds)
   for (const a of res.actors) {
     const L = res.angLogs?.[a.id];
-    if (!L || a.type !== 'sniper') continue;
+    if (!L || !(a.type === 'sniper' || a.type === 'shielded')) continue;
     respRows.push({ section: 'anglog', ...meta, actor: a.id, elite: +a.elite, ...L });
   }
 
@@ -609,6 +664,48 @@ export const T1_STAGED = {
   T10_regular_elite_pair: { ticks: 1200, actors: [MKS(940, 250), MKS(1060, 250, true)], player: { mode: 'stand', x: 1000, y: 770 } },
   T11_los_flicker: { ticks: 1200, actors: [MKS(1000, 250)], player: { mode: 'keys', kf: Array.from({ length: 22 }, (_, k) => [[k * 54, k % 2 ? 1085 : 1000, 770], [k * 54 + 6, k % 2 ? 1000 : 1085, 770]]).flat() } },
   T12_retreat_into_cover: { ticks: 900, actors: [MKS(1000, 600)], player: { mode: 'keys', kf: [[0, 1000, 250], [60, 1000, 250], [120, 1000, 400], [900, 1000, 400]] } },
+};
+
+// ── Phase T2: the free Bulwark, in the real Detention room ──
+const BW = (x, y, elite, spec) => ({ type: 'shielded', x, y, ...(elite ? { elite: true } : {}), ...(spec ? { spec } : {}) });
+export const T2_STAGED = {
+  // B1 positive control: an open line inside its hold, the player firing into the
+  // shield — it must just hold, block and shoot
+  B1_clear_hold: { ticks: 900, fire: 7, actors: [BW(1300, 1000)], player: { mode: 'stand', x: 1050, y: 1000 } },
+  // B2 THE ACCEPTANCE CASE: placed in its hold (289px), the heavy console cutting the line
+  B2_blind_console: { ticks: 1200, actors: [BW(1000, 501)], player: { mode: 'stand', x: 1000, y: 790 } },
+  B2e_blind_console_elite: { ticks: 1200, actors: [BW(1000, 501, true)], player: { mode: 'stand', x: 1000, y: 790 } },
+  // B2w the same console, walking in from 540px (the frozen walk-in stops behind it)
+  B2w_walk_in: { ticks: 1200, actors: [BW(1000, 250)], player: { mode: 'stand', x: 1000, y: 790 } },
+  // B3 the player orbits the heavy console
+  B3_circle_console: { ticks: 1500, actors: [BW(1000, 400)], player: { mode: 'circle', x: 1112, y: 680, cx: 1000, cy: 680 } },
+  // B4 the post-bunk pocket: a narrow way between the post and a bunk
+  B4_narrow_passage: { ticks: 1500, actors: [BW(250, 1320)], player: { mode: 'stand', x: 420, y: 820 } },
+  // B5 the two touching bunks as one long diagonal wall
+  B5_long_wall: { ticks: 1500, actors: [BW(740, 330)], player: { mode: 'stand', x: 740, y: 640 } },
+  // B6 the player rushes it from range and sits on it
+  B6_rush: { ticks: 900, actors: [BW(1000, 400)], player: { mode: 'charge', x: 1000, y: 900 } },
+  // B7 the player runs a tight loop round it (real keys, full speed): the shield turn is the frozen one
+  B7_flank_loop: { ticks: 1200, actors: [BW(1000, 400)], player: { mode: 'patrol', x: 1150, y: 400, wp: [[1150, 400, 0], [1100, 510, 0], [1000, 560, 0], [890, 510, 0], [850, 400, 0], [890, 290, 0], [1000, 240, 0], [1100, 290, 0]] } },
+  // B8 three free Bulwarks on one blind console
+  B8_three_bulwarks: { ticks: 1200, actors: [BW(900, 520), BW(1000, 501), BW(1100, 520, true)], player: { mode: 'stand', x: 1000, y: 790 } },
+  // B9 the player crosses behind the console once and comes out
+  B9_brief_cross: { ticks: 1200, actors: [BW(1000, 501)], player: { mode: 'patrol', x: 860, y: 790, wp: [[860, 790, 60], [1140, 790, 600]] } },
+  // B10 south of the south-west post: NO spot on its band within its sweep that
+  // has a line and a walk (scanned with `findBulwarkSpot` over the whole room —
+  // a player at (260, 1280) from (260, 1030) is one of the few such pockets)
+  B10_no_spot: { ticks: 1200, actors: [BW(260, 1030)], player: { mode: 'stand', x: 260, y: 1280 } },
+  // B11 a Regular and an Elite on the same console
+  B11_regular_elite: { ticks: 1200, actors: [BW(940, 505), BW(1060, 505, true)], player: { mode: 'stand', x: 1000, y: 790 } },
+  // B12 a VANGUARD screen in the B2 geometry: the candidate must not be installed at all
+  B12_screen_excluded: { ticks: 1200, actors: [BW(1000, 501, false, SCREEN)], player: { mode: 'stand', x: 1000, y: 790 } },
+  // the cover-hop pilot from T1, against a free Bulwark
+  B13_cover_hop: { ticks: 1500, actors: [BW(800, 420)], player: { mode: 'hop2', x: 600, y: 760 } },
+  // B14 A BULWARK-FOCUSED FIGHT in the real room: three free Bulwarks (one
+  // Elite) and a Gunner among the consoles, a person playing it (`handset`) or
+  // hiding behind the nearest cover (`hide`), firing throughout
+  B14_squad_handset: { ticks: 2400, fire: 7, actors: [BW(560, 420), BW(1160, 960, true), BW(980, 330), { type: 'shooter', x: 1350, y: 520 }], player: { mode: 'handset', x: 300, y: 700 } },
+  B14_squad_hide: { ticks: 2400, fire: 7, actors: [BW(560, 420), BW(1160, 960, true), BW(980, 330), { type: 'shooter', x: 1350, y: 520 }], player: { mode: 'hide', x: 300, y: 700 } },
 };
 
 // ── run one case ──────────────────────────────────────────────────────────
@@ -757,9 +854,67 @@ export function t1report(rows, { byFamily = false } = {}) {
   return out.join('\n');
 }
 
+// ── the T2 report: FREE Bulwarks only (VANGUARD screens are never the candidate's) ──
+export function t2report(rows) {
+  const out = [];
+  const P = (...a) => out.push(a.join(' '));
+  const pct = (x) => `${(100 * x).toFixed(1)}%`;
+  const grp = (arr, f) => arr.reduce((o, r) => ((o[f(r)] ||= []).push(r), o), {});
+  const key = (r) => `${r.scenario}|${r.variant}`;
+  const id = (r) => `${r.scenario}|${r.variant}|${r.seed}|${r.actor}`;
+  const act = rows.filter((r) => r.section === 'actor' && r.type === 'shielded' && !+r.screen);
+  const ids = new Set(act.map(id));
+  const resp = rows.filter((r) => r.section === 'resp' && ids.has(id(r)));
+  const logs = rows.filter((r) => r.section === 'anglog' && ids.has(id(r)));
+  const runs = rows.filter((r) => r.section === 'run');
+  const tri = (v) => (v.length ? `${q(v, 0.5)} / ${q(v, 0.9)} / ${Math.max(...v)}` : '-');
+  P('## free Bulwarks: pressure (pooled over seeds; time-weighted)');
+  P('scenario | variant | n actors | live s | warns/min | shots/min | line open | blind standing | longest blind s | shield blocks/min | Bulwark hits on player/min');
+  for (const [k, a] of Object.entries(grp(act, key)).sort()) {
+    const live = a.reduce((x, r) => x + r.liveMs, 0), min = live / 60000;
+    const sum = (c) => a.reduce((x, r) => x + (+r[c] || 0), 0);
+    const rr = runs.filter((r) => key(r) === k);
+    const hb = rr.reduce((x, r) => x + r.hitsBulwark, 0) / Math.max(1e-9, rr.reduce((x, r) => x + r.ticks, 0) / 3600);
+    P(k.replace('|', ' | '), '|', a.length, '|', (live / 1000).toFixed(0), '|', (sum('attempts') / min).toFixed(1), '|', (sum('shots') / min).toFixed(1), '|',
+      pct(a.reduce((x, r) => x + r.validLineFrac * r.liveMs, 0) / live), '|', pct(sum('standNoLineMs') / live), '|', (Math.max(...a.map((r) => r.longestPassiveMs)) / 1000).toFixed(1), '|',
+      (sum('shieldBlocks') / min).toFixed(1), '|', hb.toFixed(1));
+  }
+  P('', '## free Bulwarks: responsiveness per blind episode in the HOLD band (>= 250ms); ms median / p90 / max');
+  P('scenario | variant | episodes | moved | evaluated (first state) | committed | first move | line back unmoved | line back after moving | WARN after line | SHOT after line | stand-blind per episode | stop-starts');
+  for (const [k, a] of Object.entries(grp(resp, key)).sort()) {
+    const num = (c) => a.map((r) => r[c]).filter((v) => v !== '' && v !== undefined).map(Number);
+    const shot = a.filter((r) => r.chargeAfterLineMs !== '' && r.shotAfterChargeMs !== '').map((r) => +r.chargeAfterLineMs + +r.shotAfterChargeMs);
+    P(k.replace('|', ' | '), '|', a.length, '|', num('firstMoveMs').length, '|', tri(num('evalMs')), '|', tri(num('selectMs')), '|', tri(num('firstMoveMs')), '|',
+      a.reduce((x, r) => x + r.lineCameBackUnmoved, 0), '|', tri(num('reacquireAfterMoveMs')), '|', tri(num('chargeAfterLineMs')), '|', tri(shot), '|', tri(num('standBlindMs')), '|', a.reduce((x, r) => x + r.stopStarts, 0));
+  }
+  P('', '## free Bulwarks: movement quality (summed)');
+  P('scenario | variant | live s | destinations | per min | replaced < 450ms | turn-arounds > 120deg | stop-go (<= 300ms stops) | wall contact while walking s | moving away from the player s');
+  for (const [k, a] of Object.entries(grp(act, key)).sort()) {
+    const live = a.reduce((x, r) => x + r.liveMs, 0), sum = (c) => a.reduce((x, r) => x + (+r[c] || 0), 0);
+    P(k.replace('|', ' | '), '|', (live / 1000).toFixed(0), '|', sum('destCommits'), '|', (sum('destCommits') / (live / 60000)).toFixed(1), '|', sum('shortCommits'), '|', sum('turnArounds'), '|', sum('stopGo'), '|',
+      (sum('wallContactMovingMs') / 1000).toFixed(1), '|', (sum('movingAwayMs') / 1000).toFixed(1));
+  }
+  P('', '## free Bulwarks: identity (per-actor medians and p90s, then their median / p90 / max)');
+  P('scenario | variant | distance px median | distance px p90 | shield error deg median | shield error deg p90 | rear exposed (error > 90deg) | flank events | outside its hold (> 290px)');
+  for (const [k, a] of Object.entries(grp(act, key)).sort()) {
+    const live = a.reduce((x, r) => x + r.liveMs, 0), sum = (c) => a.reduce((x, r) => x + (+r[c] || 0), 0);
+    const col = (c) => a.map((r) => +r[c]).filter((v) => !Number.isNaN(v));
+    P(k.replace('|', ' | '), '|', tri(col('distMedPx')), '|', tri(col('distP90Px')), '|', tri(col('shieldErrMedDeg')), '|', tri(col('shieldErrP90Deg')), '|',
+      `${(sum('rearExposedMs') / 1000).toFixed(1)}s (${pct(sum('rearExposedMs') / live)})`, '|', sum('flankEvents'), '|', `${(sum('ineffectiveRangeMs') / 1000).toFixed(1)}s (${pct(sum('ineffectiveRangeMs') / live)})`);
+  }
+  if (logs.length) {
+    P('', "## the candidate's own decisions (summed)");
+    const cols = ['episodes', 'evals', 'commits', 'routed', 'arrivals', 'reacquired', 'settled', 'failedProgress', 'failedDeadline', 'replans', 'reversals', 'noSpot', 'transientHeld', 'kept', 'keptOut', 'branchKept', 'branchReplan', 'invalidReplan', 'brace', 'watched'];
+    P('scenario | variant | ' + cols.join(' | '));
+    for (const [k, a] of Object.entries(grp(logs, key)).sort()) P(k.replace('|', ' | '), '|', cols.map((c) => a.reduce((x, r) => x + (+r[c] || 0), 0)).join(' | '));
+  }
+  return out.join('\n');
+}
+
 // ════════════════════════════════════════════════════════════════════════
 if (import.meta.url === `file://${process.argv[1]}`) {
   if (process.argv.includes('--report')) { console.log(report(opt('csv', `${OUT}tactical-metrics-all.csv`).split('+').flatMap(readCsv))); process.exit(0); }
+  if (process.argv.includes('--t2report')) { console.log(t2report(opt('csv', `${OUT}tactical-t2-staged.csv`).split('+').flatMap(readCsv))); process.exit(0); }
   if (process.argv.includes('--t1report')) { console.log(t1report(opt('csv', `${OUT}tactical-t1-staged.csv`).split('+').flatMap(readCsv), { byFamily: process.argv.includes('--family') })); process.exit(0); }
   const ONLY = opt('only', 'geo,staged,enc').split(',');
   const SEEDS = Array.from({ length: +opt('seeds', '3') }, (_, i) => 1001 + i * 7919);
@@ -897,6 +1052,54 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     }
     console.log(`  t1 enc done (${Math.round((Date.now() - t0) / 1000)}s)`);
     save('t1-enc', rows);
+    all.push(...rows);
+  }
+
+  // ── Phase T2: the free-Bulwark candidate, with the approved stuck
+  // correction identical in both halves of each comparison
+  if (ONLY.includes('t2staged')) {
+    const rows = [];
+    for (const vk of opt('vars', 'frozen,bwA,bwB,bwAB').split(',')) {
+      for (const [name, sc] of Object.entries(T2_STAGED)) {
+        if (opt('cases', '') && !opt('cases', '').split(',').includes(name)) continue;
+        for (const seed of SEEDS.slice(0, 2)) {
+          const p = await tacPage(browser, VARIANTS[vk], Q.stagedRoom);
+          const res = await runStaged(p, { ...sc, seed });
+          await p.close();
+          const a = analyse(res, { scenario: name, variant: vk, seed }, res.geo);
+          rows.push(a.run, ...a.actorRows, ...a.intervals, ...a.respRows);
+        }
+        console.log(`  t2 staged ${vk} ${name} (${Math.round((Date.now() - t0) / 1000)}s)`);
+      }
+      save(opt('tag', 't2-staged'), rows);
+    }
+    all.push(...rows);
+  }
+  if (ONLY.includes('t2enc')) {
+    const rows = [];
+    // MIXED: the free-Bulwark candidate with stuck-B in both halves, and again
+    // with the approved Marksman T1 (and its stuck-B) on in both halves.
+    // VANGUARD, with and without the Captain: the exclusion, measured.
+    const PLAN = [
+      ['mixed', ['handset', 'hide', 'circle', 'hop', 'charge', 'retreat', 'behind'], ['bwB', 'bwAB', 't1base', 't1bw']],
+      ['vanguard', ['handset', 'hide', 'circle'], ['frozen', 'bwA']],
+      ['vanguardCaptain', ['handset', 'hide', 'circle'], ['frozen', 'bwA']],
+    ];
+    const ENCS = opt('encs', ''), PILOTS = opt('pilots', ''), VARS = opt('vars', '');
+    for (const [enc, pilots, vars] of PLAN) for (const pilot of pilots) for (const vk of vars) for (const seed of SEEDS) {
+      if ((ENCS && !ENCS.split(',').includes(enc)) || (PILOTS && !PILOTS.split(',').includes(pilot)) || (VARS && !VARS.split(',').includes(vk))) continue;
+      const p = await tacPage(browser, VARIANTS[vk], Q[enc], seed);
+      const tStart = Date.now();
+      const res = await runEnc(p, { seed, ticks: 2400, pilot: { mode: pilot }, fire: 7 });
+      const wallMs = Date.now() - tStart;
+      await p.close();
+      const a = analyse(res, { scenario: `${enc}:${pilot}`, variant: vk, seed }, res.geo);
+      a.run.wallMsPer1000Ticks = Math.round(wallMs / res.trace.length * 1000);
+      a.run.traceHash = res.trace.reduce((h, t) => (h * 31 + t[0] + t[1]) % 1e9, 7);
+      rows.push(a.run, ...a.actorRows, ...a.intervals, ...a.respRows);
+      save(opt('tag', 't2-enc'), rows);     // after every run
+    }
+    console.log(`  t2 enc done (${Math.round((Date.now() - t0) / 1000)}s)`);
     all.push(...rows);
   }
 
