@@ -1,9 +1,24 @@
 # Phase 3C-T1 — the responsive Marksman (`?marksmanAngle=1`)
 
-**A CANDIDATE. Opt-in, not approved, not a default, not frozen.** Nothing in
-this folder is a handset verdict; the handset is the only thing that can give
-one. Every number here comes from the real Detention room, the real AI and
-an autopilot player, and the bot is not the balance authority.
+**HUMAN-APPROVED / FROZEN 🔒 on `0b772cf`. Still opt-in; not a default.**
+
+> "Exactly as: it reacts promptly, its repositioning looks intentional, it
+> doesn't fall back into conspicuous robotic pauses, and SNIPER NEST remains
+> challenging but fair. My test result is pass."
+
+The human's handset verdict, verbatim. It passed all four acceptance criteria
+(prompt reaction, intentional repositioning, no conspicuous robotic pauses,
+SNIPER NEST challenging but fair). The occasional turn-arounds, the overwatch
+holds and the higher Marksman pressure measured below are ACCEPTED inside that
+verdict and are not open for speculative polish. It was reviewed with
+`?marksmanStuck=early` on: that approves T1 and its integration in that
+configuration and grants neither flag a default rollout. Everything below is
+the record that led to the verdict — the measurements stand as measured. Every
+number comes from the real Detention room, the real AI and an autopilot
+player; the bot is not the balance authority.
+
+**Carried test debt:** the last full `run-all` at `0b772cf` was 49/52, not
+green (`HANDOVER.md` §0 has the three failures and what each is).
 
 ## What the human asked for
 
@@ -281,6 +296,10 @@ the game's own render of the tick it shows (2 game ticks per 30fps frame).
 
 ## Known defects and open questions
 
+Written before the handset review. Items 1 and 3-6 were the questions put to
+the handset; the human's pass verdict (top of this file) ACCEPTS them, and
+they are recorded here as how the approved behaviour works, not as work to do.
+
 1. **Turning round is reduced, not gone** — see "Turning round" above. Most
    turn-arounds come after a full half-second walk and are a re-plan behind a
    player who moved; a few follow a short walk (arrival or a failed walk, not
@@ -306,7 +325,7 @@ the game's own render of the tick it shows (2 game ticks per 30fps frame).
    walks sideways). No animation work was done; whether it reads as a soldier
    changing position is a handset question.
 7. **Not addressed, by scope:** the free Bulwark still holds blind inside
-   290px (the human's "shielded enemies do same" — T2, not started); a
+   290px (the human's "shielded enemies do same" — T2, a separate candidate); a
    blocked RETREAT (a separate tracked Marksman defect); concealment near
    cover (a colliding player can never enter the bush radius); the Gunner
    plant-for-the-shot deadlock; the nemesis Marksman.

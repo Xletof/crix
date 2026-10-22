@@ -10,7 +10,7 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-10-21. Pages builds only from `FRIX`, so the live build is
+*Updated 2026-10-22. Pages builds only from `FRIX`, so the live build is
 whatever `FRIX` points at: check `git rev-parse HEAD origin/FRIX` rather than
 trusting a hash written here, and `git rev-parse --abbrev-ref HEAD` for the
 branch name. This line has named a stale branch three times — trust the
@@ -203,8 +203,9 @@ boss scheduler's timing while fixing it.
   - **Phase 3B CLOSED for the ordinary Bulwark only** — Candidate B
     (`?bulwarkStuck=early`) is HUMAN-APPROVED / FROZEN and still opt-in (its
     section above). Every other archetype still carries both false classes;
-    the Marksman's Phase 3C candidates are opt-in and IN HANDSET REVIEW
-    (their section below), not approved.
+    the Marksman's Phase 3C stuck candidates are opt-in and not approved on
+    their own (3C's gameplay result was rejected; the approved T1 was reviewed
+    with `?marksmanStuck=early` on, which grants it no default).
 - **The frozen roles' v1 Elite-death RNG mismatch.** A Gunner / Rifleman /
   Marksman v1 Elite dies with a smaller kill juice than legacy (render scale
   1.0 vs 1.4), so fewer random draws and a different fight after the first
@@ -912,7 +913,7 @@ the metrics' headless replay.
 **Default activation is NOT AUTHORIZED. Nothing is frozen.** Rifleman,
 Gunner, Swarmling, Nemesis and the shared movement change are not started.
 
-### PHASE 3C-B — TACTICAL ENGAGEMENT FAILURE (Marksman + Bulwark). **DIAGNOSED AND DESIGNED, NOT FIXED — HUMAN DECISION REQUIRED**
+### PHASE 3C-B — TACTICAL ENGAGEMENT FAILURE (Marksman + Bulwark). **DIAGNOSED — MARKSMAN HALF ANSWERED BY T1 (HUMAN-APPROVED, below); FREE-BULWARK HALF IS T2**
 
 The handset played MIXED, Detention, sector 12, wave 2 on the 3C URL and
 rejected it: *"They keep waiting instead of attacking me or going around
@@ -946,7 +947,35 @@ problem is OPEN.** Also found, frozen code, reported only: v2.2's
 plant-for-the-shot deadlocks a Gunner whose line drops in the last 160ms of
 its warning (16-28s blind holds, Hangar).
 
-### PHASE 3C-T1 — RESPONSIVE MARKSMAN TACTICAL ENGAGEMENT. **CANDIDATE, OPT-IN (`?marksmanAngle=1`) — NOT APPROVED, NOT A DEFAULT, NOT FROZEN — HUMAN DECISION REQUIRED**
+### PHASE 3C-T1 — RESPONSIVE MARKSMAN TACTICAL ENGAGEMENT. **HUMAN-APPROVED / FROZEN 🔒 — `0b772cf` — OPT-IN (`?marksmanAngle=1`), NOT A DEFAULT**
+
+**The handset verdict, verbatim:** *"Exactly as: it reacts promptly, its
+repositioning looks intentional, it doesn't fall back into conspicuous robotic
+pauses, and SNIPER NEST remains challenging but fair. My test result is
+pass."* All four acceptance criteria passed: it reacts promptly when its line
+is lost; its repositioning reads as intentional; it does not return to
+conspicuous robotic pauses; SNIPER NEST stays challenging but fair. **The
+residuals below — occasional turn-arounds, the overwatch holds and the higher
+Marksman pressure — are ACCEPTED inside that verdict and are not open for
+speculative polish.** The approved implementation is `0b772cf`; nothing in
+`marksmanAngle.js` or `firingSpot.js` moves without NEW handset evidence, and
+a change to the shared `firingSpot.js` must prove the Marksman's deterministic
+reference scenarios byte-equivalent.
+
+**Approval boundary.** It was reviewed with `?marksmanStuck=early` on, so the
+approval covers the T1 behaviour and its integration in that configuration.
+It does NOT grant the stuck candidate a default rollout, and **both flags
+stay opt-in**. No Marksman gameplay change is authorized.
+
+**Carried test debt.** The last full `run-all` (at `0b772cf`) was **49/52 —
+NOT green.** `smoke-nemesis` passed standalone (load only);
+`smoke-music-tiers` passed 2 of 3 standalone (its boss-3 bed level wanders
+0.0342-0.0352 around the threshold); `smoke-champion-placement` failed 4 of 4
+standalone on `0b772cf` and passed 1 of 1 on `95adb1f` — a probe showed the
+queue AS BUILT is `shooter, shooter, captain, shooter` every time and the
+suite reads `_spawnQueue` after a fixed 600ms sleep that races the first drip
+at 14-15fps, so 0 or 1 events have been consumed. A frozen system's suite,
+reported and not edited. A normal-speed full run is still owed.
 
 The human authorized T1 and rejected its proposed 700ms idle wait before it
 was built (*"1–2 seconds to wait idle and freeze before moving is still too
@@ -956,7 +985,7 @@ laggy and robotic"*). Record: `docs/evidence/marksman-angle-t1/` — start at
 | flag | status |
 |---|---|
 | *(none)* | **the default** — the frozen hold, `95adb1f` tick for tick and draw for draw (MIXED and SNIPER NEST, seeded) |
-| `?marksmanAngle=1` | the candidate — **not approved**; independent of `?marksmanStuck=` |
+| `?marksmanAngle=1` | **HUMAN-APPROVED / FROZEN 🔒** (`0b772cf`) — still opt-in; independent of `?marksmanStuck=` |
 
 **Two files, one install line, `Enemy.js` untouched.**
 `src/systems/firingSpot.js` is a pure spot search (arcs around the player on
@@ -991,8 +1020,9 @@ encounters, most after a half-second walk;
 an adversarial re-hider can keep ONE Marksman blind for 20–30s while the
 others shoot them; overwatch holds of up to 3.0s.
 
-**Default activation is NOT AUTHORIZED. Phase 3C is NOT frozen. The free
-Bulwark (T2) is NOT started.**
+**Default activation is NOT AUTHORIZED** (a separate rollout decision, as for
+every approved opt-in flag). The free Bulwark (T2) is its own candidate and
+does not touch this one.
 
 ### The recommended next area of work
 
@@ -1000,11 +1030,9 @@ Bulwark (T2) is NOT started.**
 (above). **No milestone is started or authorized.** The next direction comes
 from the human; the candidates, none begun:
 
-- **PHASE 3C-T1 — THE RESPONSIVE MARKSMAN** (section above). The candidate
-  is built and deployed opt-in; the next step is the human's handset verdict
-  on `?marksmanAngle=1` against the same URL without it. Nothing in 3C, 3C-B
-  or 3C-T1 is frozen, nothing becomes a default, and the free-Bulwark T2 does
-  not start before that verdict.
+- **PHASE T2 — FREE BULWARK TACTICAL ENGAGEMENT.** Authorized by the human
+  after T1's approval, as an opt-in candidate (`?bulwarkAngle=1`). T1 is
+  frozen and does not move with it.
 - **Shared swarm stuck-detection correction** for the OTHER roles — the
   AUDIT IS DONE (debt list above). It is a separate human decision at the gate
   in its notes. No shared `Enemy` change without the human.

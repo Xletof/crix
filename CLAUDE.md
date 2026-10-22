@@ -1227,11 +1227,19 @@ asserts separately that the ceiling is not reached.
   colliding player (56.5px reachable against a 48.4px radius), and v2.2's
   plant-for-the-shot holds a Gunner still for good once its line drops inside
   the last 160ms of its warning (`fireCd` does not count down blind).
-- **THE RESPONSIVE MARKSMAN IS A CANDIDATE — PHASE 3C-T1, `?marksmanAngle=1`,
-  OPT-IN, NOT APPROVED, NOT FROZEN.** `HANDOVER.md` §0 and
+- **THE RESPONSIVE MARKSMAN IS HUMAN-APPROVED / FROZEN 🔒 — PHASE 3C-T1,
+  `?marksmanAngle=1`, `0b772cf`, STILL OPT-IN.** Handset: *"it reacts promptly,
+  its repositioning looks intentional, it doesn't fall back into conspicuous
+  robotic pauses, and SNIPER NEST remains challenging but fair."* The
+  turn-arounds, the overwatch holds and the higher Marksman pressure are
+  ACCEPTED inside that verdict — not open for polish. Reviewed with
+  `?marksmanStuck=early` on; neither flag is a default. `HANDOVER.md` §0 and
   `docs/evidence/marksman-angle-t1/t1-candidate-notes.md`. Ordinary `sniper`
   only, a seam over the frozen `_tickSwarm`; `Enemy.js` untouched; no flag is
-  the frozen game, `95adb1f` tick for tick. How it breaks:
+  the frozen game, `95adb1f` tick for tick. **`firingSpot.js` is shared and
+  frozen with it: any change must prove the Marksman's deterministic reference
+  scenarios byte-equivalent.** How it works and breaks — not an invitation to
+  tune it:
   - **NO IDLE WAIT BEFORE THE SEARCH — the human rejected one by name.** It
     evaluates on the first blind tick and confirms for 140–260ms by the walk's
     length. A commitment guard that becomes a cooldown is the rejected design
