@@ -116,7 +116,8 @@ export async function installR0(page) {
       const live = [];
       for (const e of gs.enemies.getChildren()) if (e.active && e.alive) { if (!O.byE.has(e)) O.track(e); live.push(e); }
       O.live += live.length; O.liveMax = Math.max(O.liveMax, live.length);
-      let tele = 0, los = 0;
+      let tele = 0, los = 0, mkChg = 0, mkStart = 0;
+      const mks = [];
       for (const e of live) {
         const r = O.byE.get(e);
         r.live++;
@@ -140,6 +141,7 @@ export async function installR0(page) {
         r.px = e.x; r.py = e.y;
         // what the player faces
         if (e.enemyType === 'sniper' ? e._charging : e._warnFlashed) tele++;
+        if (e.enemyType === 'sniper' && !e._miniBoss) { mks.push(e); if (e._charging) { mkChg++; if (!r.chg) mkStart++; } r.chg = !!e._charging; }
         else if (e.enemyType === 'bomber' && Math.hypot(P.x - e.x, P.y - e.y) < 160) tele++;
         if (ranged(e) && Math.hypot(P.x - e.x, P.y - e.y) < 900 && e._hasLOS(e.x, e.y, P.x, P.y)) los++;
         if (e._screen) { const h = !!e._screenHolding; if (r.sh !== undefined && r.sh !== h) O.screen.flips++; r.sh = h; if (h) O.screen.hold++; else O.screen.move++; }
@@ -155,7 +157,9 @@ export async function installR0(page) {
       let inc = 0;
       for (const g of gs.hostileBullets || []) for (const b of g.getChildren()) if (b.active && Math.hypot(b.x - P.x, b.y - P.y) < 250) inc++;
       O.hist.tele[Math.min(4, tele)]++; O.hist.los[Math.min(4, los)]++; O.hist.inc[Math.min(4, inc)]++;
-      O.frames.push([tele, los, inc, live.length]);
+      let mkMin = -1;
+      for (let i = 0; i < mks.length; i++) for (let j = i + 1; j < mks.length; j++) { const d = Math.hypot(mks[i].x - mks[j].x, mks[i].y - mks[j].y); if (mkMin < 0 || d < mkMin) mkMin = d; }
+      O.frames.push([tele, los, inc, live.length, mkChg, mks.length, Math.round(mkMin), mkStart]);
       for (const r of O.recs) if (r.dead == null && !(r.e.active && r.e.alive)) r.dead = O.tick;
       if (O.superFullAt == null && (P.superCharge || 0) >= SUPER) O.superFullAt = O.tick;
     };
@@ -208,7 +212,7 @@ export async function installR0(page) {
 const ms = (t) => Math.round(t * 1000 / 60);
 const qt = (arr, f) => { if (!arr.length) return ''; const s = arr.slice().sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(f * s.length))]; };
 const HP = 1000;   // PLAYER.hp
-const SRC = { 220: 'marksman', 120: 'bulwark', 130: 'gunner', 80: 'rifleman', 240: 'demolisher', 42: 'swarmling' };
+const SRC = { 220: 'marksman', 120: 'bulwark', 130: 'gunner', 80: 'rifleman', 240: 'demolisher', 55: 'demolisherSwipe', 42: 'swarmling' };
 function pressure(hits, ticks) {
   const dmg = new Float64Array(ticks + 1);
   for (const [t, a] of hits) if (t <= ticks) dmg[t] += a;
@@ -227,6 +231,23 @@ function pressure(hits, ticks) {
   return { dmgPerMin: Math.round(total / (ticks / 3600)), hitsPerMin: +(hits.length / (ticks / 3600)).toFixed(1), fastestFullBarS: best === Infinity ? '' : +(best / 60).toFixed(1),
     worst3sDmg: w3, recoveringFrac: +(rec / (ticks + 1)).toFixed(3), longestNoHitS: +(gap / 60).toFixed(1),
     ...Object.fromEntries(Object.entries(by).map(([k, v]) => [`dmg_${k}`, v])) };
+}
+// SIMULTANEOUS LASER WARNINGS: ticks with 2+ / 3+ ordinary Marksmen charging
+// (each charge is the 800ms windup + laser the player reads), charge starts
+// that land within 300ms of another Marksman's, how close two Marksmen stand,
+// and Marksman hits landing within 500ms of another (a double tap)
+function mkConcurrency(fr, hits) {
+  const withMk = fr.filter((f) => f[5] > 0), n = withMk.length || 1;
+  const starts = []; fr.forEach((f, i) => { for (let k = 0; k < (f[7] || 0); k++) starts.push(i); });
+  let near = 0; for (let i = 0; i < starts.length; i++) if (starts.some((t, j) => j !== i && Math.abs(t - starts[i]) <= 18)) near++;
+  const pairs = fr.filter((f) => f[5] >= 2), close = pairs.filter((f) => f[6] >= 0 && f[6] < 60).length;
+  const mh = hits.filter((h) => h[1] === 220).map((h) => h[0]);
+  let dbl = 0; for (let i = 1; i < mh.length; i++) if (mh[i] - mh[i - 1] <= 30) dbl++;
+  const dists = pairs.map((f) => f[6]).filter((d) => d >= 0);
+  return { mkTicks: withMk.length, mkMeanLive: +(withMk.reduce((s, f) => s + f[5], 0) / n).toFixed(2), mkCharge1Frac: +(withMk.filter((f) => f[4] >= 1).length / n).toFixed(3),
+    mkCharge2Frac: +(withMk.filter((f) => f[4] >= 2).length / n).toFixed(3), mkCharge3Frac: +(withMk.filter((f) => f[4] >= 3).length / n).toFixed(3),
+    mkChargeStarts: starts.length, mkStartsWithin300: near, mkPairsUnder60Frac: pairs.length ? +(close / pairs.length).toFixed(3) : '',
+    mkPairMinDistMed: dists.length ? +qt(dists, 0.5) : '', mkHits: mh.length, mkDoubleHits: dbl };
 }
 export function summarise(tac, r0, meta) {
   const rows = [];
@@ -259,6 +280,7 @@ export function summarise(tac, r0, meta) {
     stepMsMed: +(+qt(perf, 0.5)).toFixed(2), stepMsP95: +(+qt(perf, 0.95)).toFixed(2), stepMsP99: +(+qt(perf, 0.99)).toFixed(2), stepMsMax: +Math.max(0, ...perf).toFixed(1),
     screenHoldMs: ms(r0.screen.hold), screenMoveMs: ms(r0.screen.move), screenFlips: r0.screen.flips,
     ...(r0.front ? { frontSecondAt: r0.front.secondAt ?? '', frontHoldAt: r0.front.holdAt ?? '', frontHoldMs: r0.front.holdMs, frontReleased: +r0.front.released, frontReleasedAt: r0.front.releasedAt ?? '', frontWhy: r0.front.why ?? '', frontPair: r0.front.pair } : {}),
+    ...mkConcurrency(fr, tac.hits),
     hitsAll: tac.hits.length, playerShots: tac.firedP, ...pressure(tac.hits, n),
     seamCensus: Object.entries(seams).map(([k, s]) => `${k}:${s.n}[${['ms', 'ma', 'bs', 'ba', 'loco', 'v22', 'roster'].filter((f) => s[f]).map((f) => `${f}${s[f]}`).join('/')}]`).join(' ') };
   rows.push(run);
@@ -335,6 +357,10 @@ const PLANS = {
   vanguard: { q: ['vanguard', 'vanguardCaptain'], pilots: ['handset', 'hide', 'circle'], cfgs: ['A', 'B', 'C', 'D_noBA'], seeds: SEEDS3.slice(0, 2), ticks: 2400 },
   // R0-4: ordinary progression, the real resolver, a minute per cell
   prog: { q: PROG, pilots: ['handset', 'hide'], cfgs: ['A', 'B', 'C'], seeds: SEEDS3.slice(0, 2), ticks: 3600 },
+  // R0-2 follow-up: the Marksman-heavy fights again (identical runs — the trace
+  // hash proves it) with the Marksman concurrency columns; the late-band
+  // junction SNIPER NEST added with every seed and the cover pilots
+  sniper: { q: ['nest', 'p_corridor_s14w3'], pilots: ['handset', 'hide', 'hop2', 'hop', 'charge'], cfgs: ['A', 'B', 'C'], seeds: SEEDS3, ticks: 2400 },
 };
 
 async function main() {
@@ -405,6 +431,38 @@ async function main() {
       writeFileSync(`${RAW}r0-${tag}-${shard[0]}.csv`, toCsv(rows));
       log(`${plan} ${scn} ${pilot} ${cfg} ${seed}: ${res.tac.trace.length} ticks, draws ${res.tac.draws}, hits ${res.tac.hits.length}, wall ${wall}ms`);
     }
+  }
+
+  if (ONLY.includes('diverge')) {
+    // WHERE B AND C PART WAYS, AND WHY: the same cell in both configs, every
+    // tick's trace; at the first differing tick, what the Marksmen were doing
+    // in each (the sidestep timer, the stuck module's own log, T1's state)
+    const rows = [];
+    const cells = [['mixed', 'handset'], ['mixed', 'hide'], ['mixed', 'hop2'], ['nest', 'hop2'], ['nest', 'hide'], ['nest', 'handset']];
+    for (const [scn, pilot] of cells) for (const seed of SEEDS3) {
+      const got = {};
+      for (const cfg of ['B', 'C']) {
+        const p = await r0Page(browser, cfg, Q[scn], seed);
+        got[cfg] = await p.evaluate(({ seed, pilot }) => {
+          const T = window.__tac, gs = window.__gs;
+          T.begin({ seed, pilot: { mode: pilot }, fire: 7 }); window.__r0.reset();
+          const snap = [];
+          for (let i = 0; i < 2400; i++) {
+            T.step();
+            snap.push(gs.enemies.getChildren().filter((e) => e.active && e.alive && e.enemyType === 'sniper' && !e._miniBoss)
+              .map((e) => `${Math.round(e.x)},${Math.round(e.y)} side${Math.round(e._stuckSidestepMs > 0 ? e._stuckSidestepMs : 0)} ang:${e._marksmanAngle?.state ?? '-'}${e._marksmanStuck ? ` ms:${JSON.stringify(e._marksmanStuck.log)}` : ''}`).join(' | '));
+          }
+          return { trace: T.trace.slice(), snap };
+        }, { seed, pilot });
+        await p.close();
+      }
+      const d = got.B.trace.findIndex((x, i) => x[0] !== got.C.trace[i]?.[0] || x[1] !== got.C.trace[i]?.[1]);
+      const row = { scenario: `${scn}:${pilot}`, seed, divergeTick: d, divergeMs: d < 0 ? '' : ms(d),
+        B_at: d < 0 ? '' : got.B.snap[Math.max(0, d - 1)], C_at: d < 0 ? '' : got.C.snap[Math.max(0, d - 1)] };
+      rows.push(row);
+      log(`diverge ${scn} ${pilot} ${seed}: first differing tick ${d} (${row.divergeMs}ms)\n   B: ${row.B_at}\n   C: ${row.C_at}`);
+    }
+    writeFileSync(`${RAW}r0-diverge.csv`, toCsv(rows));
   }
 
   if (ONLY.includes('obstacle')) {

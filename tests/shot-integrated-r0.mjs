@@ -130,6 +130,13 @@ async function filmPage(cfg, q, seed) {
           const act = M ? (ST[M.state] || String(M.state).toUpperCase()) : `${BRANCH[w[R.branch]].replace('_', ' ')} · ${valid ? 'LINE OPEN' : unseen ? 'NOT SEEN' : 'LOS CUT'}`;
           label += `\n${act}${e._charging ? ' · CHARGING' : e._warnFlashed ? ' · WARN' : ''}`;
         }
+        // a v2.2 Gunner / Rifleman PLANTED FOR THE SHOT with its line cut
+        // (register #6: `_warnFlashed && fireCd < 160` holds it still until a line returns)
+        if (e._v22 && e._warnFlashed && e.fireCd < 160 && !e._hasLOS(e.x, e.y, P.x, P.y)) {
+          G.lineStyle(2 / z, 0xff4040, 0.8); G.beginPath(); G.moveTo(e.x, e.y); G.lineTo(P.x, P.y); G.strokePath();
+          G.lineStyle(3 / z, 0xffb030, 1); G.strokeRect(e.x - 26, e.y - 26, 52, 52);
+          label += '\nPLANTED FOR THE SHOT · LINE CUT';
+        }
         // a stuck sidestep taken this tick (the instrument's own command read)
         const sidestep = w && w[R.cmd] === 2;
         if (sidestep) { G.lineStyle(3 / z, 0xff40ff, 1); G.strokeCircle(e.x, e.y, 30); label += '\nSTUCK SIDESTEP'; if (isSn) side.mkTicks++; }
@@ -227,7 +234,7 @@ async function film(file, panels, { zoom, frames, per = 2, cols = panels.length,
   console.log('wrote', OUT + file, JSON.stringify(last));
 }
 
-const NOTE = 'line GREEN = can see and shoot · RED = cut (body outlined) · BLUE = open, not seen · cyan = shield · amber = T1/T2 committed route · MAGENTA ring = stuck sidestep taken';
+const NOTE = 'line GREEN = can see and shoot · RED = cut · BLUE = open, not seen · cyan = shield · amber route = T1/T2 commitment · MAGENTA ring = stuck sidestep taken · amber box = v2.2 Gunner planted with its line cut';
 const SUB = { A: 'production default: no gameplay flags', B: 'roster v1 · move v22 · gait v2 · bulwarkStuck=early · marksmanAngle=1 · bulwarkAngle=1',
   C: 'B + marksmanStuck=early (NOT approved)', D_noBA: 'B without bulwarkAngle (T2 isolation)' };
 const TITLE = { A: 'A — PRODUCTION DEFAULT', B: 'B — APPROVED INTEGRATION', C: 'C — B + MARKSMAN STUCK-B', D_noBA: 'D — B WITHOUT T2' };
@@ -235,15 +242,17 @@ const E = (cfg, q, pilot, seed, extra = '') => ({ cfg, q, seed, pilot: { mode: p
 const SEED = +opt('seed', 1001);
 
 const steps = {
-  mixed: () => film('r0-mixed-abc.webm', ['A', 'B', 'C'].map((c) => E(c, Q.mixed, 'handset', SEED)), { zoom: 0.3, frames: 1200, cols: 3,
+  mixed: () => film('r0-mixed-abc.webm', ['A', 'B', 'C'].map((c) => E(c, Q.mixed, 'handset', SEED)), { zoom: 0.3, frames: 900, cols: 3,
     caption: `MIXED (detention, sector 12, wave 2) — real spawner, AI live, 1x, seed ${SEED}, handset pilot (hide behind a checkpoint console, step out, hide behind the other, fire), god mode`, note: NOTE }),
   nest: () => film('r0-sniper-nest-bc.webm', [E('B', Q.nest, opt('pilot', 'hop2'), SEED), E('C', Q.nest, opt('pilot', 'hop2'), SEED), E('B', Q.nest, 'hide', SEED, ' · hide'), E('C', Q.nest, 'hide', SEED, ' · hide')],
-    { zoom: 0.3, frames: 1200, cols: 2,
+    { zoom: 0.3, frames: 900, cols: 2,
       caption: `SNIPER NEST (detention, sector 8, wave 2) — top: ${opt('pilot', 'hop2')} pilot (runs to the other checkpoint console every 4s); bottom: hide pilot — seed ${SEED}, 1x, god mode`, note: NOTE }),
-  vanguard: () => film('r0-vanguard-invariance.webm', ['A', 'B', 'C', 'D_noBA'].map((c) => E(c, Q.vanguardCaptain, 'handset', SEED)), { zoom: 0.25, frames: +opt('vframes', 1200), cols: 2,
+  // B, C and D_noBA are tick-identical here (the matrix's trace hashes): B stands for all three
+  vanguard: () => film('r0-vanguard-invariance.webm', ['A', 'B'].map((c) => E(c, Q.vanguardCaptain, 'handset', SEED)), { zoom: 0.3, frames: 900, cols: 2,
     caption: `VANGUARD + CAPTAIN (hangar, sector 8, wave 2) — the authored placement, real spawner, 1x, seed ${SEED}, handset pilot, god mode`, note: NOTE }),
-  progA: () => film('r0-progression-hangar-s10.webm', ['A', 'B'].map((c) => E(c, Q.p_hangar_s10w1, 'handset', SEED)), { zoom: 0.3, frames: 900, cols: 2,
-    caption: `ORDINARY PROGRESSION — hangar, sector 10, wave 1 (the real resolver picks the encounter) — seed ${SEED}, 1x, handset pilot, god mode`, note: NOTE }),
+  // the v2.2 planted-shot deadlock in an ordinary wave: the cell and seed where the matrix measured it (46s)
+  progA: () => film('r0-progression-gunner-plant.webm', ['A', 'B'].map((c) => E(c, Q.p_hangar_s2w1, 'hide', 1001)), { zoom: 0.3, frames: 900, cols: 2,
+    caption: 'ORDINARY PROGRESSION — hangar, sector 2, wave 1 (real resolver: MIXED) — seed 1001, 1x, hide pilot (stays behind the nearest cover, firing), god mode', note: NOTE }),
   progB: () => film('r0-progression-junction-s14.webm', ['A', 'B'].map((c) => E(c, Q.p_corridor_s14w3, 'handset', SEED)), { zoom: 0.3, frames: 900, cols: 2,
     caption: `ORDINARY PROGRESSION — reactor junction, sector 14, wave 3 (the real resolver picks the encounter) — seed ${SEED}, 1x, handset pilot, god mode`, note: NOTE }),
 };

@@ -38,7 +38,7 @@ for (const [k, a] of Object.entries(grp(runs, (r) => `${fam(r)}|${pil(r)}`)).sor
   }
 }
 // family roll-up: pooled over pilots and seeds
-P('', '## 1b. family roll-up (pooled over pilots and seeds: median, and p90 of the per-run value)');
+P(''); P('## 1b. family roll-up (pooled over pilots and seeds: median, and p90 of the per-run value)');
 P('| family | cfg | runs | dmg/min med (p90) | fastest full bar s med (p10) | recovering med | no line on player med | 2+ telegraphs med | pairs <60px med | overlapping pairs med |');
 P('|---|---|---|---|---|---|---|---|---|---|');
 const pq = (a, q) => { const s = a.filter((v) => v !== '').map(Number).sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : NaN; };
@@ -48,17 +48,17 @@ for (const [k, a] of Object.entries(grp(runs, fam)).sort()) for (const [c, b] of
 }
 
 // ── 2. movement quality per role (pooled, time-weighted) ──
-P('', '## 2. movement quality per role, per family x config (pooled over runs, weighted by live time)');
-P('| family | role | cfg | n | live s | moving | px/s | sharp turns/min | reversals/min | stop-go/min | stuck sidestep (share of life) | sidestep episodes/min | crowded (<60px) | overlapping |');
+P(''); P('## 2. movement quality per role, per family x config (pooled over runs, weighted by live time)');
+P('| family | role | cfg | n | live s | moving | px/s | sharp turns/min | reversals/min | stop-go/min | stuck sidestep (share of life) | sidestep episodes/min | mean neighbours <60px | mean overlapping bodies |');
 P('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
 for (const [k, a] of Object.entries(grp(roles, (r) => `${fam(r)}|${r.role}`)).sort()) for (const [c, b] of byCfg(a)) {
   const live = b.reduce((s, r) => s + r.liveS, 0); if (live < 20) continue;
   const w = (col) => b.reduce((s, r) => s + r[col] * r.liveS, 0) / live;
-  P(`| ${k.replace('|', ' | ')} | ${c} | ${b.reduce((s, r) => s + r.n, 0)} | ${Math.round(live)} | ${pc(w('movingFrac'))} | ${f1(w('pxPerS'))} | ${f1(w('turnsPerMin'))} | ${f1(w('reversalsPerMin'))} | ${f1(w('stopGoPerMin'))} | ${pc(w('sidestepTakenFrac'))} | ${f2(w('sidestepEpisodesPerMin'))} | ${pc(w('crowdedFrac'))} | ${pc(w('overlapFrac'))} |`);
+  P(`| ${k.replace('|', ' | ')} | ${c} | ${b.reduce((s, r) => s + r.n, 0)} | ${Math.round(live)} | ${pc(w('movingFrac'))} | ${f1(w('pxPerS'))} | ${f1(w('turnsPerMin'))} | ${f1(w('reversalsPerMin'))} | ${f1(w('stopGoPerMin'))} | ${pc(w('sidestepTakenFrac'))} | ${f2(w('sidestepEpisodesPerMin'))} | ${f2(w('crowdedFrac'))} | ${f2(w('overlapFrac'))} |`);
 }
 
 // ── 3. Marksman stuck sidesteps, classified ──
-P('', '## 3. Marksman stuck sidesteps TAKEN, by cause (per live Marksman-minute; pooled)');
+P(''); P('## 3. Marksman stuck sidesteps TAKEN, by cause (per live Marksman-minute; pooled)');
 P('| family | cfg | Marksman-min | episodes/min | F1 (first check) | HOLD -> resume | PINNED on approach | OTHER | mean px per episode | line opened within 1s after |');
 P('|---|---|---|---|---|---|---|---|---|---|');
 const mkAct = actors.filter((r) => r.type === 'sniper' && !r.control);
@@ -74,7 +74,7 @@ for (const [k, a] of Object.entries(grp(mks, fam)).sort()) {
 for (const fm of [...new Set(mkAct.map(fam))]) if (!mks.some((r) => fam(r) === fm)) P(`| ${fm} | (no Marksman sidestep in any config) |`);
 
 // ── 4. B vs C, paired: the same scenario, pilot and seed ──
-P('', '## 4. B vs C, paired by scenario x pilot x seed');
+P(''); P('## 4. B vs C, paired by scenario x pilot x seed');
 const key = (r) => `${r.scenario}|${r.seed}`;
 const runB = Object.fromEntries(runs.filter((r) => r.config === 'B').map((r) => [key(r), r]));
 const runC = Object.fromEntries(runs.filter((r) => r.config === 'C').map((r) => [key(r), r]));
@@ -95,7 +95,8 @@ const METRICS = [
   ['Marksman sidesteps / Mk-min', (r) => { const m = mkMinOf(r.scenario, r.seed, r.config); return m ? sideN(r.scenario, r.seed, r.config) / m : NaN; }],
   ['Marksman shots / Mk-min', (r) => { const m = mkMinOf(r.scenario, r.seed, r.config); return m ? mkSum(r.scenario, r.seed, r.config, 'shots') / m : NaN; }],
   ['Marksman stood blind (s / Mk-min)', (r) => { const m = mkMinOf(r.scenario, r.seed, r.config); return m ? mkSum(r.scenario, r.seed, r.config, 'standNoLineMs') / 1000 / m : NaN; }],
-  ['enemies alive at end', (r) => String(r.roles || '').split(' ').filter(Boolean).reduce((s, x) => s + (+x.split(':')[1] || 0), 0)],
+  ['enemies killed', (r) => r.killed],
+  ['Marksman sharp turns / Mk-min', (r) => { const g = roles.filter((q) => q.scenario === r.scenario && q.seed === r.seed && q.config === r.config && q.role === 'sniper'); const live = g.reduce((s, q) => s + q.liveS, 0); return live ? g.reduce((s, q) => s + q.turnsPerMin * q.liveS, 0) / live : NaN; }],
 ];
 for (const fm of [...new Set(pairs.map((k) => k.split(':')[0]))].sort()) {
   const ks = pairs.filter((k) => k.startsWith(fm + ':') && !ident.includes(k));
@@ -108,7 +109,7 @@ for (const fm of [...new Set(pairs.map((k) => k.split(':')[0]))].sort()) {
   }
 }
 // the noise floor: the same metric's seed-to-seed spread inside one config
-P('', 'noise reference — the spread of dmg/min across SEEDS inside one config and pilot (median of per-cell max-min):');
+P(''); P('noise reference — the spread of dmg/min across SEEDS inside one config and pilot (median of per-cell max-min):');
 for (const [fm, a] of Object.entries(grp(runs, fam)).sort()) {
   const cells = grp(a, (r) => `${pil(r)}|${r.config}`);
   const spreads = Object.values(cells).filter((c) => c.length > 1).map((c) => Math.max(...c.map((r) => r.dmgPerMin)) - Math.min(...c.map((r) => r.dmgPerMin)));
@@ -116,7 +117,7 @@ for (const [fm, a] of Object.entries(grp(runs, fam)).sort()) {
 }
 
 // ── 5. VANGUARD invariance ──
-P('', '## 5. VANGUARD: invariance and the protected clocks');
+P(''); P('## 5. VANGUARD: invariance and the protected clocks');
 const van = runs.filter((r) => fam(r).startsWith('vanguard'));
 for (const [k, a] of Object.entries(grp(van, (r) => `${r.scenario}|${r.seed}`)).sort()) {
   const h = Object.fromEntries(a.map((r) => [r.config, r]));
@@ -132,7 +133,7 @@ for (const [k, a] of Object.entries(grp(van, fam)).sort()) for (const [c, b] of 
 }
 
 // ── 6. progression cells ──
-P('', '## 6. ordinary progression (the real resolver), per cell x config');
+P(''); P('## 6. ordinary progression (the real resolver), per cell x config');
 P('| cell | encounter | cfg | runs | hp x | speed x | spawned med | live mean / max | dmg/min med | fastest full bar s | no line on player | 2+ telegraphs | pairs <60px | step ms med / p95 / max |');
 P('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
 for (const [k, a] of Object.entries(grp(runs.filter((r) => fam(r).startsWith('p_')), fam)).sort()) for (const [c, b] of byCfg(a)) {
@@ -140,7 +141,7 @@ for (const [k, a] of Object.entries(grp(runs.filter((r) => fam(r).startsWith('p_
 }
 
 // ── 7. seam census (from the run rows) ──
-P('', '## 7. seam census: which spawn received which seam (all runs, per config; ms = marksmanStuck, ma = T1, bs = bulwarkStuck, ba = T2, loco/v22 = move v2.2, roster = v1 art)');
+P(''); P('## 7. seam census: which spawn received which seam (all runs, per config; ms = marksmanStuck, ma = T1, bs = bulwarkStuck, ba = T2, loco/v22 = move v2.2, roster = v1 art)');
 const census = {};
 for (const r of runs) for (const tok of String(r.seamCensus || '').split(' ').filter(Boolean)) {
   const m = tok.match(/^([^:]+):(\d+)\[(.*)\]$/); if (!m) continue;
@@ -160,5 +161,5 @@ if (existsSync(T2)) {
 }
 
 // ── 9. the T1 report, Marksmen only, on these rows ──
-if (process.argv.includes('--t1')) { P('', '## 9. the T1 instrument report (variant = config)'); P(t1report(rows.map((r) => ({ ...r, variant: r.config ?? r.variant })), { byFamily: true })); }
+if (process.argv.includes('--t1')) { P(''); P('## 9. the T1 instrument report (variant = config)'); P(t1report(rows.map((r) => ({ ...r, variant: r.config ?? r.variant })), { byFamily: true })); }
 console.log(out.join('\n'));
