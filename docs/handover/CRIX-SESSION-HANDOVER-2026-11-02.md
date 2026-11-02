@@ -290,16 +290,18 @@ registry, the flat-depth cleanup. None is started.
 
 ## 11. Next-session instructions
 
-1. **Orient:** read `HANDOVER.md` §0 (top status block, then the phase
-   sections and the register), then this file. `CLAUDE.md` loads
-   automatically; open `docs/engineering/<subsystem>.md` and `tests/README.md`
-   only for the subsystem the task touches. *(Updated 2026-11-02 after the
-   instruction-system restructure; this step originally said to read
-   `CLAUDE.md` in full and all of `tests/README.md`.)*
+1. **Orient:** read the CURRENT STATUS block and the UNRESOLVED-WORK REGISTER
+   in `HANDOVER.md` §0. `CLAUDE.md` loads automatically. Open a §0 phase
+   section, a section of this file, `docs/engineering/<subsystem>.md` or
+   `tests/README.md` only when the task touches that subsystem. *(Updated 2026-11-02 after the
+   instruction-system restructure; this step originally said to read all of
+   §0's phase sections, `CLAUDE.md` in full and all of `tests/README.md`.)*
 2. **Verify refs** with the commands in §2. If anything moved since this file,
    reconcile it; never reset, discard or force-push.
-3. **Summarize your understanding to the human and wait** for an instruction.
-   No phase is authorized by inheritance.
+3. **With no concrete task, summarize your understanding and stop.** With an
+   explicit HUMAN-authorized task, carry it out within its scope without a
+   further permission gate. No phase is authorized by inheritance, and steps 4–5
+   apply either way.
 4. **Preserve frozen baselines:** `Enemy.js` stays frozen (`enemy-frozen.mjs`);
    T1/T2/3B modules are not tuned; a change to `firingSpot.js` must prove T1
    byte-equivalent; a change elsewhere must prove flag-off identity against
@@ -338,10 +340,11 @@ You are continuing the CRIX / FRIX project (repo Xletof/crix, dev branch
 claude/relaxed-faraday-swav9o, deploy branch FRIX → https://xletof.github.io/crix/).
 
 Before doing anything else:
-1. Read HANDOVER.md §0 — start with "CURRENT STATUS — 2026-11-02" and the
-   "UNRESOLVED-WORK REGISTER".
-2. Read docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md (approval ledger,
-   Marksman/Bulwark history, source map, evidence index, test debt).
+1. Read the "CURRENT STATUS — 2026-11-02" block and the "UNRESOLVED-WORK
+   REGISTER" in HANDOVER.md §0 (not the whole section).
+2. docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md has the approval ledger
+   (§3), source map (§6), evidence index (§8) and test debt (§9) — open the
+   section you need, not the whole file.
 3. CLAUDE.md loads automatically. For the subsystem a task touches, open
    docs/engineering/<subsystem>.md (index: docs/engineering/README.md).
 4. Verify state: git fetch origin claude/relaxed-faraday-swav9o FRIX;
@@ -359,10 +362,11 @@ Facts to hold:
   build). Do not claim green; do not weaken tests.
 - HUMAN handset verdicts are the only gameplay authority.
 
-Then summarize your understanding back to me — current refs, what is frozen,
-what is open — and STOP. Do not implement any gameplay, AI, navigation or
-combat change, and do not enable any flag by default, until I give a new
-instruction.
+If this message carries no task: summarize your understanding back to me —
+current refs, what is frozen, what is open — and STOP. If it carries an
+explicit task, orient as above and then do that task within its scope. Either
+way, do not change a frozen system or enable any flag by default unless I
+explicitly say so.
 ```
 
 ## NEW CHATGPT SESSION — CONTINUITY BRIEF

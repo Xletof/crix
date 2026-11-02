@@ -39,6 +39,10 @@ STATUS block and UNRESOLVED-WORK REGISTER before gameplay work or when asked
 where things stand. Don't copy status into other files. Trust `git` over any
 branch name or hash written in a document.
 
+With no concrete task, orient from those two parts of §0, summarize, and stop.
+With an explicit human task, read only what that task touches and do it; the
+gates below still apply.
+
 ## Human gates
 
 - The human plays the GitHub Pages build on a phone. A human handset verdict is

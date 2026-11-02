@@ -37,10 +37,10 @@ command, fix the line.*
 - **The full suite is NOT green:** `run-all` 47/52 at T2 (camera, deflect,
   vanguard-front, vanguard-screen, captain — each reproduced on the pre-T2
   build). See the T2 section and the register below.
-- **Fresh session?** Read `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md`
-  after this section: the approval ledger, the Marksman and Bulwark histories,
-  the source map, the evidence index, and bootstrap prompts for new Claude Code
-  and ChatGPT sessions.
+- **Fresh session?** This block and the register are the orientation.
+  `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
+  (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
+  evidence index (§8) and bootstrap prompts — open the section a task needs.
 
 ### THE CAMERA IS COMPLETE, HUMAN-APPROVED AND FROZEN 🔒
 
