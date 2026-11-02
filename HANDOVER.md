@@ -1,7 +1,12 @@
 # Frix — project handover
 
-Orientation for a session starting cold. Read `CLAUDE.md` first for the rules
-that must not be broken; this file is the map.
+Orientation for a session starting cold. `CLAUDE.md` carries the standing rules;
+this file is the map and the state.
+
+*Note (2026-11-02): the instruction system was restructured. Every reference in
+this file to a trap or rule "in `CLAUDE.md`" means the pre-restructure file
+(`git show 7d67bed:CLAUDE.md`); that content now lives, by subsystem, in
+`docs/engineering/` (index: `docs/engineering/README.md`).*
 
 Last verified against `3dcf45f` (2026-07-29). Everything below was read out of
 the code at that commit, not remembered.
@@ -180,12 +185,13 @@ boss scheduler's timing while fixing it.
   when designing a tight space: measure the LARGEST body.
 - **Two depth conventions run at once** and ordinary bullets plus the shared
   emitters still sit on flat constants under the whole actor band. Known, not
-  scheduled. `CLAUDE.md` has the detail.
+  scheduled. `docs/engineering/core.md` has the detail.
 - **There is no super-TYPE concept.** `superPellets` / `superDamage` are flat
   `PLAYER` constants down one code path; alternative supers need a registry.
-- **`LIGHTSOUT.consoleGlowAlpha`** is a dead placeholder now that all four
-  arenas have real authored emissive second states. Setting it to 0 removes it;
-  nobody has.
+- ~~`LIGHTSOUT.consoleGlowAlpha` is a dead placeholder~~ — **stale, corrected
+  2026-11-02:** the key and `GameScene._drawConsoleGlow` were already removed by
+  the environment pass (see "The placeholder" below and `src/config.js`).
+  Nothing to do.
 - Dormant code from the game's two earlier shapes is still in the tree — §9.
 - **`smoke-captain-rifle` "the burst fires exactly the length it drew" is
   intermittent.** It failed once inside a full focused run during both the
@@ -1187,9 +1193,9 @@ approved behaviour needs its own human gate).
 | 11 | A long-running Vite dev server with HMR edits serves a module twice (`smoke-encdbg` 31/33 → 33/33 after restart) | harness trap | TEST INFRASTRUCTURE DEBT | caveats below |
 | 12 | Shared stuck detection: both false classes (first check, hold → resume) remain for every role except the Bulwark (3B) and, opt-in, the Marksman | shared defect in frozen `Enemy.js` | SEPARATE APPROVAL REQUIRED | `shared-stuck-audit/` |
 | 13 | Gunner / Rifleman / Marksman v1 Elite-death RNG mismatch (smaller kill juice → fewer draws) | confirmed divergence | DEFERRED | "open technical debt" above |
-| 14 | `_castNemesisMove` treats a cancelled move handle as live (latent; nemesis can go inert) | latent bug, legacy | DEFERRED | `CLAUDE.md` |
-| 15 | `_applySectorScaling` computes a wave `count` nothing reads (enemy count never scaled by sector) | known, deliberately carried | DEFERRED — a balance decision | `CLAUDE.md` |
-| 16 | `DebugScene._skipWave` leaves `arenaActive` false | debug-only bug | DEFERRED | `CLAUDE.md` |
+| 14 | `_castNemesisMove` treats a cancelled move handle as live (latent; nemesis can go inert) | latent bug, legacy | DEFERRED | `docs/engineering/core.md` |
+| 15 | `_applySectorScaling` computes a wave `count` nothing reads (enemy count never scaled by sector) | known, deliberately carried | DEFERRED — a balance decision | `docs/engineering/encounters.md` |
+| 16 | `DebugScene._skipWave` leaves `arenaActive` false | debug-only bug | DEFERRED | `docs/engineering/encounters.md` |
 | 17 | `smoke-captain-rifle` "burst fires exactly the length it drew" intermittent | instrument | TEST INFRASTRUCTURE DEBT | "open technical debt" above |
 | 18 | Default rollout of `?roster=v1`, `?gait=v2`, `?move=v22`, `?bulwarkStuck=early`, `?marksmanAngle=1`, `?bulwarkAngle=1` | rollout decision | SEPARATE APPROVAL REQUIRED | each section |
 

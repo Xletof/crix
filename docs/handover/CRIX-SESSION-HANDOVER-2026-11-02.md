@@ -291,8 +291,11 @@ registry, the flat-depth cleanup. None is started.
 ## 11. Next-session instructions
 
 1. **Orient:** read `HANDOVER.md` §0 (top status block, then the phase
-   sections and the register), `CLAUDE.md` in full, `tests/README.md`, then
-   this file.
+   sections and the register), then this file. `CLAUDE.md` loads
+   automatically; open `docs/engineering/<subsystem>.md` and `tests/README.md`
+   only for the subsystem the task touches. *(Updated 2026-11-02 after the
+   instruction-system restructure; this step originally said to read
+   `CLAUDE.md` in full and all of `tests/README.md`.)*
 2. **Verify refs** with the commands in §2. If anything moved since this file,
    reconcile it; never reset, discard or force-push.
 3. **Summarize your understanding to the human and wait** for an instruction.
@@ -339,7 +342,8 @@ Before doing anything else:
    "UNRESOLVED-WORK REGISTER".
 2. Read docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md (approval ledger,
    Marksman/Bulwark history, source map, evidence index, test debt).
-3. Read CLAUDE.md in full and tests/README.md.
+3. CLAUDE.md loads automatically. For the subsystem a task touches, open
+   docs/engineering/<subsystem>.md (index: docs/engineering/README.md).
 4. Verify state: git fetch origin claude/relaxed-faraday-swav9o FRIX;
    git rev-parse HEAD origin/claude/relaxed-faraday-swav9o origin/FRIX;
    git status --short; git diff --stat 37135c9 HEAD -- src/ (expect empty
