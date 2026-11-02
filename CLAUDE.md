@@ -8,6 +8,11 @@ for exactly as long as it took the next pass to land, and a summary that can go
 stale is worse than a pointer. §0 is the single place the state lives.
 This file is the rules and the traps.
 `tests/README.md` covers the test harness and the ways it will lie to you.
+**Then read the newest file in `docs/handover/`** — the cross-session handover
+(approval ledger, histories, source map, evidence index). A new session
+summarizes its understanding and waits for a HUMAN instruction before
+proposing or starting any implementation; no phase is authorized by
+inheritance from an earlier session.
 
 ## Interaction rules (read first)
 
@@ -1258,13 +1263,20 @@ asserts separately that the ceiling is not reached.
   - **THE WALK TEST IS THE WHOLE BODY.** v2.2's `_scoreSpot` offsets its edge
     rays 0.8x the radius; at 0.9x one walk grazed a console corner. The spot
     search uses radius + 2px.
-- **THE FREE BULWARK'S TACTICAL ENGAGEMENT IS A CANDIDATE — PHASE T2,
-  `?bulwarkAngle=1`, OPT-IN, NOT APPROVED, NOT FROZEN.** `HANDOVER.md` §0 and
+- **THE FREE BULWARK'S TACTICAL ENGAGEMENT IS HUMAN-APPROVED / FROZEN 🔒 —
+  PHASE T2, `?bulwarkAngle=1`, `37135c9`, STILL OPT-IN.** Handset: *"all five
+  criteria passed ... APPROVE and FREEZE Phase T2 Free Bulwark tactical
+  engagement in the tested opt-in configuration"* (with `bulwarkStuck=early`,
+  and T1 on in MIXED). The KEEP, the BRACE, the circling-console pressure loss
+  and the untouched blind cooldown are ACCEPTED inside that verdict. **Neither
+  T1 nor T2 gameplay may be modified — not a parameter, not a threshold —
+  without a NEW human authorization**, and neither flag becomes a default
+  without one. `HANDOVER.md` §0 and
   `docs/evidence/bulwark-angle-t2/t2-candidate-notes.md`. Ordinary FREE
   `shielded` only — `!legacyArt && !vanguardScreen` at the spawn site, and
   every VANGUARD opener carries `vanguardScreen` too — a seam over the frozen
   `_tickSwarm`, called first; `Enemy.js` untouched; no flag is the frozen game
-  tick for tick. How it breaks:
+  tick for tick. How it works and breaks — not an invitation to tune it:
   - **IT NEVER WRITES THE SHIELD, AND THAT IS WHAT KEEPS IT A BULWARK.**
     `_shieldFacing`, `_aim`, the turn rate and the cooldown stay the frozen
     class's, so a body walking round cover turns its shield exactly as slowly
@@ -1303,7 +1315,7 @@ asserts separately that the ceiling is not reached.
   - **THE COOLDOWN DOES NOT RUN BLIND, SO A REACQUIRED LINE WAITS FOR ITS
     WARNING.** `_maybeFireAt` gates the countdown on the line; a Bulwark that
     walks to a line shows its WARN ~0.8s later on average. Frozen pipeline,
-    measured and reported for the human, not changed.
+    measured, accepted inside the T2 verdict, not changed.
   - **IT PUBLISHES `_angDest`**, the same claim field T1 publishes, so with
     both flags T1 Marksmen avoid a Bulwark's destination — by design, through
     T1's existing generic read; T1's own code is byte-identical.

@@ -10,11 +10,32 @@ the code at that commit, not remembered.
 
 ## 0. WHERE THINGS STAND — read this first
 
-*Updated 2026-10-22. Pages builds only from `FRIX`, so the live build is
+*Updated 2026-11-02. Pages builds only from `FRIX`, so the live build is
 whatever `FRIX` points at: check `git rev-parse HEAD origin/FRIX` rather than
 trusting a hash written here, and `git rev-parse --abbrev-ref HEAD` for the
 branch name. This line has named a stale branch three times — trust the
 command, fix the line.*
+
+### CURRENT STATUS — 2026-11-02 — READ BEFORE TOUCHING ANY CODE
+
+- **The tactical-AI sequence is CLOSED.** Marksman **T1** (`?marksmanAngle=1`,
+  `0b772cf`) and free-Bulwark **T2** (`?bulwarkAngle=1`, `37135c9`) are both
+  **HUMAN-APPROVED / FROZEN 🔒** and both **OPT-IN** — neither is a default.
+  Bulwark stuck-recovery **3B** (`?bulwarkStuck=early`) is separately
+  HUMAN-APPROVED / FROZEN and opt-in. Marksman stuck-recovery **3C**
+  (`?marksmanStuck=early`) is **NOT independently approved** — it was ON while
+  T1 was reviewed, which grants it nothing. Sections for each are below.
+- **NO NEXT PHASE IS AUTHORIZED.** The last HUMAN instruction was the T2
+  freeze plus a documentation-only closure and handover. Do not start AI,
+  navigation, combat or enemy work, and do not enable any approved flag by
+  default, without a NEW human instruction.
+- **The full suite is NOT green:** `run-all` 47/52 at T2 (camera, deflect,
+  vanguard-front, vanguard-screen, captain — each reproduced on the pre-T2
+  build). See the T2 section and the register below.
+- **Fresh session?** Read `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md`
+  after this section: the approval ledger, the Marksman and Bulwark histories,
+  the source map, the evidence index, and bootstrap prompts for new Claude Code
+  and ChatGPT sessions.
 
 ### THE CAMERA IS COMPLETE, HUMAN-APPROVED AND FROZEN 🔒
 
@@ -1024,7 +1045,30 @@ others shoot them; overwatch holds of up to 3.0s.
 every approved opt-in flag). The free Bulwark (T2) is its own candidate and
 does not touch this one.
 
-### PHASE T2 — FREE BULWARK TACTICAL ENGAGEMENT. **A CANDIDATE: OPT-IN (`?bulwarkAngle=1`), NOT APPROVED, NOT FROZEN — AWAITING HANDSET REVIEW**
+### PHASE T2 — FREE BULWARK TACTICAL ENGAGEMENT. **HUMAN-APPROVED / FROZEN 🔒 — `37135c9` — OPT-IN (`?bulwarkAngle=1`), NOT A DEFAULT**
+
+**HUMAN verdict (2026-11-02), verbatim:** *"I completed T2 handset testing,
+and all five criteria passed. My HUMAN verdict is APPROVE and FREEZE Phase T2
+Free Bulwark tactical engagement in the tested opt-in configuration."* The five
+criteria, all passed: (1) free Bulwarks respond promptly to an obstructed
+firing line instead of waiting; (2) their repositioning is purposeful, not
+chasing or circling; (3) the shield keeps meaningful frontal pressure while
+staying flankable; (4) no conspicuous robotic pauses or unacceptable direction
+changes; (5) MIXED stays challenging but fair.
+
+**Approval boundary.** Approved gameplay baseline **`37135c9`** (the code is
+`cebd6c5` + `104fc69`; `37135c9` added only evidence and docs, and `src/` is
+identical across `104fc69..37135c9`). Tested configuration:
+`?roster=v1&gait=v2&move=v22&bulwarkStuck=early&bulwarkAngle=1`, and in MIXED
+also the approved T1 `marksmanStuck=early&marksmanAngle=1`. The approval covers
+the WHOLE candidate as built — position scoring, the 150–250ms confirmation,
+commitment, failed-spot memory, the shield-facing invariants, the 600ms KEEP,
+the 1.2 / 1.8 / 2.4s BRACE, the frozen cooldown left as it is, and the
+VANGUARD / nemesis exclusions. **Do not retune any of it; nothing reopens
+without NEW human play evidence.** It does NOT make `bulwarkAngle=1` (or
+`bulwarkStuck=early`) a default, and it grants nothing to `?marksmanStuck=`.
+The edge cases recorded below (circling a console, KEEP, the reacquire→warn
+delay) are ACCEPTED limitations, not reasons to reopen.
 
 The free-Bulwark half of 3C-B: the frozen free Bulwark walks straight at the
 player to 290px and then STANDS, line or no line (20–21% of its life standing
@@ -1035,7 +1079,7 @@ start at `t2-candidate-notes.md`; five films, each verified tick for tick;
 | flag | status |
 |---|---|
 | *(none)* | **the default** — the frozen hold, the pre-T2 build tick for tick and draw for draw (MIXED and both VANGUARDs, seeded) |
-| `?bulwarkAngle=1` | **candidate** — free Bulwarks only (Regular and Elite); independent of `?bulwarkStuck=`, reviewed WITH `bulwarkStuck=early` in both halves |
+| `?bulwarkAngle=1` | **HUMAN-APPROVED / FROZEN 🔒** (`37135c9`) — still opt-in; free Bulwarks only (Regular and Elite); independent of `?bulwarkStuck=`, approved WITH `bulwarkStuck=early` in the tested configuration |
 
 **One new file, one install line, `Enemy.js` untouched.**
 `src/systems/bulwarkAngle.js` shadows the bearer's own `_tickSwarm` (after
@@ -1068,14 +1112,15 @@ MIXED (7 pilots × 3 seeds, stuck-B on in both halves) free-Bulwark blind
 standing 21.4% → 2.9%, longest blind hold 34.6s → 1.4s, shots 22.1 → 27.6 a
 minute, hits on a god-mode player 22.9 → 27.0 a minute; with the approved T1
 on in both halves 20.4% → 2.7%, 34.6s → 1.4s; T1's own numbers unchanged.
-VANGUARD ± Captain: 18/18 seeded runs identical. Residuals the handset has to
-judge: a player CIRCLING one console gets fewer Bulwark shots and hits than
+VANGUARD ± Captain: 18/18 seeded runs identical. Residuals, ACCEPTED inside
+the human verdict: a player CIRCLING one console gets fewer Bulwark shots and hits than
 the frozen hold (the frozen Bulwark happens to stand where the shadow is
 narrowest), with rear exposure 1.0% → 4.6% there; KEEP holds up to 600ms for a
 moving target; 15–19 destinations per Bulwark-minute; 0.29–0.37 turn-arounds
 per Bulwark-minute. **The frozen cooldown does not run blind**, so a Bulwark
 that walks to a line still waits ~0.5–0.9s (median) for its warning —
-measured, NOT changed, reported for a human decision.
+measured, NOT changed; whether the free Bulwark's cooldown should run blind
+is a separate human decision that has not been asked for.
 
 **Test status.** `smoke-bulwark-angle` 75/75; every targeted regression
 green against its own named frozen build (Bulwark, both stuck candidates, T1,
@@ -1090,8 +1135,9 @@ The previous three (`smoke-nemesis`, `smoke-music-tiers`,
 **`smoke-encdbg` needs a FRESH dev server** — it read 31/33 on one with six
 hours of HMR edits behind it and 33/33 after a restart.
 
-**HUMAN DECISION REQUIRED — T2.** Nothing here is approved, frozen or a
-default. `bulwarkAngle=1` stays opt-in until a handset verdict.
+**T2 IS CLOSED.** Approved and frozen as above; opt-in; no default
+activation is authorized. The cross-session continuity record for this whole
+tactical-AI sequence is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md`.
 
 ### The recommended next area of work
 
@@ -1099,10 +1145,10 @@ default. `bulwarkAngle=1` stays opt-in until a handset verdict.
 (above). **No milestone is started or authorized.** The next direction comes
 from the human; the candidates, none begun:
 
-- **PHASE T2 — FREE BULWARK TACTICAL ENGAGEMENT: BUILT, AWAITING HANDSET
-  REVIEW** (above). Opt-in (`?bulwarkAngle=1`); T1 is frozen and does not move
-  with it. No shared AI redesign, VANGUARD tactical change or other archetype
-  is started.
+- **T1 AND T2 ARE CLOSED — HUMAN-APPROVED / FROZEN, both opt-in** (above).
+  No next tactical phase is selected. No shared AI redesign, VANGUARD tactical
+  change or other archetype is started; the unresolved-work register below
+  lists candidates, none authorized.
 - **Shared swarm stuck-detection correction** for the OTHER roles — the
   AUDIT IS DONE (debt list above). It is a separate human decision at the gate
   in its notes. No shared `Enemy` change without the human.
@@ -1117,6 +1163,35 @@ The older standing options are still honest: more arenas (an application of a
 proven language), the super registry, and the flat-depth cleanup. Additional
 Champions also wait on the human. Pick with the human. Do not start one on the
 strength of this list.
+
+### UNRESOLVED-WORK REGISTER (2026-11-02)
+
+Nothing here is authorized. Statuses: **HUMAN-ACCEPTED** (part of an approved
+behaviour — do not reopen speculatively), **DEFERRED** (confirmed, not
+scheduled), **INVESTIGATION REQUIRED** (observed, not proven), **TEST
+INFRASTRUCTURE DEBT**, **SEPARATE APPROVAL REQUIRED** (a change to frozen or
+approved behaviour needs its own human gate).
+
+| # | item | kind | status | source |
+|---|---|---|---|---|
+| 1 | Marksman stuck-recovery B (`?marksmanStuck=early`) has no independent approval; 3C's gameplay result was rejected and T1's approval does not cover it | approval gap | SEPARATE APPROVAL REQUIRED | Phase 3C section; `marksman-stuck-v3c/` |
+| 2 | A Marksman retreat pinned on cover is not recovered (logged `retreatBlocked`; the base recovery only serves the approach) | confirmed defect | DEFERRED | `marksman-stuck-v3c/marksman-stuck-candidate-notes.md` |
+| 3 | The free Bulwark's `fireCd` does not count down while the line is cut, so a reacquired line waits ~0.5–0.9s (median) for the WARN | frozen pipeline behaviour | HUMAN-ACCEPTED inside T2; changing it is SEPARATE APPROVAL REQUIRED | T2 notes, "cooldown finding" |
+| 4 | T2 gives less pressure than the frozen hold against a player circling one console (MIXED circle pilot hits 33.5 → 20–24.5/min, rear exposure 1.0% → 4.6%) | accepted limitation | HUMAN-ACCEPTED | T2 notes, known limitations |
+| 5 | T2's 600ms KEEP and 1.2 / 1.8 / 2.4s BRACE | approved behaviour | HUMAN-ACCEPTED — do not reopen speculatively | T2 notes |
+| 6 | v2.2 Gunner plant-for-the-shot deadlock: a Gunner whose line drops inside the last 160ms of its warning stands still for good (16–28s blind holds measured in the Hangar) | confirmed defect in frozen code | DEFERRED | 3C-B; `tactical-engagement-audit/` |
+| 7 | Cover's bush registration can never hide a colliding player (56.5px reachable vs a 48.4px radius) | confirmed defect | DEFERRED | 3C-B; `tactical-engagement-audit/` |
+| 8 | `NavGrid.findPath` returns a one-node path AT THE TARGET when no route exists, so a caller following it walks straight at the target (its own comment: it "reads as broken AI"); T1/T2's `route()` treats that fallback as no route; and NavGrid's fixed 23px clearance routes large bodies through gaps they cannot enter | engine debt | DEFERRED | `src/systems/NavGrid.js`; "open technical debt" above |
+| 9 | Full `run-all` 47/52 at T2 (camera, deflect, vanguard-front, vanguard-screen, captain), 49/52 at T1 (nemesis, music-tiers, champion-placement); all frame-rate-sensitive, each T2 failure reproduced on `b1ab701` | test flakiness under a slow runner | TEST INFRASTRUCTURE DEBT | T2 / T1 sections |
+| 10 | Two unexplained evidence-film divergences under concurrent load (T1 cover-hop panel, tick 479); only films verified tick for tick were published | renderer/harness | TEST INFRASTRUCTURE DEBT — INVESTIGATION REQUIRED | `tests/README.md` (T1 section) |
+| 11 | A long-running Vite dev server with HMR edits serves a module twice (`smoke-encdbg` 31/33 → 33/33 after restart) | harness trap | TEST INFRASTRUCTURE DEBT | caveats below |
+| 12 | Shared stuck detection: both false classes (first check, hold → resume) remain for every role except the Bulwark (3B) and, opt-in, the Marksman | shared defect in frozen `Enemy.js` | SEPARATE APPROVAL REQUIRED | `shared-stuck-audit/` |
+| 13 | Gunner / Rifleman / Marksman v1 Elite-death RNG mismatch (smaller kill juice → fewer draws) | confirmed divergence | DEFERRED | "open technical debt" above |
+| 14 | `_castNemesisMove` treats a cancelled move handle as live (latent; nemesis can go inert) | latent bug, legacy | DEFERRED | `CLAUDE.md` |
+| 15 | `_applySectorScaling` computes a wave `count` nothing reads (enemy count never scaled by sector) | known, deliberately carried | DEFERRED — a balance decision | `CLAUDE.md` |
+| 16 | `DebugScene._skipWave` leaves `arenaActive` false | debug-only bug | DEFERRED | `CLAUDE.md` |
+| 17 | `smoke-captain-rifle` "burst fires exactly the length it drew" intermittent | instrument | TEST INFRASTRUCTURE DEBT | "open technical debt" above |
+| 18 | Default rollout of `?roster=v1`, `?gait=v2`, `?move=v22`, `?bulwarkStuck=early`, `?marksmanAngle=1`, `?bulwarkAngle=1` | rollout decision | SEPARATE APPROVAL REQUIRED | each section |
 
 ### Process and evidence caveats the next session needs
 

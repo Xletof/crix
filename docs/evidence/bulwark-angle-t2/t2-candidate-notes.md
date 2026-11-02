@@ -1,9 +1,48 @@
 # Phase T2 — the free Bulwark's tactical engagement (`?bulwarkAngle=1`)
 
-**A CANDIDATE. OPT-IN. NOT APPROVED, NOT FROZEN, NOT A DEFAULT.** Nothing here
-is installed without the flag, and with it nothing is installed on anything
-but an ordinary FREE Bulwark (Regular or Elite). The frozen game is the
-default, the pre-T2 build tick for tick and draw for draw.
+**HUMAN-APPROVED / FROZEN 🔒 on `37135c9`. Still opt-in; not a default.**
+Nothing here is installed without the flag, and with it nothing is installed
+on anything but an ordinary FREE Bulwark (Regular or Elite). The frozen game is
+the default, the pre-T2 build tick for tick and draw for draw.
+
+## HUMAN verdict — 2026-11-02
+
+> "I completed T2 handset testing, and all five criteria passed. My HUMAN
+> verdict is APPROVE and FREEZE Phase T2 Free Bulwark tactical engagement in
+> the tested opt-in configuration."
+
+* **Approval baseline:** `37135c9`. The gameplay code landed in `cebd6c5`
+  (implementation) and `104fc69` (the farther-out fallback); `37135c9` added
+  only this evidence and documentation, so `src/` at `37135c9` is byte-identical
+  to `104fc69`.
+* **Tested configuration:** `?roster=v1&gait=v2&move=v22&bulwarkStuck=early&bulwarkAngle=1`
+  (free-Bulwark comparison), and in MIXED with the approved Marksman T1 as
+  well: `marksmanStuck=early&marksmanAngle=1`. The URLs are in "Handset URLs"
+  below.
+* **All five criteria passed:** (1) free Bulwarks respond promptly to an
+  obstructed firing line instead of waiting indefinitely; (2) their
+  repositioning is purposeful, not unnecessary chasing or circling; (3) the
+  shield keeps meaningful frontal pressure while staying flankable; (4) no
+  conspicuous robotic pauses or unacceptable direction changes; (5) MIXED
+  combat stays challenging but fair.
+* **Accepted boundaries — frozen as built:** the position scoring, the
+  150–250ms confirmation, destination commitment and the 450ms re-plan
+  minimum, failed-spot memory, the five no-stop-go rules, the shield-facing
+  invariants (the module never writes the shield, the gun or the cooldown),
+  the 600ms KEEP, the 1.2 / 1.8 / 2.4s BRACE, the frozen cooldown left as it
+  is, and the VANGUARD / nemesis exclusions.
+* **Remaining limitations — accepted, not reopened:** less pressure against a
+  player circling one console; KEEP can hold up to 600ms; the reacquire→warn
+  delay from the blind cooldown; more movement than the frozen hold. They are
+  recorded below exactly as measured before the verdict.
+* **Frozen.** No parameter, threshold or rule here moves without NEW human
+  play evidence and a new authorization.
+* **No default activation.** `bulwarkAngle=1` (and `bulwarkStuck=early`)
+  stay opt-in; making either the default is a separate human decision. The
+  approval grants nothing to `?marksmanStuck=`.
+
+Everything below this section is the candidate record that led to the
+verdict, kept as written.
 
 The defect it answers is the free-Bulwark half of Phase 3C-B
 (`docs/evidence/tactical-engagement-audit/`): the free Bulwark walks straight
@@ -239,7 +278,7 @@ handset / hide / circle × 3 seeds: **18/18 runs identical** frozen vs
 screens; none carried the candidate. `smoke-bulwark-angle` §3 also proves it
 with stuck-B on in both halves, and that the front ends in the same state.
 
-## The cooldown finding (measured, NOT changed — a human decision)
+## The cooldown finding (measured, NOT changed — accepted inside the verdict; changing it needs its own human decision)
 
 The frozen `_maybeFireAt` counts `fireCd` down only while it can see and has
 a line, so a Bulwark that walks to a line resumes the remainder of the
@@ -254,7 +293,7 @@ accept it (the cooldown is the gun's rhythm, and it is frozen); or authorize a
 change to the free Bulwark's cooldown while blind (a change to a frozen
 pipeline, out of scope here). Not judged a blocker for the review.
 
-## Known defects and limits (for the handset to judge)
+## Known defects and limits (judged on the handset — ACCEPTED inside the verdict)
 
 1. **A player circling one console.** The frozen Bulwark, parked at 290px,
    happens to see past the console most of the lap; the candidate re-angles

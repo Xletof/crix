@@ -1859,7 +1859,7 @@ Evidence in `docs/evidence/marksman-angle-t1/`.
   `Phaser.Math.RND`). Render films with nothing else running; the
   verification is what keeps it out of the evidence.
 
-## The free-Bulwark rigs (Phase T2 — `?bulwarkAngle=1`, a candidate)
+## The free-Bulwark rigs (Phase T2 — `?bulwarkAngle=1`, HUMAN-APPROVED / FROZEN at `37135c9`, opt-in)
 
 Evidence in `docs/evidence/bulwark-angle-t2/`.
 
