@@ -1918,3 +1918,77 @@ Evidence in `docs/evidence/bulwark-angle-t2/`.
   symptom was a CSV with 112 "runs" ten minutes into a fresh launch. Keep the
   PID of every job in the launch and check `kill -0` on all of them before
   relaunching; a matrix whose code changed mid-run is discarded whole.
+
+## The R0 integration rigs (integrated-combat baseline — investigation only, nothing approved)
+
+Evidence in `docs/evidence/integrated-combat-r0/`. Configurations are exact URL
+flag strings (`CONFIGS` in `diag-integrated-r0.mjs`): **A** no flags, **B** the
+approved integration (`roster=v1&move=v22&gait=v2&bulwarkStuck=early&marksmanAngle=1&bulwarkAngle=1`),
+**C** B + `marksmanStuck=early`, plus isolations (`D_noBA`, `D_noMA`, `D_mkOnly`).
+
+- `diag-integrated-r0.mjs` — the T1/T2 instrument (imported unchanged) plus a
+  whole-roster observer: every role's motion, sharp turns, stop-go, stuck
+  sidesteps TAKEN, crowding; lines of fire / telegraphs / bolts on the player;
+  Marksman concurrency; seam census; wave log; VANGUARD clocks; super meter;
+  step wall time. `--only=check` (observer on/off and fresh page, four cases),
+  `census`, `mixed,nest,vanguard,prog,sniper` (`--shard=i/n`, sharded by CELL so
+  all configs of a cell run back to back), `diverge` (first B↔C tick and the
+  Marksmen's state there), `obstacle` (the 3C staged rig under the full URLs),
+  `perf`. Writes `raw/` CSVs.
+- `r0-report.mjs --csv=a+b [--t1]` — the tables the notes quote; `r0-merge.mjs`
+  — the consolidated `r0-integration-metrics.csv`.
+- `smoke-integration-r0.mjs` (standalone, :5173) — parser, seam census,
+  VANGUARD B = C = B-without-T2, Bulwark flags inert without Bulwarks, observer
+  inert. `--selftest` swaps B and C and must fail checks 1, 2 and 4.
+- `shot-integrated-r0.mjs` — the verified-film shutter with an all-role
+  overlay (stuck sidesteps in magenta, a v2.2 Gunner planted with its line cut
+  boxed in amber); every panel replayed headless and compared tick for tick.
+
+### What it taught
+
+- **THIS CONTAINER'S CHROMIUM IS NOT `chromium-1194`.** Every rig hard-codes
+  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`; this image ships
+  `chromium-1243/chrome-linux64/chrome`. A symlink at the old path
+  (`mkdir -p /opt/pw-browsers/chromium-1194/chrome-linux && ln -sf
+  /opt/pw-browsers/chromium-1243/chrome-linux64/chrome
+  /opt/pw-browsers/chromium-1194/chrome-linux/chrome`) fixes the current tree
+  AND every old-build worktree an identity check needs, without touching 150
+  files. The image may also lack `node_modules`: `npm ci` first.
+- **A CLOUD CHECKOUT CAN BE SHALLOW.** This one held 52 commits; suites that
+  `git diff` / `git show` an approved baseline (`smoke-roster-gunner` against
+  `6560c62`, the Enemy.js guard against `3ce5680`, others against `577c487`,
+  `cd4b0e9`) die on "bad revision". `git rev-parse --is-shallow-repository`;
+  `git fetch --unshallow origin` before the suites.
+- **`enemy-frozen.mjs` IS A LIBRARY.** It exports `enemyJsGuard`, which the
+  T1/T2/stuck smokes call; `node tests/enemy-frozen.mjs` runs nothing and exits
+  0. To check the guard alone:
+  `node -e "import('./tests/enemy-frozen.mjs').then((m) => console.log(m.enemyJsGuard(process.cwd() + '/')))"`.
+- **ROUND-ROBIN SHARDING OVER (cell, config) PUT EVERY CONFIG IN ITS OWN
+  PROCESS.** With three configs and three shards, shard *i* ran config *i*
+  only — deterministic rows, but every wall-time number compared configs
+  measured under different load. Shard by cell.
+- **AN OBSERVER CHANGE IS A NEW INSTRUMENT.** Each revision was re-proved inert
+  (`--only=check`) before its rows were kept, and a matrix already running on
+  the old module was stopped by PID and relaunched rather than merged.
+- **GOD-MODE PRESSURE IS NOT DIFFICULTY.** A pilot that never dodges, never
+  dashes and never dies loses a "full bar" in under a second in every config,
+  production included. Compare configs per cell/pilot/seed; never quote the
+  absolute numbers as how hard the game is.
+- **RENDERED STEP TIME HERE IS THE SOFTWARE RASTERISER.** Median 12–16ms with a
+  p95 of a second in MIXED; it predicts nothing about the phone. Headless step
+  time is the simulation cost.
+- **B AND C ARE ONE FIGHT FOR ~2 SECONDS.** They part on the first Marksman's
+  first 600ms stuck check (C stands the F1 arm down; B takes it the same
+  tick). Compare them paired, against the seed-to-seed spread — never as raw
+  totals.
+- **`?encdbg=1` (AUTO) IS THE REAL RESOLVER**, and a run that clears its wave
+  carries on into the next one: record the wave log, or a "cell" is several
+  encounters. Wave clears also differ by config (B enemies step into lines and
+  die sooner), so the same cell can reach a different wave.
+- **A HEADLESS REPLAY IS NOT UNCONDITIONALLY DETERMINISTIC.** `mixed:circle`
+  seed 16839 (C, or T2's `t1bw`) replayed on an idle machine: 2 of 16 replays
+  take 48 extra draws at tick 956 and become a different fight; the rest agree.
+  No real clock, no load, no rendering, no observer, no asynchrony inside the
+  loop — the cause is not found (register #10; R0 notes §12; `probes/`). An
+  identity check that fails once in such a cell is not yet a regression:
+  re-run it before believing it.

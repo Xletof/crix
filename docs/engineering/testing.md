@@ -28,6 +28,10 @@ vanguard-screen, captain), each A/B'd against the pre-T2 build. The live list is
 failing files exactly; never describe the suite as green when it is not, and
 never weaken a check to make it pass.
 
+- **Container browser path.** Rigs hard-code `chromium-1194`; an image that
+  ships another build needs the symlink in `tests/README.md` (R0 section) —
+  also for old-build worktrees used by identity sections.
+
 ## Rules for checks that tell the truth
 
 1. **A failure under load is not a regression** until it fails standalone AND

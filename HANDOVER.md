@@ -30,13 +30,27 @@ command, fix the line.*
   HUMAN-APPROVED / FROZEN and opt-in. Marksman stuck-recovery **3C**
   (`?marksmanStuck=early`) is **NOT independently approved** — it was ON while
   T1 was reviewed, which grants it nothing. Sections for each are below.
-- **NO NEXT PHASE IS AUTHORIZED.** The last HUMAN instruction was the T2
-  freeze plus a documentation-only closure and handover. Do not start AI,
-  navigation, combat or enemy work, and do not enable any approved flag by
-  default, without a NEW human instruction.
+- **R0 — INTEGRATED COMBAT BASELINE: INVESTIGATED, AWAITING THE HUMAN
+  HANDSET.** Configs A (no flags), B (the six approved flags) and C (B +
+  `marksmanStuck=early`) measured across MIXED, SNIPER NEST, VANGUARD ± Captain
+  and six ordinary-progression cells (`docs/evidence/integrated-combat-r0/`).
+  No gameplay code changed; nothing approved, frozen or made default.
+  Classification: **R0 NEEDS A SPECIFIC CORRECTION BEFORE HUMAN REVIEW** —
+  the v2.2 planted-shot deadlock (register #6) appears in 5/12 integrated
+  `hide` progression runs (Gunners/Riflemen standing 25–46s); the smallest
+  gate is a proposed opt-in seam (G1), which reopens frozen v2.2 and needs
+  the human. Marksman stuck-B: recommended for its OWN handset gate (B vs C
+  URLs in the R0 notes §14), not approved.
+- **NO NEXT PHASE IS AUTHORIZED.** R0 was investigation only. Do not start AI,
+  navigation, combat or enemy work (G1 included), and do not enable any
+  approved flag by default, without a NEW human instruction.
 - **The full suite is NOT green:** `run-all` 47/52 at T2 (camera, deflect,
   vanguard-front, vanguard-screen, captain — each reproduced on the pre-T2
-  build). See the T2 section and the register below.
+  build). R0 did not re-run it (no `src/` change); standalone, camera,
+  vanguard-front, vanguard-screen and captain pass, deflect passes on re-run,
+  and `smoke-champion-placement` fails 5/60 here — identically on the pre-T2
+  build (a queue-snapshot timing artefact, register #9). See the T2 and R0
+  sections and the register below.
 - **Fresh session?** This block and the register are the orientation.
   `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
@@ -1151,6 +1165,11 @@ tactical-AI sequence is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md`.
 (above). **No milestone is started or authorized.** The next direction comes
 from the human; the candidates, none begun:
 
+- **R0 (integrated combat baseline) is INVESTIGATED, not approved**
+  (`docs/evidence/integrated-combat-r0/`). Its candidate next gates, none
+  authorized: the B-vs-C handset gate for Marksman stuck-B; *G1 — v2.2
+  planted-shot release* (reopens frozen v2.2, register #6); a handset review of
+  T1 pressure in the late Junction SNIPER NEST (register #19).
 - **T1 AND T2 ARE CLOSED — HUMAN-APPROVED / FROZEN, both opt-in** (above).
   No next tactical phase is selected. No shared AI redesign, VANGUARD tactical
   change or other archetype is started; the unresolved-work register below
@@ -1180,16 +1199,16 @@ approved behaviour needs its own human gate).
 
 | # | item | kind | status | source |
 |---|---|---|---|---|
-| 1 | Marksman stuck-recovery B (`?marksmanStuck=early`) has no independent approval; 3C's gameplay result was rejected and T1's approval does not cover it | approval gap | SEPARATE APPROVAL REQUIRED | Phase 3C section; `marksman-stuck-v3c/` |
+| 1 | Marksman stuck-recovery B (`?marksmanStuck=early`) has no independent approval; 3C's gameplay result was rejected and T1's approval does not cover it. R0: T1 engages the same without it; with it each Marksman loses ~4–6 false 50px skates a minute (half its sharp turns) and clears a long wall faster; no cost found. R0 recommends its own handset gate (B vs C) | approval gap | SEPARATE APPROVAL REQUIRED | Phase 3C section; `marksman-stuck-v3c/`; `integrated-combat-r0/` §9 |
 | 2 | A Marksman retreat pinned on cover is not recovered (logged `retreatBlocked`; the base recovery only serves the approach) | confirmed defect | DEFERRED | `marksman-stuck-v3c/marksman-stuck-candidate-notes.md` |
 | 3 | The free Bulwark's `fireCd` does not count down while the line is cut, so a reacquired line waits ~0.5–0.9s (median) for the WARN | frozen pipeline behaviour | HUMAN-ACCEPTED inside T2; changing it is SEPARATE APPROVAL REQUIRED | T2 notes, "cooldown finding" |
 | 4 | T2 gives less pressure than the frozen hold against a player circling one console (MIXED circle pilot hits 33.5 → 20–24.5/min, rear exposure 1.0% → 4.6%) | accepted limitation | HUMAN-ACCEPTED | T2 notes, known limitations |
 | 5 | T2's 600ms KEEP and 1.2 / 1.8 / 2.4s BRACE | approved behaviour | HUMAN-ACCEPTED — do not reopen speculatively | T2 notes |
-| 6 | v2.2 Gunner plant-for-the-shot deadlock: a Gunner whose line drops inside the last 160ms of its warning stands still for good (16–28s blind holds measured in the Hangar) | confirmed defect in frozen code | DEFERRED | 3C-B; `tactical-engagement-audit/` |
+| 6 | v2.2 Gunner plant-for-the-shot deadlock: a Gunner whose line drops inside the last 160ms of its warning stands still for good (16–28s blind holds measured in the Hangar). R0: in ordinary progression with a hiding player it appears in 5/12 integrated runs (Gunners and a Rifleman, 25–46s, 100% of held ticks the plant), never in production; the R0 blocker; proposed gate G1 | confirmed defect in frozen code | DEFERRED — blocks an integrated rollout; a fix needs the human (reopens v2.2) | 3C-B; `tactical-engagement-audit/`; `integrated-combat-r0/` §8 |
 | 7 | Cover's bush registration can never hide a colliding player (56.5px reachable vs a 48.4px radius) | confirmed defect | DEFERRED | 3C-B; `tactical-engagement-audit/` |
 | 8 | `NavGrid.findPath` returns a one-node path AT THE TARGET when no route exists, so a caller following it walks straight at the target (its own comment: it "reads as broken AI"); T1/T2's `route()` treats that fallback as no route; and NavGrid's fixed 23px clearance routes large bodies through gaps they cannot enter | engine debt | DEFERRED | `src/systems/NavGrid.js`; "open technical debt" above |
-| 9 | Full `run-all` 47/52 at T2 (camera, deflect, vanguard-front, vanguard-screen, captain), 49/52 at T1 (nemesis, music-tiers, champion-placement); all frame-rate-sensitive, each T2 failure reproduced on `b1ab701` | test flakiness under a slow runner | TEST INFRASTRUCTURE DEBT | T2 / T1 sections |
-| 10 | Two unexplained evidence-film divergences under concurrent load (T1 cover-hop panel, tick 479); only films verified tick for tick were published | renderer/harness | TEST INFRASTRUCTURE DEBT — INVESTIGATION REQUIRED | `tests/README.md` (T1 section) |
+| 9 | Full `run-all` 47/52 at T2 (camera, deflect, vanguard-front, vanguard-screen, captain), 49/52 at T1 (nemesis, music-tiers, champion-placement); all frame-rate-sensitive, each T2 failure reproduced on `b1ab701`. R0 (standalone, new container): the four T2 failures other than deflect pass; deflect passes on re-run; `smoke-champion-placement` fails 5/60 twice and identically on `b1ab701` — it reads `_spawnQueue` 600ms after `_wave`, by which time the first lead spawn has been dequeued (`_waveSpawned` 1), so the Captain reads one slot early; in-game order is authored | test flakiness under a slow runner; a snapshot-timing read | TEST INFRASTRUCTURE DEBT | T2 / T1 sections; R0 notes §11a |
+| 10 | Two unexplained evidence-film divergences under concurrent load (T1 cover-hop panel, tick 479); only films verified tick for tick were published. R0: it also happens in PLAIN HEADLESS replays on an idle machine — `mixed:circle` seed 16839 (C / `t1bw`) takes 48 extra draws at tick 956 in 2 of 16 replays; cause not found (no real clock, load, render or in-loop asynchrony) | renderer/harness | TEST INFRASTRUCTURE DEBT — INVESTIGATION REQUIRED | `tests/README.md` (T1 and R0 sections); R0 notes §12 |
 | 11 | A long-running Vite dev server with HMR edits serves a module twice (`smoke-encdbg` 31/33 → 33/33 after restart) | harness trap | TEST INFRASTRUCTURE DEBT | caveats below |
 | 12 | Shared stuck detection: both false classes (first check, hold → resume) remain for every role except the Bulwark (3B) and, opt-in, the Marksman | shared defect in frozen `Enemy.js` | SEPARATE APPROVAL REQUIRED | `shared-stuck-audit/` |
 | 13 | Gunner / Rifleman / Marksman v1 Elite-death RNG mismatch (smaller kill juice → fewer draws) | confirmed divergence | DEFERRED | "open technical debt" above |
@@ -1197,7 +1216,9 @@ approved behaviour needs its own human gate).
 | 15 | `_applySectorScaling` computes a wave `count` nothing reads (enemy count never scaled by sector) | known, deliberately carried | DEFERRED — a balance decision | `docs/engineering/encounters.md` |
 | 16 | `DebugScene._skipWave` leaves `arenaActive` false | debug-only bug | DEFERRED | `docs/engineering/encounters.md` |
 | 17 | `smoke-captain-rifle` "burst fires exactly the length it drew" intermittent | instrument | TEST INFRASTRUCTURE DEBT | "open technical debt" above |
-| 18 | Default rollout of `?roster=v1`, `?gait=v2`, `?move=v22`, `?bulwarkStuck=early`, `?marksmanAngle=1`, `?bulwarkAngle=1` | rollout decision | SEPARATE APPROVAL REQUIRED | each section |
+| 18 | Default rollout of `?roster=v1`, `?gait=v2`, `?move=v22`, `?bulwarkStuck=early`, `?marksmanAngle=1`, `?bulwarkAngle=1` | rollout decision | SEPARATE APPROVAL REQUIRED — R0 found the configurations integrate cleanly as software and are blocked as a baseline by #6 | each section; `integrated-combat-r0/` |
+| 19 | T1 Marksman pressure outside Detention: in the late-band Junction SNIPER NEST (sector 14+, five Marksmen) T1 raises Marksman damage ×2.6 pooled (×5+ on a hiding player) and Marksman double hits (≤500ms) ~7x; T1 was reviewed only in Detention s8/s12 | unreviewed fairness | HUMAN HANDSET QUESTION | `integrated-combat-r0/` §6 |
+| 20 | Rigs hard-code `chromium-1194`; this container ships 1243 (symlink fix in `tests/README.md`, R0 section) | harness environment | TEST INFRASTRUCTURE DEBT | `tests/README.md` |
 
 ### Process and evidence caveats the next session needs
 

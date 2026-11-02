@@ -451,3 +451,26 @@ Entries under the headings below were migrated from the root `CLAUDE.md` as it s
   - **IT PUBLISHES `_angDest`**, the same claim field T1 publishes, so with
     both flags T1 Marksmen avoid a Bulwark's destination — by design, through
     T1's existing generic read; T1's own code is byte-identical.
+
+### Integration (R0 — investigation, `docs/evidence/integrated-combat-r0/`)
+
+- **The seams compose as built.** Measured on live spawns with the real flag
+  parser: T1 on every ordinary Marksman (Regular and Elite), Marksman stuck-B
+  only with `marksmanStuck=early`, Bulwark stuck-B on every Bulwark including
+  screens and openers, T2 on every free Bulwark and never a screen, v2.2 on every
+  Gunner and Rifleman, nothing on the Captain, swarmlings or nemeses. VANGUARD ±
+  Captain is tick-identical with T2 on or off and with Marksman stuck-B on or
+  off. `tests/smoke-integration-r0.mjs` asserts all of this.
+- **T1 defers to a stuck sidestep only in its APPROACH branch.** A base arm made
+  while a T1 Marksman HOLDS is consumed by the next approach (the hold→resume
+  skate) unless `marksmanStuck=early` stands it down at the top of that tick.
+  So T1 alone still shows ~4–6 false 50px skates per Marksman-minute; the same
+  fights with Marksman stuck-B show ~0.
+- **The v2.2 plant (`_warnFlashed && fireCd < 160` → velocity 0) holds a body
+  still for as long as its line stays cut**, because `_maybeFireAt` only counts
+  `fireCd` down with a line. A hiding player triggers it in ordinary waves
+  (register #6). Measure it as blind standing with `_warnFlashed` set, not as
+  stuck.
+- **Bulwark flags are inert in a Bulwark-free fight** (T1's handset URL and the
+  full integration are tick-identical in SNIPER NEST), and **B and C diverge on
+  the first Marksman's first stuck check**, ~1.6–4.6s into a fight.
