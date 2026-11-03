@@ -1992,3 +1992,30 @@ approved integration (`roster=v1&move=v22&gait=v2&bulwarkStuck=early&marksmanAng
   loop — the cause is not found (register #10; R0 notes §12; `probes/`). An
   identity check that fails once in such a cell is not yet a regression:
   re-run it before believing it.
+
+## R1 — the integrated configuration became the default
+
+Since the R1 rollout, a page with NO query flags runs the HUMAN-approved
+integrated configuration (R0's "C"): roster v1, move v22, gait v2,
+`bulwarkStuck=early`, `marksmanStuck=early`, `marksmanAngle=1`,
+`bulwarkAngle=1`. `?baseline=legacy` runs the pre-R1 game; each flag still
+overrides one switch (`?marksmanStuck=off` = R0's B). Grammar:
+`src/systems/debug.js`, THE GAMEPLAY BASELINE.
+
+- **Every pre-R1 rig keeps its meaning by pinning the legacy baseline.**
+  `bootPage` (`diag-stuck-audit.mjs`) adds `baseline=legacy` unless the flags
+  name a baseline; `baseline: null` sends the flags as given (the true no-flags
+  page). The seven flag-aware standalone smokes (`smoke-roster-seams`,
+  `-roster-gunner`, `-roster-2b`, `-move-v2`, `-gait-v2`, `-bulwark`,
+  `-demolisher`) pin it at their single `goto` (`pinLegacy`). An older build
+  ignores the parameter, so old-build identity sections are unaffected.
+- **The run-all suites were NOT pinned**: they now test what ships. See the R1
+  section of the R0 notes for which (if any) needed `baseline=legacy`.
+- **R0's configs** (`CONFIGS` in `diag-integrated-r0.mjs`): A/B/C/D are
+  legacy-baseline strings and mean what they meant; `P` (no flags), `C_url`
+  (C's handset URL with no baseline) and `B_off` (`marksmanStuck=off`) load
+  without a baseline — `bootOpts(cfg)` builds the options.
+- `smoke-integration-r0.mjs` is the rollout's gate: sections 0, 6, 7 and 8
+  prove the default, the fallback, the per-flag grammar, P = C = C_url tick for
+  tick (spawn order included), identity with the pre-rollout build in both
+  directions (`--old=` a `2ab24af` server), and restart / quit / reload.

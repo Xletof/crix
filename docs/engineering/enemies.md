@@ -4,17 +4,20 @@
 
 | system | status | flag |
 |---|---|---|
-| Five-role roster visuals (Gunner, Rifleman, Marksman, Bulwark, Demolisher; Regular + Elite) | HUMAN-APPROVED / FROZEN | `?roster=v1` (opt-in) |
-| Movement v2.2, gait v2 | HUMAN-APPROVED / FROZEN | `?move=v22`, `?gait=v2` (opt-in) |
-| Bulwark stuck recovery, candidate B (`f8ea738`) | HUMAN-APPROVED / FROZEN | `?bulwarkStuck=early` (opt-in); `=prog` kept for comparison only |
-| Marksman stuck recovery A / B | **NOT approved** (3C's gameplay result was rejected) | `?marksmanStuck=prog\|early` |
-| Marksman T1 tactical engagement (`0b772cf`) | HUMAN-APPROVED / FROZEN | `?marksmanAngle=1` (opt-in) |
-| Free-Bulwark T2 tactical engagement (`37135c9`) | HUMAN-APPROVED / FROZEN | `?bulwarkAngle=1` (opt-in) |
+| Five-role roster visuals (Gunner, Rifleman, Marksman, Bulwark, Demolisher; Regular + Elite) | HUMAN-APPROVED / FROZEN | `roster=v1` — **default since R1** |
+| Movement v2.2, gait v2 | HUMAN-APPROVED / FROZEN | `move=v22`, `gait=v2` — **default since R1** |
+| Bulwark stuck recovery, candidate B (`f8ea738`) | HUMAN-APPROVED / FROZEN | `bulwarkStuck=early` — **default since R1**; `=prog` kept for comparison only |
+| Marksman stuck recovery B | **HUMAN-APPROVED / FROZEN (2026-11-03)** in the integrated configuration; A (`prog`) not approved | `marksmanStuck=early` — **default since R1** |
+| Marksman T1 tactical engagement (`0b772cf`) | HUMAN-APPROVED / FROZEN | `marksmanAngle=1` — **default since R1** |
+| Free-Bulwark T2 tactical engagement (`37135c9`) | HUMAN-APPROVED / FROZEN | `bulwarkAngle=1` — **default since R1** |
 | Shared stuck-detection correction for other roles | audit done, correction NOT authorized | — |
 
-None of these flags is a production default; making one default is a separate
-human decision. Neither T1 nor T2 gameplay may change — not a parameter — without
-new human authorization.
+R1 (2026-11-03) made the HUMAN-approved integrated configuration — all seven
+above — the no-flags default (`systems/debug.js`, THE GAMEPLAY BASELINE).
+`?baseline=legacy` is the pre-R1 game; `?<flag>=off` turns one switch off. No
+module or parameter changed in the rollout, and none may change without new
+human authorization. The v2.2 planted-shot deadlock (register #6) ships with the
+default as a known defect; G1 is its proposed, unauthorized correction.
 
 ## Invariants
 

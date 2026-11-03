@@ -1,0 +1,14 @@
+smoke-integration-r0 rc=1 332s 42/43 passed
+smoke-roster-seams rc=0 160s 70/70 checks passed
+smoke-roster-gunner rc=0 251s 72/72 checks passed
+smoke-roster-2b rc=0 255s 74/74 checks passed
+smoke-move-v2 rc=0 57s 9/9 checks passed
+smoke-gait-v2 rc=0 468s 16/16 checks passed
+smoke-stuck-audit rc=0 87s 40 passed, 0 failed
+smoke-bulwark-stuck rc=0 71s 42 passed, 0 failed
+smoke-marksman-stuck rc=0 125s 81 passed, 0 failed
+smoke-marksman-angle rc=0 279s 50 passed, 0 failed
+smoke-bulwark-angle rc=0 449s 75 passed, 0 failed
+smoke-bulwark rc=0 679s 92/92 checks passed
+smoke-demolisher rc=0 845s smoke-demolisher: 91/91
+DONE

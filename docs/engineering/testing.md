@@ -28,6 +28,11 @@ vanguard-screen, captain), each A/B'd against the pre-T2 build. The live list is
 failing files exactly; never describe the suite as green when it is not, and
 never weaken a check to make it pass.
 
+- **The default changed in R1.** No flags now means the integrated production
+  configuration; a check that compares against pre-R1 behaviour must name
+  `baseline=legacy` (`bootPage` pins it by default; the seven flag-aware
+  standalone smokes pin it at their single `goto`). The run-all suites run the
+  production default.
 - **Container browser path.** Rigs hard-code `chromium-1194`; an image that
   ships another build needs the symlink in `tests/README.md` (R0 section) —
   also for old-build worktrees used by identity sections.

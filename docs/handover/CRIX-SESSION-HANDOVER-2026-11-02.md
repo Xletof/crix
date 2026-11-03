@@ -71,6 +71,12 @@ GitHub MCP `actions_list` with `resource_id: deploy.yml`). A docs-only push to
 
 ## 3. Approval and freeze ledger
 
+> **Superseded 2026-11-03 (R1):** the human approved the integrated
+> configuration and made it the production default, and approved Marksman
+> stuck-B (`early`) in it. The rows below are the ledger as it stood on
+> 2026-11-02 — "opt-in" and "NOT approved" for 3C-B are historical. Current
+> status: `HANDOVER.md` §0.
+
 "Approved" = a HUMAN handset verdict. "Opt-in" = only active with its URL flag.
 **Nothing on this list is a production default unless the row says so.**
 

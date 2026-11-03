@@ -14,8 +14,9 @@ framework, no sprite image assets.
   `ShockCaptain`, `Bullet`.
 - `src/systems/` — `CameraDirector`, `MoveScript` + `Telegraph` (scripted moves),
   `FX`, `HUD`, `EnvLight`, `NavGrid`, `pixelArt` (all sprites are painted in code
-  via `PixelCanvas` / `SpriteSheet`, palette `PAL`), opt-in AI seams
-  (`bulwark*`, `marksman*`, `firingSpot`), `debug.js` (URL flags).
+  via `PixelCanvas` / `SpriteSheet`, palette `PAL`), the AI seams
+  (`bulwark*`, `marksman*`, `firingSpot`; on by default since R1), `debug.js`
+  (URL flags and the gameplay baseline).
 - `src/data/` — registries: `rooms`, `encounters`, `bossMoves`, `upgrades`,
   `consoleKit`, `nemesis*`. `src/config.js` holds every tuning value.
 - `tests/` — standalone Playwright scripts against the dev server.
@@ -48,20 +49,25 @@ gates below still apply.
 - The human plays the GitHub Pages build on a phone. A human handset verdict is
   the only thing that approves a gameplay or visual system, and approval freezes
   it. Passing tests, metrics and screenshots never approve anything.
-- Frozen as of 2026-11-02 (§0 wins if this list drifts): Vader, the camera,
+- Frozen as of 2026-11-03 (§0 wins if this list drifts): Vader, the camera,
   all four arenas, encounter composition, Champion placement and VANGUARD
   rules, the Shock Captain, roster visuals, movement v2.2 and gait v2, Bulwark
-  field and Demolisher, Bulwark stuck-B, Marksman T1, free-Bulwark T2. Reopen a
+  field and Demolisher, Bulwark stuck-B, Marksman stuck-B, Marksman T1,
+  free-Bulwark T2, and the integrated production configuration (R1). Reopen a
   frozen system's behaviour or tuning only on an explicit human instruction
   naming it. Notes about a frozen system explain it; they don't invite changes
   to it.
-- Opt-in is not default. `?roster=v1`, `?gait=v2`, `?move=v22`,
-  `?bulwarkStuck=early`, `?marksmanAngle=1` and `?bulwarkAngle=1` are approved
-  but opt-in; `?marksmanStuck=*` is not approved. Making any flag the default
-  is its own human decision.
+- The production default (R1) is the HUMAN-approved integrated configuration:
+  roster v1, move v22, gait v2, Bulwark and Marksman stuck-B (`early`),
+  Marksman T1, free-Bulwark T2 — no flags needed. `?baseline=legacy` is the
+  pre-R1 game; each flag overrides one switch (grammar in `systems/debug.js`,
+  "THE GAMEPLAY BASELINE"). `?marksmanStuck=prog` and `?bulwarkStuck=prog` are
+  not approved. Changing the default is its own human decision. Test rigs that
+  compare against pre-R1 behaviour pin `baseline=legacy` (`bootPage` does).
 - `src/entities/Enemy.js` is frozen (guarded by `tests/enemy-frozen.mjs`). New
   enemy behaviour goes in a seam module installed from `GameScene.spawnEnemyAt`,
-  with flag-off behaviour proven identical to the previous build.
+  with flag-off behaviour (`?baseline=legacy` plus the flag off) proven
+  identical to the previous build.
 - A task the human gives you authorizes its own scope: complete it end to end
   without asking permission for routine decisions. Stop and ask only when the
   next step would change a frozen system, flip a default, or settle a design

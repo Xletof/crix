@@ -1,5 +1,114 @@
 # R0 — Integrated combat production-readiness baseline
 
+## HUMAN verdict — 2026-11-03, and the R1 rollout
+
+> Test 1, old production versus integrated configuration C: PASS — the
+> integrated experience is preferred. Test 2, Marksman stuck-B OFF versus ON:
+> PASS — the correction is accepted. Additional gameplay tests, including
+> SNIPER NEST: PASS — the combat is fair. "Let's roll."
+
+* **Configuration C is HUMAN-APPROVED for production** and is the no-flags
+  default since R1 (`7bd6e6f`): roster v1, move v22, gait v2,
+  `bulwarkStuck=early`, `marksmanStuck=early`, `marksmanAngle=1`,
+  `bulwarkAngle=1`.
+* **Marksman stuck-B (`marksmanStuck=early`) is HUMAN-APPROVED / FROZEN** in
+  that configuration (the recommendation of §9, decided on the handset).
+* T1, T2, Bulwark stuck-B, roster, gait and movement approvals are unchanged
+  and frozen. The rollout changed no module and no tuning: it is one baseline
+  selector (`systems/debug.js`, THE GAMEPLAY BASELINE) and one call in
+  `BootScene`.
+* **The v2.2 planted-shot deadlock (§8, register #6) shipped with the default
+  by the human's decision. It is NOT resolved and NOT approved behaviour; G1
+  is its proposed separate correction, not authorized.** The classification
+  below was R0's before the human's verdict; the human chose to roll out
+  without the correction.
+
+**What the R0 labels mean after R1** (they keep their meaning; the URLs below
+were written when no flags meant the legacy game):
+
+| R0 label | R1 URL |
+|---|---|
+| A — the pre-R1 default | `?baseline=legacy` |
+| B | `?marksmanStuck=off` (= `?baseline=legacy&roster=v1&move=v22&gait=v2&bulwarkStuck=early&marksmanAngle=1&bulwarkAngle=1`) |
+| C — the approved configuration | no flags (= the C URLs in §14, unchanged in effect) |
+
+So in §14, the **A** URLs now need `baseline=legacy` and the **B** URLs need
+`marksmanStuck=off` (as written they now run C); the **C** URLs still run C.
+`tests/smoke-integration-r0.mjs` proves all of this, including tick-for-tick
+identity of `?baseline=legacy` with the pre-R1 build's no-flags game and of
+the no-flags default with the pre-R1 build's C URL.
+
+### R1 validation (the rollout is a configuration change; `src/` diff = `systems/debug.js` + `BootScene.js`)
+
+**The default, proven** (`tests/smoke-integration-r0.mjs`, 47/47 with a
+`2ab24af` server on :5174; log `r1/smoke-integration-r0-with-2ab24af.log`):
+
+* No flags → `baseline: production`, all seven switches as C; `?baseline=production`
+  the same; the old C URL and `?marksmanStuck=off` (B) parse as intended; each
+  switch turns on alone from legacy and off alone from production; a duel's
+  `?move=slidesmash` keeps the baseline locomotion.
+* Seam census on the no-flags default = C's (MIXED, SNIPER NEST, VANGUARD +
+  Captain): T1 + stuck-B on every ordinary Marksman, stuck-B + T2 on every free
+  Bulwark, stuck-B and never T2 on screens, v2.2 on Gunners/Riflemen, nothing on
+  the Captain, swarmlings or nemeses.
+* **The no-flags default, legacy-baseline C and the old C URL are one fight**
+  — trace, random draws and spawn log (type, tick, place) identical — in MIXED,
+  SNIPER NEST (`hop2`), VANGUARD + Captain and Hangar s10 progression.
+  `?marksmanStuck=off` = legacy-baseline B, tick for tick.
+* **Against the pre-rollout build (`2ab24af`)**: `?baseline=legacy` here is its
+  no-flags game tick for tick and draw for draw (MIXED, VANGUARD + Captain,
+  Hangar s2); the no-flags default here is its C URL tick for tick (MIXED,
+  SNIPER NEST). The MIXED and SNIPER NEST default hashes (444760300,
+  17033426) are also R0's verified C film panels.
+* Restart (the pause menu's own `_restart`), quit-to-title + new run, and a
+  reload keep the effective configuration and the seams a fresh spawn gets,
+  for the default and for `?baseline=legacy`.
+* R0's documented rare replay non-determinism (§12) did not surface in any R1
+  identity check; every one compared seed-matched runs and all were identical.
+
+**The full suite under the NEW DEFAULT** (`run-all`, nothing else running; log
+`r1/run-all-default.log`): **46/52**. Failing: camera, champion-placement,
+vanguard-screen, vanguard-reinforce, deflect, readability. Each was re-run
+standalone twice — as shipped (default) and with `baseline=legacy` pinned
+(which is the pre-rollout game tick for tick) — `r1/ab-*`:
+
+| suite | default, standalone | legacy, standalone | verdict |
+|---|---|---|---|
+| `smoke-camera` | fails (the Vader "fully-opaque interval" observation) | fails, the same check | not the rollout |
+| `smoke-champion-placement` | 55/60, the five queue-snapshot checks | the same five (+1 git check: an artefact of running the copy outside the repo) | not the rollout (R0 §11a, register #9) |
+| `smoke-vanguard-screen` | **22/22** | 21/22 + the git artefact: the screen settled at 114px | a real-time settle flake in both baselines |
+| `smoke-vanguard-reinforce` | **26/26** | 26/26 | full-run load timing |
+| `smoke-deflect` | **73/73** | 73/73 | full-run load timing |
+| `smoke-readability` | **19/19** | 19/19 | full-run load timing |
+
+No run-all suite depends on the old default, so none was pinned: the full
+suite now tests the shipped game. It remains **not green** on record.
+
+**Legacy-pinned standalone suites** (their meaning preserved; old-build identity
+sections against `690ed9b`, `f752b3f`, `95adb1f`, `b1ab701`; log
+`r1/standalone-legacy-pinned-summary.txt`) — every one passes with the same
+count as before the rollout: `smoke-roster-seams` 70/70, `-roster-gunner`
+72/72, `-roster-2b` 74/74, `-move-v2` 9/9, `-gait-v2` 16/16, `-stuck-audit`
+40/40, `-bulwark-stuck` 42/42, `-marksman-stuck` 81/81, `-marksman-angle`
+50/50, `-bulwark-angle` 75/75, `-bulwark` 92/92, `-demolisher` 91/91.
+`smoke-integration-r0 --selftest` (B and C swapped) fails exactly its seven
+expected checks (11/18).
+
+**Production bundle**: `npm run build` passes; the bundle carries both
+baselines (`production: {roster:"v1", move:"v22", gait:"v2",
+bulwarkStuck:"early", marksmanStuck:"early", marksmanAngle:!0,
+bulwarkAngle:!0}`, `legacy: {…all off}`). `vite preview` of `dist/`, driven
+through the real title (`r1/prod-preview.mjs`): no flags and
+`?baseline=legacy` both boot and reach a wave with no page or console errors,
+and no debug hook (`window.game` there is only the `<div id="game">`); the
+default wears the roster-v1 troopers and Bulwark field
+(`r1/prod-bundle-default-wave1.png`), the fallback the legacy roster
+(`r1/prod-bundle-baseline-legacy-wave1.png`).
+
+---
+
+*Below: R0 as written before the verdict.*
+
 **INVESTIGATION ONLY. Nothing here is approved, frozen or a default.** R0 changes
 no gameplay code: `src/` is byte-identical to the approved T2 baseline `37135c9`
 (and to the start of this session, `2af949a`). Every system it exercises keeps
@@ -599,6 +708,9 @@ the Marksman question.**
   question with a clear recommendation (§9).
 
 ## 14. Handset review package
+
+*(Written for the pre-R1 game. Since R1: A = `?baseline=legacy`, B =
+`?marksmanStuck=off`, C = no flags — see the R1 section at the top.)*
 
 Live build: `https://xletof.github.io/crix/` (Pages from `FRIX`). All URLs use
 the real flag parser and the real `?encdbg` debug entry (the encounter overlay

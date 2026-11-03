@@ -1,0 +1,13 @@
+smoke-vanguard-screen default rc=0 282s | PASS: 22 checks — VANGUARD shields close to a screen; nothing else moved
+smoke-vanguard-screen legacy rc=1 272s | FAIL: 2 of 22 checks failed: 5a97fd4 must be reachable in git to compare the Shielded config; the VANGUARD screen holds in the close band (~140px): me
+smoke-vanguard-reinforce default rc=0 48s | PASS: 26 checks — one more guaranteed shield, same budget, and the surge cannot steal the queue
+smoke-vanguard-reinforce legacy rc=0 49s | PASS: 26 checks — one more guaranteed shield, same budget, and the surge cannot steal the queue
+smoke-camera default rc=1 75s | FAIL:
+smoke-camera legacy rc=1 71s | FAIL:
+smoke-deflect default rc=0 60s | PASS: 73 checks — he bats your fire back and keeps your power
+smoke-deflect legacy rc=0 58s | PASS: 73 checks — he bats your fire back and keeps your power
+smoke-readability default rc=0 120s | PASS: 19 checks — the attacks can be seen coming
+smoke-readability legacy rc=0 114s | PASS: 19 checks — the attacks can be seen coming
+smoke-champion-placement default rc=1 688s | FAIL: 5 of 60 checks failed: EXACTLY ONE Captain token, in his authored lead slot; every other event is the SAME event, in the same order — no hidde
+smoke-champion-placement legacy rc=1 608s | FAIL: 6 of 58 checks failed: the approved baseline 6560c62 must be reachable in git to prove the freeze; EXACTLY ONE Captain token, in his authored le
+DONE
