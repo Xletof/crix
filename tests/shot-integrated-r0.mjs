@@ -28,7 +28,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { CHROME, bootPage } from './diag-stuck-audit.mjs';
 import { installTac, R, BRANCH } from './diag-tactical-engagement.mjs';
-import { CONFIGS, Q } from './diag-integrated-r0.mjs';
+import { CONFIGS, Q, bootOpts } from './diag-integrated-r0.mjs';
 
 const ARGS = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').split('=').slice(1).join('=') || d;
@@ -41,7 +41,7 @@ const b64 = (buf) => `data:image/png;base64,${buf.toString('base64')}`;
 const VCOL = { A: '#c8ccd6', B: '#9fe0a8', C: '#ffd28a', D_noBA: '#9fc8ff' };
 
 async function plainPage(cfg, q, seed) {
-  const p = await bootPage(browser, { flags: CONFIGS[cfg], q, seed });
+  const p = await bootPage(browser, { ...bootOpts(cfg), q, seed });
   await installTac(p);
   await p.evaluate(() => { window.__headless = true; });
   return p;

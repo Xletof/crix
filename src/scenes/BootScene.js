@@ -2,8 +2,7 @@ import Phaser from 'phaser';
 import {
   setDialogueMuted, setDuelRequest, parseDuelParams, setHitstopMuted, setMoveNamesMuted,
   setEncDebug, setEncForce, parseEncDebugParams, setChampDebug, setChampWhich, setChampPlacementOff, setVanguardScreenOff, setVanguardFrontOff,
-  setCapTel, setRosterVersion, setShowColliders, setMoveV2, setMoveV21, setMoveV22, setGaitV2,
-  setBulwarkStuck, setMarksmanStuck, setMarksmanAngle, setBulwarkAngle,
+  setCapTel, setShowColliders, applyGameplayFlags,
 } from '../systems/debug.js';
 import { ENCOUNTERS } from '../data/encounters.js';
 import { CAMERA } from '../config.js';
@@ -23,24 +22,15 @@ export class BootScene extends Phaser.Scene {
     if (params.has('nodlg')) setDialogueMuted(true);
     // `?nofreeze=1` mutes hitstop. Harnesses only — see systems/debug.js.
     if (params.has('nofreeze')) setHitstopMuted(true);
-    // `?roster=v1` selects the redesigned roster PRESENTATION (legacy is the
-    // default); `?colliders=1` draws enemy physics footprints. Both are
-    // presentation/diagnostic only — see systems/debug.js.
-    if (params.get('roster') === 'v1') setRosterVersion('v1');
+    // THE GAMEPLAY BASELINE (R1): the HUMAN-approved integrated configuration
+    // is the default — roster v1, move v22, gait v2, Bulwark and Marksman stuck
+    // B, Marksman T1, free-Bulwark T2. `?baseline=legacy` selects the pre-R1
+    // game; `?roster=` `?move=` `?gait=` `?bulwarkStuck=` `?marksmanStuck=`
+    // `?marksmanAngle=` `?bulwarkAngle=` override one switch each. Grammar and
+    // the R0 experiment labels: systems/debug.js, "THE GAMEPLAY BASELINE".
+    applyGameplayFlags(params);
+    // `?colliders=1` draws enemy physics footprints (diagnostic only).
     if (params.has('colliders')) setShowColliders(true);
-    if (params.get('move') === 'v2') setMoveV2(true);
-    if (params.get('move') === 'v21') setMoveV21(true);
-    if (params.get('move') === 'v22') setMoveV22(true);
-    if (params.get('gait') === 'v2') setGaitV2(true);
-    // `?bulwarkStuck=prog|early` — the Phase 3B Bulwark-only stuck-recovery
-    // candidates; anything else is the frozen default. See systems/debug.js.
-    if (params.has('bulwarkStuck')) setBulwarkStuck(params.get('bulwarkStuck'));
-    // `?marksmanStuck=prog` — the Phase 3C Marksman-only candidate.
-    if (params.has('marksmanStuck')) setMarksmanStuck(params.get('marksmanStuck'));
-    // `?marksmanAngle=1` — the Phase 3C-T1 Marksman firing-angle candidate.
-    if (params.get('marksmanAngle') === '1') setMarksmanAngle(true);
-    // `?bulwarkAngle=1` — the Phase T2 free-Bulwark tactical-engagement candidate.
-    if (params.get('bulwarkAngle') === '1') setBulwarkAngle(true);
     // `?nonames=1` hides Vader's ATTACK-NAME callouts, and only those, so a
     // reviewer can judge whether each move reads without its label.
     if (params.has('nonames')) setMoveNamesMuted(true);

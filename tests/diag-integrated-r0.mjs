@@ -54,7 +54,16 @@ export const CONFIGS = {
   D_noBA: 'roster=v1&move=v22&gait=v2&bulwarkStuck=early&marksmanAngle=1',          // B without T2: VANGUARD contamination
   D_noMA: 'roster=v1&move=v22&gait=v2&bulwarkStuck=early&bulwarkAngle=1',           // B without T1: what T1 adds in the mix
   D_mkOnly: 'roster=v1&move=v22&gait=v2&bulwarkStuck=early&bulwarkAngle=1&marksmanStuck=early', // stuck-B without T1
+  // R1 — C BECAME THE DEFAULT. Every config above is relative to the LEGACY
+  // baseline (`bootPage` pins `baseline=legacy`), so A/B/C/D mean exactly what
+  // they meant in R0. These three load with NO baseline parameter (`RAW_CFG`):
+  P: '',                                          // the literal no-flags page: the production default
+  C_url: `${B_FLAGS}&marksmanStuck=early`,        // C's handset URL as the human opened it (no baseline named)
+  B_off: 'marksmanStuck=off',                     // B as one override on the production default
 };
+export const RAW_CFG = new Set(['P', 'C_url', 'B_off']);
+/** bootPage options for a config: its flags, and no pinned baseline for the RAW ones */
+export const bootOpts = (cfg) => ({ flags: CONFIGS[cfg], ...(RAW_CFG.has(cfg) ? { baseline: null } : {}) });
 export const Q = {
   mixed: TQ.mixed,                        // Detention, sector 12, wave 2 — MIXED forced
   nest: TQ.nest,                          // Detention, sector 8, wave 2 — SNIPER NEST forced
@@ -327,7 +336,7 @@ export function marksmanSidesteps(tac, meta) {
 // ── runner ─────────────────────────────────────────────────────────────────
 const SEEDS3 = [1001, 8920, 16839];   // the T1/T2 seeds, so C can be checked against their CSV
 async function r0Page(browser, cfg, q, seed) {
-  const p = await bootPage(browser, { flags: CONFIGS[cfg], q, seed });
+  const p = await bootPage(browser, { ...bootOpts(cfg), q, seed });
   await installTac(p);
   await installR0(p);
   await p.evaluate(() => { window.__headless = true; });

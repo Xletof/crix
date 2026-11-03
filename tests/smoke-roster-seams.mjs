@@ -23,6 +23,12 @@
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 
+// R1: every URL here was written when no flags meant the legacy game, so each is
+// pinned to `?baseline=legacy` (unless it names a baseline) and keeps its
+// meaning now that the integrated configuration is the default. An older build
+// ignores the parameter. See systems/debug.js, THE GAMEPLAY BASELINE.
+const pinLegacy = (q) => (/[?&]baseline=/.test(q) ? q : q.startsWith('?') ? `?baseline=legacy&${q.slice(1)}` : `?baseline=legacy&${q}`);
+
 const BASE = 'http://localhost:5173/';
 const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const FIXTURE = new URL('./fixtures/roster-legacy-88e9b89.json', import.meta.url).pathname;
@@ -40,7 +46,7 @@ const browser = await chromium.launch({
 async function boot(query) {
   const page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
   page.on('pageerror', (e) => fail(`page error (${query}): ${e}`));
-  await page.goto(BASE + query);
+  await page.goto(BASE + pinLegacy(query));
   await page.waitForTimeout(4500);
   await page.mouse.click(360, 640);
   await page.waitForTimeout(800);

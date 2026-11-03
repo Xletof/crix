@@ -265,6 +265,10 @@ export function setCapTel(v) { capTel = !!v; }
 
 // ── Roster visual A/B (`?roster=v1`) ──────────────────────────────────────
 //
+// SINCE R1 THIS AND THE SIX GAMEPLAY SWITCHES BELOW ARE ON BY DEFAULT — see
+// THE GAMEPLAY BASELINE after them. Each comment's "default off" / "absent"
+// describes the `?baseline=legacy` game (the pre-R1 default).
+//
 // The Regular/Elite roster redesign arrives behind this switch. It selects
 // PRESENTATION ONLY — body sheets, weapon overlays, elite presentation and the
 // Bulwark field renderer — and never AI, hp, radius, speed, encounters or
@@ -301,8 +305,10 @@ let bulwarkStuck = null;
 export function setBulwarkStuck(v) { bulwarkStuck = v === 'prog' || v === 'early' ? v : null; }
 export function getBulwarkStuck() { return bulwarkStuck; }
 
-// `?marksmanStuck=prog` — Phase 3C CANDIDATE stuck recovery for the ORDINARY
-// MARKSMAN ONLY (see systems/marksmanStuck.js). Gameplay, so its own flag,
+// `?marksmanStuck=prog|early` — Phase 3C stuck recovery for the ORDINARY
+// MARKSMAN ONLY (see systems/marksmanStuck.js). Candidate B (`early`) is
+// HUMAN-APPROVED in the integrated configuration (R0/R1); A (`prog`) is not.
+// Gameplay, so its own flag,
 // coupled to none of `?move=`, `?roster=`, `?gait=` or `?bulwarkStuck=`.
 // Default off: the frozen base check, exactly as shipped.
 let marksmanStuck = null;
@@ -334,6 +340,79 @@ export function isBulwarkAngle() { return bulwarkAngle; }
 let gaitV2 = false;
 export function setGaitV2(on) { gaitV2 = !!on; }
 export function isGaitV2() { return gaitV2; }
+
+// ── THE GAMEPLAY BASELINE — R1 production rollout ──────────────────────────
+//
+// The seven switches above shipped OFF as opt-in candidates. Each was
+// HUMAN-approved on its own; the human then played the integrated combination
+// on the handset (R0, configuration "C"), approved it, and instructed that it
+// become the default game. So a player who opens CRIX with no query string now
+// gets all seven ON. No module changed to do this — it only decides which
+// already-approved modules are installed (`GameScene.spawnEnemyAt`, unchanged).
+//
+//   production  (no `?baseline`, or `?baseline=production`) — THE DEFAULT:
+//               roster v1, move v22, gait v2, bulwarkStuck early,
+//               marksmanStuck early, marksmanAngle 1, bulwarkAngle 1
+//   legacy      (`?baseline=legacy`) — the pre-R1 default: all seven OFF,
+//               the game as it shipped up to `2ab24af`
+//
+// Each individual flag still overrides its baseline value, so every earlier
+// experiment stays reachable. The URL grammar (`applyGameplayFlags`):
+//   roster         v1 | legacy (or off / 0)
+//   move           v2 | v21 | v22 | off (or legacy / 0); any other value keeps
+//                  the baseline (`?duel=…&move=slidesmash` names a nemesis move)
+//   gait           v2 | off (or legacy / v1 / 0)
+//   bulwarkStuck   prog | early; PRESENT with any other value = off (as before)
+//   marksmanStuck  prog | early; likewise
+//   marksmanAngle  1 | 0 (or off)
+//   bulwarkAngle   1 | 0 (or off)
+// The R0 experiment labels keep their meaning:
+//   A (the old default)  `?baseline=legacy`
+//   B                    `?marksmanStuck=off`, i.e. `?baseline=legacy&roster=v1&move=v22&gait=v2&bulwarkStuck=early&marksmanAngle=1&bulwarkAngle=1`
+//   C (the new default)  no flags, i.e. `?baseline=legacy&` + C's seven flags
+// Module scope like every flag here, so a restart keeps it; `BootScene` applies
+// it once per page load, before anything is painted or spawned.
+export const GAMEPLAY_BASELINES = Object.freeze({
+  production: Object.freeze({ roster: 'v1', move: 'v22', gait: 'v2', bulwarkStuck: 'early', marksmanStuck: 'early', marksmanAngle: true, bulwarkAngle: true }),
+  legacy: Object.freeze({ roster: 'legacy', move: 'off', gait: 'off', bulwarkStuck: null, marksmanStuck: null, marksmanAngle: false, bulwarkAngle: false }),
+});
+let gameplayBaseline = 'production';
+export function getGameplayBaseline() { return gameplayBaseline; }
+
+// `?move=` values: v2 -> true (the bare candidate), v21 / v22 -> the string, anything else -> off
+function setMoveVersion(v) { moveV2 = v === 'v2' ? true : v === 'v21' || v === 'v22' ? v : false; }
+
+export function applyGameplayBaseline(name) {
+  gameplayBaseline = name === 'legacy' ? 'legacy' : 'production';
+  const b = GAMEPLAY_BASELINES[gameplayBaseline];
+  setRosterVersion(b.roster);
+  setMoveVersion(b.move);
+  setGaitV2(b.gait === 'v2');
+  setBulwarkStuck(b.bulwarkStuck);
+  setMarksmanStuck(b.marksmanStuck);
+  setMarksmanAngle(b.marksmanAngle);
+  setBulwarkAngle(b.bulwarkAngle);
+}
+
+const OFF = new Set(['off', 'legacy', '0']);
+/** The baseline, then each flag the URL names. `params` is a URLSearchParams. */
+export function applyGameplayFlags(params) {
+  applyGameplayBaseline(params.get('baseline'));
+  const v = (k) => (params.has(k) ? params.get(k) : null);
+  const roster = v('roster');
+  if (roster === 'v1') setRosterVersion('v1'); else if (OFF.has(roster)) setRosterVersion('legacy');
+  const move = v('move');
+  if (move === 'v2' || move === 'v21' || move === 'v22' || OFF.has(move)) setMoveVersion(move);
+  const gait = v('gait');
+  if (gait === 'v2') setGaitV2(true); else if (gait === 'v1' || OFF.has(gait)) setGaitV2(false);
+  if (params.has('bulwarkStuck')) setBulwarkStuck(params.get('bulwarkStuck'));
+  if (params.has('marksmanStuck')) setMarksmanStuck(params.get('marksmanStuck'));
+  const ma = v('marksmanAngle');
+  if (ma === '1') setMarksmanAngle(true); else if (OFF.has(ma)) setMarksmanAngle(false);
+  const ba = v('bulwarkAngle');
+  if (ba === '1') setBulwarkAngle(true); else if (OFF.has(ba)) setBulwarkAngle(false);
+}
+applyGameplayBaseline('production');
 
 // `?colliders=1` draws every enemy's PHYSICS footprint (body circle, which
 // Arcade scales with the sprite) and its BULLET hit radius (`cfg.radius`). It

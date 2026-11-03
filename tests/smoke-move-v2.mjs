@@ -5,12 +5,18 @@
 // spot must claim DIFFERENT places, and a leg's direction is fixed when it
 // starts (nothing re-scores it frame to frame).
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+
+// R1: every URL here was written when no flags meant the legacy game, so each is
+// pinned to `?baseline=legacy` (unless it names a baseline) and keeps its
+// meaning now that the integrated configuration is the default. An older build
+// ignores the parameter. See systems/debug.js, THE GAMEPLAY BASELINE.
+const pinLegacy = (q) => (/[?&]baseline=/.test(q) ? q : q.startsWith('?') ? `?baseline=legacy&${q.slice(1)}` : `?baseline=legacy&${q}`);
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
 const checks = []; const check = (ok, l, d) => checks.push({ ok: !!ok, l, d });
 async function probe(q) {
   const page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
   page.on('pageerror', (e) => { console.error(e.message); process.exit(1); });
-  await page.goto('http://localhost:5173/' + q);
+  await page.goto('http://localhost:5173/' + pinLegacy(q));
   await page.waitForFunction(() => window.game?.scene?.getScene('Title')?.sys?.isActive(), null, { timeout: 45000 });
   const r = await page.evaluate(async () => {
     const g = window.game; g.loop.sleep(); let t = 1e5; Date.now = () => t; const adv = (n) => { for (let i = 0; i < n; i++) { t += 1000 / 60; g.step(t, 1000 / 60); } };
@@ -30,7 +36,7 @@ async function probe(q) {
 async function claims(q) {
   const page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
   page.on('pageerror', (e) => { console.error(e.message); process.exit(1); });
-  await page.goto('http://localhost:5173/' + q);
+  await page.goto('http://localhost:5173/' + pinLegacy(q));
   await page.waitForFunction(() => window.game?.scene?.getScene('Title')?.sys?.isActive(), null, { timeout: 45000 });
   const r = await page.evaluate(async () => {
     const g = window.game; g.loop.sleep(); let t = 1e5; Date.now = () => t; const adv = (n) => { for (let i = 0; i < n; i++) { t += 1000 / 60; g.step(t, 1000 / 60); } };

@@ -50,10 +50,19 @@ const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').
 export const BASE = opt('base', 'http://localhost:5173/');
 
 // ── PAGE BOOT: seeded Math.random with a draw counter, a 60Hz fixed step ──
-export async function bootPage(browser, { base = BASE, q = 'encdbg=1&room=hangar&sector=1', flags = '', seed = 4242, viewport = { width: 720, height: 1280 } } = {}) {
+//
+// THE BASELINE (R1). Every rig built on this was written when no flags meant
+// the legacy game, and its `flags` strings are relative to that game ("frozen",
+// "mkB", "angB", R0's A/B/C...). Since the R1 rollout no flags means the
+// PRODUCTION baseline, so this pins `baseline=legacy` unless the caller's
+// flags name a baseline themselves — every label keeps its meaning, and an
+// older build (which ignores the parameter) still serves the legacy game.
+// `baseline: null` sends the flags exactly as given (the true no-flags page).
+export async function bootPage(browser, { base = BASE, q = 'encdbg=1&room=hangar&sector=1', flags = '', seed = 4242, viewport = { width: 720, height: 1280 }, baseline = 'legacy' } = {}) {
   const page = await browser.newPage({ viewport });
   page.on('pageerror', (e) => { console.error(`pageerror: ${e.message}`); process.exit(1); });
-  await page.goto(`${base}?nodlg=1&nofreeze=1${flags ? `&${flags}` : ''}&${q}`);
+  const fl = [baseline && !/(^|&)baseline=/.test(flags) ? `baseline=${baseline}` : '', flags].filter(Boolean).join('&');
+  await page.goto(`${base}?nodlg=1&nofreeze=1${fl ? `&${fl}` : ''}&${q}`);
   await page.waitForFunction(() => window.game?.scene?.getScene('Title')?.sys?.isActive(), null, { timeout: 60000 });
   await page.evaluate(async (seed) => {
     const g = window.game; g.loop.sleep();

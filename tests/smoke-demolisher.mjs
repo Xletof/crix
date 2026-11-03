@@ -50,6 +50,12 @@ import { readFileSync } from 'node:fs';
 import { enemyJsGuard } from './enemy-frozen.mjs';
 import { veerRun, veerSummary } from './diag-demolisher-veer.mjs';
 
+// R1: every URL here was written when no flags meant the legacy game, so each is
+// pinned to `?baseline=legacy` (unless it names a baseline) and keeps its
+// meaning now that the integrated configuration is the default. An older build
+// ignores the parameter. See systems/debug.js, THE GAMEPLAY BASELINE.
+const pinLegacy = (q) => (/[?&]baseline=/.test(q) ? q : q.startsWith('?') ? `?baseline=legacy&${q.slice(1)}` : `?baseline=legacy&${q}`);
+
 const BASE = process.env.DEM_BASE || 'http://localhost:5173/';
 const BASE_OVERRIDE = { v: null };   // section 6b points one replay at another build
 const ROOT = new URL('../', import.meta.url).pathname;
@@ -60,7 +66,7 @@ const fail = (m) => { console.error('FAIL', m); process.exit(1); };
 async function stepped(q, god = true) {
   const page = await browser.newPage({ viewport: { width: 720, height: 1280 } });
   page.on('pageerror', (e) => fail(`${q}: ${e.message}`));
-  await page.goto((BASE_OVERRIDE.v || BASE) + q);
+  await page.goto((BASE_OVERRIDE.v || BASE) + pinLegacy(q));
   await page.waitForFunction(() => window.game?.scene?.getScene('Title')?.sys?.isActive(), null, { timeout: 45000 });
   await page.evaluate(async (god) => {
     const g = window.game; g.loop.sleep();
