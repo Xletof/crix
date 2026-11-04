@@ -49,8 +49,14 @@ command, fix the line.*
   authorized the rollout without folding a fix in. The proposed separate
   correction is **G1 — v2.2 planted-shot release** (an opt-in seam; reopens
   frozen v2.2) — NOT authorized.
-- **NO NEXT PHASE IS AUTHORIZED.** Do not start G1, Gunner AI, SNIPER NEST
-  balance, or any enemy or content phase without a NEW human instruction.
+- **NEXT PHASE AUTHORIZED (2026-11-04): Visual Identity V2 look-development
+  pilot** — one OPT-IN, presentation-only candidate in one real gameplay scene
+  (protagonist, a redesigned `swarmling` — the small green swarm, NOT the white
+  `grunt` Riflemen, whose V1 art is approved — industrial materials, outlines,
+  depth, contact shadows). Gameplay, AI, collision, RNG, encounters, camera and
+  arena layouts protected; no visual default changes before the handset verdict.
+  Boundaries: `docs/handover/CRIX-SESSION-HANDOVER-2026-11-04.md`. Still not
+  authorized: G1, Gunner AI, SNIPER NEST balance, any enemy or content phase.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
