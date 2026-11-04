@@ -2020,7 +2020,7 @@ overrides one switch (`?marksmanStuck=off` = R0's B). Grammar:
   tick (spawn order included), identity with the pre-rollout build in both
   directions (`--old=` a `2ab24af` server), and restart / quit / reload.
 
-## The Visual Identity V2 rigs (`?visualPilot=v2` — a candidate, opt-in, presentation only)
+## The Visual Identity V2 / V2B rigs (`?visualPilot=v2` and `v2b` — candidates, opt-in, presentation only)
 
 Evidence in `docs/evidence/visual-identity-v2/`. The pilot is presentation
 only, so its gate is an IDENTITY test, not a behaviour test.
@@ -2059,3 +2059,17 @@ only, so its gate is an IDENTITY test, not a behaviour test.
   draw count AND the next value; if `paintBackdrop` is ever reordered, it fails.
 - **THE PILOT'S FRAMES COMPRESS 2-3x WORSE** than the shipped ones (a textured
   deck): PNG size is not a proxy for anything on the GPU.
+
+### V2B (`?visualPilot=v2b`) extended them
+
+- `smoke-visual-pilot.mjs` now runs every texture / body / draw / replay check
+  for V2 AND V2B against R1, checks V2B keeps V2's protagonist and swarmling
+  byte-identical, compares LIGHTS OUT (every roomLayer object's material class
+  and dark tint, every EnvLight part, pilot keys mapped back to the spec's) and
+  a scene restart / page reload. Section 6's `--old` is now the V2 build
+  `bcd22e3`: its no-flags game AND its `?visualPilot=v2` must match.
+- `shot-visual-pilot.mjs` takes `--configs=A,B,C` (C = V2B); every later config
+  is checked against the first, frame by frame.
+- **A NEW CHECK NEEDS ITS OWN A/B.** The LIGHTS OUT comparison was proved by
+  setting one crate's `_loClass` to `console` on the V2B page: the check went
+  false. The selftest proves the body and replay checks the same way.

@@ -435,6 +435,25 @@ Entries under the headings below were migrated from the root `CLAUDE.md` as it s
   pilot's line between environment and combatant; the full outline is the
   actors'. A wall-mounted prop gets neither (it would stand up off the wall).
 
+- **V2B (`?visualPilot=v2b`) is a branch of the same pass, not a copy.**
+  `materialPass(..., B)` keeps every V2 statement, its order and its seeded
+  draws (`smoke-visual-pilot` section 6 compares the V2 backdrop with its own
+  build, `bcd22e3`); V2B's differences are branches on `B` plus
+  `floorRelief` and `castShadowsB`. V2B's texture set is `HANGAR_PILOT_TEX_V2B`.
+- **Relief, not lightening, for dark machinery.** `paintReliefPass` lights a
+  metal cell when its edge normal faces the north-west sun (`nx + ny > 0`,
+  normal from which neighbours are "gap"), darkens it when it faces away; a
+  staircase facing south-west comes out neutral instead of dotted. `inner:
+  false` restricts it to the outer silhouette — on the shuttle a lit lip under
+  every panel seam read as a blueprint, which is the "do not outline the craft"
+  failure in another form. A flipped placement needs `flip` (world west is
+  texture east); a texture placed both ways needs `sym`.
+- **A shadow knows how tall its object is.** `castShadowsB` projects each
+  sprite column: the bottom `hr` rows (drawn height x `hs`, the share that is
+  real height rather than lid depth) are a face thrown as a slanted run, the
+  rows above are a top plane lifted `hr` over the ground `hr` rows south. A run
+  from the foot alone hid every box's shadow under the box.
+
 ### Pixel shape language
 
 - **A BIG SMOOTH PIXEL CIRCLE CANNOT BE SAID IN THIS GAME'S VOCABULARY.** CRIX

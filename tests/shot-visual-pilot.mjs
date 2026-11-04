@@ -17,6 +17,7 @@
 //   A  ''                  current R1 production presentation
 //   B  'visualPilot=v2'    the Visual Identity V2 candidate (as delivered)
 //   C  'visualPilot=v2b'   the V2B candidate: V2's characters, the refined Hangar
+// `--stage=lane` (default) or `apron` picks the staged fight (below).
 //
 // `--mode=env` photographs the EMPTY Hangar instead (no enemies, HUD hidden)
 // at four player stations — apron, lane, staging bay, east freight — each
@@ -53,23 +54,37 @@ mkdirSync(OUT, { recursive: true });
 // The player's route: a walk east along the deployment lane, a turn north
 // towards the apron, south through the lane, then a strafe — so every facing
 // and the walk cycle are on film. Fires on a fixed cadence.
-const SEG = [[0, 50, ''], [50, 150, 'D'], [150, 200, 'W'], [200, 260, 'DW'], [260, 360, 'S'], [360, 440, 'A'], [440, 520, 'DS'], [520, 600, 'W'], [600, 99999, 'D']];
+const SEG_LANE = [[0, 50, ''], [50, 150, 'D'], [150, 200, 'W'], [200, 260, 'DW'], [260, 360, 'S'], [360, 440, 'A'], [440, 520, 'DS'], [520, 600, 'W'], [600, 99999, 'D']];
 
 // THE COMPOSITION, staged at fixed ticks and spots so both halves get it
 // identically: the brief's cast in one Hangar fight. Swarm packs are the real
 // `_spawnSwarmlingPack` (pack size and offsets drawn from the gameplay RNG).
-const STAGE = {
+const STAGE_LANE = {
   0: [['pack', 820, 560], ['grunt', 900, 700], ['grunt', 860, 860], ['grunt', 1040, 640]],
   20: [['shooter', 1120, 560], ['sniper', 1240, 900], ['shielded', 1000, 900], ['bomber', 1100, 420]],
   220: [['pack', 1180, 760]],
   420: [['pack', 700, 980], ['grunt', 1000, 1000]],
 };
 
+// `--stage=apron`: the same cast staged on the launch apron and the gantry —
+// a dark Gunner beside the consoles, a Bulwark by the gantry, swarm packs round
+// the shuttle — so dark enemies are photographed against dark machinery.
+const SEG_APRON = [[0, 60, ''], [60, 140, 'S'], [140, 220, 'D'], [220, 300, 'W'], [300, 380, 'A'], [380, 460, 'S'], [460, 540, 'D'], [540, 99999, 'W']];
+const STAGE_APRON = {
+  0: [['pack', 540, 820], ['grunt', 620, 760], ['grunt', 300, 900]],
+  20: [['shooter', 700, 560], ['shielded', 560, 980], ['sniper', 780, 1010], ['bomber', 720, 660]],
+  220: [['pack', 340, 800]],
+  420: [['pack', 620, 980], ['grunt', 500, 1000]],
+};
+const STAGES = { lane: { seg: SEG_LANE, stage: STAGE_LANE, start: [560, 720] }, apron: { seg: SEG_APRON, stage: STAGE_APRON, start: [430, 720] } };
+const ST = STAGES[opt('stage', 'lane')];
+const SEG = ST.seg, STAGE = ST.stage;
+
 async function run(browser, cfg, ticks = TICKS, name = (t, c) => `${t}-${c}.png`) {
   const page = await bootPage(browser, { flags: CONFIGS[cfg], baseline: null, q: Q, seed: SEED });
   const frames = [];
   const last = Math.max(...ticks);
-  await page.evaluate(({ seed }) => {
+  await page.evaluate(({ seed, start }) => {
     const gs = window.__gs;
     // Same room modifier in both halves, and none: a DARKNESS roll would
     // photograph the modifier rather than the art.
@@ -80,7 +95,7 @@ async function run(browser, cfg, ticks = TICKS, name = (t, c) => `${t}-${c}.png`
     if (gs.arenaCfg) gs.arenaCfg = { ...gs.arenaCfg, speedMult: undefined };
     gs.events.emit('modifier-active', null, null);
     gs.events.emit('set-darkness', false);
-    gs.player.setPosition(560, 720); gs.player.setVelocity(0, 0);
+    gs.player.setPosition(start[0], start[1]); gs.player.setVelocity(0, 0);
     window.__seed(seed); window.__draws = 0; window.__tick = 0;
     window.__state = () => {
       const r = (v) => Math.round(v * 100) / 100;
@@ -89,7 +104,7 @@ async function run(browser, cfg, ticks = TICKS, name = (t, c) => `${t}-${c}.png`
       nb += gs.playerBullets?.countActive?.(true) ?? 0;
       return JSON.stringify({ p: [r(gs.player.x), r(gs.player.y)], es, nb, d: window.__draws });
     };
-  }, { seed: SEED });
+  }, { seed: SEED, start: ST.start });
   let t = 0;
   for (const target of [...ticks].sort((a, b) => a - b)) {
     await page.evaluate(({ from, to, seg, stage }) => {

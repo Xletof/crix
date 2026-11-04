@@ -8,7 +8,7 @@
 //   1. ONE-TIME COST: painting the Hangar backdrop (the stock painter vs the
 //      pilot's painter, same room options, median of N), in ms.
 //   2. RESIDENT TEXTURE MEMORY: the sum of every texture's width x height x 4,
-//      A vs B (the pilot adds 7 small sheets and grows `player` by 8 rows).
+//      R1 vs V2 vs V2B (A / B / C).
 //   3. PER-FRAME COST: the scene graph does not change — the pilot adds no
 //      display object at runtime — so this is the control: median / p95 wall
 //      time of a rendered `game.step` over the same staged fight, A vs B, and
@@ -20,7 +20,7 @@ const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').
 const REPS = +opt('reps', '5'), TICKS = +opt('ticks', '600');
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 const out = {};
-for (const [cfg, flags] of [['A', ''], ['B', 'visualPilot=v2']]) {
+for (const [cfg, flags] of [['A', ''], ['B', 'visualPilot=v2'], ['C', 'visualPilot=v2b']]) {
   const p = await bootPage(browser, { flags, baseline: null, q: 'room=hangar', seed: 4242 });
   out[cfg] = await p.evaluate(async ({ reps, ticks }) => {
     const gs = window.__gs;
@@ -36,7 +36,7 @@ for (const [cfg, flags] of [['A', ''], ['B', 'visualPilot=v2']]) {
     for (let i = 0; i < reps; i++) {
       const key = `perf-bg-${i}`;
       const t0 = performance.now();
-      if (dbg.isVisualPilotV2?.()) vh.paintPilotHangarBackdrop(gs, key, 1600, 1400, opts, spec);
+      if (dbg.isVisualPilotV2?.()) vh.paintPilotHangarBackdrop(gs, key, 1600, 1400, opts, spec, dbg.getVisualPilot());
       else px.paintBackdrop(gs, key, 1600, 1400, opts);
       paint.push(performance.now() - t0);
       window.game.textures.remove(key);
@@ -70,6 +70,5 @@ for (const [cfg, flags] of [['A', ''], ['B', 'visualPilot=v2']]) {
   console.log(cfg, JSON.stringify(out[cfg]));
 }
 await browser.close();
-console.log(`\nHangar backdrop paint: A ${out.A.paintMs} ms, B ${out.B.paintMs} ms (one-time, at room load)`);
-console.log(`Texture memory: A ${out.A.texMB} MB (${out.A.textures}), B ${out.B.texMB} MB (${out.B.textures})  [backdrop counted in both]`);
-console.log(`Rendered step: A median ${out.A.stepMedMs} / p95 ${out.A.stepP95Ms} ms; B median ${out.B.stepMedMs} / p95 ${out.B.stepP95Ms} ms; display list ${out.A.displayList} vs ${out.B.displayList}`);
+const L = { A: 'R1', B: 'V2', C: 'V2B' };
+console.log('\n' + ['A', 'B', 'C'].map((c) => `${L[c]}: Hangar paint ${out[c].paintMs} ms | textures ${out[c].texMB} MB (${out[c].textures}) | rendered step median ${out[c].stepMedMs} / p95 ${out[c].stepP95Ms} ms | display list ${out[c].displayList}`).join('\n'));
