@@ -646,7 +646,7 @@ function hexOf(n) { return `#${n.toString(16).padStart(6, '0')}`; }
 export function paintReliefPass(scene, srcKey, dstKey, o = {}) {
   const {
     s = 4, flip = false, sym = false, rim = 0.42, shade = 0.70, outline = false,
-    bodyLum = 26, metalSat = 0.30, inner = true, edgeLum = 14,
+    bodyLum = 26, metalSat = 0.30, inner = true, edgeLum = 14, planes = null,
   } = o;
   const src = scene.textures.get(srcKey)?.getSourceImage();
   if (!src?.width) return false;
@@ -676,6 +676,12 @@ export function paintReliefPass(scene, srcKey, dstKey, o = {}) {
     if (!c) continue;
     let out = c;
     if (lum(c) >= bodyLum && sat(c) <= metalSat) {
+      // PLANES (a fixture whose chassis rows are known — `conChassis`'s own
+      // top / base numbers): a moderately lit TOP over the dark face, the
+      // base a step deeper. The rim and shade below then work on that.
+      if (planes?.top && y >= planes.top[0] && y <= planes.top[1]) out = out.map((v, j) => Math.round(v + ([170, 180, 192][j] - v) * planes.top[2]));
+      else if (planes?.base && y >= planes.base[0] && y <= planes.base[1]) out = out.map((v) => Math.round(v * planes.base[2]));
+      const c0 = out;
       const west = flip ? x + 1 : x - 1, east = flip ? x - 1 : x + 1;
       // the edge's outward normal, against the north-west sun: a staircase
       // facing south-west or north-east comes out neutral, not dotted
@@ -684,9 +690,9 @@ export function paintReliefPass(scene, srcKey, dstKey, o = {}) {
       const d = nx + ny;
       if (d > 0) {
         const k = Math.min(0.75, rim * (d > 1 ? 1.25 : 1));
-        out = c.map((v, j) => Math.round(v + (RIM[j] - v) * k));
+        out = c0.map((v, j) => Math.round(v + (RIM[j] - v) * k));
       } else if (d < 0) {
-        out = c.map((v) => Math.round(v * (d < -1 ? shade * 0.9 : shade)));
+        out = c0.map((v) => Math.round(v * (d < -1 ? shade * 0.9 : shade)));
       }
     }
     g.px(x, y, hexOf((out[0] << 16) | (out[1] << 8) | out[2]));

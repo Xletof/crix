@@ -32,8 +32,10 @@ export function paintVisualPilot(scene) {
     paintPilotCrateB(scene, 'vp2b-crate-b', 'b');
     // technical fixtures: near-black housings, so the threshold drops and the
     // rim is strong — the housing reads by its lit edges and joint lips
-    paintReliefPass(scene, 'ch-con-ped-c', 'vp2b-con-ped-c', { outline: true, bodyLum: 14, rim: 0.50 });
-    paintReliefPass(scene, 'ch-con-heavy', 'vp2b-con-heavy', { outline: true, bodyLum: 14, rim: 0.50 });
+    // their chassis rows are `conChassis`'s own (pedestal: top 0-5, base
+    // 21-26; heavy: top 0-6, base 22-27) — a lit top plane over a dark face
+    paintReliefPass(scene, 'ch-con-ped-c', 'vp2b-con-ped-c', { outline: true, bodyLum: 14, rim: 0.50, planes: { top: [0, 5, 0.26], base: [21, 26, 0.78] } });
+    paintReliefPass(scene, 'ch-con-heavy', 'vp2b-con-heavy', { outline: true, bodyLum: 14, rim: 0.50, planes: { top: [0, 6, 0.26], base: [22, 27, 0.78] } });
     paintReliefPass(scene, 'prop-drum', 'vp2b-drum', { sym: true, outline: true });
     paintReliefPass(scene, 'prop-drum-b', 'vp2b-drum-b', { sym: true, outline: true });
     // the landmark: OUTER edges only (no joint lips — a lit line on every panel
