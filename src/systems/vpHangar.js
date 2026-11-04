@@ -73,7 +73,8 @@ export const HANGAR_PILOT_TEX_V2B = Object.freeze({
   'prop-crane': 'vp2b-crane',
   'ch-con-wall': 'vp2b-con-wall',
 });
-export const hangarPilotTex = (variant) => (variant === 'v2b' ? HANGAR_PILOT_TEX_V2B : HANGAR_PILOT_TEX);
+// V2C stands on the V2B set: only its ground differs.
+export const hangarPilotTex = (variant) => (variant === 'v2b' || variant === 'v2c' ? HANGAR_PILOT_TEX_V2B : HANGAR_PILOT_TEX);
 const pilotKey = (scene, k, variant = 'v2') => {
   const m = hangarPilotTex(variant);
   return m[k] && scene.textures.exists(m[k]) ? m[k] : k;
@@ -99,20 +100,27 @@ const q4 = (v) => Math.round(v / 4) * 4;
  */
 export function paintPilotHangarBackdrop(scene, key, worldW, worldH, opts, spec, variant = 'v2') {
   const scorch = opts.scorch ?? 40;                       // paintBackdrop's default
-  paintBackdrop(scene, key, worldW, worldH, { ...opts, scorch: 0, hexAlpha: (opts.hexAlpha ?? 1) * 0.45 });
+  // V2C draws no hex tiling at all: a second grid that disagreed with the deck
+  // plates. `hexAlpha` takes no draws, so the stream is the same either way.
+  const C = variant === 'v2c';
+  paintBackdrop(scene, key, worldW, worldH, { ...opts, scorch: 0, hexAlpha: C ? 0 : (opts.hexAlpha ?? 1) * 0.45 });
   for (let i = 0; i < scorch * 3; i++) Math.random();     // the scorch loop's draws, exactly
   const tex = scene.textures.get(key);
   const ctx = tex.getContext();
-  materialPass(scene, ctx, worldW, worldH, spec, opts.openings || [], variant === 'v2b');
+  materialPass(scene, ctx, worldW, worldH, spec, opts.openings || [], variant === 'v2b' || C, C);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
   tex.refresh();
 }
 
-function materialPass(scene, ctx, W, H, spec, openings, B = false) {
+function materialPass(scene, ctx, W, H, spec, openings, B = false, C = false) {
   // `B` is V2B. Every V2B difference is a branch on it; the V2 statements, their
   // order and their seeded draws are exactly as delivered (`smoke-visual-pilot`
   // compares the V2 backdrop with the previous build's).
+  // `C` is V2C: V2B in every respect except the GROUND — V2's plate grid
+  // (step 1) and its wear (step 3) are replaced by `groundC`; everything else
+  // (light, wall shadows, coping, chipped paint, floor relief, cast shadows)
+  // is V2B's, drawn on top of the new ground in the same order.
   const R = rng(0x5eed2604);
   const T = spec.perimeter?.thickness ?? 0;
   // The runs of a wall's inner edge between its doorways: [from, to] along the side.
@@ -165,7 +173,8 @@ function materialPass(scene, ctx, W, H, spec, openings, B = false) {
 
   // ── 1. DECK PLATES — running bond on the room's own tiling module ────────
   const PW = spec.floor?.hexW ?? 160, PH = spec.floor?.hexH ?? 140;
-  onDeck((ctx) => {
+  if (C) groundC(ctx, spec, T, W, H, onDeck, runs);
+  else onDeck((ctx) => {
     for (let row = 0, y = T; y < H - T; row++, y += PH) {
       const off = (row % 2) ? PW / 2 : 0;
       for (let x = T - off; x < W - T; x += PW) {
@@ -246,7 +255,7 @@ function materialPass(scene, ctx, W, H, spec, openings, B = false) {
   }
 
   // ── 3. WEAR — where work happens, and nowhere else ───────────────────────
-  onDeck((ctx) => {
+  if (!C) onDeck((ctx) => {
     // Polish down the deployment lane: pale streaks along the room's long axis,
     // clustered on the line the traffic actually takes.
     const lane = arch.find((it) => it.kind === 'region' && it.w > 1000) || { x: T, y: H / 2 - 120, w: W - 2 * T, h: 240 };
@@ -545,4 +554,221 @@ function castShadowsB(scene, ctx, spec, T, W, H) {
     }
   }
   ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// V2C — THE GROUND (`?visualPilot=v2c`): a deck the V2B objects can stand on
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// THE DIAGNOSIS (V2B, at 1x and at the phone's 0.54x):
+//   - ONE SHEET. Every walkable field — lane, apron, general deck — is the same
+//     flat blue-grey with a spread of 8-15 luminance levels, nearly all of it
+//     the seam lines themselves: nothing says worn, newer, heavier or busier.
+//   - TWO GRIDS THAT DISAGREE. The hex tiling (left at 0.135) cuts diagonally
+//     across the rectangular plates, so neither reads as construction.
+//   - SEAMS WITHOUT THICKNESS. A 2px joint with a 1px lip draws a grid on a
+//     sheet; it does not separate heavy slabs, and at 0.54x it vanishes — the
+//     middle of the fight reads as empty backdrop.
+//   - WEAR THAT IS NOT ATTACHED TO ANYTHING. Seventy thin polish streaks read
+//     as scan lines at 1x and as nothing at phone size.
+//   - THE FLOOR DOES NOT ANSWER ITS OBJECTS. Shadows are the only link: no
+//     grime at a machine's foot, no worn patch where an operator stands.
+//
+// THE GROUND, from the room spec's own forms (nothing invented):
+//   FIELDS   the deployment LANE (long plates along its axis, polished traffic
+//            metal, two wheel paths), the launch APRON (heavy square blast
+//            plates, heat-darkened, a soot fan aft of the shuttle's engines),
+//            the STAGING BAY (darker freight floor around its tread plate), and
+//            the GENERAL deck (standard plates, matte, worn). Each field is
+//            bounded by a heavy expansion joint.
+//   PLATES   real slabs: a dark joint, a lit north-west bevel and a dark
+//            south-east chamfer (the room's one sun), corner fasteners, and a
+//            per-plate tone — a patchwork of older and replaced steel you can
+//            see at phone size, quiet enough that bolts never compete.
+//   WEAR     where the work is: wheel paths and rubber at the joints they
+//            cross; a scuffed, polished stand in front of every console; grime
+//            settled round the foot of every cover object and machine; a
+//            darker, grimier kick strip where the deck meets the walls.
+// Values only (black / cool-white at low alpha, one warm soot): no red, no small
+// green points, no circles, nothing tall. Its own seeded generator.
+function groundC(ctx, spec, T, W, H, onDeck, runs) {
+  const R = rng(0x9a0d2c11);
+  const arch = spec.floor?.architecture || [];
+  const regions = arch.filter((it) => it.kind === 'region');
+  const lane = regions.find((r) => r.w > 1000);
+  const apron = regions.find((r) => r !== lane && r.tone !== 'recess');
+  const bay = regions.find((r) => r.tone === 'recess');
+  const LIT = '#b4bfcc', DK = '#030406';
+
+  // A field of plates: `bond` offsets alternate rows by half a plate.
+  const plates = (g, f, pw, ph, bond, amp) => {
+    g.save();
+    g.beginPath(); g.rect(f.x, f.y, f.w, f.h); g.clip();
+    for (let row = 0, y = f.y; y < f.y + f.h; row++, y += ph) {
+      const off = bond && row % 2 ? pw / 2 : 0;
+      for (let x = f.x - off; x < f.x + f.w; x += pw) {
+        // the plate's own steel: most within a few levels, a few replaced
+        // (newer, cooler) and a few old (darker, grimier)
+        const r = R();
+        if (r < 0.12) { g.globalAlpha = 0.07; g.fillStyle = '#a9b6c6'; }
+        else if (r < 0.22) { g.globalAlpha = 0.11; g.fillStyle = '#0b0a08'; }
+        else { const v = (R() - 0.5) * 2 * amp; g.globalAlpha = Math.abs(v); g.fillStyle = v > 0 ? '#9aa4b0' : '#000000'; }
+        g.fillRect(x + 3, y + 3, pw - 5, ph - 5);
+        // the slab: joint, lit north-west bevel, dark south-east chamfer
+        g.globalAlpha = 0.55; g.fillStyle = DK;
+        g.fillRect(x, y, pw, 2); g.fillRect(x, y, 2, ph);
+        // (0.15 on the first render read as a ruled grid at phone size: the
+        // slab is carried by its chamfer and its own tone, the lit bevel only
+        // has to catch)
+        g.globalAlpha = 0.10; g.fillStyle = LIT;
+        g.fillRect(x + 2, y + 2, pw - 4, 2); g.fillRect(x + 2, y + 2, 2, ph - 4);
+        g.globalAlpha = 0.28; g.fillStyle = DK;
+        g.fillRect(x + 2, y + ph - 2, pw - 2, 2); g.fillRect(x + pw - 2, y + 2, 2, ph - 2);
+        // corner fasteners
+        for (const [bx, by] of [[x + 7, y + 7], [x + pw - 11, y + 7], [x + 7, y + ph - 11], [x + pw - 11, y + ph - 11]]) {
+          g.globalAlpha = 0.26; g.fillStyle = DK; g.fillRect(bx, by, 4, 4);
+          g.globalAlpha = 0.14; g.fillStyle = LIT; g.fillRect(bx, by, 2, 2);
+        }
+      }
+    }
+    g.restore();
+  };
+  // A heavy expansion joint round a field: a dark 4px channel, its far (south /
+  // east) wall lit — the same groove read as a plate joint, one size up.
+  const fieldJoint = (g, f) => {
+    g.globalAlpha = 0.60; g.fillStyle = DK;
+    g.fillRect(f.x, f.y - 2, f.w, 4); g.fillRect(f.x, f.y + f.h - 2, f.w, 4);
+    g.fillRect(f.x - 2, f.y, 4, f.h); g.fillRect(f.x + f.w - 2, f.y, 4, f.h);
+    g.globalAlpha = 0.16; g.fillStyle = LIT;
+    g.fillRect(f.x, f.y + 2, f.w, 2); g.fillRect(f.x, f.y + f.h + 2, f.w, 2);
+    g.fillRect(f.x + 2, f.y, 2, f.h); g.fillRect(f.x + f.w + 2, f.y, 2, f.h);
+  };
+
+  onDeck((g) => {
+    // ── THE GENERAL DECK: everything outside the three fields ─────────────
+    g.save();
+    g.beginPath(); g.rect(T, T, W - 2 * T, H - 2 * T);
+    for (const f of [lane, apron, bay]) if (f) g.rect(f.x, f.y, f.w, f.h);
+    g.clip('evenodd');
+    plates(g, { x: T, y: T, w: W - 2 * T, h: H - 2 * T }, 160, 140, true, 0.05);
+    g.restore();
+
+    // ── THE APRON: heavy blast plates, heat-darkened ──────────────────────
+    if (apron) {
+      g.globalAlpha = 0.12; g.fillStyle = '#000000'; g.fillRect(apron.x, apron.y, apron.w, apron.h);
+      g.globalAlpha = 0.07; g.fillStyle = '#2a2116'; g.fillRect(apron.x, apron.y, apron.w, apron.h);
+      plates(g, apron, apron.w / 3, apron.h / 3, false, 0.045);
+    }
+    // ── THE LANE: long plates on its axis, polished by traffic ────────────
+    if (lane) {
+      g.globalAlpha = 0.06; g.fillStyle = '#c3cdd8'; g.fillRect(lane.x, lane.y, lane.w, lane.h);
+      plates(g, lane, lane.w / 6, lane.h / 2, true, 0.03);
+    }
+    // ── THE STAGING BAY: darker freight floor round the tread plate ───────
+    if (bay) {
+      g.globalAlpha = 0.08; g.fillStyle = '#000000'; g.fillRect(bay.x, bay.y, bay.w, bay.h);
+      plates(g, bay, bay.w / 5, bay.h / 3, false, 0.04);
+    }
+    for (const f of [lane, apron, bay]) if (f) fieldJoint(g, f);
+
+    // ── THE KICK STRIP: a darker, grimier band where the deck meets the walls
+    const K = 28;
+    g.globalAlpha = 0.14; g.fillStyle = '#000000';
+    for (const [side, rs] of [['top', runs('top')], ['bottom', runs('bottom')], ['left', runs('left')], ['right', runs('right')]]) {
+      for (const [a, b] of rs) {
+        if (side === 'top') g.fillRect(a, T, b - a, K);
+        else if (side === 'bottom') g.fillRect(a, H - T - K, b - a, K);
+        else if (side === 'left') g.fillRect(T, a, K, b - a);
+        else g.fillRect(W - T - K, a, K, b - a);
+      }
+    }
+    for (const [side, rs] of [['top', runs('top')], ['bottom', runs('bottom')], ['left', runs('left')], ['right', runs('right')]]) {
+      for (const [a, b] of rs) {
+        g.globalAlpha = 0.5; g.fillStyle = DK;
+        if (side === 'top') g.fillRect(a, T + K, b - a, 2);
+        else if (side === 'bottom') g.fillRect(a, H - T - K - 2, b - a, 2);
+        else if (side === 'left') g.fillRect(T + K, a, 2, b - a);
+        else g.fillRect(W - T - K - 2, a, 2, b - a);
+        g.globalAlpha = 0.13; g.fillStyle = LIT;
+        if (side === 'top') g.fillRect(a, T + K + 2, b - a, 2);
+        else if (side === 'bottom') g.fillRect(a, H - T - K, b - a, 2);
+        else if (side === 'left') g.fillRect(T + K + 2, a, 2, b - a);
+        else g.fillRect(W - T - K, a, 2, b - a);
+      }
+    }
+
+    // ── WHEEL PATHS down the lane, below its rail track ───────────────────
+    if (lane) {
+      const pw = lane.w / 6;
+      for (const cy of [lane.y + lane.h * 0.50, lane.y + lane.h * 0.80]) {
+        const y = q4(cy - 14);
+        g.globalAlpha = 0.06; g.fillStyle = '#d0d8e2'; g.fillRect(lane.x + 24, y, lane.w - 48, 28);
+        g.globalAlpha = 0.05; g.fillRect(lane.x + 24, y + 8, lane.w - 48, 12);
+        // the abraded edges: short breaks, so the path is worn in, not ruled
+        g.globalAlpha = 0.07; g.fillStyle = '#000000';
+        for (let x = lane.x + 24; x < lane.x + lane.w - 24; x += 24 + q4(R() * 24)) {
+          g.fillRect(x, y - 2, 8 + q4(R() * 12), 2); g.fillRect(x + 12, y + 28, 8 + q4(R() * 12), 2);
+        }
+        // rubber where the wheels cross a joint
+        for (let x = lane.x + pw; x < lane.x + lane.w - 10; x += pw) {
+          g.globalAlpha = 0.20; g.fillStyle = '#060504';
+          g.fillRect(x - 8, y + 4, 16, 4); g.fillRect(x - 4, y + 20, 12, 4);
+        }
+      }
+    }
+
+    // ── THE SOOT FAN aft of the shuttle's engines (on the apron) ──────────
+    const shuttle = (spec.props || []).find((p) => /shuttle/.test(p.tex));
+    if (shuttle && apron) {
+      const x0 = shuttle.x, y0 = shuttle.y;
+      for (let i = 0; i < 6; i++) {
+        const w = 72 + i * 24, y = y0 + i * 14;
+        if (y > apron.y + apron.h - 8) break;
+        g.globalAlpha = 0.16 - i * 0.02; g.fillStyle = '#0a0705';
+        g.fillRect(q4(x0 - w / 2), y, q4(w), 14);
+      }
+    }
+
+    // ── AN OPERATOR'S STAND in front of every console: scuffed bright ─────
+    for (const cp of spec.cover || []) {
+      if (!/con/.test(cp.tex || '')) continue;
+      const x = q4(cp.x - 36), y = q4(cp.y + 60);
+      g.globalAlpha = 0.07; g.fillStyle = '#d0d8e2'; g.fillRect(x, y, 72, 32);
+      g.globalAlpha = 0.10;
+      for (let k = 0; k < 4; k++) {
+        const sx = x + 8 + q4(R() * 52), sy = y + 6 + q4(R() * 18);
+        for (let j = 0; j < 3; j++) g.fillRect(sx + j * 2, sy + j * 2, 2, 2);
+      }
+    }
+
+    // ── GRIME round the foot of every cover object and solid machine ──────
+    // Stepped bands round the body footprint, densest at the foot.
+    const apronOf = (x, y, w, h) => {
+      for (let i = 0; i < 4; i++) {
+        const d = 4 + i * 6;
+        g.globalAlpha = 0.14 - i * 0.03; g.fillStyle = '#080706';
+        g.fillRect(x - d, y + h, w + 2 * d, 6);                       // south (the side we see)
+        g.fillRect(x - d, y - d, 6, h + d);                           // west
+        g.fillRect(x + w + d - 6, y - d, 6, h + d);                   // east
+      }
+    };
+    for (const cp of spec.cover || []) apronOf(cp.x - 35, cp.y - 35 + 24, 70, 46);
+    for (const pr of spec.props || []) {
+      if (!pr.solid || /shuttle/.test(pr.tex)) continue;            // the shuttle stands on its gear
+      const bw = pr.bodyW ?? 60, bh = pr.bodyH ?? 50;
+      apronOf(pr.x - bw / 2, pr.y - bh, bw, bh);
+    }
+
+    // ── A FEW IMPACT SCARS, on the ground the fights cross ────────────────
+    for (const [sx, sy] of [[980, 480], [640, 820], [1190, 960], [300, 760]]) {
+      const cx = q4(sx), cy = q4(sy);
+      g.globalAlpha = 0.24; g.fillStyle = '#050505';
+      g.fillRect(cx - 6, cy - 4, 12, 8); g.fillRect(cx - 10, cy - 2, 20, 4);
+      g.globalAlpha = 0.12;
+      for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1], [1, 0], [-1, 0]]) {
+        const len = 2 + Math.floor(R() * 3);
+        for (let k = 2; k < len + 2; k++) g.fillRect(cx + dx * k * 4 - 2, cy + dy * k * 3 - 2, 4, 4);
+      }
+    }
+  });
 }

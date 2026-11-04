@@ -445,13 +445,21 @@ export function setShowColliders(v) { showColliders = !!v; }
 // material depth and contrast (relief-lit machinery, re-planed crates,
 // height-projected cast shadows, region and wall relief). `v2` stays exactly
 // as delivered so the two can be compared without rebuilding an old commit.
+//
+// `?visualPilot=v2c` — VISUAL IDENTITY V2C (2026-11-04, a third candidate, also
+// opt-in): V2B in every respect — characters, objects, machinery, shadows —
+// except the Hangar's GROUND (fields, slabs, purposeful wear; `groundC` in
+// `systems/vpHangar.js`). `v2` and `v2b` stay exactly as delivered.
+const VISUAL_PILOTS = ['v2', 'v2b', 'v2c'];
 let visualPilot = null;
-export function setVisualPilot(v) { visualPilot = v === 'v2' || v === 'v2b' ? v : null; }
-/** 'v2' | 'v2b' | null */
+export function setVisualPilot(v) { visualPilot = VISUAL_PILOTS.includes(v) ? v : null; }
+/** 'v2' | 'v2b' | 'v2c' | null */
 export function getVisualPilot() { return visualPilot; }
-/** The V2 character family (protagonist + swarmling): on for `v2` AND `v2b`. */
-export function isVisualPilotV2() { return visualPilot === 'v2' || visualPilot === 'v2b'; }
-/** The V2B Hangar refinement only. */
-export function isVisualPilotV2B() { return visualPilot === 'v2b'; }
-/** `?visualPilot=v2` / `v2b` on, anything else off. `params` is a URLSearchParams. */
+/** The V2 character family (protagonist + swarmling): on for every candidate. */
+export function isVisualPilotV2() { return visualPilot != null; }
+/** The V2B Hangar objects (crates, relief, shadows): on for `v2b` AND `v2c`. */
+export function isVisualPilotV2B() { return visualPilot === 'v2b' || visualPilot === 'v2c'; }
+/** The V2C Hangar ground only. */
+export function isVisualPilotV2C() { return visualPilot === 'v2c'; }
+/** `?visualPilot=v2` / `v2b` / `v2c` on, anything else off. `params` is a URLSearchParams. */
 export function applyVisualFlags(params) { setVisualPilot(params.get('visualPilot')); }

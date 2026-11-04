@@ -1,7 +1,7 @@
-// SMOKE: VISUAL IDENTITY V2 (`?visualPilot=v2`) AND V2B (`?visualPilot=v2b`) —
-// PRESENTATION ONLY, PROVEN, FOR BOTH CANDIDATES AGAINST R1.
+// SMOKE: VISUAL IDENTITY V2 / V2B / V2C (`?visualPilot=v2|v2b|v2c`) —
+// PRESENTATION ONLY, PROVEN, FOR EVERY CANDIDATE AGAINST R1.
 // Standalone; needs `npm run dev` on :5173 and, for section 6, the PREVIOUS
-// build — the V2 build `bcd22e3` — on :5174 (`--old=URL`).
+// build — the V2B build `7a75e1e` — on :5174 (`--old=URL`).
 //
 // The pilot is an opt-in look-development candidate. This asserts nothing
 // about whether it looks better (the handset's job), only that it is what it
@@ -32,9 +32,11 @@
 //      the legacy baseline AND `?visualPilot=v2` are that build's, tick for
 //      tick and texture for texture — V2 survives V2B exactly
 //   7  a scene restart and a page reload keep the selected mode
-// Sections 1-4 run every check for V2 and for V2B; V2B must also keep V2's
-// protagonist and swarmling byte-identical, and LIGHTS OUT (every roomLayer
-// material class and dark tint, every emissive part) must be R1's in both.
+// Sections 1-4 run every check for V2, V2B and V2C; V2B must keep V2's
+// protagonist and swarmling byte-identical, V2C must keep EVERY V2B texture and
+// static body (only its ground — backdrop paint — differs), and LIGHTS OUT
+// (every roomLayer material class and dark tint, every emissive part) must be
+// R1's in all three. Section 6 compares R1, V2 and V2B with the V2B build.
 // `--selftest` injects, under the flag only, an extra draw and a 1px larger body
 // on every swarmling spawn and a 1px larger player circle: the body checks in
 // section 2 and every replay in section 4 must FAIL.
@@ -53,7 +55,9 @@ const TICKS = +opt('ticks', '1500');
 const BASE_REV = 'd05ac13';   // frozen-file guard: the last build before any pilot
 const PILOT = 'visualPilot=v2';
 const PILOT_B = 'visualPilot=v2b';
-const MODES = { V2: PILOT, V2B: PILOT_B };
+const PILOT_C = 'visualPilot=v2c';
+const MODES = { V2: PILOT, V2B: PILOT_B, V2C: PILOT_C };
+const ALL = ['V2', 'V2B', 'V2C'];
 const Q_SWARM = 'encdbg=swarmTide&room=hangar&sector=3';
 const Q_BOMB = 'encdbg=bomberRun&room=hangar&sector=4';
 
@@ -152,19 +156,19 @@ const firstDiff = (a, b) => { const n = Math.max(a.length, b.length); for (let i
 // ── 0. THE FLAG ───────────────────────────────────────────────────────────
 console.log('\n== 0. the flag');
 {
-  const cases = [['', null, 'production'], [PILOT, 'v2', 'production'], [PILOT_B, 'v2b', 'production'],
-    ['visualPilot=1', null, 'production'], ['visualPilot=v1', null, 'production'], ['visualPilot=V2B', null, 'production'],
-    [`baseline=legacy&${PILOT}`, 'v2', 'legacy'], [`baseline=legacy&${PILOT_B}`, 'v2b', 'legacy']];
+  const cases = [['', null, 'production'], [PILOT, 'v2', 'production'], [PILOT_B, 'v2b', 'production'], [PILOT_C, 'v2c', 'production'],
+    ['visualPilot=1', null, 'production'], ['visualPilot=v1', null, 'production'], ['visualPilot=V2B', null, 'production'], ['visualPilot=v2d', null, 'production'],
+    [`baseline=legacy&${PILOT}`, 'v2', 'legacy'], [`baseline=legacy&${PILOT_B}`, 'v2b', 'legacy'], [`baseline=legacy&${PILOT_C}`, 'v2c', 'legacy']];
   const sw = {};
   for (const [flags, want, base] of cases) {
     const p = await boot(flags);
     const r = await p.evaluate(() => {
       const d = window.__dbg;
-      return { vp: d.getVisualPilot(), v2: d.isVisualPilotV2(), v2b: d.isVisualPilotV2B?.() ?? null, base: d.getGameplayBaseline(),
+      return { vp: d.getVisualPilot(), v2: d.isVisualPilotV2(), v2b: d.isVisualPilotV2B?.() ?? null, v2c: d.isVisualPilotV2C?.() ?? null, base: d.getGameplayBaseline(),
         sw: [d.isRosterV1(), d.isMoveV22(), d.isGaitV2(), d.getBulwarkStuck(), d.getMarksmanStuck(), d.isMarksmanAngle(), d.isBulwarkAngle()].join(',') };
     });
-    const fam = r.v2 === (want != null) && r.v2b === (want === 'v2b');
-    check(`?${flags || '(no flags)'} -> visualPilot ${want} on the ${base} baseline`, r.vp === want && r.base === base && fam, `got ${r.vp} / ${r.base} / V2 family ${r.v2} / V2B ${r.v2b}`);
+    const fam = r.v2 === (want != null) && r.v2b === (want === 'v2b' || want === 'v2c') && r.v2c === (want === 'v2c');
+    check(`?${flags || '(no flags)'} -> visualPilot ${want} on the ${base} baseline`, r.vp === want && r.base === base && fam, `got ${r.vp} / ${r.base} / V2 family ${r.v2} / V2B objects ${r.v2b} / V2C ground ${r.v2c}`);
     (sw[base] ||= new Set()).add(r.sw);
     await p.close();
   }
@@ -174,7 +178,7 @@ console.log('\n== 0. the flag');
 // ── 1 + 2 + 3. TEXTURES, BODIES, THE BACKDROP CONTRACT ────────────────────
 console.log('\n== 1. textures   2. bodies   3. the backdrop RNG contract');
 const off = await boot('');
-const pg = { V2: await boot(PILOT), V2B: await boot(PILOT_B) };
+const pg = { V2: await boot(PILOT), V2B: await boot(PILOT_B), V2C: await boot(PILOT_C) };
 const snapshot = (p) => p.evaluate(() => {
   const gs = window.__gs, P = gs.player;
   const out = { tex: window.__allTex(), statics: window.__statics() };
@@ -190,14 +194,15 @@ const snapshot = (p) => p.evaluate(() => {
   return out;
 });
 const sOff = await snapshot(off);
-const snap = { V2: await snapshot(pg.V2), V2B: await snapshot(pg.V2B) };
+const snap = { V2: await snapshot(pg.V2), V2B: await snapshot(pg.V2B), V2C: await snapshot(pg.V2C) };
 const ADDED = {
   V2: ['vp-con-heavy', 'vp-con-ped-c', 'vp-crate-a', 'vp-crate-b', 'vp-drum', 'vp-drum-b', 'vp-swarm'],
   V2B: ['vp-swarm', 'vp2b-con-heavy', 'vp2b-con-ped-c', 'vp2b-con-wall', 'vp2b-crane', 'vp2b-crate-a', 'vp2b-crate-b', 'vp2b-drum', 'vp2b-drum-b', 'vp2b-shuttle'],
 };
-const SOLID_PILOT = { V2: [/^vp-/, 11], V2B: [/^vp2b-/, 13] };    // V2: 8 cover + 3 drums; V2B: + shuttle + gantry
+ADDED.V2C = ADDED.V2B;                                            // V2C stands on the V2B set
+const SOLID_PILOT = { V2: [/^vp-/, 11], V2B: [/^vp2b-/, 13], V2C: [/^vp2b-/, 13] };    // V2: 8 cover + 3 drums; V2B: + shuttle + gantry
 const geo = (l) => l.map((x) => x.split('|')[1]).sort().join(';');
-for (const M of ['V2', 'V2B']) {
+for (const M of ALL) {
   const sOn = snap[M];
   const keysOff = Object.keys(sOff.tex), keysOn = Object.keys(sOn.tex);
   const changed = keysOff.filter((k) => sOff.tex[k] !== sOn.tex[k]);
@@ -220,6 +225,12 @@ for (const M of ['V2', 'V2B']) {
 }
 check('flag off: swarmling is the legacy grunt sheet, tinted acid green', sOff.swarm.key === 'grunt' && sOff.swarm.prefix === 'grunt' && sOff.swarm.tint === 0x70e838);
 check('V2B keeps V2\'s protagonist and swarmling byte-identical', snap.V2.tex.player === snap.V2B.tex.player && snap.V2.tex['vp-swarm'] === snap.V2B.tex['vp-swarm']);
+{
+  const keys = [...new Set([...Object.keys(snap.V2B.tex), ...Object.keys(snap.V2C.tex)])];
+  const diff = keys.filter((k) => snap.V2B.tex[k] !== snap.V2C.tex[k]);
+  check(`V2C: every texture (characters, objects, machinery — ${keys.length}) byte-identical to V2B`, diff.length === 0, diff.join(' '));
+  check('V2C: every Hangar static body on the same key and geometry as V2B', JSON.stringify([...snap.V2B.statics].sort()) === JSON.stringify([...snap.V2C.statics].sort()));
+}
 
 const paintRoom = (p, id) => p.evaluate((id) => {
   const gs = window.__gs, spec = window.__rooms.find((r) => r.id === id);
@@ -246,14 +257,15 @@ const darkState = (p) => p.evaluate(() => {
 });
 {
   const a = await paintRoom(off, 'hangar');
-  const b = { V2: await paintRoom(pg.V2, 'hangar'), V2B: await paintRoom(pg.V2B, 'hangar') };
-  for (const M of ['V2', 'V2B']) {
+  const b = { V2: await paintRoom(pg.V2, 'hangar'), V2B: await paintRoom(pg.V2B, 'hangar'), V2C: await paintRoom(pg.V2C, 'hangar') };
+  for (const M of ALL) {
     check(`${M}: Hangar load takes the same Math.random draws and leaves the same next value`, a.draws === b[M].draws && a.next === b[M].next, `draws ${a.draws}/${b[M].draws}, next ${a.next}/${b[M].next}`);
     check(`${M}: the pilot ran — its Hangar backdrop differs from R1`, a.bg !== b[M].bg);
   }
   check('V2B\'s Hangar backdrop differs from V2\'s (a distinct candidate)', b.V2.bg !== b.V2B.bg);
+  check('V2C\'s Hangar backdrop (the ground) differs from V2B\'s', b.V2B.bg !== b.V2C.bg);
   const dOff = await darkState(off);
-  for (const M of ['V2', 'V2B']) {
+  for (const M of ALL) {
     const d = await darkState(pg[M]);
     check(`${M}: LIGHTS OUT — every roomLayer material class and dark tint, and every emissive part, as R1 (${dOff.layer.length} objects, ${dOff.light.length} light parts)`,
       JSON.stringify(d.layer) === JSON.stringify(dOff.layer) && JSON.stringify(d.light) === JSON.stringify(dOff.light) && dOff.light.length > 0,
@@ -261,16 +273,16 @@ const darkState = (p) => p.evaluate(() => {
   }
   for (const id of ['corridor', 'detention', 'vader']) {
     const x = await paintRoom(off, id);
-    for (const M of ['V2', 'V2B']) {
+    for (const M of ALL) {
       const y = await paintRoom(pg[M], id);
       check(`${M} ${id}: backdrop byte-identical, same draws, same cover keys`, x.bg === y.bg && x.draws === y.draws && x.next === y.next && x.cover === y.cover, `${x.bg === y.bg} ${x.draws}/${y.draws} ${x.cover === y.cover}`);
     }
   }
 }
-await off.close(); await pg.V2.close(); await pg.V2B.close();
+await off.close(); for (const M of ALL) await pg[M].close();
 
 // ── 4. SAME FIGHT ─────────────────────────────────────────────────────────
-console.log('\n== 4. same fight, R1 vs V2 vs V2B');
+console.log('\n== 4. same fight, R1 vs V2 vs V2B vs V2C');
 const SEG = FIGHT_SEG, SUPER = [700, 1400];
 async function replay(flags, q, { headless = true, ticks = TICKS, seed = 9071, base = NOW } = {}) {
   const p = await boot(flags, { base, q });
@@ -283,7 +295,7 @@ for (const [label, q, baseFlags] of [['SWARM TIDE, production', Q_SWARM, ''], ['
   ['BOMBER RUN, production', Q_BOMB, '']]) {
   const a = await replay(baseFlags, q);
   traces[label] = a;
-  for (const M of ['V2', 'V2B']) {
+  for (const M of ALL) {
     const b = await replay([baseFlags, MODES[M]].filter(Boolean).join('&'), q);
     const d = firstDiff(a.hashes, b.hashes);
     check(`${M} ${label}: ${TICKS} headless ticks identical to R1 (state + draws)`, d < 0, d < 0 ? `${a.draws} draws, ${a.spawned} spawned` : `first divergent tick ${d}`);
@@ -295,7 +307,7 @@ for (const [label, q, baseFlags] of [['SWARM TIDE, production', Q_SWARM, ''], ['
 {
   const n = Math.min(TICKS, 600);
   const a = await replay('', Q_SWARM, { headless: false, ticks: n });
-  for (const M of ['V2', 'V2B']) {
+  for (const M of ALL) {
     const b = await replay(MODES[M], Q_SWARM, { headless: false, ticks: n });
     const d = firstDiff(a.hashes, b.hashes);
     check(`${M} SWARM TIDE, production: ${n} RENDERED ticks identical to R1`, d < 0, d < 0 ? `${a.draws} draws` : `first divergent tick ${d}`);
@@ -316,11 +328,12 @@ console.log('\n== 5. frozen files');
 }
 
 // ── 6. AGAINST THE PREVIOUS BUILD ─────────────────────────────────────────
-// `--old` = the V2 build (`bcd22e3`): its no-flags game is R1 (itself proven
-// identical to `d05ac13`), and its `?visualPilot=v2` is V2 as delivered.
+// `--old` = the V2B build (`7a75e1e`): its no-flags game is R1 (itself proven
+// identical to `d05ac13` and `bcd22e3`), and its `?visualPilot=v2` / `v2b` are
+// V2 and V2B as delivered.
 if (OLD && !SELF) {
   console.log(`\n== 6. against the previous build (${OLD})`);
-  for (const [label, flags] of [['no flags (R1)', ''], ['V2 (?visualPilot=v2)', PILOT]]) {
+  for (const [label, flags] of [['no flags (R1)', ''], ['V2 (?visualPilot=v2)', PILOT], ['V2B (?visualPilot=v2b)', PILOT_B]]) {
     const pOld = await bootPage(browser, { base: OLD, flags, baseline: null, q: 'room=hangar', seed: 4242 });
     await instrument(pOld);
     const pNew = await boot(flags);
@@ -331,7 +344,7 @@ if (OLD && !SELF) {
     check(`${label}: the Hangar backdrop, its draws and next value match the previous build`, bOld.bg === bNew.bg && bOld.draws === bNew.draws && bOld.next === bNew.next);
     await pOld.close(); await pNew.close();
   }
-  for (const [label, q, flags] of [['SWARM TIDE, no flags', Q_SWARM, ''], ['SWARM TIDE, legacy baseline', Q_SWARM, 'baseline=legacy'], ['BOMBER RUN, no flags', Q_BOMB, ''], ['SWARM TIDE, V2', Q_SWARM, PILOT]]) {
+  for (const [label, q, flags] of [['SWARM TIDE, no flags', Q_SWARM, ''], ['SWARM TIDE, legacy baseline', Q_SWARM, 'baseline=legacy'], ['BOMBER RUN, no flags', Q_BOMB, ''], ['SWARM TIDE, V2', Q_SWARM, PILOT], ['SWARM TIDE, V2B', Q_SWARM, PILOT_B]]) {
     const a = await replay(flags, q, { base: OLD }), b = traces[label.replace('no flags', 'production')] || await replay(flags, q);
     const d = firstDiff(a.hashes, b.hashes);
     check(`${label}: ${TICKS} ticks identical to the previous build`, d < 0, d < 0 ? `${a.draws} draws` : `first divergent tick ${d}`);
@@ -341,10 +354,10 @@ if (OLD && !SELF) {
 // ── 7. RESTART AND RELOAD KEEP THE MODE ───────────────────────────────────
 if (!SELF) {
   console.log('\n== 7. restart and reload keep the mode');
-  for (const [M, flags] of [['V2', PILOT], ['V2B', PILOT_B], ['R1', '']]) {
+  for (const [M, flags] of [['V2', PILOT], ['V2B', PILOT_B], ['V2C', PILOT_C], ['R1', '']]) {
     const p = await boot(flags);
-    const want = { V2: 'v2', V2B: 'v2b', R1: null }[M];
-    const re = { V2: /^vp-/, V2B: /^vp2b-/, R1: /^vp/ }[M];
+    const want = { V2: 'v2', V2B: 'v2b', V2C: 'v2c', R1: null }[M];
+    const re = { V2: /^vp-/, V2B: /^vp2b-/, V2C: /^vp2b-/, R1: /^vp/ }[M];
     const before = await p.evaluate(() => ({ player: window.__texHash('player'), solids: window.__statics().map((x) => x.split('|')[0]).sort().join(',') }));
     const after = await p.evaluate(async () => {
       const g = window.game, gs = window.__gs;
@@ -368,7 +381,7 @@ if (!SELF) {
       const d = await import(u);
       return { vp: d.getVisualPilot(), b: window.game.textures.exists('vp2b-shuttle'), a: window.game.textures.exists('vp-crate-a') };
     });
-    check(`${M}: a reload keeps the mode (and paints only its own set)`, rl.vp === want && rl.b === (M === 'V2B') && rl.a === (M === 'V2'), JSON.stringify(rl));
+    check(`${M}: a reload keeps the mode (and paints only its own set)`, rl.vp === want && rl.b === (M === 'V2B' || M === 'V2C') && rl.a === (M === 'V2'), JSON.stringify(rl));
     await p.close();
   }
 }

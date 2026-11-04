@@ -17,6 +17,7 @@
 //   A  ''                  current R1 production presentation
 //   B  'visualPilot=v2'    the Visual Identity V2 candidate (as delivered)
 //   C  'visualPilot=v2b'   the V2B candidate: V2's characters, the refined Hangar
+//   D  'visualPilot=v2c'   the V2C candidate: V2B with a new Hangar ground
 // `--stage=lane` (default) or `apron` picks the staged fight (below).
 //
 // `--mode=env` photographs the EMPTY Hangar instead (no enemies, HUD hidden)
@@ -43,7 +44,7 @@ const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').
 const OUT = opt('out', 'docs/evidence/visual-identity-v2/ab');
 const SEED = +opt('seed', '7311');
 const TICKS = opt('ticks', '90,180,300,400,480,560,660').split(',').map(Number);
-const CONFIGS = { A: '', B: 'visualPilot=v2', C: 'visualPilot=v2b' };
+const CONFIGS = { A: '', B: 'visualPilot=v2', C: 'visualPilot=v2b', D: 'visualPilot=v2c' };
 const RUN = opt('configs', 'A,B,C').split(',');
 const Q = opt('q', 'room=hangar');
 const MODE = opt('mode', 'fight');

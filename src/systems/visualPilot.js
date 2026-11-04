@@ -20,8 +20,9 @@ export const PILOT_SWARM_TEX = 'vp-swarm';
 
 /**
  * Paint every pilot texture and register the swarm sheet's stock anim keys.
- * `v2` and `v2b` share the protagonist (painted in PreloadScene) and the swarm
- * sheet; each paints only its own Hangar set.
+ * Every candidate shares the protagonist (painted in PreloadScene) and the
+ * swarm sheet; `v2` paints the V2 Hangar set, `v2b` and `v2c` the V2B set (V2C
+ * differs only in the ground, which is backdrop paint).
  */
 export function paintVisualPilot(scene) {
   if (!isVisualPilotV2()) return;
