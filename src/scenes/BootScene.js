@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import {
   setDialogueMuted, setDuelRequest, parseDuelParams, setHitstopMuted, setMoveNamesMuted,
   setEncDebug, setEncForce, parseEncDebugParams, setChampDebug, setChampWhich, setChampPlacementOff, setVanguardScreenOff, setVanguardFrontOff,
-  setCapTel, setShowColliders, applyGameplayFlags,
+  setCapTel, setShowColliders, applyGameplayFlags, applyVisualFlags,
 } from '../systems/debug.js';
 import { ENCOUNTERS } from '../data/encounters.js';
 import { CAMERA } from '../config.js';
@@ -29,6 +29,10 @@ export class BootScene extends Phaser.Scene {
     // `?marksmanAngle=` `?bulwarkAngle=` override one switch each. Grammar and
     // the R0 experiment labels: systems/debug.js, "THE GAMEPLAY BASELINE".
     applyGameplayFlags(params);
+    // `?visualPilot=v2` — the Visual Identity V2 look-development candidate
+    // (presentation only, opt-in, not a default). Applied before Preload paints
+    // anything, because its protagonist is painted into the `player` key there.
+    applyVisualFlags(params);
     // `?colliders=1` draws enemy physics footprints (diagnostic only).
     if (params.has('colliders')) setShowColliders(true);
     // `?nonames=1` hides Vader's ATTACK-NAME callouts, and only those, so a

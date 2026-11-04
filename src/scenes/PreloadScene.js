@@ -81,6 +81,9 @@ import { paintRosterMuzzles } from '../systems/rosterWeaponFx.js';
 import { paintSidearmMuzzle } from '../systems/bulwarkSidearm.js';
 import { registerRosterArt } from '../data/rosterArt.js';
 import { paintGunnerMuzzle } from '../systems/gunnerMuzzle.js';
+import { isVisualPilotV2 } from '../systems/debug.js';
+import { paintPilotHero } from '../systems/vpPaint.js';
+import { paintVisualPilot } from '../systems/visualPilot.js';
 
 // All textures are programmatically painted. No external assets needed.
 
@@ -91,7 +94,9 @@ export class PreloadScene extends Phaser.Scene {
 
   create() {
     // ── Characters (sprite sheets, 4 frames each) ────────────────────
-    paintPlayer(this);
+    // `?visualPilot=v2` paints the V2 protagonist into the SAME key on the
+    // same 24-frame contract (systems/vpPaint.js); absent, the shipped sheet.
+    if (isVisualPilotV2()) paintPilotHero(this, 'player'); else paintPlayer(this);
     paintGrunt(this);
     paintShooter(this);
     // ROSTER v1 (`?roster=v1`): production art for the redesigned roster, on
@@ -219,6 +224,10 @@ export class PreloadScene extends Phaser.Scene {
     // chamber's emissive list — no other room references them.
     paintPodGlow(this, 'prop-pod-glow');
     paintPodEmergency(this, 'prop-pod-emer');
+    // VISUAL IDENTITY V2 (`?visualPilot=v2` only; a no-op otherwise): the V2
+    // swarm sheet and its anim keys, and the Hangar's V2 cover / prop art on
+    // NEW keys. After the kit, because the material pass reads its textures.
+    paintVisualPilot(this);
 
     // ── Projectiles ──────────────────────────────────────────────────
     paintBolt(this, 'bullet',        PAL.boltRed,        PAL.boltRedGlow,   14);

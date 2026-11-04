@@ -7,6 +7,8 @@ import { EnemyGrunt, EnemyShooter, EnemyBomber, EnemyShielded, EnemySniper, Enem
 import { Boss } from '../entities/Boss.js';
 import { BulletGroup } from '../entities/Bullet.js';
 import { paintBackdrop } from '../systems/pixelArt.js';
+import { pilotTexFor, wearPilotSwarm } from '../systems/visualPilot.js';
+import { paintPilotHangarBackdrop } from '../systems/vpHangar.js';
 import { BushSystem } from '../systems/BushSystem.js';
 import { RoomManager } from '../systems/RoomManager.js';
 import { CoverRegistry } from '../systems/CoverRegistry.js';
@@ -31,6 +33,7 @@ import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
   isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff, isVanguardScreenOff, isVanguardFrontOff,
   isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2, getBulwarkStuck, getMarksmanStuck, isMarksmanAngle, isBulwarkAngle,
+  isVisualPilotV2,
 } from '../systems/debug.js';
 import { installBulwarkStuck } from '../systems/bulwarkStuck.js';
 import { installMarksmanStuck } from '../systems/marksmanStuck.js';
@@ -557,7 +560,11 @@ export class GameScene extends Phaser.Scene {
       // The physics world bounds already stop everything at these edges, so
       // painting it adds no collision and, like the floor markings, cannot
       // reach `this.walls` and so cannot affect nav or LOS.
-      paintBackdrop(this, bgKey, w, h, {
+      // `?visualPilot=v2`: the Hangar takes the V2 material pass — the same
+      // options and the same `Math.random` draws (systems/vpHangar.js).
+      const paintBg = (isVisualPilotV2() && spec.id === 'hangar')
+        ? (...a) => paintPilotHangarBackdrop(...a, spec) : paintBackdrop;
+      paintBg(this, bgKey, w, h, {
         ...(spec.floor || {}),
         perimeter: spec.perimeter || null,
         openings: perimeterOpenings(spec),
@@ -633,7 +640,9 @@ export class GameScene extends Phaser.Scene {
       // console kit is shared code and its textures exist for every room, but
       // only a room that asks for an archetype receives one — which is what
       // keeps this pilot one arena.
-      const con = this.walls.create(cp.x, cp.y, cp.tex ?? spec.coverTex ?? 'bush');
+      // (`pilotTexFor`: V2 art on the same 28x28 canvas under `?visualPilot=v2`
+      // in the Hangar, else this key. The kit lookups below keep `cp.tex`.)
+      const con = this.walls.create(cp.x, cp.y, pilotTexFor(this, spec, cp.tex ?? spec.coverTex ?? 'bush'));
       con.setDepth(cp.y + 56);
       // ORDER MATTERS — refreshBody() recomputes a STATIC body from the
       // sprite's display size, so calling it AFTER setSize silently throws the
@@ -687,9 +696,10 @@ export class GameScene extends Phaser.Scene {
     const propFaces = [];
     const propLights = [];
     for (const pr of spec.props || []) {
+      const ptex = pilotTexFor(this, spec, pr.tex);   // same canvas size under the pilot
       const img = pr.solid
-        ? this.walls.create(pr.x, pr.y, pr.tex)
-        : this.add.image(pr.x, pr.y, pr.tex);
+        ? this.walls.create(pr.x, pr.y, ptex)
+        : this.add.image(pr.x, pr.y, ptex);
       // Depth is the prop's own y — it IS the ground contact point — UNLESS
       // the prop declares one. A wall-mounted panel is not standing on the
       // deck at all: it is part of the wall band, and sorting it by its y
@@ -2035,6 +2045,9 @@ export class GameScene extends Phaser.Scene {
       const art = rosterArtFor(this, type, false);
       if (art) { wearRosterArt(enemy, art, enemy.cfg.radius); enemy.clearTint(); }
     }
+    // VISUAL IDENTITY V2 (`?visualPilot=v2` only): the swarmling's V2 sheet, at
+    // the same render scale and body circle. Never a nemesis (`legacyArt`).
+    if (type === 'swarmling' && !spec.legacyArt) wearPilotSwarm(enemy);
     if (spec.elite) this._makeElite(enemy);
     // `?move=v2` candidate locomotion: the two archetypes that run the shared
     // shooter swarm tick. Never a nemesis (`legacyArt`), never a swarmling.

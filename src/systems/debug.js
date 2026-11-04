@@ -422,3 +422,26 @@ applyGameplayBaseline('production');
 let showColliders = false;
 export function isShowColliders() { return showColliders; }
 export function setShowColliders(v) { showColliders = !!v; }
+
+// ── VISUAL IDENTITY V2 — look-development pilot (`?visualPilot=v2`) ────────
+//
+// HUMAN-AUTHORIZED OPT-IN PRESENTATION CANDIDATE (2026-11-04), NOT A DEFAULT.
+// Absent (or any other value), nothing is painted, swapped or installed and the
+// game is the R1 production presentation exactly. Present, it selects:
+//   - the V2 protagonist sheet, painted into the `player` key at Preload (same
+//     24-frame contract, same anim keys; the body circle is re-centred on the
+//     frame by Player's own constructor, so the collider is unchanged);
+//   - the V2 swarmling sheet (`vp-swarm`), worn by `swarmling` only, at the
+//     same 0.7 render scale and the same body circle;
+//   - the V2 Hangar treatment: a material pass on the Hangar backdrop and V2
+//     cover / prop art on the same canvas sizes and the same bodies.
+// PRESENTATION ONLY: no hp, radius, speed, AI, timing, spawn, camera, collision
+// or `Math.random` draw may differ (`tests/smoke-visual-pilot.mjs`). It is
+// coupled to none of the gameplay switches above and applies on top of either
+// baseline. Painters: `systems/vpPaint.js`, `systems/vpHangar.js`.
+let visualPilot = null;
+export function setVisualPilot(v) { visualPilot = v === 'v2' ? 'v2' : null; }
+export function getVisualPilot() { return visualPilot; }
+export function isVisualPilotV2() { return visualPilot === 'v2'; }
+/** `?visualPilot=v2` on, anything else off. `params` is a URLSearchParams. */
+export function applyVisualFlags(params) { setVisualPilot(params.get('visualPilot')); }
