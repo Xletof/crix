@@ -1,0 +1,6 @@
+A {"paintMs":43.4,"paintAll":[43.4,40.7,44.1,44.1,38.4],"texMB":63.26,"textures":158,"stepMedMs":7,"stepP95Ms":585.3,"displayList":176}
+B {"paintMs":94.2,"paintAll":[99,105.5,94.2,89.9,93.2],"texMB":64.53,"textures":165,"stepMedMs":6.8,"stepP95Ms":563.2,"displayList":176}
+
+Hangar backdrop paint: A 43.4 ms, B 94.2 ms (one-time, at room load)
+Texture memory: A 63.26 MB (158), B 64.53 MB (165)  [backdrop counted in both]
+Rendered step: A median 7 / p95 585.3 ms; B median 6.8 / p95 563.2 ms; display list 176 vs 176

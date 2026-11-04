@@ -1,0 +1,48 @@
+
+== 0. the flag
+PASS  ?(no flags) -> visualPilot null on the production baseline  — got null / production
+PASS  ?visualPilot=v2 -> visualPilot v2 on the production baseline  — got v2 / production
+PASS  ?visualPilot=1 -> visualPilot null on the production baseline  — got null / production
+PASS  ?visualPilot=v1 -> visualPilot null on the production baseline  — got null / production
+PASS  ?baseline=legacy&visualPilot=v2 -> visualPilot v2 on the legacy baseline  — got v2 / legacy
+PASS  the flag moves none of the seven gameplay switches (per baseline)  — {"production":["true,true,true,early,early,true,true"],"legacy":["false,false,false,,,false,false"]}
+
+== 1. textures   2. bodies   3. the backdrop RNG contract
+PASS  flag on: the only changed flag-off texture is `player`  — changed: player
+PASS  flag on: the only added textures are the pilot's `vp-*`  — added: vp-con-heavy vp-con-ped-c vp-crate-a vp-crate-b vp-drum vp-drum-b vp-swarm
+PASS  flag on: no texture is missing
+PASS  every roster / weapon / projectile / boss texture byte-identical (45, incl. the white Rifleman ro-rif-*)
+PASS  player sheet keeps the 24-frame contract (frame count via anim key, frame 96 wide)  — 96,96,mando-idle-back vs 96,104,mando-idle-back
+PASS  player body circle identical at scales 1, breathing 1.015, recoil 1.2 / 0.88  — 22,44,44,22,22,0,-0.0188 vs 22,44,44,22,22,0,-0.0188
+PASS  swarmling body circle identical (radius x 0.7, centred)  — 13,18.2,18.2,9,9,-31,-31 vs 13,18.2,18.2,9,9,-31,-31
+PASS  swarmling render scale, hp, radius and speed identical
+PASS  the pilot ran: swarmling wears `vp-swarm`, its own prefix, no tint  — vp-swarm/vp-swarm/false
+PASS  flag off: swarmling is the legacy grunt sheet, tinted acid green
+PASS  every static body in the Hangar identical (13 cover + props + walls)
+PASS  the pilot ran: Hangar cover / drums stand on `vp-*` art (8 cover + 3 drums)  — 11 vp-* statics; off: 0
+PASS  Hangar load: same Math.random draws and the same next value, flag on / off  — draws 542/542, next 0.07199465623125434/0.07199465623125434
+PASS  the pilot ran: the Hangar backdrop differs under the flag
+PASS  corridor: backdrop byte-identical, same draws, same cover keys under the flag  — true 458/458 true
+PASS  detention: backdrop byte-identical, same draws, same cover keys under the flag  — true 427/427 true
+PASS  vader: backdrop byte-identical, same draws, same cover keys under the flag  — true 114/114 true
+
+== 4. same fight, flag on vs off
+PASS  SWARM TIDE, production: 1500 headless ticks identical (state + draws)  — 13008 draws, 31 spawned
+PASS  SWARM TIDE, production: swarmlings really fought (24) and every one wore V2 under the flag at 0.7  — off 0/24, on 24/24
+PASS  SWARM TIDE, legacy baseline: 1500 headless ticks identical (state + draws)  — 14429 draws, 38 spawned
+PASS  SWARM TIDE, legacy baseline: swarmlings really fought (31) and every one wore V2 under the flag at 0.7  — off 0/31, on 31/31
+PASS  BOMBER RUN, production: 1500 headless ticks identical (state + draws)  — 13851 draws, 19 spawned
+PASS  SWARM TIDE, production: 600 RENDERED ticks identical  — 6508 draws
+
+== 5. frozen files
+PASS  no change against d05ac13 in entities, config, data, pixelArt, rosterPaint, camera, light, AI seams, nav
+PASS  Enemy.js guard (outside the Bomber, the Bomber-only veto)  — {"outside":true,"hasDoc":true,"hasMethod":true,"code":"_vetoFalseStuck() { if (this._stuckFirstSeen || this._miniBoss) return; if (this._stuckRefX === undefined) return; this._stuckFirstSeen = true; const moved = Ma"}
+
+== 6. against the previous build (http://localhost:5174/)
+PASS  no flags: every texture byte-identical to the previous build
+PASS  no flags: the Hangar backdrop, its draws and next value match the previous build
+PASS  SWARM TIDE, no flags: 1500 ticks identical to the previous build  — 13008 draws
+PASS  SWARM TIDE, legacy baseline: 1500 ticks identical to the previous build  — 14429 draws
+PASS  BOMBER RUN, no flags: 1500 ticks identical to the previous build  — 13851 draws
+
+36/36 passed

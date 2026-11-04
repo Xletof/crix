@@ -139,9 +139,11 @@ handset shows the 720x1280 canvas.
   (sections 0–6 above). `--selftest` (an extra draw and a 1px larger body per
   swarmling, a 1px larger player circle, under the flag only) — every body
   check and every replay FAILS, as it must: the checks can see what they guard.
-- Covering suites, standalone: see `suites.txt` (`smoke-hangar`, `-arena`,
-  `-roster-seams`, `-title`, `-debug`, `-rng`, `-depth`, `-leak`, `-restart`,
-  `-junction`, `-detention`, `-gait-v2`, `-integration-r0`).
+- Covering suites, standalone, on the final code: **13/13 pass** (`suites.txt`:
+  `smoke-hangar`, `-arena`, `-roster-seams` 70/70, `-title`, `-debug`, `-rng`,
+  `-depth`, `-leak`, `-restart`, `-junction`, `-detention` 49/49, `-gait-v2`
+  16/16, `-integration-r0` 47/47 with its pre-rollout `2ab24af` server).
+  `npm run build` succeeds.
 - The full 52-suite run was not repeated: flag-off identity with the previous
   build is proven directly (textures and seeded replays), and the full run is
   load-sensitive and not green on the previous build either (46/52, register #9).
