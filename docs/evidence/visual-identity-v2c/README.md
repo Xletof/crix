@@ -136,8 +136,12 @@ compete in motion.
   - **restart and reload** keep each mode.
 - `--selftest` (`selftest.txt`): every body check and every replay fails when
   an extra draw and larger bodies are injected, as it must.
-- Covering suites, standalone, on the final code: `suites.txt`.
-- `npm run build` succeeds.
+- Covering suites, standalone, on the final code: **13/13 pass** (`suites.txt`:
+  `smoke-hangar`, `-arena`, `-roster-seams` 70/70, `-title`, `-debug`, `-rng`,
+  `-depth`, `-leak`, `-restart`, `-junction`, `-detention` 49/49, `-gait-v2`
+  16/16, `-integration-r0` 47/47 with its `2ab24af` server).
+- `npm run build` succeeds. The full 52-suite run was not repeated; it is not
+  green on the previous builds either (46/52, register #9).
 
 ## 6. Performance (`tests/diag-visual-pilot-perf.mjs`, `perf.txt`)
 
