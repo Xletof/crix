@@ -1,0 +1,3 @@
+smoke-visual-pilot --selftest (sections 2 and 4 must FAIL):
+68/89 passed  (SELFTEST: sections 2 and 4 are expected to FAIL)
+SELFTEST OK: the parity checks caught the injected changes

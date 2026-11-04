@@ -1,0 +1,9 @@
+A {"paintMs":39,"paintAll":[34.2,31.4,45.1,46.1,39],"texMB":63.26,"textures":158,"stepMedMs":6.9,"stepP95Ms":553,"displayList":176}
+B {"paintMs":89.7,"paintAll":[93,85,90.1,83,89.7],"texMB":64.53,"textures":165,"stepMedMs":6.6,"stepP95Ms":539.8,"displayList":176}
+C {"paintMs":123.3,"paintAll":[117.3,123.3,126.8,123.5,106.8],"texMB":65.39,"textures":168,"stepMedMs":6.8,"stepP95Ms":513.6,"displayList":176}
+D {"paintMs":99.6,"paintAll":[119.6,112,98,99.6,91.4],"texMB":65.39,"textures":168,"stepMedMs":7.1,"stepP95Ms":537.4,"displayList":176}
+
+R1: Hangar paint 39 ms | textures 63.26 MB (158) | rendered step median 6.9 / p95 553 ms | display list 176
+V2: Hangar paint 89.7 ms | textures 64.53 MB (165) | rendered step median 6.6 / p95 539.8 ms | display list 176
+V2B: Hangar paint 123.3 ms | textures 65.39 MB (168) | rendered step median 6.8 / p95 513.6 ms | display list 176
+V2C: Hangar paint 99.6 ms | textures 65.39 MB (168) | rendered step median 7.1 / p95 537.4 ms | display list 176
