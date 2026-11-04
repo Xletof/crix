@@ -1,0 +1,32 @@
+Covering suites, standalone, on c37a568 (V2B before the console top-plane tweak b4ad9c4, which changes only V2B-flagged texture content; the final gate ran on the final code). Dev server :5173; integration-r0 section 7 against a 2ab24af server.
+smoke-hangar exit=0 16s
+smoke-arena exit=0 16s
+smoke-roster-seams exit=0 172s
+smoke-title exit=0 15s
+smoke-debug exit=0 35s
+smoke-rng exit=0 38s
+smoke-depth exit=0 14s
+smoke-leak exit=0 18s
+smoke-restart exit=0 164s
+smoke-junction exit=0 18s
+smoke-detention exit=0 43s
+smoke-gait-v2 exit=0 275s
+smoke-integration-r0 exit=0 287s
+DONE
+--- smoke-hangar: PASS: the hangar is art — its geometry, its collision, the chamber and the darkness owner are untouched
+--- smoke-arena: PASS: the arena pilot is art — geometry, collision, the darkness owner and the saber are untouched
+--- smoke-roster-seams: 70/70 checks passed
+--- smoke-title: PASS: 15 checks — endless leads, and its record is the first thing you read
+--- smoke-debug: PASS: debug menu works and the HUD stays in sync
+--- smoke-rng: PASS: 17 checks — runs are reproducible and the streams do not couple
+--- smoke-depth: PASS: draws over the room, no tumble
+--- smoke-leak: PASS: primary fire is isolated from the cluster
+--- smoke-restart: PASS: 16 checks — restarts leave no duplicate handlers and no stale arena
+--- smoke-junction: smoke-junction OK
+--- smoke-detention: 49 passed, 0 failed
+--- smoke-gait-v2: 16/16 checks passed
+--- smoke-integration-r0: 47/47 passed
+
+smoke-visual-pilot --selftest on the final code (sections 2 and 4 must FAIL):
+46/60 passed  (SELFTEST: sections 2 and 4 are expected to FAIL)
+SELFTEST OK: the parity checks caught the injected changes
