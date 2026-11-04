@@ -8,7 +8,7 @@
 //   1. ONE-TIME COST: painting the Hangar backdrop (the stock painter vs the
 //      pilot's painter, same room options, median of N), in ms.
 //   2. RESIDENT TEXTURE MEMORY: the sum of every texture's width x height x 4,
-//      R1 vs V2 vs V2B (A / B / C).
+//      R1 vs V2 vs V2B vs V2C (A / B / C / D).
 //   3. PER-FRAME COST: the scene graph does not change — the pilot adds no
 //      display object at runtime — so this is the control: median / p95 wall
 //      time of a rendered `game.step` over the same staged fight, A vs B, and
@@ -20,7 +20,7 @@ const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').
 const REPS = +opt('reps', '5'), TICKS = +opt('ticks', '600');
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 const out = {};
-for (const [cfg, flags] of [['A', ''], ['B', 'visualPilot=v2'], ['C', 'visualPilot=v2b']]) {
+for (const [cfg, flags] of [['A', ''], ['B', 'visualPilot=v2'], ['C', 'visualPilot=v2b'], ['D', 'visualPilot=v2c']]) {
   const p = await bootPage(browser, { flags, baseline: null, q: 'room=hangar', seed: 4242 });
   out[cfg] = await p.evaluate(async ({ reps, ticks }) => {
     const gs = window.__gs;
@@ -70,5 +70,5 @@ for (const [cfg, flags] of [['A', ''], ['B', 'visualPilot=v2'], ['C', 'visualPil
   console.log(cfg, JSON.stringify(out[cfg]));
 }
 await browser.close();
-const L = { A: 'R1', B: 'V2', C: 'V2B' };
-console.log('\n' + ['A', 'B', 'C'].map((c) => `${L[c]}: Hangar paint ${out[c].paintMs} ms | textures ${out[c].texMB} MB (${out[c].textures}) | rendered step median ${out[c].stepMedMs} / p95 ${out[c].stepP95Ms} ms | display list ${out[c].displayList}`).join('\n'));
+const L = { A: 'R1', B: 'V2', C: 'V2B', D: 'V2C' };
+console.log('\n' + ['A', 'B', 'C', 'D'].map((c) => `${L[c]}: Hangar paint ${out[c].paintMs} ms | textures ${out[c].texMB} MB (${out[c].textures}) | rendered step median ${out[c].stepMedMs} / p95 ${out[c].stepP95Ms} ms | display list ${out[c].displayList}`).join('\n'));
