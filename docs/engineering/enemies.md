@@ -455,6 +455,20 @@ Entries under the headings below were migrated from the root `CLAUDE.md` as it s
     both flags T1 Marksmen avoid a Bulwark's destination — by design, through
     T1's existing generic read; T1's own code is byte-identical.
 
+### Visual Identity V2 swarmling (`?visualPilot=v2`, a candidate — not approved)
+
+- `wearPilotSwarm` (`systems/visualPilot.js`), called from `spawnEnemyAt` for
+  `swarmling` only (never `legacyArt`), does what `EnemySwarmling`'s
+  constructor does for the legacy sheet: texture, `_animPrefix`, then
+  `setCircle(cfg.radius, width/2 - r, height/2 - r)` on the new frame — and
+  leaves `_baseScale` 0.7 alone, so Arcade's `radius x |scale|` body and the
+  scale-sized kill juice are the legacy ones. `setTexture` must land on frame
+  0 (Phaser's `firstFrame`), or `width` is the whole strip.
+- The sheet is painted at **6 px per logical px** so that at the 0.7 render
+  scale its pixels are ~4.2 px, the cast's grain. Its colour is baked, so
+  `fx.hitFlash`'s `clearTint` restores it (the legacy tinted swarmling turns
+  into a white trooper after a hit).
+
 ### Integration (R0 — investigation, `docs/evidence/integrated-combat-r0/`)
 
 - **The seams compose as built.** Measured on live spawns with the real flag

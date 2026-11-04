@@ -14,7 +14,7 @@ touches matching code; otherwise open what the task needs.
 | [`enemies.md`](enemies.md) | ordinary roster, Bulwark field, Demolisher, stuck detection, Marksman T1 / Bulwark T2 seams | `Enemy.js` (frozen), `bulwark*.js`, `marksman*.js`, `firingSpot.js`, `NavGrid.js` |
 | [`champion.md`](champion.md) | Champion doctrine, the frozen Shock Captain, Arc Grenade, hazards, rejected candidates | `ShockCaptain.js`, `Champion.js`, `Harrower.js`, `Hazard.js` |
 | [`encounters.md`](encounters.md) | wave composition, Champion placement, VANGUARD, `?encdbg` harness | `encounters.js`, `GameScene._resolveEncounter` |
-| [`environment.md`](environment.md) | the four frozen arenas, EnvLight, colour rules, pixel shape language | `rooms.js`, `EnvLight.js`, `consoleKit.js`, `pixelArt.js` |
+| [`environment.md`](environment.md) | the four frozen arenas, EnvLight, colour rules, pixel shape language; the opt-in Visual Identity V2 Hangar pass | `rooms.js`, `EnvLight.js`, `consoleKit.js`, `pixelArt.js`, `vpHangar.js` |
 | [`testing.md`](testing.md) | running and trusting the harness, background processes | `tests/` |
 
 ## Where else knowledge lives

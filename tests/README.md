@@ -2019,3 +2019,43 @@ overrides one switch (`?marksmanStuck=off` = R0's B). Grammar:
   prove the default, the fallback, the per-flag grammar, P = C = C_url tick for
   tick (spawn order included), identity with the pre-rollout build in both
   directions (`--old=` a `2ab24af` server), and restart / quit / reload.
+
+## The Visual Identity V2 rigs (`?visualPilot=v2` — a candidate, opt-in, presentation only)
+
+Evidence in `docs/evidence/visual-identity-v2/`. The pilot is presentation
+only, so its gate is an IDENTITY test, not a behaviour test.
+
+- `smoke-visual-pilot.mjs [--old=URL] [--selftest]` (standalone, :5173; a
+  `d05ac13` server at `--old` for section 6) — the flag grammar; every
+  flag-off texture byte-identical under the flag except `player`, only `vp-*`
+  added; player / swarmling / Hangar static bodies identical; the Hangar's
+  backdrop paint takes the same `Math.random` draws and leaves the same next
+  value, the other three rooms byte-identical; seeded replays (player, camera,
+  enemies, bullets, draw count, every tick) identical flag on vs off, headless
+  and rendered; the frozen files untouched; no flags = the previous build.
+  `--selftest` injects an extra draw and larger bodies under the flag and must
+  fail every body check and every replay.
+- `shot-visual-pilot.mjs [--mode=fight|env|lineup|film]` — matched A/B frames
+  of one seeded fight; every shutter (and every film frame) compares the two
+  halves' state and refuses a pair that is not the same fight.
+- `diag-visual-pilot-perf.mjs` — one-time Hangar paint cost, texture memory,
+  rendered step time (software rasteriser: A vs B only).
+
+### What it taught
+
+- **KILLING `npm run dev` LEAVES VITE RUNNING.** `kill <npm pid>` ends npm and
+  orphans its `vite` child, which keeps :5173; the next `npm run dev` then
+  quietly takes :5174, :5175… — and every rig keeps hitting the OLD server,
+  with its hot-reloaded modules (the double-module trap above). Own the Vite
+  process itself: `node node_modules/vite/bin/vite.js --port 5173 --strictPort
+  & PID=$!`, and `--strictPort` makes a held port an error instead of a silent
+  move. An old-build server for an identity section: `git worktree add DIR
+  <rev>`, symlink `node_modules`, the same command with `--port 5174`.
+- **A PRESENTATION-ONLY BACKDROP CHANGE STILL OWES THE RNG ITS DRAWS.**
+  `paintBackdrop` runs at every room load, mid-replay included. The pilot drops
+  the scorch discs by painting `scorch: 0` and then burning exactly
+  `scorch * 3` draws — valid only because the scorch loop is paintBackdrop's
+  LAST consumer and draws three per mark unconditionally. Section 3 checks the
+  draw count AND the next value; if `paintBackdrop` is ever reordered, it fails.
+- **THE PILOT'S FRAMES COMPRESS 2-3x WORSE** than the shipped ones (a textured
+  deck): PNG size is not a proxy for anything on the GPU.

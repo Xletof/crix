@@ -416,6 +416,25 @@ Entries under the headings below were migrated from the root `CLAUDE.md` as it s
   goes out. Five of eight unpowered is what keeps the dark state dark — the
   same ratio as the hangar's crates.
 
+### Visual Identity V2 pilot (`?visualPilot=v2`, a candidate — not approved)
+
+- **The Hangar pass is paint on the existing backdrop, behind the flag.**
+  `GameScene.loadRoom` calls `paintPilotHangarBackdrop` (`systems/vpHangar.js`)
+  instead of `paintBackdrop` for the Hangar only, with the same options except
+  `hexAlpha` and `scorch: 0`, then burns the scorch loop's `scorch * 3` draws:
+  the stream leaves exactly as it would have. That relies on the scorch loop
+  staying `paintBackdrop`'s last `Math.random` consumer
+  (`smoke-visual-pilot` section 3 fails if it does not). The pass itself uses
+  its own seeded generator — never `Math.random`.
+- **Cover / prop swaps keep the canvas size**, because a static body is sized
+  from the sprite (`refreshBody`, then `setSize` centres on `displayWidth`):
+  `pilotTexFor` maps a Hangar key to a V2 key only on the same canvas. Kit
+  lookups (`CONSOLE_KIT`, `_loClass`) keep the ORIGINAL key; the consoles'
+  material pass moves no source pixel, so each declared light still lands.
+- **Selective outline for cover** (base and sides, never the lit top) is the
+  pilot's line between environment and combatant; the full outline is the
+  actors'. A wall-mounted prop gets neither (it would stand up off the wall).
+
 ### Pixel shape language
 
 - **A BIG SMOOTH PIXEL CIRCLE CANNOT BE SAID IN THIS GAME'S VOCABULARY.** CRIX

@@ -171,8 +171,12 @@ function materialPass(scene, ctx, W, H, spec, openings) {
   // standing in the middle are the highest-contrast thing in it.
   ctx.save();
   interior();
+  // The deck between the pools drops a step first, so the pools read by
+  // contrast rather than by lifting the room's average value.
+  ctx.globalAlpha = 0.07; ctx.fillStyle = '#000000';
+  ctx.fillRect(T, T, W - 2 * T, H - 2 * T);
   const pools = [
-    [800, 690, 480, 0.10], [430, 330, 300, 0.065], [1080, 1120, 300, 0.06], [1180, 330, 260, 0.055],
+    [800, 690, 500, 0.13], [430, 330, 300, 0.08], [1080, 1120, 310, 0.075], [1180, 330, 260, 0.065],
   ];
   for (const [cx, cy, r, a] of pools) {
     const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);

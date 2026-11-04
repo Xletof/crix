@@ -20,6 +20,15 @@
 // at four player stations — apron, lane, staging bay, east freight — each
 // after 90 ticks for the camera to settle: `env-<station>-<cfg>.png`.
 //
+// `--mode=film [--from=60 --to=420 --every=2]` films the same staged fight as
+// a frame sequence, `film/<cfg>-<nnnn>.png`, every frame state-checked A vs B
+// like a shutter (a film that is not the same fight is refused); assemble
+// with ffmpeg (docs/evidence/visual-identity-v2/README.md has the line).
+//
+// `--mode=lineup` stands the cast in two rows on the empty Hangar deck — two
+// swarmlings, the hero, a Rifleman; Gunner, Marksman, Bulwark, Demolisher — rendered
+// by the game at real scale (`lineup-<cfg>.png`), HUD hidden.
+//
 // Each shutter writes `<tick>-<cfg>.png` at the real 720x1280 canvas size —
 // the canvas a phone scales to its screen (about 0.54x on a 390pt-wide
 // handset). The HUD is left on: it is part of what the player sees.
@@ -35,6 +44,7 @@ const CONFIGS = { A: '', B: 'visualPilot=v2' };
 const RUN = opt('configs', 'A,B').split(',');
 const Q = opt('q', 'room=hangar');
 const MODE = opt('mode', 'fight');
+const FILM = { from: +opt('from', '60'), to: +opt('to', '420'), every: +opt('every', '2') };
 const STATIONS = { apron: [430, 650], lane: [800, 700], bay: [1010, 1000], east: [1240, 470] };
 mkdirSync(OUT, { recursive: true });
 
@@ -53,10 +63,10 @@ const STAGE = {
   420: [['pack', 700, 980], ['grunt', 1000, 1000]],
 };
 
-async function run(browser, cfg) {
+async function run(browser, cfg, ticks = TICKS, name = (t, c) => `${t}-${c}.png`) {
   const page = await bootPage(browser, { flags: CONFIGS[cfg], baseline: null, q: Q, seed: SEED });
   const frames = [];
-  const last = Math.max(...TICKS);
+  const last = Math.max(...ticks);
   await page.evaluate(({ seed }) => {
     const gs = window.__gs;
     // Same room modifier in both halves, and none: a DARKNESS roll would
@@ -79,7 +89,7 @@ async function run(browser, cfg) {
     };
   }, { seed: SEED });
   let t = 0;
-  for (const target of [...TICKS].sort((a, b) => a - b)) {
+  for (const target of [...ticks].sort((a, b) => a - b)) {
     await page.evaluate(({ from, to, seg, stage }) => {
       const gs = window.__gs, P = gs.player, K = gs.keys;
       for (let i = from; i < to; i++) {
@@ -99,16 +109,19 @@ async function run(browser, cfg) {
     });
     // one more rendered frame with FX reset, then the shutter (the step is the
     // same in both halves, so it is part of the fight, not outside it)
-    await page.evaluate(() => {
+    // (a film keeps the real presentation: banners, flashes and shake stay in)
+    await page.evaluate((film) => {
       const gs = window.__gs, hud = window.game.scene.getScene('HUD');
-      if (hud?.banner) { hud.tweens?.killTweensOf?.(hud.banner); hud.banner.setAlpha(0); }
-      gs.cameras.main.resetFX();
+      if (!film) {
+        if (hud?.banner) { hud.tweens?.killTweensOf?.(hud.banner); hud.banner.setAlpha(0); }
+        gs.cameras.main.resetFX();
+      }
       gs._sectorTint?.setAlpha(0);
       window.__adv(1);
-    });
+    }, MODE === 'film');
     t += 1;
     const png = await page.screenshot();
-    writeFileSync(`${OUT}/${target}-${cfg}.png`, png);
+    writeFileSync(`${OUT}/${name(target, cfg)}`, png);
     frames.push({ tick: target, state });
     if (target === last) break;
   }
@@ -166,17 +179,56 @@ async function runEnv(browser, cfg) {
   return frames;
 }
 
+async function runLineup(browser, cfg) {
+  const page = await bootPage(browser, { flags: CONFIGS[cfg], baseline: null, q: Q, seed: SEED });
+  const state = await page.evaluate(({ seed }) => {
+    const gs = window.__gs;
+    gs.arenaActive = false;
+    gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
+    gs._roomModifier = null;
+    gs.events.emit('modifier-active', null, null);
+    window.game.scene.getScene('HUD').sys.setVisible(false);
+    window.__seed(seed); window.__draws = 0;
+    gs.player.setPosition(700, 760); gs.player.setVelocity(0, 0);
+    window.__adv(90);
+    const row = [['swarmling', 592, 770], ['swarmling', 644, 770], ['grunt', 790, 760],
+      ['shooter', 600, 880], ['sniper', 680, 880], ['shielded', 774, 880], ['bomber', 866, 880]];
+    for (const [t, x, y] of row) {
+      const e = gs.spawnEnemyAt(t, x, y, {});
+      e.setVelocity(0, 0);            // two ticks later they have barely started towards the player
+    }
+    gs.player.setPosition(700, 760);
+    window.__adv(2);
+    gs.cameras.main.resetFX(); gs._sectorTint?.setAlpha(0);
+    window.__adv(1);
+    return JSON.stringify({ d: window.__draws, n: gs.enemies.getChildren().length });
+  }, { seed: SEED });
+  writeFileSync(`${OUT}/lineup-${cfg}.png`, await page.screenshot());
+  await page.close();
+  return [{ tick: 'lineup', state }];
+}
+
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 const res = {};
-for (const c of RUN) { res[c] = await (MODE === 'env' ? runEnv : run)(browser, c); console.log(`${c}: ${res[c].length} frames`); }
+if (MODE === 'film') mkdirSync(`${OUT}/film`, { recursive: true });
+const filmTicks = [];
+for (let t = FILM.from; t <= FILM.to; t += FILM.every) filmTicks.push(t);
+for (const c of RUN) {
+  res[c] = MODE === 'env' ? await runEnv(browser, c)
+    : MODE === 'lineup' ? await runLineup(browser, c)
+    : MODE === 'film' ? await run(browser, c, filmTicks, (t, cc) => `film/${cc}-${String((t - FILM.from) / FILM.every).padStart(4, '0')}.png`)
+    : await run(browser, c);
+  console.log(`${c}: ${res[c].length} frames`);
+}
 await browser.close();
 let ok = true;
 if (res.A && res.B) {
   for (let i = 0; i < res.A.length; i++) {
     const same = res.A[i].state === res.B[i].state;
     if (!same) ok = false;
-    console.log(`tick ${res.A[i].tick}: ${same ? 'SAME FIGHT' : 'DIVERGED'}  ${same ? '' : `\n  A ${res.A[i].state}\n  B ${res.B[i].state}`}`);
+    if (MODE !== 'film' || !same) console.log(`tick ${res.A[i].tick}: ${same ? 'SAME FIGHT' : 'DIVERGED'}  ${same ? '' : `\n  A ${res.A[i].state}\n  B ${res.B[i].state}`}`);
   }
 }
+if (MODE === 'film') console.log(`film: ${res.A?.length ?? 0} frames per half, ${ok ? 'every frame the same fight' : 'NOT the same fight'}`);
 writeFileSync(`${OUT}/states-${MODE}.json`, JSON.stringify(res, null, 1));
 process.exit(ok ? 0 : 1);
