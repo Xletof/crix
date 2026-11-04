@@ -2073,3 +2073,13 @@ only, so its gate is an IDENTITY test, not a behaviour test.
 - **A NEW CHECK NEEDS ITS OWN A/B.** The LIGHTS OUT comparison was proved by
   setting one crate's `_loClass` to `console` on the V2B page: the check went
   false. The selftest proves the body and replay checks the same way.
+
+### V2C (`?visualPilot=v2c`) extended them again
+
+- `smoke-visual-pilot.mjs` runs every check for V2, V2B and V2C and adds: every
+  V2C texture and static body identical to V2B's (only the ground — backdrop
+  paint — differs), and V2C's backdrop differs from V2B's. Section 6's `--old`
+  is the V2B build `7a75e1e`: R1, V2 AND V2B must all match it. 108 checks;
+  about 40 minutes standalone.
+- `shot-visual-pilot.mjs` config `D` = V2C (`--configs=A,C,D` for R1 / V2B /
+  V2C); `diag-visual-pilot-perf.mjs` measures all four modes.

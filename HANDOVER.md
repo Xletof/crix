@@ -49,28 +49,34 @@ command, fix the line.*
   authorized the rollout without folding a fix in. The proposed separate
   correction is **G1 — v2.2 planted-shot release** (an opt-in seam; reopens
   frozen v2.2) — NOT authorized.
-- **VISUAL IDENTITY — TWO OPT-IN CANDIDATES, NEITHER A DEFAULT, NEITHER
-  APPROVED OR FROZEN.**
+- **VISUAL IDENTITY — THREE OPT-IN CANDIDATES, NONE A DEFAULT, NONE FROZEN.**
   - **V2 (`?visualPilot=v2`) — HUMAN verdict 2026-11-04: DIRECTION ACCEPTED,
     NOT FROZEN.** The V2 protagonist and the V2 `swarmling` (skitter drone,
     `vp-swarm`) are the leading candidates; the white `grunt` Riflemen and the
     V1 roster are satisfactory and untouched. The Hangar pass was judged
     technically clean but too subtle at phone size. Kept exactly as delivered.
     Evidence: `docs/evidence/visual-identity-v2/`.
-  - **V2B (`?visualPilot=v2b`) — DELIVERED 2026-11-04, AWAITING THE HANDSET
-    VERDICT.** V2's protagonist and swarmling unchanged, plus a refined Hangar:
-    material depth and contrast (re-planed crates, relief-lit machinery incl.
-    the shuttle and gantry, height-projected cast shadows, directional wall
-    shadows, tread-plate deck plates, the staging bay's recess). Evidence,
-    links, rationale and the human questions:
-    `docs/evidence/visual-identity-v2b/README.md`.
-  - No flag = R1 exactly: `tests/smoke-visual-pilot.mjs` (R1 / V2 / V2B —
-    textures, bodies, `Math.random` draws, seeded replays, LIGHTS OUT, restart
-    and reload; V2 identical to its own build `bcd22e3`). Still not
-    authorized: G1, Gunner AI, SNIPER NEST balance, any enemy or content phase,
-    the deferred visual-polish items (register #22–#23, the player's weapon
-    presentation, hero detail), propagating either candidate to other arenas,
-    or making one a default.
+  - **V2B (`?visualPilot=v2b`) — HUMAN handset verdict 2026-11-04: A DEFINITE
+    IMPROVEMENT; its objects are ACCEPTED and must be preserved** (crates,
+    consoles, machinery relief, height-projected shadows, lighting direction),
+    as are the V2 protagonist and swarmling. Not frozen, not a default. One
+    criticism: the floor lacks ground feel. Kept exactly as delivered.
+    Evidence: `docs/evidence/visual-identity-v2b/`.
+  - **V2C (`?visualPilot=v2c`) — DELIVERED 2026-11-04, AWAITING THE HANDSET
+    VERDICT.** V2B in every respect (textures and bodies byte-identical) except
+    the Hangar GROUND: fields from the room spec (lane, apron, staging bay,
+    general deck), real slabs (joint, lit catch, chamfer, fasteners, per-plate
+    tone), heavy expansion joints, a kick strip at the walls, purposeful wear
+    (wheel paths, operator stands, grime at every object's foot, a soot fan
+    aft of the shuttle), no hex tiling. Evidence, links, rationale and the
+    human questions: `docs/evidence/visual-identity-v2c/README.md`.
+  - No flag = R1 exactly: `tests/smoke-visual-pilot.mjs` (R1 / V2 / V2B / V2C
+    — textures, bodies, `Math.random` draws, seeded replays, LIGHTS OUT,
+    restart and reload; R1, V2 and V2B identical to the V2B build `7a75e1e`).
+    Still not authorized: G1, Gunner AI, SNIPER NEST balance, any enemy or
+    content phase, the deferred visual-polish items (register #22–#23, the
+    player's weapon presentation, hero detail, actor shadows), propagating any
+    candidate to other arenas, or making one a default.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -1244,7 +1250,7 @@ approved behaviour needs its own human gate).
 | 18 | Default rollout of `?roster=v1`, `?gait=v2`, `?move=v22`, `?bulwarkStuck=early`, `?marksmanStuck=early`, `?marksmanAngle=1`, `?bulwarkAngle=1` — **DONE 2026-11-03 (R1, `7bd6e6f`)** on the human's instruction; `?baseline=legacy` keeps the pre-R1 game | rollout decision | CLOSED — HUMAN-APPROVED | R1; `systems/debug.js` THE GAMEPLAY BASELINE |
 | 19 | T1 Marksman pressure outside Detention: in the late-band Junction SNIPER NEST (sector 14+, five Marksmen) T1 raises Marksman damage ×2.6 pooled (×5+ on a hiding player) and Marksman double hits (≤500ms) ~7x; T1 was reviewed only in Detention s8/s12 | unreviewed fairness | HUMAN-ACCEPTED (R0 handset: further gameplay incl. SNIPER NEST judged fair, 2026-11-03) — do not rebalance without a human instruction | `integrated-combat-r0/` §6 |
 | 20 | Rigs hard-code `chromium-1194`; this container ships 1243 (symlink fix in `tests/README.md`, R0 section) | harness environment | TEST INFRASTRUCTURE DEBT | `tests/README.md` |
-| 21 | Visual Identity V2 (`?visualPilot=v2`) — HUMAN verdict 2026-11-04: direction accepted, not frozen (hero + swarmling lead; Hangar too subtle) — and V2B (`?visualPilot=v2b`, the Hangar refinement on V2's characters), delivered 2026-11-04 | look-development candidates | SEPARATE APPROVAL REQUIRED — V2B handset verdict pending; freezing, a default or propagation are further human decisions | `docs/evidence/visual-identity-v2/`, `visual-identity-v2b/` |
+| 21 | Visual Identity V2 (`?visualPilot=v2`; verdict: direction accepted, not frozen) — V2B (`?visualPilot=v2b`; verdict: a definite improvement, its objects accepted and to be preserved; floor lacks ground feel) — V2C (`?visualPilot=v2c`, V2B with a new Hangar ground), delivered 2026-11-04 | look-development candidates | SEPARATE APPROVAL REQUIRED — V2C handset verdict pending; freezing, a default or propagation are further human decisions | `docs/evidence/visual-identity-v2/`, `-v2b/`, `-v2c/` |
 | 22 | The player's Super-charge aura is red-orange (`0xff4020`), the enemy threat rings' family: at full charge the hero reads as an enemy (observed in the V2 pilot evidence; the pilot left it alone) | effects / HUD hierarchy | DEFERRED — visual-polish candidate | V2 notes, known limitations |
 | 23 | Objective / room banners overflow the 720px canvas (`SLICE TERMINALS FOR SUPPORT` clipped at both edges; human's recording) | HUD layout | DEFERRED — visual-polish candidate | V2 notes; `film/ab-fight-phone-size.mp4` |
 

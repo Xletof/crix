@@ -454,6 +454,17 @@ Entries under the headings below were migrated from the root `CLAUDE.md` as it s
   rows above are a top plane lifted `hr` over the ground `hr` rows south. A run
   from the foot alone hid every box's shadow under the box.
 
+- **V2C (`?visualPilot=v2c`) replaces only the ground.** `materialPass(...,
+  B, C)`: with `C`, V2's plate grid (step 1) and its wear (step 3) are replaced
+  by `groundC`, and everything after them — light, wall shadows, coping, chipped
+  paint, `floorRelief`, `castShadowsB` — is V2B's, drawn on top in the same
+  order. V2C paints the backdrop with `hexAlpha: 0` (draw-free). Its fields are
+  found from the spec's own regions (the >1000px-wide one is the lane, the
+  `recess` one the bay, the other the apron); a fifth room would need its own.
+- **A slab, not a line.** A plate reads at phone size by its CHAMFER (a dark
+  south-east edge) and its own tone; the lit north-west catch only has to catch.
+  At 0.15 the catch made the deck a ruled grid; at 0.10 it is construction.
+
 ### Pixel shape language
 
 - **A BIG SMOOTH PIXEL CIRCLE CANNOT BE SAID IN THIS GAME'S VOCABULARY.** CRIX
