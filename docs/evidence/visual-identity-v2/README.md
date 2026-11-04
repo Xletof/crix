@@ -1,5 +1,11 @@
 # Visual Identity V2 — look-development pilot (`?visualPilot=v2`)
 
+> **2026-11-04, HUMAN verdict: DIRECTION ACCEPTED, NOT FROZEN.** Protagonist and
+> swarmling are the leading candidates; the Hangar pass was too subtle at phone
+> size. V2 stays reachable exactly as delivered (`?visualPilot=v2`); the Hangar
+> refinement is the separate candidate **V2B** (`?visualPilot=v2b`,
+> `docs/evidence/visual-identity-v2b/`).
+
 **Status: CANDIDATE — opt-in, presentation only, awaiting the HUMAN handset
 verdict. Not a default; nothing here is approved.** Authorized 2026-11-04
 (`docs/handover/CRIX-SESSION-HANDOVER-2026-11-04.md` §3–§4). With no flag the
