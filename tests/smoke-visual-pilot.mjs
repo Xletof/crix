@@ -1,6 +1,7 @@
-// SMOKE: VISUAL IDENTITY V2 (`?visualPilot=v2`) — PRESENTATION ONLY, PROVEN.
+// SMOKE: VISUAL IDENTITY V2 (`?visualPilot=v2`) AND V2B (`?visualPilot=v2b`) —
+// PRESENTATION ONLY, PROVEN, FOR BOTH CANDIDATES AGAINST R1.
 // Standalone; needs `npm run dev` on :5173 and, for section 6, the PREVIOUS
-// build (`d05ac13`, or any build before the pilot) on :5174 (`--old=URL`).
+// build — the V2 build `bcd22e3` — on :5174 (`--old=URL`).
 //
 // The pilot is an opt-in look-development candidate. This asserts nothing
 // about whether it looks better (the handset's job), only that it is what it
@@ -27,8 +28,13 @@
 //   5  FROZEN FILES: no change against `d05ac13` in entities, config, data,
 //      `pixelArt.js`, `rosterPaint.js`, the camera or the AI seams; the
 //      Enemy.js guard holds
-//   6  AGAINST THE PREVIOUS BUILD (`--old`): the no-flags game and the legacy
-//      baseline are that build's, tick for tick and texture for texture
+//   6  AGAINST THE PREVIOUS BUILD (`--old`, the V2 build): the no-flags game,
+//      the legacy baseline AND `?visualPilot=v2` are that build's, tick for
+//      tick and texture for texture — V2 survives V2B exactly
+//   7  a scene restart and a page reload keep the selected mode
+// Sections 1-4 run every check for V2 and for V2B; V2B must also keep V2's
+// protagonist and swarmling byte-identical, and LIGHTS OUT (every roomLayer
+// material class and dark tint, every emissive part) must be R1's in both.
 // `--selftest` injects, under the flag only, an extra draw and a 1px larger body
 // on every swarmling spawn and a 1px larger player circle: the body checks in
 // section 2 and every replay in section 4 must FAIL.
@@ -44,8 +50,10 @@ const SELF = process.argv.includes('--selftest');
 const OLD = opt('old', null);
 const NOW = 'http://localhost:5173/';
 const TICKS = +opt('ticks', '1500');
-const BASE_REV = 'd05ac13';
+const BASE_REV = 'd05ac13';   // frozen-file guard: the last build before any pilot
 const PILOT = 'visualPilot=v2';
+const PILOT_B = 'visualPilot=v2b';
+const MODES = { V2: PILOT, V2B: PILOT_B };
 const Q_SWARM = 'encdbg=swarmTide&room=hangar&sector=3';
 const Q_BOMB = 'encdbg=bomberRun&room=hangar&sector=4';
 
@@ -144,17 +152,19 @@ const firstDiff = (a, b) => { const n = Math.max(a.length, b.length); for (let i
 // ── 0. THE FLAG ───────────────────────────────────────────────────────────
 console.log('\n== 0. the flag');
 {
-  const cases = [['', null, 'production'], [PILOT, 'v2', 'production'], ['visualPilot=1', null, 'production'],
-    ['visualPilot=v1', null, 'production'], [`baseline=legacy&${PILOT}`, 'v2', 'legacy']];
+  const cases = [['', null, 'production'], [PILOT, 'v2', 'production'], [PILOT_B, 'v2b', 'production'],
+    ['visualPilot=1', null, 'production'], ['visualPilot=v1', null, 'production'], ['visualPilot=V2B', null, 'production'],
+    [`baseline=legacy&${PILOT}`, 'v2', 'legacy'], [`baseline=legacy&${PILOT_B}`, 'v2b', 'legacy']];
   const sw = {};
   for (const [flags, want, base] of cases) {
     const p = await boot(flags);
     const r = await p.evaluate(() => {
       const d = window.__dbg;
-      return { vp: d.getVisualPilot(), base: d.getGameplayBaseline(),
+      return { vp: d.getVisualPilot(), v2: d.isVisualPilotV2(), v2b: d.isVisualPilotV2B?.() ?? null, base: d.getGameplayBaseline(),
         sw: [d.isRosterV1(), d.isMoveV22(), d.isGaitV2(), d.getBulwarkStuck(), d.getMarksmanStuck(), d.isMarksmanAngle(), d.isBulwarkAngle()].join(',') };
     });
-    check(`?${flags || '(no flags)'} -> visualPilot ${want} on the ${base} baseline`, r.vp === want && r.base === base, `got ${r.vp} / ${r.base}`);
+    const fam = r.v2 === (want != null) && r.v2b === (want === 'v2b');
+    check(`?${flags || '(no flags)'} -> visualPilot ${want} on the ${base} baseline`, r.vp === want && r.base === base && fam, `got ${r.vp} / ${r.base} / V2 family ${r.v2} / V2B ${r.v2b}`);
     (sw[base] ||= new Set()).add(r.sw);
     await p.close();
   }
@@ -164,7 +174,7 @@ console.log('\n== 0. the flag');
 // ── 1 + 2 + 3. TEXTURES, BODIES, THE BACKDROP CONTRACT ────────────────────
 console.log('\n== 1. textures   2. bodies   3. the backdrop RNG contract');
 const off = await boot('');
-const on = await boot(PILOT);
+const pg = { V2: await boot(PILOT), V2B: await boot(PILOT_B) };
 const snapshot = (p) => p.evaluate(() => {
   const gs = window.__gs, P = gs.player;
   const out = { tex: window.__allTex(), statics: window.__statics() };
@@ -179,28 +189,38 @@ const snapshot = (p) => p.evaluate(() => {
   gs._destroyEnemyFully(e);
   return out;
 });
-const sOff = await snapshot(off), sOn = await snapshot(on);
-{
+const sOff = await snapshot(off);
+const snap = { V2: await snapshot(pg.V2), V2B: await snapshot(pg.V2B) };
+const ADDED = {
+  V2: ['vp-con-heavy', 'vp-con-ped-c', 'vp-crate-a', 'vp-crate-b', 'vp-drum', 'vp-drum-b', 'vp-swarm'],
+  V2B: ['vp-swarm', 'vp2b-con-heavy', 'vp2b-con-ped-c', 'vp2b-con-wall', 'vp2b-crane', 'vp2b-crate-a', 'vp2b-crate-b', 'vp2b-drum', 'vp2b-drum-b', 'vp2b-shuttle'],
+};
+const SOLID_PILOT = { V2: [/^vp-/, 11], V2B: [/^vp2b-/, 13] };    // V2: 8 cover + 3 drums; V2B: + shuttle + gantry
+const geo = (l) => l.map((x) => x.split('|')[1]).sort().join(';');
+for (const M of ['V2', 'V2B']) {
+  const sOn = snap[M];
   const keysOff = Object.keys(sOff.tex), keysOn = Object.keys(sOn.tex);
   const changed = keysOff.filter((k) => sOff.tex[k] !== sOn.tex[k]);
-  const added = keysOn.filter((k) => !(k in sOff.tex));
+  const added = keysOn.filter((k) => !(k in sOff.tex)).sort();
   const missing = keysOff.filter((k) => !(k in sOn.tex));
-  check('flag on: the only changed flag-off texture is `player`', changed.length === 1 && changed[0] === 'player', `changed: ${changed.join(' ') || 'none'}`);
-  check('flag on: the only added textures are the pilot\'s `vp-*`', added.length > 0 && added.every((k) => k.startsWith('vp-')), `added: ${added.join(' ')}`);
-  check('flag on: no texture is missing', missing.length === 0, missing.join(' '));
+  check(`${M}: the only changed flag-off texture is \`player\``, changed.length === 1 && changed[0] === 'player', `changed: ${changed.join(' ') || 'none'}`);
+  check(`${M}: the added textures are exactly its own set`, JSON.stringify(added) === JSON.stringify(ADDED[M]), `added: ${added.join(' ')}`);
+  check(`${M}: no texture is missing`, missing.length === 0, missing.join(' '));
   const roster = keysOff.filter((k) => /^ro-|^grunt$|^shooter$|^wpn-|^bullet|^nem-|^champ-|^boss$/.test(k));
-  check(`every roster / weapon / projectile / boss texture byte-identical (${roster.length}, incl. the white Rifleman ro-rif-*)`, roster.length > 20 && roster.every((k) => sOff.tex[k] === sOn.tex[k]) && roster.some((k) => k.startsWith('ro-rif-')));
-  check('player sheet keeps the 24-frame contract (frame count via anim key, frame 96 wide)', sOn.playerFrame[0] === 96 && sOn.playerFrame[2] === sOff.playerFrame[2], `${sOff.playerFrame} vs ${sOn.playerFrame}`);
-  check('player body circle identical at scales 1, breathing 1.015, recoil 1.2 / 0.88', JSON.stringify(sOff.player) === JSON.stringify(sOn.player), `${sOff.player[0]} vs ${sOn.player[0]}`);
-  check('swarmling body circle identical (radius x 0.7, centred)', sOff.swarm.body === sOn.swarm.body, `${sOff.swarm.body} vs ${sOn.swarm.body}`);
-  check('swarmling render scale, hp, radius and speed identical', JSON.stringify([sOff.swarm.scale, sOff.swarm.hp, sOff.swarm.radius, sOff.swarm.speed]) === JSON.stringify([sOn.swarm.scale, sOn.swarm.hp, sOn.swarm.radius, sOn.swarm.speed]));
-  check('the pilot ran: swarmling wears `vp-swarm`, its own prefix, no tint', sOn.swarm.key === 'vp-swarm' && sOn.swarm.prefix === 'vp-swarm' && !sOn.swarm.tinted, `${sOn.swarm.key}/${sOn.swarm.prefix}/${sOn.swarm.tinted}`);
-  check('flag off: swarmling is the legacy grunt sheet, tinted acid green', sOff.swarm.key === 'grunt' && sOff.swarm.prefix === 'grunt' && sOff.swarm.tint === 0x70e838);
-  const geo = (l) => l.map((s) => s.split('|')[1]).sort().join(';');
-  check(`every static body in the Hangar identical (${sOff.statics.length} cover + props + walls)`, geo(sOff.statics) === geo(sOn.statics) && sOff.statics.length === sOn.statics.length);
-  const vpCover = sOn.statics.filter((s) => s.startsWith('vp-')).length;
-  check('the pilot ran: Hangar cover / drums stand on `vp-*` art (8 cover + 3 drums)', vpCover === 11, `${vpCover} vp-* statics; off: ${sOff.statics.filter((s) => s.startsWith('vp-')).length}`);
+  check(`${M}: every roster / weapon / projectile / boss texture byte-identical (${roster.length}, incl. the white Rifleman ro-rif-*)`, roster.length > 20 && roster.every((k) => sOff.tex[k] === sOn.tex[k]) && roster.some((k) => k.startsWith('ro-rif-')));
+  check(`${M}: player sheet keeps the 24-frame contract (anim key, frame 96 wide)`, sOn.playerFrame[0] === 96 && sOn.playerFrame[2] === sOff.playerFrame[2], `${sOff.playerFrame} vs ${sOn.playerFrame}`);
+  check(`${M}: player body circle identical at scales 1, breathing 1.015, recoil 1.2 / 0.88`, JSON.stringify(sOff.player) === JSON.stringify(sOn.player), `${sOff.player[0]} vs ${sOn.player[0]}`);
+  check(`${M}: swarmling body circle identical (radius x 0.7, centred)`, sOff.swarm.body === sOn.swarm.body, `${sOff.swarm.body} vs ${sOn.swarm.body}`);
+  check(`${M}: swarmling render scale, hp, radius and speed identical`, JSON.stringify([sOff.swarm.scale, sOff.swarm.hp, sOff.swarm.radius, sOff.swarm.speed]) === JSON.stringify([sOn.swarm.scale, sOn.swarm.hp, sOn.swarm.radius, sOn.swarm.speed]));
+  check(`${M}: the pilot ran — swarmling wears \`vp-swarm\`, its own prefix, no tint`, sOn.swarm.key === 'vp-swarm' && sOn.swarm.prefix === 'vp-swarm' && !sOn.swarm.tinted, `${sOn.swarm.key}/${sOn.swarm.prefix}/${sOn.swarm.tinted}`);
+  check(`${M}: every static body in the Hangar identical (${sOff.statics.length} cover + props + walls)`, geo(sOff.statics) === geo(sOn.statics) && sOff.statics.length === sOn.statics.length);
+  const [re, n] = SOLID_PILOT[M];
+  const k = sOn.statics.filter((x) => re.test(x)).length;
+  check(`${M}: the pilot ran — ${n} Hangar solids stand on its own art`, k === n, `${k}; off: ${sOff.statics.filter((x) => /^vp/.test(x)).length}`);
 }
+check('flag off: swarmling is the legacy grunt sheet, tinted acid green', sOff.swarm.key === 'grunt' && sOff.swarm.prefix === 'grunt' && sOff.swarm.tint === 0x70e838);
+check('V2B keeps V2\'s protagonist and swarmling byte-identical', snap.V2.tex.player === snap.V2B.tex.player && snap.V2.tex['vp-swarm'] === snap.V2B.tex['vp-swarm']);
+
 const paintRoom = (p, id) => p.evaluate((id) => {
   const gs = window.__gs, spec = window.__rooms.find((r) => r.id === id);
   const key = `backdrop-${id}`;
@@ -212,19 +232,45 @@ const paintRoom = (p, id) => p.evaluate((id) => {
   const cover = gs.walls.getChildren().map((w) => w.texture.key).sort().join(',');
   return { draws, next, bg: window.__texHash(key), cover };
 }, id);
+// LIGHTS OUT, forced to full darkness: the material class and tint of every
+// roomLayer object (pilot keys mapped back to the spec's keys) and every
+// emissive part must be the flag-off ones.
+const darkState = (p) => p.evaluate(() => {
+  const gs = window.__gs;
+  const back = (k) => k.replace(/^vp2b-|^vp-/, (m) => '').replace(/^(crate-[ab])$/, 'ch-$1').replace(/^(con-ped-c|con-heavy|con-wall)$/, 'ch-$1').replace(/^(drum(-b)?|shuttle|crane)$/, 'prop-$1');
+  gs._enterDarkArena(); gs._darkChain?.stop?.(); gs._darkMix.v = 1; gs._applyDarkMix(); gs.envLight?.setPower(1);
+  const layer = gs.roomLayer.getChildren().map((o) => `${o.type === 'RenderTexture' ? 'RT' : back(o.texture?.key ?? o.type)}|${o._loClass}|${o.isTinted ? o.tintTopLeft : '-'}`).sort();
+  const light = (gs.envLight?.parts || []).map((q) => `${q.texture.key}|${q.x.toFixed(1)},${q.y.toFixed(1)}|${q.displayWidth.toFixed(1)}x${q.displayHeight.toFixed(1)}|${q.alpha.toFixed(3)}|${q.visible}|${q.tintTopLeft}`).sort();
+  gs._clearLightsOut?.();
+  return { layer, light };
+});
 {
-  const a = await paintRoom(off, 'hangar'), b = await paintRoom(on, 'hangar');
-  check('Hangar load: same Math.random draws and the same next value, flag on / off', a.draws === b.draws && a.next === b.next, `draws ${a.draws}/${b.draws}, next ${a.next}/${b.next}`);
-  check('the pilot ran: the Hangar backdrop differs under the flag', a.bg !== b.bg);
+  const a = await paintRoom(off, 'hangar');
+  const b = { V2: await paintRoom(pg.V2, 'hangar'), V2B: await paintRoom(pg.V2B, 'hangar') };
+  for (const M of ['V2', 'V2B']) {
+    check(`${M}: Hangar load takes the same Math.random draws and leaves the same next value`, a.draws === b[M].draws && a.next === b[M].next, `draws ${a.draws}/${b[M].draws}, next ${a.next}/${b[M].next}`);
+    check(`${M}: the pilot ran — its Hangar backdrop differs from R1`, a.bg !== b[M].bg);
+  }
+  check('V2B\'s Hangar backdrop differs from V2\'s (a distinct candidate)', b.V2.bg !== b.V2B.bg);
+  const dOff = await darkState(off);
+  for (const M of ['V2', 'V2B']) {
+    const d = await darkState(pg[M]);
+    check(`${M}: LIGHTS OUT — every roomLayer material class and dark tint, and every emissive part, as R1 (${dOff.layer.length} objects, ${dOff.light.length} light parts)`,
+      JSON.stringify(d.layer) === JSON.stringify(dOff.layer) && JSON.stringify(d.light) === JSON.stringify(dOff.light) && dOff.light.length > 0,
+      JSON.stringify(d.layer.filter((x, i) => x !== dOff.layer[i]).slice(0, 3)));
+  }
   for (const id of ['corridor', 'detention', 'vader']) {
-    const x = await paintRoom(off, id), y = await paintRoom(on, id);
-    check(`${id}: backdrop byte-identical, same draws, same cover keys under the flag`, x.bg === y.bg && x.draws === y.draws && x.next === y.next && x.cover === y.cover, `${x.bg === y.bg} ${x.draws}/${y.draws} ${x.cover === y.cover}`);
+    const x = await paintRoom(off, id);
+    for (const M of ['V2', 'V2B']) {
+      const y = await paintRoom(pg[M], id);
+      check(`${M} ${id}: backdrop byte-identical, same draws, same cover keys`, x.bg === y.bg && x.draws === y.draws && x.next === y.next && x.cover === y.cover, `${x.bg === y.bg} ${x.draws}/${y.draws} ${x.cover === y.cover}`);
+    }
   }
 }
-await off.close(); await on.close();
+await off.close(); await pg.V2.close(); await pg.V2B.close();
 
 // ── 4. SAME FIGHT ─────────────────────────────────────────────────────────
-console.log('\n== 4. same fight, flag on vs off');
+console.log('\n== 4. same fight, R1 vs V2 vs V2B');
 const SEG = FIGHT_SEG, SUPER = [700, 1400];
 async function replay(flags, q, { headless = true, ticks = TICKS, seed = 9071, base = NOW } = {}) {
   const p = await boot(flags, { base, q });
@@ -235,19 +281,25 @@ async function replay(flags, q, { headless = true, ticks = TICKS, seed = 9071, b
 const traces = {};
 for (const [label, q, baseFlags] of [['SWARM TIDE, production', Q_SWARM, ''], ['SWARM TIDE, legacy baseline', Q_SWARM, 'baseline=legacy'],
   ['BOMBER RUN, production', Q_BOMB, '']]) {
-  const a = await replay(baseFlags, q), b = await replay([baseFlags, PILOT].filter(Boolean).join('&'), q);
+  const a = await replay(baseFlags, q);
   traces[label] = a;
-  const d = firstDiff(a.hashes, b.hashes);
-  check(`${label}: ${TICKS} headless ticks identical (state + draws)`, d < 0, d < 0 ? `${a.draws} draws, ${a.spawned} spawned` : `first divergent tick ${d}`);
-  if (q === Q_SWARM) {
-    check(`${label}: swarmlings really fought (${a.swarm}) and every one wore V2 under the flag at 0.7`, a.swarm > 0 && b.swarm === a.swarm && b.swarmV2 === b.swarm && a.swarmV2 === 0 && b.swarmBad === 0, `off ${a.swarmV2}/${a.swarm}, on ${b.swarmV2}/${b.swarm}`);
+  for (const M of ['V2', 'V2B']) {
+    const b = await replay([baseFlags, MODES[M]].filter(Boolean).join('&'), q);
+    const d = firstDiff(a.hashes, b.hashes);
+    check(`${M} ${label}: ${TICKS} headless ticks identical to R1 (state + draws)`, d < 0, d < 0 ? `${a.draws} draws, ${a.spawned} spawned` : `first divergent tick ${d}`);
+    if (q === Q_SWARM) {
+      check(`${M} ${label}: swarmlings really fought (${a.swarm}) and every one wore V2 at 0.7`, a.swarm > 0 && b.swarm === a.swarm && b.swarmV2 === b.swarm && a.swarmV2 === 0 && b.swarmBad === 0, `off ${a.swarmV2}/${a.swarm}, on ${b.swarmV2}/${b.swarm}`);
+    }
   }
 }
 {
   const n = Math.min(TICKS, 600);
-  const a = await replay('', Q_SWARM, { headless: false, ticks: n }), b = await replay(PILOT, Q_SWARM, { headless: false, ticks: n });
-  const d = firstDiff(a.hashes, b.hashes);
-  check(`SWARM TIDE, production: ${n} RENDERED ticks identical`, d < 0, d < 0 ? `${a.draws} draws` : `first divergent tick ${d}`);
+  const a = await replay('', Q_SWARM, { headless: false, ticks: n });
+  for (const M of ['V2', 'V2B']) {
+    const b = await replay(MODES[M], Q_SWARM, { headless: false, ticks: n });
+    const d = firstDiff(a.hashes, b.hashes);
+    check(`${M} SWARM TIDE, production: ${n} RENDERED ticks identical to R1`, d < 0, d < 0 ? `${a.draws} draws` : `first divergent tick ${d}`);
+  }
 }
 
 // ── 5. FROZEN FILES ───────────────────────────────────────────────────────
@@ -264,23 +316,62 @@ console.log('\n== 5. frozen files');
 }
 
 // ── 6. AGAINST THE PREVIOUS BUILD ─────────────────────────────────────────
+// `--old` = the V2 build (`bcd22e3`): its no-flags game is R1 (itself proven
+// identical to `d05ac13`), and its `?visualPilot=v2` is V2 as delivered.
 if (OLD && !SELF) {
   console.log(`\n== 6. against the previous build (${OLD})`);
-  const pOld = await bootPage(browser, { base: OLD, flags: '', baseline: null, q: 'room=hangar', seed: 4242 });
-  await instrument(pOld);
-  const pNew = await boot('');
-  const tOld = await pOld.evaluate(() => window.__allTex()), tNew = await pNew.evaluate(() => window.__allTex());
-  const diffKeys = [...new Set([...Object.keys(tOld), ...Object.keys(tNew)])].filter((k) => tOld[k] !== tNew[k]);
-  check('no flags: every texture byte-identical to the previous build', diffKeys.length === 0, diffKeys.join(' '));
-  const bOld = await paintRoom(pOld, 'hangar'), bNew = await paintRoom(pNew, 'hangar');
-  check('no flags: the Hangar backdrop, its draws and next value match the previous build', bOld.bg === bNew.bg && bOld.draws === bNew.draws && bOld.next === bNew.next);
-  await pOld.close(); await pNew.close();
-  for (const [label, q, flags] of [['SWARM TIDE, no flags', Q_SWARM, ''], ['SWARM TIDE, legacy baseline', Q_SWARM, 'baseline=legacy'], ['BOMBER RUN, no flags', Q_BOMB, '']]) {
+  for (const [label, flags] of [['no flags (R1)', ''], ['V2 (?visualPilot=v2)', PILOT]]) {
+    const pOld = await bootPage(browser, { base: OLD, flags, baseline: null, q: 'room=hangar', seed: 4242 });
+    await instrument(pOld);
+    const pNew = await boot(flags);
+    const tOld = await pOld.evaluate(() => window.__allTex()), tNew = await pNew.evaluate(() => window.__allTex());
+    const diffKeys = [...new Set([...Object.keys(tOld), ...Object.keys(tNew)])].filter((k) => tOld[k] !== tNew[k]);
+    check(`${label}: every texture byte-identical to the previous build`, diffKeys.length === 0, diffKeys.join(' '));
+    const bOld = await paintRoom(pOld, 'hangar'), bNew = await paintRoom(pNew, 'hangar');
+    check(`${label}: the Hangar backdrop, its draws and next value match the previous build`, bOld.bg === bNew.bg && bOld.draws === bNew.draws && bOld.next === bNew.next);
+    await pOld.close(); await pNew.close();
+  }
+  for (const [label, q, flags] of [['SWARM TIDE, no flags', Q_SWARM, ''], ['SWARM TIDE, legacy baseline', Q_SWARM, 'baseline=legacy'], ['BOMBER RUN, no flags', Q_BOMB, ''], ['SWARM TIDE, V2', Q_SWARM, PILOT]]) {
     const a = await replay(flags, q, { base: OLD }), b = traces[label.replace('no flags', 'production')] || await replay(flags, q);
     const d = firstDiff(a.hashes, b.hashes);
     check(`${label}: ${TICKS} ticks identical to the previous build`, d < 0, d < 0 ? `${a.draws} draws` : `first divergent tick ${d}`);
   }
 } else if (!SELF) console.log('\n== 6. skipped (no --old=URL)');
+
+// ── 7. RESTART AND RELOAD KEEP THE MODE ───────────────────────────────────
+if (!SELF) {
+  console.log('\n== 7. restart and reload keep the mode');
+  for (const [M, flags] of [['V2', PILOT], ['V2B', PILOT_B], ['R1', '']]) {
+    const p = await boot(flags);
+    const want = { V2: 'v2', V2B: 'v2b', R1: null }[M];
+    const re = { V2: /^vp-/, V2B: /^vp2b-/, R1: /^vp/ }[M];
+    const before = await p.evaluate(() => ({ player: window.__texHash('player'), solids: window.__statics().map((x) => x.split('|')[0]).sort().join(',') }));
+    const after = await p.evaluate(async () => {
+      const g = window.game, gs = window.__gs;
+      gs.scene.start('Game', { mode: 'endless', seed: 4242 });
+      for (let i = 0; i < 600 && !(gs.roomSpec && gs.player?.active && gs.walls?.getChildren().length); i++) window.__adv(1);
+      window.__adv(20);
+      const e = gs.spawnEnemyAt('swarmling', 640, 700, {});
+      const out = { vp: window.__dbg.getVisualPilot(), player: window.__texHash('player'), room: gs.roomSpec?.id,
+        solids: window.__statics().map((x) => x.split('|')[0]).sort().join(','), swarm: e.texture.key };
+      gs._destroyEnemyFully(e);
+      return out;
+    });
+    const pilotSolids = after.solids.split(',').filter((k) => re.test(k)).length;
+    check(`${M}: a scene restart keeps the mode, the protagonist sheet and the Hangar art`,
+      after.vp === want && after.player === before.player && after.room === 'hangar' && after.solids === before.solids && (M === 'R1' ? pilotSolids === 0 : pilotSolids > 0) && after.swarm === (M === 'R1' ? 'grunt' : 'vp-swarm'),
+      JSON.stringify({ vp: after.vp, room: after.room, pilotSolids, swarm: after.swarm, same: after.solids === before.solids }));
+    await p.reload();
+    await p.waitForFunction(() => window.game?.scene?.getScene('Title')?.sys?.isActive(), null, { timeout: 60000 });
+    const rl = await p.evaluate(async () => {
+      const u = performance.getEntriesByType('resource').map((r) => r.name).find((n) => /systems\/debug\.js/.test(n));
+      const d = await import(u);
+      return { vp: d.getVisualPilot(), b: window.game.textures.exists('vp2b-shuttle'), a: window.game.textures.exists('vp-crate-a') };
+    });
+    check(`${M}: a reload keeps the mode (and paints only its own set)`, rl.vp === want && rl.b === (M === 'V2B') && rl.a === (M === 'V2'), JSON.stringify(rl));
+    await p.close();
+  }
+}
 
 await browser.close();
 const fails = results.filter((r) => !r.ok);

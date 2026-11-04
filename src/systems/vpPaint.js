@@ -532,3 +532,168 @@ export function paintMaterialPass(scene, srcKey, dstKey, s = 4) {
   c.finish();
   return true;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// V2B — MATERIAL DEPTH AND CONTRAST (`?visualPilot=v2b`, Hangar only)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// THE DIAGNOSIS (measured on the V2 textures and frames, luminance 0-255):
+//   - MACHINERY SITS AT OR BELOW THE DECK. Shuttle median 30, gantry 32,
+//     consoles 19-26, against a deck of ~35: dark-on-dark, held apart by a 1px
+//     outline that disappears at the phone's 0.54x.
+//   - THE V2 CRATE HAS NO TOP. Lid 75 against face 50 — a 25-level step — and
+//     the brightest pixels in it (the amber bands, ~120) are on the FACE, so
+//     the eye reads horizontal stripes, not a top plane over a vertical side.
+//
+// THE V2B LADDER. Deck ~35 (unchanged, matte, quiet) · cover LID ~105 over a
+// FACE ~40 (a 2.6x step, the lightest environment plane in the room) · dark
+// machinery bodies ~20-35 given RELIEF — a cool lit rim on every edge that
+// faces the north-west sun, a darkened edge on every one that faces away, and
+// a lit lip under every recessed joint — so a dark housing reads by its edges,
+// not by being lightened. Characters stay above all of it.
+
+// ── V2B CARGO MODULE ──────────────────────────────────────────────────────
+// Same 28x28 canvas and the same two layouts as V2, re-planed: the lid is now
+// eight rows deep and the lightest thing on the object, with a lit north / west
+// bevel and a bright LIP where it turns down into the face; the face is dark,
+// deeply ribbed, west edge catching light, east edge in shadow; ONE worn amber
+// band, on the face only, so the top stays a clean plane.
+const CR2 = {
+  lidHi: '#8c876b', lid: '#6f6b56', lidDk: '#57533f', lip: '#9a9476',
+  face: '#2b2923', faceLit: '#39362d', faceDk: '#1e1c17', faceW: '#4a4637',
+  foot: '#15140f', seam: '#0b0b09', bolt: '#8a8f96', cast: '#24231d',
+};
+const CB2 = { mid: '#6e5626', lit: '#8a6c30', dk: '#45361a' };
+
+function crate2Module(g, x0, x1, ty, lidRows, by, corr) {
+  // LID (the top plane): lit north row and west column, dark east column
+  g.rect(x0, ty, x1 - x0 + 1, lidRows, CR2.lid);
+  g.hl(ty, x0 + 1, x1 - 1, CR2.lidHi);
+  g.vl(x0, ty, ty + lidRows - 1, CR2.lidHi);
+  g.vl(x1, ty + 1, ty + lidRows - 1, CR2.lidDk);
+  // corner castings on the lid, and a recessed grab slot
+  for (const [cx, cy] of [[x0 + 1, ty + 1], [x1 - 2, ty + 1]]) { g.rect(cx, cy, 2, 2, CR2.cast); g.px(cx, cy, CR2.bolt); }
+  if (x1 - x0 > 12) { g.hl(ty + 3, x0 + 5, x0 + 9, CR2.lidDk); g.hl(ty + 4, x0 + 5, x0 + 9, CR2.lidHi); }
+  // THE LIP: the lid's near edge, where it turns down — the brightest line on the object
+  const lipY = ty + lidRows - 1;
+  g.hl(lipY, x0, x1, CR2.lip);
+  g.hl(lipY + 1, x0, x1, CR2.seam);
+  // FACE (the vertical plane): dark, ribbed
+  const fy = lipY + 2;
+  g.rect(x0, fy, x1 - x0 + 1, by - fy + 1, CR2.face);
+  if (corr) for (let x = x0 + 2; x < x1 - 1; x += 3) { g.vl(x, fy + 1, by - 1, CR2.faceDk); g.vl(x - 1, fy + 1, by - 1, CR2.faceLit); }
+  g.vl(x0, fy, by, CR2.faceW);
+  g.vl(x1, fy, by, CR2.faceDk);
+  g.hl(by, x0, x1, CR2.faceDk);
+  for (const [cx, cy] of [[x0, by - 2], [x1 - 1, by - 2]]) { g.rect(cx, cy, 2, 2, CR2.cast); g.px(cx, cy, CR2.bolt); }
+  return fy;
+}
+
+function crate2Band(g, x0, x1, y, chips) {
+  g.hl(y, x0 + 1, x1 - 1, CB2.lit);
+  g.hl(y + 1, x0 + 1, x1 - 1, CB2.mid);
+  g.hl(y + 2, x0 + 1, x1 - 1, CB2.dk);
+  for (const cx of chips) { g.px(cx, y, CR2.faceLit); g.px(cx, y + 1, CR2.face); }
+}
+
+/** V2B cargo module on the cover kit's 28x28 canvas. `variant` 'a' tall, 'b' stacked. */
+export function paintPilotCrateB(scene, key, variant = 'a') {
+  const g = grid(28, 28);
+  if (variant === 'a') {
+    const fy = crate2Module(g, 2, 25, 1, 8, 22, true);
+    crate2Band(g, 2, 25, fy + 5, [6, 15, 21]);
+  } else {
+    // the smaller module stacked on the larger one, pushed off-centre: its lid,
+    // its face, then the larger module's lid showing as a LEDGE around it
+    const fy1 = crate2Module(g, 6, 21, 1, 5, 9, false);
+    crate2Band(g, 6, 21, fy1, [10, 17]);
+    // the lower module: lid visible as a ledge (rows 10-11) then its face
+    g.rect(2, 10, 24, 2, CR2.lid); g.hl(10, 2, 5, CR2.lidHi); g.hl(10, 22, 25, CR2.lidHi);
+    g.vl(2, 10, 11, CR2.lidHi);
+    g.hl(11, 6, 21, CR2.lidDk);                                    // the upper module's contact on the ledge
+    g.hl(12, 2, 25, CR2.lip); g.hl(13, 2, 25, CR2.seam);
+    g.rect(2, 14, 24, 9, CR2.face);
+    for (let x = 4; x < 24; x += 3) { g.vl(x, 15, 21, CR2.faceDk); g.vl(x - 1, 15, 21, CR2.faceLit); }
+    g.vl(2, 14, 22, CR2.faceW); g.vl(25, 14, 22, CR2.faceDk); g.hl(22, 2, 25, CR2.faceDk);
+    crate2Band(g, 2, 25, 17, [7, 16, 22]);
+    for (const [cx, cy] of [[2, 20], [24, 20]]) { g.rect(cx, cy, 2, 2, CR2.cast); g.px(cx, cy, CR2.bolt); }
+    g.vl(9, 1, 9, CM.dk); g.vl(18, 1, 9, CM.dk);                    // tie-down straps over the upper lid
+  }
+  // PALLET — in shadow, slatted
+  g.rect(1, 23, 26, 2, CR2.foot);
+  for (let x = 3; x < 26; x += 6) g.vl(x, 23, 24, CR2.seam);
+  selectiveOutline(g);
+  const c = new PixelCanvas(scene, key, 28, 28, 4);
+  g.blit(c);
+  c.finish();
+}
+
+// ── RELIEF — the machinery pass ───────────────────────────────────────────
+//
+// For DARK MACHINERY the answer is not to lighten it but to give its edges
+// light. On a copy of the shipped texture (every pixel where it was, the same
+// canvas), each METAL cell (low saturation, above the outline's value) is
+// judged by its neighbours, in WORLD orientation (`flip` mirrors west):
+//   - an edge facing the north-west sun — nothing (or the outline, or a dark
+//     recessed joint) to its north or west — takes a cool RIM light;
+//   - an edge facing away — nothing to its east or south — is darkened.
+// So a silhouette gets a lit rim on two sides and a shadowed one on two, and
+// every recessed panel joint gets a lit lip on its far side: construction read
+// as relief. Saturated cells (screens, LEDs, hazard paint) are never touched.
+// `sym` lights only north / darkens only south (for a texture that is placed
+// both flipped and not); `outline` adds the cover kit's selective outline.
+function hexOf(n) { return `#${n.toString(16).padStart(6, '0')}`; }
+export function paintReliefPass(scene, srcKey, dstKey, o = {}) {
+  const {
+    s = 4, flip = false, sym = false, rim = 0.42, shade = 0.70, outline = false,
+    bodyLum = 26, metalSat = 0.30, inner = true, edgeLum = 14,
+  } = o;
+  const src = scene.textures.get(srcKey)?.getSourceImage();
+  if (!src?.width) return false;
+  const w = Math.round(src.width / s), h = Math.round(src.height / s);
+  const tmp = document.createElement('canvas');
+  tmp.width = src.width; tmp.height = src.height;
+  const tctx = tmp.getContext('2d');
+  tctx.drawImage(src, 0, 0);
+  const data = tctx.getImageData(0, 0, src.width, src.height).data;
+  const rgb = new Array(w * h).fill(null);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = ((y * s + (s >> 1)) * src.width + (x * s + (s >> 1))) * 4;
+    if (data[i + 3] > 127) rgb[y * w + x] = [data[i], data[i + 1], data[i + 2]];
+  }
+  const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  const sat = (c) => { const mx = Math.max(...c), mn = Math.min(...c); return mx ? (mx - mn) / mx : 0; };
+  // What counts as "nothing there" beside a cell: empty, or the outline, or —
+  // when `inner` — any dark recessed joint (then every joint gets a lit lip).
+  const gap = (x, y) => {
+    const c = (x >= 0 && y >= 0 && x < w && y < h) ? rgb[y * w + x] : null;
+    return !c || lum(c) < (inner ? bodyLum : edgeLum);
+  };
+  const g = grid(w, h);
+  const RIM = [201, 211, 221];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const c = rgb[y * w + x];
+    if (!c) continue;
+    let out = c;
+    if (lum(c) >= bodyLum && sat(c) <= metalSat) {
+      const west = flip ? x + 1 : x - 1, east = flip ? x - 1 : x + 1;
+      // the edge's outward normal, against the north-west sun: a staircase
+      // facing south-west or north-east comes out neutral, not dotted
+      const nx = sym ? 0 : (gap(west, y) ? 1 : 0) - (gap(east, y) ? 1 : 0);
+      const ny = (gap(x, y - 1) ? 1 : 0) - (gap(x, y + 1) ? 1 : 0);
+      const d = nx + ny;
+      if (d > 0) {
+        const k = Math.min(0.75, rim * (d > 1 ? 1.25 : 1));
+        out = c.map((v, j) => Math.round(v + (RIM[j] - v) * k));
+      } else if (d < 0) {
+        out = c.map((v) => Math.round(v * (d < -1 ? shade * 0.9 : shade)));
+      }
+    }
+    g.px(x, y, hexOf((out[0] << 16) | (out[1] << 8) | out[2]));
+  }
+  if (outline) selectiveOutline(g);
+  const cv = new PixelCanvas(scene, dstKey, w, h, s);
+  g.blit(cv);
+  cv.finish();
+  return true;
+}

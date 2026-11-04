@@ -33,7 +33,7 @@ import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
   isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff, isVanguardScreenOff, isVanguardFrontOff,
   isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2, getBulwarkStuck, getMarksmanStuck, isMarksmanAngle, isBulwarkAngle,
-  isVisualPilotV2,
+  isVisualPilotV2, getVisualPilot,
 } from '../systems/debug.js';
 import { installBulwarkStuck } from '../systems/bulwarkStuck.js';
 import { installMarksmanStuck } from '../systems/marksmanStuck.js';
@@ -560,10 +560,11 @@ export class GameScene extends Phaser.Scene {
       // The physics world bounds already stop everything at these edges, so
       // painting it adds no collision and, like the floor markings, cannot
       // reach `this.walls` and so cannot affect nav or LOS.
-      // `?visualPilot=v2`: the Hangar takes the V2 material pass — the same
-      // options and the same `Math.random` draws (systems/vpHangar.js).
+      // `?visualPilot=v2` / `v2b`: the Hangar takes that candidate's material
+      // pass — the same options and the same `Math.random` draws
+      // (systems/vpHangar.js).
       const paintBg = (isVisualPilotV2() && spec.id === 'hangar')
-        ? (...a) => paintPilotHangarBackdrop(...a, spec) : paintBackdrop;
+        ? (...a) => paintPilotHangarBackdrop(...a, spec, getVisualPilot()) : paintBackdrop;
       paintBg(this, bgKey, w, h, {
         ...(spec.floor || {}),
         perimeter: spec.perimeter || null,

@@ -439,9 +439,19 @@ export function setShowColliders(v) { showColliders = !!v; }
 // or `Math.random` draw may differ (`tests/smoke-visual-pilot.mjs`). It is
 // coupled to none of the gameplay switches above and applies on top of either
 // baseline. Painters: `systems/vpPaint.js`, `systems/vpHangar.js`.
+//
+// `?visualPilot=v2b` — VISUAL IDENTITY V2B (2026-11-04, a second candidate, also
+// opt-in): the SAME V2 protagonist and swarmling, and a refined Hangar —
+// material depth and contrast (relief-lit machinery, re-planed crates,
+// height-projected cast shadows, region and wall relief). `v2` stays exactly
+// as delivered so the two can be compared without rebuilding an old commit.
 let visualPilot = null;
-export function setVisualPilot(v) { visualPilot = v === 'v2' ? 'v2' : null; }
+export function setVisualPilot(v) { visualPilot = v === 'v2' || v === 'v2b' ? v : null; }
+/** 'v2' | 'v2b' | null */
 export function getVisualPilot() { return visualPilot; }
-export function isVisualPilotV2() { return visualPilot === 'v2'; }
-/** `?visualPilot=v2` on, anything else off. `params` is a URLSearchParams. */
+/** The V2 character family (protagonist + swarmling): on for `v2` AND `v2b`. */
+export function isVisualPilotV2() { return visualPilot === 'v2' || visualPilot === 'v2b'; }
+/** The V2B Hangar refinement only. */
+export function isVisualPilotV2B() { return visualPilot === 'v2b'; }
+/** `?visualPilot=v2` / `v2b` on, anything else off. `params` is a URLSearchParams. */
 export function applyVisualFlags(params) { setVisualPilot(params.get('visualPilot')); }

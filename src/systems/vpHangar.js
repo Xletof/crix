@@ -57,7 +57,27 @@ export const HANGAR_PILOT_TEX = Object.freeze({
   'prop-drum': 'vp-drum',
   'prop-drum-b': 'vp-drum-b',
 });
-const pilotKey = (scene, k) => (HANGAR_PILOT_TEX[k] && scene.textures.exists(HANGAR_PILOT_TEX[k]) ? HANGAR_PILOT_TEX[k] : k);
+// V2B (`?visualPilot=v2b`): the same idea, more objects. Crates re-planed
+// (`paintPilotCrateB`); consoles, drums, the shuttle, the gantry and the wall
+// panel take the RELIEF pass (`paintReliefPass`) — every source pixel where it
+// was, the same canvas, so the shuttle's two ADD faces, every console's kit
+// light and every static body still register exactly.
+export const HANGAR_PILOT_TEX_V2B = Object.freeze({
+  'ch-crate-a': 'vp2b-crate-a',
+  'ch-crate-b': 'vp2b-crate-b',
+  'ch-con-ped-c': 'vp2b-con-ped-c',
+  'ch-con-heavy': 'vp2b-con-heavy',
+  'prop-drum': 'vp2b-drum',
+  'prop-drum-b': 'vp2b-drum-b',
+  'prop-shuttle': 'vp2b-shuttle',
+  'prop-crane': 'vp2b-crane',
+  'ch-con-wall': 'vp2b-con-wall',
+});
+export const hangarPilotTex = (variant) => (variant === 'v2b' ? HANGAR_PILOT_TEX_V2B : HANGAR_PILOT_TEX);
+const pilotKey = (scene, k, variant = 'v2') => {
+  const m = hangarPilotTex(variant);
+  return m[k] && scene.textures.exists(m[k]) ? m[k] : k;
+};
 
 // A small seeded generator (mulberry32). The pass's only randomness.
 function rng(seed) {
@@ -77,19 +97,22 @@ const q4 = (v) => Math.round(v / 4) * 4;
  * The Hangar backdrop with the V2 material pass. Same signature as
  * `paintBackdrop` plus the room spec (for its cover, props and floor forms).
  */
-export function paintPilotHangarBackdrop(scene, key, worldW, worldH, opts, spec) {
+export function paintPilotHangarBackdrop(scene, key, worldW, worldH, opts, spec, variant = 'v2') {
   const scorch = opts.scorch ?? 40;                       // paintBackdrop's default
   paintBackdrop(scene, key, worldW, worldH, { ...opts, scorch: 0, hexAlpha: (opts.hexAlpha ?? 1) * 0.45 });
   for (let i = 0; i < scorch * 3; i++) Math.random();     // the scorch loop's draws, exactly
   const tex = scene.textures.get(key);
   const ctx = tex.getContext();
-  materialPass(scene, ctx, worldW, worldH, spec, opts.openings || []);
+  materialPass(scene, ctx, worldW, worldH, spec, opts.openings || [], variant === 'v2b');
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
   tex.refresh();
 }
 
-function materialPass(scene, ctx, W, H, spec, openings) {
+function materialPass(scene, ctx, W, H, spec, openings, B = false) {
+  // `B` is V2B. Every V2B difference is a branch on it; the V2 statements, their
+  // order and their seeded draws are exactly as delivered (`smoke-visual-pilot`
+  // compares the V2 backdrop with the previous build's).
   const R = rng(0x5eed2604);
   const T = spec.perimeter?.thickness ?? 0;
   // The runs of a wall's inner edge between its doorways: [from, to] along the side.
@@ -188,9 +211,25 @@ function materialPass(scene, ctx, W, H, spec, openings) {
   }
   // Wall-foot occlusion: the deck darkens into the walls in hard 4px steps,
   // and not across a doorway — the floor runs on through those.
-  for (let i = 0; i < 18; i++) {
-    ctx.globalAlpha = 0.38 * (1 - i / 18) ** 1.5; ctx.fillStyle = '#000000';
-    for (const side of ['top', 'bottom', 'left', 'right']) edgeStrip(side, i * 4, 4);
+  if (!B) {
+    for (let i = 0; i < 18; i++) {
+      ctx.globalAlpha = 0.38 * (1 - i / 18) ** 1.5; ctx.fillStyle = '#000000';
+      for (const side of ['top', 'bottom', 'left', 'right']) edgeStrip(side, i * 4, 4);
+    }
+  } else {
+    // V2B: THE WALLS CAST, they do not glow dark. The north and west walls
+    // stand between the deck and the north-west sun, so they throw a long
+    // stepped shadow onto it; the south and east walls throw theirs outward,
+    // and the deck at their foot keeps only a tight contact line.
+    ctx.fillStyle = '#03050a';
+    for (let i = 0; i < 20; i++) {
+      ctx.globalAlpha = i < 3 ? 0.50 : 0.40 * (1 - i / 20) ** 1.3;
+      edgeStrip('top', i * 4, 4); edgeStrip('left', i * 4, 4);
+    }
+    for (let i = 0; i < 5; i++) {
+      ctx.globalAlpha = 0.34 * (1 - i / 5);
+      edgeStrip('bottom', i * 4, 4); edgeStrip('right', i * 4, 4);
+    }
   }
   ctx.restore();
 
@@ -199,7 +238,8 @@ function materialPass(scene, ctx, W, H, spec, openings) {
   if (T > 0) {
     ctx.save();
     ctx.fillStyle = '#a9b4c2';
-    for (const [side, a] of [['top', 0.20], ['left', 0.20], ['right', 0.12], ['bottom', 0.12]]) { ctx.globalAlpha = a; edgeStrip(side, -4, 2); }
+    const cop = B ? [['top', 0.34], ['left', 0.34], ['right', 0.20], ['bottom', 0.20]] : [['top', 0.20], ['left', 0.20], ['right', 0.12], ['bottom', 0.12]];
+    for (const [side, a] of cop) { ctx.globalAlpha = a; edgeStrip(side, B ? -6 : -4, B ? 4 : 2); }
     ctx.globalAlpha = 0.55; ctx.fillStyle = '#050607';            // the dark line where wall meets deck
     for (const side of ['top', 'bottom', 'left', 'right']) edgeStrip(side, -2, 2);
     ctx.restore();
@@ -288,7 +328,10 @@ function materialPass(scene, ctx, W, H, spec, openings) {
   }
   ctx.restore();
 
+  if (B) floorRelief(ctx, spec, T, W, H);
+
   // ── 4. CAST SHADOWS — mass that stands on the deck ──────────────────────
+  if (B) { castShadowsB(scene, ctx, spec, T, W, H); return; }
   // Each object's own silhouette, offset south-east by how tall it is, at the
   // backdrop's resolution on the 4px grain; then a hard contact line at the
   // foot. Drawn last so a shadow falls across the wear, not under it.
@@ -327,6 +370,179 @@ function materialPass(scene, ctx, W, H, spec, openings) {
     if (!pr.solid) continue;                                     // wall-mounted art throws nothing on the deck
     const tall = (pr.bodyW ?? 0) >= 140;
     cast(pilotKey(scene, pr.tex), pr.x, pr.y, 0.5, 1, tall ? 28 : 8, tall ? 16 : 8, tall ? 0.30 : 0.32, !!pr.flip);
+  }
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// V2B — FORM ON THE FLOOR, AND SHADOWS THAT KNOW HOW TALL THINGS ARE
+// ═══════════════════════════════════════════════════════════════════════════
+
+// The room's OWN built forms, given the relief they claim (the spec is the
+// source of truth — nothing here invents a form):
+//   - the STAGING BAY is declared recessed: the deck's lip throws a stepped
+//     shadow into it along its north and west edges, and its far (south /
+//     east) wall catches a lit edge. It reads as lower than the lane.
+//   - the three DECK PLATES become a second metal: tread plate, a shade
+//     cooler and a step lighter than the matte deck, edged with a lit
+//     north-west bevel and a dark south-east one — a different surface you can
+//     see from across the room, not a texture you can only see up close.
+function floorRelief(ctx, spec, T, W, H) {
+  const arch = spec.floor?.architecture || [];
+  ctx.save();
+  ctx.beginPath(); ctx.rect(T, T, W - 2 * T, H - 2 * T); ctx.clip();
+  for (const it of arch) {
+    if (it.kind === 'region' && it.tone === 'recess') {
+      ctx.fillStyle = '#03050a';
+      for (let i = 0; i < 6; i++) {
+        ctx.globalAlpha = 0.46 * (1 - i / 6);
+        ctx.fillRect(it.x, it.y + i * 4, it.w, 4);                    // under the north lip
+        ctx.fillRect(it.x + i * 4, it.y, 4, it.h);                    // under the west lip
+      }
+      ctx.globalAlpha = 0.22; ctx.fillStyle = '#b4bfcc';
+      ctx.fillRect(it.x, it.y + it.h - 4, it.w, 2);                   // the far wall's lit edge
+      ctx.fillRect(it.x + it.w - 4, it.y, 2, it.h);
+    } else if (it.kind === 'plate') {
+      const x0 = it.x + 3, y0 = it.y + 3, w = it.w - 6, h = it.h - 6;
+      // A shade cooler and a touch DARKER than the matte deck — a different
+      // metal, not a lighter rug. (The first pass lifted it and lit the tread
+      // at 0.20: at phone size it was the brightest large area on the floor.)
+      ctx.globalAlpha = 0.12; ctx.fillStyle = '#0a1422';
+      ctx.fillRect(x0, y0, w, h);
+      // TREAD: a diamond-plate lattice of short 45-degree bars, alternating —
+      // a texture you feel at 1x and see only as a tone at phone size
+      for (let y = y0 + 8, row = 0; y < y0 + h - 8; y += 16, row++) {
+        for (let x = x0 + 8 + (row % 2) * 8, k = 0; x < x0 + w - 10; x += 16, k++) {
+          const up = (k + row) % 2 === 0;
+          for (let j = 0; j < 3; j++) {
+            const px = x + j * 2, py = up ? y + 4 - j * 2 : y + j * 2;
+            ctx.globalAlpha = 0.08; ctx.fillStyle = '#c3ccd8'; ctx.fillRect(px, py, 2, 2);
+            ctx.globalAlpha = 0.10; ctx.fillStyle = '#05070a'; ctx.fillRect(px, py + 2, 2, 2);
+          }
+        }
+      }
+      ctx.globalAlpha = 0.30; ctx.fillStyle = '#c3ccd8';               // raised: lit NW bevel
+      ctx.fillRect(it.x + 2, it.y + 2, it.w - 4, 2); ctx.fillRect(it.x + 2, it.y + 2, 2, it.h - 4);
+      ctx.globalAlpha = 0.45; ctx.fillStyle = '#03050a';               // dark SE bevel and its drop
+      ctx.fillRect(it.x + 2, it.y + it.h - 4, it.w - 2, 3); ctx.fillRect(it.x + it.w - 4, it.y + 2, 3, it.h - 2);
+      ctx.globalAlpha = 0.22;
+      ctx.fillRect(it.x + 4, it.y + it.h, it.w, 4); ctx.fillRect(it.x + it.w, it.y + 4, 4, it.h);
+    }
+  }
+  ctx.restore();
+}
+
+// A sprite's opaque cells at its 4px grain, mirrored when it is placed flipped.
+function cellMask(scene, texKey, flip, s = 4) {
+  if (!scene.textures.exists(texKey)) return null;
+  const src = scene.textures.get(texKey).getSourceImage();
+  if (!src?.width) return null;
+  const cv = document.createElement('canvas');
+  cv.width = src.width; cv.height = src.height;
+  const c2 = cv.getContext('2d');
+  c2.drawImage(src, 0, 0);
+  const d = c2.getImageData(0, 0, src.width, src.height).data;
+  const w = Math.round(src.width / s), h = Math.round(src.height / s);
+  const m = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = ((y * s + (s >> 1)) * src.width + (x * s + (s >> 1))) * 4 + 3;
+    if (d[i] > 127) m[y * w + (flip ? w - 1 - x : x)] = 1;
+  }
+  return { w, h, m, s, pw: src.width, ph: src.height };
+}
+
+// THE V2B SHADOW SYSTEM — three things, kept apart:
+//   CONTACT  tight and dark, directly under the foot: the object touches here.
+//   CAST     the object's own columns PROJECTED onto the deck by the north-west
+//            sun: each column throws a slanted run whose length is that
+//            column's height (x `hs`, the share of the drawn height that is
+//            real height rather than lid depth). A crate throws a short block,
+//            the gantry's legs throw long bars, a drum a rounded stub — mass
+//            you can read from the shadow alone. Two steps: a core and a
+//            penumbra one cell wider. Cool near-black, translucent, so the deck
+//            shows through: a shadow, never a hole.
+//   OFFSET   the shuttle stands on its gear, so its plan-view silhouette is
+//            displaced whole, further than anything else: it is the one object
+//            in the room that is OFF the deck.
+const SUN = { ax: 0.70, ay: 0.38 };   // a low north-west sun: long enough to read at phone size
+function castShadowsB(scene, ctx, spec, T, W, H) {
+  ctx.save();
+  ctx.beginPath(); ctx.rect(T, T, W - 2 * T, H - 2 * T); ctx.clip();
+  const SH = '#03050a';
+  const layerOf = (pw, ph) => { const c = document.createElement('canvas'); c.width = pw; c.height = ph; return c; };
+
+  // elevation sprites: projected columns + contact
+  const project = (texKey, left, top, flip, hs, core = 0.46, pen = 0.18) => {
+    const M = cellMask(scene, texKey, flip);
+    if (!M) return;
+    const { w, h, m, s } = M;
+    let base = -1;
+    for (let y = h - 1; y >= 0 && base < 0; y--) for (let x = 0; x < w; x++) if (m[y * w + x]) { base = y; break; }
+    if (base < 0) return;
+    const maxH = Math.ceil((base + 1) * hs) + 2;
+    const cw = w + Math.ceil(maxH * SUN.ax) + 3, ch = base + maxH + Math.ceil(maxH * SUN.ay) + 4;
+    const cells = new Uint8Array(cw * ch);
+    // Per column: the bottom `hr` drawn rows are the vertical FACE (a cell k
+    // rows above the foot stands k high over the foot); the rows above that are
+    // the TOP plane, standing `hr` high over the ground `hr` rows further south.
+    // So a box throws its face as a slanted run AND its lid shifted south-east —
+    // the shadow shows beside the box, not only under its foot.
+    const put = (sx, sy) => { if (sx >= 0 && sy >= 0 && sx < cw && sy < ch) cells[sy * cw + sx] = 1; };
+    for (let x = 0; x < w; x++) {
+      let topRow = -1, foot = -1;
+      for (let y = 0; y <= base; y++) if (m[y * w + x]) { if (topRow < 0) topRow = y; foot = y; }
+      if (topRow < 0) continue;
+      const hr = Math.round((foot - topRow + 1) * hs);
+      for (let k = 0; k <= hr; k++) put(x + Math.round(k * SUN.ax), foot + Math.round(k * SUN.ay));
+      for (let y = topRow; y < foot - hr; y++) {
+        if (!m[y * w + x]) continue;
+        put(x + Math.round(hr * SUN.ax), y + hr + Math.round(hr * SUN.ay));
+      }
+    }
+    const coreL = layerOf(cw * s, ch * s), penL = layerOf(cw * s, ch * s);
+    const cc = coreL.getContext('2d'), pc = penL.getContext('2d');
+    cc.fillStyle = SH; pc.fillStyle = SH;
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+      if (!cells[y * cw + x]) continue;
+      cc.fillRect(x * s, y * s, s, s);
+      pc.fillRect(x * s, y * s, s * 2, s * 2);                       // one cell wider, right and down
+    }
+    ctx.globalAlpha = pen; ctx.drawImage(penL, left, top);
+    ctx.globalAlpha = core; ctx.drawImage(coreL, left, top);
+    // CONTACT: the foot row's columns, one cell under, tight and dark
+    ctx.fillStyle = SH;
+    for (let x = 0; x < w; x++) {
+      let foot = -1;
+      for (let y = base; y >= Math.max(0, base - 2); y--) if (m[y * w + x]) { foot = y; break; }
+      if (foot < 0) continue;
+      ctx.globalAlpha = 0.55; ctx.fillRect(left + x * s, top + (foot + 1) * s, s, s);
+      ctx.globalAlpha = 0.25; ctx.fillRect(left + x * s, top + (foot + 2) * s, s, s);
+    }
+  };
+
+  for (const cp of spec.cover || []) {
+    const k = pilotKey(scene, cp.tex ?? spec.coverTex ?? 'bush', 'v2b');
+    const crate = /crate/.test(cp.tex || '');
+    project(k, Math.round(cp.x - 56), Math.round(cp.y - 56), false, crate ? 0.55 : 0.72);
+  }
+  for (const pr of spec.props || []) {
+    if (!pr.solid) continue;                                       // wall-mounted art throws nothing on the deck
+    const k = pilotKey(scene, pr.tex, 'v2b');
+    if (!scene.textures.exists(k)) continue;
+    const src = scene.textures.get(k).getSourceImage();
+    const left = Math.round(pr.x - src.width / 2), top = Math.round(pr.y - src.height);
+    if (/shuttle/.test(pr.tex)) {
+      // OFF THE DECK: the plan-view silhouette, displaced whole
+      const M = cellMask(scene, k, !!pr.flip);
+      if (!M) continue;
+      const L = layerOf(M.pw + 8, M.ph + 8), lc = L.getContext('2d');
+      lc.fillStyle = SH;
+      for (let y = 0; y < M.h; y++) for (let x = 0; x < M.w; x++) if (M.m[y * M.w + x]) lc.fillRect(x * 4, y * 4, 4, 4);
+      ctx.globalAlpha = 0.18; ctx.drawImage(L, left + 40, top + 26);
+      ctx.globalAlpha = 0.40; ctx.drawImage(L, left + 32, top + 20);
+    } else {
+      project(k, left, top, !!pr.flip, /crane/.test(pr.tex) ? 0.7 : 0.8, /crane/.test(pr.tex) ? 0.36 : 0.44);
+    }
   }
   ctx.restore();
 }

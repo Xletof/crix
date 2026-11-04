@@ -12,9 +12,11 @@
 // refuses to write a pair that is not.
 //
 // Configs (exact URL flags, sent WITHOUT a baseline pin: the no-flags page is
-// the R1 production game):
-//   A  ''                 current R1 production presentation
-//   B  'visualPilot=v2'   the Visual Identity V2 candidate
+// the R1 production game); `--configs=A,B,C` (default) picks which run, and
+// every later one is checked against the first:
+//   A  ''                  current R1 production presentation
+//   B  'visualPilot=v2'    the Visual Identity V2 candidate (as delivered)
+//   C  'visualPilot=v2b'   the V2B candidate: V2's characters, the refined Hangar
 //
 // `--mode=env` photographs the EMPTY Hangar instead (no enemies, HUD hidden)
 // at four player stations — apron, lane, staging bay, east freight — each
@@ -40,8 +42,8 @@ const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').
 const OUT = opt('out', 'docs/evidence/visual-identity-v2/ab');
 const SEED = +opt('seed', '7311');
 const TICKS = opt('ticks', '90,180,300,400,480,560,660').split(',').map(Number);
-const CONFIGS = { A: '', B: 'visualPilot=v2' };
-const RUN = opt('configs', 'A,B').split(',');
+const CONFIGS = { A: '', B: 'visualPilot=v2', C: 'visualPilot=v2b' };
+const RUN = opt('configs', 'A,B,C').split(',');
 const Q = opt('q', 'room=hangar');
 const MODE = opt('mode', 'fight');
 const FILM = { from: +opt('from', '60'), to: +opt('to', '420'), every: +opt('every', '2') };
@@ -222,13 +224,15 @@ for (const c of RUN) {
 }
 await browser.close();
 let ok = true;
-if (res.A && res.B) {
-  for (let i = 0; i < res.A.length; i++) {
-    const same = res.A[i].state === res.B[i].state;
+// every other configuration is checked against the FIRST one run, frame by frame
+const [ref, ...rest] = RUN;
+for (const c of rest) {
+  for (let i = 0; i < res[ref].length; i++) {
+    const same = res[ref][i].state === res[c][i]?.state;
     if (!same) ok = false;
-    if (MODE !== 'film' || !same) console.log(`tick ${res.A[i].tick}: ${same ? 'SAME FIGHT' : 'DIVERGED'}  ${same ? '' : `\n  A ${res.A[i].state}\n  B ${res.B[i].state}`}`);
+    if (MODE !== 'film' || !same) console.log(`${ref}/${c} tick ${res[ref][i].tick}: ${same ? 'SAME FIGHT' : 'DIVERGED'}  ${same ? '' : `\n  ${ref} ${res[ref][i].state}\n  ${c} ${res[c][i]?.state}`}`);
   }
 }
-if (MODE === 'film') console.log(`film: ${res.A?.length ?? 0} frames per half, ${ok ? 'every frame the same fight' : 'NOT the same fight'}`);
+if (MODE === 'film') console.log(`film: ${res[ref]?.length ?? 0} frames per config, ${ok ? 'every frame the same fight' : 'NOT the same fight'}`);
 writeFileSync(`${OUT}/states-${MODE}.json`, JSON.stringify(res, null, 1));
 process.exit(ok ? 0 : 1);
