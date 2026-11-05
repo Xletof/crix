@@ -462,4 +462,32 @@ export function isVisualPilotV2B() { return visualPilot === 'v2b' || visualPilot
 /** The V2C Hangar ground only. */
 export function isVisualPilotV2C() { return visualPilot === 'v2c'; }
 /** `?visualPilot=v2` / `v2b` / `v2c` on, anything else off. `params` is a URLSearchParams. */
-export function applyVisualFlags(params) { setVisualPilot(params.get('visualPilot')); }
+export function applyVisualFlags(params) {
+  setVisualPilot(params.get('visualPilot'));
+  setPolish(params.get('polish'));
+}
+
+// ── P1 — COMBAT VISUAL POLISH (`?visualPilot=v2c&polish=p1`) ───────────────
+//
+// HUMAN-AUTHORIZED OPT-IN PRESENTATION CANDIDATE (2026-11-05), NOT A DEFAULT.
+// Three components the HUMAN judges independently, layered over the approved
+// V2C presentation:
+//   P1-A  width-aware announcement banners and the sector sign (HUD scene,
+//         `systems/p1Banner.js`);
+//   P1-B  the player's Super-ready indicator (`systems/p1Player.js`);
+//   P1-C  the player's weapon presentation — new namespaced `p1-*` textures
+//         (`systems/p1Paint.js`) on a weapon layer of its own.
+// TIED TO V2C: `polish=p1` is honoured ONLY together with `visualPilot=v2c`,
+// because the P1 weapons are drawn for the V2 protagonist. With any other
+// pilot (or none) the parameter is ignored and the game is exactly that mode —
+// R1, V2, V2B and V2C never acquire P1 silently. Any other `polish` value is
+// off. PRESENTATION ONLY: no hp, radius, speed, timing, spawn, projectile
+// origin, camera, collision or `Math.random` draw may differ
+// (`tests/smoke-polish-p1.mjs`).
+const POLISHES = ['p1'];
+let polish = null;
+export function setPolish(v) { polish = POLISHES.includes(v) ? v : null; }
+/** The `polish` parameter as given ('p1' | null), honoured or not. */
+export function getPolishRequested() { return polish; }
+/** P1 is live: `polish=p1` AND `visualPilot=v2c`. */
+export function isPolishP1() { return polish === 'p1' && visualPilot === 'v2c'; }

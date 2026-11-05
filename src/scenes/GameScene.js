@@ -9,6 +9,7 @@ import { BulletGroup } from '../entities/Bullet.js';
 import { paintBackdrop } from '../systems/pixelArt.js';
 import { pilotTexFor, wearPilotSwarm } from '../systems/visualPilot.js';
 import { paintPilotHangarBackdrop } from '../systems/vpHangar.js';
+import { installPlayerPolish } from '../systems/p1Player.js';
 import { BushSystem } from '../systems/BushSystem.js';
 import { RoomManager } from '../systems/RoomManager.js';
 import { CoverRegistry } from '../systems/CoverRegistry.js';
@@ -292,6 +293,10 @@ export class GameScene extends Phaser.Scene {
 
     // ── Player ─────────────────────────────────────────────────────────────
     this.player = new Player(this, 200, 200);
+    // P1-B / P1-C (`?visualPilot=v2c&polish=p1` only): the Super-ready
+    // indicator and the weapon layer, a presentation seam that reads the
+    // player and writes nothing back (systems/p1Player.js). No-op otherwise.
+    installPlayerPolish(this);
     // Inset the game viewport below the HUD top bar so the world never renders
     // behind it (the bar is a separate overlay scene drawn above everything).
     // This also un-hides the top room exit, which used to sit under the bar.

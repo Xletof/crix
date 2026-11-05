@@ -10,6 +10,7 @@ import { isEncDebug, getEncForce, setEncForce, isChampDebug } from './debug.js';
 import { ENCOUNTERS } from '../data/encounters.js';
 import { ROOMS } from '../data/rooms.js';
 import { SFX } from './FX.js';
+import { installBannerPolish } from './p1Banner.js';
 
 export class HUDScene extends Phaser.Scene {
   constructor() {
@@ -203,6 +204,10 @@ export class HUDScene extends Phaser.Scene {
     // Upper third so it's readable from anywhere in the room without covering
     // the combat zone around the player.
     this._buildSectorSign();
+    // P1-A (`?visualPilot=v2c&polish=p1` only): width-aware banner, medal,
+    // combo and sign layout on THIS instance (systems/p1Banner.js). Without
+    // the flag it removes any P1 method a previous run left and returns.
+    installBannerPolish(this);
 
     // Energy cell ammo pips (above the aim stick) and the secondary-weapon
     // readout (above the move stick). Both ride with their stick, so their

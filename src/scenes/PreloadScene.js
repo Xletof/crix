@@ -84,6 +84,7 @@ import { paintGunnerMuzzle } from '../systems/gunnerMuzzle.js';
 import { isVisualPilotV2 } from '../systems/debug.js';
 import { paintPilotHero } from '../systems/vpPaint.js';
 import { paintVisualPilot } from '../systems/visualPilot.js';
+import { paintPolishP1 } from '../systems/p1Paint.js';
 
 // All textures are programmatically painted. No external assets needed.
 
@@ -228,6 +229,9 @@ export class PreloadScene extends Phaser.Scene {
     // swarm sheet and its anim keys, and the Hangar's V2 cover / prop art on
     // NEW keys. After the kit, because the material pass reads its textures.
     paintVisualPilot(this);
+    // P1 (`?visualPilot=v2c&polish=p1` only; a no-op otherwise): the player's
+    // P1 weapon art on NEW `p1-*` keys (systems/p1Paint.js).
+    paintPolishP1(this);
 
     // ── Projectiles ──────────────────────────────────────────────────
     paintBolt(this, 'bullet',        PAL.boltRed,        PAL.boltRedGlow,   14);
