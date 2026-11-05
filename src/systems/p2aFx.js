@@ -69,20 +69,19 @@ import { P2A_TEX } from './p2aPaint.js';
 import { WEAPONS } from '../config.js';
 
 const TAU = Math.PI * 2;
-const ADD = Phaser.BlendModes.ADD;
 
 /** Tuning. Lengths in px, times in ms. */
 export const P2A = {
   pistol: {
     tail: 72,                 // light behind the head (~80ms of flight at 900px/s)
     tailTex: P2A_TEX.tailP, headTex: P2A_TEX.headP,
-    headGlow: { tint: 0xff4a3a, alpha: 0.36, scale: 0.85 },
+    headGlow: { tint: 0xff5a48, alpha: 0.30, scale: 0.85 },
     muzzle: { ms: 66, scale: 1.0, glow: { tint: 0xff5a40, alpha: 0.6, scale: 1.4 } },
   },
   rifle: {
     tail: 66,                 // thicker: a slug; bolts 70px apart in a burst, so the three heads chain without merging into a beam
     tailTex: P2A_TEX.tailR, headTex: P2A_TEX.headR,
-    headGlow: { tint: 0xff3a30, alpha: 0.32, scale: 0.85 },
+    headGlow: { tint: 0xff4a3c, alpha: 0.28, scale: 0.85 },
     muzzle: { ms: 80, scale: 1.0, firstScale: 1.15, glow: { tint: 0xff4a30, alpha: 0.65, scale: 1.5 } },
     heat: { perShot: 1, max: 3, halfLifeMs: 90, tint: 0xff4020, alpha: 0.22, scale: 1.1 },
   },
@@ -206,7 +205,7 @@ class FxP2A {
     });
     // the twins exist from the start, so a first contact costs nothing extra
     for (const k of ['sparksRed', 'sparksYellow', 'sparksBlue']) this._twin(k);
-    this.heatGlow = s.add.image(0, 0, P2A_TEX.glow.key).setBlendMode(ADD).setVisible(false);
+    this.heatGlow = s.add.image(0, 0, P2A_TEX.glow.key).setVisible(false);
   }
 
   destroy() {
@@ -222,10 +221,17 @@ class FxP2A {
   }
 
   // ── pools ─────────────────────────────────────────────────────────────
-  _img(key, add = false) {
+  // Every P2-A object renders with the NORMAL blend — the glows included.
+  // ADDITIVE glows looked a little more like light, but each one sits at its
+  // own y-sorted depth among the actors, so every switch in and out of the
+  // ADD blend broke the sprite batch: +4ms median per rendered frame in the
+  // headless measurement, and exactly A's frame time with NORMAL glows
+  // (diag-fx-p2a-perf --exp=noadd). A tinted soft sprite on a dark deck is
+  // most of the look for none of the cost. (`add` is kept for the call sites.)
+  _img(key, add = false) {   // eslint-disable-line no-unused-vars
     const o = this.imgPool.pop() || this.scene.add.image(0, 0, key);
     if (o.texture.key !== key) o.setTexture(key);
-    o.setBlendMode(add ? ADD : Phaser.BlendModes.NORMAL).setOrigin(0.5).setScale(1).setAlpha(1).setRotation(0).setFlipY(false).clearTint().setVisible(true);
+    o.setBlendMode(Phaser.BlendModes.NORMAL).setOrigin(0.5).setScale(1).setAlpha(1).setRotation(0).setFlipY(false).clearTint().setVisible(true);
     return o;
   }
   _gfx() { const g = this.gfxPool.pop() || this.scene.add.graphics(); g.clear(); g.setVisible(true).setAlpha(1).setPosition(0, 0); return g; }

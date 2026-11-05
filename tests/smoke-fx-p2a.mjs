@@ -54,7 +54,10 @@ import { CHROME, bootPage, FIGHT_SEG } from './diag-stuck-audit.mjs';
 import { enemyJsGuard } from './enemy-frozen.mjs';
 
 const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').split('=').slice(1).join('=') || d;
-const SELF = process.argv.includes('--selftest');
+const SELF = process.argv.includes('--selftest') || process.argv.includes('--selftest=twin');
+// `--selftest=twin` breaks ONLY the parity twins (P2-A skipping the shipped
+// effects' draws): the replays in section 5 must fail on that alone
+const SELF_TWIN = process.argv.includes('--selftest=twin');
 const OLD = opt('old', null);
 const NOW = 'http://localhost:5173/';
 const TICKS = +opt('ticks', '1500');
@@ -74,16 +77,19 @@ const isB = (flags) => /fxPilot=p2a/.test(flags) && /polish=p1/.test(flags) && /
 
 // ── in-page instruments ───────────────────────────────────────────────────
 async function instrument(p, flags) {
-  await p.evaluate(async ({ self, b }) => {
+  await p.evaluate(async ({ self, b, twinOnly }) => {
     const gs = window.__gs;
     const fnv = (str) => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619) >>> 0; return h; };
     window.__dbg = await window.__mod(/systems\/debug\.js/);
     window.__fxmod = await window.__mod(/systems\/FX\.js/);
     if (self && b) {
       // what a careless P2-A would do — injected in B only
-      const c = gs._p2a; const u = c.update.bind(c); c.update = (t, d) => { Math.random(); u(t, d); };
-      const fp = gs.firePlayerPrimary.bind(gs);
-      gs.firePlayerPrimary = (a) => { const x = gs.player.x; gs.player.x += 1; fp(a); gs.player.x = x; };
+      const c = gs._p2a;
+      if (!twinOnly) {
+        const u = c.update.bind(c); c.update = (t, d) => { Math.random(); u(t, d); };
+        const fp = gs.firePlayerPrimary.bind(gs);
+        gs.firePlayerPrimary = (a) => { const x = gs.player.x; gs.player.x += 1; fp(a); gs.player.x = x; };
+      }
       c._parity = () => {}; c._parityDir = () => {};
     }
     window.__texHash = (key) => {
@@ -148,7 +154,7 @@ async function instrument(p, flags) {
       const st = gs._p2a?.stats;
       return { hashes, draws: window.__draws, spawned: gs.enemies.getChildren().length, stats: st ? JSON.parse(JSON.stringify(st)) : null };
     };
-  }, { self: SELF, b: isB(flags) });
+  }, { self: SELF, b: isB(flags), twinOnly: SELF_TWIN });
 }
 async function boot(flags, { base = NOW, q = 'room=hangar', seed = 4242, viewport } = {}) {
   const p = await bootPage(browser, { base, flags, baseline: null, q, seed, viewport });
@@ -441,16 +447,21 @@ if (on(6)) {
     P.secondary = null; P.fireCooldown = 0; P.tryFire(0); window.__adv(1);
     const m = c.impacts[0] || null, f = c.flashes[0] || null;
     const age0 = f ? f.age : null;
+    // the harness boots with ?nofreeze=1 (hitstop muted): unmute it, or the
+    // freeze under test never happens and the check measures nothing
+    window.__dbg.setHitstopMuted(false);
     gs.fx.hitstop(80, 0.06);
+    const ts = gs.time.timeScale;
     window.__adv(1);
     const age1 = f ? f.age : null;
     gs.fx.cancelHitstop();
-    return { inside, wrote: wrote.length, maxLive, stats: c.stats, frozen: f ? (age1 - age0) : null, ts: gs.time.timeScale };
+    window.__dbg.setHitstopMuted(true);
+    return { inside, wrote: wrote.length, maxLive, stats: c.stats, frozen: f ? (age1 - age0) : null, ts };
   });
   await p.close();
   check(`P2-A's frame draws no Math.random over 400 ticks of fighting (${r.stats.bolts} tracers, ${JSON.stringify(r.stats.impacts)} contacts)`, r.inside === 0 && r.stats.bolts > 20, `${r.inside} draws inside the hook`);
   check('P2-A\'s frame writes no clock, physics scale, camera, player or bolt field', r.wrote === 0, `${r.wrote} frames changed something`);
-  check('under a hitstop (timeScale 0.06) a muzzle flash ages at the world\'s rate (<= 1.1ms per 16.7ms frame)', r.frozen != null && r.frozen <= 1.1, `aged ${r.frozen?.toFixed(2)}ms`);
+  check('under a hitstop (timeScale 0.06) a muzzle flash ages at the world\'s rate (<= 1.1ms per 16.7ms frame)', r.ts < 0.1 && r.frozen != null && r.frozen <= 1.1, `timeScale ${r.ts}, aged ${r.frozen?.toFixed(2)}ms`);
 }
 
 // ── 7. CLEANUP ────────────────────────────────────────────────────────────
@@ -612,7 +623,8 @@ await browser.close();
 const fails = results.filter((r) => !r.ok);
 console.log(`\n${results.length - fails.length}/${results.length} passed${SELF ? '  (SELFTEST: sections 3, 5 and 6 are expected to FAIL)' : ''}`);
 if (SELF) {
-  const must = ['position, bearing, velocity', 'headless ticks, B identical', 'RENDERED ticks, B identical', 'draws no Math.random'];
+  const must = SELF_TWIN ? ['headless ticks, B identical', 'RENDERED ticks, B identical']
+    : ['position, bearing, velocity', 'headless ticks, B identical', 'RENDERED ticks, B identical', 'draws no Math.random'];
   const ok = must.every((m) => fails.some((f) => f.name.includes(m)));
   console.log(ok ? 'SELFTEST OK: the checks caught the injected changes' : 'SELFTEST FAILED: a check did not catch an injected change');
   process.exit(ok ? 0 : 1);

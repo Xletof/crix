@@ -22,11 +22,13 @@ import { CHROME, bootPage } from './diag-stuck-audit.mjs';
 
 const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').split('=').slice(1).join('=') || d;
 const REPS = +opt('reps', '5'), TICKS = +opt('ticks', '600');
+// --exp=noadd|nosparks|noglow: a cost experiment on B only (what the frame time is made of)
+const EXP = opt('exp', '');
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 const out = {};
 for (const [cfg, flags] of [['A', 'visualPilot=v2c&polish=p1'], ['B', 'visualPilot=v2c&polish=p1&fxPilot=p2a']]) {
   const p = await bootPage(browser, { flags, baseline: null, q: 'room=hangar', seed: 4242 });
-  out[cfg] = await p.evaluate(async ({ reps, ticks }) => {
+  out[cfg] = await p.evaluate(async ({ reps, ticks, exp }) => {
     const gs = window.__gs, g = window.game;
     const paint = await window.__mod(/systems\/p2aPaint\.js/);
     const med = (a) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
@@ -59,6 +61,12 @@ for (const [cfg, flags] of [['A', 'visualPilot=v2c&polish=p1'], ['B', 'visualPil
     window.__seed(77); window.__headless = false;
     let hook = 0, peakList = 0, peak = { bolts: 0, flashes: 0, impacts: 0, sparks: 0 }, peakParticles = 0;
     if (c) { const u = c.update.bind(c); c.update = (t, d) => { const t0 = performance.now(); u(t, d); hook += performance.now() - t0; }; }
+    if (c && exp) {
+      const fxm = await window.__mod(/systems\/p2aFx\.js/);
+      if (exp.includes('noadd')) { const im = c._img.bind(c); c._img = (k) => im(k, false); }
+      if (exp.includes('nosparks')) { for (const k of ['body', 'wall', 'shield', 'armour']) { if (fxm.P2A[k].sparks != null) fxm.P2A[k].sparks = 0; if (fxm.P2A[k].rifleSparks != null) fxm.P2A[k].rifleSparks = 0; } }
+      if (exp.includes('noglow')) { const im = c._img.bind(c); c._img = (k, add) => { const o = im(k, add); if (k === 'p2a-glow') o.setAlpha(0).setVisible(false); return o; }; }
+    }
     const emitters = gs.children.list.filter((o) => o.type === 'ParticleEmitter' && o.visible);
     const step = [];
     for (let i = 0; i < ticks; i++) {
@@ -85,7 +93,7 @@ for (const [cfg, flags] of [['A', 'visualPilot=v2c&polish=p1'], ['B', 'visualPil
     r.tweens = gs.tweens.getTweens().length;
     r.listInFight = gs.children.list.length;
     return r;
-  }, { reps: REPS, ticks: TICKS });
+  }, { reps: REPS, ticks: TICKS, exp: EXP });
   await p.close();
 }
 await browser.close();
