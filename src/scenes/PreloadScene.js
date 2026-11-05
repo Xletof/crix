@@ -85,6 +85,7 @@ import { isVisualPilotV2 } from '../systems/debug.js';
 import { paintPilotHero } from '../systems/vpPaint.js';
 import { paintVisualPilot } from '../systems/visualPilot.js';
 import { paintPolishP1 } from '../systems/p1Paint.js';
+import { paintFxP2A } from '../systems/p2aPaint.js';
 
 // All textures are programmatically painted. No external assets needed.
 
@@ -232,6 +233,9 @@ export class PreloadScene extends Phaser.Scene {
     // P1 (`?visualPilot=v2c&polish=p1` only; a no-op otherwise): the player's
     // P1 weapon art on NEW `p1-*` keys (systems/p1Paint.js).
     paintPolishP1(this);
+    // P2-A (`?visualPilot=v2c&polish=p1&fxPilot=p2a` only; a no-op otherwise):
+    // the player's fire and impact art on NEW `p2a-*` keys (systems/p2aPaint.js).
+    paintFxP2A(this);
 
     // ── Projectiles ──────────────────────────────────────────────────
     paintBolt(this, 'bullet',        PAL.boltRed,        PAL.boltRedGlow,   14);

@@ -465,6 +465,7 @@ export function isVisualPilotV2C() { return visualPilot === 'v2c'; }
 export function applyVisualFlags(params) {
   setVisualPilot(params.get('visualPilot'));
   setPolish(params.get('polish'));
+  setFxPilot(params.get('fxPilot'));
 }
 
 // ── P1 — COMBAT VISUAL POLISH (`?visualPilot=v2c&polish=p1`) ───────────────
@@ -491,3 +492,25 @@ export function setPolish(v) { polish = POLISHES.includes(v) ? v : null; }
 export function getPolishRequested() { return polish; }
 /** P1 is live: `polish=p1` AND `visualPilot=v2c`. */
 export function isPolishP1() { return polish === 'p1' && visualPilot === 'v2c'; }
+
+// ── P2-A — BLASTER FIRE & IMPACT (`?visualPilot=v2c&polish=p1&fxPilot=p2a`) ─
+//
+// HUMAN-AUTHORIZED OPT-IN PRESENTATION CANDIDATE (2026-11-05), NOT A DEFAULT.
+// The player's ordinary pistol and DC-15 rifle fire: muzzle ignition, the
+// projectile's tracer and its contact with bodies, metal and shields
+// (`systems/p2aFx.js`, textures `systems/p2aPaint.js`). Super and melee
+// effects are out of its scope.
+// TIED TO P1: `fxPilot=p2a` is honoured ONLY when P1 is live (`polish=p1` +
+// `visualPilot=v2c`), because the muzzle is drawn at the P1 weapons' own
+// barrel faces. With anything else the parameter is ignored and the game is
+// exactly that mode — R1, V2, V2B, V2C and P1 never acquire P2-A silently.
+// Any other `fxPilot` value is off. PRESENTATION ONLY: no hp, radius, speed,
+// timing, spawn, projectile origin, body, camera, hitstop, collision or
+// `Math.random` draw may differ (`tests/smoke-fx-p2a.mjs`).
+const FX_PILOTS = ['p2a'];
+let fxPilot = null;
+export function setFxPilot(v) { fxPilot = FX_PILOTS.includes(v) ? v : null; }
+/** The `fxPilot` parameter as given ('p2a' | null), honoured or not. */
+export function getFxPilotRequested() { return fxPilot; }
+/** P2-A is live: `fxPilot=p2a` AND P1 live. */
+export function isFxP2A() { return fxPilot === 'p2a' && isPolishP1(); }
