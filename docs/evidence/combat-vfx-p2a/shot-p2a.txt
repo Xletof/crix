@@ -1,0 +1,9 @@
+pistol: 26 ticks, A vs B gameplay state IDENTICAL at every tick
+rifle: 30 ticks, A vs B gameplay state IDENTICAL at every tick
+wall: 34 ticks, A vs B gameplay state IDENTICAL at every tick
+enemy: 40 ticks, A vs B gameplay state IDENTICAL at every tick
+shield: 40 ticks, A vs B gameplay state IDENTICAL at every tick
+shieldbare: 40 ticks, A vs B gameplay state IDENTICAL at every tick
+multi: 60 ticks, A vs B gameplay state IDENTICAL at every tick
+fight-swarm: 420 ticks, A vs B gameplay state IDENTICAL at every tick
+fight-crossfire: 420 ticks, A vs B gameplay state IDENTICAL at every tick
