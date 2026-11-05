@@ -1,0 +1,43 @@
+# node tests/smoke-polish-p1.mjs --selftest --only=3,5,6   (on 5ef3094)
+
+== 3. banners
+FAIL  B: every one of 57 banner strings stays >= 24px inside the canvas at its widest animated box (real tweens, scale + stroke)  — ARENA SURVIVED — FINISH THEM! -30..750; CHAMBER CLEAR 1..719; HE WILL RETURN 8..712; MORTAR VOLLEY -1..721
+FAIL  B: no banner box ever crosses the pause button  — AFTERIMAGES; ARENA SURVIVED — FINISH THEM!; CHAMBER CLEAR; DARTH VADER; HE WILL RETURN; MORTAR VOLLEY; PLANT & SNIPE; SLICE TERMINALS FOR SUPPORT; SLIDE & SMASH; SUPPORT: SHIELD CHARGED & BACTA VIAL; SURGE INCOMING; WAVE CLEAR!; SECTOR 10 — DARK LORD; SECTOR 100 — DARK LORD; NO MOVE "SWEEPINGBARRAGE"; KRAYT-HOUND OF THE SEVENTH VEIL
+PASS  CONTROL: the same check FAILS on A (the shipped banner): 6 strings drawn past the canvas, 16 past the margin or under the pause button  — ARENA SURVIVED — FINISH THEM!; MORTAR VOLLEY; SLICE TERMINALS FOR SUPPORT; SUPPORT: SHIELD CHARGED & BACTA VIAL; NO MOVE "SWEEPINGBARRAGE"
+PASS  B: every banner says exactly what was emitted (a line break is the only change)
+PASS  B: every banner's alpha timeline (fade in 220ms, hold 700ms, fade 650ms) is A's, tick for tick
+PASS  B: no banner (one or two lines) rises above the shipped one-line top edge (bar + 18)
+FAIL  B: long strings are composed on two lines (0), short ones stay on one
+FAIL  B under a duel: every banner clears the duel block (bar + 61) and the canvas margin  — ARENA SURVIVED — FINISH THEM! y167; CHAMBER CLEAR y149; HE WILL RETURN y149
+FAIL  B: MULTIKILL + x12 fired in the same frame never overlap (A: overlaps)
+PASS  B: SLICE TERMINALS FOR SUPPORT + x7 fired in the same frame never overlap (A: clear)
+PASS  B: ARENA SURVIVED — FINISH THEM! + medal fired in the same frame never overlap (A: clear)
+PASS  B: sign + MULTIKILL + x5 fired in the same frame never overlap (A: overlaps)
+PASS  B: the sector sign's arrival slam stays on the canvas (44..676; A -20..740)
+PASS  B: the sign's directive fits inside its plate (605 <= 624; A 690)
+FAIL  B: a banner raised while the sign is up sits below it (A: drawn behind the plate)
+FAIL  B 720x1280: the RENDERED ink of the 7 widest strings at the forced peak stays >= 16px inside the canvas  — SUPPORT: SHI 0..720; ARENA SURVIV 0..720; SLICE TERMIN 0..720; CHAMBER CLEA 8..715; SURGE INCOMI 19..704; ⚠ DETECTED 110..612; KRAYT-HOUND  0..720
+FAIL  B 360x780: the RENDERED ink of the 7 widest strings at the forced peak stays >= 16px inside the canvas  — SUPPORT: SHI 0..720; ARENA SURVIV 0..720; SLICE TERMIN 0..720; CHAMBER CLEA 8..716; SURGE INCOMI 20..704; ⚠ DETECTED 110..612; KRAYT-HOUND  0..720
+PASS  CONTROL: the ink check FAILS on A (4 of 7 strings inked to the canvas edge)  — SUPPORT: SHIEL; ARENA SURVIVED; SLICE TERMINAL; KRAYT-HOUND OF
+
+== 5. weapons
+PASS  pistol: p1-pistol, bore on the aim ray, the shipped overlay hidden  — {"key":"p1-pistol","ox":0.346,"flip":false,"behind":false,"perp":0,"tip":42,"legacy":false}
+PASS  flip and depth are the shipped rules: west flipY, north behind the body, east / south / NE in front
+PASS  every pose keeps the bore on the aim ray (perpendicular < 0.01px)
+PASS  the pistol's muzzle face is nearer the bolt than the shipped one (42px vs shipped 46px; the bolt spawns at 34px)
+PASS  the rifle is longer than the pistol, its muzzle face nearer the bolt than the shipped rifle's (48px vs shipped 58px)
+PASS  Super ready: the weapon wears its -hot variant (pistol and rifle)
+PASS  mid-combo: p1-blade on the shipped blade pivot (origin 0.14)  — {"key":"p1-blade","ox":0.14,"flip":false,"behind":false,"perp":12.558,"tip":96.6,"legacy":false}
+FAIL  every pistol / rifle / Super bolt spawns at A's position and bearing (8 bearings, 24 volleys, 24 with live bolts) with A's draw count  — first difference: p0:249.000,700.000,0.0000 vs p0:250.000,700.000,0.0000
+
+== 6. same fight
+FAIL  SWARM TIDE, production: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — first divergent tick 0
+FAIL  SWARM TIDE, legacy baseline: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — first divergent tick 0
+FAIL  BOMBER RUN, production: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — first divergent tick 0
+FAIL  SWARM TIDE, production: 500 RENDERED ticks, B identical to A  — first divergent tick 0
+PASS  R1 + ignored polish=p1: 800 ticks identical to R1
+PASS  V2 + ignored polish=p1: 800 ticks identical to V2
+PASS  V2B + ignored polish=p1: 800 ticks identical to V2B
+
+20/33 passed  (SELFTEST: sections 3, 5 and 6 are expected to FAIL)
+SELFTEST OK: the checks caught the injected changes

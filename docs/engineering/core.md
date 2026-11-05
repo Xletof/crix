@@ -193,6 +193,40 @@ Entries under the headings below were migrated from the root `CLAUDE.md` as it s
   (`1 + 0.25 * s`, never `*= 1.25`); a bare multiplier compounds, and that is how
   player damage reached 1240x by Vader #6.
 
+### P1 combat visual polish (`?visualPilot=v2c&polish=p1`, a candidate — not approved)
+
+Seams, not edits: `HUD.create` calls `installBannerPolish(this)` (instance
+methods `showBanner` / `_renderMedal` / `showCombo` / `showSectorSign`, removed
+again when the flag is off) and `GameScene.create` calls
+`installPlayerPolish(this)` (a POST_UPDATE reader of the player; `Player.js` is
+untouched). Proof: `tests/smoke-polish-p1.mjs`. Traps found building it:
+
+- **The shipped banner never kills its own tweens.** Two banners inside ~1.5s
+  and the first one's delayed exit tween fades the second early (filmed: an
+  earlier banner's exit swallows `⚠ DETECTED`). P1 kills them; A keeps the
+  shipped behaviour.
+- **"Is a banner live?" cannot be read from its alpha.** A multikill emits its
+  banner and its streak splash in the SAME frame, when the banner is still at
+  alpha 0, so an alpha test lets the splash print through it. P1 keeps the
+  banner's scheduled end time and lanes off that.
+- **The banner's widest box is its EXIT tween's end** (scale 1.16, while it
+  fades), and Text `width` already includes `strokeThickness`. Fit against that
+  box, not the resting text. The pause button (`HUD._pauseBtn`, depth 46) draws
+  over the banner's top-right — it is an obstacle, not just the canvas edge.
+- **The sector sign is driven per frame** by `_drawExitWaypoint`, which hides
+  it whenever no exit door is open: a rig that calls `showSectorSign` directly
+  sees nothing. Open a real door (`gs._openDoor()`).
+- **Room banners are scheduled on delays** (WAVE now, the modifier at 1.55s, the
+  terminal hint at 1.75s / 3.1s): a rig that stages a banner within ~3.2s of a
+  room start gets overwritten. Advance ~260 ticks first.
+- **Phaser flips a texture about its frame CENTRE, not its origin.** A weapon
+  with an off-centre bore axis jumps off the aim ray when `flipY` engages; the
+  P1 weapons put the bore on the canvas's middle row.
+- **Hide a Player-owned overlay by `visible`, not alpha.** Player.preUpdate
+  rewrites the weapon overlay's alpha and the aura's visibility every frame;
+  the weapon's `visible` it never touches. The aura has to be re-hidden each
+  POST_UPDATE, before render.
+
 ### Rendering and depth
 
 - **Two depth conventions run at once.** Actors Y-sort (`setDepth(this.y)`), walls

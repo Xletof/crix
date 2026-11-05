@@ -1,0 +1,105 @@
+# node tests/smoke-polish-p1.mjs --old=http://localhost:5174/   (:5174 = a 56b10d7 worktree server — the V2C build; :5173 = this commit's source on a freshly restarted server)
+
+== 0. the flag
+PASS  ?(no flags) -> P1 off, pilot null  — {"p1":false,"vp":null,"installed":false,"hud":false}
+PASS  ?polish=p1 -> P1 off, pilot null  — {"p1":false,"vp":null,"installed":false,"hud":false}
+PASS  ?visualPilot=v2&polish=p1 -> P1 off, pilot v2  — {"p1":false,"vp":"v2","installed":false,"hud":false}
+PASS  ?visualPilot=v2b&polish=p1 -> P1 off, pilot v2b  — {"p1":false,"vp":"v2b","installed":false,"hud":false}
+PASS  ?visualPilot=v2c -> P1 off, pilot v2c  — {"p1":false,"vp":"v2c","installed":false,"hud":false}
+PASS  ?visualPilot=v2c&polish=p1 -> P1 ON, pilot v2c  — {"p1":true,"vp":"v2c","installed":true,"hud":true}
+PASS  ?visualPilot=v2c&polish=P1 -> P1 off, pilot v2c  — {"p1":false,"vp":"v2c","installed":false,"hud":false}
+PASS  ?visualPilot=v2c&polish=1 -> P1 off, pilot v2c  — {"p1":false,"vp":"v2c","installed":false,"hud":false}
+PASS  ?visualPilot=v2c&polish=p2 -> P1 off, pilot v2c  — {"p1":false,"vp":"v2c","installed":false,"hud":false}
+PASS  ?baseline=legacy&visualPilot=v2c&polish=p1 -> P1 ON, pilot v2c  — {"p1":true,"vp":"v2c","installed":true,"hud":true}
+PASS  the flag moves none of the seven gameplay switches (per baseline)  — {"production":["true,true,true,early,early,true,true"],"legacy":["false,false,false,,,false,false"]}
+
+== 1. textures
+PASS  B: every A texture byte-identical (140: hero, swarm, V2B set, roster, weapons, FX)
+PASS  B: the added textures are exactly the five p1-* keys  — p1-blade p1-pistol p1-pistol-hot p1-rifle p1-rifle-hot
+PASS  B: the shipped wpn-pistol / wpn-rifle / wpn-blade still painted, unchanged
+PASS  R1 + ignored polish=p1: every texture byte-identical to R1, no p1 key
+PASS  V2 + ignored polish=p1: every texture byte-identical to V2, no p1 key
+PASS  V2B + ignored polish=p1: every texture byte-identical to V2B, no p1 key
+
+== 2. install
+PASS  B replaces exactly the four HUD layout methods on the instance; A none  —  / showBanner,_renderMedal,showCombo,showSectorSign
+PASS  B adds exactly one POST_UPDATE, one player-fire-super and one shutdown (its own cleanup) listener; every other game event (HUD delivery included) as A  — shutdown:22->23 postupdate:8->9 player-fire-super:1->2
+PASS  HUD touch input listeners identical  — {"pointerdown":6,"pointermove":4,"pointerup":5,"pointerupoutside":4}
+PASS  B: the shipped weapon overlay is hidden and the P1 layer installed; A: shown, not installed
+
+== 3. banners
+PASS  B: every one of 57 banner strings stays >= 24px inside the canvas at its widest animated box (real tweens, scale + stroke)
+PASS  B: no banner box ever crosses the pause button
+PASS  CONTROL: the same check FAILS on A (the shipped banner): 6 strings drawn past the canvas, 16 past the margin or under the pause button  — ARENA SURVIVED — FINISH THEM!; MORTAR VOLLEY; SLICE TERMINALS FOR SUPPORT; SUPPORT: SHIELD CHARGED & BACTA VIAL; NO MOVE "SWEEPINGBARRAGE"
+PASS  B: every banner says exactly what was emitted (a line break is the only change)
+PASS  B: every banner's alpha timeline (fade in 220ms, hold 700ms, fade 650ms) is A's, tick for tick
+PASS  B: no banner (one or two lines) rises above the shipped one-line top edge (bar + 18)
+PASS  B: long strings are composed on two lines (13), short ones stay on one
+PASS  B under a duel: every banner clears the duel block (bar + 61) and the canvas margin
+PASS  B: MULTIKILL + x12 fired in the same frame never overlap (A: overlaps)
+PASS  B: SLICE TERMINALS FOR SUPPORT + x7 fired in the same frame never overlap (A: clear)
+PASS  B: ARENA SURVIVED — FINISH THEM! + medal fired in the same frame never overlap (A: clear)
+PASS  B: sign + MULTIKILL + x5 fired in the same frame never overlap (A: overlaps)
+PASS  B: the sector sign's arrival slam stays on the canvas (44..676; A -20..740)
+PASS  B: the sign's directive fits inside its plate (605 <= 624; A 690)
+PASS  B: a banner raised while the sign is up sits below it (A: drawn behind the plate)
+PASS  B 720x1280: the RENDERED ink of the 7 widest strings at the forced peak stays >= 16px inside the canvas  — SUPPORT: SHI 100..626; ARENA SURVIV 102..622; SLICE TERMIN 107..617; CHAMBER CLEA 103..622; SURGE INCOMI 98..625; ⚠ DETECTED 110..612; KRAYT-HOUND  99..626
+PASS  B 360x780: the RENDERED ink of the 7 widest strings at the forced peak stays >= 16px inside the canvas  — SUPPORT: SHI 100..626; ARENA SURVIV 102..622; SLICE TERMIN 108..618; CHAMBER CLEA 104..622; SURGE INCOMI 98..626; ⚠ DETECTED 110..612; KRAYT-HOUND  100..626
+PASS  CONTROL: the ink check FAILS on A (4 of 7 strings inked to the canvas edge)  — SUPPORT: SHIEL; ARENA SURVIVED; SLICE TERMINAL; KRAYT-HOUND OF
+
+== 4. the Super-ready indicator
+PASS  not ready: nothing drawn, the red aura not drawn  — {"gauge":false,"ring":false,"ticks":false,"ping":false,"aura":false,"w":"p1-pistol"}
+PASS  charging: the segmented gauge only; no ring, no red aura  — {"gauge":true,"ring":false,"ticks":false,"ping":false,"aura":false,"w":"p1-pistol"}
+PASS  charging: the gauge is not redrawn while the meter holds (60 ticks)  — 0 redraws
+PASS  ready: ring + pawls + the one-shot ping, the weapon goes -hot, no red aura  — {"gauge":false,"ring":true,"ticks":true,"ping":true,"aura":false,"w":"p1-pistol-hot"}
+PASS  ready: the ping is gone after its 320ms, the ring turns, the pawls beat
+PASS  ready: no display object added and no graphics command rebuilt over 60 ticks  — +0 objects, +0 commands
+PASS  the shipped red aura is never drawn under P1 (60 ready ticks)
+PASS  suppressed with a full meter: the ring stays, dim and still; the weapon is not -hot  — {"ring":true,"alpha":0.2752,"still":true,"w":"p1-pistol"}
+PASS  in a bush: the ring at 0.3 of its alpha and the weapon at the shipped PLAYER.bushAlpha  — in true, ring 0.2739090909090915, weapon 0.5
+PASS  Super fired: the ring snaps outward on release (peak scale over 6 ticks)  — {"fired":true,"gauge":false,"ring":true,"ticks":true,"ping":false,"aura":false,"w":"p1-pistol","scale":1.28463648834025}
+PASS  spent: meter 0, nothing drawn, the weapon back to plain  — {"gauge":false,"ring":false,"ticks":false,"ping":false,"aura":false,"w":"p1-pistol","charge":0}
+PASS  dead (inside the ready ping): indicator and ping hidden, weapon alpha 0  — {"gauge":false,"ring":false,"ticks":false,"ping":false,"aura":false,"w":"p1-pistol-hot","wA":0}
+PASS  3 restarts + quit-to-title: the old P1 objects destroyed, exactly one fresh set of 5 in the display list, listener counts steady  — [[5,1,9,2,true],[5,1,9,2,true],[5,1,9,2,true],[5,1,9,2,true]]
+
+== 5. weapons
+PASS  pistol: p1-pistol, bore on the aim ray, the shipped overlay hidden  — {"key":"p1-pistol","ox":0.346,"flip":false,"behind":false,"perp":0,"tip":42,"legacy":false}
+PASS  flip and depth are the shipped rules: west flipY, north behind the body, east / south / NE in front
+PASS  every pose keeps the bore on the aim ray (perpendicular < 0.01px)
+PASS  the pistol's muzzle face is nearer the bolt than the shipped one (42px vs shipped 46px; the bolt spawns at 34px)
+PASS  the rifle is longer than the pistol, its muzzle face nearer the bolt than the shipped rifle's (48px vs shipped 58px)
+PASS  Super ready: the weapon wears its -hot variant (pistol and rifle)
+PASS  mid-combo: p1-blade on the shipped blade pivot (origin 0.14)  — {"key":"p1-blade","ox":0.14,"flip":false,"behind":false,"perp":12.558,"tip":96.6,"legacy":false}
+PASS  every pistol / rifle / Super bolt spawns at A's position and bearing (8 bearings, 24 volleys, 24 with live bolts) with A's draw count  — draws 8306 / 8306; volleys with no live bolt: none
+
+== 6. same fight
+PASS  SWARM TIDE, production: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — 16776 draws
+PASS  SWARM TIDE, legacy baseline: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — 17739 draws
+PASS  BOMBER RUN, production: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — 16509 draws
+PASS  SWARM TIDE, production: 500 RENDERED ticks, B identical to A  — 5931 draws
+PASS  R1 + ignored polish=p1: 800 ticks identical to R1
+PASS  V2 + ignored polish=p1: 800 ticks identical to V2
+PASS  V2B + ignored polish=p1: 800 ticks identical to V2B
+
+== 7. frozen files
+PASS  no change against 56b10d7 in entities (Player.js included), config, data, pixelArt, rosterPaint, the V2/V2B/V2C painters and seams, camera, light, AI seams, nav, controls
+PASS  Enemy.js guard (outside the Bomber, the Bomber-only veto)  — {"outside":true,"hasDoc":true,"hasMethod":true,"code":"_vetoFalseStuck() { if (this._stuckFirstSeen || this._miniBoss) return; if (this._stuckRefX === undefined) return; this._stuckFirstSeen = true; const moved = Ma"}
+
+== 8. against the previous build (http://localhost:5174/)
+PASS  R1 (no flags): every texture byte-identical to the previous build
+PASS  V2: every texture byte-identical to the previous build
+PASS  V2B: every texture byte-identical to the previous build
+PASS  V2C: every texture byte-identical to the previous build
+PASS  SWARM TIDE, R1: 1500 ticks identical to the previous build  — 16776 draws
+PASS  SWARM TIDE, V2C: 1500 ticks identical to the previous build  — 16776 draws
+PASS  SWARM TIDE, B vs the previous V2C: 1500 ticks identical to the previous build  — 16776 draws
+PASS  BOMBER RUN, R1: 1500 ticks identical to the previous build  — 16509 draws
+PASS  SWARM TIDE, R1 + ignored polish=p1: 1500 ticks identical to the previous build  — 16776 draws
+
+== 9. restart and reload keep the mode
+PASS  B: a scene restart keeps the mode (P1 installed)  — {"p1":true,"inst":true,"hud":true,"ws":false}
+PASS  B: a reload keeps the mode (and paints the p1 set only when on)  — {"p1":true,"tex":true}
+PASS  A: a scene restart keeps the mode (P1 absent)  — {"p1":false,"inst":false,"hud":false,"ws":true}
+PASS  A: a reload keeps the mode (and paints the p1 set only when on)  — {"p1":false,"tex":false}
+
+82/82 passed

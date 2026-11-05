@@ -1,0 +1,9 @@
+# covering suites, one at a time on an idle box, on 010d67a (R1 / pinned baselines: P1 absent). The later banner-fitter rework (measure off-object) changes only code that runs under ?visualPilot=v2c&polish=p1.
+smoke-restart: PASS: 16 checks — restarts leave no duplicate handlers and no stale arena
+smoke-controls: PASS: the editor moves the real controls, persists, and resets
+smoke-title: PASS: 15 checks — endless leads, and its record is the first thing you read
+smoke-debug: PASS: debug menu works and the HUD stays in sync
+smoke-score: PASS: 41 checks — kills, chain multiplier and wave bonuses all score
+smoke-duel: PASS: 20 checks — a nemesis encounter is a duel, and the bomber survives it
+smoke-readability: PASS: 19 checks — the attacks can be seen coming
+npm run build: passes (chunk >500 kB warning, as before)

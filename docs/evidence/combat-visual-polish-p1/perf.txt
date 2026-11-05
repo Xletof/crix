@@ -1,0 +1,15 @@
+# node tests/diag-polish-p1-perf.mjs --reps=5 --ticks=600  (headless Chromium, software rasteriser; A vs B on one box)
+metric                        A (v2c)   B (v2c + p1)
+texBytes                     68563636       68618676
+texCount                          168            173
+listAtRest                        111            116
+hudList                            50             50
+stepMed                             7          7.400
+stepP95                       626.400        599.200
+hookMsPerFrame                      0          0.016
+tweens                              5              5
+listInFight                       172            177
+bannerCallMs                    1.900          4.100
+bannerCallP95                  12.300         17.500
+paintMs                             —              2
+p1Bytes                             —          55040
