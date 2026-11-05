@@ -2083,3 +2083,53 @@ only, so its gate is an IDENTITY test, not a behaviour test.
   about 40 minutes standalone.
 - `shot-visual-pilot.mjs` config `D` = V2C (`--configs=A,C,D` for R1 / V2B /
   V2C); `diag-visual-pilot-perf.mjs` measures all four modes.
+
+## The P1 combat-visual-polish rigs (`?visualPilot=v2c&polish=p1` — a candidate, opt-in, presentation only)
+
+Evidence in `docs/evidence/combat-visual-polish-p1/`. A = `visualPilot=v2c`
+(approved), B = `visualPilot=v2c&polish=p1`. Like the visual pilot, the gate is
+an IDENTITY test plus layout and state checks — nothing here says P1 looks
+better.
+
+- `smoke-polish-p1.mjs [--old=URL] [--selftest] [--only=3,4]` (standalone,
+  :5173; a `56b10d7` server at `--old` for section 8) — the flag (honoured only
+  with `v2c`); B paints every A texture byte-identically plus exactly the five
+  `p1-*` keys; the install (four HUD instance methods, one POST_UPDATE, one
+  `player-fire-super` and one shutdown listener, nothing else); the banners
+  (every `show-banner` string in the source, through the real tweens, inside the
+  canvas with a 24px margin and clear of the pause button, at 720x1280 and
+  360x780; the rendered ink by pixel diff; wording and alpha timeline as A;
+  lanes; the sign) with CONTROLS that must fail on A; the Super-ready state
+  cycle, no per-frame redraw or allocation, no leak across restarts and
+  quit-to-title; the weapon per state, the bore on the aim ray, the muzzle face
+  against the shipped one, every bolt spawned where A spawns it; seeded replays
+  A vs B with pistol, rifle, Supers and melee chains (headless and rendered),
+  and each ignored `polish=p1` mode vs its own; frozen files against `56b10d7`;
+  the previous build; restart and reload. `--selftest` injects a draw in the P1
+  hook, a 1px bolt shift and the unfitted banner, and must fail sections 3, 5
+  and 6.
+- `shot-polish-p1.mjs --mode=banners|sheet|super|film|phone` — matched A/B
+  evidence; the film is state-checked A vs B at every tick and refused if the
+  two halves diverge.
+- `diag-polish-p1-perf.mjs` — one-time paint, texture memory, display objects,
+  rendered step time A vs B with a ready Super, the P1 hook's own time, banner
+  layout cost (software rasteriser: A vs B only).
+
+### What it taught
+
+- **A banner check must run the REAL tweens.** The widest the banner is ever
+  drawn is the exit tween's end (1.16x) — sampling the resting text passes on
+  the shipped bug.
+- **Stage banners ~360 ticks after a room starts.** The room schedules its own
+  (WAVE now, the modifier at 1.55s, the terminal hint at 1.75s / 3.1s, each
+  fading over 1.57s); a sweep started earlier measures whichever banner landed
+  last, and a hint still fading when it starts is the stale-tween case P1
+  changes on purpose, so A and B differ there by design. Tween and bounds
+  checks need no renderer — run them headless.
+- **The sector sign can only be staged through a real open exit**
+  (`gs._openDoor()`): the HUD's per-frame waypoint driver hides it otherwise.
+- **`grep` sees the suite's log as binary** (the ⚠ and — glyphs): a Monitor
+  filter needs `grep -a`, or it prints "binary file matches" and nothing else.
+- **A literal-string sweep from the source must drop colours.** Where the text
+  is a template on the next line, the first quoted string after
+  `'show-banner',` is the colour (`'#40c0ff'`).
