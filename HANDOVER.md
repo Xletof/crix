@@ -103,7 +103,8 @@ command, fix the line.*
   champion-placement fail identically under legacy (register #9; R0 notes, R1
   section). No run-all suite was pinned: the suite tests the shipped game.
 - **Fresh session?** This block and the register are the orientation.
-  `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
+  The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-05.md`
+  (V2C approved; next: P1). `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
 
