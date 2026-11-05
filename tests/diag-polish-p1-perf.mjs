@@ -39,6 +39,9 @@ for (const [cfg, flags] of [['A', 'visualPilot=v2c'], ['B', 'visualPilot=v2c&pol
         const t0 = performance.now(); p1.paintPolishP1(gs); paint.push(performance.now() - t0);
       }
       r.paintMs = med(paint);
+      // the weapon Image still points at the frames of the textures just
+      // replaced: re-bind it to the fresh ones before anything renders
+      const w = gs._p1Player?.weapon; if (w) { const k = w.texture.key; w.setTexture(k); }
       let b = 0; for (const k of ['p1-pistol', 'p1-pistol-hot', 'p1-rifle', 'p1-rifle-hot', 'p1-blade']) { const s = g.textures.get(k).getSourceImage(); b += s.width * s.height * 4; }
       r.p1Bytes = b;
     }
