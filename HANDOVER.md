@@ -86,9 +86,15 @@ command, fix the line.*
   - No flag = R1 exactly: `tests/smoke-visual-pilot.mjs` (R1 / V2 / V2B / V2C
     — textures, bodies, `Math.random` draws, seeded replays, LIGHTS OUT,
     restart and reload; R1, V2 and V2B identical to the V2B build `7a75e1e`).
-  - **P1 — Combat Visual Polish (HUMAN-authorized 2026-11-05): DELIVERED AS
-    A CANDIDATE, opt-in, `?visualPilot=v2c&polish=p1` — NOT approved, NOT
-    frozen, NOT a default; awaiting the HUMAN handset verdict, per component.**
+  - **P1 — Combat Visual Polish: HUMAN-APPROVED / FROZEN 🔒 (2026-11-05),
+    opt-in `?visualPilot=v2c&polish=p1`, NOT the default.** HUMAN handset
+    verdict, per component: **P1-A mobile banners — PASS; P1-B Super-ready
+    indicator — PASS; P1-C player weapons — PASS.** All three are the accepted
+    P1 visual presentation layered over V2C; preserve the exact approved
+    designs and behaviours (`b73eb40`), and do not reopen them on the earlier
+    agent reservations (evidence README "Known limitations"). R1 stays the
+    no-flags default; promoting V2C or P1 is a separate HUMAN decision. As
+    delivered:
     `polish=p1` is honoured only with `visualPilot=v2c` (ignored with no pilot,
     `v2` or `v2b`). **P1-A** banners (register #23): measured, width-aware type
     scale (60 / 44 / two-line 42px), fitted to the exit tween's 1.16x peak with
@@ -104,6 +110,9 @@ command, fix the line.*
     `tests/smoke-polish-p1.mjs` (V2C / R1 / V2 / V2B identical to `56b10d7`,
     seeded replays A vs B identical). Evidence, links and the HUMAN questions:
     `docs/evidence/combat-visual-polish-p1/README.md`.
+  - **NEXT PROPOSED MILESTONE (HUMAN, 2026-11-05): P2 — Arena Visual Identity
+    Expansion, beginning with Reactor Junction.** A planning direction only —
+    NOT authorized to implement; the full brief comes in a fresh session.
     Still not authorized: G1, Gunner AI, SNIPER NEST balance, any enemy or
     content phase, hero detail, actor shadows, propagating V2C to other
     arenas, making V2C (or P1) the default, or changing any approved V2C
@@ -1286,9 +1295,9 @@ approved behaviour needs its own human gate).
 | 19 | T1 Marksman pressure outside Detention: in the late-band Junction SNIPER NEST (sector 14+, five Marksmen) T1 raises Marksman damage ×2.6 pooled (×5+ on a hiding player) and Marksman double hits (≤500ms) ~7x; T1 was reviewed only in Detention s8/s12 | unreviewed fairness | HUMAN-ACCEPTED (R0 handset: further gameplay incl. SNIPER NEST judged fair, 2026-11-03) — do not rebalance without a human instruction | `integrated-combat-r0/` §6 |
 | 20 | Rigs hard-code `chromium-1194`; this container ships 1243 (symlink fix in `tests/README.md`, R0 section) | harness environment | TEST INFRASTRUCTURE DEBT | `tests/README.md` |
 | 21 | Visual Identity V2 (`?visualPilot=v2`) → V2B (`?visualPilot=v2b`) → V2C (`?visualPilot=v2c`, V2B with a new Hangar ground). **RESOLVED 2026-11-05: "V2C is a pass" — the cumulative V2C package is HUMAN-APPROVED / FROZEN** as the protected visual baseline, opt-in; v2 / v2b stay as historical comparison flags | look-development | CLOSED — APPROVED; a default or propagation to other arenas are SEPARATE APPROVAL REQUIRED | `docs/evidence/visual-identity-v2/`, `-v2b/`, `-v2c/` |
-| 22 | The player's Super-charge aura is red-orange (`0xff4020`), the enemy threat rings' family: at full charge the hero reads as an enemy (observed in the V2 pilot evidence; the pilot left it alone) | effects / HUD hierarchy | **P1-B CANDIDATE DELIVERED 2026-11-05** (`?visualPilot=v2c&polish=p1`), awaiting the HUMAN verdict; the HUD Super button's red ready glow is unchanged (a separate question) | `combat-visual-polish-p1/` |
-| 23 | Objective / room banners overflow the 720px canvas (`SLICE TERMINALS FOR SUPPORT` clipped at both edges; human's recording) | HUD layout | **P1-A CANDIDATE DELIVERED 2026-11-05** (`?visualPilot=v2c&polish=p1`), awaiting the HUMAN verdict; the shipped banner (R1 / V2C) still clips | V2 notes; `combat-visual-polish-p1/` |
-| 24 | The V2 hero carries the previous generation's weapon overlays (no outline, no hand, a stretched pistol for a rifle) | character presentation | **P1-C CANDIDATE DELIVERED 2026-11-05** (`?visualPilot=v2c&polish=p1`), awaiting the HUMAN verdict | `combat-visual-polish-p1/` |
+| 22 | The player's Super-charge aura is red-orange (`0xff4020`), the enemy threat rings' family: at full charge the hero reads as an enemy (observed in the V2 pilot evidence; the pilot left it alone) | effects / HUD hierarchy | **P1-B HUMAN-APPROVED / FROZEN 🔒 2026-11-05 — PASS** (`?visualPilot=v2c&polish=p1`, opt-in, `b73eb40`); the HUD Super button's red ready glow is unchanged (a separate question) | `combat-visual-polish-p1/` |
+| 23 | Objective / room banners overflow the 720px canvas (`SLICE TERMINALS FOR SUPPORT` clipped at both edges; human's recording) | HUD layout | **P1-A HUMAN-APPROVED / FROZEN 🔒 2026-11-05 — PASS** (`?visualPilot=v2c&polish=p1`, opt-in, `b73eb40`); the shipped banner (R1 / V2C) still clips | V2 notes; `combat-visual-polish-p1/` |
+| 24 | The V2 hero carries the previous generation's weapon overlays (no outline, no hand, a stretched pistol for a rifle) | character presentation | **P1-C HUMAN-APPROVED / FROZEN 🔒 2026-11-05 — PASS** (`?visualPilot=v2c&polish=p1`, opt-in, `b73eb40`) | `combat-visual-polish-p1/` |
 | 25 | The nemesis duel bar runs under the pause button (bar x 48–672 at y 122–136; button 646–706) — a shipped HUD overlap found during P1-A, not changed by it | HUD layout | DEFERRED — not authorized | `combat-visual-polish-p1/` known limitations |
 
 ### Process and evidence caveats the next session needs

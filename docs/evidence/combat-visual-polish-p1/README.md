@@ -1,5 +1,11 @@
 # P1 — Combat Visual Polish (`?visualPilot=v2c&polish=p1`)
 
+> **HUMAN verdict 2026-11-05 (handset): P1-A mobile banners — PASS; P1-B
+> Super-ready indicator — PASS; P1-C player weapons — PASS. All three are
+> HUMAN-APPROVED / FROZEN as the accepted P1 presentation over V2C — opt-in,
+> not the default (R1 stays production).** `HANDOVER.md` §0 is the record. The
+> status line and the reservations below are as delivered.
+
 **Status: CANDIDATE — opt-in, presentation only, awaiting the HUMAN handset
 verdict. Not a default; not approved; nothing frozen.** Three components the
 HUMAN accepts or rejects independently, delivered as one candidate layered over
