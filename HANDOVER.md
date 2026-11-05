@@ -49,21 +49,34 @@ command, fix the line.*
   authorized the rollout without folding a fix in. The proposed separate
   correction is **G1 — v2.2 planted-shot release** (an opt-in seam; reopens
   frozen v2.2) — NOT authorized.
-- **VISUAL IDENTITY — THREE OPT-IN CANDIDATES, NONE A DEFAULT, NONE FROZEN.**
+- **VISUAL IDENTITY V2C — HUMAN-APPROVED / FROZEN 🔒 (2026-11-05) as the
+  protected visual baseline; OPT-IN (`?visualPilot=v2c`), NOT the default.**
+  HUMAN verdict: *"V2C is a pass."* It approves the cumulative V2C package: the
+  V2 Mandalorian protagonist, the V2 small green crawling swarmlings, the V2B
+  crates, consoles, machinery, material relief and shadows, and the V2C Hangar
+  ground (materials, functional zones, surface wear). These are no longer
+  candidates. **R1 stays the no-flags production default**: the visual
+  approval does not authorize promoting V2C (a separate HUMAN decision). The
+  historical comparison flags `?visualPilot=v2` and `?visualPilot=v2b` stay
+  functional with their existing outputs. Deliveries, in order:
   - **V2 (`?visualPilot=v2`) — HUMAN verdict 2026-11-04: DIRECTION ACCEPTED,
-    NOT FROZEN.** The V2 protagonist and the V2 `swarmling` (skitter drone,
-    `vp-swarm`) are the leading candidates; the white `grunt` Riflemen and the
+    NOT FROZEN** *(superseded: its protagonist and swarmling are frozen within
+    the V2C approval; the flag stays as a historical comparison)*. The V2
+    protagonist and the V2 `swarmling` (skitter drone, `vp-swarm`) were then
+    the leading candidates; the white `grunt` Riflemen and the
     V1 roster are satisfactory and untouched. The Hangar pass was judged
     technically clean but too subtle at phone size. Kept exactly as delivered.
     Evidence: `docs/evidence/visual-identity-v2/`.
   - **V2B (`?visualPilot=v2b`) — HUMAN handset verdict 2026-11-04: A DEFINITE
     IMPROVEMENT; its objects are ACCEPTED and must be preserved** (crates,
     consoles, machinery relief, height-projected shadows, lighting direction),
-    as are the V2 protagonist and swarmling. Not frozen, not a default. One
-    criticism: the floor lacks ground feel. Kept exactly as delivered.
+    as are the V2 protagonist and swarmling. Not frozen at the time *(superseded:
+    frozen within the V2C approval)*; not a default. One criticism: the floor
+    lacks ground feel. Kept exactly as delivered.
     Evidence: `docs/evidence/visual-identity-v2b/`.
-  - **V2C (`?visualPilot=v2c`) — DELIVERED 2026-11-04, AWAITING THE HANDSET
-    VERDICT.** V2B in every respect (textures and bodies byte-identical) except
+  - **V2C (`?visualPilot=v2c`) — delivered 2026-11-04 (`56b10d7`); HUMAN
+    verdict 2026-11-05: "V2C is a pass" — APPROVED / FROZEN 🔒.** V2B in every respect (textures and bodies
+    byte-identical) except
     the Hangar GROUND: fields from the room spec (lane, apron, staging bay,
     general deck), real slabs (joint, lit catch, chamfer, fasteners, per-plate
     tone), heavy expansion joints, a kick strip at the walls, purposeful wear
@@ -73,10 +86,15 @@ command, fix the line.*
   - No flag = R1 exactly: `tests/smoke-visual-pilot.mjs` (R1 / V2 / V2B / V2C
     — textures, bodies, `Math.random` draws, seeded replays, LIGHTS OUT,
     restart and reload; R1, V2 and V2B identical to the V2B build `7a75e1e`).
+  - **NEXT AUTHORIZED MILESTONE (HUMAN, 2026-11-05): P1 — Combat Visual
+    Polish**, opt-in and layered over V2C: **P1-A** mobile banner readability
+    and clipping (register #23), **P1-B** player Super-ready indicator
+    (register #22), **P1-C** player weapon presentation. Not started: the full
+    implementation brief comes from the HUMAN in the next session.
     Still not authorized: G1, Gunner AI, SNIPER NEST balance, any enemy or
-    content phase, the deferred visual-polish items (register #22–#23, the
-    player's weapon presentation, hero detail, actor shadows), propagating any
-    candidate to other arenas, or making one a default.
+    content phase, hero detail, actor shadows, propagating V2C to other
+    arenas, making V2C (or P1) the default, or changing any approved V2C
+    design.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -1194,6 +1212,9 @@ tactical-AI sequence is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md`.
 
 ### The recommended next area of work
 
+**Superseded 2026-11-05:** the HUMAN authorized **P1 — Combat Visual Polish**
+(CURRENT STATUS, Visual Identity bullet). The list below is the older menu.
+
 **PHASE 2D IS CLOSED and five-role ordinary roster production is complete**
 (above). **No milestone is started or authorized.** The next direction comes
 from the human; the candidates, none begun:
@@ -1250,9 +1271,9 @@ approved behaviour needs its own human gate).
 | 18 | Default rollout of `?roster=v1`, `?gait=v2`, `?move=v22`, `?bulwarkStuck=early`, `?marksmanStuck=early`, `?marksmanAngle=1`, `?bulwarkAngle=1` — **DONE 2026-11-03 (R1, `7bd6e6f`)** on the human's instruction; `?baseline=legacy` keeps the pre-R1 game | rollout decision | CLOSED — HUMAN-APPROVED | R1; `systems/debug.js` THE GAMEPLAY BASELINE |
 | 19 | T1 Marksman pressure outside Detention: in the late-band Junction SNIPER NEST (sector 14+, five Marksmen) T1 raises Marksman damage ×2.6 pooled (×5+ on a hiding player) and Marksman double hits (≤500ms) ~7x; T1 was reviewed only in Detention s8/s12 | unreviewed fairness | HUMAN-ACCEPTED (R0 handset: further gameplay incl. SNIPER NEST judged fair, 2026-11-03) — do not rebalance without a human instruction | `integrated-combat-r0/` §6 |
 | 20 | Rigs hard-code `chromium-1194`; this container ships 1243 (symlink fix in `tests/README.md`, R0 section) | harness environment | TEST INFRASTRUCTURE DEBT | `tests/README.md` |
-| 21 | Visual Identity V2 (`?visualPilot=v2`; verdict: direction accepted, not frozen) — V2B (`?visualPilot=v2b`; verdict: a definite improvement, its objects accepted and to be preserved; floor lacks ground feel) — V2C (`?visualPilot=v2c`, V2B with a new Hangar ground), delivered 2026-11-04 | look-development candidates | SEPARATE APPROVAL REQUIRED — V2C handset verdict pending; freezing, a default or propagation are further human decisions | `docs/evidence/visual-identity-v2/`, `-v2b/`, `-v2c/` |
-| 22 | The player's Super-charge aura is red-orange (`0xff4020`), the enemy threat rings' family: at full charge the hero reads as an enemy (observed in the V2 pilot evidence; the pilot left it alone) | effects / HUD hierarchy | DEFERRED — visual-polish candidate | V2 notes, known limitations |
-| 23 | Objective / room banners overflow the 720px canvas (`SLICE TERMINALS FOR SUPPORT` clipped at both edges; human's recording) | HUD layout | DEFERRED — visual-polish candidate | V2 notes; `film/ab-fight-phone-size.mp4` |
+| 21 | Visual Identity V2 (`?visualPilot=v2`) → V2B (`?visualPilot=v2b`) → V2C (`?visualPilot=v2c`, V2B with a new Hangar ground). **RESOLVED 2026-11-05: "V2C is a pass" — the cumulative V2C package is HUMAN-APPROVED / FROZEN** as the protected visual baseline, opt-in; v2 / v2b stay as historical comparison flags | look-development | CLOSED — APPROVED; a default or propagation to other arenas are SEPARATE APPROVAL REQUIRED | `docs/evidence/visual-identity-v2/`, `-v2b/`, `-v2c/` |
+| 22 | The player's Super-charge aura is red-orange (`0xff4020`), the enemy threat rings' family: at full charge the hero reads as an enemy (observed in the V2 pilot evidence; the pilot left it alone) | effects / HUD hierarchy | AUTHORIZED 2026-11-05 as **P1-B** (Super-ready indicator), opt-in over V2C — brief in the next session | V2 notes, known limitations |
+| 23 | Objective / room banners overflow the 720px canvas (`SLICE TERMINALS FOR SUPPORT` clipped at both edges; human's recording) | HUD layout | AUTHORIZED 2026-11-05 as **P1-A** (banner readability and clipping), opt-in over V2C — brief in the next session | V2 notes; `film/ab-fight-phone-size.mp4` |
 
 ### Process and evidence caveats the next session needs
 

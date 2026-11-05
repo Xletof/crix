@@ -1,5 +1,10 @@
 # Visual Identity V2C — ground material and surface cohesion (`?visualPilot=v2c`)
 
+> **HUMAN verdict 2026-11-05: "V2C is a pass." The cumulative V2C package is
+> HUMAN-APPROVED / FROZEN as the protected visual baseline — opt-in, not the
+> default (R1 stays production).** `HANDOVER.md` §0 is the record. The status
+> line below is as delivered.
+
 **Status: CANDIDATE — opt-in, presentation only, awaiting the HUMAN handset
 verdict. Not a default; not approved; nothing frozen.** V2C is V2B in every
 respect — the V2 protagonist and swarmlings, the accepted V2B crates, consoles,
