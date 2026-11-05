@@ -50,7 +50,7 @@
 // usage: node tests/smoke-polish-p1.mjs [--old=URL] [--selftest] [--ticks=N]
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { execSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { CHROME, bootPage, FIGHT_SEG } from './diag-stuck-audit.mjs';
 import { enemyJsGuard } from './enemy-frozen.mjs';
@@ -226,7 +226,19 @@ if (on(2)) {
 // ── 3. BANNERS ────────────────────────────────────────────────────────────
 // Every literal `show-banner` string in the source, and the dynamic ones at
 // their widest realistic values.
-const literal = execSync(`grep -rhoE "'show-banner',[^']*'[^']+'" src | sed -E "s/.*'show-banner',[^']*'([^']+)'/\\1/" | sort -u`, { encoding: 'utf8' }).trim().split('\n').filter((x) => x && !x.startsWith('#'));
+// every quoted string inside each `'show-banner', ...)` call — ternaries and
+// continuation lines included — minus colours
+const literal = (() => {
+  const files = execSync('grep -rl "show-banner" src', { encoding: 'utf8' }).trim().split('\n');
+  const out = new Set();
+  for (const f of files) {
+    const src = readFileSync(f, 'utf8');
+    const re = /'show-banner',([\s\S]*?)\)\s*[;,)]/g;
+    let m;
+    while ((m = re.exec(src))) for (const q of m[1].matchAll(/'([^'\n]+)'/g)) if (!q[1].startsWith('#')) out.add(q[1]);
+  }
+  return [...out].sort();
+})();
 const STRINGS = [...new Set([...literal, 'SECTOR 1', 'SECTOR 88', 'SECTOR 10 — DARK LORD', 'SECTOR 100 — DARK LORD', 'WAVE 1', 'WAVE 12', 'VADER — WOUND 3',
   'VADER APPROACHES', 'ENRAGED!', 'FRENZY', 'ELITE GUARD', 'DARKNESS', 'CLUSTER: TAKE ONE', 'RIFLE: TAKE ONE', 'NO MOVE "SWEEPINGBARRAGE"',
   'VOSK THE UNBROKEN', 'KRAYT-HOUND OF THE SEVENTH VEIL', 'SWEEPING BARRAGE', 'SUPPRESSING WALL', 'CHAIN DETONATION', 'SLIDE & SMASH', 'PLANT & SNIPE'])];
