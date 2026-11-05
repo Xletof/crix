@@ -21,7 +21,7 @@
 //   fight-swarm      SWARM TIDE, Hangar, sector 3
 //   fight-crossfire  CROSSFIRE, Hangar, sector 6
 //
-// usage: node tests/shot-p2a.mjs --out=DIR [--only=pistol,rifle,...] [--a=FLAGS] [--b=FLAGS]
+// usage: node tests/shot-p2a.mjs --out=DIR [--frames=TMPDIR] [--only=pistol,rifle,...] [--a=FLAGS] [--b=FLAGS]
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { execSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -75,12 +75,14 @@ async function boot(flags, q, seed = 4242) {
 // crop. Everything a scene does is gameplay input the A and B runs share.
 const SCENES = {
   pistol: {
+    strip: [0, 14, 1],   // the A | B phone strip: ticks [from, to) by step
     ticks: 26, rect: [700, 720, 1080, 900],
     setup: `P.x = 760; P.y = 810; P.body.reset(760, 810); P.facing = 0;
             const e = gs.spawnEnemyAt('grunt', 1020, 810); window.__T = [e];`,
     act: `if (i === 0) P.tryFire(Math.atan2(T[0].y - P.y, T[0].x - P.x));`,
   },
   rifle: {
+    strip: [0, 18, 1],   // the A | B phone strip: ticks [from, to) by step
     ticks: 30, rect: [700, 720, 1080, 900],
     setup: `P.x = 760; P.y = 810; P.body.reset(760, 810); P.facing = 0;
             P.secondary = 'rifle'; P.secondaryAmmo = 27; gs.events.emit('secondary-equipped', 'rifle');
@@ -88,12 +90,14 @@ const SCENES = {
     act: `if (i === 0) P.tryFire(Math.atan2(T[0].y - P.y, T[0].x - P.x));`,
   },
   wall: {
+    strip: [10, 32, 2],   // the A | B phone strip: ticks [from, to) by step
     ticks: 34, rect: [720, 300, 960, 680],
     setup: `P.x = 840; P.y = 620; P.body.reset(840, 620); P.facing = -Math.PI / 2; window.__T = [];`,
     act: `if (i === 0) P.tryFire(-Math.PI / 2);
           if (i === 14) P.tryFire(Math.atan2(395 - P.y, 812 - P.x));`,
   },
   enemy: {
+    strip: [8, 24, 1],   // the A | B phone strip: ticks [from, to) by step
     ticks: 40, rect: [700, 600, 1100, 840],
     setup: `P.x = 760; P.y = 720; P.body.reset(760, 720); P.facing = 0;
             const g = gs.spawnEnemyAt('shooter', 1010, 670); const s = gs.spawnEnemyAt('swarmling', 960, 790);
@@ -102,6 +106,7 @@ const SCENES = {
           if (i === 16 && T[1].alive) P.tryFire(Math.atan2(T[1].y - P.y, T[1].x - P.x));`,
   },
   shield: {
+    strip: [0, 24, 2],   // the A | B phone strip: ticks [from, to) by step
     ticks: 40, pre: 70, rect: [720, 720, 1100, 900],
     setup: `P.x = 780; P.y = 810; P.body.reset(780, 810); P.facing = 0;
             const e = gs.spawnEnemyAt('shielded', 1010, 810); window.__T = [e];`,
@@ -109,12 +114,14 @@ const SCENES = {
   },
   // a shield-bearer WITHOUT the roster-v1 field — how a nemesis Bulwark (legacy art) blocks
   shieldbare: {
+    strip: [0, 24, 2],   // the A | B phone strip: ticks [from, to) by step
     ticks: 40, pre: 70, rect: [720, 720, 1100, 900],
     setup: `P.x = 780; P.y = 810; P.body.reset(780, 810); P.facing = 0;
             const e = gs.spawnEnemyAt('shielded', 1010, 810, { legacyArt: true }); window.__T = [e];`,
     act: `if (i === 0 || i === 9 || i === 18) P.tryFire(Math.atan2(T[0].y - P.y, T[0].x - P.x));`,
   },
   multi: {
+    strip: [0, 60, 4],   // the A | B phone strip: ticks [from, to) by step
     ticks: 60, rect: [620, 480, 1180, 960],
     setup: `P.x = 800; P.y = 720; P.body.reset(800, 720);
             window.__T = [gs.spawnEnemyAt('grunt', 1080, 600), gs.spawnEnemyAt('shooter', 1100, 820), gs.spawnEnemyAt('grunt', 960, 900), gs.spawnEnemyAt('swarmling', 1000, 520)];`,
@@ -189,7 +196,7 @@ const firstDiff = (a, b) => { for (let i = 0; i < Math.max(a.length, b.length); 
 const log = [];
 const say = (s) => { console.log(s); log.push(s); };
 mkdirSync(OUT, { recursive: true });
-const TMP = `${OUT}/.frames`;
+const TMP = opt('frames', `${OUT}/.frames`);   // raw frames (not evidence: keep them out of the repo)
 
 for (const name of Object.keys(SCENES)) {
   if (!want(name)) continue;
@@ -200,12 +207,24 @@ for (const name of Object.keys(SCENES)) {
   say(`${name}: ${hA.length} ticks, A vs B gameplay state ${d < 0 ? 'IDENTICAL at every tick' : `DIFFERS at tick ${d}`}`);
   if (d >= 0) continue;
   const dir = `${OUT}/${name}`; mkdirSync(dir, { recursive: true });
+  const S = SCENES[name];
   // frame sheets: A row over B row, every tick, 2x nearest
   const n = hA.length, cols = Math.min(n, 10);
   for (const [lab, sub] of [['A', 'A'], ['B', 'B']]) {
     sh(`ffmpeg -y -loglevel error -framerate 60 -i ${TMP}/${name}/${sub}/f%03d.png -vf "tile=${cols}x${Math.ceil(n / cols)}:padding=4:color=0x202020" -frames:v 1 ${dir}/sheet-${lab}.png`);
+    sh(`python3 -c "from PIL import Image; Image.open('${dir}/sheet-${lab}.png').convert('RGB').quantize(256, method=Image.Quantize.MEDIANCUT).save('${dir}/sheet-${lab}.png', optimize=True)"`);
   }
-  // matched contact frames, A | B, 2x
+  // A | B per tick at TWICE PHONE SCALE (the canvas shows at ~0.54x on a
+  // 390px-wide phone; x1.08 keeps the A:B comparison honest and inspectable)
+  sh(`python3 -c "
+from PIL import Image
+idx=list(range(${S.strip[0]}, ${Math.min(S.strip[1], n)}, ${S.strip[2]})); fr=[(Image.open('${TMP}/${name}/A/f%03d.png'%i),Image.open('${TMP}/${name}/B/f%03d.png'%i)) for i in idx]; n=len(fr)
+w,h=fr[0][0].size; W,H=int(w*1.08),int(h*1.08)
+o=Image.new('RGB',(W*2+8,(H+4)*n),(20,20,20))
+for k,(a,b) in enumerate(fr):
+  o.paste(a.resize((W,H),Image.LANCZOS),(0,k*(H+4))); o.paste(b.resize((W,H),Image.LANCZOS),(W+8,k*(H+4)))
+o.quantize(256, method=Image.Quantize.MEDIANCUT).save('${dir}/ab-phone2x.png', optimize=True)
+"`);
   // synchronized film, A | B, 2x, real time and 1/4 speed
   sh(`ffmpeg -y -loglevel error -framerate 60 -i ${TMP}/${name}/A/f%03d.png -framerate 60 -i ${TMP}/${name}/B/f%03d.png -filter_complex "[0]scale=iw*2:ih*2:flags=neighbor,pad=iw+8:ih:0:0:0x202020[a];[1]scale=iw*2:ih*2:flags=neighbor[b];[a][b]hstack,format=yuv420p,scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:v libx264 -crf 18 ${dir}/ab-60fps.mp4`);
   sh(`ffmpeg -y -loglevel error -i ${dir}/ab-60fps.mp4 -vf "setpts=4*PTS" -r 30 -c:v libx264 -crf 18 ${dir}/ab-quarter-speed.mp4`);
@@ -221,8 +240,18 @@ for (const name of Object.keys(FIGHTS)) {
   if (d >= 0) continue;
   const dir = `${OUT}/${name}`; mkdirSync(dir, { recursive: true });
   // phone size: the canvas at 390 CSS px (0.54x), A | B
-  sh(`ffmpeg -y -loglevel error -framerate 30 -i ${TMP}/${name}/A/f%03d.png -framerate 30 -i ${TMP}/${name}/B/f%03d.png -filter_complex "[0]scale=390:-2:flags=area,pad=iw+8:ih:0:0:0x202020[a];[1]scale=390:-2:flags=area[b];[a][b]hstack,format=yuv420p" -c:v libx264 -crf 18 ${dir}/ab-phone-size.mp4`);
-  sh(`ffmpeg -y -loglevel error -framerate 30 -i ${TMP}/${name}/B/f%03d.png -vf "scale=540:-2:flags=area,format=yuv420p" -c:v libx264 -crf 18 ${dir}/b-540.mp4`);
+  sh(`ffmpeg -y -loglevel error -framerate 30 -i ${TMP}/${name}/A/f%03d.png -framerate 30 -i ${TMP}/${name}/B/f%03d.png -filter_complex "[0]scale=390:-2:flags=area,pad=iw+8:ih:0:0:0x202020[a];[1]scale=390:-2:flags=area[b];[a][b]hstack,format=yuv420p" -c:v libx264 -crf 23 ${dir}/ab-phone-size.mp4`);
+  sh(`ffmpeg -y -loglevel error -framerate 30 -i ${TMP}/${name}/B/f%03d.png -vf "scale=540:-2:flags=area,format=yuv420p" -c:v libx264 -crf 23 ${dir}/b-540.mp4`);
+  // key frames, A | B at phone size (390px wide each)
+  for (const k of [20, 40, 60, 75, 100, 118, 150, 180]) {
+    sh(`python3 -c "
+from PIL import Image
+a=Image.open('${TMP}/${name}/A/f%03d.png'%${k}); b=Image.open('${TMP}/${name}/B/f%03d.png'%${k})
+W=390; H=int(a.size[1]*W/a.size[0])
+o=Image.new('RGB',(W*2+8,H),(20,20,20)); o.paste(a.resize((W,H),Image.LANCZOS),(0,0)); o.paste(b.resize((W,H),Image.LANCZOS),(W+8,0))
+o.quantize(256, method=Image.Quantize.MEDIANCUT).save('${dir}/ab-phone-%03d.png'%${k}, optimize=True)
+"`);
+  }
 }
 writeFileSync(`${OUT}/shot-p2a.txt`, log.join('\n') + '\n');
 await browser.close();

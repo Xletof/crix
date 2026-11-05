@@ -74,16 +74,16 @@ const ADD = Phaser.BlendModes.ADD;
 /** Tuning. Lengths in px, times in ms. */
 export const P2A = {
   pistol: {
-    tail: 54,                 // light behind the head (~60ms of flight at 900px/s)
+    tail: 72,                 // light behind the head (~80ms of flight at 900px/s)
     tailTex: P2A_TEX.tailP, headTex: P2A_TEX.headP,
-    headGlow: { tint: 0xff4a3a, alpha: 0.42, scale: 1.0 },
+    headGlow: { tint: 0xff4a3a, alpha: 0.36, scale: 0.85 },
     muzzle: { ms: 66, scale: 1.0, glow: { tint: 0xff5a40, alpha: 0.6, scale: 1.4 } },
   },
   rifle: {
-    tail: 64,                 // longer and thicker: a slug; 70px apart in a burst, so three bolts, not a beam
+    tail: 66,                 // thicker: a slug; bolts 70px apart in a burst, so the three heads chain without merging into a beam
     tailTex: P2A_TEX.tailR, headTex: P2A_TEX.headR,
-    headGlow: { tint: 0xff3a30, alpha: 0.42, scale: 1.1 },
-    muzzle: { ms: 80, scale: 1.0, firstScale: 1.15, glow: { tint: 0xff4a30, alpha: 0.7, scale: 1.9 } },
+    headGlow: { tint: 0xff3a30, alpha: 0.32, scale: 0.85 },
+    muzzle: { ms: 80, scale: 1.0, firstScale: 1.15, glow: { tint: 0xff4a30, alpha: 0.65, scale: 1.5 } },
     heat: { perShot: 1, max: 3, halfLifeMs: 90, tint: 0xff4020, alpha: 0.22, scale: 1.1 },
   },
   // contact flashes and their scatter
@@ -332,7 +332,13 @@ class FxP2A {
     const C = kind === 'armour' || kind === 'champion' ? P2A.body : P2A[kind];
     const low = isLowQuality();
     const m = {
-      kind, x, y, rot, age: 0, ms: kind === 'champion' ? P2A.champion.ms : C.ms, depth: opt.depth ?? y + 40, rifle: !!opt.rifle,
+      kind, x, y, sx: x, sy: y, rot, age: 0, ms: kind === 'champion' ? P2A.champion.ms : C.ms, depth: opt.depth ?? y + 40, rifle: !!opt.rifle,
+      // a contact on an actor RIDES him: during collision handling the
+      // sprites still stand where the previous physics step left them (their
+      // bodies have moved on), and a struck body staggers; an offset re-applied
+      // each frame keeps the flash on the rim the player sees. The scatter
+      // stays where it was thrown (sx, sy).
+      follow: opt.follow || null, fx: opt.follow ? x - opt.follow.x : 0, fy: opt.follow ? y - opt.follow.y : 0, dz: opt.follow ? (opt.depth ?? 0) - (opt.follow.depth ?? 0) : 0,
       scale: (kind === 'champion' ? P2A.champion.scale : (opt.rifle ? (C.rifleScale || 1.1) : C.scale)),
       img: this._img(T.key).setOrigin(T.ox, 0.5),
       glow: low || kind === 'champion' ? null : this._img(P2A_TEX.glow.key, true).setTint(C.glow.tint),
@@ -373,8 +379,8 @@ class FxP2A {
     const rad = e.cfg?.radius ?? 22;
     const c = circleEntry(b.x, b.y, flightAng, e.x, e.y, rad);
     const kind = e.isChampion ? 'champion' : (armour ? 'armour' : 'body');
-    this._impact(kind, c.x, c.y, flightAng, { rifle: r?.kind === 'rifle', depth: Math.max(e.depth ?? e.y, b.y) + 4 });
-    if (r) r.contact = c;
+    const m = this._impact(kind, c.x, c.y, flightAng, { rifle: r?.kind === 'rifle', depth: (e.depth ?? e.y) + 4, follow: e });
+    if (r) r.contact = m;
   }
 
   _onWallHit(b, flightAng) {
@@ -407,12 +413,12 @@ class FxP2A {
     const c = circleEntry(b.x, b.y, ang, e.x, e.y, R);
     const n = Math.atan2(c.y - e.y, c.x - e.x);
     const t = n + Math.PI / 2;
-    this._impact('shield', c.x, c.y, n, {
-      depth: (e.depth ?? e.y) + 3,
+    const m = this._impact('shield', c.x, c.y, n, {
+      depth: (e.depth ?? e.y) + 3, follow: e,
       // glancing: along the surface both ways, and one back out
       dirs: (i, k, R) => (i === 0 ? n + (R() - 0.5) * 0.5 : (i % 2 ? t : t + Math.PI) + (R() - 0.5) * 0.6 + (i % 2 ? -0.25 : 0.25)),
     });
-    if (r) r.contact = c;
+    if (r) r.contact = m;
   }
 
   _wallAt(x, y) {
@@ -447,9 +453,11 @@ class FxP2A {
     if (!this.scene) return;
     const dt = delta * (this.scene.time.timeScale ?? 1);
     this._clock += dt;
+    // contacts first: a contact riding its target is placed before a dying
+    // tracer reads it as its end point
+    this._updateImpacts(dt);
     this._updateBolts(dt);
     this._updateFlashes(dt);
-    this._updateImpacts(dt);
   }
 
   _updateBolts(dt) {
@@ -478,6 +486,7 @@ class FxP2A {
       // MOTION PERSISTENCE: the light already in flight keeps going and runs
       // into the end point — the tail's back end advances at the bolt's speed
       // until it arrives. A miss at range simply drains; nothing flashes.
+      if (r.contact?.follow) { r.endX = r.contact.x; r.endY = r.contact.y; }
       r.back += r.speed * dt / 1000;
       const L = r.tLen - r.back;
       if (L <= 0.5) { this._freeBolt(r); this.bolts.splice(i, 1); continue; }
@@ -542,6 +551,8 @@ class FxP2A {
   }
 
   _drawImpact(m) {
+    const f = m.follow;
+    if (f && f.active) { m.x = f.x + m.fx; m.y = f.y + m.fy; m.depth = (f.depth ?? f.y) + m.dz; }
     const u = Math.min(1, m.age / m.ms);
     const C = m.kind === 'armour' || m.kind === 'champion' ? P2A.body : P2A[m.kind];
     // the contact: a hard flash for the first ~two frames, then it collapses
@@ -567,7 +578,7 @@ class FxP2A {
         const p = t / s.life, ts = t / 1000;
         const ca = Math.cos(s.a), sa = Math.sin(s.a);
         const v = s.v * (1 - 0.5 * p);
-        const px = m.x + ca * s.v * ts * (1 - 0.25 * p), py = m.y + sa * s.v * ts * (1 - 0.25 * p) + 0.5 * grav * ts * ts;
+        const px = m.sx + ca * s.v * ts * (1 - 0.25 * p), py = m.sy + sa * s.v * ts * (1 - 0.25 * p) + 0.5 * grav * ts * ts;
         const len = Math.max(3, v * 0.035);
         const col = p < 0.3 ? cols[0] : p < 0.65 ? cols[1] : cols[2];
         g.lineStyle(s.w, col, 1 - p * p);

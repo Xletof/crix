@@ -305,7 +305,7 @@ const CONTACTS = {
 async function contact(flags, name) {
   const C = CONTACTS[name];
   const p = await boot(flags);
-  const r = await p.evaluate(({ C }) => {
+  const r = await p.evaluate(({ C, name }) => {
     const gs = window.__gs, P = gs.player, c = gs._p2a, T = {};
     window.__stage(C.x, C.y);
     window.__seed(31); window.__draws = 0;
@@ -321,18 +321,20 @@ async function contact(flags, name) {
     for (let i = 0; i < 40; i++) {
       window.__adv(1);
       if (c) {
-        for (const m of c.impacts) if (!seen.includes(m)) seen.push(m);
+        // positions are read on the tick the contact is drawn: the target is
+        // knocked back and keeps walking afterwards
+        for (const m of c.impacts) if (!seen.includes(m)) { seen.push(m); m._px = m.x; m._py = m.y; m._ex = T.e?.x; m._ey = T.e?.y; m._eDepth = T.e?.depth; }
         if (!bolt) bolt = c.bolts.find((q) => q.kind && !q.dead) || null;
       }
-      if (bolt && bolt.dead && bolt.endSeen == null) bolt.endSeen = { x: bolt.endX, y: bolt.endY };
+      if (bolt && bolt.dead && bolt.endSeen == null) bolt.endSeen = { x: bolt.endX, y: bolt.endY, ex: T.e?.x, ey: T.e?.y };
     }
     gs.events.off('player-shot-missed', onMiss);
     const e = T.e;
     const out = { hp: [hp0, e?.hp], sc: [sc0, P.superCharge], missed, blocks: (e?._curtain?.stats?.blocks ?? 0) - blocks0, draws: window.__draws };
     if (c) {
       out.impacts = seen.map((m) => {
-        const o = { kind: m.kind, x: m.x, y: m.y, rot: m.rot, depth: m.depth };
-        if (e) { o.dist = Math.hypot(m.x - e.x, m.y - e.y); o.r = e.cfg.radius; o.eDepth = e.depth; }
+        const o = { kind: m.kind, x: m._px, y: m._py, rot: m.rot, depth: m.depth };
+        if (e) { o.dist = Math.hypot(m._px - m._ex, m._py - m._ey); o.r = e.cfg.radius; o.eDepth = m._eDepth; }
         return o;
       });
       out.end = bolt?.endSeen || null;
@@ -347,7 +349,7 @@ async function contact(flags, name) {
       }
     }
     return out;
-  }, { C });
+  }, { C, name });
   await p.close();
   return r;
 }
@@ -366,7 +368,7 @@ if (on(4)) {
     JSON.stringify(body));
   check('body: the bolt\'s tracer ends AT the contact, not in the air in front of him', R.body.end && Math.hypot(R.body.end.x - body.x, R.body.end.y - body.y) < 0.01, JSON.stringify(R.body.end));
   check('armour (an Elite): one ARMOUR contact on the rim', k('armour') === 'armour' && Math.abs(R.armour.impacts[0].dist - R.armour.impacts[0].r) < 1, k('armour'));
-  check('rifle into a Gunner: one BODY contact on the rim', k('rifle') === 'body' && Math.abs(R.rifle.impacts[0].dist - R.rifle.impacts[0].r) < 1, k('rifle'));
+  check('rifle burst into a Gunner: a BODY contact per bolt that landed, each on the rim', R.rifle.impacts.length >= 1 && R.rifle.impacts.every((m) => m.kind === 'body' && Math.abs(m.dist - m.r) < 1), JSON.stringify(R.rifle.impacts.map((m) => [m.kind, m.dist?.toFixed(2)])));
   for (const n of ['wall', 'wallDiag']) {
     const m = R[n].impacts[0], w = R[n].wall;
     const onFace = w && (Math.abs(Math.abs(m.x - w.cx) - w.hw) < 0.01 || Math.abs(Math.abs(m.y - w.cy) - w.hh) < 0.01);
@@ -374,7 +376,7 @@ if (on(4)) {
     check(`${n}: one WALL contact on the collider's face, its normal toward the shooter, drawn over the cover art`, k(n) === 'wall' && onFace && towardShooter && m.depth > R[n].coverDepth, JSON.stringify({ m, w, coverDepth: R[n].coverDepth }));
   }
   check('a block by a bearer WITHOUT the field: one SHIELD contact, no body contact, no damage, no Super credit', k('bare') === 'shield' && R.bare.hp[0] === R.bare.hp[1] && R.bare.sc[0] === R.bare.sc[1], JSON.stringify({ k: k('bare'), hp: R.bare.hp, sc: R.bare.sc }));
-  const fe = R.field.end, fb = R.field.bearer;
+  const fe = R.field.end, fb = fe ? { x: fe.ex, y: fe.ey } : null;
   check('a block by the roster-v1 field: the field draws it (blocks +1 in A and B), P2-A draws no contact, and the tracer ends ON the field (46px)', R.field.blocks === 1 && R.field.impacts.length === 0 && fe && Math.abs(Math.hypot(fe.x - fb.x, fe.y - fb.y) - 46) < 1.5,
     JSON.stringify({ blocks: R.field.blocks, impacts: R.field.impacts.length, endR: fe && Math.hypot(fe.x - fb.x, fe.y - fb.y) }));
   check('a miss at range: no contact drawn (no misleading feedback), and it is still a miss', R.miss.impacts.length === 0 && R.miss.missed === 1, JSON.stringify({ impacts: R.miss.impacts.length, missed: R.miss.missed }));

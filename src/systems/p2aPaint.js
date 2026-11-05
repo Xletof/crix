@@ -119,9 +119,9 @@ function paintTail(scene, key, len, rows) {
       if (t < start) continue;
       const u = (t - start) / (1 - start);
       let col, a;
-      if (d === 0) { col = u > 0.6 ? lerpHex(PINK, W, (u - 0.6) / 0.4) : lerpHex(RED, PINK, u / 0.6); a = 0.45 + 0.55 * u; }
-      else if (d < 0.6) { col = lerpHex(DEEP, RED, u); a = 0.35 + 0.65 * u; }
-      else if (d < 1) { col = lerpHex(DARK, DEEP, u); a = 0.25 + 0.6 * u; }
+      if (d === 0) { col = u > 0.55 ? lerpHex(PINK, W, (u - 0.55) / 0.45) : lerpHex(RED, PINK, u / 0.55); a = 0.6 + 0.4 * u; }
+      else if (d < 0.6) { col = lerpHex(DEEP, RED, u); a = 0.5 + 0.5 * u; }
+      else if (d < 1) { col = lerpHex(DARK, DEEP, u); a = 0.3 + 0.55 * u; }
       else { col = RED; a = 0.10 + 0.35 * u; }
       c.px(x, y, rgba(col, Math.min(1, a)));
     }
