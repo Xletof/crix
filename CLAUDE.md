@@ -32,6 +32,8 @@ framework, no sprite image assets.
 - `node tests/<suite>.mjs` — one suite. `npm run smoke [-- --only a,b]` — the
   sequential full suite (52 suites, slow).
 - `npm run build` — production build check.
+- `/crix-handoff [next focus]` — close a session: verified, Git-backed handover in
+  `docs/handover/` plus a bootstrap for the next session (manual only).
 
 ## Current state
 
