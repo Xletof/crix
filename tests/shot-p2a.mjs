@@ -1,0 +1,228 @@
+// EVIDENCE: P2-A — BLASTER FIRE & IMPACT (`?visualPilot=v2c&polish=p1&fxPilot=p2a`).
+// Standalone; needs `npm run dev` on :5173 and ffmpeg.
+//
+// A = `visualPilot=v2c&polish=p1` (approved, frozen), B = A + `fxPilot=p2a`.
+// Every scene is a SEEDED, staged moment run once per configuration on the
+// same seed and the same inputs, rendered tick by tick at the real 60 Hz step
+// (`game.step(t, 16.67)`), so A and B show the same shot on the same frame.
+// Before writing anything the rig compares a per-tick gameplay hash (player,
+// enemies, every live bolt, Math.random draws) between A and B and refuses to
+// publish a pair that differs — a film of a different fight is not evidence.
+//
+// Close-ups (world-anchored crops, every tick from the trigger):
+//   pistol   one pistol shot into a Rifleman at ~260px
+//   rifle    one DC-15 burst into the same target
+//   wall     a pistol shot into a crate's face, and a diagonal one off its corner
+//   enemy    pistol shots into a Gunner (Roster v1 armour) and a swarmling
+//   shield   pistol shots into a Bulwark's field (the frozen field answers)
+//   shieldbare  the same into a shield-bearer without the field (a nemesis Bulwark)
+//   multi    four targets, rapid fire across them
+// Films (full frame, phone size and 540w):
+//   fight-swarm      SWARM TIDE, Hangar, sector 3
+//   fight-crossfire  CROSSFIRE, Hangar, sector 6
+//
+// usage: node tests/shot-p2a.mjs --out=DIR [--only=pistol,rifle,...] [--a=FLAGS] [--b=FLAGS]
+import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { execSync } from 'node:child_process';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { CHROME, bootPage } from './diag-stuck-audit.mjs';
+
+const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').split('=').slice(1).join('=') || d;
+const OUT = opt('out', 'docs/evidence/combat-vfx-p2a');
+const A = opt('a', 'visualPilot=v2c&polish=p1');
+const B = opt('b', 'visualPilot=v2c&polish=p1&fxPilot=p2a');
+const ONLY = opt('only', '') ? new Set(opt('only', '').split(',')) : null;
+const want = (n) => !ONLY || ONLY.has(n);
+const BASE = opt('base', 'http://localhost:5173/');
+const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+const sh = (c) => execSync(c, { stdio: 'pipe' }).toString();
+const fnv = (str) => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619) >>> 0; return h; };
+
+async function boot(flags, q, seed = 4242) {
+  const p = await bootPage(browser, { base: BASE, flags, baseline: null, q, seed });
+  await p.evaluate(() => {
+    const gs = window.__gs;
+    window.__clear = () => {
+      gs.arenaActive = false; gs._spawnQueue = [];
+      gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
+      gs._roomModifier = null;
+      for (const g of [...gs.hostileBullets, gs.playerBullets, gs.playerRifleBullets]) for (const b of g.getChildren()) if (b.active) b.kill();
+    };
+    const f = (v) => (Math.round(v * 1000) / 1000).toString();
+    window.__state = () => {
+      const P = gs.player;
+      let s = `${f(P.x)},${f(P.y)},${P.hp},${P.superCharge}|`;
+      for (const e of gs.enemies.getChildren()) if (e.active) s += `${e.enemyType}:${f(e.x)},${f(e.y)},${Math.round(e.hp)};`;
+      for (const g of [...gs.hostileBullets, gs.playerBullets, gs.playerRifleBullets, gs.playerSuperBullets]) for (const b of g.getChildren()) if (b.active) s += `b${f(b.x)},${f(b.y)},${f(b.rotation)};`;
+      return `${s}|d${window.__draws}`;
+    };
+    // world rect -> canvas-pixel rect through the live camera
+    window.__clip = (x0, y0, x1, y1) => {
+      const cam = gs.cameras.main, wv = cam.worldView, z = cam.zoom;
+      const sx = (wx) => (wx - wv.x) * z + cam.x, sy = (wy) => (wy - wv.y) * z + cam.y;
+      // a FIXED pixel size (the rect at zoom 1), world-anchored, kept on the canvas
+      const w = Math.round(x1 - x0), h = Math.round(y1 - y0);
+      const x = Math.max(0, Math.min(720 - w, Math.round(sx((x0 + x1) / 2) - w / 2)));
+      const y = Math.max(84, Math.min(1280 - h, Math.round(sy((y0 + y1) / 2) - h / 2)));
+      return { x, y, width: w, height: h, raw: [sx(x0), sy(y0), z] };
+    };
+  });
+  return p;
+}
+
+// ── staged scenes ──────────────────────────────────────────────────────────
+// `setup` runs once (seeded); `act(i)` runs before step i; `rect` is the world
+// crop. Everything a scene does is gameplay input the A and B runs share.
+const SCENES = {
+  pistol: {
+    ticks: 26, rect: [700, 720, 1080, 900],
+    setup: `P.x = 760; P.y = 810; P.body.reset(760, 810); P.facing = 0;
+            const e = gs.spawnEnemyAt('grunt', 1020, 810); window.__T = [e];`,
+    act: `if (i === 0) P.tryFire(Math.atan2(T[0].y - P.y, T[0].x - P.x));`,
+  },
+  rifle: {
+    ticks: 30, rect: [700, 720, 1080, 900],
+    setup: `P.x = 760; P.y = 810; P.body.reset(760, 810); P.facing = 0;
+            P.secondary = 'rifle'; P.secondaryAmmo = 27; gs.events.emit('secondary-equipped', 'rifle');
+            const e = gs.spawnEnemyAt('grunt', 1020, 810); window.__T = [e];`,
+    act: `if (i === 0) P.tryFire(Math.atan2(T[0].y - P.y, T[0].x - P.x));`,
+  },
+  wall: {
+    ticks: 34, rect: [720, 300, 960, 680],
+    setup: `P.x = 840; P.y = 620; P.body.reset(840, 620); P.facing = -Math.PI / 2; window.__T = [];`,
+    act: `if (i === 0) P.tryFire(-Math.PI / 2);
+          if (i === 14) P.tryFire(Math.atan2(395 - P.y, 812 - P.x));`,
+  },
+  enemy: {
+    ticks: 40, rect: [700, 600, 1100, 840],
+    setup: `P.x = 760; P.y = 720; P.body.reset(760, 720); P.facing = 0;
+            const g = gs.spawnEnemyAt('shooter', 1010, 670); const s = gs.spawnEnemyAt('swarmling', 960, 790);
+            window.__T = [g, s];`,
+    act: `if (i === 0) P.tryFire(Math.atan2(T[0].y - P.y, T[0].x - P.x));
+          if (i === 16 && T[1].alive) P.tryFire(Math.atan2(T[1].y - P.y, T[1].x - P.x));`,
+  },
+  shield: {
+    ticks: 40, pre: 70, rect: [720, 720, 1100, 900],
+    setup: `P.x = 780; P.y = 810; P.body.reset(780, 810); P.facing = 0;
+            const e = gs.spawnEnemyAt('shielded', 1010, 810); window.__T = [e];`,
+    act: `if (i === 0 || i === 9 || i === 18) P.tryFire(Math.atan2(T[0].y - P.y, T[0].x - P.x));`,
+  },
+  // a shield-bearer WITHOUT the roster-v1 field — how a nemesis Bulwark (legacy art) blocks
+  shieldbare: {
+    ticks: 40, pre: 70, rect: [720, 720, 1100, 900],
+    setup: `P.x = 780; P.y = 810; P.body.reset(780, 810); P.facing = 0;
+            const e = gs.spawnEnemyAt('shielded', 1010, 810, { legacyArt: true }); window.__T = [e];`,
+    act: `if (i === 0 || i === 9 || i === 18) P.tryFire(Math.atan2(T[0].y - P.y, T[0].x - P.x));`,
+  },
+  multi: {
+    ticks: 60, rect: [620, 480, 1180, 960],
+    setup: `P.x = 800; P.y = 720; P.body.reset(800, 720);
+            window.__T = [gs.spawnEnemyAt('grunt', 1080, 600), gs.spawnEnemyAt('shooter', 1100, 820), gs.spawnEnemyAt('grunt', 960, 900), gs.spawnEnemyAt('swarmling', 1000, 520)];`,
+    act: `if (i % 8 === 0) { const t = T.filter((e) => e.active && e.alive)[(i / 8) % 4 | 0] || T.find((e) => e.alive); if (t) P.tryFire(Math.atan2(t.y - P.y, t.x - P.x)); }`,
+  },
+};
+
+async function stage(flags, name, dir) {
+  const S = SCENES[name];
+  const p = await boot(flags, 'room=hangar');
+  await p.evaluate(({ setup }) => {
+    const gs = window.__gs, P = gs.player;
+    window.__clear();
+    window.__headless = true; window.__adv(300); window.__headless = false;   // the room's banners are over
+    window.__clear();
+    // the camera settles on the hero's mark before anything is staged
+    const m = /P\.x = (\d+); P\.y = (\d+)/.exec(setup);
+    P.x = +m[1]; P.y = +m[2]; P.body.reset(P.x, P.y);
+    window.__headless = true; window.__adv(60); window.__headless = false;
+    window.__seed(9001); window.__draws = 0;
+    new Function('gs', 'P', setup)(gs, P);
+    window.__adv(1);
+  }, { setup: S.setup });
+  if (S.pre) await p.evaluate((n) => { window.__headless = true; window.__adv(n); window.__headless = false; }, S.pre);
+  const hashes = [];
+  if (dir) mkdirSync(dir, { recursive: true });
+  for (let i = 0; i < S.ticks; i++) {
+    const r = await p.evaluate(({ i, act, rect }) => {
+      const gs = window.__gs, P = gs.player, T = window.__T;
+      new Function('gs', 'P', 'T', 'i', act)(gs, P, T, i);
+      window.__adv(1);
+      return { s: window.__state(), clip: window.__clip(...rect) };
+    }, { i, act: S.act, rect: S.rect });
+    hashes.push(fnv(r.s));
+    if (dir) await p.screenshot({ path: `${dir}/f${String(i).padStart(3, '0')}.png`, clip: r.clip });
+  }
+  await p.close();
+  return hashes;
+}
+
+// ── fights ────────────────────────────────────────────────────────────────
+const FIGHTS = {
+  'fight-swarm': { q: 'encdbg=swarmTide&room=hangar&sector=3', ticks: 420, seed: 4242 },
+  'fight-crossfire': { q: 'encdbg=crossfire&room=hangar&sector=6', ticks: 420, seed: 4243 },
+};
+async function fight(flags, name, dir) {
+  const F = FIGHTS[name];
+  const p = await boot(flags, F.q, F.seed);
+  await p.evaluate(() => { window.__seed(777); window.__draws = 0; });
+  const seg = [[0, 70, 'D'], [70, 130, 'S'], [130, 200, 'DW'], [200, 260, ''], [260, 330, 'A'], [330, 380, 'W'], [380, 9999, 'D']];
+  const hashes = [];
+  if (dir) mkdirSync(dir, { recursive: true });
+  for (let i = 0; i < F.ticks; i++) {
+    const s = await p.evaluate(({ i, seg }) => {
+      const gs = window.__gs, P = gs.player, K = gs.keys;
+      const cur = seg.find(([a, b]) => i >= a && i < b)[2];
+      K.A.isDown = cur.includes('A'); K.D.isDown = cur.includes('D'); K.W.isDown = cur.includes('W'); K.S.isDown = cur.includes('S');
+      if (i === 200) { P.secondary = 'rifle'; P.secondaryAmmo = 90; gs.events.emit('secondary-equipped', 'rifle'); }
+      if (i >= 10 && i % 6 === 0) P.keyboardFire();
+      window.__adv(1);
+      return window.__state();
+    }, { i, seg });
+    hashes.push(fnv(s));
+    // every other tick: a 30 fps film of a 60 Hz fight
+    if (dir && i % 2 === 0) await p.screenshot({ path: `${dir}/f${String(i / 2).padStart(3, '0')}.png` });
+  }
+  await p.close();
+  return hashes;
+}
+
+const firstDiff = (a, b) => { for (let i = 0; i < Math.max(a.length, b.length); i++) if (a[i] !== b[i]) return i; return -1; };
+const log = [];
+const say = (s) => { console.log(s); log.push(s); };
+mkdirSync(OUT, { recursive: true });
+const TMP = `${OUT}/.frames`;
+
+for (const name of Object.keys(SCENES)) {
+  if (!want(name)) continue;
+  rmSync(`${TMP}/${name}`, { recursive: true, force: true });
+  const hA = await stage(A, name, `${TMP}/${name}/A`);
+  const hB = await stage(B, name, `${TMP}/${name}/B`);
+  const d = firstDiff(hA, hB);
+  say(`${name}: ${hA.length} ticks, A vs B gameplay state ${d < 0 ? 'IDENTICAL at every tick' : `DIFFERS at tick ${d}`}`);
+  if (d >= 0) continue;
+  const dir = `${OUT}/${name}`; mkdirSync(dir, { recursive: true });
+  // frame sheets: A row over B row, every tick, 2x nearest
+  const n = hA.length, cols = Math.min(n, 10);
+  for (const [lab, sub] of [['A', 'A'], ['B', 'B']]) {
+    sh(`ffmpeg -y -loglevel error -framerate 60 -i ${TMP}/${name}/${sub}/f%03d.png -vf "tile=${cols}x${Math.ceil(n / cols)}:padding=4:color=0x202020" -frames:v 1 ${dir}/sheet-${lab}.png`);
+  }
+  // matched contact frames, A | B, 2x
+  // synchronized film, A | B, 2x, real time and 1/4 speed
+  sh(`ffmpeg -y -loglevel error -framerate 60 -i ${TMP}/${name}/A/f%03d.png -framerate 60 -i ${TMP}/${name}/B/f%03d.png -filter_complex "[0]scale=iw*2:ih*2:flags=neighbor,pad=iw+8:ih:0:0:0x202020[a];[1]scale=iw*2:ih*2:flags=neighbor[b];[a][b]hstack,format=yuv420p,scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:v libx264 -crf 18 ${dir}/ab-60fps.mp4`);
+  sh(`ffmpeg -y -loglevel error -i ${dir}/ab-60fps.mp4 -vf "setpts=4*PTS" -r 30 -c:v libx264 -crf 18 ${dir}/ab-quarter-speed.mp4`);
+}
+
+for (const name of Object.keys(FIGHTS)) {
+  if (!want(name)) continue;
+  rmSync(`${TMP}/${name}`, { recursive: true, force: true });
+  const hA = await fight(A, name, `${TMP}/${name}/A`);
+  const hB = await fight(B, name, `${TMP}/${name}/B`);
+  const d = firstDiff(hA, hB);
+  say(`${name}: ${hA.length} ticks, A vs B gameplay state ${d < 0 ? 'IDENTICAL at every tick' : `DIFFERS at tick ${d}`}`);
+  if (d >= 0) continue;
+  const dir = `${OUT}/${name}`; mkdirSync(dir, { recursive: true });
+  // phone size: the canvas at 390 CSS px (0.54x), A | B
+  sh(`ffmpeg -y -loglevel error -framerate 30 -i ${TMP}/${name}/A/f%03d.png -framerate 30 -i ${TMP}/${name}/B/f%03d.png -filter_complex "[0]scale=390:-2:flags=area,pad=iw+8:ih:0:0:0x202020[a];[1]scale=390:-2:flags=area[b];[a][b]hstack,format=yuv420p" -c:v libx264 -crf 18 ${dir}/ab-phone-size.mp4`);
+  sh(`ffmpeg -y -loglevel error -framerate 30 -i ${TMP}/${name}/B/f%03d.png -vf "scale=540:-2:flags=area,format=yuv420p" -c:v libx264 -crf 18 ${dir}/b-540.mp4`);
+}
+writeFileSync(`${OUT}/shot-p2a.txt`, log.join('\n') + '\n');
+await browser.close();
