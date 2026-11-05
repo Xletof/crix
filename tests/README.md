@@ -2133,3 +2133,58 @@ better.
 - **A literal-string sweep from the source must drop colours.** Where the text
   is a template on the next line, the first quoted string after
   `'show-banner',` is the colour (`'#40c0ff'`).
+
+
+## The P2-A blaster fire & impact rigs (`?visualPilot=v2c&polish=p1&fxPilot=p2a` — a candidate, opt-in, presentation only)
+
+Evidence in `docs/evidence/combat-vfx-p2a/`. A = `visualPilot=v2c&polish=p1`
+(approved), B = A + `fxPilot=p2a`. Again an IDENTITY gate plus geometry checks
+on what P2-A draws — nothing here says P2-A looks better.
+
+- `smoke-fx-p2a.mjs [--old=URL] [--selftest] [--only=3,4]` (standalone, :5173;
+  a `def85e5` server at `--old` for section 11) — the flag (honoured only with
+  P1 live); B paints every A texture byte-identically plus exactly the twelve
+  `p2a-*` keys; the install (one POST_UPDATE, one shutdown listener, exactly
+  thirteen instance wrappers); every pistol / rifle bolt's position, bearing,
+  velocity, scale, texture, body and damage as A at 8 bearings, the tracer on
+  the bolt and never behind the barrel, the muzzle on the live P1 barrel face;
+  staged contacts (body rim, armour, wall face + normal over the cover art, a
+  shield-bearer without the field, the roster-v1 field, a miss) with A's
+  outcome; seeded replays A vs B (SWARM TIDE production and legacy, CROSSFIRE,
+  BOMBER RUN, rendered, LOW quality) and each ignored `fxPilot=p2a` mode vs its
+  own; no `Math.random` and no clock / camera / body write inside the P2-A
+  frame, effects frozen by a hitstop; restarts and quit-to-title; low quality;
+  the display-object and contact budgets; frozen files against `def85e5`; the
+  previous build; restart and reload. `--selftest` injects a draw in the P2-A
+  frame, a 1px bolt shift and a broken parity twin, and must fail sections 3,
+  5 and 6; `--selftest=twin --only=5` breaks ONLY the parity twins and must
+  fail the replays (they diverge at the first P2-A contact).
+- `shot-p2a.mjs --out=DIR [--frames=TMP] [--only=...]` — matched A/B close-ups (pistol, rifle,
+  wall, enemy, shield, shieldbare, multi; every 60 Hz tick, world-anchored
+  crops) and fight films (SWARM TIDE, CROSSFIRE at phone size); each pair is
+  state-hashed A vs B at every tick and refused if the halves diverge.
+- `diag-fx-p2a-perf.mjs` — paint cost, texture bytes, display objects at rest
+  and at the peak of a heavy staged fight, rendered step time A vs B, the
+  P2-A hook's own time, peak tracers / contacts / spark streaks, the shipped
+  emitters' particle peak (software rasteriser: A vs B only).
+
+### What it taught
+
+- **`git fetch --unshallow` before the Enemy.js guard** in a fresh container:
+  the guard reads an old commit (`3ce5680`) a shallow clone does not have.
+- **Do not edit `src/` while a film or smoke run is live.** Vite reloads the
+  page on a P2-A module change and the run dies with "Execution context was
+  destroyed".
+- **Stage close-ups away from the Hangar's terminal** (~800, 690): its SLICE
+  hologram sits on a hero placed there.
+- **`fx.hitstop()` is a no-op under `?nofreeze=1`** (every `bootPage` rig): a
+  check that something freezes with the world must unmute it
+  (`setHitstopMuted(false)`) and assert the freeze engaged, or it measures
+  nothing.
+- **In a page-side `evaluate`, an undeclared `name` is `window.name` ("")**, not
+  the Node variable of that name: pass it in.
+- **`smoke-readability` flakes on the previous build too.** On this container
+  its Vader checks (FORCE PULL "planted" drift, "comes back to his hand") failed
+  in 6 of 10 runs of the P2-A build and 4 of 7 runs of `def85e5`
+  (`docs/evidence/combat-vfx-p2a/suites.txt`). Sample both builds before
+  calling it a regression.

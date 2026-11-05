@@ -110,13 +110,30 @@ command, fix the line.*
     `tests/smoke-polish-p1.mjs` (V2C / R1 / V2 / V2B identical to `56b10d7`,
     seeded replays A vs B identical). Evidence, links and the HUMAN questions:
     `docs/evidence/combat-visual-polish-p1/README.md`.
-  - **NEXT PROPOSED MILESTONE (HUMAN, 2026-11-05): P2 — Arena Visual Identity
-    Expansion, beginning with Reactor Junction.** A planning direction only —
-    NOT authorized to implement; the full brief comes in a fresh session.
-    Still not authorized: G1, Gunner AI, SNIPER NEST balance, any enemy or
-    content phase, hero detail, actor shadows, propagating V2C to other
-    arenas, making V2C (or P1) the default, or changing any approved V2C
-    design.
+  - **P2 — COMBAT VFX & WEAPON IMPACT (HUMAN direction, 2026-11-05)** replaces
+    the earlier proposal as the next milestone: *P2 — Arena Visual Identity
+    Expansion* (Reactor Junction first) is **POSTPONED, NOT CANCELLED**. P2
+    begins with **P2-A — Blaster Fire & Impact Visuals** (the player's ordinary
+    pistol and DC-15 rifle: muzzle, projectile, contact on bodies / armour /
+    metal / shields); Super and melee effects are a separate P2-B.
+  - **P2-A — CANDIDATE, delivered 2026-11-05, opt-in
+    `?visualPilot=v2c&polish=p1&fxPilot=p2a`, NOT approved, NOT frozen, NOT the
+    default — awaiting the HUMAN handset verdict.** Honoured only with P1 live.
+    A seam over the shipped fire / contact code (`systems/p2aFx.js`, textures
+    `systems/p2aPaint.js`, one install call each from GameScene / PreloadScene,
+    the flag in `debug.js`): the shipped bolt is hidden (texture, body, scale
+    untouched) and drawn as a distance-based tracer; the muzzle is pinned to
+    the live P1 barrel face; contacts land on the body's rim (riding the
+    target), on the cover's collider face over its art, and on a shield's arc;
+    the roster-v1 Bulwark field is untouched and the tracer ends on it.
+    Replaced particle emissions go to invisible parity twins, so every
+    `Math.random` draw is kept. Proof: `tests/smoke-fx-p2a.mjs`; evidence,
+    links, diagnosis and HUMAN questions:
+    `docs/evidence/combat-vfx-p2a/README.md`. Still not authorized: G1, Gunner
+    AI, SNIPER NEST balance, any enemy or content phase, hero detail, actor
+    shadows, P2-B (Super / melee VFX), P2 Arena (postponed), propagating V2C
+    to other arenas, making V2C, P1 or P2-A the default, or changing any
+    approved V2C / P1 design.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -125,7 +142,8 @@ command, fix the line.*
   champion-placement fail identically under legacy (register #9; R0 notes, R1
   section). No run-all suite was pinned: the suite tests the shipped game.
 - **Fresh session?** This block and the register are the orientation.
-  The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-05-2.md`
+  The current candidate is P2-A (`docs/evidence/combat-vfx-p2a/README.md`,
+  awaiting the HUMAN verdict). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-05-2.md`
   (P1 approved; next proposed: P2, not yet authorized). `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
@@ -1299,6 +1317,8 @@ approved behaviour needs its own human gate).
 | 23 | Objective / room banners overflow the 720px canvas (`SLICE TERMINALS FOR SUPPORT` clipped at both edges; human's recording) | HUD layout | **P1-A HUMAN-APPROVED / FROZEN 🔒 2026-11-05 — PASS** (`?visualPilot=v2c&polish=p1`, opt-in, `b73eb40`); the shipped banner (R1 / V2C) still clips | V2 notes; `combat-visual-polish-p1/` |
 | 24 | The V2 hero carries the previous generation's weapon overlays (no outline, no hand, a stretched pistol for a rifle) | character presentation | **P1-C HUMAN-APPROVED / FROZEN 🔒 2026-11-05 — PASS** (`?visualPilot=v2c&polish=p1`, opt-in, `b73eb40`) | `combat-visual-polish-p1/` |
 | 25 | The nemesis duel bar runs under the pause button (bar x 48–672 at y 122–136; button 646–706) — a shipped HUD overlap found during P1-A, not changed by it | HUD layout | DEFERRED — not authorized | `combat-visual-polish-p1/` known limitations |
+| 26 | Player fire and impact presentation: the shipped muzzle flash is hidden inside the P1 barrels and under the actor band, pistol and rifle bolts are one rigid bar shaped like enemy fire, body contacts float up to ~30px in front of the body (30px bolt hitbox), and every contact on cover is drawn UNDER the cover art | effects | **P2-A CANDIDATE 2026-11-05** (`?visualPilot=v2c&polish=p1&fxPilot=p2a`, opt-in) — awaiting HUMAN verdict; R1 / V2C / P1 unchanged | `combat-vfx-p2a/` |
+| 27 | Shield-bearers WITHOUT the roster-v1 field (a nemesis Bulwark, legacy art) answer a block with the `healingSparkle` (blue bubbles rising) — the healing language for a block | effects | addressed in the P2-A candidate only (a shield contact); shipped unchanged | `combat-vfx-p2a/` |
 
 ### Process and evidence caveats the next session needs
 

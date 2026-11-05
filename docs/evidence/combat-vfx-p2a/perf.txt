@@ -1,0 +1,31 @@
+# node tests/diag-fx-p2a-perf.mjs — final build bebe258 (NORMAL-blend glows), idle box
+# HEADLESS CHROMIUM, SOFTWARE RASTERISER: A vs B on the same box, not a phone's absolute numbers
+metric                         A (P1)  B (P1 + P2-A)
+texBytes                     68618676       68691244
+texCount                          173            185
+listAtRest                        116            120
+stepMed                        14.400         14.900
+stepP95                       979.100            938
+peakDisplayList                   270            295
+peakShippedParticles              261            184
+tweens                             10              8
+listInFight                       202            248
+paintMs                             —          4.500
+p2aBytes                            —          72568
+p2aTextures                         —             12
+hookMsPerFrame                      —          0.122
+peakTracers                         —             11
+peakFlashes                         —              3
+peakContacts                        —              4
+peakSparkStreaks                    —             24
+pooledObjects                       —             44
+tracersDrawn                        —            213
+contactsDrawn                       —             66
+parityParticles                     —            691
+contactsRecycled                    —              0
+
+# history — the ADDITIVE-glow build (5ecf2ec), two runs, same box:
+#   stepMed A 14.7 / B 18.8 ms; A 15.7 / B 20.0 ms   (hook 0.126 / 0.190 ms)
+# cost experiments on that build (--exp):
+#   noadd    stepMed A 15.0 / B 14.7 ms  -> the additive blend switches were the whole cost
+#   nosparks stepMed A 13.9 / B 16.8 ms  -> the spark Graphics were not

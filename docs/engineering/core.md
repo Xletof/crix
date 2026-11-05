@@ -227,6 +227,57 @@ untouched). Proof: `tests/smoke-polish-p1.mjs`. Traps found building it:
   the weapon's `visible` it never touches. The aura has to be re-hidden each
   POST_UPDATE, before render.
 
+### P2-A blaster fire and impact (`?visualPilot=v2c&polish=p1&fxPilot=p2a`, a candidate — not approved)
+
+Seam, not edits: `GameScene.create` calls `installFxP2A(this)` after the P1
+layer (`systems/p2aFx.js`), `PreloadScene` calls `paintFxP2A(this)`
+(`systems/p2aPaint.js`, new `p2a-*` keys). It wraps, on the instance, the
+pistol / rifle groups' `fire`, `firePlayerPrimary` / `firePlayerRifle`,
+`handleBulletEnemyHits` / `handleBulletWallHits`, `_impactMicroFlash`, and six
+fx methods; the wrappers only raise a context flag around the shipped code, and
+the fx ones match their exact arguments. Proof: `tests/smoke-fx-p2a.mjs`.
+Traps found building it:
+
+- **The player bolt's hitbox is 30px in radius** (`bullet` is 60px wide). A
+  body hit registers while the bolt's centre can still be ~30px in front of the
+  body, so the shipped impact ring often sat in the air. Draw a contact on the
+  body's rim along the flight line (`circleEntry`), never at the bolt.
+- **Cover sorts at `y + 56` and its art overhangs its 70px body by 21px a
+  side**, so every flat-depth effect (≤ 27) at a cover contact is drawn UNDER
+  the cover art — the shipped wall hit was invisible against crates and
+  consoles. A contact on cover takes the cover's depth + 1, at the point where
+  the flight line entered the BODY's AABB (`aabbEntry`).
+- **The shipped muzzle flash spawns at the bolt's spawn (34px), inside the P1
+  barrels** (pistol face 42px, rifle 48px) and at depth 34, under the hero and
+  his gun. A flash that belongs to the P1 weapon is pinned to the weapon
+  Image's live barrel face (`_muzzle()`), which already carries recoil, and
+  drawn at the weapon's depth + 0.5 (so it goes behind him with the gun).
+- **Replacing a shipped particle effect must still spend its `Math.random`
+  draws.** Every replaced emission is performed into an invisible TWIN built
+  from the live emitter's own config, then `killAll()`-ed (the Bulwark field's
+  precedent). Dropping a draw-free call (`impactRing`, `muzzleFlash`, the
+  micro-flash) needs nothing.
+- **Hide the bolt by `visible`, after `fire`.** `Bullet.fire` re-shows it on
+  every recycle; nothing in gameplay reads a player bolt's `visible`. Never
+  re-texture or rescale it: the texture's width is the hitbox and the scale is
+  the shipped tracer stretch.
+- **A tracer's tail is a DISTANCE behind the head**, clamped to the barrel face
+  the shot left from, and on death its back end keeps travelling at the bolt's
+  speed into the end point — so its length does not depend on the frame rate.
+- **Age effects by `delta × time.timeScale`**, or a hitstop freezes the world
+  while the flashes keep animating.
+- **An ADDITIVE sprite at a y-sorted depth breaks the sprite batch twice.**
+  The renderer does not group by blend mode, so every ADD glow interleaved
+  with the actors flushed the WebGL batch: +4ms median per rendered frame in
+  `diag-fx-p2a-perf` for a handful of glows; NORMAL-blend tinted glows cost
+  nothing measurable (`--exp=noadd`). Measure before adding a blend mode.
+- **Sprites stand one physics step behind their bodies during collision
+  handling** (Arcade syncs them in its POST_UPDATE). An effect placed from
+  `e.x` in a collision handler lands where the actor WAS; keep it as an offset
+  from the actor and re-apply it each frame.
+- **Editing a `src/` file while a browser run is live reloads the page** (Vite
+  HMR: P2-A's modules accept no hot update) and kills the run mid-film.
+
 ### Rendering and depth
 
 - **Two depth conventions run at once.** Actors Y-sort (`setDepth(this.y)`), walls

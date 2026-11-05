@@ -1,0 +1,23 @@
+# covering suites, final build bebe258 (the shipped game; P2-A absent)
+smoke-leak: PASS: primary fire is isolated from the cluster
+smoke-restart: PASS: 16 checks — restarts leave no duplicate handlers and no stale arena
+smoke-rng: PASS: 17 checks — runs are reproducible and the streams do not couple
+smoke-score: PASS: 41 checks — kills, chain multiplier and wave bonuses all score
+smoke-title: PASS: 15 checks — endless leads, and its record is the first thing you read
+smoke-debug: PASS: debug menu works and the HUD stays in sync
+smoke-roster-seams: 70/70 checks passed
+smoke-bulwark: 92/92 checks passed
+smoke-polish-p1: 73/73 passed
+smoke-visual-pilot: 97/97 passed
+
+smoke-readability (Vader-only checks; load-sensitive — HANDOVER §0 caveats, register #9), every run on this container:
+  NEW build bebe258 (servers :5173, fresh :5181, :5182): 10 runs — PASS 4, FAIL 6, always 1 of 19:
+    'he is PLANTED through his wind-up' x5 (FORCE PULL 0px/s, drift 43 / 77 / 50 / 66 / 58px against a 40px bar)
+    'and comes back to his hand EVEN AFTER HE MOVES' x1
+  PREVIOUS build def85e5 (:5180): 7 runs — PASS 3, FAIL 4:
+    'he is PLANTED through his wind-up' x3 (drift 63 / 47 / 83px), once with 'he SETTLES' (2 of 19)
+    'and comes back to his hand EVEN AFTER HE MOVES' x1
+  => the same checks fail at a similar rate on the previous build: the pre-existing flake, not a P2-A
+     regression (P2-A installs nothing without its flag; R1 replays are identical to def85e5, smoke-fx-p2a section 11)
+
+npm run build: passes (the usual >500 kB chunk warning)

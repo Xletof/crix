@@ -1,0 +1,35 @@
+== 3. projectiles and the muzzle
+FAIL  every pistol and rifle bolt: position, bearing, velocity, scale (the tracer stretch), texture, body radius + offset, damage, range, knockback, owner = A's (8 bearings, 16 volleys) with A's draw count  — first difference: p0:849.000,760.000,0.0000,900.000,0.000,1.4516,1.0000,bullet,30,0.000,0.000,120,400,0,play vs p0:850.000,760.000,0.0000,900.000,0.000,1.4516,1.0000,bullet,30,0.000,0.000,120,400,0,play
+PASS  the bolt's body radius is the `bullet` texture's half-width (30) in A and B
+PASS  B: every live bolt has a tracer; the bolt sprite itself is never drawn  — [{"worst":0,"behind":0,"shown":0,"n":1,"hid":0},{"worst":0,"behind":0,"shown":0,"n":3,"hid":0},{"worst":0,"behind":0,"shown":0,"n":1,"hid":0}]
+PASS  B: the tracer head sits on the bolt (< 0.01px) and the tail never reaches behind the barrel face  — worst head 0.0000px, tail -0.00px
+PASS  B: the muzzle flash is pinned to the live P1 barrel face (pistol 30px, rifle 42px past the weapon origin) and drawn over the weapon  — [{"kind":"pistol","at":0,"tip":30,"above":true,"shipped":0},{"kind":"rifle","at":0,"tip":42,"above":true,"shipped":0}]
+PASS  the shipped muzzle flash: drawn in A for every shot, never in B  — A 11111111 / B 0000000000000000
+== 5. same fight
+FAIL  SWARM TIDE, production: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — first divergent tick 0
+FAIL  SWARM TIDE, legacy baseline: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — first divergent tick 0
+FAIL  CROSSFIRE, production: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — first divergent tick 0
+FAIL  BOMBER RUN, production: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — first divergent tick 0
+FAIL  SWARM TIDE, production: 500 RENDERED ticks, B identical to A  — first divergent tick 0
+FAIL  CROSSFIRE in LOW quality: 500 rendered ticks, B identical to A  — first divergent tick 0
+PASS  R1 + ignored fxPilot=p2a: 800 ticks identical to R1
+PASS  V2C + ignored fxPilot=p2a: 800 ticks identical to V2C
+== 6. reader only
+FAIL  P2-A's frame draws no Math.random over 400 ticks of fighting (40 tracers, {"body":26,"armour":0,"wall":5,"shield":0,"champion":0} contacts)  — 402 draws inside the hook
+PASS  P2-A's frame writes no clock, physics scale, camera, player or bolt field  — 0 frames changed something
+PASS  under a hitstop (timeScale 0.06) a muzzle flash ages at the world's rate (<= 1.1ms per 16.7ms frame)  — timeScale 0.06, aged 1.00ms
+9/17 passed  (SELFTEST: sections 3, 5 and 6 are expected to FAIL)
+SELFTEST OK: the checks caught the injected changes
+
+# --selftest=twin --only=5 (only the parity twins broken):
+== 5. same fight
+FAIL  SWARM TIDE, production: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — first divergent tick 80
+FAIL  SWARM TIDE, legacy baseline: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — first divergent tick 80
+FAIL  CROSSFIRE, production: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — first divergent tick 80
+FAIL  BOMBER RUN, production: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — first divergent tick 80
+FAIL  SWARM TIDE, production: 500 RENDERED ticks, B identical to A  — first divergent tick 80
+FAIL  CROSSFIRE in LOW quality: 500 rendered ticks, B identical to A  — first divergent tick 80
+PASS  R1 + ignored fxPilot=p2a: 800 ticks identical to R1
+PASS  V2C + ignored fxPilot=p2a: 800 ticks identical to V2C
+2/8 passed  (SELFTEST: sections 3, 5 and 6 are expected to FAIL)
+SELFTEST OK: the checks caught the injected changes
