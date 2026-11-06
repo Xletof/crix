@@ -61,11 +61,12 @@
 //     a frame count: density does not depend on the frame rate.
 
 import Phaser from 'phaser';
-import { isFxP2A } from './debug.js';
+import { isFxP2A, isFxP2A2 } from './debug.js';
 import { isLowQuality } from './FX.js';
 import { mulberry32 } from './rng.js';
 import { P1_WEAPONS } from './p1Paint.js';
-import { P2A_TEX } from './p2aPaint.js';
+import { P2A_TEX, P2A2_TEX } from './p2aPaint.js';
+import { installLoadoutP2A2 } from './p2a2Loadout.js';
 import { WEAPONS } from '../config.js';
 
 const TAU = Math.PI * 2;
@@ -74,17 +75,41 @@ const TAU = Math.PI * 2;
 export const P2A = {
   pistol: {
     tail: 72,                 // light behind the head (~80ms of flight at 900px/s)
+    heavy: false,             // contacts at the pistol's size
     tailTex: P2A_TEX.tailP, headTex: P2A_TEX.headP,
     headGlow: { tint: 0xff5a48, alpha: 0.30, scale: 0.85 },
     muzzle: { ms: 66, scale: 1.0, glow: { tint: 0xff5a40, alpha: 0.6, scale: 1.4 } },
   },
   rifle: {
     tail: 66,                 // thicker: a slug; bolts 70px apart in a burst, so the three heads chain without merging into a beam
+    heavy: true,              // contacts at the rifle's size
     tailTex: P2A_TEX.tailR, headTex: P2A_TEX.headR,
     headGlow: { tint: 0xff4a3c, alpha: 0.28, scale: 0.85 },
     muzzle: { ms: 80, scale: 1.0, firstScale: 1.15, glow: { tint: 0xff4a30, alpha: 0.65, scale: 1.5 } },
     heat: { perShot: 1, max: 3, halfLifeMs: 90, tint: 0xff4020, alpha: 0.22, scale: 1.1 },
   },
+  // ── P2-A2 (`fxPilot=p2a2`): the carbine's two modes ────────────────────
+  // STANDARD — the ordinary (pistol) fire path drawn in the rifle's language,
+  // ONE discharge per shot: no alternation, no burst heat. Its glow is small
+  // and sits under the shield; the keylined core is what must read.
+  standard: {
+    tail: 66, heavy: true,
+    tailTex: P2A_TEX.tailR, headTex: P2A_TEX.headR,
+    headGlow: { tint: 0xff4a3c, alpha: 0.28, scale: 0.85 },
+    muzzle: { ms: 80, scale: 1.0, glow: { tint: 0xff4a30, alpha: 0.4, scale: 1.0 } },
+  },
+  // OVERRIDE — the rifle pickup's burst: P2-A's rifle choreography (alternating
+  // brake shapes, a bigger first shot, barrel heat), a size up from STANDARD.
+  override: {
+    tail: 72, heavy: true,
+    tailTex: P2A_TEX.tailR, headTex: P2A_TEX.headR,
+    headGlow: { tint: 0xff4a3c, alpha: 0.32, scale: 0.95 },
+    muzzle: { ms: 80, scale: 1.1, firstScale: 1.25, glow: { tint: 0xff4a30, alpha: 0.45, scale: 1.15 } },
+  },
+  // P2-A2: in front of the body, the ignition core is drawn just above the
+  // shield bubble (player y + 3) — the shield's bright rim sits at the barrel's
+  // radius and used to cover it. Behind the body it keeps the weapon's depth.
+  fgDepth: 3.5,
   // contact flashes and their scatter
   body: { ms: 110, scale: 1.0, rifleScale: 1.15, glow: { tint: 0xff6a50, alpha: 0.45, scale: 1.1 }, sparks: 4, rifleSparks: 5, speed: [180, 360], life: [70, 130], cone: 0.7, color: [0xffffff, 0xffb080, 0xff4030] },
   armour: { sparks: 5, cone: 1.2 },
@@ -113,7 +138,13 @@ class FxP2A {
   constructor(scene) {
     this.scene = scene;
     this.fx = scene.fx;
+    // MECHANICAL identity, from the pool / fire path: 'pistol' | 'rifle'
     this.kinds = new Map([[scene.playerBullets, 'pistol'], [scene.playerRifleBullets, 'rifle']]);
+    // VISUAL style per mechanical identity: P2-A draws each as itself; P2-A2
+    // draws the ordinary shot as the carbine's STANDARD mode and the rifle
+    // pickup's burst as OVERRIDE
+    this.p2a2 = isFxP2A2();
+    this.styleOf = this.p2a2 ? { pistol: 'standard', rifle: 'override' } : { pistol: 'pistol', rifle: 'rifle' };
     this.ctx = { fire: null, hit: null, wall: null, inHit: null, armour: false };
     this.bolts = [];           // live tracer records
     this.flashes = [];         // live muzzle flashes
@@ -126,11 +157,18 @@ class FxP2A {
     this.burstIdx = 0;
     this._clock = 0;
     this._seq = 0;
-    this.stats = { bolts: 0, impacts: { body: 0, armour: 0, wall: 0, shield: 0, champion: 0 }, parity: 0, recycled: 0, peakImpacts: 0 };
+    this.stats = { bolts: 0, impacts: { body: 0, armour: 0, wall: 0, shield: 0, champion: 0 }, parity: 0, recycled: 0, peakImpacts: 0, styles: {} };
     this._tipCache = {};
     this._wrapped = [];
     this._install();
+    // P2-A2: the carried rifle, the OVERRIDE pickup and HUD readout
+    this.loadout = this.p2a2 ? installLoadoutP2A2(this) : null;
   }
+
+  /** P2-A2: OVERRIDE engaged — the barrel primes to full heat. */
+  primeHeat() { this.heat = P2A.rifle.heat.max; }
+  /** The weapon Image the hero is drawn holding this frame. */
+  _weapon() { return this.loadout?.view || this.scene?._p1Player?.weapon || null; }
 
   // ── install / uninstall ────────────────────────────────────────────────
   _wrap(obj, name, make) {
@@ -209,6 +247,8 @@ class FxP2A {
   }
 
   destroy() {
+    this.loadout?.destroy();
+    this.loadout = null;
     for (const u of this._wrapped.reverse()) u();
     this._wrapped = [];
     const all = [...this.imgPool, ...this.gfxPool, this.heatGlow, ...Object.values(this.twins)];
@@ -285,7 +325,7 @@ class FxP2A {
   }
   /** The live muzzle face of the P1 weapon, or null when it is not a gun this frame. */
   _muzzle() {
-    const w = this.scene._p1Player?.weapon;
+    const w = this._weapon();
     if (!w || !/^p1-(pistol|rifle)/.test(w.texture.key)) return null;
     const d = this._tip(w.texture.key);
     return { x: w.x + Math.cos(w.rotation) * d, y: w.y + Math.sin(w.rotation) * d, rot: w.rotation, flip: w.flipY, depth: w.depth, alpha: w.alpha };
@@ -293,13 +333,14 @@ class FxP2A {
   _rand(seed) { return mulberry32(((++this._seq) * 0x9e3779b1 + seed) >>> 0); }
 
   // ── 1. FIRE ─────────────────────────────────────────────────────────────
-  _onBolt(b, kind) {
+  _onBolt(b, mech) {
     b.setVisible(false);
+    const kind = this.styleOf[mech];
     const P = this.scene.player, cfg = P2A[kind];
     const ang = Math.atan2(b.body.velocity.y, b.body.velocity.x);
     // the barrel face this shot leaves from, at the moment of firing: the P1
     // hold (reach + tip) less the recoil kick the shot has just set
-    const spec = kind === 'rifle' ? P1_WEAPONS.rifle : P1_WEAPONS.pistol;
+    const spec = this.p2a2 || mech === 'rifle' ? P1_WEAPONS.rifle : P1_WEAPONS.pistol;
     const kick = P._wKickT > 0 ? Phaser.Math.Clamp(P._wKickT / (P._wKickDur || 80), 0, 1) * (P._wKickMag || 0) : 0;
     const face = spec.reach + this._tip(spec.key) - kick;
     const ox = P.x + Math.cos(ang) * face, oy = P.y + Math.sin(ang) * face;
@@ -312,11 +353,22 @@ class FxP2A {
     };
     this.bolts.push(r);
     this.stats.bolts++;
+    this.stats.styles[kind] = (this.stats.styles[kind] || 0) + 1;
   }
 
-  _onMuzzle(kind, x, y, angle) {
+  _onMuzzle(mech, x, y, angle) {
+    const kind = this.styleOf[mech];
     const cfg = P2A[kind].muzzle;
     let tex = P2A_TEX.mzP.key, ox = P2A_TEX.mzP.ox, scale = cfg.scale;
+    if (kind === 'standard') { tex = P2A2_TEX.mzS.key; ox = P2A2_TEX.mzS.ox; }
+    if (kind === 'override') {
+      const P = this.scene.player;
+      this.burstIdx = Math.max(0, WEAPONS.rifle.burstCount - (P._burstRemaining || WEAPONS.rifle.burstCount));
+      tex = P2A2_TEX.mzO.keys[this.burstIdx % 2]; ox = P2A2_TEX.mzO.ox;
+      if (this.burstIdx === 0) scale = cfg.firstScale;
+      const H = P2A.rifle.heat;
+      this.heat = Math.min(H.max, this.heat + H.perShot);
+    }
     if (kind === 'rifle') {
       // which shot of the burst this is (the counter decrements after the shot)
       const P = this.scene.player;
@@ -385,7 +437,7 @@ class FxP2A {
     const rad = e.cfg?.radius ?? 22;
     const c = circleEntry(b.x, b.y, flightAng, e.x, e.y, rad);
     const kind = e.isChampion ? 'champion' : (armour ? 'armour' : 'body');
-    const m = this._impact(kind, c.x, c.y, flightAng, { rifle: r?.kind === 'rifle', depth: (e.depth ?? e.y) + 4, follow: e });
+    const m = this._impact(kind, c.x, c.y, flightAng, { rifle: !!r?.cfg.heavy, depth: (e.depth ?? e.y) + 4, follow: e });
     if (r) r.contact = m;
   }
 
@@ -403,7 +455,7 @@ class FxP2A {
     const rx = dx - 2 * dot * nx, ry = dy - 2 * dot * ny, refl = Math.atan2(ry, rx);
     const cone = P2A.wall.cone;
     this._impact('wall', cx, cy, n, {
-      rifle: r?.kind === 'rifle', depth,
+      rifle: !!r?.cfg.heavy, depth,
       dirs: (i, k, R) => (i < k - 2 ? refl + (R() - 0.5) * 2 * cone : n + (i === k - 2 ? 1 : -1) * (Math.PI / 2 - 0.25 - R() * 0.3)),
     });
     if (r) r.contact = { x: cx, y: cy };
@@ -459,6 +511,8 @@ class FxP2A {
     if (!this.scene) return;
     const dt = delta * (this.scene.time.timeScale ?? 1);
     this._clock += dt;
+    // P2-A2: place the carried rifle first — the muzzle reads it
+    this.loadout?.update();
     // contacts first: a contact riding its target is placed before a dying
     // tracer reads it as its end point
     this._updateImpacts(dt);
@@ -523,7 +577,7 @@ class FxP2A {
     const H = P2A.rifle.heat;
     this.heat *= Math.pow(0.5, dt / H.halfLifeMs);
     const mz = this._muzzle();
-    if (this.heat > 0.05 && mz && !isLowQuality() && /rifle/.test(this.scene._p1Player?.weapon?.texture?.key || '')) {
+    if (this.heat > 0.05 && mz && !isLowQuality() && /rifle/.test(this._weapon()?.texture?.key || '')) {
       this.heatGlow.setVisible(true).setPosition(mz.x, mz.y).setTint(H.tint).setScale(H.scale * (0.7 + 0.3 * this.heat / H.max))
         .setAlpha(mz.alpha * H.alpha * Math.min(1, this.heat)).setDepth(mz.depth + 0.4);
     } else if (this.heatGlow.visible) this.heatGlow.setVisible(false);
@@ -542,7 +596,12 @@ class FxP2A {
     const sx = f.scale * (u < 0.3 ? 1 : 1 - 0.75 * ((u - 0.3) / 0.7));
     const sy = f.scale * (u < 0.3 ? 1 : 1 - 0.45 * ((u - 0.3) / 0.7));
     const a = mz.alpha * (u < 0.3 ? 1 : 1 - (u - 0.3) / 0.7);
-    f.img.setVisible(true).setPosition(mz.x, mz.y).setRotation(mz.rot).setFlipY(mz.flip).setScale(sx, sy).setAlpha(a).setDepth(mz.depth + 0.5);
+    // P2-A2: in front of the body the core goes over the shield bubble and the
+    // rings; behind the body (facing north) it keeps the weapon's occlusion
+    let depth = mz.depth + 0.5;
+    const P = this.scene.player;
+    if (this.p2a2 && mz.depth >= P.depth) depth = Math.max(depth, P.depth + P2A.fgDepth);
+    f.img.setVisible(true).setPosition(mz.x, mz.y).setRotation(mz.rot).setFlipY(mz.flip).setScale(sx, sy).setAlpha(a).setDepth(depth);
     if (f.glow) f.glow.setVisible(true).setPosition(mz.x, mz.y).setScale(cfg.glow.scale * (1 + 0.3 * u)).setAlpha(mz.alpha * cfg.glow.alpha * (1 - u) * (1 - u)).setDepth(mz.depth + 0.45);
   }
 

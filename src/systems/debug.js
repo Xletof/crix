@@ -507,10 +507,21 @@ export function isPolishP1() { return polish === 'p1' && visualPilot === 'v2c'; 
 // Any other `fxPilot` value is off. PRESENTATION ONLY: no hp, radius, speed,
 // timing, spawn, projectile origin, body, camera, hitstop, collision or
 // `Math.random` draw may differ (`tests/smoke-fx-p2a.mjs`).
-const FX_PILOTS = ['p2a'];
+//
+// `fxPilot=p2a2` — P2-A2, PRIMARY CARBINE & OVERRIDE (HUMAN-authorized
+// candidate, 2026-11-06, opt-in): P2-A's layer plus a LOADOUT presentation.
+// The hero visibly carries the approved P1 rifle at all times; the ordinary
+// (pistol) fire path — unchanged, its ammo, cooldown, bolts and damage — is
+// presented as the rifle's single-shot STANDARD mode, and the rifle pickup
+// (internally still `'rifle'`, 27 rounds, three-shot burst) as the OVERRIDE
+// firing-mode module. Also tied to P1. `p2a` keeps its output exactly
+// (`tests/smoke-fx-p2a2.mjs`).
+const FX_PILOTS = ['p2a', 'p2a2'];
 let fxPilot = null;
 export function setFxPilot(v) { fxPilot = FX_PILOTS.includes(v) ? v : null; }
-/** The `fxPilot` parameter as given ('p2a' | null), honoured or not. */
+/** The `fxPilot` parameter as given ('p2a' | 'p2a2' | null), honoured or not. */
 export function getFxPilotRequested() { return fxPilot; }
-/** P2-A is live: `fxPilot=p2a` AND P1 live. */
-export function isFxP2A() { return fxPilot === 'p2a' && isPolishP1(); }
+/** The P2-A layer is live: `fxPilot=p2a` or `p2a2`, AND P1 live. */
+export function isFxP2A() { return (fxPilot === 'p2a' || fxPilot === 'p2a2') && isPolishP1(); }
+/** P2-A2 (the carbine loadout over P2-A) is live: `fxPilot=p2a2` AND P1 live. */
+export function isFxP2A2() { return fxPilot === 'p2a2' && isPolishP1(); }

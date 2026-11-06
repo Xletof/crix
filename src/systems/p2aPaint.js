@@ -17,7 +17,7 @@
 // (a tapering tracer behind a hot head, where enemy bolts are rigid bars).
 
 import { PixelCanvas } from './pixelArt.js';
-import { isFxP2A } from './debug.js';
+import { isFxP2A, isFxP2A2 } from './debug.js';
 
 const W = '#ffffff';
 const HOT = '#fff1ec';     // white with a breath of red
@@ -72,6 +72,7 @@ export function paintFxP2A(scene) {
   paintHitBody(scene, 'p2a-hit-a', true);
   paintHitWall(scene);
   paintHitShield(scene);
+  if (isFxP2A2()) paintFxP2A2(scene);
 }
 
 // A logical grid, flushed to a PixelCanvas; `outline` dilates a one-cell
@@ -195,6 +196,11 @@ function paintMuzzleP(scene) {
 // the same shape.
 function paintMuzzleR(scene, key, v) {
   const g = grid(20, 15);
+  muzzleRShape(g, v);
+  g.flush(scene, key, 3);
+}
+function muzzleRShape(G, v, dx = 0, dy = 0) {
+  const g = { px: (x, y, c) => G.px(x + dx, y + dy, c), rect: (x, y, w, h, c) => G.rect(x + dx, y + dy, w, h, c) };
   // blunt cone
   g.rect(4, 4, 7, 7, PINK); g.rect(4, 5, 8, 5, HOT); g.rect(4, 6, 9, 3, W);
   g.rect(11, 4, 2, 1, RED); g.rect(11, 10, 2, 1, RED); g.rect(12, 5, 2, 5, PINK); g.rect(13, 6, 1, 3, HOT);
@@ -214,7 +220,6 @@ function paintMuzzleR(scene, key, v) {
   }
   // outer flecks
   g.px(8, 3, RED); g.px(8, 11, RED); g.px(10, 2, rgba(RED, 0.7)); g.px(10, 12, rgba(RED, 0.7));
-  g.flush(scene, key, 3);
 }
 
 // ── BODY IMPACT ─────────────────────────────────────────────────────────────
@@ -285,4 +290,97 @@ function paintHitShield(scene) {
   g.rect(4, 8, 3, 1, ICE); g.px(7, 8, PALE); g.px(4, 7, ICE); g.px(4, 9, ICE);
   g.outline(KEY, 0.7);
   g.flush(scene, P2A_TEX.hitShield.key, 3);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// P2-A2 — PRIMARY CARBINE & OVERRIDE (`fxPilot=p2a2` only)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// New `p2a2-*` keys; every P2-A texture above is painted exactly as before.
+//
+//   p2a2-mz-s           STANDARD: the rifle's muzzle-brake discharge, single
+//                       shot (square vents), with a dark KEYLINE — the shield's
+//                       cyan rim and the P1 ready ring are bright and sit at
+//                       the barrel's radius; a keyline is what separates a
+//                       white-hot core from a white ring
+//   p2a2-mz-o0 / -o1    OVERRIDE: the two alternating brake shapes, keylined
+//   p2a2-pickup-override  the OVERRIDE firing-mode module (the rifle pickup's
+//                       canvas size: 24x24 at 4)
+//   p2a2-hud-override   the HUD panel's module + "3-SHOT / BURST" in pixel type
+//                       (painted text: a Phaser Text object would draw
+//                       Math.random for its texture key)
+
+export const P2A2_TEX = {
+  mzS: { key: 'p2a2-mz-s', w: 66, h: 51, ox: 2.5 / 22 },
+  mzO: { keys: ['p2a2-mz-o0', 'p2a2-mz-o1'], w: 66, h: 51, ox: 2.5 / 22 },
+  pickup: { key: 'p2a2-pickup-override', w: 96, h: 96 },
+  hud: { key: 'p2a2-hud-override', w: 96, h: 66 },
+};
+
+const GUN = { hi: '#a9b6c2', lit: '#6c7884', mid: '#454d57', dk: '#2b3038', sh: '#1a1d22' };
+const AMB = '#ffb34a', INK = '#06070a';
+
+export function paintFxP2A2(scene) {
+  for (const [key, v] of [[P2A2_TEX.mzS.key, 0], [P2A2_TEX.mzO.keys[0], 0], [P2A2_TEX.mzO.keys[1], 1]]) {
+    const g = grid(22, 17);
+    muzzleRShape(g, v, 1, 1);
+    g.outline(KEY, 0.9);
+    g.flush(scene, key, 3);
+  }
+  paintOverridePickup(scene);
+  paintOverrideHud(scene);
+}
+
+// The module: a gunmetal cartridge with an amber spine, a red-hot window
+// holding THREE white-hot rounds (the burst, counted), and contact pins on
+// its leading edge — a part that plugs into the gun, not a second gun.
+function moduleShape(g, x0, y0, w, h, pins = true) {
+  // casing with cut corners
+  g.rect(x0 + 1, y0, w - 2, h, GUN.dk); g.rect(x0, y0 + 1, w, h - 2, GUN.dk);
+  g.rect(x0 + 1, y0, w - 2, 1, GUN.lit); g.rect(x0 + 1, y0 + h - 1, w - 2, 1, GUN.sh);
+  g.rect(x0, y0 + 1, 1, h - 2, GUN.mid);
+  // amber spine along the top
+  g.rect(x0 + 2, y0 + 1, w - 4, 1, AMB);
+  // the window and its three rounds
+  const wx = x0 + 2, wy = y0 + 3, ww = w - 4, wh = h - 5;
+  g.rect(wx, wy, ww, wh, '#3a0a10');
+  const step = Math.floor(ww / 3);
+  for (let i = 0; i < 3; i++) {
+    const rx = wx + i * step + Math.floor((step - 2) / 2);
+    g.rect(rx, wy + 1, 2, Math.max(1, wh - 2), W);
+    if (wh > 3) { g.px(rx, wy + 1, HOT); g.px(rx + 1, wy + wh - 2, PINK); }
+  }
+  if (pins) for (let y = y0 + 2; y < y0 + h - 1; y += 2) g.px(x0 + w, y, AMB);
+}
+
+function paintOverridePickup(scene) {
+  const g = grid(24, 24);
+  moduleShape(g, 3, 6, 17, 12, true);
+  g.outline(INK, 1);
+  g.flush(scene, P2A2_TEX.pickup.key, 4);
+}
+
+// 3x5 pixel type for the caption
+const GLYPH = {
+  3: ['111', '001', '011', '001', '111'], '-': ['000', '000', '111', '000', '000'],
+  S: ['111', '100', '111', '001', '111'], H: ['101', '101', '111', '101', '101'],
+  O: ['111', '101', '101', '101', '111'], T: ['111', '010', '010', '010', '010'],
+  B: ['110', '101', '111', '101', '110'], U: ['101', '101', '101', '101', '111'],
+  R: ['110', '101', '110', '101', '101'],
+};
+function text(g, str, x0, y0, col) {
+  let x = x0;
+  for (const ch of str) {
+    const gl = GLYPH[ch];
+    if (gl) for (let y = 0; y < 5; y++) for (let i = 0; i < 3; i++) if (gl[y][i] === '1') g.px(x + i, y0 + y, col);
+    x += 4;
+  }
+}
+function paintOverrideHud(scene) {
+  const g = grid(32, 22);
+  moduleShape(g, 9, 0, 13, 8, true);
+  text(g, '3-SHOT', 5, 10, AMB);    // 23 wide, centred on 32
+  text(g, 'BURST', 7, 16, AMB);     // 19 wide
+  g.outline(INK, 1);
+  g.flush(scene, P2A2_TEX.hud.key, 3);
 }
