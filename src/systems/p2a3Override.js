@@ -192,7 +192,10 @@ class OverrideP2A3 {
     if (id === 'rifle') {
       const ammo = P?.secondaryAmmo ?? 0;
       h.secIcon.setTexture(P2A3_TEX.burst.key).setScale(this._pop()).setPosition(cx, cy + H.burst.dy);
-      h.secText.setFontSize(H.count.font).setText(`${ammo}`).setPosition(cx, cy + H.count.dy);
+      // setFontSize re-measures the font (a canvas pixel read) and re-renders even
+      // for the same size: only when it changes, so a round costs one re-render
+      if (h.secText.style.fontSize !== H.count.font) h.secText.setFontSize(H.count.font);
+      h.secText.setText(`${ammo}`).setPosition(cx, cy + H.count.dy);
       o.label.setVisible(true).setPosition(cx, cy + H.label.dy);
       // one cut every three rounds across the shipped bar: a segment per pull
       const B = H.bar, S = H.seg, n = 27 / S.every;
@@ -204,7 +207,7 @@ class OverrideP2A3 {
       this.stats.hud++;
     } else {
       if (this.hudStyled) {
-        h.secText.setFontSize(H.shippedFont);
+        if (h.secText.style.fontSize !== H.shippedFont) h.secText.setFontSize(H.shippedFont);
         o.label.setVisible(false);
         o.seg.clear();
         o.rim.clear(); this.rimT = -1; this.popT = -1;

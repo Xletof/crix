@@ -74,6 +74,12 @@ for (const [cfg, flags] of CFGS) {
     window.__seed(77); window.__headless = false;
     let hook = 0, peakList = 0, peak = { bolts: 0, flashes: 0, impacts: 0, sparks: 0 }, peakParticles = 0;
     if (c) { const u = c.update.bind(c); c.update = (t, d) => { const t0 = performance.now(); u(t, d); hook += performance.now() - t0; }; }
+    let x3 = 0;   // P2-A3's own share of the hook (its frame, count redraws included)
+    let x3r = 0;  // ... of which the HUD count redraws (the whole refreshSecondary chain)
+    if (c?.p2a3) {
+      const X = c.p2a3, u3 = X.update.bind(X); X.update = (dt, rd) => { const t0 = performance.now(); u3(dt, rd); x3 += performance.now() - t0; };
+      const hud = gs.scene.get('HUD'), rs = hud.refreshSecondary; hud.refreshSecondary = (id) => { const t0 = performance.now(); const v = rs.call(hud, id); x3r += performance.now() - t0; return v; };
+    }
     if (c && exp) {
       const fxm = await window.__mod(/systems\/p2aFx\.js/);
       if (exp.includes('noadd')) { const im = c._img.bind(c); c._img = (k) => im(k, false); }
@@ -101,7 +107,7 @@ for (const [cfg, flags] of CFGS) {
       r.hookMsPerFrame = hook / ticks;
       r.peakTracers = peak.bolts; r.peakFlashes = peak.flashes; r.peakContacts = peak.impacts; r.peakSparkStreaks = peak.sparks;
       r.pooledObjects = c.imgPool.length + c.gfxPool.length + c.bolts.length * 3 + c.flashes.length * 2 + c.impacts.length * 4;
-      if (c.p2a3) { r.p2a3Polls = c.p2a3.stats.polls; r.p2a3Flicks = c.p2a3.stats.flicks; }
+      if (c.p2a3) { r.p2a3MsPerFrame = x3 / ticks; r.p2a3HudMsPerFrame = x3r / ticks; r.p2a3Polls = c.p2a3.stats.polls; r.p2a3Flicks = c.p2a3.stats.flicks; }
       r.tracersDrawn = c.stats.bolts; r.contactsDrawn = Object.values(c.stats.impacts).reduce((a, b) => a + b, 0); r.parityParticles = c.stats.parity; r.contactsRecycled = c.stats.recycled;
     }
     r.tweens = gs.tweens.getTweens().length;
