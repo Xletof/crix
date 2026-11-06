@@ -1,0 +1,123 @@
+
+== 0. the flags
+PASS  ?(no flags) -> P2-A3 off, P2-A2 loadout off, P2-A layer off, P1 off  — {"a3":false,"a2":false,"a":false,"p1":false,"sharp":false,"layer":false,"loadout":false,"x":false,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?fxPilot=p2a3 -> P2-A3 off, P2-A2 loadout off, P2-A layer off, P1 off  — {"a3":false,"a2":false,"a":false,"p1":false,"sharp":false,"layer":false,"loadout":false,"x":false,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&fxPilot=p2a3 -> P2-A3 off, P2-A2 loadout off, P2-A layer off, P1 off  — {"a3":false,"a2":false,"a":false,"p1":false,"sharp":false,"layer":false,"loadout":false,"x":false,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2b&polish=p1&fxPilot=p2a3 -> P2-A3 off, P2-A2 loadout off, P2-A layer off, P1 off  — {"a3":false,"a2":false,"a":false,"p1":false,"sharp":false,"layer":false,"loadout":false,"x":false,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1 -> P2-A3 off, P2-A2 loadout off, P2-A layer off, P1 on  — {"a3":false,"a2":false,"a":false,"p1":true,"sharp":false,"layer":false,"loadout":false,"x":false,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=p2a2 -> P2-A3 off, P2-A2 loadout on, P2-A layer on, P1 on  — {"a3":false,"a2":true,"a":true,"p1":true,"sharp":false,"layer":true,"loadout":true,"x":false,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=p2a3 -> P2-A3 ON, P2-A2 loadout on, P2-A layer on, P1 on  — {"a3":true,"a2":true,"a":true,"p1":true,"sharp":false,"layer":true,"loadout":true,"x":true,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=p2a3&muzzle=sharp -> P2-A3 ON + SHARP, P2-A2 loadout on, P2-A layer on, P1 on  — {"a3":true,"a2":true,"a":true,"p1":true,"sharp":true,"layer":true,"loadout":true,"x":true,"ctlSharp":true,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=p2a2&muzzle=sharp -> P2-A3 off, P2-A2 loadout on, P2-A layer on, P1 on  — {"a3":false,"a2":true,"a":true,"p1":true,"sharp":false,"layer":true,"loadout":true,"x":false,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=p2a&muzzle=sharp -> P2-A3 off, P2-A2 loadout off, P2-A layer on, P1 on  — {"a3":false,"a2":false,"a":true,"p1":true,"sharp":false,"layer":true,"loadout":false,"x":false,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1&muzzle=sharp -> P2-A3 off, P2-A2 loadout off, P2-A layer off, P1 on  — {"a3":false,"a2":false,"a":false,"p1":true,"sharp":false,"layer":false,"loadout":false,"x":false,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?muzzle=sharp -> P2-A3 off, P2-A2 loadout off, P2-A layer off, P1 off  — {"a3":false,"a2":false,"a":false,"p1":false,"sharp":false,"layer":false,"loadout":false,"x":false,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=p2a3&muzzle=SHARP -> P2-A3 ON, P2-A2 loadout on, P2-A layer on, P1 on  — {"a3":true,"a2":true,"a":true,"p1":true,"sharp":false,"layer":true,"loadout":true,"x":true,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=p2a3&muzzle=soft -> P2-A3 ON, P2-A2 loadout on, P2-A layer on, P1 on  — {"a3":true,"a2":true,"a":true,"p1":true,"sharp":false,"layer":true,"loadout":true,"x":true,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=P2A3 -> P2-A3 off, P2-A2 loadout off, P2-A layer off, P1 on  — {"a3":false,"a2":false,"a":false,"p1":true,"sharp":false,"layer":false,"loadout":false,"x":false,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=p2a9 -> P2-A3 off, P2-A2 loadout off, P2-A layer off, P1 on  — {"a3":false,"a2":false,"a":false,"p1":true,"sharp":false,"layer":false,"loadout":false,"x":false,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?baseline=legacy&visualPilot=v2c&polish=p1&fxPilot=p2a3&muzzle=sharp -> P2-A3 ON + SHARP, P2-A2 loadout on, P2-A layer on, P1 on  — {"a3":true,"a2":true,"a":true,"p1":true,"sharp":true,"layer":true,"loadout":true,"x":true,"ctlSharp":true,"base":"legacy","sw":"false,false,false,,,false,false"}
+PASS  the flags move none of the seven gameplay switches (per baseline)  — {"production":["true,true,true,early,early,true,true"],"legacy":["false,false,false,,,false,false"]}
+
+== 1. textures
+PASS  B: every P2-A2 texture byte-identical (162: P1, p2a-*, p2a2-*, roster, pickups, `bullet`)
+PASS  B: the added textures are exactly the 8 p2a3-* keys  — p2a3-cell-0 p2a3-cell-1 p2a3-cell-2 p2a3-cell-3 p2a3-cell-hot p2a3-hud-burst p2a3-hud-override p2a3-hud-standard
+PASS  BS (`muzzle=sharp`): every texture byte-identical to B — the A/B is persistence only
+PASS  R1 + ignored fxPilot=p2a3: every texture byte-identical, no p2a3 key
+PASS  P1 + ignored fxPilot=p2a9: every texture byte-identical, no p2a3 key
+PASS  P2-A2 + ignored muzzle=sharp: every texture byte-identical, no p2a3 key
+
+== 2. install
+PASS  B adds no game-event listener to P2-A2's (P2-A3 polls in P2-A's own frame)
+PASS  B keeps P2-A2's thirteen wrappers and its HUD instance wrapper (P2-A3 wraps that one in turn)  — {"a":13,"b":13}
+PASS  B: the cell, its glow and the engage ring in the display list, hidden at rest; no P2-A3 HUD object before OVERRIDE; no tween  — {"world":"true:false,true:false,true:false","hud":0,"tweens":[0,0]}
+PASS  one refresh runs the shipped panel, then P2-A2's restyle, then P2-A3's (both counted, P2-A3's last: the icon is the burst symbol); its four HUD objects are built on first use  — {"l":2,"x":2,"own":[true,true,true,true],"icon":"p2a3-hud-burst"}
+
+== 3. the round count (refinement 1)
+PASS  B: on every one of 182 OVERRIDE ticks the HUD count and bar equal secondaryAmmo (27 -> 1, the bar 76 x ammo / 27)
+PASS  CONTROL: P2-A2 (the shipped behaviour) shows a stale count/bar on 162 of 182 OVERRIDE ticks — the check can see the defect  — ammo 26 "OVERRIDE  27" bar 76.0; ammo 26 "OVERRIDE  27" bar 76.0
+PASS  the shots, burst counter, ammunition, the tick it runs dry (182) and the draw count are P2-A2's  — draws 1943/1943, dry 182/182
+PASS  no event added or removed: every game event emitted the same number of times (secondary-ammo-changed 2, secondary-equipped 2, player-fire-rifle 27)
+PASS  redrawn only when the value changes: 26 poll redraws for 26 value changes during OVERRIDE (the emptying round goes through the shipped event); HUD refreshes 4 -> 30  — {"polls":26,"changes":26}
+
+== 4. the readout (refinement 2)
+PASS  B, OVERRIDE: the three-round symbol (p2a3-hud-burst) at full size at the top of the panel, the count alone in the HUD's own type at 32px, the mode's name under the panel  — {"icon":"p2a3-hud-burst","iconVis":true,"iconScale":1,"iconX":126,"iconY":975,"text":"24","font":"32px","textX":126,"textY":1011,"textH":36,"cx":126,"cy":1004,"label":["p2a3-hud-override",126,1053],"std":null,"cuts":8,"segCmds":43}
+PASS  B: the count is the panel's largest type — 36px tall vs P2-A2's 19px "OVERRIDE  27" caption line  — 36 / 19
+PASS  B: the bar is cut every three rounds — eight cuts, one segment per trigger pull  — {"cuts":8,"cmds":43}
+PASS  B, engage: the symbol pops (1.35 -> 1 over 260ms) and settles at 1  — 1.307,1.266,1.228,1.194,1.162,1.133,1.106,1.083,1.063,1.045,1.03,1.019,1.01,1.004,1.001,1,1,1,1,1
+PASS  B, run dry: the panel clears as shipped and STANDARD is shown where it was for 66 ticks (1100ms), fading over its last 380ms, then gone  — {"first":1,"n":66,"last":null}
+PASS  B, back in STANDARD: the shipped secText size restored (15px)  — 15px
+PASS  B, OVERRIDE -> cluster pod: the shipped cluster panel (icon, 0.42, "CLUSTER", 15px), no OVERRIDE label or cuts, and no STANDARD tag (it is not STANDARD)  — ["pickup-cluster",true,0.42,126,990,"CLUSTER  ×3","15px",126,1048] / ["pickup-cluster",true,0.42,126,990,"CLUSTER  ×3","15px",126,1048] tag null
+PASS  B, the cluster panel is P2-A2's pixel for pixel (a 128x124 grab of the HUD)  — e554d43 / e554d43
+
+== 5. the active state (refinement 3)
+PASS  the carried rifle is P2-A2's object state on every one of 293 ticks (texture, position, rotation, flip, depth, alpha) — the same gun
+PASS  every lit texel of the five cell textures lands on an opaque texel of p1-rifle AND p1-rifle-hot (same 72x40 canvas): the silhouette never grows  — p2a3-cell-0:64/0 p2a3-cell-1:80/0 p2a3-cell-2:96/0 p2a3-cell-3:112/0 p2a3-cell-hot:112/0
+PASS  the cell rides the rifle exactly at 8 aims (position, rotation, flip, origin; depth +0.02)
+PASS  mid-combo (the blade drawn) the cell is hidden; in a bush it fades with the rifle; dead, hidden  — {"out":[{"a":0,"ok":true},{"a":0.785,"ok":true},{"a":1.571,"ok":true},{"a":2.356,"ok":true},{"a":3.1416,"ok":true},{"a":-2.356,"ok":true},{"a":-1.571,"ok":true},{"a":-0.785,"ok":true}],"blade":{"view":"p1-blade","cell":false},"bush":{"va":0.5,"ca":0.5},"dead":{"va":0,"cell":false}}
+PASS  the cell shows only while OVERRIDE is engaged or in its run-dry beat — never in plain STANDARD  — 0 stray ticks
+PASS  engage: the pips light in sequence (0 0 0 1 1 1 1 2 2 2 3 3 3 3) and one amber ring leaves the cell for 300ms (17 frames)  — 0,0,0,1,1,1,1,2,2,2,3,3,3,3
+PASS  one flick per round leaving: 26 flicks, 1 engage, 1 run-dry  — {"engages":1,"drains":1,"polls":26,"flicks":26,"hud":28}
+PASS  the last two bursts pulse the cell (alpha 0.55..0.98); before that it is steady at 1  — 14 low ticks
+PASS  run dry: the pips go out 3 -> 0, the cell gutters twice and dies within 420ms (25 ticks): 3@1.0 3@1.0 3@1.0 3@1.0 2@1.0 2@1.0 2@1.0 2@1.0 1@1.0 1@1.0 1@1.0 1@1.0 0@1.0 0@1.0 0@1.0 0@1.0 - - - 0@0.7 0@0.7 - - 0@0.3 0@0.3 -  — 3@1.0 3@1.0 3@1.0 3@1.0 2@1.0 2@1.0 2@1.0 2@1.0 1@1.0 1@1.0 1@1.0 1@1.0 0@1.0 0@1.0 0@1.0 0@1.0 - - - 0@0.7 0@0.7 - - 0@0.3 0@0.3 - - - - -
+
+== 6. the STANDARD discharge A/B (refinement 4)
+PASS  B without `muzzle=sharp`: the STANDARD discharge is P2-A2's on every frame of sustained fire in 4 states (texture, position, rotation, scale, alpha, depth, glow)
+PASS  BS: on the first frame each shot is seen, the same texture (p2a2-mz-s), position, rotation, full size and depth as the current discharge, at full alpha
+PASS  BS: the depth rule holds on every frame in every state (over the shield bubble in front of the body, under the body behind it)
+PASS  none   5 shots: lit frames/shot 3.6 -> 2.0; first-frame ink 1109 -> 1109 px; frames with ink 27% -> 15%; mean ink/frame 171 -> 100  — {"c":{"shots":5,"lit":3.6,"litMax":4,"firstInk":1109,"duty":0.27,"meanInk":171},"k":{"shots":5,"lit":2,"litMax":2,"firstInk":1109,"duty":0.15,"meanInk":100}}
+PASS  shield 5 shots: lit frames/shot 3.6 -> 2.0; first-frame ink 1109 -> 1109 px; frames with ink 27% -> 15%; mean ink/frame 172 -> 100  — {"c":{"shots":5,"lit":3.6,"litMax":4,"firstInk":1109,"duty":0.27,"meanInk":172},"k":{"shots":5,"lit":2,"litMax":2,"firstInk":1109,"duty":0.15,"meanInk":100}}
+PASS  ready  5 shots: lit frames/shot 3.6 -> 2.0; first-frame ink 1109 -> 1109 px; frames with ink 27% -> 15%; mean ink/frame 172 -> 101  — {"c":{"shots":5,"lit":3.6,"litMax":4,"firstInk":1109,"duty":0.27,"meanInk":172},"k":{"shots":5,"lit":2,"litMax":2,"firstInk":1109,"duty":0.15,"meanInk":101}}
+PASS  both   5 shots: lit frames/shot 3.6 -> 2.0; first-frame ink 1106 -> 1106 px; frames with ink 27% -> 15%; mean ink/frame 173 -> 102  — {"c":{"shots":5,"lit":3.6,"litMax":4,"firstInk":1106,"duty":0.27,"meanInk":173},"k":{"shots":5,"lit":2,"litMax":2,"firstInk":1106,"duty":0.15,"meanInk":102}}
+PASS  at a 30 Hz step: shots drawn at full alpha on their first frame — current 0/5, sharp 5/5; lit frames/shot 2.0 -> 1.0
+
+== 7. same fight
+PASS  SWARM TIDE, production: 1500 headless ticks, B identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — 18129 draws; 2 engage, 52 flicks, 52 count redraws
+PASS  SWARM TIDE, production: 1500 headless ticks, BS identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — 18129 draws; 2 engage, 52 flicks, 52 count redraws
+PASS  SWARM TIDE, legacy baseline: 1500 headless ticks, B identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — 15835 draws; 1 engage, 26 flicks, 26 count redraws
+PASS  SWARM TIDE, legacy baseline: 1500 headless ticks, BS identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — 15835 draws; 1 engage, 26 flicks, 26 count redraws
+PASS  CROSSFIRE, production: 1500 headless ticks, B identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — 16120 draws; 1 engage, 26 flicks, 26 count redraws
+PASS  CROSSFIRE, production: 1500 headless ticks, BS identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — 16120 draws; 1 engage, 26 flicks, 26 count redraws
+PASS  BOMBER RUN, production: 1500 headless ticks, B identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — 16722 draws; 1 engage, 26 flicks, 26 count redraws
+PASS  BOMBER RUN, production: 1500 headless ticks, BS identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — 16722 draws; 1 engage, 26 flicks, 26 count redraws
+PASS  SWARM TIDE, production: 1500 ticks, B identical to P1  — 18129 draws
+PASS  SWARM TIDE, production: 600 RENDERED ticks, BS identical to P2-A2  — 8064 draws
+PASS  CROSSFIRE in LOW quality: 600 rendered ticks, B identical to P2-A2  — 4142 draws
+PASS  R1 + ignored fxPilot=p2a3&muzzle=sharp: 800 ticks identical to R1
+
+== 8. reader only
+PASS  the P2-A3 frame (count redraws, cell, beats, HUD restyle) draws no Math.random over 500 ticks with two OVERRIDE pickups ({"engages":2,"drains":1,"polls":44,"flicks":44,"hud":48})  — 0 draws
+PASS  the P2-A3 frame emits no game event and writes no player or clock field (secondary, ammo, burst counter/timer/angle, refill timers, cooldown, position, aim, Super, velocity, hp, time scale)  — 0 frames wrote, 0 events
+
+== 9. budget + low quality
+PASS  four engage -> run-dry cycles: no display object accumulates in the Game or HUD scene (284 -> 268)  — {"o0":284,"o1":268,"glow":0,"ring":0,"cell":80,"x":{"engages":5,"drains":4,"polls":114,"flicks":110,"hud":124}}
+PASS  low quality: the cell is drawn; its glow and the engage ring are not  — {"o0":284,"o1":268,"glow":0,"ring":0,"cell":80,"x":{"engages":5,"drains":4,"polls":114,"flicks":110,"hud":124}}
+
+== 10. frozen files
+PASS  src/: nothing changed against 356b5df outside debug.js, p2aFx.js, p2aPaint.js and the new p2a3Override.js (P2-A2's p2a2Loadout.js, entities, Player, WeaponPickup, HUD, GameScene, PreloadScene, P1, FX, config untouched)
+PASS  p2aPaint.js: P2-A3 only ADDS (one import name, one paint call, its own painters); no P2-A / P2-A2 painter line changed  — -import { isFxP2A, isFxP2A2 } from './debug.js';
+PASS  Enemy.js guard (outside the Bomber, the Bomber-only veto)  — {"outside":true,"hasDoc":true,"hasMethod":true,"code":"_vetoFalseStuck() { if (this._stuckFirstSeen || this._miniBoss) return; if (this._stuckRefX === undefined) return; this._stuckFirstSeen = true; const moved = Ma"}
+
+== 11. against the previous build (http://localhost:5180/)
+PASS  R1 (no flags): every texture byte-identical to the previous build
+PASS  V2C: every texture byte-identical to the previous build
+PASS  P1: every texture byte-identical to the previous build
+PASS  P2-A: every texture byte-identical to the previous build
+PASS  P2-A2: every texture byte-identical to the previous build
+PASS  P2-A2's RENDERED output (world + HUD, full canvas) is pixel-identical to the previous build over STANDARD with both rings, an OVERRIDE pickup, bursts to empty and STANDARD after (110 frames)
+PASS  P2-A2 + an ignored `muzzle=sharp`: the same frames, pixel for pixel
+PASS  CONTROL: the same pixel check FAILS for P2-A3 against the previous P2-A2 (79 of 110 frames differ) — it can see a change  — 31 identical frames
+PASS  SWARM TIDE, R1: 1500 ticks identical to the previous build  — 18129 draws
+PASS  SWARM TIDE, P1: 1500 ticks identical to the previous build  — 18129 draws
+PASS  SWARM TIDE, P2-A: 1500 ticks identical to the previous build  — 18129 draws
+PASS  SWARM TIDE, P2-A2: 1500 ticks identical to the previous build  — 18129 draws
+PASS  SWARM TIDE, B vs the previous P2-A2: 1500 ticks identical to the previous build  — 18129 draws
+PASS  CROSSFIRE, BS vs the previous P2-A2: 1500 ticks identical to the previous build  — 16120 draws
+PASS  SWARM TIDE, R1 + ignored fxPilot=p2a3: 1500 ticks identical to the previous build  — 18129 draws
+
+== 12. restart and reload keep the mode
+PASS  2 restarts mid-OVERRIDE + quit-to-title: the old layer destroyed, one cell, the HUD text size restored, wrappers and listeners steady; none at the title; OVERRIDE restyles again after  — {"out":[{"x":true,"sharp":true,"hudOwn":true,"cells":1,"hudObjs":0,"post":10,"font":"15px","oldDead":true},{"x":true,"sharp":true,"hudOwn":true,"cells":1,"hudObjs":0,"post":10,"font":"15px","oldDead":true},{"x":true,"sharp":true,"hudOwn":true,"cells":1,"hudObjs":0,"post":10,"font":"15px","oldDead":true}],"title":{"hudOwn":false},"again":{"text":"27","icon":"p2a3-hud-burst"}}
+PASS  BS: a reload keeps the mode (and paints the p2a3 set only when on)  — {"a3":true,"sharp":true,"tex":true}
+PASS  P2-A2: a reload keeps the mode (and paints the p2a3 set only when on)  — {"a3":false,"sharp":false,"tex":false}
+
+95/95 passed
