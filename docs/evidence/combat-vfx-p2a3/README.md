@@ -211,6 +211,53 @@ including **P2-A2's own `p2a2Loadout.js`**, `GameScene.js`, `PreloadScene.js`,
   count re-uses the HUD's own `secText`; the words `OVERRIDE` / `STANDARD` are
   painted pixel type.
 
+## Validation
+
+- **`smoke-fx-p2a3 --old=356b5df`: 95/95** (`smoke-fx-p2a3.txt`):
+  - flags: 17 combinations (only `visualPilot=v2c&polish=p1&fxPilot=p2a3` turns
+    P2-A3 on; `muzzle=sharp` only with it), no gameplay switch moved;
+  - textures: P2-A2's 162 byte-identical, plus exactly the eight `p2a3-*`;
+  - **P2-A2 against the deployed build:** every texture, and its **RENDERED
+    full canvas — world and HUD — pixel-identical over 110 frames** of STANDARD
+    fire with both rings, an OVERRIDE pickup, bursts to empty and STANDARD
+    after; the same with an ignored `muzzle=sharp`; CONTROL: the same check
+    fails for P2-A3 (79 of 110 frames differ). R1, V2C, P1 and P2-A textures
+    identical; R1, P1, P2-A and P2-A2 fights identical to that build;
+  - **same fight:** seeded 1500-tick replays with a real OVERRIDE pickup and a
+    cluster pod — P2-A3 and P2-A3 + sharp identical to P2-A2 (SWARM TIDE
+    production and legacy, CROSSFIRE, BOMBER RUN; state, burst counter, pickups,
+    ammunition, `Math.random` draws, and every game event's count), P2-A3
+    identical to P1; 600 RENDERED ticks; LOW quality;
+  - reader only: no `Math.random`, no event, no player / clock write in the
+    P2-A3 frame; budget (nothing accumulates over engage / run-dry cycles; low
+    quality drops the glow and ring); frozen files (only `debug.js`,
+    `p2aFx.js`, `p2aPaint.js` and the new `p2a3Override.js` differ from
+    `356b5df`; `p2aPaint.js` only adds); restarts, quit-to-title and reloads.
+- **Selftest OK** (`selftest.txt`): a `Math.random` draw in the P2-A3 frame, an
+  event emitted with each count redraw and a 1px shift of the cell each make
+  their sections fail.
+- **Covering suites** (`suites.txt`): P2-A2's own suite 64/64, P2-A's 70/70,
+  P1 73/73, visual-pilot 97/97, roster-seams 70/70, bulwark 92/92, leak,
+  restart, rng, score, title, debug, readability (19/19 this run) all pass;
+  `npm run build` passes.
+- **Evidence rigs:** all 15 A/B pairs identical at every tick.
+
+## Performance (`perf.txt`; headless Chromium, software rasteriser, A vs B only)
+
+- **Frame step median: P2-A2 10.4 ms -> P2-A3 10.5 ms.**
+- P2-A3's own frame when nothing changes: **~5 µs**.
+- **A count redraw** re-runs the HUD's refresh chain: **three Text
+  re-renders** (the shipped `DC-15 n`, P2-A2's `OVERRIDE  n`, P2-A3's `n`),
+  each at the same cost as the shipped HUD's own texts (median 0.2 ms, p95
+  0.7 ms). **At most 26 per module.** In the stress fight (999 rounds, ~6x real
+  play) Text re-renders went 1037 -> 1355.
+- The hook's per-frame average swings between runs (0.17–1.2 ms) with the
+  software rasteriser's occasional texture-upload stalls, which hit the
+  shipped texts the same way; the current and sharp discharges have identical
+  counts and costs.
+- One-time: eight textures (+84 KB); three display objects at rest, four more
+  in the HUD once OVERRIDE is first taken; no tween, no particle.
+
 ## Known limitations
 
 - **The power cell is small at phone size.** The magazine light is 8x8 world

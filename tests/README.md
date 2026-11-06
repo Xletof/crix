@@ -2246,7 +2246,12 @@ P2-A3, BS = P2-A3 + `muzzle=sharp`; P1 compared too.
   30 Hz step, and a full-frame film through all four states). The p2a3 sets
   render every tick (60 fps films) and add each close-up at true phone size
   (`ab-phone-1x-*.mp4`, the canvas at 0.54x).
-- `diag-fx-p2a-perf.mjs --set=p2a3` — the cost table, A = P2-A2, B = P2-A3.
+- `diag-fx-p2a-perf.mjs --set=p2a3` (and `--set=p2a3mz`) — the cost table, A =
+  P2-A2, B = P2-A3; adds P2-A3's share of the hook (`p2a3MsPerFrame`, of it
+  the HUD count redraws `p2a3HudMsPerFrame`) and every Phaser Text re-render in
+  the fight (`textUpdates`, median / p95 ms). Under the software rasteriser a
+  Text's immediate texture upload occasionally stalls for hundreds of ms, so
+  per-hook AVERAGES swing between runs: compare counts and medians.
 
 ### What it taught
 
