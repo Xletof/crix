@@ -28,9 +28,11 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { CHROME, bootPage } from './diag-stuck-audit.mjs';
 
 const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').split('=').slice(1).join('=') || d;
-const OUT = opt('out', 'docs/evidence/combat-vfx-p2a');
-const A = opt('a', 'visualPilot=v2c&polish=p1');
-const B = opt('b', 'visualPilot=v2c&polish=p1&fxPilot=p2a');
+// --set=p2a2: the P2-A2 evidence (A = P2-A, B = P2-A2, its own scene list)
+const SET = opt('set', 'p2a');
+const OUT = opt('out', SET === 'p2a2' ? 'docs/evidence/combat-vfx-p2a2' : 'docs/evidence/combat-vfx-p2a');
+const A = opt('a', SET === 'p2a2' ? 'visualPilot=v2c&polish=p1&fxPilot=p2a' : 'visualPilot=v2c&polish=p1');
+const B = opt('b', SET === 'p2a2' ? 'visualPilot=v2c&polish=p1&fxPilot=p2a2' : 'visualPilot=v2c&polish=p1&fxPilot=p2a');
 const ONLY = opt('only', '') ? new Set(opt('only', '').split(',')) : null;
 const want = (n) => !ONLY || ONLY.has(n);
 const BASE = opt('base', 'http://localhost:5173/');
@@ -40,8 +42,9 @@ const fnv = (str) => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) 
 
 async function boot(flags, q, seed = 4242) {
   const p = await bootPage(browser, { base: BASE, flags, baseline: null, q, seed });
-  await p.evaluate(() => {
+  await p.evaluate(async () => {
     const gs = window.__gs;
+    window.__WP = (await window.__mod(/entities\/WeaponPickup\.js/))?.WeaponPickup;
     window.__clear = () => {
       gs.arenaActive = false; gs._spawnQueue = [];
       gs.enemies.getChildren().slice().forEach((e) => gs._destroyEnemyFully(e));
@@ -129,8 +132,50 @@ const SCENES = {
   },
 };
 
+// ── the P2-A2 set (`--set=p2a2`): A = P2-A, B = P2-A2 ─────────────────────
+const KEEP = (o) => `P.shieldHp = ${o.shield ? 50 : 0}; P.superCharge = ${o.ready ? 99 : 0};`;
+const ringed = (o, name) => ({
+  strip: [0, 24, 2], ticks: 30, rect: [650, 700, 870, 920], full: [1, 15],
+  setup: `P.x = 760; P.y = 810; P.body.reset(760, 810); P.facing = 0; ${KEEP(o)}
+          const e = gs.spawnEnemyAt('grunt', 1020, 810); window.__T = [e];`,
+  act: `${KEEP(o)} if (i === 0 || i === 14) { P.fireCooldown = 0; P.tryFire(Math.atan2(T[0].y - P.y, T[0].x - P.x)); }`,
+  note: name,
+});
+const SCENES_P2A2 = {
+  standard: {
+    strip: [0, 16, 1], ticks: 30, rect: [700, 720, 1080, 900],
+    setup: `P.x = 760; P.y = 810; P.body.reset(760, 810); P.facing = 0;
+            const e = gs.spawnEnemyAt('grunt', 1020, 810); window.__T = [e];`,
+    act: `if (i === 0 || i === 16) { P.fireCooldown = 0; P.tryFire(Math.atan2(T[0].y - P.y, T[0].x - P.x)); }`,
+  },
+  override: {
+    strip: [3, 25, 1], ticks: 34, rect: [700, 720, 1080, 900],
+    setup: `P.x = 760; P.y = 810; P.body.reset(760, 810); P.facing = 0;
+            gs.weaponPickups.push(new window.__WP(gs, P.x, P.y, 'rifle'));
+            const e = gs.spawnEnemyAt('grunt', 1020, 810); window.__T = [e];`,
+    act: `if (i === 3) P.tryFire(Math.atan2(T[0].y - P.y, T[0].x - P.x));`,
+  },
+  shieldfire: ringed({ shield: 1 }, 'shield'),
+  readyfire: ringed({ ready: 1 }, 'ready'),
+  bothfire: ringed({ shield: 1, ready: 1 }, 'both'),
+  aim8: {
+    strip: [1, 80, 10], ticks: 80, rect: [650, 650, 950, 950],
+    setup: `P.x = 800; P.y = 800; P.body.reset(800, 800); window.__T = [];`,
+    act: `if (i % 10 === 0) { P.fireCooldown = 0; P.tryFire((i / 10) * Math.PI / 4); }`,
+  },
+  // the whole loop at phone size: the module dropped ahead, walked onto,
+  // bursts until it runs dry, then the same gun fires STANDARD again
+  sequence: {
+    strip: [0, 280, 14], ticks: 280, rect: null, full: [8, 46, 70, 110, 200, 262],
+    setup: `P.x = 610; P.y = 860; P.body.reset(610, 860); gs.spawnWeaponChoice(760, 660, 'REWARD'); window.__T = [];`,
+    act: `gs.keys.W.isDown = i >= 10 && i < 50;
+          if (i >= 60) P.tryFire(-0.35);`,
+  },
+};
+const SCENE_SET = SET === 'p2a2' ? SCENES_P2A2 : SCENES;
+
 async function stage(flags, name, dir) {
-  const S = SCENES[name];
+  const S = SCENE_SET[name];
   const p = await boot(flags, 'room=hangar');
   await p.evaluate(({ setup }) => {
     const gs = window.__gs, P = gs.player;
@@ -153,10 +198,11 @@ async function stage(flags, name, dir) {
       const gs = window.__gs, P = gs.player, T = window.__T;
       new Function('gs', 'P', 'T', 'i', act)(gs, P, T, i);
       window.__adv(1);
-      return { s: window.__state(), clip: window.__clip(...rect) };
+      return { s: window.__state(), clip: rect ? window.__clip(...rect) : null };
     }, { i, act: S.act, rect: S.rect });
     hashes.push(fnv(r.s));
-    if (dir) await p.screenshot({ path: `${dir}/f${String(i).padStart(3, '0')}.png`, clip: r.clip });
+    if (dir) await p.screenshot({ path: `${dir}/f${String(i).padStart(3, '0')}.png`, ...(r.clip ? { clip: r.clip } : {}) });
+    if (dir && S.full?.includes(i)) await p.screenshot({ path: `${dir}/full${String(i).padStart(3, '0')}.png` });
   }
   await p.close();
   return hashes;
@@ -175,15 +221,18 @@ async function fight(flags, name, dir) {
   const hashes = [];
   if (dir) mkdirSync(dir, { recursive: true });
   for (let i = 0; i < F.ticks; i++) {
-    const s = await p.evaluate(({ i, seg }) => {
+    const s = await p.evaluate(({ i, seg, set }) => {
       const gs = window.__gs, P = gs.player, K = gs.keys;
       const cur = seg.find(([a, b]) => i >= a && i < b)[2];
       K.A.isDown = cur.includes('A'); K.D.isDown = cur.includes('D'); K.W.isDown = cur.includes('W'); K.S.isDown = cur.includes('S');
-      if (i === 200) { P.secondary = 'rifle'; P.secondaryAmmo = 90; gs.events.emit('secondary-equipped', 'rifle'); }
+      if (i === 200) {
+        if (set === 'p2a2') gs.weaponPickups.push(new window.__WP(gs, P.x, P.y, 'rifle'));   // a real OVERRIDE module, collected
+        else { P.secondary = 'rifle'; P.secondaryAmmo = 90; gs.events.emit('secondary-equipped', 'rifle'); }
+      }
       if (i >= 10 && i % 6 === 0) P.keyboardFire();
       window.__adv(1);
       return window.__state();
-    }, { i, seg });
+    }, { i, seg, set: SET });
     hashes.push(fnv(s));
     // every other tick: a 30 fps film of a 60 Hz fight
     if (dir && i % 2 === 0) await p.screenshot({ path: `${dir}/f${String(i / 2).padStart(3, '0')}.png` });
@@ -198,7 +247,7 @@ const say = (s) => { console.log(s); log.push(s); };
 mkdirSync(OUT, { recursive: true });
 const TMP = opt('frames', `${OUT}/.frames`);   // raw frames (not evidence: keep them out of the repo)
 
-for (const name of Object.keys(SCENES)) {
+for (const name of Object.keys(SCENE_SET)) {
   if (!want(name)) continue;
   rmSync(`${TMP}/${name}`, { recursive: true, force: true });
   const hA = await stage(A, name, `${TMP}/${name}/A`);
@@ -207,27 +256,40 @@ for (const name of Object.keys(SCENES)) {
   say(`${name}: ${hA.length} ticks, A vs B gameplay state ${d < 0 ? 'IDENTICAL at every tick' : `DIFFERS at tick ${d}`}`);
   if (d >= 0) continue;
   const dir = `${OUT}/${name}`; mkdirSync(dir, { recursive: true });
-  const S = SCENES[name];
+  const S = SCENE_SET[name];
   // frame sheets: A row over B row, every tick, 2x nearest
   const n = hA.length, cols = Math.min(n, 10);
-  for (const [lab, sub] of [['A', 'A'], ['B', 'B']]) {
+  for (const [lab, sub] of (S.rect ? [['A', 'A'], ['B', 'B']] : [])) {   // full-frame scenes: the phone strip + film instead
     sh(`ffmpeg -y -loglevel error -framerate 60 -i ${TMP}/${name}/${sub}/f%03d.png -vf "tile=${cols}x${Math.ceil(n / cols)}:padding=4:color=0x202020" -frames:v 1 ${dir}/sheet-${lab}.png`);
-    sh(`python3 -c "from PIL import Image; Image.open('${dir}/sheet-${lab}.png').convert('RGB').quantize(256, method=Image.Quantize.MEDIANCUT).save('${dir}/sheet-${lab}.png', optimize=True)"`);
+    sh(`python3 -c "from PIL import Image; Image.open('${dir}/sheet-${lab}.png').convert('RGB').save('${dir}/sheet-${lab}.png', optimize=True)"`);
+  }
+  // full-frame scenes: A | B films at PHONE SIZE (390px each), and the key stills
+  if (!S.rect) sh(`ffmpeg -y -loglevel error -framerate 60 -i ${TMP}/${name}/A/f%03d.png -framerate 60 -i ${TMP}/${name}/B/f%03d.png -filter_complex "[0]scale=390:-2:flags=area,pad=iw+8:ih:0:0:0x202020[a];[1]scale=390:-2:flags=area[b];[a][b]hstack,format=yuv420p" -c:v libx264 -crf 23 ${dir}/ab-phone-size.mp4`);
+  for (const k of S.full || []) {
+    sh(`python3 -c "
+from PIL import Image
+a=Image.open('${TMP}/${name}/A/full%03d.png'%${k}); b=Image.open('${TMP}/${name}/B/full%03d.png'%${k})
+W=390; H=int(a.size[1]*W/a.size[0])
+o=Image.new('RGB',(W*2+8,H),(20,20,20)); o.paste(a.resize((W,H),Image.LANCZOS),(0,0)); o.paste(b.resize((W,H),Image.LANCZOS),(W+8,0))
+o.save('${dir}/ab-phone-full-%03d.png'%${k}, optimize=True)
+"`);
   }
   // A | B per tick at TWICE PHONE SCALE (the canvas shows at ~0.54x on a
   // 390px-wide phone; x1.08 keeps the A:B comparison honest and inspectable)
   sh(`python3 -c "
 from PIL import Image
 idx=list(range(${S.strip[0]}, ${Math.min(S.strip[1], n)}, ${S.strip[2]})); fr=[(Image.open('${TMP}/${name}/A/f%03d.png'%i),Image.open('${TMP}/${name}/B/f%03d.png'%i)) for i in idx]; n=len(fr)
-w,h=fr[0][0].size; W,H=int(w*1.08),int(h*1.08)
+w,h=fr[0][0].size; k=${S.rect ? 1.08 : 0.3}; W,H=int(w*k),int(h*k)
 o=Image.new('RGB',(W*2+8,(H+4)*n),(20,20,20))
 for k,(a,b) in enumerate(fr):
   o.paste(a.resize((W,H),Image.LANCZOS),(0,k*(H+4))); o.paste(b.resize((W,H),Image.LANCZOS),(W+8,k*(H+4)))
-o.quantize(256, method=Image.Quantize.MEDIANCUT).save('${dir}/ab-phone2x.png', optimize=True)
+o.save('${dir}/${S.rect ? 'ab-phone2x' : 'ab-phone-strip'}.png', optimize=True)
 "`);
   // synchronized film, A | B, 2x, real time and 1/4 speed
-  sh(`ffmpeg -y -loglevel error -framerate 60 -i ${TMP}/${name}/A/f%03d.png -framerate 60 -i ${TMP}/${name}/B/f%03d.png -filter_complex "[0]scale=iw*2:ih*2:flags=neighbor,pad=iw+8:ih:0:0:0x202020[a];[1]scale=iw*2:ih*2:flags=neighbor[b];[a][b]hstack,format=yuv420p,scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:v libx264 -crf 18 ${dir}/ab-60fps.mp4`);
-  sh(`ffmpeg -y -loglevel error -i ${dir}/ab-60fps.mp4 -vf "setpts=4*PTS" -r 30 -c:v libx264 -crf 18 ${dir}/ab-quarter-speed.mp4`);
+  if (S.rect) {   // close-ups only: a full-frame scene has its phone-size film above
+    sh(`ffmpeg -y -loglevel error -framerate 60 -i ${TMP}/${name}/A/f%03d.png -framerate 60 -i ${TMP}/${name}/B/f%03d.png -filter_complex "[0]scale=iw*2:ih*2:flags=neighbor,pad=iw+8:ih:0:0:0x202020[a];[1]scale=iw*2:ih*2:flags=neighbor[b];[a][b]hstack,format=yuv420p,scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:v libx264 -crf 18 ${dir}/ab-60fps.mp4`);
+    sh(`ffmpeg -y -loglevel error -i ${dir}/ab-60fps.mp4 -vf "setpts=4*PTS" -r 30 -c:v libx264 -crf 18 ${dir}/ab-quarter-speed.mp4`);
+  }
 }
 
 for (const name of Object.keys(FIGHTS)) {
@@ -249,7 +311,7 @@ from PIL import Image
 a=Image.open('${TMP}/${name}/A/f%03d.png'%${k}); b=Image.open('${TMP}/${name}/B/f%03d.png'%${k})
 W=390; H=int(a.size[1]*W/a.size[0])
 o=Image.new('RGB',(W*2+8,H),(20,20,20)); o.paste(a.resize((W,H),Image.LANCZOS),(0,0)); o.paste(b.resize((W,H),Image.LANCZOS),(W+8,0))
-o.quantize(256, method=Image.Quantize.MEDIANCUT).save('${dir}/ab-phone-%03d.png'%${k}, optimize=True)
+o.save('${dir}/ab-phone-%03d.png'%${k}, optimize=True)
 "`);
   }
 }

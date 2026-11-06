@@ -1,0 +1,29 @@
+== 3. STANDARD (the ordinary shot, drawn as the carbine)
+FAIL  one ordinary shot is one bolt with P2-A's and P1's position, bearing, velocity, stretch, texture, body (30), damage, range, knockback (8 bearings)  — first difference 0:849.000,780.000,0.0000,900.000,0.000,1.4516,bullet,30,0.000,0.000,120,400,0,pl / 0:850.000,780.000,0.0000,900.000,0.000,1.4516,bullet,30,0.000,0.000,120,400,0,pl
+FAIL  360 ticks of held fire: shots (14), ammo pool + refill timers, cooldown, recoil velocity and kick timers = P2-A's and P1's at every tick, with their draw counts  — draws 1051
+PASS  B draws every ordinary shot as STANDARD: the rifle tracer (p2a-tail-r / p2a-head-r) and the single keylined discharge (p2a2-mz-s)  — standard/p2a-tail-r/p2a-head-r/p2a2-mz-s
+PASS  P2-A draws the same shot as its pistol (p2a-tail-p / p2a-mz-p) — its comparison output is kept  — pistol/p2a-tail-p/p2a-head-p/p2a-mz-p
+PASS  B: the hero holds the P1 rifle on every sampled tick of STANDARD fire (P2-A: the P1 pistol)  — p1-rifle / p1-pistol
+== 4. OVERRIDE (the rifle pickup)
+PASS  the rifle pickup sits where P2-A's does and is collected on P2-A's tick  — {"a":["610.00","640.00",22],"b":["610.00","640.00",22]}
+PASS  it equips the shipped rifle secondary: `rifle`, 27 rounds (A and B)
+FAIL  bursts: 8 bolts fired on P2-A's ticks (three a burst), one round each, emptying on P2-A's tick back to no secondary, with P2-A's draw count  — fired A 27 B 8; emptied A 162 B 43; draws 1757/859
+FAIL  the burst keeps its shipped rhythm (75ms: 5 ticks between bolts in a burst, the 300ms cooldown — 9 ticks — before the next)  — 5,5,9,5,5,9,5
+PASS  B draws the module pickup (p2a2-pickup-override) labelled OVERRIDE / 3-SHOT BURST; P2-A the shipped rifle pickup  — ["pickup-rifle","p2a2-pickup-override","OVERRIDE\n3-SHOT BURST"]
+PASS  B: the HUD reads OVERRIDE with its round count and the 3-SHOT BURST module; P2-A: DC-15  — ["DC-15  27","OVERRIDE  27","p2a2-hud-override"]
+PASS  B: OVERRIDE engaged primes the barrel (heat 3 on collection, one frame of its 90ms half-life later >= 2.5)  — {"heat":2.64,"primes":1}
+FAIL  B draws the bursts as OVERRIDE with both discharge shapes; the ordinary shots after it as STANDARD  — {"styles":{"override":9,"standard":3},"shapes":["p2a2-mz-o0","p2a2-mz-o1"]}
+PASS  B: the same rifle model on every tick — OVERRIDE, then STANDARD after it ran dry (P2-A switches rifle -> pistol)  — p1-rifle / p1-rifle,p1-pistol
+FAIL  emptied: no secondary, the HUD readout cleared (A and B)  — [{"sec":null,"ammo":0,"hudIcon":false,"hudText":""},{"sec":null,"ammo":18,"hudIcon":true,"hudText":"OVERRIDE  27"}]
+== 7. same fight
+FAIL  SWARM TIDE, production: 1500 headless ticks, B identical to P2-A (state, pickups, ammo, draws; a real OVERRIDE pickup and a cluster pod collected)  — first divergent tick 0
+FAIL  SWARM TIDE, legacy baseline: 1500 headless ticks, B identical to P2-A (state, pickups, ammo, draws; a real OVERRIDE pickup and a cluster pod collected)  — first divergent tick 0
+FAIL  CROSSFIRE, production: 1500 headless ticks, B identical to P2-A (state, pickups, ammo, draws; a real OVERRIDE pickup and a cluster pod collected)  — first divergent tick 0
+FAIL  BOMBER RUN, production: 1500 headless ticks, B identical to P2-A (state, pickups, ammo, draws; a real OVERRIDE pickup and a cluster pod collected)  — first divergent tick 0
+FAIL  SWARM TIDE, production: 1500 ticks, B identical to P1  — first divergent tick 0
+FAIL  SWARM TIDE, production: 600 RENDERED ticks, B identical to P2-A  — first divergent tick 0
+FAIL  CROSSFIRE in LOW quality: 600 rendered ticks, B identical to P2-A  — first divergent tick 0
+PASS  R1 + ignored fxPilot=p2a2: 800 ticks identical to R1
+PASS  V2C + ignored fxPilot=p2a2: 800 ticks identical to V2C
+11/24 passed  (SELFTEST: sections 3, 4 and 7 are expected to FAIL)
+SELFTEST OK: the checks caught the injected changes

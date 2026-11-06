@@ -24,18 +24,23 @@ const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').
 const REPS = +opt('reps', '5'), TICKS = +opt('ticks', '600');
 // --exp=noadd|nosparks|noglow: a cost experiment on B only (what the frame time is made of)
 const EXP = opt('exp', '');
+// --set=p2a2: A = P2-A, B = P2-A2 (the carbine loadout), the fight with OVERRIDE engaged half-way
+const SET = opt('set', 'p2a');
+const CFGS = SET === 'p2a2'
+  ? [['A', 'visualPilot=v2c&polish=p1&fxPilot=p2a'], ['B', 'visualPilot=v2c&polish=p1&fxPilot=p2a2']]
+  : [['A', 'visualPilot=v2c&polish=p1'], ['B', 'visualPilot=v2c&polish=p1&fxPilot=p2a']];
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 const out = {};
-for (const [cfg, flags] of [['A', 'visualPilot=v2c&polish=p1'], ['B', 'visualPilot=v2c&polish=p1&fxPilot=p2a']]) {
+for (const [cfg, flags] of CFGS) {
   const p = await bootPage(browser, { flags, baseline: null, q: 'room=hangar', seed: 4242 });
-  out[cfg] = await p.evaluate(async ({ reps, ticks, exp }) => {
+  out[cfg] = await p.evaluate(async ({ reps, ticks, exp, set }) => {
     const gs = window.__gs, g = window.game;
     const paint = await window.__mod(/systems\/p2aPaint\.js/);
     const med = (a) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
     const p95 = (a) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length * 0.95)]; };
     const r = {};
     const c = gs._p2a;
-    const KEYS = Object.keys(g.textures.list).filter((k) => k.startsWith('p2a-'));
+    const KEYS = Object.keys(g.textures.list).filter((k) => k.startsWith('p2a'));
     if (c) {
       const t = [];
       for (let i = 0; i < reps; i++) {
@@ -44,6 +49,7 @@ for (const [cfg, flags] of [['A', 'visualPilot=v2c&polish=p1'], ['B', 'visualPil
       }
       r.paintMs = med(t);
       for (const o of [...c.imgPool, c.heatGlow]) o.setTexture(o.texture.key);
+      for (const q of gs.weaponPickups || []) if (q._p2a2) q.sprite.setTexture(q.sprite.texture.key);
       let b = 0; for (const k of KEYS) { const s = g.textures.get(k).getSourceImage(); b += s.width * s.height * 4; }
       r.p2aBytes = b; r.p2aTextures = KEYS.length;
     }
@@ -70,7 +76,7 @@ for (const [cfg, flags] of [['A', 'visualPilot=v2c&polish=p1'], ['B', 'visualPil
     const emitters = gs.children.list.filter((o) => o.type === 'ParticleEmitter' && o.visible);
     const step = [];
     for (let i = 0; i < ticks; i++) {
-      if (i === ticks / 2) { P.secondary = 'rifle'; P.secondaryAmmo = 999; }
+      if (i === ticks / 2) { if (set === 'p2a2') P.equipSecondary('rifle'); P.secondary = 'rifle'; P.secondaryAmmo = 999; }
       if (i % 3 === 0) { P.fireCooldown = 0; P.ammo = 99; P.keyboardFire(); }
       if (i % 40 === 0) { P.fireCooldown = 0; P.tryFire(-Math.PI / 2 + 0.3); }           // into the cover to the north
       if (i % 90 === 0 && gs.enemies.countActive() < 8) gs._spawnSwarmlingPack(1000, 600 + (i % 180));
@@ -93,10 +99,10 @@ for (const [cfg, flags] of [['A', 'visualPilot=v2c&polish=p1'], ['B', 'visualPil
     r.tweens = gs.tweens.getTweens().length;
     r.listInFight = gs.children.list.length;
     return r;
-  }, { reps: REPS, ticks: TICKS, exp: EXP });
+  }, { reps: REPS, ticks: TICKS, exp: EXP, set: SET });
   await p.close();
 }
 await browser.close();
 const f = (v) => (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(3)) : v);
-console.log('metric'.padEnd(22), 'A (P1)'.padStart(14), 'B (P1 + P2-A)'.padStart(14));
+console.log('metric'.padEnd(22), (SET === 'p2a2' ? 'A (P2-A)' : 'A (P1)').padStart(14), (SET === 'p2a2' ? 'B (P2-A2)' : 'B (P1 + P2-A)').padStart(14));
 for (const k of [...new Set([...Object.keys(out.A), ...Object.keys(out.B)])]) console.log(k.padEnd(22), String(f(out.A[k] ?? '—')).padStart(14), String(f(out.B[k] ?? '—')).padStart(14));

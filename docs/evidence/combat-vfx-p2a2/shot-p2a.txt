@@ -1,0 +1,2 @@
+fight-swarm: 420 ticks, A vs B gameplay state IDENTICAL at every tick
+fight-crossfire: 420 ticks, A vs B gameplay state IDENTICAL at every tick
