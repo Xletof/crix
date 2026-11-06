@@ -61,12 +61,13 @@
 //     a frame count: density does not depend on the frame rate.
 
 import Phaser from 'phaser';
-import { isFxP2A, isFxP2A2 } from './debug.js';
+import { isFxP2A, isFxP2A2, isFxP2A3, isMuzzleSharp } from './debug.js';
 import { isLowQuality } from './FX.js';
 import { mulberry32 } from './rng.js';
 import { P1_WEAPONS } from './p1Paint.js';
 import { P2A_TEX, P2A2_TEX } from './p2aPaint.js';
 import { installLoadoutP2A2 } from './p2a2Loadout.js';
+import { installOverrideP2A3 } from './p2a3Override.js';
 import { WEAPONS } from '../config.js';
 
 const TAU = Math.PI * 2;
@@ -97,6 +98,14 @@ export const P2A = {
     tailTex: P2A_TEX.tailR, headTex: P2A_TEX.headR,
     headGlow: { tint: 0xff4a3c, alpha: 0.28, scale: 0.85 },
     muzzle: { ms: 80, scale: 1.0, glow: { tint: 0xff4a30, alpha: 0.4, scale: 1.0 } },
+  },
+  // P2-A3 `&muzzle=sharp` — the STANDARD discharge's A/B: the same texture,
+  // size, keyline, depth and occlusion; only its PERSISTENCE differs. Its peak
+  // is the first frame the shot is seen (its age starts after that frame), and
+  // it collapses in 40ms: ~2 visible frames at 60 Hz where the current flash
+  // fades over ~4. The glow starts at the current flash's first-frame glow.
+  standardSharp: {
+    muzzle: { ms: 40, scale: 1.0, glow: { tint: 0xff4a30, alpha: 0.25, scale: 1.0 } },
   },
   // OVERRIDE — the rifle pickup's burst: P2-A's rifle choreography (alternating
   // brake shapes, a bigger first shot, barrel heat), a size up from STANDARD.
@@ -163,6 +172,10 @@ class FxP2A {
     this._install();
     // P2-A2: the carried rifle, the OVERRIDE pickup and HUD readout
     this.loadout = this.p2a2 ? installLoadoutP2A2(this) : null;
+    // P2-A3 (over P2-A2): the OVERRIDE round count, readout, power cell and
+    // beats; and the STANDARD discharge's sharp A/B (`&muzzle=sharp`)
+    this.p2a3 = this.loadout && isFxP2A3() ? installOverrideP2A3(this, this.loadout) : null;
+    this.sharp = isMuzzleSharp();
   }
 
   /** P2-A2: OVERRIDE engaged — the barrel primes to full heat. */
@@ -247,6 +260,8 @@ class FxP2A {
   }
 
   destroy() {
+    this.p2a3?.destroy();
+    this.p2a3 = null;
     this.loadout?.destroy();
     this.loadout = null;
     for (const u of this._wrapped.reverse()) u();
@@ -379,6 +394,7 @@ class FxP2A {
       this.heat = Math.min(H.max, this.heat + H.perShot);
     }
     const f = { kind, age: 0, ms: cfg.ms, scale, x, y, angle, img: this._img(tex).setOrigin(ox, 0.5), glow: isLowQuality() ? null : this._img(P2A_TEX.glow.key, true).setTint(cfg.glow.tint) };
+    if (kind === 'standard' && this.sharp) { f.sharp = true; f.fresh = true; f.ms = P2A.standardSharp.muzzle.ms; }
     this.flashes.push(f);
     this._drawFlash(f);
   }
@@ -513,6 +529,7 @@ class FxP2A {
     this._clock += dt;
     // P2-A2: place the carried rifle first — the muzzle reads it
     this.loadout?.update();
+    this.p2a3?.update(dt, delta);
     // contacts first: a contact riding its target is placed before a dying
     // tracer reads it as its end point
     this._updateImpacts(dt);
@@ -569,7 +586,8 @@ class FxP2A {
   _updateFlashes(dt) {
     for (let i = this.flashes.length - 1; i >= 0; i--) {
       const f = this.flashes[i];
-      f.age += dt;
+      if (f.sharp && f.fresh) f.fresh = false;   // P2-A3 sharp: the first frame it is seen is its peak
+      else f.age += dt;
       if (f.age >= f.ms) { this._free(f.img); this._free(f.glow); this.flashes.splice(i, 1); continue; }
       this._drawFlash(f);
     }
@@ -588,14 +606,22 @@ class FxP2A {
     // step for its few frames — and drawn just over the weapon, behind him
     // when the weapon is (facing north)
     const mz = this._muzzle();
-    const cfg = P2A[f.kind].muzzle;
+    const cfg = f.sharp ? P2A.standardSharp.muzzle : P2A[f.kind].muzzle;
     if (!mz) { f.img.setVisible(false); f.glow?.setVisible(false); return; }
     const u = f.age / f.ms;
-    // ignition: full size for the first ~third, then the flare is pulled back
-    // into the barrel (x shrinks faster than y) and goes
-    const sx = f.scale * (u < 0.3 ? 1 : 1 - 0.75 * ((u - 0.3) / 0.7));
-    const sy = f.scale * (u < 0.3 ? 1 : 1 - 0.45 * ((u - 0.3) / 0.7));
-    const a = mz.alpha * (u < 0.3 ? 1 : 1 - (u - 0.3) / 0.7);
+    let sx, sy, a;
+    if (f.sharp) {
+      // P2-A3 sharp: no hold — the peak, then pulled straight back into the barrel
+      sx = f.scale * (1 - 0.7 * u);
+      sy = f.scale * (1 - 0.35 * u);
+      a = mz.alpha * Math.pow(1 - u, 1.5);
+    } else {
+      // ignition: full size for the first ~third, then the flare is pulled back
+      // into the barrel (x shrinks faster than y) and goes
+      sx = f.scale * (u < 0.3 ? 1 : 1 - 0.75 * ((u - 0.3) / 0.7));
+      sy = f.scale * (u < 0.3 ? 1 : 1 - 0.45 * ((u - 0.3) / 0.7));
+      a = mz.alpha * (u < 0.3 ? 1 : 1 - (u - 0.3) / 0.7);
+    }
     // P2-A2: in front of the body the core goes over the shield bubble and the
     // rings; behind the body (facing north) it keeps the weapon's occlusion
     let depth = mz.depth + 0.5;

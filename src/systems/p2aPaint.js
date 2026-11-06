@@ -17,7 +17,7 @@
 // (a tapering tracer behind a hot head, where enemy bolts are rigid bars).
 
 import { PixelCanvas } from './pixelArt.js';
-import { isFxP2A, isFxP2A2 } from './debug.js';
+import { isFxP2A, isFxP2A2, isFxP2A3 } from './debug.js';
 
 const W = '#ffffff';
 const HOT = '#fff1ec';     // white with a breath of red
@@ -73,6 +73,7 @@ export function paintFxP2A(scene) {
   paintHitWall(scene);
   paintHitShield(scene);
   if (isFxP2A2()) paintFxP2A2(scene);
+  if (isFxP2A3()) paintFxP2A3(scene);
 }
 
 // A logical grid, flushed to a PixelCanvas; `outline` dilates a one-cell
@@ -383,4 +384,83 @@ function paintOverrideHud(scene) {
   text(g, 'BURST', 7, 16, AMB);     // 19 wide
   g.outline(INK, 1);
   g.flush(scene, P2A2_TEX.hud.key, 3);
+}
+
+// ── P2-A3 (`fxPilot=p2a3`): THE OVERRIDE REFINEMENT ─────────────────────────
+//   p2a3-cell-0..3      the carried rifle's POWER CELL while OVERRIDE is
+//                       engaged: the magazine lit amber and 0..3 pips along the
+//                       receiver. Drawn OVER the P1 rifle on the rifle's own
+//                       18x10-at-4 canvas and origin, so every pixel lands on a
+//                       pixel the rifle already has (magazine 9..10 x 7..8,
+//                       receiver row 4 at x 5 / 7 / 9) — the same gun, lit.
+//   p2a3-cell-hot       the cell's flick as a round leaves (white-hot magazine)
+//   p2a3-hud-burst      the HUD's three-round symbol: three of the game's own
+//                       red energy cells (the ammo pips' look) under an amber
+//                       bracket — one trigger pull, three rounds
+//   p2a3-hud-override   "OVERRIDE" in 4x5 pixel capitals (painted: a Phaser
+//   p2a3-hud-standard   Text would draw Math.random for its texture key), and
+//                       "STANDARD" for the moment the module runs dry
+
+export const P2A3_TEX = {
+  cell: { keys: ['p2a3-cell-0', 'p2a3-cell-1', 'p2a3-cell-2', 'p2a3-cell-3'], hot: 'p2a3-cell-hot', w: 72, h: 40,
+    mag: [40, 32] },                     // the magazine's centre in canvas px (the glow's anchor)
+  burst: { key: 'p2a3-hud-burst', w: 45, h: 33 },
+  over: { key: 'p2a3-hud-override', w: 120, h: 21 },
+  std: { key: 'p2a3-hud-standard', w: 120, h: 21 },
+};
+
+const CELL = { hot: '#fff4dc', lit: '#ffc35a', mid: '#ff9a1e', dk: '#c86410', pip: '#ffd27a' };
+
+export function paintFxP2A3(scene) {
+  const pips = [[5, 4], [7, 4], [9, 4]];
+  for (let n = 0; n <= 3; n++) {
+    const pc = new PixelCanvas(scene, P2A3_TEX.cell.keys[n], 18, 10, 4);
+    pc.px(9, 7, CELL.hot); pc.px(10, 7, CELL.lit); pc.px(9, 8, CELL.mid); pc.px(10, 8, CELL.dk);
+    for (let i = 0; i < n; i++) pc.px(pips[i][0], pips[i][1], CELL.pip);
+    pc.finish();
+  }
+  const hot = new PixelCanvas(scene, P2A3_TEX.cell.hot, 18, 10, 4);
+  hot.px(9, 7, W); hot.px(10, 7, W); hot.px(9, 8, CELL.hot); hot.px(10, 8, CELL.lit);
+  for (const [x, y] of pips) hot.px(x, y, CELL.hot);
+  hot.finish();
+  paintBurstSymbol(scene);
+  paintWord(scene, P2A3_TEX.over.key, 'OVERRIDE', AMB);
+  paintWord(scene, P2A3_TEX.std.key, 'STANDARD', '#c9d3dc');
+}
+
+function paintBurstSymbol(scene) {
+  const g = grid(15, 11);
+  // the bracket: one pull
+  g.rect(0, 0, 15, 1, AMB); g.rect(0, 1, 1, 2, AMB); g.rect(14, 1, 1, 2, AMB);
+  // three energy cells (HUD.refreshAmmo's casing / red / core / cap, in pixels)
+  for (const x of [1, 6, 11]) {
+    g.rect(x, 3, 3, 8, '#aa0000');
+    g.rect(x, 4, 3, 6, '#ff2828');
+    g.rect(x + 1, 4, 1, 6, '#ff8888');
+    g.rect(x, 3, 3, 1, '#ff4444');
+    g.px(x + 1, 5, W);
+  }
+  g.outline(INK, 1);
+  g.flush(scene, P2A3_TEX.burst.key, 3);
+}
+
+// 4x5 capitals (I and T are 3 wide)
+const CAPS = {
+  O: ['.##.', '#..#', '#..#', '#..#', '.##.'], V: ['#..#', '#..#', '#..#', '.##.', '.##.'],
+  E: ['####', '#...', '###.', '#...', '####'], R: ['###.', '#..#', '###.', '#.#.', '#..#'],
+  I: ['###', '.#.', '.#.', '.#.', '###'], D: ['###.', '#..#', '#..#', '#..#', '###.'],
+  S: ['.###', '#...', '.##.', '...#', '###.'], T: ['###', '.#.', '.#.', '.#.', '.#.'],
+  A: ['.##.', '#..#', '####', '#..#', '#..#'], N: ['#..#', '##.#', '#.##', '#..#', '#..#'],
+};
+function paintWord(scene, key, word, col) {
+  const g = grid(40, 7);
+  const w = [...word].reduce((s, ch) => s + CAPS[ch][0].length, 0) + word.length - 1;
+  let x = 1 + Math.floor((38 - w) / 2);
+  for (const ch of word) {
+    const gl = CAPS[ch];
+    for (let y = 0; y < 5; y++) for (let i = 0; i < gl[y].length; i++) if (gl[y][i] === '#') g.px(x + i, 1 + y, col);
+    x += gl[0].length + 1;
+  }
+  g.outline(INK, 1);
+  g.flush(scene, key, 3);
 }

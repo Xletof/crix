@@ -466,6 +466,7 @@ export function applyVisualFlags(params) {
   setVisualPilot(params.get('visualPilot'));
   setPolish(params.get('polish'));
   setFxPilot(params.get('fxPilot'));
+  setMuzzleAB(params.get('muzzle'));
 }
 
 // ── P1 — COMBAT VISUAL POLISH (`?visualPilot=v2c&polish=p1`) ───────────────
@@ -516,12 +517,33 @@ export function isPolishP1() { return polish === 'p1' && visualPilot === 'v2c'; 
 // (internally still `'rifle'`, 27 rounds, three-shot burst) as the OVERRIDE
 // firing-mode module. Also tied to P1. `p2a` keeps its output exactly
 // (`tests/smoke-fx-p2a2.mjs`).
-const FX_PILOTS = ['p2a', 'p2a2'];
+//
+// `fxPilot=p2a3` — P2-A3, OVERRIDE REFINEMENT (HUMAN-authorized candidate,
+// 2026-11-06, opt-in): ALL of P2-A2 plus the OVERRIDE readout fixed and
+// redrawn (the round count and bar follow every shot; a three-round burst
+// symbol), the carried rifle's power cell while OVERRIDE is engaged, and the
+// engage / run-dry beats (`systems/p2a3Override.js`). Also tied to P1.
+// `p2a2` keeps its output exactly (`tests/smoke-fx-p2a3.mjs`).
+//   `&muzzle=sharp` — P2-A3 ONLY: the STANDARD discharge's A/B. Same texture,
+//   size, depth and occlusion; a shorter persistence (the peak on the first
+//   frame the shot is seen, gone ~2 frames later, where the current flash
+//   fades over ~4). Without it P2-A3 draws P2-A2's flash exactly. Any other
+//   value, or any other mode, ignores it.
+const FX_PILOTS = ['p2a', 'p2a2', 'p2a3'];
 let fxPilot = null;
 export function setFxPilot(v) { fxPilot = FX_PILOTS.includes(v) ? v : null; }
-/** The `fxPilot` parameter as given ('p2a' | 'p2a2' | null), honoured or not. */
+/** The `fxPilot` parameter as given ('p2a' | 'p2a2' | 'p2a3' | null), honoured or not. */
 export function getFxPilotRequested() { return fxPilot; }
-/** The P2-A layer is live: `fxPilot=p2a` or `p2a2`, AND P1 live. */
-export function isFxP2A() { return (fxPilot === 'p2a' || fxPilot === 'p2a2') && isPolishP1(); }
-/** P2-A2 (the carbine loadout over P2-A) is live: `fxPilot=p2a2` AND P1 live. */
-export function isFxP2A2() { return fxPilot === 'p2a2' && isPolishP1(); }
+/** The P2-A layer is live: `fxPilot=p2a`, `p2a2` or `p2a3`, AND P1 live. */
+export function isFxP2A() { return (fxPilot === 'p2a' || fxPilot === 'p2a2' || fxPilot === 'p2a3') && isPolishP1(); }
+/** P2-A2's carbine loadout is live: `fxPilot=p2a2` or `p2a3` (which carries all of it), AND P1 live. */
+export function isFxP2A2() { return (fxPilot === 'p2a2' || fxPilot === 'p2a3') && isPolishP1(); }
+/** P2-A3 (the OVERRIDE refinement over P2-A2) is live: `fxPilot=p2a3` AND P1 live. */
+export function isFxP2A3() { return fxPilot === 'p2a3' && isPolishP1(); }
+const MUZZLE_AB = ['sharp'];
+let muzzleAB = null;
+export function setMuzzleAB(v) { muzzleAB = MUZZLE_AB.includes(v) ? v : null; }
+/** The `muzzle` parameter as given ('sharp' | null), honoured or not. */
+export function getMuzzleABRequested() { return muzzleAB; }
+/** The STANDARD discharge's sharp variant is live: `muzzle=sharp` AND P2-A3 live. */
+export function isMuzzleSharp() { return muzzleAB === 'sharp' && isFxP2A3(); }
