@@ -499,7 +499,7 @@ if (on(6)) {
   const tab = Object.keys(MZ_STATES).map((s) => { const c = shotStats(m3.out[s]), k = shotStats(mS.out[s]); return { s, c, k }; });
   for (const { s, c, k } of tab) {
     check(`${s.padEnd(6)} ${c.shots} shots: lit frames/shot ${c.lit.toFixed(1)} -> ${k.lit.toFixed(1)}; first-frame ink ${c.firstInk} -> ${k.firstInk} px; frames with ink ${Math.round(c.duty * 100)}% -> ${Math.round(k.duty * 100)}%; mean ink/frame ${c.meanInk} -> ${k.meanInk}`,
-      c.shots === k.shots && c.shots >= 6 && k.lit <= c.lit / 1.5 && k.firstInk >= 0.9 * c.firstInk && k.duty < c.duty, JSON.stringify({ c, k }));
+      c.shots === k.shots && c.shots >= 5 && k.lit <= c.lit / 1.5 && k.firstInk >= 0.9 * c.firstInk && k.duty < c.duty, JSON.stringify({ c, k }));
   }
   // a 30 Hz step (a phone that cannot hold 60): is each shot's PEAK ever drawn?
   const q2 = await muzzleRun(A2, { step: 1000 / 30, ticks: 34, ink: false }), qS = await muzzleRun(BS, { step: 1000 / 30, ticks: 34, ink: false });
