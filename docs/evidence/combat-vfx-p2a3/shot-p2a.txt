@@ -1,0 +1,6 @@
+hud: 300 ticks, A vs B gameplay state IDENTICAL at every tick
+engage: 60 ticks, A vs B gameplay state IDENTICAL at every tick
+rundry: 90 ticks, A vs B gameplay state IDENTICAL at every tick
+sequence: 330 ticks, A vs B gameplay state IDENTICAL at every tick
+fight-swarm: 420 ticks, A vs B gameplay state IDENTICAL at every tick
+fight-crossfire: 420 ticks, A vs B gameplay state IDENTICAL at every tick
