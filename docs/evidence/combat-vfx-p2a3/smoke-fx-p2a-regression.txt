@@ -1,0 +1,98 @@
+
+== 0. the flag
+PASS  ?(no flags) -> P2-A off, P1 off  — {"p2a":false,"inst":false,"p1":false,"vp":null}
+PASS  ?fxPilot=p2a -> P2-A off, P1 off  — {"p2a":false,"inst":false,"p1":false,"vp":null}
+PASS  ?visualPilot=v2c&fxPilot=p2a -> P2-A off, P1 off  — {"p2a":false,"inst":false,"p1":false,"vp":"v2c"}
+PASS  ?visualPilot=v2&polish=p1&fxPilot=p2a -> P2-A off, P1 off  — {"p2a":false,"inst":false,"p1":false,"vp":"v2"}
+PASS  ?visualPilot=v2b&polish=p1&fxPilot=p2a -> P2-A off, P1 off  — {"p2a":false,"inst":false,"p1":false,"vp":"v2b"}
+PASS  ?visualPilot=v2c&polish=p1 -> P2-A off, P1 on  — {"p2a":false,"inst":false,"p1":true,"vp":"v2c"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=p2a -> P2-A ON, P1 on  — {"p2a":true,"inst":true,"p1":true,"vp":"v2c"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=P2A -> P2-A off, P1 on  — {"p2a":false,"inst":false,"p1":true,"vp":"v2c"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=p2b -> P2-A off, P1 on  — {"p2a":false,"inst":false,"p1":true,"vp":"v2c"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=1 -> P2-A off, P1 on  — {"p2a":false,"inst":false,"p1":true,"vp":"v2c"}
+PASS  ?baseline=legacy&visualPilot=v2c&polish=p1&fxPilot=p2a -> P2-A ON, P1 on  — {"p2a":true,"inst":true,"p1":true,"vp":"v2c"}
+PASS  the flag moves none of the seven gameplay switches (per baseline)  — {"production":["true,true,true,early,early,true,true"],"legacy":["false,false,false,,,false,false"]}
+
+== 1. textures
+PASS  B: every A texture byte-identical (145, the P1 set, roster and FX included)
+PASS  B: `bullet` (the bolt's hitbox texture) is 60px wide and identical to A  — 60x15:6f737ec7cd0cc9c0
+PASS  B: the added textures are exactly the 12 p2a-* keys  — p2a-glow p2a-head-p p2a-head-r p2a-hit-a p2a-hit-b p2a-hit-s p2a-hit-w p2a-mz-p p2a-mz-r0 p2a-mz-r1 p2a-tail-p p2a-tail-r
+PASS  R1 + ignored fxPilot=p2a: every texture byte-identical, no p2a key
+PASS  V2C + ignored fxPilot=p2a: every texture byte-identical, no p2a key
+PASS  V2B + polish + ignored fxPilot=p2a: every texture byte-identical, no p2a key
+
+== 2. install
+PASS  B adds exactly one POST_UPDATE and one shutdown listener; every other game event as A  — shutdown:23->24 postupdate:9->10
+PASS  B wraps exactly the five scene methods on the instance; A none  —  / _impactMicroFlash,firePlayerPrimary,firePlayerRifle,handleBulletEnemyHits,handleBulletWallHits
+PASS  B wraps `fire` on the pistol and rifle groups only (Super, frag, enemy, deflected untouched); A none  — [true,true,false,false,false,false]
+PASS  B: thirteen wrappers in all (2 groups + 5 scene + 6 fx: muzzleFlash, hitFlash, impactRing, burst, burstDir, healingSparkle)  — 13
+
+== 3. projectiles and the muzzle
+PASS  every pistol and rifle bolt: position, bearing, velocity, scale (the tracer stretch), texture, body radius + offset, damage, range, knockback, owner = A's (8 bearings, 16 volleys) with A's draw count  — draws 1945 / 1945; volleys with no live bolt: none
+PASS  the bolt's body radius is the `bullet` texture's half-width (30) in A and B
+PASS  B: every live bolt has a tracer; the bolt sprite itself is never drawn  — [{"worst":0,"behind":0,"shown":0,"n":1,"hid":0},{"worst":0,"behind":0,"shown":0,"n":3,"hid":0},{"worst":0,"behind":0,"shown":0,"n":1,"hid":0}]
+PASS  B: the tracer head sits on the bolt (< 0.01px) and the tail never reaches behind the barrel face  — worst head 0.0000px, tail -0.00px
+PASS  B: the muzzle flash is pinned to the live P1 barrel face (pistol 30px, rifle 42px past the weapon origin) and drawn over the weapon  — [{"kind":"pistol","at":0,"tip":30,"above":true,"shipped":0},{"kind":"rifle","at":0,"tip":42,"above":true,"shipped":0}]
+PASS  the shipped muzzle flash: drawn in A for every shot, never in B  — A 11111111 / B 0000000000000000
+
+== 4. contacts
+PASS  body: the outcome (hp, Super charge, miss events, field blocks, draws) is A's  — A [[320,200],[0,1],0,0,149] / B [[320,200],[0,1],0,0,149]
+PASS  armour: the outcome (hp, Super charge, miss events, field blocks, draws) is A's  — A [[800,680],[0,1],0,0,149] / B [[800,680],[0,1],0,0,149]
+PASS  rifle: the outcome (hp, Super charge, miss events, field blocks, draws) is A's  — A [[450,180],[0,3.4000000000000004],0,0,305] / B [[450,180],[0,3.4000000000000004],0,0,305]
+PASS  wall: the outcome (hp, Super charge, miss events, field blocks, draws) is A's  — A [[null,null],[0,0],1,0,68] / B [[null,null],[0,0],1,0,68]
+PASS  wallDiag: the outcome (hp, Super charge, miss events, field blocks, draws) is A's  — A [[null,null],[0,0],1,0,68] / B [[null,null],[0,0],1,0,68]
+PASS  bare: the outcome (hp, Super charge, miss events, field blocks, draws) is A's  — A [[560,560],[0,0],1,0,138] / B [[560,560],[0,0],1,0,138]
+PASS  field: the outcome (hp, Super charge, miss events, field blocks, draws) is A's  — A [[560,560],[0,0],1,1,138] / B [[560,560],[0,0],1,1,138]
+PASS  miss: the outcome (hp, Super charge, miss events, field blocks, draws) is A's  — A [[null,null],[0,0],1,0,57] / B [[null,null],[0,0],1,0,57]
+PASS  body: one BODY contact, on the body's rim (|d - radius| < 1px) on the flight line, over the struck body  — {"kind":"body","x":948.4835722840721,"y":810,"rot":0,"depth":814,"dist":22,"r":22,"eDepth":810}
+PASS  body: the bolt's tracer ends AT the contact, not in the air in front of him  — {"x":948.4835722840721,"y":810,"ex":970.4835722840721,"ey":810}
+PASS  armour (an Elite): one ARMOUR contact on the rim  — armour
+PASS  rifle burst into a Gunner: a BODY contact per bolt that landed, each on the rim  — [["body","22.00"],["body","22.00"],["body","22.00"]]
+PASS  wall: one WALL contact on the collider's face, its normal toward the shooter, drawn over the cover art  — {"m":{"kind":"wall","x":840,"y":395,"rot":1.5707963267948966,"depth":417},"w":{"cx":840,"cy":360,"hw":35,"hh":35,"depth":416},"coverDepth":416}
+PASS  wallDiag: one WALL contact on the collider's face, its normal toward the shooter, drawn over the cover art  — {"m":{"kind":"wall","x":834.5454545454543,"y":395,"rot":1.5707963267948966,"depth":417},"w":{"cx":840,"cy":360,"hw":35,"hh":35,"depth":416},"coverDepth":416}
+PASS  a block by a bearer WITHOUT the field: one SHIELD contact, no body contact, no damage, no Super credit  — {"k":"shield","hp":[560,560],"sc":[0,0]}
+PASS  a block by the roster-v1 field: the field draws it (blocks +1 in A and B), P2-A draws no contact, and the tracer ends ON the field (46px)  — {"blocks":1,"impacts":0,"endR":46}
+PASS  a miss at range: no contact drawn (no misleading feedback), and it is still a miss  — {"impacts":0,"missed":1}
+
+== 5. same fight
+PASS  SWARM TIDE, production: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — 16776 draws; P2-A drew 120 tracers, contacts {"body":33,"armour":0,"wall":45,"shield":0,"champion":0}, parity 633
+PASS  SWARM TIDE, legacy baseline: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — 17739 draws; P2-A drew 120 tracers, contacts {"body":35,"armour":0,"wall":40,"shield":0,"champion":0}, parity 625
+PASS  CROSSFIRE, production: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — 17353 draws; P2-A drew 120 tracers, contacts {"body":13,"armour":46,"wall":4,"shield":0,"champion":0}, parity 673
+PASS  BOMBER RUN, production: 1500 headless ticks, B identical to A (state + draws; pistol, rifle, 2 Supers, 2 melee chains)  — 16509 draws; P2-A drew 120 tracers, contacts {"body":51,"armour":0,"wall":21,"shield":0,"champion":0}, parity 687
+PASS  SWARM TIDE, production: 500 RENDERED ticks, B identical to A  — 5931 draws
+PASS  CROSSFIRE in LOW quality: 500 rendered ticks, B identical to A  — 3272 draws
+PASS  R1 + ignored fxPilot=p2a: 800 ticks identical to R1
+PASS  V2C + ignored fxPilot=p2a: 800 ticks identical to V2C
+
+== 6. reader only
+PASS  P2-A's frame draws no Math.random over 400 ticks of fighting (40 tracers, {"body":24,"armour":0,"wall":8,"shield":0,"champion":0} contacts)  — 0 draws inside the hook
+PASS  P2-A's frame writes no clock, physics scale, camera, player or bolt field  — 0 frames changed something
+PASS  under a hitstop (timeScale 0.06) a muzzle flash ages at the world's rate (<= 1.1ms per 16.7ms frame)  — timeScale 0.06, aged 1.00ms
+
+== 7. cleanup
+PASS  3 restarts + quit-to-title: the old layer destroyed, exactly one fresh layer (5 scene + 13 wrappers), listener counts steady  — [[true,true,5,13,10,24],[true,true,5,13,10,24],[true,true,5,13,10,24],[true,true,5,13,10,24]]
+PASS  at the title screen the Game scene carries no P2-A wrapper  — {"own":0}
+PASS  after each restart the P2-A display objects are pooled, not leaked (bounded after firing)  — [15,15,15,null]
+PASS  a paused scene freezes P2-A (a live flash does not age)  — aged 0ms
+
+== 8. low quality
+PASS  low quality: tracers, flashes and contacts still drawn; no scatter, glow or ember created  — {"glow":0,"sparks":0,"ember":0,"tracer":13,"impacts":13,"flash":3,"heat":false}
+
+== 9. budget
+PASS  sustained fire (840 ticks, 210 tracers): P2-A display objects created once and reused (46 after warm-up, 47 after 600 more ticks)  — {"objs0":46,"objs1":47}
+PASS  forty contacts in one frame: at most 14 live, the oldest recycled  — {"capped":14,"recycled":26}
+
+== 10. frozen files
+PASS  no change against def85e5 in entities (Bullet.js, Player.js, Enemy.js), config, data, the painters, P1, FX/juice, HUD, the Bulwark field, roster weapon FX, camera, light, AI seams, nav, rng
+PASS  GameScene / PreloadScene: only the two imports and the two install calls added, nothing removed  — 4 added, 0 removed: +import { installFxP2A } from '../systems/p2aFx.js'; | +    installFxP2A(this); | +import { paintFxP2A } from '../systems/p2aPaint.js'; | +    paintFxP2A(this);
+PASS  Enemy.js guard (outside the Bomber, the Bomber-only veto)  — {"outside":true,"hasDoc":true,"hasMethod":true,"code":"_vetoFalseStuck() { if (this._stuckFirstSeen || this._miniBoss) return; if (this._stuckRefX === undefined) return; this._stuckFirstSeen = true; const moved = Ma"}
+
+== 11. skipped (no --old=URL)
+
+== 12. restart and reload keep the mode
+PASS  B: a scene restart keeps the mode (P2-A installed, P1 installed)  — {"p2a":true,"inst":true,"p1":true}
+PASS  B: a reload keeps the mode (and paints the p2a set only when on)  — {"p2a":true,"tex":true}
+PASS  A: a scene restart keeps the mode (P2-A absent, P1 installed)  — {"p2a":false,"inst":false,"p1":true}
+PASS  A: a reload keeps the mode (and paints the p2a set only when on)  — {"p2a":false,"tex":false}
+
+70/70 passed

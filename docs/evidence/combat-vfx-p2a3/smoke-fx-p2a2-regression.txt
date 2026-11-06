@@ -1,0 +1,92 @@
+
+== 0. the flag
+PASS  ?(no flags) -> P2-A2 off, P2-A layer off, P1 off  — {"a2":false,"a":false,"p1":false,"layer":false,"loadout":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?fxPilot=p2a2 -> P2-A2 off, P2-A layer off, P1 off  — {"a2":false,"a":false,"p1":false,"layer":false,"loadout":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&fxPilot=p2a2 -> P2-A2 off, P2-A layer off, P1 off  — {"a2":false,"a":false,"p1":false,"layer":false,"loadout":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2&polish=p1&fxPilot=p2a2 -> P2-A2 off, P2-A layer off, P1 off  — {"a2":false,"a":false,"p1":false,"layer":false,"loadout":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2b&polish=p1&fxPilot=p2a2 -> P2-A2 off, P2-A layer off, P1 off  — {"a2":false,"a":false,"p1":false,"layer":false,"loadout":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1 -> P2-A2 off, P2-A layer off, P1 on  — {"a2":false,"a":false,"p1":true,"layer":false,"loadout":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=p2a -> P2-A2 off, P2-A layer on, P1 on  — {"a2":false,"a":true,"p1":true,"layer":true,"loadout":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=p2a2 -> P2-A2 ON, P2-A layer on, P1 on  — {"a2":true,"a":true,"p1":true,"layer":true,"loadout":true,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=P2A2 -> P2-A2 off, P2-A layer off, P1 on  — {"a2":false,"a":false,"p1":true,"layer":false,"loadout":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&polish=p1&fxPilot=p2a9 -> P2-A2 off, P2-A layer off, P1 on  — {"a2":false,"a":false,"p1":true,"layer":false,"loadout":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?baseline=legacy&visualPilot=v2c&polish=p1&fxPilot=p2a2 -> P2-A2 ON, P2-A layer on, P1 on  — {"a2":true,"a":true,"p1":true,"layer":true,"loadout":true,"base":"legacy","sw":"false,false,false,,,false,false"}
+PASS  the flag moves none of the seven gameplay switches (per baseline)  — {"production":["true,true,true,early,early,true,true"],"legacy":["false,false,false,,,false,false"]}
+
+== 1. textures
+PASS  B: every P2-A texture byte-identical (157: P1, the p2a-* set, roster, pickups, `bullet`)
+PASS  B: the added textures are exactly the 5 p2a2-* keys  — p2a2-hud-override p2a2-mz-o0 p2a2-mz-o1 p2a2-mz-s p2a2-pickup-override
+PASS  R1 + ignored fxPilot: every texture byte-identical, no p2a2 key
+PASS  V2C + ignored fxPilot: every texture byte-identical, no p2a2 key
+PASS  P1 + p2a9 + ignored fxPilot: every texture byte-identical, no p2a2 key
+
+== 2. install
+PASS  B adds no game-event listener to P2-A's (the loadout polls in P2-A's own frame)
+PASS  B keeps P2-A's thirteen wrappers and adds exactly one HUD instance wrapper (refreshSecondary); P2-A has no HUD wrapper  — {"a":13,"b":13,"hudA":false,"hudB":true}
+PASS  B: P1's weapon Image hidden, the carried rifle (p1-rifle) in the display list; P2-A: P1's weapon shown, no carried rifle  — {"a":[true,null],"b":[false,"p1-rifle",true]}
+
+== 3. STANDARD (the ordinary shot, drawn as the carbine)
+PASS  one ordinary shot is one bolt with P2-A's and P1's position, bearing, velocity, stretch, texture, body (30), damage, range, knockback (8 bearings)
+PASS  360 ticks of held fire: shots (14), ammo pool + refill timers, cooldown, recoil velocity and kick timers = P2-A's and P1's at every tick, with their draw counts  — draws 691
+PASS  B draws every ordinary shot as STANDARD: the rifle tracer (p2a-tail-r / p2a-head-r) and the single keylined discharge (p2a2-mz-s)  — standard/p2a-tail-r/p2a-head-r/p2a2-mz-s
+PASS  P2-A draws the same shot as its pistol (p2a-tail-p / p2a-mz-p) — its comparison output is kept  — pistol/p2a-tail-p/p2a-head-p/p2a-mz-p
+PASS  B: the hero holds the P1 rifle on every sampled tick of STANDARD fire (P2-A: the P1 pistol)  — p1-rifle / p1-pistol
+
+== 4. OVERRIDE (the rifle pickup)
+PASS  the rifle pickup sits where P2-A's does and is collected on P2-A's tick  — {"a":["610.00","640.00",22],"b":["610.00","640.00",22]}
+PASS  it equips the shipped rifle secondary: `rifle`, 27 rounds (A and B)
+PASS  bursts: 27 bolts fired on P2-A's ticks (three a burst), one round each, emptying on P2-A's tick back to no secondary, with P2-A's draw count  — fired A 27 B 27; emptied A 162 B 162; draws 1757/1757
+PASS  the burst keeps its shipped rhythm (75ms: 5 ticks between bolts in a burst, the 300ms cooldown — 9 ticks — before the next)  — 5,5,9,5,5,9,5,5,9
+PASS  B draws the module pickup (p2a2-pickup-override) labelled OVERRIDE / 3-SHOT BURST; P2-A the shipped rifle pickup  — ["pickup-rifle","p2a2-pickup-override","OVERRIDE\n3-SHOT BURST"]
+PASS  B: the HUD reads OVERRIDE with its round count and the 3-SHOT BURST module; P2-A: DC-15  — ["DC-15  27","OVERRIDE  27","p2a2-hud-override"]
+PASS  B: OVERRIDE engaged primes the barrel (heat 3 on collection, one frame of its 90ms half-life later >= 2.5)  — {"heat":2.64,"primes":1}
+PASS  B draws the bursts as OVERRIDE with both discharge shapes; the ordinary shots after it as STANDARD  — {"styles":{"override":27,"standard":3},"shapes":["p2a2-mz-o0","p2a2-mz-o1"]}
+PASS  B: the same rifle model on every tick — OVERRIDE, then STANDARD after it ran dry (P2-A switches rifle -> pistol)  — p1-rifle / p1-rifle,p1-pistol
+PASS  emptied: no secondary, the HUD readout cleared (A and B)  — [{"sec":null,"ammo":0,"hudIcon":false,"hudText":""},{"sec":null,"ammo":0,"hudIcon":false,"hudText":""}]
+
+== 5. transitions
+PASS  the mechanical sequence (spawn -> OVERRIDE -> part used -> cluster pod -> spent -> ordinary fire; Super-ready + shield fire) is P2-A's, with its draws  — [null,"rifle",20,"cluster",3,null,null,3,3] / [null,"rifle",20,"cluster",3,null,null,3,3]
+PASS  B carries the rifle at spawn, in OVERRIDE, with the cluster pod, after it, with both rings up  — p1-rifle p1-rifle p1-rifle p1-rifle
+PASS  B: with the cluster pod the HUD is the shipped cluster panel (icon, 0.42 scale, CLUSTER)  — {"sec":"cluster","ammo":3,"carried":"p1-rifle","hud":"CLUSTER  ×3","icon":"pickup-cluster","iconScale":0.42}
+PASS  Super ready and the shield both up while firing: the ring and the bubble are drawn and the shot leaves  — {"ring":true,"shield":true,"carried":"p1-rifle-hot","bolt":3}
+PASS  death hides the carried rifle (alpha 0) and the revive shows it again (A's rule)  — [{"alpha":0},{"alpha":1,"carried":"p1-rifle"}]
+PASS  2 restarts + quit-to-title: the old loadout destroyed, exactly one fresh carried rifle and one HUD wrapper, P1's weapon hidden, listener counts steady; none at the title  — {"out":[{"inst":true,"hudOwn":true,"p1vis":false,"views":1,"post":10,"oldDead":true},{"inst":true,"hudOwn":true,"p1vis":false,"views":1,"post":10,"oldDead":true},{"inst":true,"hudOwn":true,"p1vis":false,"views":1,"post":10,"oldDead":true}],"title":{"hudOwn":false}}
+
+== 6. the muzzle: depth and visible ink
+PASS  B, 8 aims x 5 states: in front of the body the ignition core is over the shield bubble (and the hero, and the ring); behind the body it is under the body
+PASS  B: the ignition leaves visible ink in every one of the 40 cases (min 1065 px changed in an 88px box, at the firing tick)
+PASS  mean visible ink per state, P2-A pistol -> P2-A2 STANDARD: none 358 -> 1260, shield 340 -> 1261, ready 360 -> 1259, both 342 -> 1266, charging 364 -> 1261
+PASS  B: the core is drawn over the P1 ring in every case
+
+== 7. same fight
+PASS  SWARM TIDE, production: 1500 headless ticks, B identical to P2-A (state, pickups, ammo, draws; a real OVERRIDE pickup and a cluster pod collected)  — 18129 draws; B drew 38 STANDARD + 54 OVERRIDE tracers, 1 module pickups; carried rifle on every tick
+PASS  SWARM TIDE, legacy baseline: 1500 headless ticks, B identical to P2-A (state, pickups, ammo, draws; a real OVERRIDE pickup and a cluster pod collected)  — 15835 draws; B drew 43 STANDARD + 27 OVERRIDE tracers, 1 module pickups; carried rifle on every tick
+PASS  CROSSFIRE, production: 1500 headless ticks, B identical to P2-A (state, pickups, ammo, draws; a real OVERRIDE pickup and a cluster pod collected)  — 16120 draws; B drew 43 STANDARD + 27 OVERRIDE tracers, 1 module pickups; carried rifle on every tick
+PASS  BOMBER RUN, production: 1500 headless ticks, B identical to P2-A (state, pickups, ammo, draws; a real OVERRIDE pickup and a cluster pod collected)  — 16722 draws; B drew 43 STANDARD + 27 OVERRIDE tracers, 1 module pickups; carried rifle on every tick
+PASS  SWARM TIDE, production: 1500 ticks, B identical to P1  — 18129 draws
+PASS  SWARM TIDE, production: 600 RENDERED ticks, B identical to P2-A  — 8064 draws
+PASS  CROSSFIRE in LOW quality: 600 rendered ticks, B identical to P2-A  — 4142 draws
+PASS  R1 + ignored fxPilot=p2a2: 800 ticks identical to R1
+PASS  V2C + ignored fxPilot=p2a2: 800 ticks identical to V2C
+
+== 8. reader only
+PASS  the P2-A2 frame (loadout + P2-A) draws no Math.random over 400 ticks with an OVERRIDE pickup ({"standard":11,"override":27})  — 0 draws
+PASS  the P2-A2 frame writes no player or clock field (secondary, ammo, cooldown, position, aim, Super, velocity, time scale)  — 0 frames changed something
+
+== 9. budget + low quality
+PASS  sustained STANDARD + OVERRIDE fire: display objects created once and reused (52 after warm-up, 54 after 600 more ticks)  — {"o0":52,"o1":54,"glow":0,"sparks":0,"tracer":198,"flash":28,"carried":"p1-rifle-hot"}
+PASS  low quality: tracers and the discharge drawn, no glow or scatter created; the rifle still carried  — {"o0":52,"o1":54,"glow":0,"sparks":0,"tracer":198,"flash":28,"carried":"p1-rifle-hot"}
+
+== 10. frozen files
+PASS  src/: nothing changed against 514a385 outside debug.js, p2aFx.js, p2aPaint.js and the new p2a2Loadout.js (entities, Player, WeaponPickup, HUD, GameScene, PreloadScene, P1, FX, config untouched)
+PASS  Enemy.js guard (outside the Bomber, the Bomber-only veto)  — {"outside":true,"hasDoc":true,"hasMethod":true,"code":"_vetoFalseStuck() { if (this._stuckFirstSeen || this._miniBoss) return; if (this._stuckRefX === undefined) return; this._stuckFirstSeen = true; const moved = Ma"}
+
+== 11. skipped (no --old=URL)
+
+== 12. restart and reload keep the mode
+PASS  B: a scene restart keeps the mode (loadout installed, P2-A layer installed)  — {"a2":true,"loadout":true,"layer":true}
+PASS  B: a reload keeps the mode (and paints the p2a2 set only when on)  — {"a2":true,"tex":true}
+PASS  P2-A: a scene restart keeps the mode (loadout absent, P2-A layer installed)  — {"a2":false,"loadout":false,"layer":true}
+PASS  P2-A: a reload keeps the mode (and paints the p2a2 set only when on)  — {"a2":false,"tex":false}
+
+64/64 passed

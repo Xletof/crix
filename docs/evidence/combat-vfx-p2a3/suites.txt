@@ -1,0 +1,29 @@
+# P2-A3 verification
+smoke-fx-p2a3 --old=356b5df (final code, f3dae53): 95/95 passed  (smoke-fx-p2a3.txt)
+smoke-fx-p2a3 --selftest --only=3,5,7,8 (final code): SELFTEST OK — a Math.random draw in the P2-A3 frame, an event per
+  count redraw and a 1px cell shift each failed their sections (11/28 passed, as designed)  (selftest.txt)
+  (first full run, before the setFontSize guard: 95/95 too; the guard changes no pixel — the 600 HUD evidence frames,
+  A and B, re-rendered after it are byte-identical)
+
+# covering suites (run on dd72efb: P2-A3's code paths are not loaded without fxPilot=p2a3, so the later
+# P2-A3-only setFontSize guard does not reach them)
+smoke-fx-p2a2 (P2-A2's own suite, no --old): 64/64 passed  (smoke-fx-p2a2-regression.txt)
+  its two "unknown fxPilot value" examples moved from p2a3 (now P2-A3's flag) to p2a9; its scope check
+  leaves P2-A3's new module to smoke-fx-p2a3 section 10. Section 11 skipped (no --old): P2-A2 against
+  356b5df is smoke-fx-p2a3 section 11 (textures, fights, and the RENDERED full canvas pixel-identical)
+smoke-fx-p2a (P2-A's own suite, no --old): 70/70 passed  (smoke-fx-p2a-regression.txt)
+smoke-polish-p1: 73/73 passed
+smoke-visual-pilot: 97/97 passed
+smoke-roster-seams: 70/70 checks passed
+smoke-bulwark: 92/92 checks passed
+smoke-leak: PASS: primary fire is isolated from the cluster
+smoke-restart: PASS: 16 checks — restarts leave no duplicate handlers and no stale arena
+smoke-rng: PASS: 17 checks — runs are reproducible and the streams do not couple
+smoke-score: PASS: 41 checks — kills, chain multiplier and wave bonuses all score
+smoke-title: PASS: 15 checks — endless leads, and its record is the first thing you read
+smoke-debug: PASS: debug menu works and the HUD stays in sync
+smoke-readability: PASS: 19 checks (this run; it failed 1/19 on the known Vader flake in both P2-A2 runs and on def85e5)
+
+npm run build: passes (the usual >500 kB chunk warning)
+
+# evidence rigs: shot-p2a --set=p2a3 (6 pairs) and --set=p2a3mz (9 pairs): all 15 identical at every tick

@@ -1,0 +1,77 @@
+# node tests/diag-fx-p2a-perf.mjs --set=p2a3 — A = P2-A2, B = P2-A3; idle box, headless Chromium, SOFTWARE rasteriser (A vs B only)
+# the fight: a dense crowd, ordinary fire every 3 ticks, OVERRIDE engaged half-way with 999 rounds (a count redraw every ~3 rounds' worth of frames: 105 redraws in 600 ticks, ~6x real play)
+metric                      A (P2-A2)      B (P2-A3)
+paintMs                             5          5.400
+p2aBytes                       175168         258868
+p2aTextures                        17             25
+texBytes                     68801188       68884888
+texCount                          190            198
+listAtRest                        121            124
+stepMed                        10.400         10.500
+stepP95                       544.200        545.500
+peakDisplayList                   296            299
+peakShippedParticles              184            184
+textUpdates                      1037           1355
+textUpdateMedMs                 0.200          0.200
+textUpdateP95Ms                 0.800          0.700
+hookMsPerFrame                  0.128          0.287
+peakTracers                        11             11
+peakFlashes                         3              3
+peakContacts                        4              4
+peakSparkStreaks                   24             24
+pooledObjects                      44             44
+tracersDrawn                      213            213
+contactsDrawn                      66             66
+parityParticles                   691            691
+contactsRecycled                    0              0
+tweens                              8              8
+listInFight                       249            252
+p2a3MsPerFrame                      —          0.188
+p2a3HudMsPerFrame                   —          0.176
+p2a3Polls                           —            105
+p2a3Flicks                          —            104
+
+# node tests/diag-fx-p2a-perf.mjs --set=p2a3mz — A = P2-A3 (current STANDARD discharge), B = P2-A3 + muzzle=sharp
+metric                      A (P2-A3)      B (sharp)
+paintMs                         5.700          5.500
+p2aBytes                       258868         258868
+p2aTextures                        25             25
+texBytes                     68884888       68884888
+texCount                          198            198
+listAtRest                        124            124
+stepMed                        11.900         11.100
+stepP95                       554.400        545.100
+peakDisplayList                   299            299
+peakShippedParticles              184            184
+textUpdates                      1355           1355
+textUpdateMedMs                 0.200          0.200
+textUpdateP95Ms                 0.800          0.700
+hookMsPerFrame                  0.290          1.194
+peakTracers                        11             11
+peakFlashes                         3              3
+peakContacts                        4              4
+peakSparkStreaks                   24             24
+pooledObjects                      44             44
+p2a3MsPerFrame                  0.178          1.091
+p2a3HudMsPerFrame               0.167          1.079
+p2a3Polls                         105            105
+p2a3Flicks                        104            104
+tracersDrawn                      213            213
+contactsDrawn                      66             66
+parityParticles                   691            691
+contactsRecycled                    0              0
+tweens                              8              8
+listInFight                       252            252
+
+# Reading it
+# - Frame step median: P2-A2 10.4 ms vs P2-A3 10.5 ms (sharp 11.1 vs current 11.9 in the second, noisier pair).
+# - P2-A3's own frame without a redraw: ~5 us (isolated microbenchmark: update 5.0 us, cell 0.9 us, HUD beats 0.1 us).
+# - A count redraw re-runs the whole HUD refresh chain (shipped panel, P2-A2's restyle, P2-A3's): three Phaser Text
+#   re-renders ('DC-15 n', 'OVERRIDE  n', 'n'). Text re-renders in the fight: 1037 -> 1355 (+318 = 3 x 106); each costs
+#   the same as the shipped HUD's own (median 0.2 ms, p95 0.7-0.8 ms). Real play: at most 26 redraws per module.
+# - hookMsPerFrame / p2a3HudMsPerFrame swing between runs (P2-A3 0.17-1.2 ms/frame here; the sharp pair 0.18 vs 1.08)
+#   because under the software rasteriser a Text's immediate WebGL texture upload occasionally stalls for hundreds of
+#   ms — the shipped texts take the same stalls (prof: shipped HUD Text max 1838 ms on P2-A2). Same Text counts and
+#   costs for current and sharp: the sharp variant itself changes no cost.
+# - One-time: 8 textures, +83.7 KB (texBytes 68.80 -> 68.88 MB); 3 display objects at rest (cell, glow, ring) + 4 in
+#   the HUD once OVERRIDE is first taken; no tween; no particle.

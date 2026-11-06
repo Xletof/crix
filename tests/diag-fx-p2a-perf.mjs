@@ -87,6 +87,10 @@ for (const [cfg, flags] of CFGS) {
       if (exp.includes('noglow')) { const im = c._img.bind(c); c._img = (k, add) => { const o = im(k, add); if (k === 'p2a-glow') o.setAlpha(0).setVisible(false); return o; }; }
     }
     const emitters = gs.children.list.filter((o) => o.type === 'ParticleEmitter' && o.visible);
+    // every Phaser Text re-render in the fight (shipped HUD and game texts included): count and cost
+    const Ph = (await import(performance.getEntriesByType('resource').map((x) => x.name).find((n) => /deps\/phaser\.js/.test(n)))).default;
+    const ut = Ph.GameObjects.Text.prototype.updateText, textMs = [];
+    Ph.GameObjects.Text.prototype.updateText = function (...a) { const t0 = performance.now(); const v = ut.apply(this, a); textMs.push(performance.now() - t0); return v; };
     const step = [];
     for (let i = 0; i < ticks; i++) {
       if (i === ticks / 2) { if (set !== 'p2a') P.equipSecondary('rifle'); P.secondary = 'rifle'; P.secondaryAmmo = 999; }
@@ -102,7 +106,9 @@ for (const [cfg, flags] of CFGS) {
         peak.sparks = Math.max(peak.sparks, c.impacts.reduce((s, m) => s + (m.sparks?.length || 0), 0));
       }
     }
+    Ph.GameObjects.Text.prototype.updateText = ut;
     r.stepMed = med(step); r.stepP95 = p95(step); r.peakDisplayList = peakList; r.peakShippedParticles = peakParticles;
+    r.textUpdates = textMs.length; r.textUpdateMedMs = med(textMs); r.textUpdateP95Ms = p95(textMs);
     if (c) {
       r.hookMsPerFrame = hook / ticks;
       r.peakTracers = peak.bolts; r.peakFlashes = peak.flashes; r.peakContacts = peak.impacts; r.peakSparkStreaks = peak.sparks;

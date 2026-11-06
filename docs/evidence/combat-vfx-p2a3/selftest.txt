@@ -1,0 +1,39 @@
+
+== 3. the round count (refinement 1)
+PASS  B: on every one of 182 OVERRIDE ticks the HUD count and bar equal secondaryAmmo (27 -> 1, the bar 76 x ammo / 27)
+PASS  CONTROL: P2-A2 (the shipped behaviour) shows a stale count/bar on 162 of 182 OVERRIDE ticks — the check can see the defect  — ammo 26 "OVERRIDE  27" bar 76.0; ammo 26 "OVERRIDE  27" bar 76.0
+FAIL  the shots, burst counter, ammunition, the tick it runs dry (182) and the draw count are P2-A2's  — draws 1943/2236, dry 182/182
+FAIL  no event added or removed: every game event emitted the same number of times (secondary-ammo-changed 28, secondary-equipped 2, player-fire-rifle 27)  — secondary-ammo-changed 2/28
+FAIL  redrawn only when the value changes: 26 poll redraws for 26 value changes during OVERRIDE (the emptying round goes through the shipped event); HUD refreshes 4 -> 56  — {"polls":26,"changes":26}
+
+== 5. the active state (refinement 3)
+PASS  the carried rifle is P2-A2's object state on every one of 293 ticks (texture, position, rotation, flip, depth, alpha) — the same gun
+PASS  every lit texel of the five cell textures lands on an opaque texel of p1-rifle AND p1-rifle-hot (same 72x40 canvas): the silhouette never grows  — p2a3-cell-0:64/0 p2a3-cell-1:80/0 p2a3-cell-2:96/0 p2a3-cell-3:112/0 p2a3-cell-hot:112/0
+FAIL  the cell rides the rifle exactly at 8 aims (position, rotation, flip, origin; depth +0.02)  — 0,0.785,1.571,2.356,3.1416,-2.356,-1.571,-0.785
+PASS  mid-combo (the blade drawn) the cell is hidden; in a bush it fades with the rifle; dead, hidden  — {"out":[{"a":0,"ok":false},{"a":0.785,"ok":false},{"a":1.571,"ok":false},{"a":2.356,"ok":false},{"a":3.1416,"ok":false},{"a":-2.356,"ok":false},{"a":-1.571,"ok":false},{"a":-0.785,"ok":false}],"blade":{"view":"p1-blade","cell":false},"bush":{"va":0.5,"ca":0.5},"dead":{"va":0,"cell":false}}
+PASS  the cell shows only while OVERRIDE is engaged or in its run-dry beat — never in plain STANDARD  — 0 stray ticks
+PASS  engage: the pips light in sequence (0 0 0 1 1 1 1 2 2 2 3 3 3 3) and one amber ring leaves the cell for 300ms (17 frames)  — 0,0,0,1,1,1,1,2,2,2,3,3,3,3
+PASS  one flick per round leaving: 26 flicks, 1 engage, 1 run-dry  — {"engages":1,"drains":1,"polls":26,"flicks":26,"hud":54}
+PASS  the last two bursts pulse the cell (alpha 0.55..0.98); before that it is steady at 1  — 14 low ticks
+PASS  run dry: the pips go out 3 -> 0, the cell gutters twice and dies within 420ms (25 ticks): 3@1.0 3@1.0 3@1.0 3@1.0 2@1.0 2@1.0 2@1.0 2@1.0 1@1.0 1@1.0 1@1.0 1@1.0 0@1.0 0@1.0 0@1.0 0@1.0 - - - 0@0.7 0@0.7 - - 0@0.3 0@0.3 -  — 3@1.0 3@1.0 3@1.0 3@1.0 2@1.0 2@1.0 2@1.0 2@1.0 1@1.0 1@1.0 1@1.0 1@1.0 0@1.0 0@1.0 0@1.0 0@1.0 - - - 0@0.7 0@0.7 - - 0@0.3 0@0.3 - - - - -
+
+== 7. same fight
+FAIL  SWARM TIDE, production: 1500 headless ticks, B identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — first divergent tick 0; events addedtoscene,shooter-fire,player-fire,removedfromscene,player-shot-missed,player-ammo-changed,player-mult-changed,enemy-hit,player-super-changed,player-melee-changed,enemy-died,kills-update,score-changed,score-popup,player-super-ready,secondary-equipped,secondary-ammo-changed,player-fire-rifle
+FAIL  SWARM TIDE, production: 1500 headless ticks, BS identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — first divergent tick 0; events addedtoscene,shooter-fire,player-fire,removedfromscene,player-shot-missed,player-ammo-changed,player-mult-changed,enemy-hit,player-super-changed,player-melee-changed,enemy-died,kills-update,score-changed,score-popup,player-super-ready,secondary-equipped,secondary-ammo-changed,player-fire-rifle
+FAIL  SWARM TIDE, legacy baseline: 1500 headless ticks, B identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — first divergent tick 0; events addedtoscene,shooter-fire,removedfromscene,wave-remaining,player-shot-missed,player-mult-changed,enemy-hit,player-super-changed,player-melee-changed,enemy-died,kills-update,score-changed,score-popup,show-combo,secondary-ammo-changed
+FAIL  SWARM TIDE, legacy baseline: 1500 headless ticks, BS identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — first divergent tick 0; events addedtoscene,shooter-fire,removedfromscene,wave-remaining,player-shot-missed,player-mult-changed,enemy-hit,player-super-changed,player-melee-changed,enemy-died,kills-update,score-changed,score-popup,show-combo,secondary-ammo-changed
+FAIL  CROSSFIRE, production: 1500 headless ticks, B identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — first divergent tick 0; events addedtoscene,shooter-fire,player-fire,removedfromscene,player-shot-missed,player-ammo-changed,player-mult-changed,enemy-hit,player-super-changed,player-melee-changed,show-combo,secondary-equipped,secondary-ammo-changed,player-fire-rifle,hack-prompt
+FAIL  CROSSFIRE, production: 1500 headless ticks, BS identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — first divergent tick 0; events addedtoscene,shooter-fire,player-fire,removedfromscene,player-shot-missed,player-ammo-changed,player-mult-changed,enemy-hit,player-super-changed,player-melee-changed,show-combo,secondary-equipped,secondary-ammo-changed,player-fire-rifle,hack-prompt
+FAIL  BOMBER RUN, production: 1500 headless ticks, B identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — first divergent tick 0; events addedtoscene,shooter-fire,removedfromscene,show-banner,player-shot-missed,player-mult-changed,enemy-hit,player-super-changed,player-melee-changed,enemy-died,kills-update,score-changed,score-popup,show-combo,secondary-ammo-changed,score-medal,encounter-set,wave-update
+FAIL  BOMBER RUN, production: 1500 headless ticks, BS identical to P2-A2 (state, burst counter, pickups, ammo, draws, events; a real OVERRIDE pickup and a cluster pod)  — first divergent tick 0; events addedtoscene,shooter-fire,removedfromscene,show-banner,player-shot-missed,player-mult-changed,enemy-hit,player-super-changed,player-melee-changed,enemy-died,kills-update,score-changed,score-popup,show-combo,secondary-ammo-changed,score-medal,encounter-set,wave-update
+FAIL  SWARM TIDE, production: 1500 ticks, B identical to P1  — first divergent tick 0
+FAIL  SWARM TIDE, production: 600 RENDERED ticks, BS identical to P2-A2  — first divergent tick 0
+FAIL  CROSSFIRE in LOW quality: 600 rendered ticks, B identical to P2-A2  — first divergent tick 0
+PASS  R1 + ignored fxPilot=p2a3&muzzle=sharp: 800 ticks identical to R1
+
+== 8. reader only
+FAIL  the P2-A3 frame (count redraws, cell, beats, HUD restyle) draws no Math.random over 500 ticks with two OVERRIDE pickups ({"engages":2,"drains":1,"polls":44,"flicks":44,"hud":92})  — 500 draws
+FAIL  the P2-A3 frame emits no game event and writes no player or clock field (secondary, ammo, burst counter/timer/angle, refill timers, cooldown, position, aim, Super, velocity, hp, time scale)  — 0 frames wrote, 44 events
+
+11/28 passed  (SELFTEST: sections 3, 5, 7 and 8 are expected to FAIL)
+SELFTEST OK: the checks caught the injected changes
