@@ -1,0 +1,9 @@
+held-none: 90 ticks, A vs B gameplay state IDENTICAL at every tick
+held-shield: 90 ticks, A vs B gameplay state IDENTICAL at every tick
+held-ready: 90 ticks, A vs B gameplay state IDENTICAL at every tick
+held-both: 90 ticks, A vs B gameplay state IDENTICAL at every tick
+held30-none: 45 ticks, A vs B gameplay state IDENTICAL at every tick
+held30-both: 45 ticks, A vs B gameplay state IDENTICAL at every tick
+held-full: 480 ticks, A vs B gameplay state IDENTICAL at every tick
+fight-swarm: 420 ticks, A vs B gameplay state IDENTICAL at every tick
+fight-crossfire: 420 ticks, A vs B gameplay state IDENTICAL at every tick
