@@ -181,7 +181,7 @@ if (on(0)) {
   console.log('\n== 0. the flag');
   const cases = [['', false, false, false], ['fxPilot=p2a2', false, false, false], ['visualPilot=v2c&fxPilot=p2a2', false, false, false],
     ['visualPilot=v2&polish=p1&fxPilot=p2a2', false, false, false], ['visualPilot=v2b&polish=p1&fxPilot=p2a2', false, false, false],
-    [P1, false, false, true], [A, false, true, true], [B, true, true, true], [`${P1}&fxPilot=P2A2`, false, false, true], [`${P1}&fxPilot=p2a3`, false, false, true],
+    [P1, false, false, true], [A, false, true, true], [B, true, true, true], [`${P1}&fxPilot=P2A2`, false, false, true], [`${P1}&fxPilot=p2a9`, false, false, true],   // an unknown value (p2a3 became P2-A3's own flag: tests/smoke-fx-p2a3.mjs)
     [`baseline=legacy&${B}`, true, true, true]];
   const sw = {};
   for (const [flags, want2, wantA, p1] of cases) {
@@ -208,7 +208,7 @@ if (on(1)) {
   const added = Object.keys(tB).filter((k) => !(k in tA)).sort();
   check(`B: every P2-A texture byte-identical (${Object.keys(tA).length}: P1, the p2a-* set, roster, pickups, \`bullet\`)`, changed.length === 0, changed.join(' '));
   check(`B: the added textures are exactly the ${P2A2_KEYS.length} p2a2-* keys`, JSON.stringify(added) === JSON.stringify(P2A2_KEYS), added.join(' '));
-  for (const [label, base, ign] of [['R1', '', 'fxPilot=p2a2'], ['V2C', 'visualPilot=v2c', 'visualPilot=v2c&fxPilot=p2a2'], ['P1 + p2a3', P1, `${P1}&fxPilot=p2a3`]]) {
+  for (const [label, base, ign] of [['R1', '', 'fxPilot=p2a2'], ['V2C', 'visualPilot=v2c', 'visualPilot=v2c&fxPilot=p2a2'], ['P1 + p2a9', P1, `${P1}&fxPilot=p2a9`]]) {
     const t0 = await tex(base), t1 = await tex(ign);
     const keys = [...new Set([...Object.keys(t0), ...Object.keys(t1)])];
     const d = keys.filter((k) => t0[k] !== t1[k]);
@@ -562,7 +562,8 @@ if (on(9)) {
 if (on(10)) {
   console.log('\n== 10. frozen files');
   let diff = '';
-  try { diff = execSync(`git diff --stat ${BASE_REV} -- src ':!src/systems/debug.js' ':!src/systems/p2aFx.js' ':!src/systems/p2aPaint.js' ':!src/systems/p2a2Loadout.js'`, { encoding: 'utf8' }).trim(); } catch (e) { diff = `git failed: ${e.message}`; }
+  // P2-A3's new module is P2-A3's (its scope is checked by smoke-fx-p2a3 section 10)
+  try { diff = execSync(`git diff --stat ${BASE_REV} -- src ':!src/systems/debug.js' ':!src/systems/p2aFx.js' ':!src/systems/p2aPaint.js' ':!src/systems/p2a2Loadout.js' ':!src/systems/p2a3Override.js'`, { encoding: 'utf8' }).trim(); } catch (e) { diff = `git failed: ${e.message}`; }
   check(`src/: nothing changed against ${BASE_REV} outside debug.js, p2aFx.js, p2aPaint.js and the new p2a2Loadout.js (entities, Player, WeaponPickup, HUD, GameScene, PreloadScene, P1, FX, config untouched)`, diff === '', diff);
   const g = enemyJsGuard(process.cwd() + '/');
   check('Enemy.js guard (outside the Bomber, the Bomber-only veto)', g.outside && g.bomberOnlyVeto && g.vetoCode, g.detail);

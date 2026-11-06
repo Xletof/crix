@@ -316,6 +316,50 @@ loadout; `p2aFx.js` maps each bolt's POOL to a style (`playerBullets` ->
 - **Quantising a full frame to a 256-colour palette washes out the reds** of
   small flashes (they read cream): keep evidence stills in RGB.
 
+### P2-A3 OVERRIDE refinement (`?visualPilot=v2c&polish=p1&fxPilot=p2a3`, a candidate — not approved)
+
+Built over P2-A2 (`isFxP2A()` and `isFxP2A2()` are true for `p2a3`;
+`isFxP2A3()` only for it), installed by the P2-A layer after P2-A2's loadout —
+no new GameScene, PreloadScene or HUD call, and `p2a2Loadout.js` untouched.
+`systems/p2a3Override.js` owns the OVERRIDE round count, readout, power cell
+and beats; `&muzzle=sharp` (`isMuzzleSharp()`, P2-A3 only) is the STANDARD
+discharge's persistence A/B inside `p2aFx.js`. Proof: `tests/smoke-fx-p2a3.mjs`.
+Traps found building it:
+
+- **Fix a missing event by READING, not by emitting.** The burst bolt spends a
+  round without `secondary-ammo-changed` (register #28). Emitting it from a
+  presentation layer would change event behaviour (and every listener's
+  timing). P2-A3 compares `player.secondaryAmmo` with the value it last drew,
+  once a frame in P2-A's POST_UPDATE, and re-runs the HUD's own
+  `refreshSecondary` only on a change: 26 redraws for 27 rounds (the emptying
+  round goes through the shipped event). The smoke counts every game event in
+  both builds and requires them equal.
+- **Wrapping a wrapper.** P2-A3 instance-wraps `hud.refreshSecondary` on top of
+  P2-A2's wrapper: one refresh runs the shipped body, P2-A2's restyle, then
+  P2-A3's, which has the last word. Unwrap in reverse order (P2-A3 before
+  P2-A2's loadout) or P2-A2's `delete` takes P2-A3's wrapper with it.
+- **The HUD scene starts after the Game scene installs.** `scene.launch('HUD')`
+  runs after `installFxP2A`, so `secIcon` / `secText` do not exist yet:
+  P2-A3's HUD objects are built lazily on the first restyle, and the poll only
+  calls `refreshSecondary` once `hud.secIcon` and `hud.gameScene` exist.
+- **A re-sized shipped Text must be put back.** P2-A3 sets `secText` to 32px
+  for the OVERRIDE count; leaving OVERRIDE (run dry, the cluster pod, a
+  restart) restores the shipped 15px, or the cluster panel inherits it.
+- **An overlay that must not change the gun's silhouette** is painted on the
+  gun's own canvas size and origin and given the gun's transform each frame:
+  every lit texel lands on a texel the rifle already has (the smoke checks it
+  against `p1-rifle` and `p1-rifle-hot`). flipY mirrors about the texture's
+  middle, which is the rifle's origin row, so a point offset is `dy -> -dy`.
+- **A short flash can lose its peak to the frame it was born in.** P2-A ages a
+  flash from the fire call, so its first RENDERED frame is already `delta` old
+  (at a 30 Hz step the current STANDARD flash never shows its first-third
+  hold). The sharp variant starts ageing after the first frame it is drawn.
+- **One Vite cache per server.** A second dev server for the previous build
+  (a worktree whose `node_modules` is a symlink to the main one) re-optimises
+  into the SAME `node_modules/.vite` and the main server then answers its
+  Phaser bundle with 504 — every new page in a running suite hangs. Start the
+  old server with its own `cacheDir` (a config wrapper: `{ ...base, cacheDir }`).
+
 ### Rendering and depth
 
 - **Two depth conventions run at once.** Actors Y-sort (`setDepth(this.y)`), walls

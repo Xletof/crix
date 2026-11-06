@@ -25,10 +25,16 @@ const REPS = +opt('reps', '5'), TICKS = +opt('ticks', '600');
 // --exp=noadd|nosparks|noglow: a cost experiment on B only (what the frame time is made of)
 const EXP = opt('exp', '');
 // --set=p2a2: A = P2-A, B = P2-A2 (the carbine loadout), the fight with OVERRIDE engaged half-way
+// --set=p2a3: A = P2-A2, B = P2-A3 (the OVERRIDE refinement), the same fight
+// --set=p2a3mz: A = P2-A3, B = P2-A3 + muzzle=sharp
 const SET = opt('set', 'p2a');
-const CFGS = SET === 'p2a2'
-  ? [['A', 'visualPilot=v2c&polish=p1&fxPilot=p2a'], ['B', 'visualPilot=v2c&polish=p1&fxPilot=p2a2']]
-  : [['A', 'visualPilot=v2c&polish=p1'], ['B', 'visualPilot=v2c&polish=p1&fxPilot=p2a']];
+const P1F = 'visualPilot=v2c&polish=p1';
+const CFGS = {
+  p2a: [['A', P1F], ['B', `${P1F}&fxPilot=p2a`]],
+  p2a2: [['A', `${P1F}&fxPilot=p2a`], ['B', `${P1F}&fxPilot=p2a2`]],
+  p2a3: [['A', `${P1F}&fxPilot=p2a2`], ['B', `${P1F}&fxPilot=p2a3`]],
+  p2a3mz: [['A', `${P1F}&fxPilot=p2a3`], ['B', `${P1F}&fxPilot=p2a3&muzzle=sharp`]],
+}[SET];
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 const out = {};
 for (const [cfg, flags] of CFGS) {
@@ -50,6 +56,7 @@ for (const [cfg, flags] of CFGS) {
       r.paintMs = med(t);
       for (const o of [...c.imgPool, c.heatGlow]) o.setTexture(o.texture.key);
       for (const q of gs.weaponPickups || []) if (q._p2a2) q.sprite.setTexture(q.sprite.texture.key);
+      if (c.p2a3) for (const o of [c.p2a3.cell, c.p2a3.glow]) o.setTexture(o.texture.key);
       let b = 0; for (const k of KEYS) { const s = g.textures.get(k).getSourceImage(); b += s.width * s.height * 4; }
       r.p2aBytes = b; r.p2aTextures = KEYS.length;
     }
@@ -76,7 +83,7 @@ for (const [cfg, flags] of CFGS) {
     const emitters = gs.children.list.filter((o) => o.type === 'ParticleEmitter' && o.visible);
     const step = [];
     for (let i = 0; i < ticks; i++) {
-      if (i === ticks / 2) { if (set === 'p2a2') P.equipSecondary('rifle'); P.secondary = 'rifle'; P.secondaryAmmo = 999; }
+      if (i === ticks / 2) { if (set !== 'p2a') P.equipSecondary('rifle'); P.secondary = 'rifle'; P.secondaryAmmo = 999; }
       if (i % 3 === 0) { P.fireCooldown = 0; P.ammo = 99; P.keyboardFire(); }
       if (i % 40 === 0) { P.fireCooldown = 0; P.tryFire(-Math.PI / 2 + 0.3); }           // into the cover to the north
       if (i % 90 === 0 && gs.enemies.countActive() < 8) gs._spawnSwarmlingPack(1000, 600 + (i % 180));
@@ -94,6 +101,7 @@ for (const [cfg, flags] of CFGS) {
       r.hookMsPerFrame = hook / ticks;
       r.peakTracers = peak.bolts; r.peakFlashes = peak.flashes; r.peakContacts = peak.impacts; r.peakSparkStreaks = peak.sparks;
       r.pooledObjects = c.imgPool.length + c.gfxPool.length + c.bolts.length * 3 + c.flashes.length * 2 + c.impacts.length * 4;
+      if (c.p2a3) { r.p2a3Polls = c.p2a3.stats.polls; r.p2a3Flicks = c.p2a3.stats.flicks; }
       r.tracersDrawn = c.stats.bolts; r.contactsDrawn = Object.values(c.stats.impacts).reduce((a, b) => a + b, 0); r.parityParticles = c.stats.parity; r.contactsRecycled = c.stats.recycled;
     }
     r.tweens = gs.tweens.getTweens().length;
@@ -104,5 +112,6 @@ for (const [cfg, flags] of CFGS) {
 }
 await browser.close();
 const f = (v) => (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(3)) : v);
-console.log('metric'.padEnd(22), (SET === 'p2a2' ? 'A (P2-A)' : 'A (P1)').padStart(14), (SET === 'p2a2' ? 'B (P2-A2)' : 'B (P1 + P2-A)').padStart(14));
+const LAB = { p2a: ['A (P1)', 'B (P1 + P2-A)'], p2a2: ['A (P2-A)', 'B (P2-A2)'], p2a3: ['A (P2-A2)', 'B (P2-A3)'], p2a3mz: ['A (P2-A3)', 'B (sharp)'] }[SET];
+console.log('metric'.padEnd(22), LAB[0].padStart(14), LAB[1].padStart(14));
 for (const k of [...new Set([...Object.keys(out.A), ...Object.keys(out.B)])]) console.log(k.padEnd(22), String(f(out.A[k] ?? '—')).padStart(14), String(f(out.B[k] ?? '—')).padStart(14));

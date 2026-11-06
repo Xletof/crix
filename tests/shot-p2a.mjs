@@ -21,6 +21,12 @@
 //   fight-swarm      SWARM TIDE, Hangar, sector 3
 //   fight-crossfire  CROSSFIRE, Hangar, sector 6
 //
+// `--set=p2a2`: A = P2-A, B = P2-A2 (the carbine). `--set=p2a3`: A = P2-A2,
+// B = P2-A3 (the OVERRIDE refinement: HUD count, readout, power cell, beats).
+// `--set=p2a3mz`: A = P2-A3 (current STANDARD discharge), B = P2-A3 +
+// `muzzle=sharp` — sustained fire in four states, at 60 Hz and a 30 Hz step.
+// The p2a3 sets render EVERY tick (60 fps films; 30 fps for the 30 Hz scenes).
+//
 // usage: node tests/shot-p2a.mjs --out=DIR [--frames=TMPDIR] [--only=pistol,rifle,...] [--a=FLAGS] [--b=FLAGS]
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { execSync } from 'node:child_process';
@@ -30,9 +36,17 @@ import { CHROME, bootPage } from './diag-stuck-audit.mjs';
 const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').split('=').slice(1).join('=') || d;
 // --set=p2a2: the P2-A2 evidence (A = P2-A, B = P2-A2, its own scene list)
 const SET = opt('set', 'p2a');
-const OUT = opt('out', SET === 'p2a2' ? 'docs/evidence/combat-vfx-p2a2' : 'docs/evidence/combat-vfx-p2a');
-const A = opt('a', SET === 'p2a2' ? 'visualPilot=v2c&polish=p1&fxPilot=p2a' : 'visualPilot=v2c&polish=p1');
-const B = opt('b', SET === 'p2a2' ? 'visualPilot=v2c&polish=p1&fxPilot=p2a2' : 'visualPilot=v2c&polish=p1&fxPilot=p2a');
+const P1F = 'visualPilot=v2c&polish=p1';
+const DEF = {
+  p2a: ['docs/evidence/combat-vfx-p2a', P1F, `${P1F}&fxPilot=p2a`],
+  p2a2: ['docs/evidence/combat-vfx-p2a2', `${P1F}&fxPilot=p2a`, `${P1F}&fxPilot=p2a2`],
+  p2a3: ['docs/evidence/combat-vfx-p2a3', `${P1F}&fxPilot=p2a2`, `${P1F}&fxPilot=p2a3`],
+  p2a3mz: ['docs/evidence/combat-vfx-p2a3/muzzle-ab', `${P1F}&fxPilot=p2a3`, `${P1F}&fxPilot=p2a3&muzzle=sharp`],
+}[SET];
+const OUT = opt('out', DEF[0]);
+const A = opt('a', DEF[1]);
+const B = opt('b', DEF[2]);
+const EVERY = SET.startsWith('p2a3') ? 1 : 2;   // fights: every tick (60 fps) for the p2a3 sets
 const ONLY = opt('only', '') ? new Set(opt('only', '').split(',')) : null;
 const want = (n) => !ONLY || ONLY.has(n);
 const BASE = opt('base', 'http://localhost:5173/');
@@ -172,7 +186,42 @@ const SCENES_P2A2 = {
           if (i >= 60) P.tryFire(-0.35);`,
   },
 };
-const SCENE_SET = SET === 'p2a2' ? SCENES_P2A2 : SCENES;
+// ── the P2-A3 set (`--set=p2a3`): A = P2-A2, B = P2-A3 ─────────────────────
+// one real OVERRIDE module, fired until it runs dry, then STANDARD
+const MODULE = `P.x = 760; P.y = 810; P.body.reset(760, 810); P.facing = 0;
+          gs.weaponPickups.push(new window.__WP(gs, P.x, P.y, 'rifle')); window.__T = [];`;
+const SCENES_P2A3 = {
+  // the HUD panel (screen space): the count and bar every round; run dry -> STANDARD
+  hud: { screen: [40, 930, 172, 144], strip: [14, 300, 12], ticks: 300, setup: MODULE, act: `if (i >= 20) P.tryFire(-0.2);` },
+  // the hero: the engage beat (pips in sequence, the ring, the HUD rim), then the first bursts
+  engage: { rect: [680, 745, 860, 880], strip: [0, 46, 2], ticks: 60, setup: MODULE, act: `if (i >= 24) P.tryFire(-0.2);` },
+  // the last two bursts (the pulse), running dry (pips out, the cell gutters), STANDARD after
+  rundry: { rect: [680, 745, 860, 880], strip: [0, 84, 3], ticks: 90,
+    setup: `P.x = 760; P.y = 810; P.body.reset(760, 810); P.facing = 0; P.equipSecondary('rifle'); P.secondaryAmmo = 6; gs.events.emit('secondary-ammo-changed'); window.__T = [];`,
+    act: `if (i >= 20 && i % 2 === 0) P.tryFire(-0.2);` },
+  // the whole loop, full frame at phone size: the module dropped ahead, walked onto, fired dry, STANDARD after
+  sequence: { strip: [0, 330, 15], ticks: 330, rect: null, full: [12, 40, 70, 120, 200, 236, 262, 300],
+    setup: `P.x = 610; P.y = 860; P.body.reset(610, 860); gs.spawnWeaponChoice(760, 660, 'REWARD'); window.__T = [];`,
+    act: `gs.keys.W.isDown = i >= 10 && i < 50;
+          if (i >= 60) P.tryFire(-0.35);` },
+};
+// ── the STANDARD discharge A/B (`--set=p2a3mz`): A = P2-A3, B = P2-A3 + muzzle=sharp
+// a held trigger: the shipped pool (3 rounds, 120ms apart, then the 520ms refill)
+const HELD = (o) => ({
+  rect: [660, 735, 940, 890], strip: [0, 40, 1], ticks: 90,
+  setup: `P.x = 760; P.y = 810; P.body.reset(760, 810); P.facing = 0.2; ${KEEP(o)} P.ammo = 3; P.ammoTimers = []; window.__T = [];`,
+  act: `${KEEP(o)} P.tryFire(0.2);`, ...(o.step ? { step: o.step } : {}),
+});
+const SCENES_P2A3MZ = {
+  'held-none': HELD({}), 'held-shield': HELD({ shield: 1 }), 'held-ready': HELD({ ready: 1 }), 'held-both': HELD({ shield: 1, ready: 1 }),
+  // the same at a 30 Hz step (a phone that cannot hold 60 fps)
+  'held30-none': { ...HELD({ step: 1000 / 30 }), ticks: 45, strip: [0, 20, 1] }, 'held30-both': { ...HELD({ shield: 1, ready: 1, step: 1000 / 30 }), ticks: 45, strip: [0, 20, 1] },
+  // full frame at phone size: 2s in each state, trigger held throughout
+  'held-full': { strip: [0, 480, 24], ticks: 480, rect: null, full: [62, 182, 302, 422],
+    setup: `P.x = 760; P.y = 810; P.body.reset(760, 810); P.facing = 0.2; P.ammo = 3; P.ammoTimers = []; window.__T = [];`,
+    act: `const ph = Math.floor(i / 120); P.shieldHp = ph === 1 || ph === 3 ? 50 : 0; P.superCharge = ph >= 2 ? 99 : 0; P.tryFire(0.2);` },
+};
+const SCENE_SET = { p2a: SCENES, p2a2: SCENES_P2A2, p2a3: SCENES_P2A3, p2a3mz: SCENES_P2A3MZ }[SET];
 
 async function stage(flags, name, dir) {
   const S = SCENE_SET[name];
@@ -194,12 +243,12 @@ async function stage(flags, name, dir) {
   const hashes = [];
   if (dir) mkdirSync(dir, { recursive: true });
   for (let i = 0; i < S.ticks; i++) {
-    const r = await p.evaluate(({ i, act, rect }) => {
+    const r = await p.evaluate(({ i, act, rect, screen, step }) => {
       const gs = window.__gs, P = gs.player, T = window.__T;
       new Function('gs', 'P', 'T', 'i', act)(gs, P, T, i);
-      window.__adv(1);
-      return { s: window.__state(), clip: rect ? window.__clip(...rect) : null };
-    }, { i, act: S.act, rect: S.rect });
+      if (step) { window.__t += step; window.game.step(window.__t, step); } else window.__adv(1);
+      return { s: window.__state(), clip: screen ? { x: screen[0], y: screen[1], width: screen[2], height: screen[3] } : rect ? window.__clip(...rect) : null };
+    }, { i, act: S.act, rect: S.rect, screen: S.screen || null, step: S.step || 0 });
     hashes.push(fnv(r.s));
     if (dir) await p.screenshot({ path: `${dir}/f${String(i).padStart(3, '0')}.png`, ...(r.clip ? { clip: r.clip } : {}) });
     if (dir && S.full?.includes(i)) await p.screenshot({ path: `${dir}/full${String(i).padStart(3, '0')}.png` });
@@ -226,7 +275,7 @@ async function fight(flags, name, dir) {
       const cur = seg.find(([a, b]) => i >= a && i < b)[2];
       K.A.isDown = cur.includes('A'); K.D.isDown = cur.includes('D'); K.W.isDown = cur.includes('W'); K.S.isDown = cur.includes('S');
       if (i === 200) {
-        if (set === 'p2a2') gs.weaponPickups.push(new window.__WP(gs, P.x, P.y, 'rifle'));   // a real OVERRIDE module, collected
+        if (set !== 'p2a') gs.weaponPickups.push(new window.__WP(gs, P.x, P.y, 'rifle'));   // a real OVERRIDE module, collected
         else { P.secondary = 'rifle'; P.secondaryAmmo = 90; gs.events.emit('secondary-equipped', 'rifle'); }
       }
       if (i >= 10 && i % 6 === 0) P.keyboardFire();
@@ -235,7 +284,7 @@ async function fight(flags, name, dir) {
     }, { i, seg, set: SET });
     hashes.push(fnv(s));
     // every other tick: a 30 fps film of a 60 Hz fight
-    if (dir && i % 2 === 0) await p.screenshot({ path: `${dir}/f${String(i / 2).padStart(3, '0')}.png` });
+    if (dir && i % EVERY === 0) await p.screenshot({ path: `${dir}/f${String(i / EVERY).padStart(3, '0')}.png` });
   }
   await p.close();
   return hashes;
@@ -257,14 +306,15 @@ for (const name of Object.keys(SCENE_SET)) {
   if (d >= 0) continue;
   const dir = `${OUT}/${name}`; mkdirSync(dir, { recursive: true });
   const S = SCENE_SET[name];
+  const crop = !!(S.rect || S.screen), FPS = S.step ? Math.round(1000 / S.step) : 60;
   // frame sheets: A row over B row, every tick, 2x nearest
   const n = hA.length, cols = Math.min(n, 10);
-  for (const [lab, sub] of (S.rect ? [['A', 'A'], ['B', 'B']] : [])) {   // full-frame scenes: the phone strip + film instead
+  for (const [lab, sub] of (crop ? [['A', 'A'], ['B', 'B']] : [])) {   // full-frame scenes: the phone strip + film instead
     sh(`ffmpeg -y -loglevel error -framerate 60 -i ${TMP}/${name}/${sub}/f%03d.png -vf "tile=${cols}x${Math.ceil(n / cols)}:padding=4:color=0x202020" -frames:v 1 ${dir}/sheet-${lab}.png`);
     sh(`python3 -c "from PIL import Image; Image.open('${dir}/sheet-${lab}.png').convert('RGB').save('${dir}/sheet-${lab}.png', optimize=True)"`);
   }
   // full-frame scenes: A | B films at PHONE SIZE (390px each), and the key stills
-  if (!S.rect) sh(`ffmpeg -y -loglevel error -framerate 60 -i ${TMP}/${name}/A/f%03d.png -framerate 60 -i ${TMP}/${name}/B/f%03d.png -filter_complex "[0]scale=390:-2:flags=area,pad=iw+8:ih:0:0:0x202020[a];[1]scale=390:-2:flags=area[b];[a][b]hstack,format=yuv420p" -c:v libx264 -crf 23 ${dir}/ab-phone-size.mp4`);
+  if (!crop) sh(`ffmpeg -y -loglevel error -framerate 60 -i ${TMP}/${name}/A/f%03d.png -framerate 60 -i ${TMP}/${name}/B/f%03d.png -filter_complex "[0]scale=390:-2:flags=area,pad=iw+8:ih:0:0:0x202020[a];[1]scale=390:-2:flags=area[b];[a][b]hstack,format=yuv420p" -c:v libx264 -crf 23 ${dir}/ab-phone-size.mp4`);
   for (const k of S.full || []) {
     sh(`python3 -c "
 from PIL import Image
@@ -279,16 +329,18 @@ o.save('${dir}/ab-phone-full-%03d.png'%${k}, optimize=True)
   sh(`python3 -c "
 from PIL import Image
 idx=list(range(${S.strip[0]}, ${Math.min(S.strip[1], n)}, ${S.strip[2]})); fr=[(Image.open('${TMP}/${name}/A/f%03d.png'%i),Image.open('${TMP}/${name}/B/f%03d.png'%i)) for i in idx]; n=len(fr)
-w,h=fr[0][0].size; k=${S.rect ? 1.08 : 0.3}; W,H=int(w*k),int(h*k)
+w,h=fr[0][0].size; k=${crop ? 1.08 : 0.3}; W,H=int(w*k),int(h*k)
 o=Image.new('RGB',(W*2+8,(H+4)*n),(20,20,20))
 for k,(a,b) in enumerate(fr):
   o.paste(a.resize((W,H),Image.LANCZOS),(0,k*(H+4))); o.paste(b.resize((W,H),Image.LANCZOS),(W+8,k*(H+4)))
-o.save('${dir}/${S.rect ? 'ab-phone2x' : 'ab-phone-strip'}.png', optimize=True)
+o.save('${dir}/${crop ? 'ab-phone2x' : 'ab-phone-strip'}.png', optimize=True)
 "`);
   // synchronized film, A | B, 2x, real time and 1/4 speed
-  if (S.rect) {   // close-ups only: a full-frame scene has its phone-size film above
-    sh(`ffmpeg -y -loglevel error -framerate 60 -i ${TMP}/${name}/A/f%03d.png -framerate 60 -i ${TMP}/${name}/B/f%03d.png -filter_complex "[0]scale=iw*2:ih*2:flags=neighbor,pad=iw+8:ih:0:0:0x202020[a];[1]scale=iw*2:ih*2:flags=neighbor[b];[a][b]hstack,format=yuv420p,scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:v libx264 -crf 18 ${dir}/ab-60fps.mp4`);
-    sh(`ffmpeg -y -loglevel error -i ${dir}/ab-60fps.mp4 -vf "setpts=4*PTS" -r 30 -c:v libx264 -crf 18 ${dir}/ab-quarter-speed.mp4`);
+  if (crop) {   // close-ups only: a full-frame scene has its phone-size film above
+    sh(`ffmpeg -y -loglevel error -framerate ${FPS} -i ${TMP}/${name}/A/f%03d.png -framerate ${FPS} -i ${TMP}/${name}/B/f%03d.png -filter_complex "[0]scale=iw*2:ih*2:flags=neighbor,pad=iw+8:ih:0:0:0x202020[a];[1]scale=iw*2:ih*2:flags=neighbor[b];[a][b]hstack,format=yuv420p,scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:v libx264 -crf 18 ${dir}/ab-${FPS}fps.mp4`);
+    sh(`ffmpeg -y -loglevel error -i ${dir}/ab-${FPS}fps.mp4 -vf "setpts=4*PTS" -r 30 -c:v libx264 -crf 18 ${dir}/ab-quarter-speed.mp4`);
+    // the p2a3 sets: the same crop at TRUE phone size (the canvas shows at 0.54x on a 390pt-wide phone)
+    if (SET.startsWith('p2a3')) sh(`ffmpeg -y -loglevel error -framerate ${FPS} -i ${TMP}/${name}/A/f%03d.png -framerate ${FPS} -i ${TMP}/${name}/B/f%03d.png -filter_complex "[0]scale=trunc(iw*0.54/2)*2:-2:flags=area,pad=iw+8:ih:0:0:0x202020[a];[1]scale=trunc(iw*0.54/2)*2:-2:flags=area[b];[a][b]hstack,format=yuv420p,scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:v libx264 -crf 18 ${dir}/ab-phone-1x-${FPS}fps.mp4`);
   }
 }
 
@@ -302,10 +354,10 @@ for (const name of Object.keys(FIGHTS)) {
   if (d >= 0) continue;
   const dir = `${OUT}/${name}`; mkdirSync(dir, { recursive: true });
   // phone size: the canvas at 390 CSS px (0.54x), A | B
-  sh(`ffmpeg -y -loglevel error -framerate 30 -i ${TMP}/${name}/A/f%03d.png -framerate 30 -i ${TMP}/${name}/B/f%03d.png -filter_complex "[0]scale=390:-2:flags=area,pad=iw+8:ih:0:0:0x202020[a];[1]scale=390:-2:flags=area[b];[a][b]hstack,format=yuv420p" -c:v libx264 -crf 23 ${dir}/ab-phone-size.mp4`);
-  sh(`ffmpeg -y -loglevel error -framerate 30 -i ${TMP}/${name}/B/f%03d.png -vf "scale=540:-2:flags=area,format=yuv420p" -c:v libx264 -crf 23 ${dir}/b-540.mp4`);
+  sh(`ffmpeg -y -loglevel error -framerate ${60 / EVERY} -i ${TMP}/${name}/A/f%03d.png -framerate ${60 / EVERY} -i ${TMP}/${name}/B/f%03d.png -filter_complex "[0]scale=390:-2:flags=area,pad=iw+8:ih:0:0:0x202020[a];[1]scale=390:-2:flags=area[b];[a][b]hstack,format=yuv420p" -c:v libx264 -crf 23 ${dir}/ab-phone-size.mp4`);
+  sh(`ffmpeg -y -loglevel error -framerate ${60 / EVERY} -i ${TMP}/${name}/B/f%03d.png -vf "scale=540:-2:flags=area,format=yuv420p" -c:v libx264 -crf 23 ${dir}/b-540.mp4`);
   // key frames, A | B at phone size (390px wide each)
-  for (const k of [20, 40, 60, 75, 100, 118, 150, 180]) {
+  for (const k of [20, 40, 60, 75, 100, 118, 150, 180].map((f) => (f * 2) / EVERY)) {   // the same TICKS (40..360) whatever the film rate
     sh(`python3 -c "
 from PIL import Image
 a=Image.open('${TMP}/${name}/A/f%03d.png'%${k}); b=Image.open('${TMP}/${name}/B/f%03d.png'%${k})
