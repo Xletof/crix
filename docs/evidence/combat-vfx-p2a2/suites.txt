@@ -1,0 +1,18 @@
+# covering suites on the P2-A2 build (the shipped game and P1 / P2-A; the loadout absent)
+smoke-polish-p1: 73/73 passed
+smoke-visual-pilot: 97/97 passed
+smoke-leak: PASS: primary fire is isolated from the cluster
+smoke-restart: PASS: 16 checks — restarts leave no duplicate handlers and no stale arena
+smoke-rng: PASS: 17 checks — runs are reproducible and the streams do not couple
+smoke-score: PASS: 41 checks — kills, chain multiplier and wave bonuses all score
+smoke-title: PASS: 15 checks — endless leads, and its record is the first thing you read
+smoke-debug: PASS: debug menu works and the HUD stays in sync
+smoke-roster-seams: 70/70 checks passed
+smoke-bulwark: 92/92 checks passed
+smoke-fx-p2a (P2-A's own suite, --old=514a385): 78/78 passed  (smoke-fx-p2a-regression.txt)
+
+smoke-readability: 2 runs on this build — FAIL 1/19 both ('and comes back to his hand EVEN AFTER HE MOVES').
+  The same Vader checks failed in 4 of 7 runs of def85e5 last session (docs/evidence/combat-vfx-p2a/suites.txt): pre-existing flake;
+  P2-A2 installs nothing without its flag and R1 replays are identical to 514a385 (smoke-fx-p2a2 section 11).
+
+npm run build: passes (the usual >500 kB chunk warning)

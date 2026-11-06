@@ -1,0 +1,24 @@
+# node tests/diag-fx-p2a-perf.mjs --set=p2a2 — A = P2-A, B = P2-A2; idle box, headless Chromium, software rasteriser (A vs B only)
+metric                       A (P2-A)      B (P2-A2)
+paintMs                         1.800          3.300
+p2aBytes                        72568         175168
+p2aTextures                        12             17
+texBytes                     68691244       68801188
+texCount                          185            190
+listAtRest                        120            121
+stepMed                         9.700             10
+stepP95                       508.500        519.500
+peakDisplayList                   295            296
+peakShippedParticles              184            184
+hookMsPerFrame                  0.083          0.076
+peakTracers                        11             11
+peakFlashes                         3              3
+peakContacts                        4              4
+peakSparkStreaks                   24             24
+pooledObjects                      44             44
+tracersDrawn                      213            213
+contactsDrawn                      66             66
+parityParticles                   691            691
+contactsRecycled                    0              0
+tweens                              8              8
+listInFight                       248            249

@@ -1,2 +1,9 @@
+standard: 30 ticks, A vs B gameplay state IDENTICAL at every tick
+override: 34 ticks, A vs B gameplay state IDENTICAL at every tick
+shieldfire: 30 ticks, A vs B gameplay state IDENTICAL at every tick
+readyfire: 30 ticks, A vs B gameplay state IDENTICAL at every tick
+bothfire: 30 ticks, A vs B gameplay state IDENTICAL at every tick
+aim8: 80 ticks, A vs B gameplay state IDENTICAL at every tick
+sequence: 280 ticks, A vs B gameplay state IDENTICAL at every tick   (re-run alone after a sheet-size fix; the first run also IDENTICAL)
 fight-swarm: 420 ticks, A vs B gameplay state IDENTICAL at every tick
 fight-crossfire: 420 ticks, A vs B gameplay state IDENTICAL at every tick

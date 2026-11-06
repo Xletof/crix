@@ -278,6 +278,44 @@ Traps found building it:
 - **Editing a `src/` file while a browser run is live reloads the page** (Vite
   HMR: P2-A's modules accept no hot update) and kills the run mid-film.
 
+### P2-A2 carbine loadout (`?visualPilot=v2c&polish=p1&fxPilot=p2a2`, a candidate — not approved)
+
+Built on the P2-A layer (`isFxP2A()` is true for `p2a` and `p2a2`;
+`isFxP2A2()` only for `p2a2`), installed by it — no new GameScene or
+PreloadScene call. `systems/p2a2Loadout.js` owns the presentation of the
+loadout; `p2aFx.js` maps each bolt's POOL to a style (`playerBullets` ->
+`standard`, `playerRifleBullets` -> `override`). Proof:
+`tests/smoke-fx-p2a2.mjs`. Traps found building it:
+
+- **Four identities, not one.** Mechanical weapon (`player.secondary`, the fire
+  paths), displayed weapon (the carried Image), projectile style (from the
+  pool) and choreography (STANDARD single discharge / OVERRIDE alternation +
+  heat) must be decided separately: P1 picks its gun from `secondary`, P2-A
+  its effects from the pool, and under P2-A2 those no longer agree.
+- **Reuse P1's hold, do not copy it.** The carried rifle is a P2-A2 Image
+  placed each frame by P1's own `_updateWeapon`, called with a context whose
+  `P` is `Object.create(player, { secondary: { value: 'rifle' } })`: live reads
+  through the prototype, one overridden field. Every helper it calls on the
+  player (`_meleeBladeOffset`, `_meleeProgress`, `_meleeFlipRad`) only reads,
+  which is what makes the trick safe — check that before calling a method
+  that way. P1's own weapon Image is hidden by `visible` (P1 never writes it).
+- **`new Phaser.GameObjects.Text` draws `Math.random`** (its texture key is a
+  `UUID()`, ~32 draws). A presentation layer must not create Text objects in a
+  seeded fight: re-word existing ones with `setText`, paint captions into a
+  texture.
+- **The shield bubble sits over the muzzle.** `Player.shieldRing` (fill and a
+  3px rim at radius 38) draws at `y + 3`; the pistol's kicked barrel face is at
+  35-42px, the rifle's at 41-48px — on the rim. An ignition that must read is
+  drawn over it (`y + 3.5`) when the weapon is in front of the body, and keeps
+  the weapon's depth behind it. The P1 ready ring (radius 46, `y - 3`) is under
+  the core in both cases; its competition is white-on-white, which a dark
+  keyline on the discharge separates.
+- **The shipped HUD never refreshes the rifle's round count per shot**
+  (`secondary-ammo-changed` is emitted on equip / empty and per cluster
+  throw, not per burst bolt). P2-A2 preserves that (register #28).
+- **Quantising a full frame to a 256-colour palette washes out the reds** of
+  small flashes (they read cream): keep evidence stills in RGB.
+
 ### Rendering and depth
 
 - **Two depth conventions run at once.** Actors Y-sort (`setDepth(this.y)`), walls

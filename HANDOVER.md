@@ -134,6 +134,28 @@ command, fix the line.*
     shadows, P2-B (Super / melee VFX), P2 Arena (postponed), propagating V2C
     to other arenas, making V2C, P1 or P2-A the default, or changing any
     approved V2C / P1 design.
+  - **P2-A HUMAN PLAYTEST (2026-11-06, a 46.6s handset recording):** the new
+    projectiles are much easier to see; the pistol muzzle flash is too subtle
+    and is obstructed while the shield or the Super-ready ring is up; the
+    rifle's model, projectile and firing are preferred. HUMAN proposal,
+    authorized as a candidate: make the rifle presentation the STANDARD
+    weapon over the unchanged pistol mechanics, and the rifle pickup an
+    OVERRIDE firing mode (its existing three-shot burst). P2-A is NOT approved
+    or frozen; it keeps its comparison output (`fxPilot=p2a`).
+  - **P2-A2 — PRIMARY CARBINE & OVERRIDE — CANDIDATE, delivered 2026-11-06,
+    opt-in `?visualPilot=v2c&polish=p1&fxPilot=p2a2`, NOT approved, NOT
+    frozen, NOT the default — awaiting the HUMAN verdict.** Built on the P2-A
+    layer (`systems/p2a2Loadout.js`; styles in `p2aFx.js`; textures in
+    `p2aPaint.js`; the flag in `debug.js`; no other source file changed). The
+    hero always carries the P1 rifle (placed by P1's own hold code); the
+    ordinary fire path — pistol ammo, cooldown, bolts, damage, recoil, all
+    unchanged — is drawn as the carbine's single-shot STANDARD; the rifle pickup
+    (still `'rifle'`, 27 rounds, three-shot burst) is drawn as the OVERRIDE
+    module with an OVERRIDE / 3-SHOT BURST HUD readout; in front of the body the
+    keylined ignition core draws over the shield bubble. The pistol, its P1
+    art and its P2-A effects are preserved for R1 / P1 / P2-A. Proof:
+    `tests/smoke-fx-p2a2.mjs`; evidence and HUMAN questions (A: the loadout;
+    B: muzzle visibility): `docs/evidence/combat-vfx-p2a2/README.md`.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -142,8 +164,9 @@ command, fix the line.*
   champion-placement fail identically under legacy (register #9; R0 notes, R1
   section). No run-all suite was pinned: the suite tests the shipped game.
 - **Fresh session?** This block and the register are the orientation.
-  The current candidate is P2-A (`docs/evidence/combat-vfx-p2a/README.md`,
-  awaiting the HUMAN verdict). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-05-2.md`
+  The current candidate is P2-A2 (`docs/evidence/combat-vfx-p2a2/README.md`,
+  awaiting the HUMAN verdict), built on P2-A (`combat-vfx-p2a/`, played,
+  not approved). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-05-2.md`
   (P1 approved; next proposed: P2, not yet authorized). `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
@@ -1319,6 +1342,8 @@ approved behaviour needs its own human gate).
 | 25 | The nemesis duel bar runs under the pause button (bar x 48–672 at y 122–136; button 646–706) — a shipped HUD overlap found during P1-A, not changed by it | HUD layout | DEFERRED — not authorized | `combat-visual-polish-p1/` known limitations |
 | 26 | Player fire and impact presentation: the shipped muzzle flash is hidden inside the P1 barrels and under the actor band, pistol and rifle bolts are one rigid bar shaped like enemy fire, body contacts float up to ~30px in front of the body (30px bolt hitbox), and every contact on cover is drawn UNDER the cover art | effects | **P2-A CANDIDATE 2026-11-05** (`?visualPilot=v2c&polish=p1&fxPilot=p2a`, opt-in) — awaiting HUMAN verdict; R1 / V2C / P1 unchanged | `combat-vfx-p2a/` |
 | 27 | Shield-bearers WITHOUT the roster-v1 field (a nemesis Bulwark, legacy art) answer a block with the `healingSparkle` (blue bubbles rising) — the healing language for a block | effects | addressed in the P2-A candidate only (a shield contact); shipped unchanged | `combat-vfx-p2a/` |
+| 28 | The HUD's secondary readout never refreshes the rifle's round count while firing (`secondary-ammo-changed` is emitted on equip / empty and per cluster throw, not per burst bolt): it shows 27 until the rifle empties | HUD | DEFERRED — shipped behaviour, preserved by P2-A2 (its OVERRIDE readout shows the same stale count); not authorized | `combat-vfx-p2a2/` |
+| 29 | P2-A pistol muzzle flash too subtle and obstructed by the shield bubble (rim at the barrel's radius, drawn at y + 3) and the Super-ready ring (HUMAN playtest 2026-11-06) | effects | addressed in the P2-A2 candidate (rifle barrel face, keylined core over the shield in front of the body); P2-A unchanged | `combat-vfx-p2a2/` |
 
 ### Process and evidence caveats the next session needs
 

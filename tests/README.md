@@ -2188,3 +2188,40 @@ on what P2-A draws — nothing here says P2-A looks better.
   in 6 of 10 runs of the P2-A build and 4 of 7 runs of `def85e5`
   (`docs/evidence/combat-vfx-p2a/suites.txt`). Sample both builds before
   calling it a regression.
+
+## The P2-A2 carbine-loadout rigs (`?visualPilot=v2c&polish=p1&fxPilot=p2a2` — a candidate, opt-in, presentation only)
+
+Evidence in `docs/evidence/combat-vfx-p2a2/`. A = P2-A (`fxPilot=p2a`, the
+parent), B = P2-A2; P1 compared too.
+
+- `smoke-fx-p2a2.mjs [--old=URL] [--selftest] [--only=3,6]` (standalone, :5173;
+  a `514a385` server at `--old` for section 11) — the flag; textures (B = P2-A
+  + exactly five `p2a2-*`); install (no new game listener, one HUD instance
+  wrapper, P1's weapon hidden, the carried rifle); STANDARD = P2-A's and P1's
+  ordinary shot (8 bearings; 360 ticks of held fire: shots, ammo pool +
+  refill, cooldown, recoil, draws) drawn as the carbine; OVERRIDE = the rifle
+  pickup (same place, collected on A's tick, 27 rounds, three-bolt bursts on
+  A's ticks, empties on A's tick) drawn as the module, the OVERRIDE HUD and the
+  same rifle model on every tick; transitions (cluster pod and back, death and
+  revive, Super-ready + shield, restarts, quit-to-title); THE MUZZLE (8 aims x 5
+  states: the core's depth against the shield, body and ring, and its VISIBLE
+  INK — rendered with vs without it via `renderer.snapshotArea` — against
+  P2-A's pistol flash); seeded replays with a real pickup mid-fight vs P2-A and
+  P1; reader-only; budget + low quality; frozen files against `514a385`; the
+  previous build, including P2-A's RENDERED frames pixel-identical to it.
+  `--selftest` injects a draw in the loadout frame, a 1px ordinary-bolt shift
+  and a loadout write of `player.secondary`, and must fail sections 3, 4 and 7.
+- `shot-p2a.mjs --set=p2a2 --out=DIR [--frames=TMP]` — the P2-A2 scene list:
+  standard, override, shieldfire / readyfire / bothfire, aim8, the full-frame
+  sequence (pickup -> bursts -> empty -> STANDARD) at phone size, and the
+  SWARM TIDE / CROSSFIRE fights with a real pickup; every pair state-checked.
+- `diag-fx-p2a-perf.mjs --set=p2a2` — the same cost table, A = P2-A, B = P2-A2.
+
+### What it taught
+
+- **A snapshot of the current frame without stepping:** `renderer.snapshotArea`
+  then `renderer.preRender(); game.scene.render(renderer); renderer.postRender()`
+  re-renders the state as it is — render with and without one object, diff, and
+  you have measured whether it is SEEN, not just whether it exists.
+- **A full-frame scene cannot be tiled into one sheet** (280 x 720x1280 exceeds
+  PIL's decompression-bomb limit): give it a phone-scale strip and a film.
