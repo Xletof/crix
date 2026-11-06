@@ -184,3 +184,62 @@ pairs are identical at every tick** (`shot-p2a.txt`, `muzzle-ab/shot-p2a.txt`).
 | **STANDARD discharge A/B** | `muzzle-ab/` | above |
 
 Stills are lossless RGB.
+
+## Technical implementation
+
+| file | what |
+|---|---|
+| `src/systems/debug.js` | `fxPilot=p2a3` (`isFxP2A()` and `isFxP2A2()` true for it — P2-A3 carries all of P2-A2 — and `isFxP2A3()`); `muzzle=sharp` (`isMuzzleSharp()`, honoured only with P2-A3). All need P1 live |
+| `src/systems/p2a3Override.js` | NEW: the OVERRIDE count poll (reads `secondaryAmmo`, re-runs the HUD's refresh only on a change), the readout restyle (an instance wrapper over P2-A2's), the power cell / glow / engage ring, the engage and run-dry beats, the HUD rim flash and `STANDARD` tag. No Text object, no tween, no listener, no `Math.random` |
+| `src/systems/p2aFx.js` | installs P2-A3 after P2-A2's loadout and runs it in P2-A's frame; the sharp discharge (`standardSharp`, a branch taken only by a sharp flash — the current flash's code path is unchanged) |
+| `src/systems/p2aPaint.js` | the eight `p2a3-*` textures (only added: no P2-A / P2-A2 painter line changed) |
+
+Not changed against `356b5df` (section 10): every other file in `src/`,
+including **P2-A2's own `p2a2Loadout.js`**, `GameScene.js`, `PreloadScene.js`,
+`HUD.js`, `Player.js`, `WeaponPickup.js`, `config.js`, P1 (`p1*.js`), `FX.js`.
+
+- **Reading, not emitting.** The count fix never emits `secondary-ammo-changed`:
+  emitting it from a presentation layer would change event behaviour. The
+  smoke counts every game event in P2-A2 and P2-A3 and requires them equal.
+- **One author per object.** The cell, glow, ring, label, tag, bar cuts and rim
+  flash are P2-A3's own objects. The HUD's shipped `secIcon` / `secText` are
+  restyled only inside `refreshSecondary` (after the shipped body and P2-A2's
+  restyle — the shipped code writes them nowhere else), plus the engage pop of
+  `secIcon`'s scale while P2-A3 holds the readout; leaving OVERRIDE restores
+  the shipped 15px.
+- **No new Text objects** (Phaser's Text constructor draws `Math.random`): the
+  count re-uses the HUD's own `secText`; the words `OVERRIDE` / `STANDARD` are
+  painted pixel type.
+
+## Known limitations
+
+- **The power cell is small at phone size.** The magazine light is 8x8 world
+  px (~4 CSS px) and the pips 4px dots (~2 CSS px); the amber glow carries most
+  of the read. Restrained by design — judge on the handset whether it reads.
+- **The engage ring crosses the hero** for its 300ms (thin, amber, fading).
+- **`OVERRIDE` under the panel is wider than the panel** (120 vs 100 canvas px);
+  it overhangs 10px a side. `STANDARD` sits over the floor art where the panel
+  was (keylined).
+- **A count redraw costs the whole HUD refresh chain** (the shipped panel,
+  P2-A2's restyle, P2-A3's): three Text updates, each an immediate WebGL
+  texture upload under Phaser. At most 26 per module (see Performance).
+- **The 30 Hz finding is about P2-A's ageing**, which the current discharge
+  shares with every P2-A flash (bolts' contacts, OVERRIDE's discharge): only
+  the STANDARD discharge's sharp variant changes it here.
+- The pickup's world label stays P2-A2's `OVERRIDE / 3-SHOT BURST` (not part of
+  this brief).
+
+## HUMAN review — each refinement on its own
+
+1. **Round count:** does the OVERRIDE count / bar now follow every round in
+   play? (The defect is fixed by reading the value; nothing else changed.)
+2. **Readout:** at phone size, is the count clear enough, is the three-cell
+   symbol read as "three shots per pull", is `OVERRIDE` still recognisable,
+   and is the segmented bar useful or noise?
+3. **Active state:** does the lit magazine + pips read as "the rifle is
+   powered up" without looking like another gun? Is the engage beat (pips in
+   sequence, ring, HUD rim and pop) brief enough, and is the run dry
+   (guttering cell, `STANDARD` in the HUD) a clear return?
+4. **STANDARD discharge:** current (`fxPilot=p2a3`) or sharp
+   (`fxPilot=p2a3&muzzle=sharp`) — in sustained fire, with the shield and the
+   Super-ready ring up, which reads better in the hand?
