@@ -81,6 +81,7 @@ function firstDiff(a, b) {
 }
 
 const report = {};
+const refs = {};
 for (const url of URLS) {
   const runs = [];
   for (let k = 0; k < N; k++) {
@@ -99,13 +100,18 @@ for (const url of URLS) {
     const d = firstDiff(ref, r.rows);
     if (d) diffs.push({ run: i, ...d });
   });
+  refs[url] = ref;
   report[url] = { runs: runs.length, distinctFinal: classes.size, classSizes: [...classes.values()], meanMs: runs.reduce((s, r) => s + r.ms, 0) / runs.length, diffs };
   console.log(`\n${url}: ${runs.length} replays (load ${LOAD}), ${classes.size} distinct outcome(s) ${JSON.stringify([...classes.values()])}, mean ${(report[url].meanMs / 1000).toFixed(1)}s`);
   for (const d of diffs.slice(0, 5)) console.log(`  run ${d.run}: first divergent tick ${d.tick}, fields ${d.fields.join(',')}\n    ref ${JSON.stringify(d.a).slice(0, 400)}\n    got ${JSON.stringify(d.b).slice(0, 400)}`);
 }
-if (URLS.length === 2) {
-  const [a, b] = URLS;
-  console.log(`\ncross-build: ${report[a].distinctFinal === 1 && report[b].distinctFinal === 1 ? 'each build is self-consistent' : 'at least one build is NOT self-consistent'}`);
+if (URLS.length >= 2) {
+  const a = URLS[0];
+  for (const b of URLS.slice(1)) {
+    const d = firstDiff(refs[a], refs[b]);
+    console.log(`cross-build ${a} vs ${b}: ${d ? `first divergent tick ${d.tick}, fields ${d.fields.join(',')}` : `identical over ${refs[a].length} ticks`}`);
+    report[`cross:${b}`] = d ? { tick: d.tick, fields: d.fields } : 'identical';
+  }
 }
 if (OUT) writeFileSync(OUT, JSON.stringify(report, null, 1));
 await browser.close();
