@@ -1,0 +1,5 @@
+
+== 0. the flags
+PASS  ?(no flags) -> P2-A3 off, P2-A2 loadout off, P2-A layer off, P1 off  — {"a3":false,"a2":false,"a":false,"p1":false,"sharp":false,"layer":false,"loadout":false,"x":false,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?fxPilot=p2a3 -> P2-A3 off, P2-A2 loadout off, P2-A layer off, P1 off  — {"a3":false,"a2":false,"a":false,"p1":false,"sharp":false,"layer":false,"loadout":false,"x":false,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
+PASS  ?visualPilot=v2c&fxPilot=p2a3 -> P2-A3 off, P2-A2 loadout off, P2-A layer off, P1 off  — {"a3":false,"a2":false,"a":false,"p1":false,"sharp":false,"layer":false,"loadout":false,"x":false,"ctlSharp":false,"base":"production","sw":"true,true,true,early,early,true,true"}
