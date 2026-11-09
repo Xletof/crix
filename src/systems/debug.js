@@ -263,6 +263,26 @@ let capTel = false;
 export function isCapTel() { return capTel; }
 export function setCapTel(v) { capTel = !!v; }
 
+// ── B0 combat-baseline telemetry (`?b0=1`, `?b0=A`, `?b0=B`) ────────────────
+//
+// MEASUREMENT ONLY (systems/b0Telemetry.js, b0Report.js). Records real handset
+// play — enemy TTK, gun and ability economy, real durability removed by
+// source, incoming damage, encounter pacing, frame pacing — and exports it as
+// JSON from an end-of-run report. With the flag ABSENT nothing is constructed,
+// listened to, wrapped, stored or drawn. With it present the seeded fight is
+// unchanged (`tests/smoke-b0.mjs`). The value is the run's label: `A` / `B`
+// name the two HUMAN playtest runs; `1` (or anything else) means no label.
+let b0 = false;
+let b0Label = null;
+export function isB0() { return b0; }
+export function getB0Label() { return b0Label; }
+export function setB0(v) {
+  if (v == null || v === false) { b0 = false; b0Label = null; return; }
+  b0 = true;
+  const s = String(v).trim().toUpperCase();
+  b0Label = /^[A-Z0-9]{1,8}$/.test(s) && s !== '1' && s !== 'TRUE' ? s : null;
+}
+
 // ── Roster visual A/B (`?roster=v1`) ──────────────────────────────────────
 //
 // SINCE R1 THIS AND THE SIX GAMEPLAY SWITCHES BELOW ARE ON BY DEFAULT — see

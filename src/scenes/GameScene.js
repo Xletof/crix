@@ -33,7 +33,7 @@ import {
 import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.js';
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
-  isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isChampPlacementOff, isVanguardScreenOff, isVanguardFrontOff,
+  isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isB0, isChampPlacementOff, isVanguardScreenOff, isVanguardFrontOff,
   isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2, getBulwarkStuck, getMarksmanStuck, isMarksmanAngle, isBulwarkAngle,
   isVisualPilotV2, getVisualPilot,
 } from '../systems/debug.js';
@@ -44,6 +44,7 @@ import { installBulwarkAngle } from '../systems/bulwarkAngle.js';
 import { attachTelegraphs } from '../systems/Telegraph.js';
 import { attachHazards } from '../systems/Hazard.js';
 import { attachCaptainTelemetry } from '../systems/CaptainTelemetry.js';
+import { attachB0Telemetry } from '../systems/b0Telemetry.js';
 import { Champion } from '../entities/Champion.js';
 import { Harrower } from '../entities/Harrower.js';
 import { ShockCaptain } from '../entities/ShockCaptain.js';
@@ -535,6 +536,12 @@ export class GameScene extends Phaser.Scene {
       this._darkChain = null;
       this._lightsLog = null;
     });
+
+    // ── B0 COMBAT-BASELINE TELEMETRY — `?b0=…` ────────────────────────────
+    // Measurement only (systems/b0Telemetry.js). NOT CONSTRUCTED WITHOUT THE
+    // FLAG. Installed LAST so every listener it adds runs after the game's
+    // own; it reads, wraps purely and never writes a gameplay value.
+    if (isB0()) attachB0Telemetry(this);
   }
 
   // ── Room loading ─────────────────────────────────────────────────────────
@@ -4112,6 +4119,11 @@ export class GameScene extends Phaser.Scene {
     SFX.bossDie?.();
 
     const r2 = radius * radius;
+    // DEBUG ATTRIBUTION ONLY. This blast runs INSIDE the killing hit's
+    // `damage()` (enemy-died fires inline), so without its own tag the chain
+    // damage would be credited to whatever weapon made the kill.
+    const prevSrc = this._dmgSrc;
+    this._dmgSrc = 'volatile';
     for (const t of this.enemies.getChildren()) {
       if (!t.active || !t.alive) continue;
       if ((t.x - x) ** 2 + (t.y - y) ** 2 < r2) t.damage(Math.round(damage * 0.6));
@@ -4128,6 +4140,7 @@ export class GameScene extends Phaser.Scene {
         p.damage(Math.round(damage * (0.45 + 0.55 * falloff)), Math.atan2(p.y - y, p.x - x));
       }
     }
+    this._dmgSrc = prevSrc;
   }
 
   detonateGrenade(x, y, damage, radius) {
@@ -4357,6 +4370,7 @@ export class GameScene extends Phaser.Scene {
     this.handleBulletEnemyHits(this.playerRifleBullets, false, 'secondary');
     this.handleBulletEnemyHits(this.playerSuperBullets, true, 'super');
     this.handleBulletEnemyHits(this.playerFragBullets, false, 'secondary');
+    this._shotSrc = null;
     this.handleEnemyBulletsVsPlayer();
     this.handleBulletWallHits(this.playerBullets, false);
     this.handleBulletWallHits(this.playerRifleBullets, false);
@@ -4464,6 +4478,12 @@ export class GameScene extends Phaser.Scene {
    *   gameplay reads it.
    */
   handleBulletEnemyHits(group, isSuper, src = 'other') {
+    // DEBUG ATTRIBUTION ONLY, like `src`: which pool this sweep is resolving,
+    // with the two `'secondary'` pools told apart (the rifle pickup's burst =
+    // OVERRIDE, the cluster pod's fragments = CLUSTER) for the B0 instrument.
+    // Nothing in gameplay reads it; cleared after the last sweep.
+    this._shotSrc = group === this.playerRifleBullets ? 'override'
+      : group === this.playerFragBullets ? 'cluster' : src;
     const bullets  = group.getChildren();
     const enemies  = this.enemies.getChildren();
     for (const b of bullets) {
@@ -4555,7 +4575,10 @@ export class GameScene extends Phaser.Scene {
           if (!isSuper && b.owner === 'player') this.player.onHitLanded();
           // Boss ignores knockback in its damage override — pass it anyway.
           const kbVec = { x: b.body.velocity.x * 0.15, y: b.body.velocity.y * 0.15 };
+          // Attribution tag (debug only), as on the enemy path below.
+          this._dmgSrc = b.owner === 'player' ? src : 'other';
           this.boss.damage(b.damage, kbVec);
+          this._dmgSrc = null;
           this.fx.impactRing(b.x, b.y, 0xffd040); // gold shockwave for boss
           // Heavier directional spark — boss armor deflects more
           const flightAng = Math.atan2(b.body.velocity.y, b.body.velocity.x);
@@ -4669,7 +4692,11 @@ export class GameScene extends Phaser.Scene {
         // Pass the bullet's flight angle so the player gets shoved in the
         // direction the bullet was travelling (same pattern as enemy stagger).
         const dir = Math.atan2(b.body.velocity.y, b.body.velocity.x);
+        // DEBUG ATTRIBUTION ONLY: which bolt is landing, read synchronously by
+        // the B0 instrument's player.damage wrapper. Nothing in gameplay reads it.
+        this._hurtBy = b;
         this.player.damage(b.damage, dir);
+        this._hurtBy = null;
         this.fx.impactRing(b.x, b.y, 0x40c8ff); // cyan shockwave for player
         b.kill();
       }
