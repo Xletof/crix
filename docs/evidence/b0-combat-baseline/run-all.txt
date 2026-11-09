@@ -1,0 +1,8 @@
+
+> frix@0.1.0 smoke
+> node tests/run-all.mjs
+
+smoke-arc        … PASS  14s
+smoke-arena      … PASS  15s
+smoke-boss       … PASS  12s
+smoke-boss-moves … 
