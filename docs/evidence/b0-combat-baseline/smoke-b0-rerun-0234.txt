@@ -1,0 +1,3 @@
+
+== 0. the flag
+PASS  b0 absent (R1 and V2C+P1+P2-A3): no instrument, no DOM element, no localStorage key, no wrapper  — {"off":{"isB0":false,"label":null,"b0":false,"dom":0,"keys":0,"wraps":0},"offV":{"isB0":false,"label":null,"b0":false,"dom":0,"keys":0,"wraps":0}}
