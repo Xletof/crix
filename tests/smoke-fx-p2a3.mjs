@@ -706,7 +706,7 @@ await browser.close();
 const fails = results.filter((r) => !r.ok);
 console.log(`\n${results.length - fails.length}/${results.length} passed${SELF ? '  (SELFTEST: sections 3, 5, 7 and 8 are expected to FAIL)' : ''}`);
 if (SELF) {
-  const must = ['no event added or removed', 'the cell rides the rifle exactly', 'headless ticks, B identical to P2-A2', 'draws no Math.random'];
+  const must = ['no event added or removed', 'the cell rides the rifle exactly', 'headless ticks, B (sharp) identical to P2-A2', 'draws no Math.random'];
   const ok = must.every((m) => fails.some((f) => f.name.includes(m)));
   console.log(ok ? 'SELFTEST OK: the checks caught the injected changes' : 'SELFTEST FAILED: a check did not catch an injected change');
   process.exit(ok ? 0 : 1);
