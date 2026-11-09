@@ -1,8 +1,15 @@
 # P2-A3 — OVERRIDE refinement (`?visualPilot=v2c&polish=p1&fxPilot=p2a3`)
 
-**Status: CANDIDATE — opt-in, presentation only, awaiting the HUMAN handset
-verdict. Not a default; not approved; nothing frozen.**
-Classification: **P2-A3 READY FOR HUMAN REVIEW**
+**Status: HUMAN-APPROVED / FROZEN 🔒 (2026-11-09) — opt-in, presentation only,
+NOT the production default.** The HUMAN's verdict: *"Close P2-A3 using my final
+HUMAN verdict as APPROVED … record the selected muzzle variant"*; muzzle
+variant selected: **Sharp**, made P2-A3's default (`fxPilot=p2a3` now draws the
+sharp STANDARD discharge; `&muzzle=current` keeps P2-A2's flash as a comparison
+flag). Frozen: the P2-A3 configuration `?visualPilot=v2c&polish=p1&fxPilot=p2a3`
+as rendered at the closing commit. Not frozen by this verdict: the standalone
+`fxPilot=p2a` / `p2a2` comparison outputs and `muzzle=current`. R1 stays the
+production default. The sections below are the review record as delivered
+(the "current" default they mention was switched to sharp after the verdict).
 
 Built over P2-A2 (`fxPilot=p2a2`, directionally accepted for continued
 development, NOT approved or frozen). P2-A2's rifle model, STANDARD pistol
@@ -25,15 +32,15 @@ and P2-A keep their outputs.
 
 | | link |
 |---|---|
-| **P2-A3 — current STANDARD discharge** | https://xletof.github.io/crix/?visualPilot=v2c&polish=p1&fxPilot=p2a3 |
-| **P2-A3 — sharp STANDARD discharge (the A/B)** | https://xletof.github.io/crix/?visualPilot=v2c&polish=p1&fxPilot=p2a3&muzzle=sharp |
+| **P2-A3 — APPROVED (sharp STANDARD discharge)** | https://xletof.github.io/crix/?visualPilot=v2c&polish=p1&fxPilot=p2a3 |
+| P2-A3 with the previous ("current") discharge, comparison only | https://xletof.github.io/crix/?visualPilot=v2c&polish=p1&fxPilot=p2a3&muzzle=current |
 | P2-A2 — the parent, unchanged | https://xletof.github.io/crix/?visualPilot=v2c&polish=p1&fxPilot=p2a2 |
 | P2-A3 in SWARM TIDE (Hangar, sector 3) | https://xletof.github.io/crix/?visualPilot=v2c&polish=p1&fxPilot=p2a3&encdbg=swarmTide&room=hangar&sector=3 |
-| … with the sharp discharge | https://xletof.github.io/crix/?visualPilot=v2c&polish=p1&fxPilot=p2a3&muzzle=sharp&encdbg=swarmTide&room=hangar&sector=3 |
 
 The OVERRIDE module is where P2-A2 put it: the Hangar's room pickup (north,
 beside the shuttle's stairs), Reactor Junction's, and the REWARD: TAKE ONE pair.
-`muzzle=sharp` is honoured only together with `fxPilot=p2a3`.
+`muzzle=current` is honoured only together with `fxPilot=p2a3` (`muzzle=sharp`
+is accepted and equals the default).
 
 ---
 
@@ -105,8 +112,10 @@ Evidence: `engage/` and `rundry/` (close-ups, A = P2-A2 | B = P2-A3, every tick,
 
 ## 4 — STANDARD muzzle persistence: current vs sharp (`&muzzle=sharp`)
 
-**Not chosen — both are shipped for the handset.** P2-A3 without the parameter
-draws **P2-A2's discharge exactly** (frame for frame, section 6). The sharp
+**HUMAN choice (2026-11-09): SHARP, made the default.** As delivered, P2-A3
+without the parameter drew P2-A2's discharge; after the verdict `fxPilot=p2a3`
+draws the sharp one and `&muzzle=current` draws **P2-A2's discharge exactly**
+(frame for frame, section 6). The sharp
 variant keeps the **same texture, size, keyline, position, depth and
 occlusion rule** (the approved depth solution); only its persistence differs:
 
@@ -276,7 +285,7 @@ including **P2-A2's own `p2a2Loadout.js`**, `GameScene.js`, `PreloadScene.js`,
 - The pickup's world label stays P2-A2's `OVERRIDE / 3-SHOT BURST` (not part of
   this brief).
 
-## HUMAN review — each refinement on its own
+## HUMAN review — the questions as delivered (answered 2026-11-09: APPROVED, sharp)
 
 1. **Round count:** does the OVERRIDE count / bar now follow every round in
    play? (The defect is fixed by reading the value; nothing else changed.)

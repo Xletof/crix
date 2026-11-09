@@ -2217,32 +2217,33 @@ parent), B = P2-A2; P1 compared too.
   SWARM TIDE / CROSSFIRE fights with a real pickup; every pair state-checked.
 - `diag-fx-p2a-perf.mjs --set=p2a2` — the same cost table, A = P2-A, B = P2-A2.
 
-## The P2-A3 OVERRIDE-refinement rigs (`?visualPilot=v2c&polish=p1&fxPilot=p2a3`, `&muzzle=sharp` — a candidate, opt-in, presentation only)
+## The P2-A3 OVERRIDE-refinement rigs (`?visualPilot=v2c&polish=p1&fxPilot=p2a3` — HUMAN-APPROVED 2026-11-09, opt-in, presentation only; `&muzzle=current` = the comparison flag)
 
 Evidence in `docs/evidence/combat-vfx-p2a3/`. A2 = P2-A2 (the parent), B =
-P2-A3, BS = P2-A3 + `muzzle=sharp`; P1 compared too.
+P2-A3 (sharp STANDARD discharge, the approved default), BS = B + `muzzle=sharp`
+(= B), BC = B + `muzzle=current` (P2-A2's discharge); P1 compared too.
 
 - `smoke-fx-p2a3.mjs [--old=URL] [--selftest] [--only=3,6]` (standalone, :5173;
   a `356b5df` server at `--old` for section 11 — give it its own Vite
   `cacheDir`, see `docs/engineering/core.md` P2-A3) — the flags (17 cases);
-  textures (B = P2-A2 + exactly eight `p2a3-*`, BS = B); install; THE ROUND
+  textures (B = P2-A2 + exactly eight `p2a3-*`, BC = B); install; THE ROUND
   COUNT (HUD count and bar = `secondaryAmmo` on every OVERRIDE tick, with
   P2-A2 as the failing CONTROL; same events, shots, ticks, draws; redrawn only
   on a change); THE READOUT (symbol, 32px count, bar cuts, label, pop, the
   STANDARD tag, the cluster panel pixel-identical to P2-A2's); THE ACTIVE
   STATE (the rifle object = P2-A2's every tick; the cell on rifle texels only,
   riding it at 8 aims; engage / flick / low-ammo pulse / run-dry; blade, bush,
-  death); THE MUZZLE A/B (B = P2-A2's discharge frame for frame; BS's peak =
-  the current peak; lit frames, first-frame ink and inked-frame share per
-  shot in 4 states, and a 30 Hz step); seeded replays B and BS vs P2-A2 (and
+  death); THE MUZZLE A/B (BC = P2-A2's discharge frame for frame; B's (sharp)
+  peak = the current peak; lit frames, first-frame ink and inked-frame share per
+  shot in 4 states, and a 30 Hz step); seeded replays B and BC vs P2-A2 (and
   B vs P1) with a real pickup mid-fight; reader-only (no draw, event or write);
   budget + low quality; frozen files against `356b5df`; the previous build,
   including P2-A2's RENDERED full canvas (world + HUD) pixel-identical to it.
   `--selftest` injects a draw in the P2-A3 frame, an event per count redraw and
   a 1px cell shift, and must fail sections 3, 5, 7 and 8.
 - `shot-p2a.mjs --set=p2a3` (A = P2-A2, B = P2-A3: hud, engage, rundry, the
-  full-frame sequence, SWARM TIDE / CROSSFIRE) and `--set=p2a3mz` (A = P2-A3,
-  B = P2-A3 + `muzzle=sharp`: held fire in four states at 60 Hz, two at a
+  full-frame sequence, SWARM TIDE / CROSSFIRE) and `--set=p2a3mz` (A = P2-A3 +
+  `muzzle=current`, B = P2-A3 (sharp): held fire in four states at 60 Hz, two at a
   30 Hz step, and a full-frame film through all four states). The p2a3 sets
   render every tick (60 fps films) and add each close-up at true phone size
   (`ab-phone-1x-*.mp4`, the canvas at 0.54x).

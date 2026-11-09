@@ -51,13 +51,16 @@ gates below still apply.
 - The human plays the GitHub Pages build on a phone. A human handset verdict is
   the only thing that approves a gameplay or visual system, and approval freezes
   it. Passing tests, metrics and screenshots never approve anything.
-- Frozen as of 2026-11-05 (§0 wins if this list drifts): Vader, the camera,
+- Frozen as of 2026-11-09 (§0 wins if this list drifts): Vader, the camera,
   all four arenas, encounter composition, Champion placement and VANGUARD
   rules, the Shock Captain, roster visuals, movement v2.2 and gait v2, Bulwark
   field and Demolisher, Bulwark stuck-B, Marksman stuck-B, Marksman T1,
   free-Bulwark T2, the integrated production configuration (R1), and the
   Visual Identity V2C package (`?visualPilot=v2c`, opt-in; `v2` / `v2b` keep
-  their outputs as comparison flags). Reopen a
+  their outputs as comparison flags), the P1 combat polish (`&polish=p1`,
+  opt-in over V2C) and the P2-A3 weapon presentation (`&fxPilot=p2a3`, opt-in
+  over P1, sharp STANDARD discharge; `p2a` / `p2a2` / `muzzle=current` are
+  comparison flags). None of these is the default: R1 is. Reopen a
   frozen system's behaviour or tuning only on an explicit human instruction
   naming it. Notes about a frozen system explain it; they don't invite changes
   to it.

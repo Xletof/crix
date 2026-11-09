@@ -316,14 +316,15 @@ loadout; `p2aFx.js` maps each bolt's POOL to a style (`playerBullets` ->
 - **Quantising a full frame to a 256-colour palette washes out the reds** of
   small flashes (they read cream): keep evidence stills in RGB.
 
-### P2-A3 OVERRIDE refinement (`?visualPilot=v2c&polish=p1&fxPilot=p2a3`, a candidate — not approved)
+### P2-A3 OVERRIDE refinement (`?visualPilot=v2c&polish=p1&fxPilot=p2a3`, HUMAN-APPROVED / FROZEN 2026-11-09 — opt-in, not the default)
 
 Built over P2-A2 (`isFxP2A()` and `isFxP2A2()` are true for `p2a3`;
 `isFxP2A3()` only for it), installed by the P2-A layer after P2-A2's loadout —
 no new GameScene, PreloadScene or HUD call, and `p2a2Loadout.js` untouched.
 `systems/p2a3Override.js` owns the OVERRIDE round count, readout, power cell
-and beats; `&muzzle=sharp` (`isMuzzleSharp()`, P2-A3 only) is the STANDARD
-discharge's persistence A/B inside `p2aFx.js`. Proof: `tests/smoke-fx-p2a3.mjs`.
+and beats; `isMuzzleSharp()` (true under P2-A3 unless `&muzzle=current`) selects
+the approved SHARP STANDARD discharge inside `p2aFx.js` — `muzzle=current`
+draws P2-A2's flash for comparison. Proof: `tests/smoke-fx-p2a3.mjs`.
 Traps found building it:
 
 - **Fix a missing event by READING, not by emitting.** The burst bolt spends a

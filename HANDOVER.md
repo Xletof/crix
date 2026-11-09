@@ -177,6 +177,21 @@ command, fix the line.*
     shorter persistence, measured against the current one (not chosen). Proof:
     `tests/smoke-fx-p2a3.mjs`; evidence, measurements and HUMAN questions:
     `docs/evidence/combat-vfx-p2a3/README.md`. Not started: P2-B, arena art.
+  - **P2-A3 HUMAN VERDICT (2026-11-09): APPROVED / FROZEN 🔒** — *"Close
+    P2-A3 using my final HUMAN verdict as APPROVED. Freeze only explicitly
+    approved visuals, preserve all R1/V2C/P1 contracts, and record the
+    selected muzzle variant."* Muzzle variant selected: **Sharp**, made the
+    P2-A3 default (HUMAN answer: "Make sharp default") — `fxPilot=p2a3` draws
+    the sharp STANDARD discharge; `&muzzle=current` keeps P2-A2's flash as a
+    comparison flag (`muzzle=sharp` accepted, = default). FROZEN: the opt-in
+    configuration `?visualPilot=v2c&polish=p1&fxPilot=p2a3` (all four
+    refinements, over the P2-A2 loadout and P2-A effects it carries). Still
+    opt-in, NOT the production default (R1). Not frozen by this verdict: the
+    standalone `fxPilot=p2a` / `p2a2` comparison outputs, `muzzle=current`.
+    No gameplay changed (seeded replays identical to P2-A2 / P1).
+  - **NEXT MILESTONE (HUMAN, 2026-11-09): B0 — Combat Baseline: Real-Play TTK
+    & Weapon Economy** — *"strictly measurement-only. No weapon, ammo,
+    damage, Super, enemy or combat-balance changes are authorized."*
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -185,11 +200,9 @@ command, fix the line.*
   champion-placement fail identically under legacy (register #9; R0 notes, R1
   section). No run-all suite was pinned: the suite tests the shipped game.
 - **Fresh session?** This block and the register are the orientation.
-  The current candidate is P2-A3 (`docs/evidence/combat-vfx-p2a3/README.md`,
-  awaiting the HUMAN verdict on four refinements), built on P2-A2
-  (`combat-vfx-p2a2/`, directionally accepted, not approved) and P2-A
-  (`combat-vfx-p2a/`, played, not approved). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-05-2.md`
-  (P1 approved; next proposed: P2, not yet authorized). `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
+  P2-A3 is APPROVED / FROZEN (opt-in, sharp discharge;
+  `docs/evidence/combat-vfx-p2a3/README.md`); no candidate is open. Next:
+  B0 (measurement only). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
 
@@ -1364,8 +1377,8 @@ approved behaviour needs its own human gate).
 | 25 | The nemesis duel bar runs under the pause button (bar x 48–672 at y 122–136; button 646–706) — a shipped HUD overlap found during P1-A, not changed by it | HUD layout | DEFERRED — not authorized | `combat-visual-polish-p1/` known limitations |
 | 26 | Player fire and impact presentation: the shipped muzzle flash is hidden inside the P1 barrels and under the actor band, pistol and rifle bolts are one rigid bar shaped like enemy fire, body contacts float up to ~30px in front of the body (30px bolt hitbox), and every contact on cover is drawn UNDER the cover art | effects | **P2-A CANDIDATE 2026-11-05** (`?visualPilot=v2c&polish=p1&fxPilot=p2a`, opt-in) — awaiting HUMAN verdict; R1 / V2C / P1 unchanged | `combat-vfx-p2a/` |
 | 27 | Shield-bearers WITHOUT the roster-v1 field (a nemesis Bulwark, legacy art) answer a block with the `healingSparkle` (blue bubbles rising) — the healing language for a block | effects | addressed in the P2-A candidate only (a shield contact); shipped unchanged | `combat-vfx-p2a/` |
-| 28 | The HUD's secondary readout never refreshes the rifle's round count while firing (`secondary-ammo-changed` is emitted on equip / empty and per cluster throw, not per burst bolt): it shows 27 until the rifle empties | HUD | shipped behaviour kept under R1 / P1 / P2-A / P2-A2; **addressed in the P2-A3 candidate** (`fxPilot=p2a3`: the count and bar follow every round by reading `secondaryAmmo`, no event added) — not approved | `combat-vfx-p2a3/` |
-| 29 | P2-A pistol muzzle flash too subtle and obstructed by the shield bubble (rim at the barrel's radius, drawn at y + 3) and the Super-ready ring (HUMAN playtest 2026-11-06) | effects | addressed in the P2-A2 candidate (rifle barrel face, keylined core over the shield in front of the body); P2-A unchanged | `combat-vfx-p2a2/` |
+| 28 | The HUD's secondary readout never refreshes the rifle's round count while firing (`secondary-ammo-changed` is emitted on equip / empty and per cluster throw, not per burst bolt): it shows 27 until the rifle empties | HUD | shipped behaviour kept under R1 / P1 / P2-A / P2-A2; **RESOLVED in the HUMAN-APPROVED P2-A3 configuration (2026-11-09, `fxPilot=p2a3`, opt-in)** — the count and bar follow every round by reading `secondaryAmmo`, no event added | `combat-vfx-p2a3/` |
+| 29 | P2-A pistol muzzle flash too subtle and obstructed by the shield bubble (rim at the barrel's radius, drawn at y + 3) and the Super-ready ring (HUMAN playtest 2026-11-06) | effects | addressed in P2-A2; **RESOLVED in the HUMAN-APPROVED P2-A3 configuration (2026-11-09, sharp STANDARD discharge, P2-A2's depth solution)** (rifle barrel face, keylined core over the shield in front of the body); P2-A unchanged | `combat-vfx-p2a2/` |
 
 ### Process and evidence caveats the next session needs
 
