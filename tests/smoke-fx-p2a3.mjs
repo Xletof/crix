@@ -57,6 +57,7 @@ import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { execSync } from 'node:child_process';
 import { CHROME, bootPage, FIGHT_SEG } from './diag-stuck-audit.mjs';
 import { enemyJsGuard } from './enemy-frozen.mjs';
+import { b0Scope, B0_BASE } from './b0-scope.mjs';
 
 const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').split('=').slice(1).join('=') || d;
 const SELF = process.argv.includes('--selftest');
@@ -598,7 +599,11 @@ if (on(9)) {
 if (on(10)) {
   console.log('\n== 10. frozen files');
   let diff = '';
-  try { diff = execSync(`git diff --stat ${BASE_REV} -- src ':!src/systems/debug.js' ':!src/systems/p2aFx.js' ':!src/systems/p2aPaint.js' ':!src/systems/p2a3Override.js'`, { encoding: 'utf8' }).trim(); } catch (e) { diff = `git failed: ${e.message}`; }
+  // Since B0 the phase's scope is measured up to the B0 base (dc7d9ea); what
+  // came after it is B0's alone, which `b0Scope` proves (tests/b0-scope.mjs).
+  try { diff = execSync(`git diff --stat ${BASE_REV} ${B0_BASE} -- src ':!src/systems/debug.js' ':!src/systems/p2aFx.js' ':!src/systems/p2aPaint.js' ':!src/systems/p2a3Override.js'`, { encoding: 'utf8' }).trim(); } catch (e) { diff = `git failed: ${e.message}`; }
+  const b0s = b0Scope();
+  check(`after ${B0_BASE}: only the B0 instrument's audited files and lines (tests/b0-scope.mjs)`, b0s.ok, b0s.detail);
   check(`src/: nothing changed against ${BASE_REV} outside debug.js, p2aFx.js, p2aPaint.js and the new p2a3Override.js (P2-A2's p2a2Loadout.js, entities, Player, WeaponPickup, HUD, GameScene, PreloadScene, P1, FX, config untouched)`, diff === '', diff);
   let rem = '';
   try { rem = execSync(`git diff -U0 ${BASE_REV} -- src/systems/p2aPaint.js`, { encoding: 'utf8' }); } catch (e) { rem = e.message; }

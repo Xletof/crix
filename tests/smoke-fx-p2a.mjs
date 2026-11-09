@@ -52,6 +52,7 @@ import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { execSync } from 'node:child_process';
 import { CHROME, bootPage, FIGHT_SEG } from './diag-stuck-audit.mjs';
 import { enemyJsGuard } from './enemy-frozen.mjs';
+import { b0Scope, B0_BASE } from './b0-scope.mjs';
 
 const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').split('=').slice(1).join('=') || d;
 const SELF = process.argv.includes('--selftest') || process.argv.includes('--selftest=twin');
@@ -567,11 +568,15 @@ if (on(10)) {
   try { diff = execSync(`git diff --stat ${BASE_REV} -- ${paths.join(' ')}`, { encoding: 'utf8' }).trim(); } catch (e) { diff = `git failed: ${e.message}`; }
   check(`no change against ${BASE_REV} in entities (Bullet.js, Player.js, Enemy.js), config, data, the painters, P1, FX/juice, HUD, the Bulwark field, roster weapon FX, camera, light, AI seams, nav, rng`, diff === '', diff);
   let seam = '';
-  try { seam = execSync(`git diff --stat ${BASE_REV} -- src/scenes/GameScene.js src/scenes/PreloadScene.js`, { encoding: 'utf8' }).trim(); } catch (e) { seam = e.message; }
+  try { seam = execSync(`git diff --stat ${BASE_REV} ${B0_BASE} -- src/scenes/GameScene.js src/scenes/PreloadScene.js`, { encoding: 'utf8' }).trim(); } catch (e) { seam = e.message; }
   let gsDiff = '';
-  try { gsDiff = execSync(`git diff -U0 ${BASE_REV} -- src/scenes/GameScene.js src/scenes/PreloadScene.js`, { encoding: 'utf8' }); } catch (e) { gsDiff = e.message; }
+  // Since B0 this is measured up to the B0 base (dc7d9ea); B0's own GameScene
+  // tags after it are checked by `b0Scope` (tests/b0-scope.mjs).
+  try { gsDiff = execSync(`git diff -U0 ${BASE_REV} ${B0_BASE} -- src/scenes/GameScene.js src/scenes/PreloadScene.js`, { encoding: 'utf8' }); } catch (e) { gsDiff = e.message; }
   const added = gsDiff.split('\n').filter((l) => l.startsWith('+') && !l.startsWith('+++') && !/^\+\s*\/\//.test(l));
   const removed = gsDiff.split('\n').filter((l) => l.startsWith('-') && !l.startsWith('---'));
+  const b0s = b0Scope();
+  check(`after ${B0_BASE}: only the B0 instrument's audited files and lines (tests/b0-scope.mjs)`, b0s.ok, b0s.detail);
   check('GameScene / PreloadScene: only the two imports and the two install calls added, nothing removed', removed.length === 0 && added.length === 4 && added.every((l) => /installFxP2A|paintFxP2A/.test(l)), `${added.length} added, ${removed.length} removed: ${added.join(' | ')}`);
   const g = enemyJsGuard(process.cwd() + '/');
   check('Enemy.js guard (outside the Bomber, the Bomber-only veto)', g.outside && g.bomberOnlyVeto && g.vetoCode, g.detail);
