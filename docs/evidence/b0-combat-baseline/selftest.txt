@@ -1,0 +1,6 @@
+
+== 2. flag on = flag off (same build)
+FAIL  SWARM TIDE, R1: 1500 headless ticks, b0 ON identical to OFF (state, hp, ammo, kills, Super/melee charge, draws, per-tick events)  — first divergent tick 0; events addedtoscene,shooter-fire,player-fire,removedfromscene,player-shot-missed,player-ammo-changed,player-mult-changed,enemy-hit,player-super-changed,player-melee-changed,enemy-died,kills-update,score-changed,score-popup,player-super-ready,secondary-equipped,secondary-ammo-changed,player-fire-rifle,b0-selftest
+FAIL  MIXED s6, R1: 1500 headless ticks, b0 ON identical to OFF (state, hp, ammo, kills, Super/melee charge, draws, per-tick events)  — first divergent tick 0; events addedtoscene,shooter-fire,removedfromscene,wave-remaining,player-shot-missed,player-mult-changed,player-super-changed,player-melee-changed,enemy-died,kills-update,score-changed,score-popup,show-combo,hack-prompt,b0-selftest
+
+SELFTEST: section 2 FAILED as it must (2/2)

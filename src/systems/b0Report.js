@@ -12,8 +12,8 @@
 // OUTSIDE PLAY (title, game over, pause menu) a "B0 DATA" button opens the
 // report: the summary, and Share / Download / Copy for the machine-readable
 // JSON. It opens by itself when a run ends in defeat. Runs are kept in
-// localStorage (newest 6), and the run in progress is autosaved every 15s and
-// when the page is hidden, so a closed tab or a crash keeps its data.
+// localStorage (newest 6), and the run in progress is autosaved between waves
+// (at most every 15s, at least every 90s), on pause and when the page is hidden, so a closed tab or a crash keeps its data.
 import { getB0Label } from './debug.js';
 import { histPct } from './b0Telemetry.js';
 
@@ -355,7 +355,14 @@ function makeController() {
     if (current) tag.textContent = `B0${label ? `·${label}` : ''} #${current.R.run.n}  ${clock(performance.now() - current.wall0)}`;
     const pauseMenu = paused && sceneActive('Pause');
     btn.style.display = (!playing && (!current || pauseMenu) && panel.style.display !== 'block') ? 'block' : 'none';
-    if (current && performance.now() - lastSaveAt > 15000) saveLive();
+    // Autosave at a QUIET moment (no live enemy) at most every 15s, so the
+    // stringify + storage write never lands in a fight; 90s is the backstop.
+    // Pause, a hidden page and pagehide save immediately.
+    if (current) {
+      const since = performance.now() - lastSaveAt;
+      let quiet = false; try { quiet = current.api.liveCount() === 0; } catch (_) { /* */ }
+      if ((quiet && since > 15000) || since > 90000) saveLive();
+    }
   }
   setInterval(refresh, 250);
   function saveLive() {
@@ -395,7 +402,7 @@ function makeController() {
         if (rec.run.endReason === 'defeat' || rec.run.endReason === 'game-over') open(rec);
       }, 400);
     },
-    onPause() { paused = true; setTimeout(refresh, 80); },
+    onPause() { paused = true; setTimeout(refresh, 80); saveLive(); },
     onResume() { paused = false; if (panel.style.display === 'block') close(); refresh(); },
     // test / diagnostics surface
     _open: open, _close: close, _runs: allRuns, _summarize: summarize, _text: renderText, _saveLive: saveLive,

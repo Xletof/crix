@@ -39,7 +39,7 @@ recording:
    screen), then Share. That exports the run so far; the run itself
    continues if you resume.
 6. Nothing is lost if the tab closes or reloads mid-run: the run is autosaved
-   every 15s and appears in the report's run list as `interrupted`. The phone
+   between waves (and on pause, and when the page is hidden) and appears in the report's run list as `interrupted`. The phone
    keeps the newest 6 runs; the list at the top of the report picks one.
 7. Send me both JSON files and both recordings.
 

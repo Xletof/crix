@@ -623,6 +623,7 @@ export function attachB0Telemetry(scene) {
 
   const api = {
     record: () => R,
+    liveCount: () => live.size,
     snapshot: () => snapshot(false),
     finalize,
   };
