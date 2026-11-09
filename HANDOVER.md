@@ -192,6 +192,28 @@ command, fix the line.*
   - **NEXT MILESTONE (HUMAN, 2026-11-09): B0 — Combat Baseline: Real-Play TTK
     & Weapon Economy** — *"strictly measurement-only. No weapon, ammo,
     damage, Super, enemy or combat-balance changes are authorized."*
+  - **B0 PHASES 1–2 DELIVERED (2026-11-09): THE OPT-IN MEASUREMENT BUILD
+    `?b0=1|A|B` — NOT a gameplay change, NOT a default, awaiting the HUMAN
+    handset runs A (gun-forward) and B (natural).** Links (V2C+P1+P2-A3 over
+    unchanged R1 gameplay):
+    `https://xletof.github.io/crix/?visualPilot=v2c&polish=p1&fxPilot=p2a3&b0=A`
+    and `…&b0=B`. Records enemy TTK (spawn / first-seen / first-damage to
+    death, hits, attacks before death, blocks; survivors apart), STANDARD /
+    OVERRIDE / CLUSTER economy (fired, hit, blocked, cadence, empty-ammo time,
+    dry presses), Super and melee (charge, held-ready, casts, hits, damage,
+    kills), REAL durability by source (overkill and shield blocks apart),
+    incoming damage by source, wave pacing and frame pacing; the end-of-run
+    DOM report opens on game over (Share / Download / Copy JSON, runs kept on
+    the phone, a reload recovers the run). `src/systems/b0Telemetry.js`,
+    `b0Report.js`; the flag in `debug.js` / `BootScene`; GameScene gains
+    debug attribution tags only (`_shotSrc`, `_hurtBy`, `_dmgSrc` on the
+    Vader bullet path and around the volatile blast — `?captel=1` now reads
+    volatile chain damage as `other`). Proof: `tests/smoke-b0.mjs`
+    (B0_SMOKE_RESULT); flag off = `dc7d9ea` tick for tick, flag on = off.
+    Evidence, definitions, limitations and the handset instructions:
+    `docs/evidence/b0-combat-baseline/README.md`. STOP after the instrument:
+    no combat change is proposed or authorized before the HUMAN recordings
+    and data are analysed.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -201,8 +223,11 @@ command, fix the line.*
   section). No run-all suite was pinned: the suite tests the shipped game.
 - **Fresh session?** This block and the register are the orientation.
   P2-A3 is APPROVED / FROZEN (opt-in, sharp discharge;
-  `docs/evidence/combat-vfx-p2a3/README.md`); no candidate is open. Next:
-  B0 (measurement only). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
+  `docs/evidence/combat-vfx-p2a3/README.md`); no candidate is open. B0
+  (measurement only): the opt-in instrument `?b0=A|B` is delivered and
+  validated; waiting for the HUMAN handset runs A and B and their exported
+  JSON (`docs/evidence/b0-combat-baseline/README.md`). Propose no combat
+  change before that data is analysed. The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
 

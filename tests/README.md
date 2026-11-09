@@ -2262,3 +2262,54 @@ P2-A3 (sharp STANDARD discharge, the approved default), BS = B + `muzzle=sharp`
   you have measured whether it is SEEN, not just whether it exists.
 - **A full-frame scene cannot be tiled into one sheet** (280 x 720x1280 exceeds
   PIL's decompression-bomb limit): give it a phone-scale strip and a film.
+## The B0 combat-baseline instrument (`?b0=1|A|B` — opt-in, MEASUREMENT ONLY)
+
+Evidence and definitions in `docs/evidence/b0-combat-baseline/`. B0 records
+real handset play (TTK, gun / ability economy, real durability by source,
+incoming damage, pacing, frame pacing) and exports JSON from a DOM report. It
+must not change the fight; these rigs prove it.
+
+- `smoke-b0.mjs [--old=URL] [--selftest] [--only=0,3]` (standalone, :5173; a
+  `dc7d9ea` server at `--old` for section 1, with its own Vite `cacheDir`) —
+  §0 the flag (absence: no DOM, storage, wrapper or listener; labels; the run
+  tag); §1 flag OFF = `dc7d9ea`, seeded replays tick for tick (R1, legacy,
+  V2C, P1, V2C+P1+P2-A3; SWARM TIDE / MIXED s6 / VANGUARD; a real OVERRIDE
+  pickup, a cluster pod, Supers, melee; state, draws, per-tick events,
+  listener counts; god mode off once); §2 flag ON = OFF (headless and
+  rendered, god mode on and off with real hits taken); §3 damage truth
+  (recorded damage = durability lost, damage + overkill = requested, kills =
+  deaths; staged STANDARD kill, Bulwark front, Swarmling contact, Gunner bolt);
+  §4 lifecycle and export (Pause-menu RESTART, no doubled listeners, room
+  transition, reload recovery, defeat opens the report, Download / Copy JSON
+  complete and equal to the stored run); §5 B0's own time per frame; §6 the
+  B0 scope guard + Enemy.js guard. `--selftest` injects a draw and an event per
+  frame with the flag on: §2 must fail.
+- `b0-scope.mjs` (imported, not a suite) — everything under `src/` after
+  `dc7d9ea` is B0's: the two modules, the flag, BootScene's flag line, and
+  GameScene's attribution tags and install, line by line. `smoke-fx-p2a`,
+  `-p2a2` and `-p2a3` measure their own phase up to `dc7d9ea` and import it.
+- `diag-replay-determinism.mjs [--urls=a,b] [--n=12] [--load=K]` — the same
+  seeded replay N times per build (optionally K concurrent copies): distinct
+  outcomes per build and, for any divergence, the first tick and the fields
+  that differ. Written for the P2-A3 section-11 tick-1280 failure.
+
+### What it taught
+
+- **`kill <npm pid>` does not stop Vite.** `npm run dev` starts `sh` and then
+  `node vite`; killing the npm PID orphans the server, which keeps port 5173,
+  and the next `npm run dev` quietly takes 5175. Every "restart" was the first
+  server. Own the Vite process itself (`node node_modules/.bin/vite --host
+  0.0.0.0 > log 2>&1 & echo $!`) and check `ps` for strays before trusting a
+  restart.
+- **A Phaser scene clock is not running inside `create()`.** `scene.time.now`
+  reads 0 there and jumps to the loop's time (~1e5 in the harness, page age on
+  a phone) on the first update; take a run's time origin on the first
+  `postupdate`.
+- **`room-cleared` is not a wave end in Endless.** `RoomManager` emits it
+  whenever its live count touches 0, which happens between spawns mid-wave
+  (GameScene ignores it while `arenaActive`). Waves end on `breather`, the next
+  `wave-update`, `wave-update(null)` or a room change.
+- **An enemy can take its first hit in the frame it spawned**, before any
+  per-frame scan registers it, and `enemy-hit` fires after `hp` moved. An
+  instrument registering from inside that event must take the pool as full
+  (`hpMax`), or a same-frame kill reads as 0 removed.

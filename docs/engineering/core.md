@@ -24,6 +24,14 @@ Load on demand; the root `CLAUDE.md` carries only the one-line versions.
 - **Upgrade effects are magnitudes of `s`**, because `apply` can repeat.
 - **Relative scale mutations compound** — set absolute multiples of a remembered
   rest scale (weapons and touch widgets both).
+- **Damage attribution is a synchronous tag, never a guess** (`?captel=1`,
+  `?b0=`). `GameScene` sets `_dmgSrc` (`primary` / `secondary` / `super` /
+  `melee` / `volatile`), `_shotSrc` (the pool being swept: `override` = rifle
+  burst, `cluster` = fragments) and `_hurtBy` (the bolt hitting the player)
+  around the call and clears them after; `enemy-hit` fires inline, so the
+  read is exact. A new player damage path sets `_dmgSrc`; damage that runs
+  INSIDE another hit (an `enemy-died` chain such as the volatile blast) saves
+  and restores it. Nothing in gameplay reads these fields.
 
 ---
 
