@@ -221,6 +221,11 @@ command, fix the line.*
   readability pass standalone under the default; camera and
   champion-placement fail identically under legacy (register #9; R0 notes, R1
   section). No run-all suite was pinned: the suite tests the shipped game.
+  B0 build (2026-11-09): 46/52 again, a different set: champion-placement,
+  deflect, boss-moves and captain-step (both pass standalone),
+  captain-closeout (fails identically on `dc7d9ea`: inherited) and nemesis
+  (its VOLATILE check fails 2 of 4 runs on HEAD and on `dc7d9ea`: inherited,
+  intermittent) — `docs/evidence/b0-combat-baseline/suites.txt`.
 - **Fresh session?** This block and the register are the orientation.
   P2-A3 is APPROVED / FROZEN (opt-in, sharp discharge;
   `docs/evidence/combat-vfx-p2a3/README.md`); no candidate is open. B0
