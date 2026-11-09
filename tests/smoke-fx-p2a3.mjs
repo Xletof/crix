@@ -6,11 +6,12 @@
 //
 // A2 = `visualPilot=v2c&polish=p1&fxPilot=p2a2`  (P2-A2, the parent candidate)
 // P1 = `visualPilot=v2c&polish=p1`               (approved, frozen)
-// B  = `visualPilot=v2c&polish=p1&fxPilot=p2a3`
-// BS = B + `&muzzle=sharp`
+// B  = `visualPilot=v2c&polish=p1&fxPilot=p2a3` (HUMAN-APPROVED 2026-11-09; the sharp STANDARD discharge by default)
+// BS = B + `&muzzle=sharp` (the same as B)
+// BC = B + `&muzzle=current` (the comparison flag: P2-A2's discharge)
 // Nothing here says which version reads better (the handset's job). It proves:
 //   0  THE FLAGS: `fxPilot=p2a3` honoured only with P1 live and carrying all
-//      of P2-A2; `muzzle=sharp` honoured only with P2-A3; every other
+//      of P2-A2, sharp by default; `muzzle=current` only with P2-A3; every other
 //      combination is that mode exactly
 //   1  TEXTURES: B paints every P2-A2 texture byte-identically plus exactly the
 //      eight `p2a3-*`; `muzzle=sharp` and ignored flags add nothing
@@ -29,8 +30,8 @@
 //      at 8 aims, shows only while OVERRIDE is engaged (and its run-dry beat);
 //      the engage and run-dry sequences; one flick per round; the low-ammo
 //      pulse; hidden mid-combo, dead, and fading in a bush
-//   6  THE MUZZLE A/B (refinement 4): without `muzzle=sharp` B's STANDARD
-//      discharge is P2-A2's, frame for frame; `muzzle=sharp` keeps its
+//   6  THE MUZZLE A/B (refinement 4): BC's (`muzzle=current`) STANDARD
+//      discharge is P2-A2's, frame for frame; B (sharp) keeps its
 //      texture, size, position and depth rule with a shorter persistence — and
 //      the measured ink and lit frames per shot of both, in 4 states, at 60 Hz
 //      (and a 30 Hz step, as a slow phone would)
@@ -63,7 +64,7 @@ const OLD = opt('old', null);
 const NOW = 'http://localhost:5173/';
 const TICKS = +opt('ticks', '1500');
 const BASE_REV = '356b5df';
-const P1 = 'visualPilot=v2c&polish=p1', A = `${P1}&fxPilot=p2a`, A2 = `${P1}&fxPilot=p2a2`, B = `${P1}&fxPilot=p2a3`, BS = `${B}&muzzle=sharp`;
+const P1 = 'visualPilot=v2c&polish=p1', A = `${P1}&fxPilot=p2a`, A2 = `${P1}&fxPilot=p2a2`, B = `${P1}&fxPilot=p2a3`, BS = `${B}&muzzle=sharp`, BC = `${B}&muzzle=current`;
 const Q_SWARM = 'encdbg=swarmTide&room=hangar&sector=3';
 const Q_CROSS = 'encdbg=crossfire&room=hangar&sector=6';
 const Q_BOMB = 'encdbg=bomberRun&room=hangar&sector=4';
@@ -203,9 +204,9 @@ if (on(0)) {
   console.log('\n== 0. the flags');
   // [flags, P2-A3, P2-A2 loadout, P2-A layer, P1, sharp]
   const cases = [['', 0, 0, 0, 0, 0], ['fxPilot=p2a3', 0, 0, 0, 0, 0], ['visualPilot=v2c&fxPilot=p2a3', 0, 0, 0, 0, 0],
-    ['visualPilot=v2b&polish=p1&fxPilot=p2a3', 0, 0, 0, 0, 0], [P1, 0, 0, 0, 1, 0], [A2, 0, 1, 1, 1, 0], [B, 1, 1, 1, 1, 0], [BS, 1, 1, 1, 1, 1],
-    [`${A2}&muzzle=sharp`, 0, 1, 1, 1, 0], [`${A}&muzzle=sharp`, 0, 0, 1, 1, 0], [`${P1}&muzzle=sharp`, 0, 0, 0, 1, 0], ['muzzle=sharp', 0, 0, 0, 0, 0],
-    [`${B}&muzzle=SHARP`, 1, 1, 1, 1, 0], [`${B}&muzzle=soft`, 1, 1, 1, 1, 0], [`${P1}&fxPilot=P2A3`, 0, 0, 0, 1, 0], [`${P1}&fxPilot=p2a9`, 0, 0, 0, 1, 0],
+    ['visualPilot=v2b&polish=p1&fxPilot=p2a3', 0, 0, 0, 0, 0], [P1, 0, 0, 0, 1, 0], [A2, 0, 1, 1, 1, 0], [B, 1, 1, 1, 1, 1], [BS, 1, 1, 1, 1, 1], [BC, 1, 1, 1, 1, 0],
+    [`${A2}&muzzle=sharp`, 0, 1, 1, 1, 0], [`${A2}&muzzle=current`, 0, 1, 1, 1, 0], [`${A}&muzzle=sharp`, 0, 0, 1, 1, 0], [`${P1}&muzzle=sharp`, 0, 0, 0, 1, 0], ['muzzle=sharp', 0, 0, 0, 0, 0],
+    [`${B}&muzzle=SHARP`, 1, 1, 1, 1, 1], [`${B}&muzzle=CURRENT`, 1, 1, 1, 1, 1], [`${B}&muzzle=soft`, 1, 1, 1, 1, 1], [`${P1}&fxPilot=P2A3`, 0, 0, 0, 1, 0], [`${P1}&fxPilot=p2a9`, 0, 0, 0, 1, 0],
     [`baseline=legacy&${BS}`, 1, 1, 1, 1, 1]];
   const sw = {};
   for (const [flags, w3, w2, wA, w1, wS] of cases) {
@@ -228,13 +229,13 @@ if (on(0)) {
 if (on(1)) {
   console.log('\n== 1. textures');
   const tex = async (flags) => { const p = await boot(flags); const t = await p.evaluate(() => window.__allTex()); await p.close(); return t; };
-  const tA2 = await tex(A2), tB = await tex(B), tBS = await tex(BS);
+  const tA2 = await tex(A2), tB = await tex(B), tBS = await tex(BC);
   const changed = Object.keys(tA2).filter((k) => tA2[k] !== tB[k]);
   const added = Object.keys(tB).filter((k) => !(k in tA2)).sort();
   check(`B: every P2-A2 texture byte-identical (${Object.keys(tA2).length}: P1, p2a-*, p2a2-*, roster, pickups, \`bullet\`)`, changed.length === 0, changed.join(' '));
   check(`B: the added textures are exactly the ${P2A3_KEYS.length} p2a3-* keys`, JSON.stringify(added) === JSON.stringify(P2A3_KEYS), added.join(' '));
   const dS = [...new Set([...Object.keys(tB), ...Object.keys(tBS)])].filter((k) => tB[k] !== tBS[k]);
-  check('BS (`muzzle=sharp`): every texture byte-identical to B — the A/B is persistence only', dS.length === 0, dS.join(' '));
+  check('BC (`muzzle=current`): every texture byte-identical to B — the A/B is persistence only', dS.length === 0, dS.join(' '));
   for (const [label, base, ign] of [['R1', '', 'fxPilot=p2a3'], ['P1', P1, `${P1}&fxPilot=p2a9`], ['P2-A2', A2, `${A2}&muzzle=sharp`]]) {
     const t0 = await tex(base), t1 = await tex(ign);
     const d = [...new Set([...Object.keys(t0), ...Object.keys(t1)])].filter((k) => t0[k] !== t1[k]);
@@ -486,23 +487,23 @@ const shotStats = (rows) => {
 };
 if (on(6)) {
   console.log('\n== 6. the STANDARD discharge A/B (refinement 4)');
-  const m2 = await muzzleRun(A2), m3 = await muzzleRun(B), mS = await muzzleRun(BS);
+  const m2 = await muzzleRun(A2), m3 = await muzzleRun(BC), mS = await muzzleRun(B);
   const same = Object.keys(MZ_STATES).every((s) => m2.out[s].map((x) => x.rec).join('|') === m3.out[s].map((x) => x.rec).join('|'));
-  check('B without `muzzle=sharp`: the STANDARD discharge is P2-A2\'s on every frame of sustained fire in 4 states (texture, position, rotation, scale, alpha, depth, glow)', same && m3.out.none.some((x) => x.rec));
+  check('BC (`muzzle=current`): the STANDARD discharge is P2-A2\'s on every frame of sustained fire in 4 states (texture, position, rotation, scale, alpha, depth, glow)', same && m3.out.none.some((x) => x.rec));
   const peakOk = Object.keys(MZ_STATES).every((s) => {
     const firstOf = (rows) => { const o = []; let last = 0; for (const x of rows) if (x.shots > last) { o.push(x.rec.split(' ').at(-1).split(',')); last = x.shots; } return o; };
     const c = firstOf(m3.out[s]), k = firstOf(mS.out[s]);
     return c.length === k.length && c.every((r, i) => r[0] === k[i][0] && r[0] === 'p2a2-mz-s' && r[2] === k[i][2] && r[3] === k[i][3] && r[4] === k[i][4] && r[5] === k[i][5] && r[8] === k[i][8] && +k[i][7] === 1);
   });
-  check('BS: on the first frame each shot is seen, the same texture (p2a2-mz-s), position, rotation, full size and depth as the current discharge, at full alpha', peakOk);
-  check('BS: the depth rule holds on every frame in every state (over the shield bubble in front of the body, under the body behind it)', Object.values(mS.out).every((rows) => rows.every((x) => x.front)));
+  check('B (sharp, the approved default): on the first frame each shot is seen, the same texture (p2a2-mz-s), position, rotation, full size and depth as the current discharge, at full alpha', peakOk);
+  check('B (sharp): the depth rule holds on every frame in every state (over the shield bubble in front of the body, under the body behind it)', Object.values(mS.out).every((rows) => rows.every((x) => x.front)));
   const tab = Object.keys(MZ_STATES).map((s) => { const c = shotStats(m3.out[s]), k = shotStats(mS.out[s]); return { s, c, k }; });
   for (const { s, c, k } of tab) {
     check(`${s.padEnd(6)} ${c.shots} shots: lit frames/shot ${c.lit.toFixed(1)} -> ${k.lit.toFixed(1)}; first-frame ink ${c.firstInk} -> ${k.firstInk} px; frames with ink ${Math.round(c.duty * 100)}% -> ${Math.round(k.duty * 100)}%; mean ink/frame ${c.meanInk} -> ${k.meanInk}`,
       c.shots === k.shots && c.shots >= 5 && k.lit <= c.lit / 1.5 && k.firstInk >= 0.9 * c.firstInk && k.duty < c.duty, JSON.stringify({ c, k }));
   }
   // a 30 Hz step (a phone that cannot hold 60): is each shot's PEAK ever drawn?
-  const q2 = await muzzleRun(A2, { step: 1000 / 30, ticks: 34, ink: false }), qS = await muzzleRun(BS, { step: 1000 / 30, ticks: 34, ink: false });
+  const q2 = await muzzleRun(A2, { step: 1000 / 30, ticks: 34, ink: false }), qS = await muzzleRun(B, { step: 1000 / 30, ticks: 34, ink: false });
   const peak = (rows) => { let last = 0, n = 0, full = 0; for (const x of rows) if (x.shots > last) { last = x.shots; n++; if (x.alphas.some((a) => a >= 0.999)) full++; } return `${full}/${n}`; };
   const litQ = (rows) => shotStats(rows).lit.toFixed(1);
   check(`at a 30 Hz step: shots drawn at full alpha on their first frame — current ${peak(q2.out.none)}, sharp ${peak(qS.out.none)}; lit frames/shot ${litQ(q2.out.none)} -> ${litQ(qS.out.none)}`, peak(qS.out.none).split('/')[0] === peak(qS.out.none).split('/')[1]);
@@ -520,7 +521,7 @@ if (on(7)) {
   console.log('\n== 7. same fight');
   for (const [label, q, base] of [['SWARM TIDE, production', Q_SWARM, ''], ['SWARM TIDE, legacy baseline', Q_SWARM, 'baseline=legacy'], ['CROSSFIRE, production', Q_CROSS, ''], ['BOMBER RUN, production', Q_BOMB, '']]) {
     const a = await replay([base, A2].filter(Boolean).join('&'), q);
-    for (const [nm, fl] of [['B', B], ['BS', BS]]) {
+    for (const [nm, fl] of [['B (sharp)', B], ['BC (current)', BC]]) {
       const b = await replay([base, fl].filter(Boolean).join('&'), q);
       const d = firstDiff(a.hashes, b.hashes);
       const ran = (b.styles?.override || 0) > 0 && (b.styles?.standard || 0) > 0 && b.x?.engages >= 1 && b.x?.flicks > 0;
@@ -686,7 +687,7 @@ if (!SELF && on(12)) {
   });
   check('2 restarts mid-OVERRIDE + quit-to-title: the old layer destroyed, one cell, the HUD text size restored, wrappers and listeners steady; none at the title; OVERRIDE restyles again after',
     lk.out.every((s) => s.x && s.sharp && s.hudOwn && s.cells === 1 && s.oldDead && s.post === lk.out[0].post && s.font === '15px' && s.hudObjs <= 2) && !lk.title.hudOwn && lk.again.text === '27' && lk.again.icon === 'p2a3-hud-burst', JSON.stringify(lk));
-  for (const [M, flags, want, sharp] of [['BS', BS, true, true], ['P2-A2', A2, false, false]]) {
+  for (const [M, flags, want, sharp] of [['B', B, true, true], ['BC', BC, true, false], ['P2-A2', A2, false, false]]) {
     const q = await boot(flags);
     await q.reload();
     await q.waitForFunction(() => window.game?.scene?.getScene('Title')?.sys?.isActive(), null, { timeout: 60000 });

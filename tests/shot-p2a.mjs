@@ -23,7 +23,7 @@
 //
 // `--set=p2a2`: A = P2-A, B = P2-A2 (the carbine). `--set=p2a3`: A = P2-A2,
 // B = P2-A3 (the OVERRIDE refinement: HUD count, readout, power cell, beats).
-// `--set=p2a3mz`: A = P2-A3 (current STANDARD discharge), B = P2-A3 +
+// `--set=p2a3mz`: A = P2-A3 + `muzzle=current` (P2-A2's STANDARD discharge), B = P2-A3 (sharp, approved) +
 // `muzzle=sharp` — sustained fire in four states, at 60 Hz and a 30 Hz step.
 // The p2a3 sets render EVERY tick (60 fps films; 30 fps for the 30 Hz scenes).
 //
@@ -41,7 +41,7 @@ const DEF = {
   p2a: ['docs/evidence/combat-vfx-p2a', P1F, `${P1F}&fxPilot=p2a`],
   p2a2: ['docs/evidence/combat-vfx-p2a2', `${P1F}&fxPilot=p2a`, `${P1F}&fxPilot=p2a2`],
   p2a3: ['docs/evidence/combat-vfx-p2a3', `${P1F}&fxPilot=p2a2`, `${P1F}&fxPilot=p2a3`],
-  p2a3mz: ['docs/evidence/combat-vfx-p2a3/muzzle-ab', `${P1F}&fxPilot=p2a3`, `${P1F}&fxPilot=p2a3&muzzle=sharp`],
+  p2a3mz: ['docs/evidence/combat-vfx-p2a3/muzzle-ab', `${P1F}&fxPilot=p2a3&muzzle=current`, `${P1F}&fxPilot=p2a3`],
 }[SET];
 const OUT = opt('out', DEF[0]);
 const A = opt('a', DEF[1]);
@@ -205,7 +205,7 @@ const SCENES_P2A3 = {
     act: `gs.keys.W.isDown = i >= 10 && i < 50;
           if (i >= 60) P.tryFire(-0.35);` },
 };
-// ── the STANDARD discharge A/B (`--set=p2a3mz`): A = P2-A3, B = P2-A3 + muzzle=sharp
+// ── the STANDARD discharge A/B (`--set=p2a3mz`): A = P2-A3 + muzzle=current, B = P2-A3 (sharp)
 // a held trigger: the shipped pool (3 rounds, 120ms apart, then the 520ms refill)
 const HELD = (o) => ({
   rect: [660, 735, 940, 890], strip: [0, 40, 1], ticks: 90,

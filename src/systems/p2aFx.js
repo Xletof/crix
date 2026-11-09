@@ -99,7 +99,8 @@ export const P2A = {
     headGlow: { tint: 0xff4a3c, alpha: 0.28, scale: 0.85 },
     muzzle: { ms: 80, scale: 1.0, glow: { tint: 0xff4a30, alpha: 0.4, scale: 1.0 } },
   },
-  // P2-A3 `&muzzle=sharp` — the STANDARD discharge's A/B: the same texture,
+  // P2-A3's STANDARD discharge (HUMAN-approved 2026-11-09; `&muzzle=current`
+  // draws P2-A2's for comparison): the same texture,
   // size, keyline, depth and occlusion; only its PERSISTENCE differs. Its peak
   // is the first frame the shot is seen (its age starts after that frame), and
   // it collapses in 40ms: ~2 visible frames at 60 Hz where the current flash
@@ -173,7 +174,7 @@ class FxP2A {
     // P2-A2: the carried rifle, the OVERRIDE pickup and HUD readout
     this.loadout = this.p2a2 ? installLoadoutP2A2(this) : null;
     // P2-A3 (over P2-A2): the OVERRIDE round count, readout, power cell and
-    // beats; and the STANDARD discharge's sharp A/B (`&muzzle=sharp`)
+    // beats; and its sharp STANDARD discharge (`&muzzle=current`: P2-A2's)
     this.p2a3 = this.loadout && isFxP2A3() ? installOverrideP2A3(this, this.loadout) : null;
     this.sharp = isMuzzleSharp();
   }

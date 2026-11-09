@@ -26,14 +26,14 @@ const REPS = +opt('reps', '5'), TICKS = +opt('ticks', '600');
 const EXP = opt('exp', '');
 // --set=p2a2: A = P2-A, B = P2-A2 (the carbine loadout), the fight with OVERRIDE engaged half-way
 // --set=p2a3: A = P2-A2, B = P2-A3 (the OVERRIDE refinement), the same fight
-// --set=p2a3mz: A = P2-A3, B = P2-A3 + muzzle=sharp
+// --set=p2a3mz: A = P2-A3 + muzzle=current, B = P2-A3 (sharp)
 const SET = opt('set', 'p2a');
 const P1F = 'visualPilot=v2c&polish=p1';
 const CFGS = {
   p2a: [['A', P1F], ['B', `${P1F}&fxPilot=p2a`]],
   p2a2: [['A', `${P1F}&fxPilot=p2a`], ['B', `${P1F}&fxPilot=p2a2`]],
   p2a3: [['A', `${P1F}&fxPilot=p2a2`], ['B', `${P1F}&fxPilot=p2a3`]],
-  p2a3mz: [['A', `${P1F}&fxPilot=p2a3`], ['B', `${P1F}&fxPilot=p2a3&muzzle=sharp`]],
+  p2a3mz: [['A', `${P1F}&fxPilot=p2a3&muzzle=current`], ['B', `${P1F}&fxPilot=p2a3`]],
 }[SET];
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 const out = {};
@@ -124,6 +124,6 @@ for (const [cfg, flags] of CFGS) {
 }
 await browser.close();
 const f = (v) => (typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(3)) : v);
-const LAB = { p2a: ['A (P1)', 'B (P1 + P2-A)'], p2a2: ['A (P2-A)', 'B (P2-A2)'], p2a3: ['A (P2-A2)', 'B (P2-A3)'], p2a3mz: ['A (P2-A3)', 'B (sharp)'] }[SET];
+const LAB = { p2a: ['A (P1)', 'B (P1 + P2-A)'], p2a2: ['A (P2-A)', 'B (P2-A2)'], p2a3: ['A (P2-A2)', 'B (P2-A3)'], p2a3mz: ['A (current)', 'B (sharp)'] }[SET];
 console.log('metric'.padEnd(22), LAB[0].padStart(14), LAB[1].padStart(14));
 for (const k of [...new Set([...Object.keys(out.A), ...Object.keys(out.B)])]) console.log(k.padEnd(22), String(f(out.A[k] ?? '—')).padStart(14), String(f(out.B[k] ?? '—')).padStart(14));
