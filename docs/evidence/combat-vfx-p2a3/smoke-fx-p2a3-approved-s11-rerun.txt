@@ -1,0 +1,19 @@
+
+== 11. against the previous build (http://localhost:5180/)
+PASS  R1 (no flags): every texture byte-identical to the previous build
+PASS  V2C: every texture byte-identical to the previous build
+PASS  P1: every texture byte-identical to the previous build
+PASS  P2-A: every texture byte-identical to the previous build
+PASS  P2-A2: every texture byte-identical to the previous build
+PASS  P2-A2's RENDERED output (world + HUD, full canvas) is pixel-identical to the previous build over STANDARD with both rings, an OVERRIDE pickup, bursts to empty and STANDARD after (110 frames)
+PASS  P2-A2 + an ignored `muzzle=sharp`: the same frames, pixel for pixel
+PASS  CONTROL: the same pixel check FAILS for P2-A3 against the previous P2-A2 (94 of 110 frames differ) — it can see a change  — 16 identical frames
+PASS  SWARM TIDE, R1: 1500 ticks identical to the previous build  — 18129 draws
+PASS  SWARM TIDE, P1: 1500 ticks identical to the previous build  — 18129 draws
+PASS  SWARM TIDE, P2-A: 1500 ticks identical to the previous build  — 18129 draws
+PASS  SWARM TIDE, P2-A2: 1500 ticks identical to the previous build  — 18129 draws
+PASS  SWARM TIDE, B vs the previous P2-A2: 1500 ticks identical to the previous build  — 18129 draws
+PASS  CROSSFIRE, BS vs the previous P2-A2: 1500 ticks identical to the previous build  — 16120 draws
+PASS  SWARM TIDE, R1 + ignored fxPilot=p2a3: 1500 ticks identical to the previous build  — 18129 draws
+
+15/15 passed

@@ -1,3 +1,10 @@
+# AFTER THE HUMAN VERDICT (2026-11-09): sharp STANDARD discharge made P2-A3's default (9eb4231; suite d5bf239)
+smoke-fx-p2a3 --old=356b5df: 98/99 (smoke-fx-p2a3-approved.txt). The one FAIL — "SWARM TIDE, R1: 1500 ticks
+  identical to the previous build", first divergent tick 1280 — did not reproduce: section 11 re-run standalone
+  15/15 (smoke-fx-p2a3-approved-s11-rerun.txt). R1 loads no P2-A code; the same check passed in both earlier full
+  runs, and "R1 + ignored fxPilot=p2a3" vs the previous build passed in the same run.
+smoke-fx-p2a3 --selftest --only=3,5,7,8: SELFTEST OK (selftest.txt)
+
 # P2-A3 verification
 smoke-fx-p2a3 --old=356b5df (final code, f3dae53): 95/95 passed  (smoke-fx-p2a3.txt)
 smoke-fx-p2a3 --selftest --only=3,5,7,8 (final code): SELFTEST OK — a Math.random draw in the P2-A3 frame, an event per
