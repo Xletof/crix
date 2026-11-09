@@ -1,0 +1,8 @@
+
+== 10. frozen files
+PASS  after dc7d9ea: only the B0 instrument's audited files and lines (tests/b0-scope.mjs)  — 5 files; GameScene +13 tag/install lines
+PASS  src/: nothing changed against 514a385 outside debug.js, p2aFx.js, p2aPaint.js and the new p2a2Loadout.js (entities, Player, WeaponPickup, HUD, GameScene, PreloadScene, P1, FX, config untouched)
+PASS  Enemy.js guard (outside the Bomber, the Bomber-only veto)  — {"outside":true,"hasDoc":true,"hasMethod":true,"code":"_vetoFalseStuck() { if (this._stuckFirstSeen || this._miniBoss) return; if (this._stuckRefX === undefined) return; this._stuckFirstSeen = true; const moved = Ma"}
+
+3/3 passed
+exit 0

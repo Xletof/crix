@@ -1,0 +1,9 @@
+
+== 10. frozen files
+PASS  no change against def85e5 in entities (Bullet.js, Player.js, Enemy.js), config, data, the painters, P1, FX/juice, HUD, the Bulwark field, roster weapon FX, camera, light, AI seams, nav, rng
+PASS  after dc7d9ea: only the B0 instrument's audited files and lines (tests/b0-scope.mjs)  — 5 files; GameScene +13 tag/install lines
+PASS  GameScene / PreloadScene: only the two imports and the two install calls added, nothing removed  — 4 added, 0 removed: +import { installFxP2A } from '../systems/p2aFx.js'; | +    installFxP2A(this); | +import { paintFxP2A } from '../systems/p2aPaint.js'; | +    paintFxP2A(this);
+PASS  Enemy.js guard (outside the Bomber, the Bomber-only veto)  — {"outside":true,"hasDoc":true,"hasMethod":true,"code":"_vetoFalseStuck() { if (this._stuckFirstSeen || this._miniBoss) return; if (this._stuckRefX === undefined) return; this._stuckFirstSeen = true; const moved = Ma"}
+
+4/4 passed
+exit 0
