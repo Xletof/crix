@@ -1,0 +1,17 @@
+# B0 — suites run (2026-11-09), this container, clean Vite servers owned by PID
+# (HEAD :5173, dc7d9ea :5174 own cacheDir, 356b5df :5175 own cacheDir)
+
+smoke-b0 --old=dc7d9ea: 46/46 (smoke-b0.txt)
+smoke-b0 --only=0,2,3,4 after the autosave change (b0Report quiet-moment save): 34/34 (smoke-b0-rerun-0234.txt)
+smoke-b0 --selftest: SELFTEST OK — injected draw + event per frame fail section 2, 2/2 (selftest.txt)
+smoke-fx-p2a3 --old=356b5df: 100/100 (smoke-fx-p2a3.txt) — 99 checks of the approved run + the B0 scope check;
+  includes "SWARM TIDE, R1: 1500 ticks identical to the previous build" (the P2-A3 tick-1280 flake), PASS
+smoke-captel: PASS, 22 checks (smoke-captel.txt) — after the volatile-blast attribution tag
+smoke-fx-p2a --only=10: 4/4 (smoke-fx-p2a-s10.txt)
+smoke-fx-p2a2 --only=10: 3/3 (smoke-fx-p2a2-s10.txt)
+diag-replay-determinism: 30 idle + 240 loaded replays, one outcome per build, builds identical (determinism-*.txt)
+npm run build: OK (the pre-existing >500 kB chunk warning only)
+
+# Inherited, not caused by B0
+smoke-stuck-audit's src guard compares against 04cd882 and already fails on dc7d9ea (src/ has carried the V2,
+  P1 and P2 files since; GameScene differs by 56 lines there). Not in run-all; not changed here.

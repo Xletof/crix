@@ -148,6 +148,57 @@ Results: `smoke-b0.txt`, `suites.txt`, `determinism.txt` in this folder.
 - `--selftest`: an injected `Math.random` draw plus one event per frame must
   fail §2.
 
+### Results
+
+- `smoke-b0 --old=dc7d9ea`: **46/46** (`smoke-b0.txt`); B0's own time per
+  frame in the busy rendered SWARM TIDE: mean 30 µs, worst single frame
+  4.2 ms. Rendered step time was within noise ON vs OFF (74.2 vs 73.3 ms per
+  harness step). After the autosave change (quiet moments only), sections
+  0, 2, 3 and 4 were re-run: **34/34** (`smoke-b0-rerun-0234.txt`).
+- `smoke-b0 --selftest`: §2 FAILED as it must, 2/2 (`selftest.txt`).
+- Covering suites (`suites.txt`):
+  - `smoke-fx-p2a3 --old=356b5df` **100/100** (99 checks plus the new B0
+    scope check; `smoke-fx-p2a3.txt`);
+  - `smoke-captel` 22/22;
+  - `smoke-fx-p2a` and `smoke-fx-p2a2` frozen-file sections pass;
+  - `npm run build` OK;
+  - `run-all`: see `suites.txt`.
+
+### The P2-A3 section-11 tick-1280 divergence: investigated, not reproduced
+
+The record: in the approved P2-A3 run, `smoke-fx-p2a3 --old=356b5df` scored
+98/99. The one FAIL was "SWARM TIDE, R1: 1500 ticks identical to the previous
+build", first divergent tick 1280. A standalone re-run of section 11 passed
+15/15. It is kept here as an **unconfirmed harness flake**, not dismissed.
+
+What was done (`tests/diag-replay-determinism.mjs`, `determinism-*.txt`):
+- The same replay (R1, SWARM TIDE s3, seed 9071, the section's movement, fire,
+  Super, melee, rifle and cluster schedule) was run with the full per-tick
+  state kept, not only its hash, on `356b5df` (P2-A2), `dc7d9ea` (P2-A3) and
+  this build:
+  - 10 times each on an idle machine;
+  - 80 times each with 4 replays running at once.
+- **270 replays: one outcome per build, and the three builds identical tick
+  for tick over all 1500 ticks.**
+- The real suite against `356b5df` passed this check again (`smoke-fx-p2a3.txt`,
+  100/100), as did smoke-b0 §1 against `dc7d9ea` (R1 SWARM TIDE among 9
+  replays).
+
+What it supports:
+- Nothing points at a build difference. R1 loads no P2-A code, and every
+  measured replay of the fight agrees.
+- The failure is consistent with a harness-side event: register #10 (rare
+  extra draws in plain headless replays, cause unknown) or #11 (a long-running
+  Vite server that has seen source edits serving a module twice).
+- On #11, this session found a sharper version of that trap: killing the
+  `npm run dev` PID leaves Vite running on :5173, so a "restart" silently keeps
+  the old server (tests/README, B0 section). The P2-A3 session edited `src/`
+  mid-session (the sharp default) before that run. That makes #11 plausible,
+  but it is **not proven**: the failing run left no per-tick state to inspect.
+- If it recurs, run the diagnostic against the same servers immediately, before
+  restarting anything, and keep its `--out` JSON (it records the fields that
+  differ).
+
 ## 5. Known limitations (read before analysing)
 
 - **Inferred incoming sources end in `?`.** Damage from Vader's scripted moves
