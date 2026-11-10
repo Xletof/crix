@@ -1,0 +1,26 @@
+
+== 0. flags
+PASS  "(none)": variant off, tuning 3,120,520,120,600, nothing installed  — {"v":null,"b1":false,"t":[3,120,520,120,600],"own":false,"ammo":3}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3": variant off, tuning 3,120,520,120,600, nothing installed  — {"v":null,"b1":false,"t":[3,120,520,120,600],"own":false,"ammo":3}
+PASS  "b1=G": variant G, tuning 10,110,260,120,600, installed  — {"v":"G","b1":true,"t":[10,110,260,120,600],"own":true,"ammo":10}
+PASS  "b1=m": variant M, tuning 10,110,260,120,600, installed  — {"v":"M","b1":true,"t":[10,110,260,120,600],"own":true,"ammo":10}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b1=S": variant S, tuning 10,110,260,120,600, installed  — {"v":"S","b1":true,"t":[10,110,260,120,600],"own":true,"ammo":10}
+PASS  "b1=X": variant off, tuning 3,120,520,120,600, nothing installed  — {"v":null,"b1":false,"t":[3,120,520,120,600],"own":false,"ammo":3}
+PASS  "b1=": variant off, tuning 3,120,520,120,600, nothing installed  — {"v":null,"b1":false,"t":[3,120,520,120,600],"own":false,"ammo":3}
+PASS  "b1=1": variant off, tuning 3,120,520,120,600, nothing installed  — {"v":null,"b1":false,"t":[3,120,520,120,600],"own":false,"ammo":3}
+
+== 1. flag off = a3866f2 (http://localhost:5174/)
+PASS  SWARM TIDE, R1: 1500 ticks identical to a3866f2 (state, ammo, draws, per-tick events)  — 18666 draws, 28 kills
+PASS  MIXED s6, R1: 1500 ticks identical to a3866f2 (state, ammo, draws, per-tick events)  — 18619 draws, 31 kills
+PASS  VANGUARD, R1: 1500 ticks identical to a3866f2 (state, ammo, draws, per-tick events)  — 14805 draws, 11 kills
+PASS  SWARM TIDE, legacy: 1500 ticks identical to a3866f2 (state, ammo, draws, per-tick events)  — 15541 draws, 22 kills
+PASS  MIXED s6, V2C+P1+P2-A3: 1500 ticks identical to a3866f2 (state, ammo, draws, per-tick events)  — 18619 draws, 31 kills
+PASS  MIXED s6, V2C+P1+P2-A3 + B0 instrument: 1500 ticks identical to a3866f2 (state, ammo, draws, per-tick events)  — 18619 draws, 31 kills
+PASS  SWARM TIDE, R1 + B0 instrument: 1500 ticks identical to a3866f2 (state, ammo, draws, per-tick events)  — 18666 draws, 28 kills
+PASS  MIXED s6, V2C+P1+P2-A3, god mode off: identical to a3866f2
+
+== 2. variant equivalence (except the authorized changes)
+PASS  SWARM TIDE: Supers + melee, no STANDARD — B1-G = R1 tick for tick (Super, charge, knockback, draws, events)  — 11122 draws, 21 kills
+PASS  MIXED s6: Supers + melee, no STANDARD — B1-G = R1 tick for tick (Super, charge, knockback, draws, events)  — 13175 draws, 26 kills
+PASS  VANGUARD: Supers + melee, no STANDARD — B1-G = R1 tick for tick (Super, charge, knockback, draws, events)  — 9460 draws, 10 kills
+FAIL  SWARM TIDE: STANDARD every 40 ticks (a 3-round magazine never empties) + Supers + melee + OVERRIDE + cluster — B1-G = R1 except the magazine fields  — first divergent tick 95
