@@ -2,10 +2,11 @@ import Phaser from 'phaser';
 import {
   setDialogueMuted, setDuelRequest, parseDuelParams, setHitstopMuted, setMoveNamesMuted,
   setEncDebug, setEncForce, parseEncDebugParams, setChampDebug, setChampWhich, setChampPlacementOff, setVanguardScreenOff, setVanguardFrontOff,
-  setCapTel, setB0, setShowColliders, applyGameplayFlags, applyVisualFlags,
+  setCapTel, setB0, setB1Variant, setShowColliders, applyGameplayFlags, applyVisualFlags,
 } from '../systems/debug.js';
 import { ENCOUNTERS } from '../data/encounters.js';
 import { b0Store } from '../systems/b0Report.js';
+import { applyB1Tuning } from '../systems/b1Combat.js';
 import { CAMERA } from '../config.js';
 
 export class BootScene extends Phaser.Scene {
@@ -83,6 +84,10 @@ export class BootScene extends Phaser.Scene {
     // B0 DATA button and a run interrupted by a reload or a closed tab is
     // recovered before the next one starts.
     if (params.has('b0')) { setB0(params.get('b0') || '1'); b0Store(); }
+
+    // `?b1=G|M|S` — B1 combat experiments (HUMAN-authorized, opt-in). The
+    // shared STANDARD tuning is written once here, before any scene reads it.
+    if (params.has('b1')) { setB1Variant(params.get('b1')); applyB1Tuning(); }
 
     this.scene.start('Preload');
   }

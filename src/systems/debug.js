@@ -276,6 +276,19 @@ let b0 = false;
 let b0Label = null;
 export function isB0() { return b0; }
 export function getB0Label() { return b0Label; }
+
+// ── B1 combat experiment variants (`?b1=G|M|S`) ──────────────────────────────
+//
+// HUMAN-AUTHORIZED EXPERIMENTS ONLY (2026-11-10), opt-in, never a default
+// (systems/b1Combat.js). G = the B1 STANDARD rifle alone; M / S = the same
+// rifle plus the moderate / full crowd-control Super. Anything else (or the
+// parameter absent) is R1, with nothing installed and no tuning touched.
+let b1Variant = null;
+export function getB1Variant() { return b1Variant; }
+export function setB1Variant(v) {
+  const s = v == null ? '' : String(v).trim().toUpperCase();
+  b1Variant = (s === 'G' || s === 'M' || s === 'S') ? s : null;
+}
 export function setB0(v) {
   if (v == null || v === false) { b0 = false; b0Label = null; return; }
   b0 = true;
