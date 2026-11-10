@@ -214,6 +214,24 @@ command, fix the line.*
     `docs/evidence/b0-combat-baseline/README.md`. STOP after the instrument:
     no combat change is proposed or authorized before the HUMAN recordings
     and data are analysed.
+  - **B0 HUMAN PLAYTESTS (2026-11-10):** runs A and B received (desktop
+    Chrome); analysis delivered in chat (the B0 Combat Evidence Report).
+    HUMAN clarification: frequent Super use and rapid chaining are FUN and
+    INTENTIONAL; self-recharge stays; STANDARD must become more satisfying.
+  - **B1 — COMBAT EXPERIMENTS `?b1=G|M|S` (2026-11-10): HUMAN-AUTHORIZED
+    EXPERIMENTS ONLY, opt-in, NOT approved, NOT frozen, NOT a default.**
+    All three share a STANDARD rifle (10 rounds, 110ms, 260ms sequential
+    regeneration, hold-to-fire, damage 120). G: Super R1. M: Super 300/pellet,
+    ~90px push, 25% slow 1.5s. S: 150/pellet, ~180px push, 40% slow 2s. The
+    changed Super hits ordinary enemies only (nemesis, Shock Captain, Vader,
+    afterimages keep R1); one push and one slow per enemy per cast; 600ms
+    re-push immunity; no punish multiplier; no charge change; OVERRIDE
+    unchanged. `src/systems/b1Combat.js`; flag in `debug.js` / `BootScene`;
+    GameScene: the install and one branch at the Super-pellet hit. B0
+    telemetry gained input mode, charge sources and the B1 block. Proof:
+    `tests/smoke-b1.mjs`. Links, mechanics, limitations:
+    `docs/evidence/b1-combat-experiments/README.md`. Awaiting the HUMAN
+    recordings and verdicts; no promotion without a separate HUMAN decision.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -231,8 +249,10 @@ command, fix the line.*
   `docs/evidence/combat-vfx-p2a3/README.md`); no candidate is open. B0
   (measurement only): the opt-in instrument `?b0=A|B` is delivered and
   validated; waiting for the HUMAN handset runs A and B and their exported
-  JSON (`docs/evidence/b0-combat-baseline/README.md`). Propose no combat
-  change before that data is analysed. The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
+  JSON (`docs/evidence/b0-combat-baseline/README.md`). Runs A and B were
+  analysed; B1 (`?b1=G|M|S`, opt-in experiments) is delivered and awaits the
+  HUMAN recordings and verdicts
+  (`docs/evidence/b1-combat-experiments/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
 

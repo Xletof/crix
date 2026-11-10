@@ -2313,3 +2313,51 @@ must not change the fight; these rigs prove it.
   per-frame scan registers it, and `enemy-hit` fires after `hp` moved. An
   instrument registering from inside that event must take the pool as full
   (`hpMax`), or a same-frame kill reads as 0 removed.
+
+## The B1 combat-experiment rigs (`?b1=G|M|S` — HUMAN-authorized experiments, opt-in, not a default)
+
+Evidence in `docs/evidence/b1-combat-experiments/`.
+
+- `smoke-b1.mjs [--old=URL] [--only=0,3]` (standalone, :5173; an `a3866f2`
+  server at `--old` for section 1, with its own Vite `cacheDir`):
+  - §0 the flag;
+  - §1 flag OFF = `a3866f2`, tick for tick (R1, legacy, V2C+P1+P2-A3, with
+    and without the B0 instrument);
+  - §2 variant equivalence except the authorized changes: Supers with no
+    STANDARD give B1-G = R1; slow STANDARD (never empties 3 rounds) plus
+    Supers, OVERRIDE and cluster give B1-G = R1 except the magazine fields;
+    rapid STANDARD with no Super gives G = M = S;
+  - §3 the Super, staged: damage per pellet on Regular, Elite and Bulwark;
+    push distance measured and recorded; slow strength and duration with the
+    original `cfg` restored; one push and one slow per cast; re-push
+    immunity; chained Supers never lock the AI (frames where the AI was
+    actually skipped); no punish window; corpse slide = R1; charge per pellet
+    = R1; a 30 Hz step; nemesis, Captain, afterimage and Vader take the R1
+    Super;
+  - §4 STANDARD and controls: tap = 1 shot; hold cadence 117 ms then 267 ms
+    (60 Hz frames); stick aim and auto-aim; no release shot after a hold;
+    OVERRIDE and cluster never auto-repeat; SPACE tap, hold and Super; a REAL
+    CDP touch hold and tap; the Super / melee buttons are not claimed; the 10
+    pips fit, also after a relayout;
+  - §5 restarts and reload;
+  - §6 telemetry accuracy (input counts, charge units = the meters' real
+    increments, push / slow, damage truth in seeded M and S fights);
+  - §7 no Math.random made by B1 code;
+  - §8 the B0 / B1 scope guard and the Enemy.js guard.
+- `b0-scope.mjs` now pins two ranges: B0 (`dc7d9ea..a3866f2`) and B1
+  (`a3866f2..` the working tree), line by line.
+
+### What it taught
+
+- **`game.loop.delta` is stale under `headlessStep`.** The harness steps the
+  scene with its own delta and never updates the loop's. A per-frame timer
+  in a seam must use the `delta` the `postupdate` event carries; otherwise its
+  durations scale with whatever the loop last measured (B1's slow ran 10% long
+  and a 30 Hz push doubled until it did).
+- **Every Super recoils the player.** Twenty chained casts in a staged test
+  slid the player from x 600 to the wall, out of range of everything staged
+  after. Re-place the player before each staged cast.
+- **A frame's AI is skipped iff the stagger exceeds one frame's delta when the
+  frame begins** (`Enemy.preUpdate` decrements, then gates). Counting frames
+  where `_staggerMs > 0` after the step also counts the hit frame, where the
+  AI already ran.
