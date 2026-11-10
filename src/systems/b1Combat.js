@@ -119,12 +119,15 @@ export function installB1(scene) {
     // Something else already owns this body's motion (the Demolisher's own
     // throw-clear, or a longer stagger such as Broken Wings' slam stun).
     if ((e._shoveMs || 0) > 0 || (e._staggerMs || 0) > SUP.pushMs || e._performing) { stats.pushSkippedBusy++; return; }
+    // DISTANCE-CONTROLLED: the push runs at pushPx / pushMs until the enemy
+    // has actually travelled ~pushPx (so 90 / 180px at any frame rate), with a
+    // time cap for a body stopped by a wall.
     const v = SUP.pushPx / (SUP.pushMs / 1000);
     const vx = Math.cos(angle) * v, vy = Math.sin(angle) * v;
     e._staggerMs = Math.max(e._staggerMs || 0, SUP.pushMs);   // AI suspended for the push only
     e._shoveMs = Math.max(e._shoveMs || 0, SUP.pushMs);       // exempt from the stagger velocity decay
     e.body?.setVelocity(vx, vy);
-    pushes.set(e, { vx, vy, left: SUP.pushMs, x0: e.x, y0: e.y });
+    pushes.set(e, { vx, vy, v, left: SUP.pushMs * 1.5, x0: e.x, y0: e.y });
     stats.pushes++; bump(e, 'pushes');
   }
 
@@ -226,15 +229,23 @@ export function installB1(scene) {
     for (const [e, r] of pushes) {
       if (!e.active || !e.alive || !e.body) { pushes.delete(e); stats.pushEndedEarly++; continue; }
       r.left -= dt;
-      if (r.left > 0) {
-        // One author for the velocity while the push runs (the AI is suspended).
+      const d = Math.hypot(e.x - r.x0, e.y - r.y0);
+      // Stop once the next half step would pass the target distance.
+      if (r.left > 0 && d < SUP.pushPx - (r.v * dt) / 2000) {
+        // One author for the velocity while the push runs: keep the AI
+        // suspended and the decay off for exactly one more frame.
+        e._staggerMs = Math.max(e._staggerMs || 0, dt + 1);
+        e._shoveMs = Math.max(e._shoveMs || 0, dt + 1);
         e.body.setVelocity(r.vx, r.vy);
         continue;
       }
-      // The push is over: stop the body unless a longer effect took it over,
-      // so no residual velocity drifts an AI state that does not set its own.
-      if ((e._staggerMs || 0) <= 50 && (e._shoveMs || 0) <= 50) e.body.setVelocity(0, 0);
-      const d = Math.hypot(e.x - r.x0, e.y - r.y0);
+      // The push is over. Unless a longer effect (Broken Wings' slam stun, the
+      // Demolisher's throw-clear) now owns the body, stop it and hand the AI
+      // back on the next frame: no residual velocity, no extra suspension.
+      if ((e._staggerMs || 0) <= dt + 1 && (e._shoveMs || 0) <= dt + 1) {
+        e.body.setVelocity(0, 0);
+        e._staggerMs = 0; e._shoveMs = 0;
+      }
       if (stats.pushDist.length < 4000) stats.pushDist.push(Math.round(d));
       bump(e, 'pushPx', d);
       immuneUntil.set(e, clock + B1_PUSH_IMMUNE_MS);
@@ -252,8 +263,10 @@ export function installB1(scene) {
     }
   }
 
-  const onPost = () => {
-    const dt = game.loop.delta || 0;
+  // The frame delta the scene itself was stepped with (the same value every
+  // sprite's preUpdate, and so the stagger countdown, received).
+  const onPost = (time, delta) => {
+    const dt = (typeof delta === 'number' ? delta : game.loop.delta) || 0;
     clock += dt;
     tickHold(dt);
     if (SUP) tickEffects(dt);
