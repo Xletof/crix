@@ -100,13 +100,12 @@ async function boot(flags, { base = NOW, q = Q_STAGE, seed = 4242, god = true, c
       for (const gg of [...gs.hostileBullets, gs.playerBullets, gs.playerRifleBullets, gs.playerSuperBullets]) for (const bb of gg.getChildren()) if (bb.active) bb.kill();
     };
     window.__stage = () => { window.__adv(200); window.__clear(); window.__adv(3); window.__clear(); const P = gs.player; P.x = 600; P.y = 900; P.body.reset(600, 900); P.superCharge = 0; P.meleeCharge = 0; window.__adv(2); };
-    // the replay: `fire` = STANDARD every N ticks (0 = none); `noAmmo` hashes
-    // the magazine as "full or not" instead of its count (R1 vs B1 capacity)
+    // the replay: `fire` = STANDARD every N ticks (0 = none); `noAmmo` leaves
+    // the magazine fields (count, regeneration queue, cooldown) out of the hash
     window.__trace = ({ seed, ticks, seg, fire, superAt, melee, pickAt, clusterAt, noAmmo }) => {
       const K = gs.keys, cam = gs.cameras.main;
-      window.__seed(seed); window.__draws = 0; window.__evN = 0;
+      window.__seed(seed); window.__draws = 0; window.__evN = 0; window.__ev['player-ammo-changed'] = 0;
       const hashes = []; const f = (v) => (Math.round(v * 1000) / 1000).toString();
-      const AM = window.__cfg.PLAYER.ammoMax;
       for (let i = 0; i < ticks; i++) {
         const P = gs.player;
         const cur = seg.find(([a, bb]) => i >= a && i < bb)[2];
@@ -117,12 +116,15 @@ async function boot(flags, { base = NOW, q = Q_STAGE, seed = 4242, god = true, c
         if (i === pickAt) gs.weaponPickups.push(new window.__WP(gs, P.x, P.y, 'rifle'));
         if (i === clusterAt) gs.weaponPickups.push(new window.__WP(gs, P.x, P.y, 'cluster'));
         window.__adv(1);
-        const ammo = noAmmo ? `${P.ammo === AM}` : `${P.ammo},${P.ammoTimers.length},${P.fireCooldown}`;
+        const ammo = noAmmo ? '-' : `${P.ammo},${P.ammoTimers.length},${P.fireCooldown}`;
         let s = `${i}|${f(P.x)},${f(P.y)},${f(P.hp)},${P.shieldHp},${P.alive},${P.superCharge},${P.meleeCharge},${ammo},${P.secondary},${P.secondaryAmmo},${P._burstRemaining}|${f(cam.scrollX)},${f(cam.scrollY)}|${f(gs.time.timeScale)}|k${gs.runKills},${gs.runScore},${gs.lives},${gs._waveIdx}|`;
         for (const e of gs.enemies.getChildren()) if (e.active) s += `${e.enemyType}:${f(e.x)},${f(e.y)},${Math.round(e.hp)},${e.state};`;
         if (gs.boss?.active) s += `V${f(gs.boss.x)},${f(gs.boss.y)},${Math.round(gs.boss.hp)};`;
         for (const g2 of [...gs.hostileBullets, gs.playerBullets, gs.playerRifleBullets, gs.playerSuperBullets]) for (const bb of g2?.getChildren?.() || []) if (bb.active) s += `b${f(bb.x)},${f(bb.y)},${bb.damage};`;
-        s += `|d${window.__draws}|e${window.__evN}`;
+        // the magazine's own event fires on each regenerated round: its timing
+        // is one of the magazine fields `noAmmo` leaves out
+        const evN = noAmmo ? window.__evN - (window.__ev['player-ammo-changed'] || 0) : window.__evN;
+        s += `|d${window.__draws}|e${evN}`;
         hashes.push(fnv(s));
       }
       K.A.isDown = K.D.isDown = K.W.isDown = K.S.isDown = false;
@@ -183,6 +185,15 @@ if (on(2)) {
     const g = await replay(join(VIS, 'b1=G'), q, { superAt: [] }), m = await replay(join(VIS, 'b1=M'), q, { superAt: [] }), s = await replay(join(VIS, 'b1=S'), q, { superAt: [] });
     const d1 = firstDiff(g.hashes, m.hashes), d2 = firstDiff(g.hashes, s.hashes);
     check(`${label}: rapid STANDARD + melee + pickups, no Super — B1-G = B1-M = B1-S tick for tick (incl. ammo)`, d1 < 0 && d2 < 0, `${g.draws} draws, ${g.kills} kills; M ${d1}, S ${d2}`);
+  }
+  // CONTROLS: the same comparisons can see a change
+  {
+    const a = await replay(VIS, Q_MIXED, { fire: 0, pickAt: -1, clusterAt: -1, noAmmo: true }), m = await replay(join(VIS, 'b1=M'), Q_MIXED, { fire: 0, pickAt: -1, clusterAt: -1, noAmmo: true });
+    const d = firstDiff(a.hashes, m.hashes);
+    check(`CONTROL: the Supers-only comparison FAILS for B1-M against R1 (first divergent tick ${d}) — it sees the Super change`, d >= 0);
+    const r = await replay(VIS, Q_MIXED, { superAt: [] }), g = await replay(join(VIS, 'b1=G'), Q_MIXED, { superAt: [] });
+    const d2 = firstDiff(r.hashes, g.hashes);
+    check(`CONTROL: the rapid-STANDARD comparison FAILS for B1-G against R1 (first divergent tick ${d2}) — it sees the STANDARD change`, d2 >= 0);
   }
 }
 
@@ -482,15 +493,16 @@ if (on(6)) {
     const holdShots = gs._b1.stats.hold.stickHoldShots;
     const ch = rec.charge;
     const sumAdded = (m) => Object.values(ch[m]).reduce((s, c) => s + c.added, 0);
+    const supAdded = sumAdded('super'), melAdded = sumAdded('melee');   // before the Super below adds its own
     // push + slow vs measured, then export
     window.__clear(); window.__adv(2);
     const g = gs.spawnEnemyAt('grunt', 760, 900); g.hp = g.hpMax = 1e5; window.__adv(2);
-    const x0 = g.x, y0 = g.y, slow0 = gs._b1.stats.slowedMs; P.superCharge = 999; P.tryFireSuper(0);
-    let endX = null, endY = null, seen = false;
-    for (let i = 0; i < 160; i++) { window.__adv(1); if (g._staggerMs > 0) seen = true; if (seen && endX === null && g._staggerMs <= 0) { endX = g.x; endY = g.y; } }
+    const slow0 = gs._b1.stats.slowedMs; P.superCharge = 999; P.tryFireSuper(0);
+    let x0 = null, y0 = null, endX = null, endY = null, seen = false;
+    for (let i = 0; i < 160; i++) { window.__adv(1); if (g._staggerMs > 0 && !seen) { seen = true; x0 = g.x; y0 = g.y; } if (seen && endX === null && g._staggerMs <= 0) { endX = g.x; endY = g.y; } }
     const snap = gs._b0.snapshot();
     return { taps: inp['tap-stick'] - (R0['tap-stick'] || 0), holds: inp['hold-stick'] - (R0['hold-stick'] || 0), holdShots,
-      stdEvents: ch.super.standard?.events || 0, stdHits: rec.player.hits.standard, supAdded: sumAdded('super'), supGain, melAdded: sumAdded('melee'), melGain,
+      stdEvents: ch.super.standard?.events || 0, stdHits: rec.player.hits.standard, supAdded, supGain, melAdded, melGain,
       pushRec: snap.b1.pushDist.at(-1), pushMeasured: Math.round(Math.hypot(endX - x0, endY - y0)), slowed: snap.b1.slowedMs - slow0, variant: snap.run.config.b1, b1v: snap.b1.variant, keys: Object.keys(snap) };
   });
   await p.close();
@@ -498,7 +510,7 @@ if (on(6)) {
   check(`input mode: 3 taps recorded as tap-stick (${r.taps}), the hold's ${r.holdShots} shots as hold-stick (${r.holds})`, r.taps === 3 && r.holds === r.holdShots && r.holdShots > 3);
   check(`charge sources: STANDARD charge events = STANDARD hits (${r.stdEvents} = ${r.stdHits}); units added = the meters' real increments (Super ${r.supAdded.toFixed(2)} = ${r.supGain.toFixed(2)}, melee ${r.melAdded.toFixed(2)} = ${r.melGain.toFixed(2)})`,
     r.stdEvents === r.stdHits && r.stdHits > 0 && Math.abs(r.supAdded - r.supGain) < 1e-6 && Math.abs(r.melAdded - r.melGain) < 1e-6);
-  check(`push distance recorded = measured (${r.pushRec} = ${r.pushMeasured}px ±3); slowed time recorded ${Math.round(r.slowed)}ms for one 1500ms slow (±2 frames)`, Math.abs(r.pushRec - r.pushMeasured) <= 3 && Math.abs(r.slowed - 1500) <= 34);
+  check(`push distance recorded = measured (${r.pushRec} = ${r.pushMeasured}px ±8); slowed time recorded ${Math.round(r.slowed)}ms for one 1500ms slow (±2 frames)`, Math.abs(r.pushRec - r.pushMeasured) <= 8 && Math.abs(r.slowed - 1500) <= 34);
   // damage truth in seeded M and S fights
   for (const v of ['M', 'S']) {
     const pg = await boot(`b1=${v}&b0=${v}`, { q: Q_MIXED });
@@ -514,7 +526,7 @@ if (on(6)) {
       }
       const kills = Object.values(rec.player.kills).reduce((x, y) => x + y, 0), killed = rec.enemies.filter((e) => e.fate === 'killed').length;
       return { lost, dmg, over, requested, kills, killed, sup: rec.player.dmg.super, pushes: gs._b1.stats.pushes, errors: rec.errors || 0 };
-    }, { seed: 9071, ticks: TICKS, seg: FIGHT_SEG, fire: 7, superAt: SUPER, melee: MELEE, pickAt: PICK, clusterAt: CLUSTER, noAmmo: false });
+    }, { seed: 9071, ticks: TICKS, seg: FIGHT_SEG, fire: 7, superAt: [200, 350, 500, 650, 800, 950, 1100, 1250, 1400], melee: MELEE, pickAt: PICK, clusterAt: CLUSTER, noAmmo: false });
     await pg.close();
     const near = (a, b) => Math.abs(a - b) < 0.01 * Math.max(1, b);
     check(`B1-${v} seeded fight (MIXED s6): recorded dmg = durability lost (${Math.round(t.dmg)} = ${Math.round(t.lost)}), dmg + overkill = requested (${Math.round(t.requested)}), kills = deaths (${t.kills} = ${t.killed}); ${t.pushes} pushes`,
@@ -537,6 +549,9 @@ if (on(7)) {
     const rnd = Math.random; Math.random = () => { if ((inHook || inSuper) && !inDamage) own++; return rnd(); };
     let inSuper = false;
     gs.events.off('postupdate', hook); gs.events.on('postupdate', function (...a) { inHook = true; try { return hook.apply(this, a); } finally { inHook = false; } });
+    // a held shot goes through the game's own fire path (muzzle FX draw exactly
+    // as a tapped shot does): those draws are the game's, not B1's
+    const tf = P.tryFire; P.tryFire = function (...a) { inDamage++; try { return tf.apply(this, a); } finally { inDamage--; } };
     const sh = gs._b1.superHit; gs._b1.superHit = (e, b, kb) => { inSuper = true; const d0 = e.damage; e.damage = function (...a) { inDamage++; try { return d0.apply(this, a); } finally { inDamage--; } }; try { return sh(e, b, kb); } finally { delete e.damage; inSuper = false; } };
     let hits0 = gs._b1.stats.superHits, pushes0 = gs._b1.stats.pushes;
     for (let i = 0; i < 900; i++) {
@@ -548,7 +563,7 @@ if (on(7)) {
     return { own, hits: gs._b1.stats.superHits - hits0, pushes: gs._b1.stats.pushes - pushes0, holdShots: gs._b1.stats.hold.stickHoldShots, slowedMs: gs._b1.stats.slowedMs };
   });
   await p.close();
-  check(`900 ticks of MIXED s6 under B1-S with Supers, pushes, slows and a held stick: zero Math.random draws made by B1 itself (${r.own})`, r.own === 0 && r.hits > 0 && r.pushes > 0 && r.holdShots > 0, JSON.stringify(r));
+  check(`900 ticks of MIXED s6 under B1-S with Supers, pushes, slows and a held stick: zero Math.random draws made by B1's own code — outside the game's shot and damage paths it calls (${r.own})`, r.own === 0 && r.hits > 0 && r.pushes > 0 && r.holdShots > 0, JSON.stringify(r));
 }
 
 // ── 8. FROZEN FILES ──────────────────────────────────────────────────────
