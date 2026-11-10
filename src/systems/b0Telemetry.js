@@ -73,6 +73,7 @@ function resolvedConfig() {
     visualPilot: g(dbg.getVisualPilot), polishP1: g(dbg.isPolishP1),
     fxP2A3: g(dbg.isFxP2A3), muzzleSharp: g(dbg.isMuzzleSharp),
     godMode: g(isGodMode),
+    b1: g(dbg.getB1Variant),
   };
 }
 
@@ -156,6 +157,17 @@ export function attachB0Telemetry(scene) {
       deaths: 0, livesLost: 0,
     },
     upgrades: [],
+    // How each STANDARD shot and each Super was triggered (input mode).
+    input: {
+      standard: { 'tap-stick': 0, 'hold-stick': 0, 'tap-key': 0, 'hold-key': 0, other: 0 },
+      stickShotsTouch: 0, stickShotsMouse: 0,
+      super: { 'stick-or-button': 0, space: 0, key: 0, other: 0 },
+    },
+    // Super and Broken Wings meter charge, by the source of each charge event:
+    // events, units requested (streak multiplier x gain x scale), units actually
+    // added, and units wasted against a full meter. `mult` counts the streak
+    // multiplier at each Super charge event.
+    charge: { super: {}, melee: {}, mult: {} },
     timeline: [],              // [wallMs, gameMs, code, ...data]
     perf: {
       frames: 0, frameMs: hist(250), overheadUs: hist(2000), overheadTotalMs: 0,
@@ -369,6 +381,27 @@ export function attachB0Telemetry(scene) {
     if ([...live].some((x) => x.champion)) return { key: 'champion:hazard?' };
     return { key: 'environment?' };
   }
+  // B1 installs before B0 (GameScene.create) and tears down before it, so
+  // keep the handle: its stats object outlives its teardown.
+  const b1api = scene._b1 || null;
+  const inCtx = { fire: null, sup: null, charge: null };
+  function chargeSrc() {
+    if (inCtx.charge) return inCtx.charge;
+    const s = scene._shotSrc;
+    if (s === 'primary') return 'standard';
+    if (s === 'override' || s === 'super' || s === 'cluster') return s;
+    return 'other';
+  }
+  // The scene-side callers of the charge methods outside the bullet sweeps.
+  for (const [name, v] of [['performMeleeLand', 'melee'], ['_clusterImpact', 'cluster'], ['detonateGrenade', 'other']]) {
+    wrapMethod(scene, name, (orig) => function (...a) {
+      const prev = inCtx.charge; inCtx.charge = v;
+      try { return orig.apply(this, a); } finally { inCtx.charge = prev; }
+    });
+  }
+  const stickTouchNow = () => {
+    try { const ptr = game.scene.getScene('HUD')?.input?.activePointer; return ptr ? !!ptr.wasTouch : null; } catch (_) { return null; }
+  };
   const wrappedPlayers = new WeakSet();
   function wrapPlayer(p) {
     if (!p || wrappedPlayers.has(p)) return;
@@ -395,6 +428,38 @@ export function attachB0Telemetry(scene) {
       frameCost += performance.now() - s;
       return out;
     });
+    // ── INPUT MODE ─────────────────────────────────────────────────────────
+    const ctxWrap = (name, set) => wrapMethod(p, name, (orig) => function (...a) {
+      const prev = inCtx[set.k];
+      if (!prev || set.override) inCtx[set.k] = set.v;
+      try { return orig.apply(this, a); } finally { inCtx[set.k] = prev; }
+    });
+    ctxWrap('releaseAim', { k: 'fire', v: 'tap-stick' });
+    ctxWrap('keyboardFire', { k: 'fire', v: 'tap-key' });
+    ctxWrap('endKeyboardSuperAim', { k: 'sup', v: 'space', override: true });
+    ctxWrap('releaseSuperAim', { k: 'sup', v: 'stick-or-button' });
+    ctxWrap('tryFireSuper', { k: 'sup', v: 'key' });
+    // ── CHARGE SOURCES ─────────────────────────────────────────────────────
+    const chargeWrap = (name, meter) => wrapMethod(p, name, (orig) => function (scale = 1) {
+      let before = 0, req = 0, src = 'other', mult = 1;
+      try {
+        before = meter === 'super' ? this.superCharge : this.meleeCharge;
+        mult = this.accuracyMult || 1;
+        req = mult * (this.superGainMult || 1) * (meter === 'super' ? scale : 1);
+        src = chargeSrc();
+      } catch (_) { /* */ }
+      const out = meter === 'super' ? orig.call(this, scale) : orig.call(this);
+      try {
+        const after = meter === 'super' ? this.superCharge : this.meleeCharge;
+        const added = Math.max(0, after - before);
+        const c = R.charge[meter][src] || (R.charge[meter][src] = { events: 0, requested: 0, added: 0, wasted: 0 });
+        c.events++; c.requested += req; c.added += added; c.wasted += Math.max(0, req - added);
+        if (meter === 'super') { const k = String(mult); R.charge.mult[k] = (R.charge.mult[k] || 0) + 1; }
+      } catch (_) { /* */ }
+      return out;
+    });
+    chargeWrap('addSuperHit', 'super');
+    chargeWrap('addMeleeHit', 'melee');
     // Fire attempts the gun refused, and why (dry fire = the human pressed, no ammo).
     wrapMethod(p, 'tryFire', (orig) => function (angle) {
       const s = performance.now();
@@ -417,6 +482,12 @@ export function attachB0Telemetry(scene) {
   let lastShotT = null;
   on('player-fire', () => {
     P.fired.standard++;
+    const mode = scene._b1?.firing || inCtx.fire || 'other';
+    R.input.standard[mode] = (R.input.standard[mode] || 0) + 1;
+    if (mode === 'tap-stick' || mode === 'hold-stick') {
+      const touch = mode === 'hold-stick' ? scene._b1?.stickTouch?.() : stickTouchNow();
+      if (touch === true) R.input.stickShotsTouch++; else if (touch === false) R.input.stickShotsMouse++;
+    }
     const t = T();
     if (lastShotT !== null) histAdd(P.standard.intervals, t - lastShotT);
     lastShotT = t;
@@ -437,6 +508,8 @@ export function attachB0Telemetry(scene) {
   let lastSecondary = null;
   on('player-fire-super', () => {
     const S = P.super, t = T();
+    const im = inCtx.sup || 'other';
+    R.input.super[im] = (R.input.super[im] || 0) + 1;
     S.casts++; S.castAt.push(t); S.perCast.push(0); S.hitsByCast.push(0);
     if (S.readyAt !== null) { S.readyToCast.push(t - S.readyAt); S.readyAt = null; }
     S.lastSpentAt = t;
@@ -594,6 +667,8 @@ export function attachB0Telemetry(scene) {
       out.run.endReason = 'in-progress';
     }
     out.clock = { ...R.clock, gameMs: T(), wallMs: W() };
+    // B1 (`?b1=`): the variant's settings and its push / slow / hold counters.
+    out.b1 = b1api ? JSON.parse(JSON.stringify(b1api.stats)) : null;
     return out;
   }
   let done = false;

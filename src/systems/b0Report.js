@@ -24,7 +24,7 @@ const KEEP = 6;
 
 // ── MEASUREMENT DEFINITIONS (exported with every run) ─────────────────────
 export const B0_DEFINITIONS = {
-  clocks: 'gameMs = Phaser scene clock since run start (stops while paused, slows in slow-mo). wallMs = real time since run start (keeps running while paused); the on-screen tag shows wallMs, and timeline rows are [wallMs, gameMs, code, ...].',
+  clocks: 'gameMs = the Phaser loop clock since run start: it does not slow in slow-mo, and during a pause it holds and then catches up, so it tracks wall time to within a few ms (pauses on upgrade screens fall between waves). wallMs = real time since run start; the on-screen tag shows wallMs, and timeline rows are [wallMs, gameMs, code, ...].',
   sources: 'standard = ordinary primary fire (the pistol mechanics; drawn as the carbine under P2-A2/P2-A3). override = the rifle pickup\'s 3-round burst (27 rounds). cluster = the cluster pod and its fragments. super = Super pellets. melee = the Broken Wings chain. volatile = a nemesis corpse blast. other = anything not caused by the player (e.g. Vader\'s sunder).',
   damage: 'dmg = durability actually removed (hp, plus armour for the Shock Captain). overkill = requested minus removed on the killing blow; never added to dmg. A shield block removes nothing and is counted under blocked, not dmg.',
   hits: 'hits = damage events that removed durability, one per projectile per enemy (Super pellets pierce, so one pellet can hit several enemies). fired.standard counts shots that left the gun; fired.super counts pellets.',
@@ -34,6 +34,9 @@ export const B0_DEFINITIONS = {
   ammo: 'emptyMs = alive time with 0 STANDARD ammo; fullMs = alive time with a full magazine (reload capacity unused). tryRefusedEmpty = fire presses refused for no ammo (dry fire). ammoGained = rounds restored by the reload (and by refills).',
   abilities: 'chargeMs = time from the previous spend (or run start) to the meter filling. readyToCast = time the meter sat full before it was spent. A melee chain = its first cast (the one that spends the meter).',
   perf: 'frameMs = raw rAF frame time histogram (1ms bins). overheadUs = time spent inside B0 code per frame (microseconds). saveMs = autosave cost.',
+  input: 'input.standard counts STANDARD shots by how they were triggered: tap-stick (fire-stick release), hold-stick (B1 hold-to-fire on the stick), tap-key (SPACE press), hold-key (B1 SPACE held), other. stickShotsTouch / stickShotsMouse split the stick shots by pointer type. input.super counts Super casts by trigger: stick-or-button (Super button / stick), space (SPACE when the meter is full), key (F / ENTER).',
+  charge: 'charge.super / charge.melee: per source (standard, override, cluster, super = Super pellets, melee = Broken Wings, other) the charge events, units requested (streak multiplier x gain x scale), units actually added, and units wasted against a full meter. Super fills at 4 units, Broken Wings at 3. charge.mult counts the streak multiplier at each Super charge event.',
+  b1: 'b1 (only with ?b1=): the variant (G / M / S), its STANDARD and Super settings, hold-to-fire counters, Super hits on ordinary enemies, pushes (count, per-push displacement in px, refused by the re-push immunity window or by another effect owning the enemy), per-cast duplicates skipped, slows applied / refreshed and total slowed ms, by enemy type.',
 };
 
 let C = null;
@@ -142,7 +145,13 @@ export function summarize(run) {
     overheadShare: fm.sum > 0 ? run.perf.overheadTotalMs / fm.sum : null,
     saveMed: histPct(run.perf.saveMs, 0.5), saveMax: run.perf.saveMs.max, errors: run.errors || 0,
   };
-  return { ttk, std, sources, totalDmg, abilities, incoming: I, waves, perf };
+  const ch = (m) => Object.entries(run.charge?.[m] || {}).map(([src, c]) => ({ src, ...c }));
+  const b1 = run.b1 || null;
+  const pd = b1?.pushDist || [];
+  const b1s = b1 ? { variant: b1.variant, superCfg: b1.super, hold: b1.hold, pushes: b1.pushes, pushMed: med(pd), pushP10: pd.length ? [...pd].sort((a, b) => a - b)[Math.floor(pd.length * 0.1)] : null,
+    pushP90: pd.length ? [...pd].sort((a, b) => a - b)[Math.floor(pd.length * 0.9)] : null, immune: b1.pushImmune, busy: b1.pushSkippedBusy, dedup: b1.dedupSkipped,
+    slowApplied: b1.slowApplied, slowRefreshed: b1.slowRefreshed, slowedMs: b1.slowedMs, superHits: b1.superHits, superKills: b1.superHitsKilled } : null;
+  return { ttk, std, sources, totalDmg, abilities, incoming: I, waves, perf, input: run.input || null, chargeSuper: ch('super'), chargeMelee: ch('melee'), mult: run.charge?.mult || {}, b1: b1s };
 }
 
 function renderHTML(run) {
@@ -195,6 +204,14 @@ function renderHTML(run) {
   <h2>Waves</h2>
   ${table(['#', 'sector', 'room', 'encounter', 'wave', 'duration', 'spawned', 'killed', 'max alive', 'mean alive', 'hp taken', 'deaths', 'end'],
     m.waves.map((w) => [w.i, w.sector, w.room, w.enc, w.wave, s1(w.durMs), w.spawned, w.killed, w.maxAlive, w.meanAlive, n0(w.dmgTaken), w.deaths, w.endWhy]))}
+
+  <h2>Input, charge${m.b1 ? ' and B1' : ''}</h2>
+  <p class="b0-meta">${m.b1 ? `B1 variant <b>${esc(m.b1.variant)}</b>${m.b1.superCfg ? ` — Super ${m.b1.superCfg.pelletDamage}/pellet, push ~${m.b1.superCfg.pushPx}px, slow ${Math.round(m.b1.superCfg.slow * 100)}% for ${m.b1.superCfg.slowMs / 1000}s (ordinary enemies)` : ' — Super R1'} · ` : ''}STANDARD shots by input: ${m.input ? Object.entries(m.input.standard).filter(([, v]) => v).map(([k, v]) => `${esc(k)} ${v}`).join(' · ') || '—' : '—'}${m.input ? ` (stick: touch ${m.input.stickShotsTouch} / mouse ${m.input.stickShotsMouse})` : ''} · Super by input: ${m.input ? Object.entries(m.input.super).filter(([, v]) => v).map(([k, v]) => `${esc(k)} ${v}`).join(' · ') || '—' : '—'}</p>
+  ${table(['meter', 'source', 'events', 'units requested', 'units added', 'wasted (meter full)'],
+    [...m.chargeSuper.map((c) => ['Super', c.src, c.events, c.requested.toFixed(1), c.added.toFixed(1), c.wasted.toFixed(1)]),
+      ...m.chargeMelee.map((c) => ['Broken Wings', c.src, c.events, c.requested.toFixed(1), c.added.toFixed(1), c.wasted.toFixed(1)])])}
+  <p class="b0-meta">streak multiplier at Super charge events: ${Object.entries(m.mult).map(([k, v]) => `×${esc(k)} ${v}`).join(' · ') || '—'}</p>
+  ${m.b1 ? `<p class="b0-meta">B1 hold-to-fire: ${m.b1.hold.stickHoldShots} stick-hold shots, ${m.b1.hold.keyHoldShots} SPACE-hold shots, ${m.b1.hold.releaseShotsSuppressed} release shots suppressed after a hold, held-while-empty ${s1(m.b1.hold.heldEmptyMs)}${m.b1.superCfg ? `<br>B1 Super on ordinary enemies: ${m.b1.superHits} pellet hits (${m.b1.superKills} lethal) · pushes ${m.b1.pushes} (median ${m.b1.pushMed ?? '—'}px, p10 ${m.b1.pushP10 ?? '—'}, p90 ${m.b1.pushP90 ?? '—'}) · refused: immunity ${m.b1.immune}, other effect ${m.b1.busy} · same-cast duplicates ${m.b1.dedup} · slows ${m.b1.slowApplied} applied, ${m.b1.slowRefreshed} refreshed, ${s1(m.b1.slowedMs)} slowed in total` : ''}</p>` : ''}
 
   <h2>Performance</h2>
   <p class="b0-meta">${m.perf.frames} frames · frame med ${m.perf.frameMed ?? '—'}ms (≈${m.perf.fpsMed ? m.perf.fpsMed.toFixed(0) : '—'} fps) · p95 ${m.perf.frameP95 ?? '—'} · p99 ${m.perf.frameP99 ?? '—'} · max ${Math.round(m.perf.frameMax)}ms · frames &gt;100ms ${m.perf.longFrames}<br>
