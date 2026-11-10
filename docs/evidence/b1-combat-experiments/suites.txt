@@ -1,0 +1,18 @@
+# B1 — suites run (2026-11-10), clean Vite servers owned by PID
+# (HEAD :5173, a3866f2 :5174 own cacheDir, dc7d9ea :5175 own cacheDir)
+
+smoke-b1 --old=a3866f2: 71/71 (smoke-b1.txt)
+  §0 flags 8/8 · §1 flag off = a3866f2 tick for tick (R1, legacy, V2C+P1+P2-A3, ± B0 instrument, god off) 8/8
+  §2 variant equivalence 9/9 incl. 2 CONTROLS that fail on a real change
+  §3 the Super 23/23 (M: 300/pellet, push 90px, 75% speed 1.48s; S: 150/pellet, push 180px (179 at 30 Hz), 60% speed 1.98s;
+     one push + one slow per cast; immunity; chained-Super AI suspension 18% / 21%; corpse = R1; charge per pellet = R1;
+     nemesis / Captain / afterimage / Vader = R1)
+  §4 STANDARD + controls 11/11 (real CDP touch tap 1 shot, hold 11 shots; SPACE; OVERRIDE / cluster never auto-repeat;
+     pips 527-662) · §5 restarts 2/2 · §6 telemetry 6/6 · §7 no B1 draws 2/2 · §8 frozen files 2/2
+smoke-b0 --old=dc7d9ea: 46/46 (smoke-b0.txt) — the B0 instrument after the telemetry additions
+smoke-fx-p2a3 --only=10: 4/4 · smoke-fx-p2a --only=10: 4/4 · smoke-fx-p2a2 --only=10: 3/3 (the B0 / B1 scope guard)
+smoke-captel: PASS (22 checks) · smoke-controls: PASS · smoke-restart: PASS (16 checks) · smoke-cluster: PASS
+npm run build: OK (build.txt; the pre-existing >500 kB chunk warning only)
+Phone-emulated real-loop check (iPhone 13, CDP touch, B1-S): hold fired 12 shots, recorded as hold-stick / touch,
+  release shot suppressed; report shows the run (screenshots looked at, not committed).
+run-all: not re-run for B1 (flag-off identity is proven tick for tick against a3866f2, whose run-all was 46/52).

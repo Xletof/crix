@@ -1,2 +1,64 @@
 
 == 0. the flag
+PASS  b0 absent (R1 and V2C+P1+P2-A3): no instrument, no DOM element, no localStorage key, no wrapper  — {"off":{"isB0":false,"label":null,"b0":false,"dom":0,"keys":0,"wraps":0},"offV":{"isB0":false,"label":null,"b0":false,"dom":0,"keys":0,"wraps":0}}
+PASS  b0=A on V2C+P1+P2-A3: instrument installed, label A, 3 DOM elements, wrappers on player.damage / player.tryFire / fireShooter  — {"isB0":true,"label":"A","b0":true,"dom":3,"keys":1,"wraps":3}
+PASS  b0=1 on the R1 default: installed, no label; b0=b -> label B  — null / B
+PASS  with the flag on, B0 adds its listeners (none with it off — section 1 compares the off page with the previous build)  — 37 event names gain a B0 listener
+PASS  the run tag shows the label, the run number and a wall clock ("B0·A #1  00:15")  — B0·A #1  00:15
+
+== 1. flag off = the previous build (dc7d9ea at http://localhost:5175/)
+PASS  SWARM TIDE, R1: 1500 ticks identical to dc7d9ea (state, draws, per-tick events, listener counts)  — 18129 draws, 32 kills
+PASS  MIXED s6, R1: 1500 ticks identical to dc7d9ea (state, draws, per-tick events, listener counts)  — 18404 draws, 31 kills
+PASS  VANGUARD, R1: 1500 ticks identical to dc7d9ea (state, draws, per-tick events, listener counts)  — 14843 draws, 11 kills
+PASS  SWARM TIDE, legacy: 1500 ticks identical to dc7d9ea (state, draws, per-tick events, listener counts)  — 15835 draws, 26 kills
+PASS  SWARM TIDE, V2C+P1+P2-A3: 1500 ticks identical to dc7d9ea (state, draws, per-tick events, listener counts)  — 18129 draws, 32 kills
+PASS  MIXED s6, V2C+P1+P2-A3: 1500 ticks identical to dc7d9ea (state, draws, per-tick events, listener counts)  — 18404 draws, 31 kills
+PASS  MIXED s6, V2C: 1500 ticks identical to dc7d9ea (state, draws, per-tick events, listener counts)  — 18404 draws, 31 kills
+PASS  MIXED s6, P1: 1500 ticks identical to dc7d9ea (state, draws, per-tick events, listener counts)  — 18404 draws, 31 kills
+PASS  MIXED s6, V2C+P1+P2-A3, god mode OFF (the player is hurt): 1500 ticks identical to dc7d9ea  — 13 hits taken, min hp 322
+
+== 2. flag on = flag off (same build)
+PASS  SWARM TIDE, R1: 1500 headless ticks, b0 ON identical to OFF (state, hp, ammo, kills, Super/melee charge, draws, per-tick events)  — 18129 draws, 32 kills
+PASS  MIXED s6, R1: 1500 headless ticks, b0 ON identical to OFF (state, hp, ammo, kills, Super/melee charge, draws, per-tick events)  — 18404 draws, 31 kills
+PASS  VANGUARD (Bulwarks), R1: 1500 headless ticks, b0 ON identical to OFF (state, hp, ammo, kills, Super/melee charge, draws, per-tick events)  — 14843 draws, 11 kills
+PASS  SWARM TIDE, legacy: 1500 headless ticks, b0 ON identical to OFF (state, hp, ammo, kills, Super/melee charge, draws, per-tick events)  — 15835 draws, 26 kills
+PASS  MIXED s6, V2C+P1+P2-A3: 1500 headless ticks, b0 ON identical to OFF (state, hp, ammo, kills, Super/melee charge, draws, per-tick events)  — 18404 draws, 31 kills
+PASS  MIXED s6, V2C+P1+P2-A3, god OFF: 1500 headless ticks, b0 ON identical to OFF (state, hp, ammo, kills, Super/melee charge, draws, per-tick events)  — 18920 draws, 28 kills; 13 hits taken, min hp 322
+PASS  VANGUARD, R1, god OFF: 1500 headless ticks, b0 ON identical to OFF (state, hp, ammo, kills, Super/melee charge, draws, per-tick events)  — 15345 draws, 10 kills; 18 hits taken, min hp 0
+PASS  MIXED s6, V2C+P1+P2-A3: 700 RENDERED ticks, b0 ON identical to OFF  — 9832 draws
+PASS  SWARM TIDE, R1: 700 RENDERED ticks, b0 ON identical to OFF  — 8984 draws
+
+== 3. damage truth
+PASS  MIXED s6, V2C+P1+P2-A3: recorded dmg = durability the enemies actually lost (6276 = 6276); overkill apart (4854); dmg + overkill = requested (11130)
+PASS  MIXED s6, V2C+P1+P2-A3: kills credited = deaths seen (31 = 31); game's own kill counter 31  — {"standard":2458,"override":1400,"cluster":84,"super":1016,"melee":1318,"volatile":0,"other":0}
+PASS  MIXED s6, V2C+P1+P2-A3: STANDARD, OVERRIDE, CLUSTER, Super and melee each fired and attributed ({"standard":43,"override":27,"cluster":3,"super":10,"melee":5,"volatile":0,"other":0} / {"standard":24,"override":16,"cluster":1,"super":3,"melee":10,"volatile":0,"other":0})  — {"ov":{"pickups":1,"bursts":9,"rounds":27,"emptied":1,"heldMs":2715},"cl":{"pickups":1,"throws":3,"emptied":1},"sup":{"casts":2,"pellets":10},"mel":{"chains":2,"casts":5}}
+PASS  VANGUARD, R1: recorded dmg = durability the enemies actually lost (6222 = 6222); overkill apart (2638); dmg + overkill = requested (8860)
+PASS  VANGUARD, R1: kills credited = deaths seen (11 = 11); game's own kill counter 11  — {"standard":1678,"override":0,"cluster":0,"super":3840,"melee":704,"volatile":0,"other":0}
+PASS  VANGUARD, R1: Bulwark frontal blocks counted as blocks, never as damage ({"standard":7,"override":41,"cluster":0,"super":0,"melee":0,"volatile":0,"other":0})
+PASS  SWARM TIDE, R1: recorded dmg = durability the enemies actually lost (3921 = 3921); overkill apart (3929); dmg + overkill = requested (7850)
+PASS  SWARM TIDE, R1: kills credited = deaths seen (32 = 32); game's own kill counter 32  — {"standard":1780,"override":1380,"cluster":0,"super":11,"melee":750,"volatile":0,"other":0}
+PASS  staged STANDARD kill on a Rifleman: dmg = hpMax (320 = 320), overkill = requested - hpMax (40 = 360 - 320), credited to standard  — {"hpMax":320,"dmg":320,"over":40,"req":360,"hits":3,"fate":"killed","src":"standard","dmgMult":1,"pellet":3}
+PASS  staged Bulwark front: every block counted (191 = 191) and no damage recorded beyond the hp it really lost (0 vs 0)  — {"blocks":191,"recBlocks":191,"recDmg":0,"hpLost":0}
+PASS  staged incoming: Swarmling contact (210 hp) and Gunner bolt (390 hp) attributed; recorded hp loss = hp the player lost (210 = 210)  — {"shooter:bolt":{"calls":3,"negated":0,"shield":0,"hp":390},"grunt:bolt":{"calls":2,"negated":0,"shield":0,"hp":160},"shielded:bolt":{"calls":2,"negated":0,"shield":0,"hp":240},"swarmling:contact":{"calls":5,"negated":0,"shield":0,"hp":210}}
+
+== 4. lifecycle and export
+PASS  restart from the Pause menu: run 1 stored as "restart" with its enemies (["2568.o-be3f40","restart",15]), run 2 started (#2)  — [["2568.o-be3f40","restart",15]]
+PASS  after the restart, 5 shots count as 5 (no doubled listeners): 5
+PASS  room transition: the 9 enemies alive are closed as "despawned" (9), never as kills; a new room record  — {"alive":9,"despawned":9,"rooms":1,"waveEnd":"room-change"}
+PASS  a reload mid-run keeps the run: recovered as "interrupted (page closed or reloaded mid-run)"; the title screen offers the B0 DATA button  — button true
+PASS  defeat -> game over -> the report opens by itself ("B0 run A #3")  — Share JSON | Download JSON | Copy JSON | Copy summary | Close | A #1 · 11-10 14:47 · restart | A #2 · 11-10 14:47 · interrupted (page closed or reloaded mid-run) | A #3 · 11-
+PASS  the report has every section (TTK, STANDARD gun, damage by source, abilities, incoming, waves, performance)
+PASS  Download JSON: crix-b0-A-3-mwat0fdh-4c6a46.json parses, schema crix-b0/1, every section present, equal to the stored run  — 24 KB, 5 enemies, 7 timeline rows, build 057e7a8 11-10 14:26
+PASS  Copy JSON puts the same run on the clipboard  — 25011 chars
+PASS  Close hides the report; the B0 DATA button stays available on the game-over screen  — {"panel":"none","btn":"none"}
+
+== 5. performance
+  rendered step: off 69.00/74.14/72.88 ms, on 67.68/70.92/72.06 ms; ~10 enemies alive
+PASS  B0's own time per frame in a busy SWARM TIDE (s8, rendered): mean 39µs, max 5800µs — under 1ms mean  — step 72.88 -> 70.92 ms (headless harness, load-sensitive)
+
+== 6. frozen files
+PASS  src/ differs from dc7d9ea only in B0's files, GameScene.js only by attribution tags + the install, BootScene.js only by the flag (src/scenes/BootScene.js, src/scenes/GameScene.js, src/systems/b0Report.js, src/systems/b0Telemetry.js, src/systems/b1Combat.js, src/systems/debug.js)  — B0 (dc7d9ea..a3866f2): 5 files, GameScene +13 tag/install lines; B1 (a3866f2..): 6 files, GameScene +5 install/branch lines
+PASS  Enemy.js guard (outside the Bomber, the Bomber-only veto) and no file under src/entities changed against dc7d9ea  — {"outside":true,"hasDoc":true,"hasMethod":true,"code":"_vetoFalseStuck() { if (this._stuckFirstSeen || this._miniBoss) return; if (this._stuckRefX === undefined) return; this._stuckFirstSeen = true; const moved = Ma"} 
+
+46/46 passed
+exit 0

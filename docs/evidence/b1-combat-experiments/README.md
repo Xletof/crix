@@ -75,7 +75,46 @@ The report shows all of this in an "Input, charge and B1" section. The B0 clock 
 
 ## Validation
 
-See `smoke-b1.txt` and `suites.txt` in this folder.
+Logs are in this folder (`suites.txt`).
+
+**`smoke-b1 --old=a3866f2`: 71 / 71.**
+- **Flag off:** identical to `a3866f2` tick for tick. This covers R1, legacy and V2C+P1+P2-A3, with and without the B0 recorder, including god mode off.
+- **Variants differ only where authorized:**
+  - Supers with no STANDARD: B1-G = R1.
+  - Slow STANDARD (a 3-round magazine never empties) plus Supers, OVERRIDE and cluster: B1-G = R1, except the magazine fields.
+  - Rapid STANDARD with no Super: G = M = S, tick for tick.
+  - Two control checks prove each comparison can see a real change.
+- **Super mechanics, measured:**
+  - Damage: 300 / 150 per pellet on Regulars, Elites and Bulwarks.
+  - Push: 90 / 180 px (179 px at a 30 Hz step).
+  - Slow: 75% / 60% speed for 1.48 / 1.98 s, then the original `cfg` restored.
+  - One push and one slow per cast; re-push immunity.
+  - Chained Supers suspend the AI in 18% / 21% of frames.
+  - No punish window; corpse slide = R1; charge per pellet = R1.
+  - Nemesis, Captain, afterimage and Vader take the R1 Super.
+- **Controls:**
+  - Tap = 1 shot. Hold = 117 ms cadence, then the 260 ms trickle, with no release shot.
+  - Real CDP touch: tap 1 shot, hold 11 shots.
+  - SPACE taps and holds work, and SPACE with a full meter is still the Super.
+  - OVERRIDE and cluster never auto-repeat.
+  - The Super / melee buttons are not claimed by the fire stick.
+  - The 10 pips fit, also after a relayout.
+- **Restarts and reload** keep the variant and tuning, with one install and no doubled listeners.
+- **Telemetry accuracy:**
+  - Input counts match the scripted presses.
+  - Charge units equal the meters' real increments.
+  - Push distance and slowed time match what the test measured.
+  - Damage truth holds in seeded M and S fights.
+- **No randomness from B1:** zero draws by B1's own code.
+- **Scope:** only B1's own lines changed; the Enemy.js guard passes.
+
+**Covering suites:**
+- `smoke-b0 --old=dc7d9ea`: 46 / 46;
+- `smoke-fx-p2a3` / `-p2a` / `-p2a2` frozen-file sections: 4 / 4, 4 / 4, 3 / 3;
+- `smoke-captel`, `smoke-controls`, `smoke-restart`, `smoke-cluster`: pass;
+- `npm run build`: OK.
+
+`run-all` was not re-run for B1. Flag-off identity against `a3866f2` is proven tick for tick, and that build's `run-all` was 46/52 (§0, B0 entry).
 
 ## Known limitations
 

@@ -1,0 +1,9 @@
+
+== 10. frozen files
+PASS  after dc7d9ea: only the B0 instrument's audited files and lines (tests/b0-scope.mjs)  — B0 (dc7d9ea..a3866f2): 5 files, GameScene +13 tag/install lines; B1 (a3866f2..): 6 files, GameScene +5 install/branch lines
+PASS  src/: nothing changed against 356b5df outside debug.js, p2aFx.js, p2aPaint.js and the new p2a3Override.js (P2-A2's p2a2Loadout.js, entities, Player, WeaponPickup, HUD, GameScene, PreloadScene, P1, FX, config untouched)
+PASS  p2aPaint.js: P2-A3 only ADDS (one import name, one paint call, its own painters); no P2-A / P2-A2 painter line changed  — -import { isFxP2A, isFxP2A2 } from './debug.js';
+PASS  Enemy.js guard (outside the Bomber, the Bomber-only veto)  — {"outside":true,"hasDoc":true,"hasMethod":true,"code":"_vetoFalseStuck() { if (this._stuckFirstSeen || this._miniBoss) return; if (this._stuckRefX === undefined) return; this._stuckFirstSeen = true; const moved = Ma"}
+
+4/4 passed
+exit 0
