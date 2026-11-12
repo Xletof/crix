@@ -146,6 +146,12 @@ Logs are in this folder (`suites.txt` lists them).
 | `range-film-frames.png` | Six frames of that film |
 | `voice-stream.m4a`, `voice-stream-spectrogram.png` | 40 rounds from cold to primed, a reload, six more rounds and the tail; the 2.3–3kHz partial visibly rises with the charge |
 
+## Deploy
+
+- **Build `fdf5af6`** was fast-forwarded to `FRIX` (from `266b1ac`); Pages run #296 succeeded.
+- **The production bundle** (`npm run build`, served locally) was driven in its real loop with real clicks and keys for each delivery link and for no flags: no console or page errors; the range panel appears on the range link; the recorder tag shows `B0·B2B` / `B0·B2A`; SPACE streams (`media/production-bundle-real-loop.png`). The live Pages site itself cannot be opened from the build container.
+- **Seen in that check:** a hero who stands still holding the trigger in Sector 1 (FRENZY) was at 210 / 1000 hp after five seconds in B2-B and 450 / 1000 in B2-A. Standing still is punished in R1 too, and I did not run the R1 comparison, but treat it as a warning about difficulty.
+
 ## Deviations from the proposal, and why
 
 | Proposal | What was built | Reason |
