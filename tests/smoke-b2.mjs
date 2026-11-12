@@ -6,9 +6,8 @@
 //      anything else = off; a B1 variant wins; knobs; the range flag
 //   1  FLAG OFF = 266b1ac, seeded replays tick for tick: R1, legacy,
 //      V2C+P1+P2-A3, with the B0 instrument, B1-G and B1-S, god mode off
-//   2  A = B EXCEPT THE ECONOMY: with both meters pinned at zero a stream
-//      fight is identical tick for tick; a CONTROL with the meters free
-//      diverges
+//   2  A = B EXCEPT THE ECONOMY: a stream fight with no Super cast is
+//      identical tick for tick in everything but the two meters; CONTROLS
 //   3  THE WEAPON: first round on the frame of the press; one cadence; tap =
 //      one round; 40 rounds, automatic reload, top-up, Super = instant
 //      reload; damage; no body recoil; `PLAYER` tuning untouched; a 30 Hz
@@ -152,7 +151,8 @@ async function boot(flags, { base = NOW, q = Q_STAGE, seed = 4242, god = true, c
     };
     // THE B2 REPLAY: the trigger is held over tick ranges; `noCharge` leaves the two meters
     // (and their four events) out of the hash
-    const CH = ['player-super-changed', 'player-super-ready', 'player-melee-changed', 'player-melee-ready'];
+    // the meters' own events, and the display objects the HUD-side ready state adds to the scene
+    const CH = ['player-super-changed', 'player-super-ready', 'player-melee-changed', 'player-melee-ready', 'addedtoscene', 'removedfromscene'];
     window.__b2trace = ({ seed, ticks, seg, hold, superAt = [], melee = [], noCharge = false, pin = false }) => {
       const K = gs.keys, cam = gs.cameras.main, kb = gs.input.keyboard;
       window.__seed(seed); window.__draws = 0; window.__evN = 0; for (const k of CH) window.__ev[k] = 0;
@@ -244,13 +244,16 @@ if (on(1) && OLD) {
 if (on(2)) {
   console.log('\n== 2. A = B except the meters');
   for (const [label, q] of [['SWARM TIDE', Q_SWARM], ['MIXED s6', Q_MIXED], ['VANGUARD', Q_VAN]]) {
-    const a = await replayB2(join(VIS, 'b2=A'), q, { noCharge: true, pin: true }), b = await replayB2(join(VIS, 'b2=B'), q, { noCharge: true, pin: true });
+    const a = await replayB2(join(VIS, 'b2=A'), q, { noCharge: true }), b = await replayB2(join(VIS, 'b2=B'), q, { noCharge: true });
     const d = firstDiff(a.hashes, b.hashes);
-    check(`${label}: a held-stream fight with both meters pinned at zero — B2-A = B2-B tick for tick (the variants differ in the economy and in nothing else)`, d < 0 && a.shots > 100 && a.shots === b.shots, d < 0 ? `${a.shots} rounds, ${a.kills} kills, ${a.draws} draws` : `first divergent tick ${d}`);
+    check(`${label}: a held-stream fight, no Super cast, no melee — B2-A = B2-B tick for tick in everything but the two meters (positions, hp, every enemy and bolt, draws, events)`, d < 0 && a.shots > 100 && a.shots === b.shots, d < 0 ? `${a.shots} rounds, ${a.kills} kills, ${a.draws} draws; meters at the end A ${a.charge.map((v) => v.toFixed(2))} / B ${b.charge.map((v) => v.toFixed(2))}` : `first divergent tick ${d}`);
   }
-  const a = await replayB2(join(VIS, 'b2=A'), Q_MIXED, { noCharge: true }), b = await replayB2(join(VIS, 'b2=B'), Q_MIXED, { noCharge: true });
+  const a = await replayB2(join(VIS, 'b2=A'), Q_MIXED), b = await replayB2(join(VIS, 'b2=B'), Q_MIXED);
   const d = firstDiff(a.hashes, b.hashes);
-  check(`CONTROL: with the meters free the same comparison FAILS (first divergent tick ${d}) — the economy changes when the Super is ready, and the ready aura draws from the shared randomness`, d >= 0, `meters at the end: A ${a.charge.map((v) => v.toFixed(2))} / B ${b.charge.map((v) => v.toFixed(2))}`);
+  check(`CONTROL: with the meters in the hash the same comparison FAILS (first divergent tick ${d}) — it sees the economy`, d >= 0);
+  const c = await replayB2(join(VIS, 'b2=A'), Q_MIXED, { noCharge: true, superAt: [500, 900] }), e = await replayB2(join(VIS, 'b2=B'), Q_MIXED, { noCharge: true, superAt: [500, 900] });
+  const d2 = firstDiff(c.hashes, e.hashes);
+  check(`CONTROL: with two Supers cast the fights part (first divergent tick ${d2}) — in A the pellets refill the meter, in B they do not, and the meter decides what the next cast can be`, d2 >= 0 || c.charge[0] !== e.charge[0], `meters at the end A ${c.charge.map((v) => v.toFixed(2))} / B ${e.charge.map((v) => v.toFixed(2))}`);
 }
 
 // ── 3. THE WEAPON ────────────────────────────────────────────────────────

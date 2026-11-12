@@ -1,0 +1,92 @@
+
+== 0. flags
+PASS  "(none)": variant off, tuning 3,120,520,120,600, nothing installed  — {"v":null,"b1":false,"t":[3,120,520,120,600],"own":false,"ammo":3}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3": variant off, tuning 3,120,520,120,600, nothing installed  — {"v":null,"b1":false,"t":[3,120,520,120,600],"own":false,"ammo":3}
+PASS  "b1=G": variant G, tuning 10,110,260,120,600, installed  — {"v":"G","b1":true,"t":[10,110,260,120,600],"own":true,"ammo":10}
+PASS  "b1=m": variant M, tuning 10,110,260,120,600, installed  — {"v":"M","b1":true,"t":[10,110,260,120,600],"own":true,"ammo":10}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b1=S": variant S, tuning 10,110,260,120,600, installed  — {"v":"S","b1":true,"t":[10,110,260,120,600],"own":true,"ammo":10}
+PASS  "b1=X": variant off, tuning 3,120,520,120,600, nothing installed  — {"v":null,"b1":false,"t":[3,120,520,120,600],"own":false,"ammo":3}
+PASS  "b1=": variant off, tuning 3,120,520,120,600, nothing installed  — {"v":null,"b1":false,"t":[3,120,520,120,600],"own":false,"ammo":3}
+PASS  "b1=1": variant off, tuning 3,120,520,120,600, nothing installed  — {"v":null,"b1":false,"t":[3,120,520,120,600],"own":false,"ammo":3}
+
+== 1. flag off = a3866f2 (http://localhost:5174/)
+PASS  SWARM TIDE, R1: 1500 ticks identical to a3866f2 (state, ammo, draws, per-tick events)  — 18666 draws, 28 kills
+PASS  MIXED s6, R1: 1500 ticks identical to a3866f2 (state, ammo, draws, per-tick events)  — 18619 draws, 31 kills
+PASS  VANGUARD, R1: 1500 ticks identical to a3866f2 (state, ammo, draws, per-tick events)  — 14805 draws, 11 kills
+PASS  SWARM TIDE, legacy: 1500 ticks identical to a3866f2 (state, ammo, draws, per-tick events)  — 15541 draws, 22 kills
+PASS  MIXED s6, V2C+P1+P2-A3: 1500 ticks identical to a3866f2 (state, ammo, draws, per-tick events)  — 18619 draws, 31 kills
+PASS  MIXED s6, V2C+P1+P2-A3 + B0 instrument: 1500 ticks identical to a3866f2 (state, ammo, draws, per-tick events)  — 18619 draws, 31 kills
+PASS  SWARM TIDE, R1 + B0 instrument: 1500 ticks identical to a3866f2 (state, ammo, draws, per-tick events)  — 18666 draws, 28 kills
+PASS  MIXED s6, V2C+P1+P2-A3, god mode off: identical to a3866f2
+
+== 2. variant equivalence (except the authorized changes)
+PASS  SWARM TIDE: Supers + melee, no STANDARD — B1-G = R1 tick for tick (Super, charge, knockback, draws, events)  — 11122 draws, 21 kills
+PASS  MIXED s6: Supers + melee, no STANDARD — B1-G = R1 tick for tick (Super, charge, knockback, draws, events)  — 13175 draws, 26 kills
+PASS  VANGUARD: Supers + melee, no STANDARD — B1-G = R1 tick for tick (Super, charge, knockback, draws, events)  — 9460 draws, 10 kills
+PASS  SWARM TIDE: STANDARD every 40 ticks (a 3-round magazine never empties) + Supers + melee + OVERRIDE + cluster — B1-G = R1 except the magazine fields  — 18841 draws, 40 kills
+PASS  MIXED s6: STANDARD every 40 ticks (a 3-round magazine never empties) + Supers + melee + OVERRIDE + cluster — B1-G = R1 except the magazine fields  — 18915 draws, 31 kills
+PASS  SWARM TIDE: rapid STANDARD + melee + pickups, no Super — B1-G = B1-M = B1-S tick for tick (incl. ammo)  — 19264 draws, 41 kills; M -1, S -1
+PASS  MIXED s6: rapid STANDARD + melee + pickups, no Super — B1-G = B1-M = B1-S tick for tick (incl. ammo)  — 20416 draws, 35 kills; M -1, S -1
+PASS  CONTROL: the Supers-only comparison FAILS for B1-M against R1 (first divergent tick 706) — it sees the Super change
+PASS  CONTROL: the rapid-STANDARD comparison FAILS for B1-G against R1 (first divergent tick 0) — it sees the STANDARD change
+
+== 3. the Super
+PASS  B1-G (control): the Super is R1 — 600 per pellet ([600]), no B1 push / slow
+PASS  B1-M: 300 per pellet on a Regular (×dmgMult 1); 5 pellets of one cast hit it  — [300]
+PASS  B1-M: ONE push and ONE slow for 5 pellets (4 duplicates skipped); push 90px measured / 90px recorded (target ~90, ±25%)  — {"hits":5,"amts":[300],"mult":1,"push":90,"telemetryPush":90,"stagFrames":9,"aiSkipped":9,"slowSpeed":220.8,"base":294.40000000000003,"slowMs":1483,"cfgIsBase":true,"pushes":1,"dedup":4,"slows":1,"punish":[0,1],"punish0":[0,1]}
+PASS  B1-M: movement 221 = 75% of 294 for 1483ms (target 1500, ±2 frames), then the ORIGINAL cfg object restored
+PASS  B1-M: no damage-vulnerability window (punish [0,1] = [0,1]); AI skipped only for the push (9 frames ≤ 10)
+PASS  B1-M: re-push immunity — a second cast inside 600ms refreshes the slow but does not push; a later cast pushes again ({"pushesAfter2":1,"immune":1,"refreshed":1,"pushesAfter3":2})
+PASS  B1-M: Supers chained every 250ms for 5s: AI suspended 18% of frames (no lock; bound 25%)
+PASS  B1-M: an Elite and a Bulwark take 300/pellet and are pushed once each (["grunt*:300","shielded:300"], 2 pushes)
+PASS  B1-M: a lethal pellet slides the corpse exactly as R1 ([334,-89] = [334,-89])
+PASS  B1-M: self-recharge unchanged — every Super pellet hit charged the Super and Broken Wings (115 / 115 events = 115 hits; R1 65 = 65)
+PASS  B1-M: nemesis, Shock Captain and afterimage take the R1 Super per pellet ({"n":[600],"c":[0,90.588],"a":[600]} = R1 {"n":[600],"c":[0,90.588],"a":[600]}), never pushed or slowed
+PASS  B1-S: 150 per pellet on a Regular (×dmgMult 1); 5 pellets of one cast hit it  — [150]
+PASS  B1-S: ONE push and ONE slow for 5 pellets (4 duplicates skipped); push 180px measured / 180px recorded (target ~180, ±25%)  — {"hits":5,"amts":[150],"mult":1,"push":180,"telemetryPush":180,"stagFrames":12,"aiSkipped":12,"slowSpeed":176.64000000000001,"base":294.40000000000003,"slowMs":1983,"cfgIsBase":true,"pushes":1,"dedup":4,"slows":1,"punish":[0,1],"punish0":[0,1]}
+PASS  B1-S: movement 177 = 60% of 294 for 1983ms (target 2000, ±2 frames), then the ORIGINAL cfg object restored
+PASS  B1-S: no damage-vulnerability window (punish [0,1] = [0,1]); AI skipped only for the push (12 frames ≤ 13)
+PASS  B1-S: re-push immunity — a second cast inside 600ms refreshes the slow but does not push; a later cast pushes again ({"pushesAfter2":1,"immune":1,"refreshed":1,"pushesAfter3":2})
+PASS  B1-S: Supers chained every 250ms for 5s: AI suspended 21% of frames (no lock; bound 25%)
+PASS  B1-S: an Elite and a Bulwark take 150/pellet and are pushed once each (["grunt*:150","shielded:150"], 2 pushes)
+PASS  B1-S: a lethal pellet slides the corpse exactly as R1 ([334,-89] = [334,-89])
+PASS  B1-S: self-recharge unchanged — every Super pellet hit charged the Super and Broken Wings (69 / 69 events = 69 hits; R1 65 = 65)
+PASS  B1-S: nemesis, Shock Captain and afterimage take the R1 Super per pellet ({"n":[600],"c":[0,90.588],"a":[600]} = R1 {"n":[600],"c":[0,90.588],"a":[600]}), never pushed or slowed
+PASS  B1-S at a 30 Hz step: push 179px recorded (target ~180, ±15%)
+PASS  Vader takes the R1 Super under B1-S (per pellet [600] = B1-G [600]; 0 pushes)
+
+== 4. STANDARD and controls
+PASS  a quick tap fires exactly one shot (1)
+PASS  hold (3.5s, aimed up): 16 shots at the 110ms cooldown (117/117/117/117… ms, the 10-round magazine refilling as it fires), then the 260ms sequential regeneration (267/267/267/267…); 22 shots  — [117,117,117,117,117,117,117,117,117,117,117,117,117,117,117,117,267,267,267,267,267]
+PASS  hold: every shot along the stick ([-1.571]), and the release adds no shot (0)
+PASS  hold without dragging: auto-fire at the nearest enemy ({"n":5,"dirs":[0],"want":0})
+PASS  OVERRIDE unchanged: a 1s hold never auto-repeats it (0 rounds while held), the release fires one 3-round burst as R1 (3)
+PASS  the cluster pod never auto-throws while held (0); the release throws one (1)
+PASS  the fire stick does not claim presses on the Super / melee buttons (false / false)
+PASS  ten HUD ammo pips inside the 720px canvas, 15px apart, also after a relayout (527–662)
+PASS  SPACE: a tap fires one shot (1); a 1s hold auto-fires (9 shots); with a full meter SPACE is still the Super and no STANDARD auto-fire runs during its aim hold (1 Super, 0 shots)
+PASS  REAL touch: a tap fires one shot (1); a 1.3s hold auto-fires (11) with no release shot; recorded as touch (2 touch presses; 12 touch stick shots)  — {"hold":{"stickPresses":2,"stickHoldShots":11,"keyHoldShots":0,"releaseShotsSuppressed":1,"heldEmptyMs":0,"stickTouchPresses":2,"stickMousePresses":0},"input":{"standard":{"tap-stick":1,"hold-stick":11,"tap-key":0,"hold-key":0,"other":0},"stickShotsTouch":12,"stickShotsMouse":0,"super":{"stick-or-button":0,"space":0,"key":0,"other":0}}}
+
+== 5. restarts
+PASS  Pause-menu RESTART and QUIT + new run: B1-S installed once each run, 5 taps = 5 shots (B0 counts 5 / 5), tuning kept, pips refitted, postupdate listeners steady (10/10/10)  — [{"n":5,"b0":5,"pu":10,"p0":527},{"n":5,"b0":5,"pu":10,"p0":527},{"n":5,"b0":5,"pu":10,"p0":527}]
+PASS  a reload keeps the variant and its tuning ({"v":"S","t":[10,110,260]})
+
+== 6. telemetry
+PASS  export: run.config.b1 = "M", b1 block present (M), input / charge sections present
+PASS  input mode: 3 taps recorded as tap-stick (3), the hold's 8 shots as hold-stick (8)
+PASS  charge sources: STANDARD charge events = STANDARD hits (11 = 11); units added = the meters' real increments (Super 4.00 = 4.00, melee 3.00 = 3.00)
+PASS  push distance recorded = measured (90 = 90px ±8); slowed time recorded 1500ms for one 1500ms slow (±2 frames)
+PASS  B1-M seeded fight (MIXED s6): recorded dmg = durability lost (6988 = 6988), dmg + overkill = requested (11290), kills = deaths (33 = 33); 4 pushes
+PASS  B1-S seeded fight (MIXED s6): recorded dmg = durability lost (8492 = 8492), dmg + overkill = requested (10830), kills = deaths (35 = 35); 6 pushes
+
+== 7. no new random draws
+PASS  b1Combat.js contains no Math.random
+PASS  900 ticks of MIXED s6 under B1-S with Supers, pushes, slows and a held stick: zero Math.random draws made by B1's own code — outside the game's shot and damage paths it calls (0)  — {"own":0,"hits":22,"pushes":5,"holdShots":21,"slowedMs":4383.33333333332}
+
+== 8. frozen files
+PASS  after a3866f2: only B1's files and lines (src/scenes/BootScene.js, src/scenes/GameScene.js, src/systems/b0Report.js, src/systems/b0Telemetry.js, src/systems/b1Combat.js, src/systems/debug.js)  — GameScene +5
+PASS  the B0 range (dc7d9ea..a3866f2) is still B0's alone  — B0 (dc7d9ea..a3866f2): 5 files, GameScene +13 tag/install lines; B1 (a3866f2..266b1ac): 6 files, GameScene +5 install/branch lines; B2 (266b1ac..): 9 files, GameScene +4 install/branch lines
+PASS  entities, config.js and data untouched since a3866f2; Enemy.js guard  — {"outside":true,"hasDoc":true,"hasMethod":true,"code":"_vetoFalseStuck() { if (this._stuckFirstSeen || this._miniBoss) return; if (this._stuckRefX === undefined) return; this._stuckFirstSeen = true; const moved = Ma"}
+
+71/71 passed
+exit 0

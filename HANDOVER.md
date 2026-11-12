@@ -232,6 +232,46 @@ command, fix the line.*
     `tests/smoke-b1.mjs`. Links, mechanics, limitations:
     `docs/evidence/b1-combat-experiments/README.md`. Awaiting the HUMAN
     recordings and verdicts; no promotion without a separate HUMAN decision.
+  - **B1 HUMAN PLAYTESTS (2026-11-11): G, M and S played (desktop Chrome,
+    Sectors 1-2); NOT approved.** Verdict: the automatic STANDARD "fires
+    more frequently but doesn't look or feel satisfying" (bullets, tracers,
+    cadence, feedback, ammunition presentation); the Super "recharges itself
+    far too aggressively" and chaining makes each blast less special. Measured
+    in the three exports: Super pellets supplied 67.5% / 76.4% / 79.0% of
+    credited Super charge; the meter sat ready 63-68% of active time; gun
+    charge was 81-82% wasted on a full meter; the hold cadence collapsed
+    (9-13% of intervals at the 260ms trickle); hp lost per wave 418-552
+    against 253 in B0, one death each in M and S. Two B2 design reviews were
+    delivered in chat (analysis only). B1 stays opt-in and unchanged.
+  - **B2-1 — THE FLAGSHIP EXPERIMENT `?b2=A|B` (2026-11-12): HUMAN-AUTHORIZED
+    EXPERIMENT ONLY, opt-in, NOT approved, NOT frozen, NOT a default.** One
+    automatic rifle on a reusable weapon / presentation layer; A = that
+    weapon on the R1 Super economy, B = on the DAMAGE economy; `&b2range=1`
+    = a firing range; `&b2x.<knob>=<n>` = one tuning value. The weapon: press
+    = the stream starts, one 100ms cadence, 65 damage, a 40-round magazine
+    in its own state (`PLAYER` untouched) with an automatic 0.9s reload, a
+    top-up off the trigger and an instant reload on a Super cast; it picks
+    its own target (clear line, lethal bookkeeping, lead, sweep) unless the
+    stick is dragged; a round carries the knockback vector (= `Enemy.damage`'s
+    90ms AI suspension) only once per target per 600ms (the IMPACT BUDGET;
+    enemy AI untouched); the OVERRIDE pickup becomes 80 hot rounds; SPACE is
+    the trigger only, the Super is F / ENTER / its button. Economy B: both
+    meters fill from durability the WEAPONS removed (Super 1000, Broken Wings
+    1600; Broken Wings damage counts at half for the Super, a nemesis at
+    0.34, the Super's own damage at nothing; no refund). Presentation
+    (HUMAN-authorized to depart from P2-A3 / P1 / V2C WHILE THE FLAG IS ON):
+    streak tracers, a charge-driven colour ramp on tracer / muzzle / floor
+    light / barrel ember ("the gun is the meter"), a hit hierarchy, rolled-up
+    damage numbers, a magazine bar at the hero, a three-band weapon voice with
+    a music duck. `src/systems/b2Flagship.js`, `b2Feel.js`, `b2Voice.js`,
+    `b2Range.js`; the flag in `debug.js` and ONE `BootScene` line; GameScene:
+    the install and ONE branch at the ordinary projectile hit. The B0
+    instrument gained recovery (hp / shield by source, lowest hp per wave),
+    per-enemy stagger time and a `b2` block. Proof: `tests/smoke-b2.mjs`
+    (flag off = `266b1ac` tick for tick, B1 links included); cost:
+    `tests/diag-b2-perf.mjs`. Links, mechanics, measurements, deviations and
+    limitations: `docs/evidence/b2-flagship/README.md`. The final verdict
+    needs HANDSET play; no promotion without a separate HUMAN decision.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -250,9 +290,10 @@ command, fix the line.*
   (measurement only): the opt-in instrument `?b0=A|B` is delivered and
   validated; waiting for the HUMAN handset runs A and B and their exported
   JSON (`docs/evidence/b0-combat-baseline/README.md`). Runs A and B were
-  analysed; B1 (`?b1=G|M|S`, opt-in experiments) is delivered and awaits the
-  HUMAN recordings and verdicts
-  (`docs/evidence/b1-combat-experiments/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
+  analysed; B1 (`?b1=G|M|S`, opt-in experiments) was played and NOT approved
+  (`docs/evidence/b1-combat-experiments/README.md`); B2-1 (`?b2=A|B`, the
+  flagship rifle and the damage economy, opt-in) is delivered and awaits the
+  HUMAN handset verdict (`docs/evidence/b2-flagship/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
 

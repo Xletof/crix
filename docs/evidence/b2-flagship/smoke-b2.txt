@@ -1,0 +1,119 @@
+
+== 0. flags
+PASS  "(none)": B2 off; nothing installed, nothing wrapped, the meter blip intact; PLAYER.ammoMax 3  — {"v":null,"w":"0000","tick":true,"ammoMax":3}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3": B2 off; nothing installed, nothing wrapped, the meter blip intact; PLAYER.ammoMax 3  — {"v":null,"w":"0000","tick":true,"ammoMax":3}
+PASS  "b2=A": B2 A; installed; PLAYER.ammoMax 3  — {"v":"A","w":"1111","tick":false,"ammoMax":3}
+PASS  "b2=b": B2 B; installed; PLAYER.ammoMax 3  — {"v":"B","w":"1111","tick":false,"ammoMax":3}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B": B2 B; installed; PLAYER.ammoMax 3  — {"v":"B","w":"0111","tick":false,"ammoMax":3}
+PASS  "b2=X": B2 off; nothing installed, nothing wrapped, the meter blip intact; PLAYER.ammoMax 3  — {"v":null,"w":"0000","tick":true,"ammoMax":3}
+PASS  "b2=": B2 off; nothing installed, nothing wrapped, the meter blip intact; PLAYER.ammoMax 3  — {"v":null,"w":"0000","tick":true,"ammoMax":3}
+PASS  "b2=1": B2 off; nothing installed, nothing wrapped, the meter blip intact; PLAYER.ammoMax 3  — {"v":null,"w":"0000","tick":true,"ammoMax":3}
+PASS  "b1=G&b2=B": B2 off (a B1 variant wins); nothing installed, nothing wrapped, the meter blip intact; PLAYER.ammoMax 10  — {"v":null,"w":"0000","tick":true,"ammoMax":10}
+PASS  "b2=B&b1=S": B2 off (a B1 variant wins); nothing installed, nothing wrapped, the meter blip intact; PLAYER.ammoMax 10  — {"v":null,"w":"0000","tick":true,"ammoMax":10}
+PASS  knobs: b2x.dmg=80 and b2x.mag=12 apply; cadence clamps to its floor (40); a non-number and an unknown knob are ignored  — {"dmg":80,"cadence":40,"mag":12,"reload":900,"idleReload":1100,"speed":1000,"range":450,"sweep":900,"snap":20,"lead":1,"lethal":1,"flinch":600,"stop":250,"meter":1000,"melee":1600,"meleeToSuper":0.5,"nemesis":0.34,"hot":1.4,"hotRounds":80}
+PASS  b2range=1 needs a B2 variant: on with b2=A (panel present), ignored without
+
+== 1. flag off = 266b1ac (http://localhost:5174/)
+PASS  SWARM TIDE, R1: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 18666 draws, 28 kills
+PASS  MIXED s6, R1: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 18619 draws, 31 kills
+PASS  VANGUARD, R1: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 14805 draws, 11 kills
+PASS  SWARM TIDE, legacy: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 15541 draws, 22 kills
+PASS  MIXED s6, V2C+P1+P2-A3: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 18619 draws, 31 kills
+PASS  MIXED s6, V2C+P1+P2-A3 + B0 instrument: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 18619 draws, 31 kills
+PASS  SWARM TIDE, R1 + B0 instrument: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 18666 draws, 28 kills
+PASS  MIXED s6, B1-G: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 22905 draws, 37 kills
+PASS  SWARM TIDE, B1-S + B0 instrument: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 21406 draws, 41 kills
+PASS  VANGUARD, B1-M: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 17385 draws, 10 kills
+PASS  MIXED s6, V2C+P1+P2-A3, god mode off: identical to 266b1ac
+PASS  the same with the B0 instrument (its new recovery wrappers observe only): identical to 266b1ac
+
+== 2. A = B except the meters
+PASS  SWARM TIDE: a held-stream fight with both meters pinned at zero — B2-A = B2-B tick for tick (the variants differ in the economy and in nothing else)  — 189 rounds, 44 kills, 14965 draws
+PASS  MIXED s6: a held-stream fight with both meters pinned at zero — B2-A = B2-B tick for tick (the variants differ in the economy and in nothing else)  — 189 rounds, 37 kills, 14775 draws
+PASS  VANGUARD: a held-stream fight with both meters pinned at zero — B2-A = B2-B tick for tick (the variants differ in the economy and in nothing else)  — 189 rounds, 7 kills, 11531 draws
+PASS  CONTROL: with the meters free the same comparison FAILS (first divergent tick 150) — the economy changes when the Super is ready, and the ready aura draws from the shared randomness  — meters at the end: A 4.00,3.00 / B 4.00,3.00
+
+== 3. the weapon
+PASS  the first round leaves on the frame of the press
+PASS  one cadence: 31 ticks (517ms) of trigger = 6 rounds, and every in-hold interval is exactly 100ms  — [[100,5]]
+PASS  a tap (one frame of trigger) = exactly one round
+PASS  damage 65 per round (x dmgMult 1); the shot adds no velocity to the body and the hero does not drift  — dmg 65, |v| 0.000, drift 0.00px
+PASS  a pause off the trigger tops a partial magazine up (idle reload) back to 40  — [40,1]
+PASS  40 rounds, then an automatic 900ms reload (54 ticks) with the trigger held, no round during it, and the stream resumes  — {"emptyAtTick":234,"reloadTicks":55,"afterReload":42}
+PASS  casting the Super reloads the magazine instantly  — [28,40,1]
+PASS  PLAYER tuning and the pistol's own pool are untouched (3 / 120 / 520 / 120; ammo 3, no reload queue)  — 3,120,520,120,3,0
+PASS  no B2 collider sprite is visible (the streak is drawn by the presentation layer)
+PASS  at a 30 Hz step, 1.0s of trigger = 10 rounds, and the rounds in flight are evenly spaced (100px +/- 2)  — 10 rounds; gaps 100.0, 100.0
+
+== 4. the aim
+PASS  lethal bookkeeping: three one-round targets 380px away take one round each in the first 0.3s and all die sooner, with fewer rounds, than with it off (CONTROL)  — on: 6 rounds, 34 ticks; off: 12 rounds, 68 ticks
+PASS  a clear line beats a nearer target behind cover: the open one (farther) takes the stream, the hidden one takes nothing  — {"dH":280,"dO":330,"openHit":455,"hiddenHit":0,"noLine":3,"target":true}
+PASS  a Bulwark showing its field is passed over for the soldier beside it  — {"frontal":true,"avoid":7,"soldierHit":455,"bulwarkHit":0}
+PASS  a crossing target (300px/s at 350px) is led: most rounds land with the lead, few without (CONTROL)  — lead on 10/12, off 2/12
+PASS  a dragged stick aims by hand: every round goes along the stick, not at the enemy beside the hero  — {"n":4,"up":true,"nearHit":0}
+PASS  the sweep: when its target dies the stream turns onto the next one (rounds fired mid-turn are counted) and hits it  — {"sweepRounds":1,"retargets":1,"bHit":455,"aDead":true}
+
+== 5. the impact budget
+PASS  a Gunner under a held stream for 4s: its AI is suspended at most 25% of the time (one knockback hit per 600ms)  — suspended 14.1%; 7 hits with stagger, 32 without
+PASS  CONTROL (b2x.flinch=0, every hit staggers as R1 would): the same stream suspends it >= 80% of the time — the lock the budget removes  — suspended 100.0%
+PASS  the AI itself is untouched: under the budgeted stream the Gunner keeps firing; under the lock it barely does  — shots fired in 4s: budget 4, lock 1
+PASS  kill hit-stop budget: 10 kills in a row by the stream take at most one 45ms stop per 250ms (the rest are skipped)  — {"kills":10,"pausedTicks":10,"ticks":70,"taken":4,"skipped":6}
+
+== 6. the economy
+PASS  B: one 65-damage round adds 65/1000 x 4 = 0.26 Super units and 65/1600 x 3 = 0.122 Broken Wings units  — 0.2600 / 0.1219
+PASS  B: overkill earns nothing — a round that kills a 10-hp target adds 10/1000 x 4 = 0.04  — 0.0400
+PASS  B: the Super's own damage charges NOTHING (a cast through four targets leaves both meters at 0)  — {"charge":0,"melee":0,"events":9,"dmg":5400,"added":0}
+PASS  B: Broken Wings damage counts at half for the Super and nothing for its own meter  — {"dmg":320,"charge":0.64,"expect":0.64,"meleeMeter":0}
+PASS  B: damage to a nemesis counts at 0.34; the Overcharge perk (x1.3) scales the gain  — 0.0884 / 0.3380
+PASS  B: a held stream fills the meter (4), the ready event fires exactly once, and the surplus is recorded as wasted  — {"charge":4,"ready":1,"wasted":true}
+PASS  A: the R1 rule is untouched — one hit = one unit on both meters, and a Super through a crowd recharges itself  — {"round":[1,1],"superSelf":4,"swallowed":{"super":0,"melee":0}}
+PASS  the meter knobs: b2x.meter=500 and b2x.melee=800 double both gains  — 0.5200 / 0.2438
+
+== 7. controls
+PASS  SPACE with a FULL meter is the trigger: 31 ticks held = 6 rounds, no Super aim, the meter still full  — {"shots":6,"aiming":false,"spaceAt":0,"charge":4,"key":1}
+PASS  F and ENTER cast the Super (each once per press), aimed at the nearest enemy  — [{"sup":1,"charge":0.26},{"sup":2,"charge":0}]
+PASS  the cluster pod is unchanged: with it equipped the trigger does not stream, and each release throws one (3 throws)  — {"cluster":["cluster",3],"streamWithCluster":0,"thrown":3,"after":null,"rifle":[null,80,1],"hotDmg":91,"hotLeft":79,"pips":0}
+PASS  an OVERRIDE pickup becomes an OVERCHARGE: nothing is equipped, 80 hot rounds at x1.4 (91 damage)  — [null,80,1] dmg 91
+PASS  the three-round pistol's HUD pips are hidden
+PASS  a REAL touch press on the fire stick: the stream starts within 2 frames, 31 ticks = 6 rounds, and the release adds none  — [{"shots":0,"touch":0,"taps":0,"trig":false},{"shots":1,"touch":1,"taps":0,"trig":true},{"shots":6,"touch":1,"taps":0,"trig":true},{"shots":6,"touch":1,"taps":0,"trig":false}]
+PASS  a REAL touch tap shorter than a frame fires exactly one round  — 1
+PASS  the Super button is still the Super on touch, and the fire stick does not claim it  — {"sup":1,"shots":7}
+
+== 8. restarts
+PASS  restart twice: one install each time (the listener counts do not grow), a fresh state, and the weapon fires  — [{"b2":true,"post":12,"hit":3,"tick":false,"hitSfx":false,"pips":0},{"b2":true,"post":12,"hit":3,"tick":false,"hitSfx":false,"pips":0},{"b2":true,"post":12,"hit":3,"tick":false,"hitSfx":false,"pips":0}]
+PASS  quit to the title: B2 is gone, the meter blips and the hit beep are the shipped functions again, and no wrapper is left on the scene  — {"b2":false,"tick":true,"half":true,"hitSfx":true,"own":[],"panel":false}
+
+== 9. telemetry
+PASS  the export carries the b2 block, config.b2 = B, the recovery ledger and a report section  — {"b2":true,"rec":true,"cfg":"B"}
+PASS  rounds: b2.shots = the instrument's STANDARD count; Super casts match; every round is recorded as a held-key round  — {"shots":[192,192],"casts":[4,4],"input":{"tap-stick":0,"hold-stick":0,"tap-key":0,"hold-key":192,"other":0}}
+PASS  the ledger adds up: Super units added = 4 x casts + the meter now + what a respawn emptied; gun and Super durability = the instrument's damage truth; the per-hit ledger is empty  — {"added":23.859999999999996,"casts":4,"charge":4,"lost":3.8599999999999994,"gun":[6226,6226],"sup":[1846,1846]}
+PASS  lowest hp: the recorded minimum = the minimum the test sampled, and every wave has one  — [168,168,[168,570]]
+PASS  recovery balances: 1000 - hp removed + hp restored (+ a respawn's refill) = hp now  — removed 1790, restored 790 (regen 430, pickups 360), respawn 1000 (1 death), hp 1000; shield gained {"wave":300,"hack":0,"kill":0,"other":0}
+PASS  stagger time is recorded per enemy, and the AI-suspended share under fire is within the budget (<= 35% in a mixed fight with Supers)  — enemies with stagger 26, share 15.9%, in-hold intervals on cadence 100.0%
+
+== 10. the firing range
+PASS  the range starts no wave: after 10s nothing has spawned, and the hero is safe by default  — {"enemies":0,"phase":null,"god":true}
+PASS  every group spawns its exact count through the game's own spawnEnemyAt, none inside a wall; ELITE is an Elite  — {"SWARM":[6,6],"SQUAD":[5,5],"GUNNERS":[3,3],"MARKSMEN":[2,2],"DEMOS":[3,3],"BULWARK":[3,3],"ELITE":[1,1],"HORDE":[14,14]}
+PASS  CLEAR empties the room; FILL / EMPTY SUPER set the meter; the panel has its 13 buttons; the weapon works there  — {"cleared":0,"buttons":13,"fight":{"shots":34,"hp":1000}}
+
+== 11. determinism
+PASS  B2-A: a seeded fight (stream, three Supers, a Broken Wings chain, god mode off) repeats tick for tick  — 197 rounds, 37 kills, 18383 draws
+PASS  B2-B: a seeded fight (stream, three Supers, a Broken Wings chain, god mode off) repeats tick for tick  — 197 rounds, 37 kills, 18383 draws
+PASS  no Math.random call anywhere in the four B2 modules
+
+== 12. presentation
+PASS  every B2 round is drawn by B2 only: its collider sprite is never visible and P2-A registers none of them  — 99 streaks for 99 rounds
+PASS  pooled and bounded: a 12s fight peaks under 80 live objects, and one second after the stream stops no streak, flash or spark is left on screen  — peak 42 objects, 7 streaks; 45 created in all; 79us/frame mean, 6.60ms max
+PASS  damage numbers roll up (fewer labels than hits) and the generic ring / spark / beep are not drawn per round  — {"in":57,"out":26,"dropped":{"ring":80,"burst":137,"beep":57}}
+PASS  the hit hierarchy: full white flashes are a minority of the rounds that land on a target under a stream  — 24 full, 33 soft
+PASS  the voice (rendered offline): at least 25% of a shot's energy is above 2kHz, under 35% is below 300Hz, and it does not clip  — cold <300Hz 28% / 0.3-2k 42% / >2k 30%; hot 25% / 31% / 44%; peaks 0.37 / 0.47
+PASS  the gun is the meter in sound too: the 2-4kHz share rises with the charge  — 19% cold -> 29% primed
+
+== 13. frozen files
+PASS  the B0 / B1 / B2 scope guard: every line under src/ since the P2-A3 build is pinned  — B0 (dc7d9ea..a3866f2): 5 files, GameScene +13 tag/install lines; B1 (a3866f2..266b1ac): 6 files, GameScene +5 install/branch lines; B2 (266b1ac..): 9 files, GameScene +4 install/branch lines
+PASS  B2 (266b1ac..): four new modules, the flag, ONE BootScene line, the GameScene install + ONE hit branch, telemetry; no entity, config, data or HUD file  — {"files":["src/scenes/BootScene.js","src/scenes/GameScene.js","src/systems/b0Report.js","src/systems/b0Telemetry.js","src/systems/b2Feel.js","src/systems/b2Flagship.js","src/systems/b2Range.js","src/systems/b2Voice.js","src/systems/debug.js"],"gsAdded":4}
+PASS  Enemy.js is frozen (the guard)  — {"outside":true,"hasDoc":true,"hasMethod":true,"code":"_vetoFalseStuck() { if (this._stuckFirstSeen || this._miniBoss) return; if (this._stuckRefX === undefined) return; this._stuckFirstSeen = true; const moved = Ma"}
+PASS  entities, config, data, the HUD, FX.js, the P2-A / P1 modules and the camera are byte-identical to the previous build
+
+88/88 passed
+exit 0

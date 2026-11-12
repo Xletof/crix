@@ -2361,3 +2361,46 @@ Evidence in `docs/evidence/b1-combat-experiments/`.
   frame begins** (`Enemy.preUpdate` decrements, then gates). Counting frames
   where `_staggerMs > 0` after the step also counts the hit frame, where the
   AI already ran.
+
+## The B2-1 flagship rigs (`?b2=A|B`, `&b2range=1`, `&b2x.*` — HUMAN-authorized experiment, opt-in, not a default)
+
+- `smoke-b2.mjs [--old=URL] [--only=0,3]` (standalone, :5173; a `266b1ac`
+  server with its own Vite cacheDir for §1) — fourteen sections: flags and
+  knobs; flag off = `266b1ac` tick for tick (R1, legacy, V2C+P1+P2-A3, the
+  B0 instrument, B1-G / M / S, god mode off); A = B in everything but the
+  meters, with controls; the weapon (first round on the press frame, one
+  cadence, tap, magazine, reloads, damage, no recoil, a 30 Hz step); the aim
+  (lethal bookkeeping with its control, clear line, Bulwark field, lead with
+  its control, manual, sweep); the impact budget against the every-hit lock;
+  the damage economy; controls (real key events, a REAL touch through CDP,
+  cluster, OVERRIDE -> OVERCHARGE); restarts; telemetry ledgers; the firing
+  range; determinism; presentation (pooling, roll-up, hit hierarchy, the
+  voice's spectrum rendered offline); frozen files.
+- `diag-b2-perf.mjs [--ticks=900] [--cpu=4]` — NOT pass/fail and NOT a
+  handset measurement: one seeded rendered fight at 390x844 @2x under a CPU
+  throttle, the approved presentation vs B1-G vs B2-A / B2-B, whole-frame
+  time, B2's own post-update time, display objects and live particles.
+  Relative figures only (software GL).
+
+### What it taught
+
+- **A staged target may be behind cover.** Two of three targets placed "to
+  the right of the hero" in the hangar never took a round; the rounds hit a
+  crate. Place targets with a clear-line search (`__spots` in the suite), not
+  at round coordinates.
+- **Knockback under a stream moves the target.** With every hit carrying the
+  vector a Gunner slid out of reach in a second and its measured stagger
+  share fell to 58%, which hid the lock. Hold the target in place each tick
+  when the question is the AI's time (it then reads 100%).
+- **The meters have no gameplay effect until a cast, but the ready state
+  adds display objects.** B2-A and B2-B are identical tick for tick with the
+  meters free only once `addedtoscene` / `removedfromscene` are left out of
+  the event count along with the four meter events.
+- **The harness sets god mode after `create`.** A seam that sets it at
+  install (the range's SAFE default) is overridden; boot with `god: null`
+  to test the seam's own default.
+- **A respawn empties the Super meter** (`GameScene`, the revive). A ledger
+  check in a fight the hero can lose must add what the respawn took.
+- **`enemyJsGuard` returns `{ outside, bomberOnlyVeto, vetoCode }`**, not
+  `.ok`.
+

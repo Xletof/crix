@@ -31,7 +31,24 @@ Load on demand; the root `CLAUDE.md` carries only the one-line versions.
   around the call and clears them after; `enemy-hit` fires inline, so the
   read is exact. A new player damage path sets `_dmgSrc`; damage that runs
   INSIDE another hit (an `enemy-died` chain such as the volatile blast) saves
-  and restores it. Nothing in gameplay reads these fields.
+  and restores it. Nothing in SHIPPED gameplay reads these fields; the opt-in
+  `?b2=B` damage economy does (it credits charge by `_dmgSrc` / `_shotSrc`,
+  and names a cluster blast by `_suppressHitSfx`), so under that flag they are
+  a contract, not only a label.
+- **A hit that carries a knockback vector suspends the enemy's AI for 90ms**
+  (`Enemy.damage`, frozen, no cap, Elites and nemeses included). So rate of
+  fire is crowd control: at a 100ms cadence every-hit knockback measured as a
+  100% lock on the target, and each hit also slides it ~20px. A weapon faster
+  than ~3 rounds a second decides which rounds pass the vector (B2's impact
+  budget: once per target per 600ms = 14%); `damage(amount, null)` does
+  everything else a hit does.
+- **Instance wrappers unwind in install order, not reverse order.** Seams
+  restore on the scene's `shutdown`, whose listeners run first-installed
+  first. A restore must put the previous function back only if the property
+  is STILL its own wrapper, and a seam must not wrap a scene method a
+  later-installed seam also wraps (the later one restores to the earlier
+  wrapper and leaves it behind). The player and `fx` are rebuilt every run;
+  the scene, `SFX` and the physics world are not.
 
 ---
 
