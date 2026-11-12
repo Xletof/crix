@@ -1,0 +1,24 @@
+  ok    without ?captel=1 the instrument is not constructed at all
+  ok    and nothing is drawn — no panel exists to be hidden
+  ok    and the Captain's telemetry taps are emitted into an empty room
+  ok    CHAMPION.captain is byte-identical with the instrument on
+  ok    and so is every player damage input it measures
+  ok    and a freshly spawned Captain arrives with identical hp, armour and speed
+  ok    a session opens on champion-spawned
+  ok    ATTRIBUTION RECONCILES — the sum of attributed damage is the durability actually lost
+  ok    each source is attributed to itself, not inferred from a magnitude
+  ok    and nothing a tagged path produced fell into OTHER
+  ok    the lethal blow is recorded at what the pool HELD, never at what was asked for
+  ok    and no source can exceed the durability the Captain ever had
+  ok    the Super count is the real `player-fire-super` count
+  ok    pellets come from the blast that really happened, not from the authored number
+  ok    a hit is counted once per landed hit, per source
+  ok    the milestones are ordered: spawn -> first damage -> armour break
+  ok    Captain actions are counted from his own state machine
+  ok    the session closes on death with a real TTK
+  ok    and the panel renders the record the tests read
+  ok    a new Captain retires the old session and starts clean
+  ok    normal Endless has no Champion and no instrument
+  ok    and the damage source tag is cleared after every hit, never left standing
+PASS: 22 checks — the instrument observes, reconciles, and changes nothing
+exit 0

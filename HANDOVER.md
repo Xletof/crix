@@ -268,7 +268,8 @@ command, fix the line.*
     the install and ONE branch at the ordinary projectile hit. The B0
     instrument gained recovery (hp / shield by source, lowest hp per wave),
     per-enemy stagger time and a `b2` block. Proof: `tests/smoke-b2.mjs`
-    (flag off = `266b1ac` tick for tick, B1 links included); cost:
+    (88/88; flag off = `266b1ac` tick for tick, B1 links included; smoke-b1
+    71/71, smoke-b0 46/46; run-all NOT re-run); cost:
     `tests/diag-b2-perf.mjs`. Links, mechanics, measurements, deviations and
     limitations: `docs/evidence/b2-flagship/README.md`. The final verdict
     needs HANDSET play; no promotion without a separate HUMAN decision.

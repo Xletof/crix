@@ -28,10 +28,10 @@ PASS  MIXED s6, V2C+P1+P2-A3, god mode off: identical to 266b1ac
 PASS  the same with the B0 instrument (its new recovery wrappers observe only): identical to 266b1ac
 
 == 2. A = B except the meters
-PASS  SWARM TIDE: a held-stream fight with both meters pinned at zero — B2-A = B2-B tick for tick (the variants differ in the economy and in nothing else)  — 189 rounds, 44 kills, 14965 draws
-PASS  MIXED s6: a held-stream fight with both meters pinned at zero — B2-A = B2-B tick for tick (the variants differ in the economy and in nothing else)  — 189 rounds, 37 kills, 14775 draws
-PASS  VANGUARD: a held-stream fight with both meters pinned at zero — B2-A = B2-B tick for tick (the variants differ in the economy and in nothing else)  — 189 rounds, 7 kills, 11531 draws
-PASS  CONTROL: with the meters free the same comparison FAILS (first divergent tick 150) — the economy changes when the Super is ready, and the ready aura draws from the shared randomness  — meters at the end: A 4.00,3.00 / B 4.00,3.00
+PASS  SWARM TIDE: a held-stream fight, no Super cast, no melee — B2-A = B2-B tick for tick in everything but the two meters (positions, hp, every enemy and bolt, draws, events)  — 189 rounds, 44 kills, 14965 draws; meters at the end A 4.00,3.00 / B 4.00,3.00
+PASS  MIXED s6: a held-stream fight, no Super cast, no melee — B2-A = B2-B tick for tick in everything but the two meters (positions, hp, every enemy and bolt, draws, events)  — 189 rounds, 37 kills, 14775 draws; meters at the end A 4.00,3.00 / B 4.00,3.00
+PASS  VANGUARD: a held-stream fight, no Super cast, no melee — B2-A = B2-B tick for tick in everything but the two meters (positions, hp, every enemy and bolt, draws, events)  — 189 rounds, 7 kills, 11531 draws; meters at the end A 4.00,3.00 / B 4.00,3.00
+PASS  CONTROL: with the meters in the hash the same comparison FAILS (first divergent tick 104) — it sees the economy
 
 == 3. the weapon
 PASS  the first round leaves on the frame of the press
@@ -103,7 +103,7 @@ PASS  no Math.random call anywhere in the four B2 modules
 
 == 12. presentation
 PASS  every B2 round is drawn by B2 only: its collider sprite is never visible and P2-A registers none of them  — 99 streaks for 99 rounds
-PASS  pooled and bounded: a 12s fight peaks under 80 live objects, and one second after the stream stops no streak, flash or spark is left on screen  — peak 42 objects, 7 streaks; 45 created in all; 79us/frame mean, 6.60ms max
+PASS  pooled and bounded: a 12s fight peaks under 80 live objects, and one second after the stream stops no streak, flash or spark is left on screen  — peak 42 objects, 7 streaks; 45 created in all; 49us/frame mean, 3.20ms max
 PASS  damage numbers roll up (fewer labels than hits) and the generic ring / spark / beep are not drawn per round  — {"in":57,"out":26,"dropped":{"ring":80,"burst":137,"beep":57}}
 PASS  the hit hierarchy: full white flashes are a minority of the rounds that land on a target under a stream  — 24 full, 33 soft
 PASS  the voice (rendered offline): at least 25% of a shot's energy is above 2kHz, under 35% is below 300Hz, and it does not clip  — cold <300Hz 28% / 0.3-2k 42% / >2k 30%; hot 25% / 31% / 44%; peaks 0.37 / 0.47

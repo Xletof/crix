@@ -1,0 +1,20 @@
+# B2-1 — suites run (2026-11-12), Vite servers owned by PID
+# (HEAD :5173, 266b1ac :5174 with its own cacheDir)
+
+smoke-b2 --old=266b1ac: 88/88 (smoke-b2.txt)
+  0 flags and knobs · 1 flag off = 266b1ac tick for tick (R1, legacy, V2C+P1+P2-A3, +/- B0 instrument, B1-G / M / S,
+  god off) · 2 A = B but the meters, with a control · 3 the weapon · 4 the aim (controls for bookkeeping and lead) ·
+  5 the impact budget (14% vs the 100% lock) · 6 the economy · 7 controls (real keys, real CDP touch) · 8 restarts ·
+  9 telemetry · 10 firing range · 11 determinism · 12 presentation and the voice's spectrum · 13 frozen files
+smoke-b1 --old=266b1ac: 71/71 (smoke-b1.txt) — the B1 links are unchanged
+smoke-b0 --old=266b1ac: 46/46 (smoke-b0.txt) — the instrument after the recovery / stagger / b2 additions
+smoke-fx-p2a3 --only=10: 4/4 · smoke-fx-p2a --only=10: 4/4 · smoke-fx-p2a2 --only=10: 3/3 (the B0 / B1 / B2 scope guard)
+smoke-controls: PASS · smoke-restart: PASS (16 checks) · smoke-cluster: PASS
+smoke-captel: PASS (22 checks) standalone (smoke-captel.txt).
+  In the sequential run it FAILED 2 of 22 (smoke-captel-run1-in-sequence.txt: "0 casts" from its two real-time
+  Super casts). Re-run standalone it passed; run standalone against 266b1ac it failed the same two checks.
+  It is a real-time, load-sensitive step that fails intermittently on the previous build too: not caused by B2.
+npm run build: OK (the pre-existing >500 kB chunk warning only)
+diag-b2-perf: diag-b2-perf.txt (relative figures, software GL)
+run-all: NOT re-run for B2-1. Flag-off identity against 266b1ac is proven tick for tick in twelve configurations;
+  that build's lineage last ran 46/52 (HANDOVER section 0, B0 entry).

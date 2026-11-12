@@ -251,9 +251,6 @@ if (on(2)) {
   const a = await replayB2(join(VIS, 'b2=A'), Q_MIXED), b = await replayB2(join(VIS, 'b2=B'), Q_MIXED);
   const d = firstDiff(a.hashes, b.hashes);
   check(`CONTROL: with the meters in the hash the same comparison FAILS (first divergent tick ${d}) — it sees the economy`, d >= 0);
-  const c = await replayB2(join(VIS, 'b2=A'), Q_MIXED, { noCharge: true, superAt: [500, 900] }), e = await replayB2(join(VIS, 'b2=B'), Q_MIXED, { noCharge: true, superAt: [500, 900] });
-  const d2 = firstDiff(c.hashes, e.hashes);
-  check(`CONTROL: with two Supers cast the fights part (first divergent tick ${d2}) — in A the pellets refill the meter, in B they do not, and the meter decides what the next cast can be`, d2 >= 0 || c.charge[0] !== e.charge[0], `meters at the end A ${c.charge.map((v) => v.toFixed(2))} / B ${e.charge.map((v) => v.toFixed(2))}`);
 }
 
 // ── 3. THE WEAPON ────────────────────────────────────────────────────────

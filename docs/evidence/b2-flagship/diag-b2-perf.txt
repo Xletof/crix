@@ -1,0 +1,9 @@
+MIXED s4, seeded, rendered at 390x844 @2x, software GL, CPU throttle x4, 900 ticks (relative figures only)
+
+V2C+P1+P2-A3 (approved, R1 gun)    frame mean 62.93ms  p50 24.60  p95 525.10  p99 728.40 | display objects 220  live particles 64 | kills 24
+B1-G (held trigger)                frame mean 64.80ms  p50 29.10  p95 474.00  p99 646.60 | display objects 225  live particles 57 | kills 23
+B2-A (flagship, R1 economy)        frame mean 63.08ms  p50 22.50  p95 313.00  p99 524.50 | display objects 240  live particles 62 | kills 22  rounds 132 | B2 post-update 279us mean, 13.10ms max; peak 42 pooled objects, 7 streaks
+B2-B (flagship, damage economy)    frame mean 61.36ms  p50 22.60  p95 313.70  p99 500.00 | display objects 238  live particles 62 | kills 22  rounds 132 | B2 post-update 263us mean, 17.70ms max; peak 42 pooled objects, 7 streaks
+
+B2-B vs approved presentation: frame mean x0.98, p95 x0.60; display objects +18, live particles -2
+B2-B vs B1-G:                  frame mean x0.95, p95 x0.66

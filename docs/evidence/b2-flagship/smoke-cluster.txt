@@ -1,0 +1,45 @@
+{
+  "damaged": [
+    2,
+    3,
+    2,
+    3,
+    0,
+    1,
+    1,
+    0
+  ],
+  "distinctDamaged": 4,
+  "dmgPerHit": [
+    290
+  ],
+  "gruntHp": 320,
+  "fracOfGrunt": 0.906,
+  "locks": [
+    1,
+    0,
+    2,
+    3,
+    1,
+    0,
+    2,
+    3
+  ],
+  "distinctLocks": 4,
+  "fragmentsSpawned": 8,
+  "flyingSamples": 24,
+  "distinctScales": [
+    0.55
+  ],
+  "everEnabledBody": 0,
+  "maxLinesWhileFlying": 8,
+  "linesAfterAllGone": 0,
+  "finalFragCount": 0,
+  "hitSfx": 0,
+  "fragSfx": 8,
+  "cfgScale": 0.55
+}
+page errors: none
+
+PASS: distinct locks, flat scale, no ground phase, lines clean up
+exit 0
