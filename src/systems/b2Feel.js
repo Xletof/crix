@@ -414,10 +414,10 @@ export function installB2Feel(scene, api, K, voice) {
     const lowMag = !rl && s.mag <= Math.ceil(K.mag * 0.2);
     const blink = lowMag && Math.floor(clockNow / 110) % 2 === 0;
     const key = `${rl ? 'r' : 'm'}${Math.round(frac * 40)}${blink ? 'b' : ''}${s.hot > 0 ? 'h' : ''}`;
-    magBar.setVisible(true).setPosition(Math.round(p.x), Math.round(p.y + PLAYER.radius + 20)).setDepth(p.depth + 6).setAlpha(Math.min(1, magShown / 250));
+    magBar.setVisible(true).setPosition(Math.round(p.x), Math.round(p.y + PLAYER.radius + 22)).setDepth(p.depth + 6).setAlpha(Math.min(1, magShown / 250));
     if (key === magKey) return;
     magKey = key;
-    const W = 46, H = 5;
+    const W = 58, H = 6;
     magBar.clear();
     magBar.fillStyle(0x05070c, 0.78); magBar.fillRect(-W / 2 - 2, -H / 2 - 2, W + 4, H + 4);
     magBar.fillStyle(rl ? 0xffb030 : blink ? 0xff3a2c : s.hot > 0 ? 0xffd27a : 0xe8f6ff, 1);

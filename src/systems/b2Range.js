@@ -25,6 +25,13 @@ export function installB2Range(scene, api, wrap) {
   const game = scene.game;
   const stats = { spawned: 0, cleared: 0, groups: {} };
   wrap(scene, '_startWave', () => function () { /* the range has no waves */ });
+  // The room's authored opening enemies do not belong on a range either.
+  const empty = () => {
+    scene.arenaActive = false; scene._spawnQueue = [];
+    for (const e of (scene.enemies?.getChildren?.() || []).slice()) scene._destroyEnemyFully?.(e);
+  };
+  wrap(scene, 'loadRoom', (prev) => function (...a) { const r = prev.apply(this, a); empty(); return r; });
+  if (scene.roomSpec) empty();
   const hadGod = isGodMode();
   setGodMode(true);
 
@@ -80,7 +87,7 @@ export function installB2Range(scene, api, wrap) {
     const r = game.canvas.getBoundingClientRect();
     const k = Math.max(0.6, Math.min(1.5, r.width / 520));
     root.style.left = `${Math.round(r.left + 6)}px`;
-    root.style.top = `${Math.round(r.top + r.height * 0.085)}px`;
+    root.style.top = `${Math.round(r.top + r.height * 0.105)}px`;
     root.style.fontSize = `${Math.round(11 * k)}px`;
     root.style.width = open ? `${Math.round(150 * k)}px` : 'auto';
   };

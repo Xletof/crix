@@ -62,6 +62,7 @@ export const B2_DEFAULTS = {
   sweep: 900,       // deg/s the stream turns onto a new target
   snap: 20,         // deg: inside this the round goes straight at the target
   lead: 1,          // 0..1 of first-order target lead
+  lethal: 1,        // 1 = pass over a target the rounds in flight will kill (0 = off)
   // impact budget
   flinch: 600,      // ms between knockback (= 90ms AI suspension) hits per target
   stop: 250,        // ms between kill hit-stops caused by the rifle
@@ -74,7 +75,7 @@ export const B2_DEFAULTS = {
   hot: 1.4,
   hotRounds: 80,
 };
-const KNOB_MIN = { dmg: 1, cadence: 40, mag: 1, reload: 0, idleReload: 100, speed: 300, range: 100, sweep: 30, snap: 0, lead: 0, flinch: 0, stop: 0, meter: 50, melee: 50, meleeToSuper: 0, nemesis: 0, hot: 1, hotRounds: 0 };
+const KNOB_MIN = { dmg: 1, cadence: 40, mag: 1, reload: 0, idleReload: 100, speed: 300, range: 100, sweep: 30, snap: 0, lead: 0, lethal: 0, flinch: 0, stop: 0, meter: 50, melee: 50, meleeToSuper: 0, nemesis: 0, hot: 1, hotRounds: 0 };
 
 const TAU = Math.PI * 2;
 const wrapAng = (a) => { a = (a + Math.PI) % TAU; if (a < 0) a += TAU; return a - Math.PI; };
@@ -109,7 +110,7 @@ export function installB2(scene) {
   const flinchAt = new WeakMap();       // enemy -> clock of its last knockback hit
   const hpOf = new WeakMap();           // enemy -> hp after its last hit
   const vel = new WeakMap();            // enemy -> smoothed displacement velocity
-  const ctx = { fire: false, src: null };
+  const ctx = { fire: false };
   const hist = () => ({ bins: new Array(401).fill(0), over: 0, n: 0 });
   const meterStats = () => Object.fromEntries(SRC.map((s) => [s, { events: 0, dmg: 0, requested: 0, added: 0, wasted: 0 }]));
   const stats = {
@@ -265,7 +266,7 @@ export function installB2(scene) {
       const ang = Math.atan2(e.y - p.y, e.x - p.x);
       // A Bulwark showing its field would only eat the rounds: last choice.
       const field = !!(e._blocksFrontal && e.isFrontalHit?.(ang));
-      if (!field && e !== scene.boss && (pending.get(e) || 0) >= e.hp) { skipped++; continue; }
+      if (K.lethal && !field && e !== scene.boss && (pending.get(e) || 0) >= e.hp) { skipped++; continue; }
       let score = d + (field ? 260 : 0);
       if (field) fielded++;
       if (!clearLine(p.x, p.y, e.x, e.y)) { score += 500; blocked++; }
@@ -473,7 +474,9 @@ export function installB2(scene) {
 
   // ── THE ECONOMY (variant B) ─────────────────────────────────────────────
   const srcNow = () => {
-    if (ctx.src) return ctx.src;
+    // A cluster munition's blast damages outside the projectile sweep; the
+    // game raises `_suppressHitSfx` for exactly that damage() call.
+    if (scene._suppressHitSfx) return 'cluster';
     const d = scene._dmgSrc;
     if (d === 'primary') return 'gun';
     if (d === 'secondary') return scene._shotSrc === 'override' ? 'override' : 'cluster';
@@ -524,9 +527,6 @@ export function installB2(scene) {
     wrap(p0, 'addSuperHit', () => function () { stats.swallowed.super++; });
     wrap(p0, 'addMeleeHit', () => function () { stats.swallowed.melee++; });
   }
-  // Cluster and grenade blasts damage outside the projectile sweep: name them.
-  wrap(scene, '_clusterImpact', (prev) => function (...a) { const s = ctx.src; ctx.src = 'cluster'; try { return prev.apply(this, a); } finally { ctx.src = s; } });
-  wrap(scene, 'detonateGrenade', (prev) => function (...a) { const s = ctx.src; ctx.src = 'other'; try { return prev.apply(this, a); } finally { ctx.src = s; } });
   // The gun is the meter: its own rising voice replaces the per-hit blip, in
   // both variants, so A and B differ in economy and in nothing else.
   wrap(SFX, 'superTick', () => () => {});
