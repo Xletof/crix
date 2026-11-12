@@ -289,6 +289,32 @@ export function setB1Variant(v) {
   const s = v == null ? '' : String(v).trim().toUpperCase();
   b1Variant = (s === 'G' || s === 'M' || s === 'S') ? s : null;
 }
+// B2-1 — THE FLAGSHIP EXPERIMENT (`?b2=A|B`, HUMAN-authorized 2026-11-12,
+// opt-in, NOT a default). One automatic rifle built on a reusable weapon /
+// presentation layer (systems/b2Flagship.js, b2Feel.js, b2Voice.js):
+//   A = the new weapon on the R1 (per-hit, self-recharging) Super economy
+//   B = the same weapon on the damage-based economy (no pellet self-charge)
+// `&b2range=1` is the firing range; `&b2x.<knob>=<n>` overrides one tuning
+// value (the knob table is B2_DEFAULTS in systems/b2Flagship.js). Ignored
+// while a B1 variant is set, so the B1 links keep meaning what they meant.
+let b2Variant = null;
+let b2Range = false;
+let b2Knobs = {};
+export function getB2Variant() { return b2Variant; }
+export function isB2Range() { return b2Range; }
+export function getB2Knobs() { return b2Knobs; }
+export function setB2(v, params = null) {
+  const s = v == null ? '' : String(v).trim().toUpperCase();
+  b2Variant = (s === 'A' || s === 'B') && !b1Variant ? s : null;
+  b2Range = false; b2Knobs = {};
+  if (!b2Variant || !params) return;
+  b2Range = params.get('b2range') === '1';
+  for (const [k, val] of params) {
+    if (!k.startsWith('b2x.')) continue;
+    const n = Number(val);
+    if (Number.isFinite(n)) b2Knobs[k.slice(4)] = n;
+  }
+}
 export function setB0(v) {
   if (v == null || v === false) { b0 = false; b0Label = null; return; }
   b0 = true;

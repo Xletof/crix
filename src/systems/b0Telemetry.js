@@ -74,6 +74,7 @@ function resolvedConfig() {
     fxP2A3: g(dbg.isFxP2A3), muzzleSharp: g(dbg.isMuzzleSharp),
     godMode: g(isGodMode),
     b1: g(dbg.getB1Variant),
+    b2: g(dbg.getB2Variant), b2range: g(dbg.isB2Range), b2knobs: g(dbg.getB2Knobs),
   };
 }
 
@@ -384,6 +385,7 @@ export function attachB0Telemetry(scene) {
   // B1 installs before B0 (GameScene.create) and tears down before it, so
   // keep the handle: its stats object outlives its teardown.
   const b1api = scene._b1 || null;
+  const b2api = scene._b2 || null;
   const inCtx = { fire: null, sup: null, charge: null };
   function chargeSrc() {
     if (inCtx.charge) return inCtx.charge;
@@ -422,10 +424,26 @@ export function attachB0Telemetry(scene) {
           if (k.bullet) k.r.attacks.bulletCalls++; else k.r.attacks.contactCalls++;
           k.r.dmgToPlayer += hpRem; k.r.shieldToPlayer += shRem;
         }
+        rv.dmg += hpRem;
         if (curWave) { curWave.dmgTaken += hpRem; curWave.shieldTaken += shRem; }
         if (!negated) tl('hurt', Math.round(hpRem), Math.round(shRem), k.key);
       } catch (_) { /* */ }
       frameCost += performance.now() - s;
+      return out;
+    });
+    // Shield gains, by what handed them out (300 = a wave clear, 400 = a
+    // sliced terminal, anything else = a Blood Pact overflow).
+    wrapMethod(p, 'addShield', (orig) => function (amount) {
+      const before = this.shieldHp || 0;
+      const out = orig.call(this, amount);
+      try {
+        const g2 = (this.shieldHp || 0) - before;
+        if (g2 > 0.01) {
+          const k = amount === 300 ? 'wave' : amount === 400 ? 'hack' : (this.killHeal > 0 ? 'kill' : 'other');
+          R.recovery.shield[k] += g2;
+          if (curWave) curWave.shieldGained += g2;
+        }
+      } catch (_) { /* */ }
       return out;
     });
     // ── INPUT MODE ─────────────────────────────────────────────────────────
@@ -441,6 +459,9 @@ export function attachB0Telemetry(scene) {
     ctxWrap('tryFireSuper', { k: 'sup', v: 'key' });
     // ── CHARGE SOURCES ─────────────────────────────────────────────────────
     const chargeWrap = (name, meter) => wrapMethod(p, name, (orig) => function (scale = 1) {
+      // B2-B replaces the per-hit rule: these calls add nothing and B2 keeps
+      // its own damage-based ledger (`b2.charge`).
+      if (b2api?.damageCharge) return meter === 'super' ? orig.call(this, scale) : orig.call(this);
       let before = 0, req = 0, src = 'other', mult = 1;
       try {
         before = meter === 'super' ? this.superCharge : this.meleeCharge;
@@ -482,10 +503,10 @@ export function attachB0Telemetry(scene) {
   let lastShotT = null;
   on('player-fire', () => {
     P.fired.standard++;
-    const mode = scene._b1?.firing || inCtx.fire || 'other';
+    const mode = scene._b1?.firing || scene._b2?.firing || inCtx.fire || 'other';
     R.input.standard[mode] = (R.input.standard[mode] || 0) + 1;
     if (mode === 'tap-stick' || mode === 'hold-stick') {
-      const touch = mode === 'hold-stick' ? scene._b1?.stickTouch?.() : stickTouchNow();
+      const touch = scene._b2 ? scene._b2.stickTouch() : mode === 'hold-stick' ? scene._b1?.stickTouch?.() : stickTouchNow();
       if (touch === true) R.input.stickShotsTouch++; else if (touch === false) R.input.stickShotsMouse++;
     }
     const t = T();
@@ -571,6 +592,7 @@ export function attachB0Telemetry(scene) {
       modifier: scene._roomModifier?.name ?? null,
       startT: T(), startW: W(), endT: null, endW: null, durMs: null, endWhy: null,
       spawned: 0, killed: 0, maxAlive: 0, aliveAtEnd: 0, dmgTaken: 0, shieldTaken: 0, deaths: 0,
+      minHp: null, minHpShield: null, healed: 0, shieldGained: 0,
       upgrades: (scene.player?._upgrades || []).slice(),
       _aliveInt: 0, _aliveMs: 0,
     };
@@ -589,6 +611,42 @@ export function attachB0Telemetry(scene) {
   on('duel-end', () => tl('duel-end'));
 
   const inCombat = () => live.size > 0;
+
+  // ── RECOVERY (read-only): what gave hp and shield back, and how low it got ──
+  // Within a frame the order is fixed: sprites' preUpdate (regen), then the
+  // scene's update (kill heals, orbs, wave-clear shield), then post-update. A
+  // mark taken at each of those points splits the gains by source; damage the
+  // player took in between is added back so a heal is never hidden by a hit.
+  R.recovery = { hp: { regen: 0, kill: 0, pickup: 0, respawn: 0 }, shield: { wave: 0, hack: 0, kill: 0, other: 0 }, minHp: null, minHpShield: null };
+  const rv = { mark: null, dmg: 0, alive: false };
+  const gain = (k, v) => { if (v > 0.01) { R.recovery.hp[k] += v; if (curWave && k !== 'respawn') curWave.healed += v; } };
+  const takeMark = (p) => { const d = (p.hp - rv.mark) + rv.dmg; rv.mark = p.hp; rv.dmg = 0; return d; };
+  const onUpdateEv = () => {
+    const p = scene.player;
+    if (!p || !p.alive || rv.mark === null || !rv.alive) return;
+    gain('regen', takeMark(p));
+  };
+  scene.events.on('update', onUpdateEv);
+  on('enemy-died', () => {
+    const p = scene.player;
+    if (!p || !p.alive || rv.mark === null || !rv.alive) return;
+    const d = takeMark(p);
+    gain(p.killHeal > 0 ? 'kill' : 'pickup', d);
+  });
+  function recoveryPost(p) {
+    if (!p || !p.alive) { rv.alive = false; rv.mark = null; rv.dmg = 0; return; }
+    if (!rv.alive || rv.mark === null) {
+      if (rv.mark === null && R.recovery.minHp !== null) R.recovery.hp.respawn += p.hp;
+      rv.alive = true; rv.mark = p.hp; rv.dmg = 0;
+    } else gain('pickup', takeMark(p));
+    const hs = p.hp + (p.shieldHp || 0);
+    if (R.recovery.minHp === null || p.hp < R.recovery.minHp) R.recovery.minHp = p.hp;
+    if (R.recovery.minHpShield === null || hs < R.recovery.minHpShield) R.recovery.minHpShield = hs;
+    if (curWave && curWave.endT === null) {
+      if (curWave.minHp === null || p.hp < curWave.minHp) curWave.minHp = p.hp;
+      if (curWave.minHpShield === null || hs < curWave.minHpShield) curWave.minHpShield = hs;
+    }
+  }
 
   // ── PER-FRAME OBSERVATION (read-only) ───────────────────────────────────
   let lastAmmo = null, lastUpgrades = 0;
@@ -617,6 +675,7 @@ export function attachB0Telemetry(scene) {
         const e = r._actor;
         if (!e || !e.active || !e.scene) { closeEnemy(r, 'despawned'); continue; }
         if (e.alive) {
+          if (e._staggerMs > 0) r.staggerMs = (r.staggerMs || 0) + dt;
           r._lastHp = e.hp ?? r._lastHp; r._lastArmour = e.armour ?? r._lastArmour;
           if (r.seenT === null && view && view.contains(e.x, e.y)) r.seenT = T();
         }
@@ -627,6 +686,7 @@ export function attachB0Telemetry(scene) {
         curWave._aliveInt += live.size * dt; curWave._aliveMs += dt;
         if (scene._wavePhase === 'breather' && curWave.endT === null) endWave('breather');
       }
+      recoveryPost(p);
       // gun economy
       if (p && p.alive) {
         const S = P.standard;
@@ -669,6 +729,8 @@ export function attachB0Telemetry(scene) {
     out.clock = { ...R.clock, gameMs: T(), wallMs: W() };
     // B1 (`?b1=`): the variant's settings and its push / slow / hold counters.
     out.b1 = b1api ? JSON.parse(JSON.stringify(b1api.stats)) : null;
+    // B2 (`?b2=`): the flagship weapon's own counters (systems/b2Flagship.js).
+    out.b2 = b2api ? JSON.parse(JSON.stringify(b2api.stats)) : null;
     return out;
   }
   let done = false;
@@ -686,6 +748,7 @@ export function attachB0Telemetry(scene) {
     // decided by the controller once the next scene is up.
     finalize(R.run._defeat ? 'defeat' : 'ended');
     scene.events.off('postupdate', onPost);
+    scene.events.off('update', onUpdateEv);
     scene.events.off('pause', onPause);
     scene.events.off('resume', onResume);
     bound.forEach(([ev, fn]) => scene.events.off(ev, fn));

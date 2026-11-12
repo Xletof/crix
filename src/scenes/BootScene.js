@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import {
   setDialogueMuted, setDuelRequest, parseDuelParams, setHitstopMuted, setMoveNamesMuted,
   setEncDebug, setEncForce, parseEncDebugParams, setChampDebug, setChampWhich, setChampPlacementOff, setVanguardScreenOff, setVanguardFrontOff,
-  setCapTel, setB0, setB1Variant, setShowColliders, applyGameplayFlags, applyVisualFlags,
+  setCapTel, setB0, setB1Variant, setB2, setShowColliders, applyGameplayFlags, applyVisualFlags,
 } from '../systems/debug.js';
 import { ENCOUNTERS } from '../data/encounters.js';
 import { b0Store } from '../systems/b0Report.js';
@@ -88,6 +88,7 @@ export class BootScene extends Phaser.Scene {
     // `?b1=G|M|S` — B1 combat experiments (HUMAN-authorized, opt-in). The
     // shared STANDARD tuning is written once here, before any scene reads it.
     if (params.has('b1')) { setB1Variant(params.get('b1')); applyB1Tuning(); }
+    if (params.has('b2')) setB2(params.get('b2'), params);
 
     this.scene.start('Preload');
   }

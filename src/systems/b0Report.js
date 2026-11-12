@@ -37,6 +37,9 @@ export const B0_DEFINITIONS = {
   input: 'input.standard counts STANDARD shots by how they were triggered: tap-stick (fire-stick release), hold-stick (B1 hold-to-fire on the stick), tap-key (SPACE press), hold-key (B1 SPACE held), other. stickShotsTouch / stickShotsMouse split the stick shots by pointer type. input.super counts Super casts by trigger: stick-or-button (Super button / stick), space (SPACE when the meter is full), key (F / ENTER).',
   charge: 'charge.super / charge.melee: per source (standard, override, cluster, super = Super pellets, melee = Broken Wings, other) the charge events, units requested (streak multiplier x gain x scale), units actually added, and units wasted against a full meter. Super fills at 4 units, Broken Wings at 3. charge.mult counts the streak multiplier at each Super charge event.',
   b1: 'b1 (only with ?b1=): the variant (G / M / S), its STANDARD and Super settings, hold-to-fire counters, Super hits on ordinary enemies, pushes (count, per-push displacement in px, refused by the re-push immunity window or by another effect owning the enemy), per-cast duplicates skipped, slows applied / refreshed and total slowed ms, by enemy type.',
+  recovery: 'recovery.hp = hp restored, split by when in the frame it arrived: regen (the out-of-fire regeneration), kill (a Blood Pact heal), pickup (health orbs and anything else), respawn. recovery.shield = shield gained: wave (the 300 on a wave clear), hack (a sliced terminal), kill (Blood Pact overflow). minHp / minHpShield = the lowest hp, and hp + shield, reached while alive (also per wave).',
+  stagger: 'enemies[].staggerMs = time that enemy spent with its AI suspended by a hit (the 90ms knockback stagger, Broken Wings\' slam stun, a B1 push). Divide by its time alive under fire to see how much a weapon controlled it.',
+  b2: 'b2 (only with ?b2=): the flagship rifle. variant A = R1 Super economy, B = damage economy. shots / presses / taps; holdIntervals = ms between rounds inside one held press, taken at the round\'s true emission time (the round is advanced along its path by the part of the frame it was late); mag = reloads by cause (empty / idle top-up / Super), time reloading and time the trigger was held through a reload; aim = rounds by how they were aimed (manual stick, automatic, blind = nothing in reach), retargets, lethalSkips (a target left alone because rounds in flight will kill it), sweepRounds (fired while the stream was still turning), fieldAvoid (a Bulwark field passed over); impact = hits that carried the 90ms knockback stagger (flinch) vs hits that did not (plain), per enemy type; stops = kill hit-stops taken / skipped by the budget; hot = OVERRIDE pickups converted to hot rounds; charge.super / charge.melee (variant B) = per source the events, durability removed, and meter units requested / added / wasted on a full meter; swallowed = per-hit charge calls the damage economy replaced.',
 };
 
 let C = null;
@@ -135,7 +138,7 @@ export function summarize(run) {
     cluster: { ...P.cluster, hits: P.hits.cluster, dmg: P.dmg.cluster, kills: P.kills.cluster },
   };
   const waves = run.waves.map((w) => ({ i: w.i, sector: w.sector, room: w.room, enc: w.encounterName || w.encounter, wave: `${w.waveIdx}/${w.waveTotal}`,
-    durMs: w.durMs, spawned: w.spawned, killed: w.killed, maxAlive: w.maxAlive, meanAlive: w.meanAlive, dmgTaken: w.dmgTaken, shieldTaken: w.shieldTaken, deaths: w.deaths, endWhy: w.endWhy }));
+    durMs: w.durMs, spawned: w.spawned, killed: w.killed, maxAlive: w.maxAlive, meanAlive: w.meanAlive, dmgTaken: w.dmgTaken, shieldTaken: w.shieldTaken, deaths: w.deaths, endWhy: w.endWhy, minHp: w.minHp ?? null, healed: w.healed ?? null }));
   const fm = run.perf.frameMs;
   const perf = {
     frames: run.perf.frames, frameMed: histPct(fm, 0.5), frameP95: histPct(fm, 0.95), frameP99: histPct(fm, 0.99), frameMax: fm.max,
@@ -151,7 +154,22 @@ export function summarize(run) {
   const b1s = b1 ? { variant: b1.variant, superCfg: b1.super, hold: b1.hold, pushes: b1.pushes, pushMed: med(pd), pushP10: pd.length ? [...pd].sort((a, b) => a - b)[Math.floor(pd.length * 0.1)] : null,
     pushP90: pd.length ? [...pd].sort((a, b) => a - b)[Math.floor(pd.length * 0.9)] : null, immune: b1.pushImmune, busy: b1.pushSkippedBusy, dedup: b1.dedupSkipped,
     slowApplied: b1.slowApplied, slowRefreshed: b1.slowRefreshed, slowedMs: b1.slowedMs, superHits: b1.superHits, superKills: b1.superHitsKilled } : null;
-  return { ttk, std, sources, totalDmg, abilities, incoming: I, waves, perf, input: run.input || null, chargeSuper: ch('super'), chargeMelee: ch('melee'), mult: run.charge?.mult || {}, b1: b1s };
+  const b2 = run.b2 || null;
+  let b2s = null;
+  if (b2) {
+    const h = b2.holdIntervals || { bins: [], n: 0, over: 0 };
+    const nom = b2.knobs?.cadence ?? 100;
+    let near = 0; for (let i = Math.max(0, nom - 10); i <= Math.min(400, nom + 10); i++) near += h.bins[i] || 0;
+    const rows = (m) => Object.entries(b2.charge?.[m] || {}).filter(([, c]) => c.events).map(([src, c]) => ({ src, ...c }));
+    const tot = (m) => rows(m).reduce((a, c) => a + c.added, 0);
+    const st = run.enemies.filter((e) => e.staggerMs > 0 && e.deathT != null && e.firstDmgT != null && e.deathT > e.firstDmgT);
+    const underFire = st.reduce((a, e) => a + (e.deathT - e.firstDmgT), 0), stag = st.reduce((a, e) => a + e.staggerMs, 0);
+    b2s = { variant: b2.variant, knobs: b2.knobs, range: b2.range, shots: b2.shots, presses: b2.presses, taps: b2.taps, touch: b2.pressTouch, mouse: b2.pressMouse, key: b2.pressKey,
+      holdN: h.n, holdNear: h.n ? near / h.n : null, holdMs: b2.holdMs, mag: b2.mag, aim: b2.aim, impact: b2.impact, stops: b2.stops, hot: b2.hot,
+      superRows: rows('super'), meleeRows: rows('melee'), superAdded: tot('super'), meleeAdded: tot('melee'), swallowed: b2.swallowed,
+      staggerShare: underFire > 0 ? stag / underFire : null, feel: b2.feel };
+  }
+  return { ttk, std, sources, totalDmg, abilities, incoming: I, waves, perf, input: run.input || null, chargeSuper: ch('super'), chargeMelee: ch('melee'), mult: run.charge?.mult || {}, b1: b1s, b2: b2s, recovery: run.recovery || null };
 }
 
 function renderHTML(run) {
@@ -200,10 +218,11 @@ function renderHTML(run) {
   <h2>Incoming damage</h2>
   <p class="b0-meta">deaths ${inc.deaths} · requested ${n0(inc.requested)} · shield ${n0(inc.shieldAbsorbed)} · hp ${n0(inc.hpRemoved)} · negated ${inc.negated}/${inc.calls}</p>
   ${table(['source', 'calls', 'negated', 'shield', 'hp'], incRows)}
+  ${m.recovery ? `<p class="b0-meta">Recovery — hp: regen ${n0(m.recovery.hp.regen)} · Blood Pact ${n0(m.recovery.hp.kill)} · pickups ${n0(m.recovery.hp.pickup)} · respawn ${n0(m.recovery.hp.respawn)}; shield: wave clear ${n0(m.recovery.shield.wave)} · terminal ${n0(m.recovery.shield.hack)} · Blood Pact ${n0(m.recovery.shield.kill)} · other ${n0(m.recovery.shield.other)}<br>lowest hp ${n0(m.recovery.minHp)} · lowest hp + shield ${n0(m.recovery.minHpShield)}</p>` : ''}
 
   <h2>Waves</h2>
-  ${table(['#', 'sector', 'room', 'encounter', 'wave', 'duration', 'spawned', 'killed', 'max alive', 'mean alive', 'hp taken', 'deaths', 'end'],
-    m.waves.map((w) => [w.i, w.sector, w.room, w.enc, w.wave, s1(w.durMs), w.spawned, w.killed, w.maxAlive, w.meanAlive, n0(w.dmgTaken), w.deaths, w.endWhy]))}
+  ${table(['#', 'sector', 'room', 'encounter', 'wave', 'duration', 'spawned', 'killed', 'max alive', 'mean alive', 'hp taken', 'lowest hp', 'healed', 'deaths', 'end'],
+    m.waves.map((w) => [w.i, w.sector, w.room, w.enc, w.wave, s1(w.durMs), w.spawned, w.killed, w.maxAlive, w.meanAlive, n0(w.dmgTaken), n0(w.minHp), n0(w.healed), w.deaths, w.endWhy]))}
 
   <h2>Input, charge${m.b1 ? ' and B1' : ''}</h2>
   <p class="b0-meta">${m.b1 ? `B1 variant <b>${esc(m.b1.variant)}</b>${m.b1.superCfg ? ` — Super ${m.b1.superCfg.pelletDamage}/pellet, push ~${m.b1.superCfg.pushPx}px, slow ${Math.round(m.b1.superCfg.slow * 100)}% for ${m.b1.superCfg.slowMs / 1000}s (ordinary enemies)` : ' — Super R1'} · ` : ''}STANDARD shots by input: ${m.input ? Object.entries(m.input.standard).filter(([, v]) => v).map(([k, v]) => `${esc(k)} ${v}`).join(' · ') || '—' : '—'}${m.input ? ` (stick: touch ${m.input.stickShotsTouch} / mouse ${m.input.stickShotsMouse})` : ''} · Super by input: ${m.input ? Object.entries(m.input.super).filter(([, v]) => v).map(([k, v]) => `${esc(k)} ${v}`).join(' · ') || '—' : '—'}</p>
@@ -212,6 +231,20 @@ function renderHTML(run) {
       ...m.chargeMelee.map((c) => ['Broken Wings', c.src, c.events, c.requested.toFixed(1), c.added.toFixed(1), c.wasted.toFixed(1)])])}
   <p class="b0-meta">streak multiplier at Super charge events: ${Object.entries(m.mult).map(([k, v]) => `×${esc(k)} ${v}`).join(' · ') || '—'}</p>
   ${m.b1 ? `<p class="b0-meta">B1 hold-to-fire: ${m.b1.hold.stickHoldShots} stick-hold shots, ${m.b1.hold.keyHoldShots} SPACE-hold shots, ${m.b1.hold.releaseShotsSuppressed} release shots suppressed after a hold, held-while-empty ${s1(m.b1.hold.heldEmptyMs)}${m.b1.superCfg ? `<br>B1 Super on ordinary enemies: ${m.b1.superHits} pellet hits (${m.b1.superKills} lethal) · pushes ${m.b1.pushes} (median ${m.b1.pushMed ?? '—'}px, p10 ${m.b1.pushP10 ?? '—'}, p90 ${m.b1.pushP90 ?? '—'}) · refused: immunity ${m.b1.immune}, other effect ${m.b1.busy} · same-cast duplicates ${m.b1.dedup} · slows ${m.b1.slowApplied} applied, ${m.b1.slowRefreshed} refreshed, ${s1(m.b1.slowedMs)} slowed in total` : ''}</p>` : ''}
+
+  ${m.b2 ? `<h2>B2 flagship rifle (variant ${esc(m.b2.variant)}${m.b2.range ? ', firing range' : ''})</h2>
+  <p class="b0-meta">${esc(m.b2.variant === 'B' ? 'DAMAGE economy: both meters fill from durability the weapons removed; the Super charges nothing.' : 'R1 economy: per hit, Super pellets self-charge.')}
+  ${esc(`${m.b2.knobs.dmg} dmg · ${m.b2.knobs.cadence}ms · ${m.b2.knobs.mag} rounds · reload ${m.b2.knobs.reload}ms · flinch every ${m.b2.knobs.flinch}ms · Super meter ${m.b2.knobs.meter} · Broken Wings meter ${m.b2.knobs.melee}`)}</p>
+  ${table(['shots', 'presses (touch / mouse / key)', 'taps', 'trigger held', 'in-hold intervals on cadence', 'reloads empty / top-up / Super', 'reloading', 'held through reload'],
+    [[m.b2.shots, `${m.b2.presses} (${m.b2.touch} / ${m.b2.mouse} / ${m.b2.key})`, m.b2.taps, s1(m.b2.holdMs), m.b2.holdNear == null ? '—' : `${pct(m.b2.holdNear, 1)} of ${m.b2.holdN}`,
+      `${m.b2.mag.reloads.empty} / ${m.b2.mag.reloads.idle} / ${m.b2.mag.reloads.super}`, s1(m.b2.mag.reloadMs), s1(m.b2.mag.heldReloadMs)]])}
+  ${table(['aimed: auto', 'manual', 'blind', 'retargets', 'lethal skips', 'sweep rounds', 'field passed over', 'hits with stagger', 'hits without', 'AI-suspended share under fire', 'kill hit-stops taken / skipped', 'hot rounds'],
+    [[m.b2.aim.auto, m.b2.aim.manual, m.b2.aim.blind, m.b2.aim.retargets, m.b2.aim.lethalSkips, m.b2.aim.sweepRounds, m.b2.aim.fieldAvoid, m.b2.impact.flinch, m.b2.impact.plain,
+      m.b2.staggerShare == null ? '—' : pct(m.b2.staggerShare, 1), `${m.b2.stops.taken} / ${m.b2.stops.skipped}`, m.b2.hot.rounds]])}
+  ${m.b2.variant === 'B' ? table(['meter', 'source', 'events', 'durability', 'units requested', 'units added', 'wasted (meter full)', 'share of added'],
+    [...m.b2.superRows.map((c) => ['Super', c.src, c.events, n0(c.dmg), c.requested.toFixed(1), c.added.toFixed(1), c.wasted.toFixed(1), pct(c.added, m.b2.superAdded)]),
+      ...m.b2.meleeRows.map((c) => ['Broken Wings', c.src, c.events, n0(c.dmg), c.requested.toFixed(1), c.added.toFixed(1), c.wasted.toFixed(1), pct(c.added, m.b2.meleeAdded)])]) : ''}
+  <p class="b0-meta">Under B2 the STANDARD table's empty / full / mean ammo and dry presses describe the unused three-round pistol and do not apply: the magazine figures are in this section.${m.b2.feel ? ` Presentation: ${m.b2.feel.rounds} streaks, ${m.b2.feel.contacts} contacts, peak ${m.b2.feel.peakObjects} pooled objects, ${(m.b2.feel.updMs / Math.max(1, m.b2.feel.updN) * 1000).toFixed(0)}µs/frame (max ${m.b2.feel.updMax.toFixed(2)}ms).` : ''}</p>` : ''}
 
   <h2>Performance</h2>
   <p class="b0-meta">${m.perf.frames} frames · frame med ${m.perf.frameMed ?? '—'}ms (≈${m.perf.fpsMed ? m.perf.fpsMed.toFixed(0) : '—'} fps) · p95 ${m.perf.frameP95 ?? '—'} · p99 ${m.perf.frameP99 ?? '—'} · max ${Math.round(m.perf.frameMax)}ms · frames &gt;100ms ${m.perf.longFrames}<br>

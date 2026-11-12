@@ -33,7 +33,7 @@ import {
 import { pickLine, nemesisContext, vaderContext } from '../data/nemesisDialogue.js';
 import {
   isDialogueMuted, getDuelRequest, setDuelRequest, areMoveNamesMuted,
-  isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isB0, getB1Variant, isChampPlacementOff, isVanguardScreenOff, isVanguardFrontOff,
+  isEncDebug, getEncForce, isChampDebug, getChampWhich, isCapTel, isB0, getB1Variant, getB2Variant, isChampPlacementOff, isVanguardScreenOff, isVanguardFrontOff,
   isShowColliders, isMoveV2, isMoveV21, isMoveV22, isGaitV2, getBulwarkStuck, getMarksmanStuck, isMarksmanAngle, isBulwarkAngle,
   isVisualPilotV2, getVisualPilot,
 } from '../systems/debug.js';
@@ -46,6 +46,7 @@ import { attachHazards } from '../systems/Hazard.js';
 import { attachCaptainTelemetry } from '../systems/CaptainTelemetry.js';
 import { attachB0Telemetry } from '../systems/b0Telemetry.js';
 import { installB1 } from '../systems/b1Combat.js';
+import { installB2 } from '../systems/b2Flagship.js';
 import { Champion } from '../entities/Champion.js';
 import { Harrower } from '../entities/Harrower.js';
 import { ShockCaptain } from '../entities/ShockCaptain.js';
@@ -545,6 +546,7 @@ export class GameScene extends Phaser.Scene {
     // ── B1 COMBAT EXPERIMENTS — `?b1=G|M|S` (systems/b1Combat.js) ──────────
     // HUMAN-authorized opt-in variants. NOT CONSTRUCTED WITHOUT THE FLAG.
     if (getB1Variant()) installB1(this);
+    if (getB2Variant()) installB2(this);
     if (isB0()) attachB0Telemetry(this);
   }
 
@@ -4640,6 +4642,7 @@ export class GameScene extends Phaser.Scene {
           // B1-M / B1-S (`?b1=`): the experimental Super on an ORDINARY enemy
           // (systems/b1Combat.js). Absent the flag `_b1` does not exist.
           if (isSuper && this._b1?.superApplies(e)) this._b1.superHit(e, b, kbVec);
+          else if (!isSuper && this._b2?.owns(b)) this._b2.hit(e, b, kbVec);
           else e.damage(b.damage, kbVec);
           this._dmgSrc = null;
           this._superHitCtx = false;
