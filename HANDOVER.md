@@ -309,6 +309,21 @@ command, fix the line.*
     smoke-b0 46/46; captel 20/22 inherited, fails identically on 2ee948c;
     run-all NOT re-run); evidence and links:
     `docs/evidence/b2-closure/README.md`. Awaiting the HUMAN handset verdict.
+  - **B2 TEMPER (2026-11-16), opt-in `&b2t=1` over `?b2=A|B`, NOT approved,
+    NOT a default.** The HUMAN clarified the closure feedback: the idea of the
+    gun changing as the Super charges is LIKED; its execution (the heat ramp,
+    the spikes, the Super's look) was not. TEMPER is a pixels-only visual
+    language (`src/systems/b2Temper.js`, a skin `b2Feel.js` draws through):
+    stored energy is cool and lives on the gun, spent energy is warm. Ten
+    lamps climb the approved P1 rifle sprite (cyan, sky, periwinkle; FULL =
+    the P1-B ready colours; 0 = the approved sprite untouched); bolts keep one
+    size and grow a cool tip (no hue ramp: purple is enemy-owned); muzzle and
+    contact are frame-keyed pixel animations; the Super is a crown, a hard
+    ring, five ice lances on the shipped pellet canvas and a 72ms dim, then a
+    barrel that cools. No additive blending. The shipped Super effects still
+    RUN and are hidden (so `Math.random` is drawn as in B2-B). Independent of
+    `&b2c=1`. Assessment, films, links, limits and three recommendations:
+    `docs/evidence/b2-temper/README.md`. Awaiting the HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -332,8 +347,9 @@ command, fix the line.*
   flagship rifle and the damage economy, opt-in) was played: B2-B is the
   preferred balance (`docs/evidence/b2-flagship/README.md`); the B2 closure
   (tracer fix, `&b2c=1` F-release targeting candidate) awaits the HUMAN
-  handset verdict (`docs/evidence/b2-closure/README.md`). The next major
-  combat milestone is assigned to Fable. The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
+  handset verdict (`docs/evidence/b2-closure/README.md`); B2 TEMPER
+  (`&b2t=1`, the gun-as-meter visual language, pixels only) awaits the HUMAN
+  handset verdict (`docs/evidence/b2-temper/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
 

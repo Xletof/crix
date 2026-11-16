@@ -2404,6 +2404,36 @@ Evidence in `docs/evidence/b1-combat-experiments/`.
 - **`enemyJsGuard` returns `{ outside, bomberOnlyVeto, vetoCode }`**, not
   `.ok`.
 
+## The B2 TEMPER rig (`&b2t=1`)
+
+- `smoke-b2t.mjs [--only=0,3] [--diag=1]` (standalone, :5173): flags; PIXELS
+  ONLY (`?b2=B&b2t=1` = `?b2=B` tick for tick on the same build over a held
+  stream, four Supers and a Broken Wings chain, three fights, and with
+  `&b2c=1` on both sides); the tracer invariant under the skin; the gun
+  (lamps and stage per charge, the approved silhouette in every frame, the
+  overlay on the weapon every rendered frame, off mid-combo and dead); the
+  bolt (one size, NORMAL blend, the tip rule, with a B2-B control that shows
+  additive sprites); frames at 60 and 30 fps (frame 0 never skipped); the
+  Super (pellets and hitbox identical, shipped effects hidden with a B2-B
+  control, crown / ring / heat frames); restarts; cost; the scope guard.
+  `--diag=1` runs the `&b2c=1` fight twice with and twice without TEMPER and
+  prints the first tick any pair differs.
+
+### What it taught
+
+- **To hide a shipped effect without changing the fight, let it run.** The
+  effect draws `Math.random`; AI draws from the same stream. Run the shipped
+  call, then hide what it added (display objects invisible, new particles
+  moved off the world). Removing the call, or killing its particles, is a
+  different fight.
+- **Burn the room alarm before measuring a camera flash.** The first loud
+  event in a room flashes the camera red on its own.
+- **`window.__t` is the harness clock** in the smoke-b2c boot. Do not name a
+  helper `__t`.
+- **Give each parity run its own browser context.** The `&b2c=1` pair
+  diverged at one tick twice when it ran after six other pages, and never in
+  isolation (`--diag=1`) or with a context per run. Cause not found.
+
 ## The B2 closure rigs (`&b2c=1`, `&b2dbg=1`)
 
 - `smoke-b2c.mjs [--old=URL] [--only=0,3]` (standalone, :5173; a `2ee948c`

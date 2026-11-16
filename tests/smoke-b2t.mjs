@@ -115,13 +115,28 @@ async function boot(flags, { base = NOW, q = Q_STAGE, seed = 4242, god = true, c
         for (const g2 of [...gs.hostileBullets, gs.playerBullets, gs.playerRifleBullets, gs.playerSuperBullets]) for (const bb of g2?.getChildren?.() || []) if (bb.active) s2 += `b${f(bb.x)},${f(bb.y)},${bb.damage};`;
         // display-list bookkeeping (a pooled image created) is presentation, not the fight
         s2 += `|d${window.__draws}|e${window.__evN - (window.__ev.addedtoscene || 0) - (window.__ev.removedfromscene || 0)}`;
-        hashes.push(fnv(s2));
+        hashes.push(fnv(s2)); if (window.__raw) window.__raw.push(s2);
       }
       K.A.isDown = K.D.isDown = K.W.isDown = K.S.isDown = false; gs.cursors.space.isDown = false;
       return { hashes, draws: window.__draws, kills: gs.runKills, shots: gs._b2?.stats.shots ?? 0, supers: window.__ev['player-fire-super'] || 0 };
     };
   }, { seed, god });
   return page;
+}
+
+// `--diag=1`: is the &b2c=1 fight itself repeatable? Runs it twice without and twice with
+// TEMPER (browser.newPage, as the other suites do) and prints the first tick any pair differs.
+if (opt('diag', '')) {
+  const run = async (flags) => { const p = await boot(flags, { q: Q_MIXED }); const r = await p.evaluate((x) => { window.__raw = []; window.__trace(x); return window.__raw; }, { seed: 9071, ticks: 1500, seg: FIGHT_SEG, hold: HOLD, superTaps: [300, 700, 1100], melee: [500, 525, 550] }); await p.close(); return r; };
+  const runs = [['c1', join(B, 'b2c=1')], ['c2', join(B, 'b2c=1')], ['t1', join(T, 'b2c=1')], ['t2', join(T, 'b2c=1')]];
+  const out = {};
+  for (const [k, f] of runs) out[k] = await run(f);
+  for (const [x, y] of [['c1', 'c2'], ['t1', 't2'], ['c1', 't1'], ['c2', 't2']]) {
+    const a = out[x], b = out[y], d = a.findIndex((v, i) => v !== b[i]);
+    console.log(`${x} vs ${y}: first divergent tick ${d}`);
+    if (d >= 0) { const A = a[d].split(/[|;]/), Bb = b[d].split(/[|;]/); let n = 0; for (let i = 0; i < Math.max(A.length, Bb.length) && n < 4; i++) if (A[i] !== Bb[i]) { n++; console.log(`  [${i}] ${x}: ${A[i]}\n       ${y}: ${Bb[i]}`); } }
+  }
+  await browser.close(); process.exit(0);
 }
 
 // ── 0. FLAGS ──────────────────────────────────────────────────────────────
@@ -138,7 +153,9 @@ if (on(0)) {
 // ── 1. PIXELS ONLY ───────────────────────────────────────────────────────
 if (on(1)) {
   console.log('\n== 1. pixels only: the same fight');
-  const run = async (flags, q, o = {}) => { const p = await boot(flags, { q, god: o.god ?? true }); const r = await p.evaluate((x) => window.__trace(x), { seed: 9071, ticks: 1500, seg: FIGHT_SEG, hold: HOLD, superTaps: o.supers ?? [], melee: o.melee ?? [] }); const t = await p.evaluate(() => window.__gs._b2.stats.feel.temper || null); await p.close(); return { ...r, t }; };
+  // each run in its own browser context: the game persists progress in localStorage, and a
+  // run that follows another page's saved state is not the same run
+  const run = async (flags, q, o = {}) => { const ctx = await browser.newContext({ viewport: { width: 720, height: 1280 } }); const p = await boot(flags, { q, god: o.god ?? true, ctx }); const r = await p.evaluate((x) => window.__trace(x), { seed: 9071, ticks: 1500, seg: FIGHT_SEG, hold: HOLD, superTaps: o.supers ?? [], melee: o.melee ?? [] }); const t = await p.evaluate(() => window.__gs._b2.stats.feel.temper || null); const ls = await p.evaluate(() => Object.keys(localStorage)); await ctx.close(); return { ...r, t, ls }; };
   for (const [label, q, god] of [['MIXED s6', Q_MIXED, true], ['SWARM TIDE', Q_SWARM, true], ['MIXED s6, god mode off', Q_MIXED, false]]) {
     const o = { god, supers: [300, 700, 1100, 1400], melee: [500, 525, 550] };
     const a = await run(B, q, o), b = await run(T, q, o);
@@ -148,7 +165,7 @@ if (on(1)) {
   }
   const a = await run(join(B, 'b2c=1'), Q_MIXED, { supers: [300, 700, 1100], melee: [500, 525, 550] }), b = await run(join(T, 'b2c=1'), Q_MIXED, { supers: [300, 700, 1100], melee: [500, 525, 550] });
   const d = firstDiff(a.hashes, b.hashes);
-  check('with the closure candidate on both sides (&b2c=1, F-release Supers): TEMPER = no TEMPER tick for tick', d < 0 && b.supers === 3, d < 0 ? `${b.shots} rounds, ${b.supers} Supers` : `first divergent tick ${d}`);
+  check('with the closure candidate on both sides (&b2c=1, F-release Supers): TEMPER = no TEMPER tick for tick', d < 0 && b.supers === 3, d < 0 ? `${b.shots} rounds, ${b.supers} Supers; localStorage keys written by a run: ${b.ls.join(', ') || 'none'}` : `first divergent tick ${d}`);
 }
 
 // helpers shared by the sections below (in page)
