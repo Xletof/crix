@@ -136,7 +136,7 @@ export function installB2Feel(scene, api, K, voice) {
   // and a finished streak ends where its collider actually stopped (or, for a body hit, at
   // that body). `bad` counts frames x streaks that break it; `samples` keeps the first few.
   const inv = { checks: 0, bad: 0, samples: [], maxOff: 0, maxEndErr: 0 };
-  const stats = { inv, rounds: 0, contacts: 0, flashesFull: 0, flashesSoft: 0, numbersIn: 0, numbersOut: 0, peakRounds: 0, peakObjects: 0, updN: 0, updMs: 0, updMax: 0, dropped: { ring: 0, burst: 0, beep: 0 } };
+  const stats = { inv, staleContacts: 0, rounds: 0, contacts: 0, flashesFull: 0, flashesSoft: 0, numbersIn: 0, numbersOut: 0, peakRounds: 0, peakObjects: 0, updN: 0, updMs: 0, updMax: 0, dropped: { ring: 0, burst: 0, beep: 0 } };
 
   // ── pools ───────────────────────────────────────────────────────────────
   const pool = [];
@@ -171,10 +171,19 @@ export function installB2Feel(scene, api, K, voice) {
   const flashes = [];    // muzzle flashes
   const sparks = [];     // contacts
   let lastShotClock = -1e9, lastDir = 0, shotN = 0, clockNow = 0, primedAt = -1e9, superAt = -1e9, hotFlashAt = -1e9;
-  const contactOf = new WeakMap();   // bullet -> { x, y } of the contact B2 drew this frame
+  // bullet -> { x, y, r, gen } of the body contact B2 drew for it. THE BULLET IS POOLED: the same
+  // object carries round after round, so a contact belongs to ONE generation (`b._gen` at the
+  // hit), is cleared when a new round is fired from that bullet, and is consumed when its own
+  // round ends. Keyed by the bullet alone (the shipped B2-1 code) a recycled bullet that then
+  // missed ended its streak at its PREVIOUS life's enemy contact — a full-bright streak drawn
+  // at an old kill site, along the new round's heading: the detached tracers in the HUMAN's
+  // firing-range recording.
+  const contactOf = new WeakMap();
 
   function onRound(rec, p) {
     stats.rounds++;
+    // a contact left on this pooled bullet by its previous round: not this round's
+    if (contactOf.delete(rec.b)) stats.staleContacts++;
     if (face == null) face = tipLen();
     const ang = rec.ang;
     const ox = p.x + Math.cos(ang) * face, oy = p.y + Math.sin(ang) * face;
@@ -198,8 +207,10 @@ export function installB2Feel(scene, api, K, voice) {
     const v = recs.find((q) => q.r === rec);
     if (!v || v.dead) return;
     v.dead = true;
-    const c = contactOf.get(rec.b);
     const b = rec.b;
+    let c = contactOf.get(b);
+    if (c && c.gen !== rec.gen) { stats.staleContacts++; c = null; }
+    contactOf.delete(b);
     // a contact B2 drew, else where the collider stopped (range, wall, field)
     v.endX = c ? c.x : b.x; v.endY = c ? c.y : b.y;
     v.deathX = b.x; v.deathY = b.y; v.hitR = c ? (c.r ?? 0) : 0;
@@ -270,8 +281,15 @@ export function installB2Feel(scene, api, K, voice) {
     cur = e; C.dmg = true;
     const ang = Math.atan2(b.body.velocity.y, b.body.velocity.x);
     const R = (e.cfg?.radius ?? 22) * 0.82;
-    const c = circleEntry(b.x - Math.cos(ang) * 40, b.y - Math.sin(ang) * 40, ang, e.x, e.y, R);
-    c.r = (e.cfg?.radius ?? 22) + 14;
+    const cx = Math.cos(ang), cy = Math.sin(ang);
+    const ent = circleEntry(b.x - cx * 40, b.y - cy * 40, ang, e.x, e.y, R);
+    // On the round's own path: a grazing hit (the line misses the inner circle) would return
+    // the rim point beside the path; project it back onto the line the streak travels.
+    const along = (ent.x - b.x) * cx + (ent.y - b.y) * cy;
+    const c = { x: b.x + cx * along, y: b.y + cy * along, gen: b._gen,
+      // how far a body contact can sit from where the collider is when the hit resolves:
+      // the entry radius + the body + the bolt's hitbox + one frame of travel
+      r: R + (e.cfg?.radius ?? 22) + (b.body?.radius ?? 30) + 20 };
     contactOf.set(b, c);
     spark(c.x, c.y, ang, Math.min(1, api.charge01() + (flinch ? 0.15 : 0)), flinch, Math.max(e.depth ?? e.y, c.y) + 4);
   }

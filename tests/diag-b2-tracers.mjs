@@ -52,4 +52,11 @@ for (let k = 0; k < 90 && shots < 4; k++) {
   if (bad1 > bad0) { await page.screenshot({ path: `${out}/stale-${shots}.png` }); shots++; }
 }
 console.log('frames saved with a violation on screen:', shots);
+// the same moment rendered whatever happens (the AFTER evidence): blank-space bursts after kills
+for (let k = 0; k < 3; k++) {
+  await page.evaluate((k) => { window.__stick(Math.PI + 0.5 + k * 0.9); window.__adv(14, true); }, k);
+  await page.screenshot({ path: `${out}/after-kills-${k}.png` });
+}
+const st = await page.evaluate(() => ({ stale: window.__gs._b2.stats.feel.staleContacts, ...window.__inv() }));
+console.log('stale contacts refused by the generation check:', st.stale ?? 'n/a', '| invariant now:', JSON.stringify({ checks: st.checks, bad: st.bad }));
 await browser.close();

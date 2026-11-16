@@ -1,0 +1,8 @@
+1 stationary, 8 directions, empty space      checks  1428  BAD    0  max off 0px  max end err 0px
+2 rotating 360 deg/s while firing            checks   913  BAD    0  max off 0px  max end err 0px
+3 kill a squad, then blank-space bursts      checks  1510  BAD    0  max off 0px  max end err 0px
+4 into cover and the arena edge              checks   133  BAD    0  max off 0px  max end err 0px
+5 dense combat (HORDE x2), auto aim          checks   517  BAD    0  max off 0px  max end err 0px
+6 kills, then walk + fire into empty space   checks  1494  BAD    0  max off 0px  max end err 0px
+frames saved with a violation on screen: 0
+stale contacts refused by the generation check: 0 | invariant now: {"checks":878,"bad":0}
