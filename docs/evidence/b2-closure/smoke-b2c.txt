@@ -1,0 +1,63 @@
+
+== 0. flags
+PASS  "b2c=1": candidate off  — {"cand":false,"b2":false,"sup":false,"press":null}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B": candidate off; F press casts 1, after the release 1  — {"cand":false,"b2":true,"sup":false,"press":[1,1]}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2c=1": candidate ON; F press casts 0, after the release 1  — {"cand":true,"b2":true,"sup":true,"press":[0,1]}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=A&b2c=1": candidate ON; F press casts 0, after the release 1  — {"cand":true,"b2":true,"sup":true,"press":[0,1]}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2c=0": candidate off; F press casts 1, after the release 1  — {"cand":false,"b2":true,"sup":false,"press":[1,1]}
+
+== 1. B2-B unchanged
+PASS  MIXED s6: ?b2=B held-stream fight, 1500 ticks — HEAD = 2ee948c tick for tick (state, ammo, meters, every enemy and bolt, draws, events)  — 189 rounds, 37 kills, 14775 draws
+PASS  B2_DEFAULTS (every weapon, economy and impact value) identical to 2ee948c  — {"dmg":65,"cadence":100,"mag":40,"reload":900,"idleReload":1100,"speed":1000,"range":450,"sweep":900,"snap":20,"lead":1,"lethal":1,"flinch":600,"stop":250,"meter":1000,"melee":1600,"meleeToSuper":0.5,"nemesis":0.34,"hot":1.4,"hotRounds":80}
+PASS  SWARM TIDE: ?b2=B held-stream fight, 1500 ticks — HEAD = 2ee948c tick for tick (state, ammo, meters, every enemy and bolt, draws, events)  — 189 rounds, 44 kills, 14965 draws
+PASS  MIXED s6, god mode off: ?b2=B held-stream fight, 1500 ticks — HEAD = 2ee948c tick for tick (state, ammo, meters, every enemy and bolt, draws, events)  — 189 rounds, 36 kills, 16043 draws
+PASS  the candidate flag with no Super input = B2-B tick for tick (the stream, meters, enemies, draws, events)  — 189 rounds, 37 kills
+
+== 2. the tracer invariant
+PASS  B2-B: 186 rounds — after kills, rotating, into cover and the edge, in a double HORDE: every visible streak on its own path and ending where its round stopped (0 violations in 3218 checks)  — {"checks":3218,"bad":0,"maxOff":1.6910917111090384e-12,"maxEndErr":0,"sample":null,"rounds":186}
+PASS  candidate: 186 rounds — after kills, rotating, into cover and the edge, in a double HORDE: every visible streak on its own path and ending where its round stopped (0 violations in 3108 checks)  — {"checks":3108,"bad":0,"maxOff":1.6910917111090384e-12,"maxEndErr":0,"sample":null,"rounds":186}
+
+== 3. F tap = the shipped cast
+PASS  F press: no cast; targeting armed  — {"onPress":0,"phase":"targeting"}
+PASS  F release inside 160ms: exactly one cast, the shipped 5-pellet 30-degree fan centred on the nearest enemy, 600 per pellet, no directed pellet  — {"casts":1,"pellets":[-0.2618,-0.1309,0,0.1309,0.2618],"dmg":[600,600,600,600,600]}
+PASS  a 2s hold never casts until the release; the release casts exactly once  — {"casts":1,"phase":"targeting"}
+
+== 4. F hold: pivot, lock, release
+PASS  keydown locks the nearest eligible enemy at once  — {"n":1}
+PASS  pivoting across seven targets: locks accumulate one at a time, earlier ones stay, capped at five (one per pellet), never the same target twice  — {"trail":[1,2,3,4,5],"locks":5}
+PASS  release: exactly one cast of five pellets at 600 each; every extra lock got its own pellet straight at it  — {"casts":1,"directed":5,"pellets":[0.015,-0.335,-0.777,-1.221,-1.665],"locks":[0.015,-0.335,-0.777,-1.221,-1.665]}
+
+== 5. edge cases
+PASS  key repeat: ignored while held; the release casts once  — [{"casts":0,"phase":"targeting","charge":4,"ignored":5},{"casts":1,"phase":"idle","charge":0}]
+PASS  blur mid-hold: cancelled, the later keyup casts nothing, nothing stays armed  — {"casts":0,"phase":"idle","charge":4}
+PASS  pause mid-hold: cancelled, the later keyup casts nothing, nothing stays armed  — {"casts":0,"phase":"idle","charge":4}
+PASS  suppressed mid-hold: cancelled, the later keyup casts nothing, nothing stays armed  — {"casts":0,"phase":"idle","charge":4}
+PASS  meter mid-hold: cancelled, the later keyup casts nothing, nothing stays armed  — {"casts":0,"phase":"idle","charge":0}
+PASS  dead mid-hold: cancelled, the later keyup casts nothing, nothing stays armed  — {"casts":0,"phase":"idle","charge":4}
+PASS  cancel reasons are recorded (focus, pause, suppressed, meter, dead)  — {"focus":1,"pause":1,"suppressed":1,"meter":1,"dead":1}
+PASS  a locked target that dies is dropped; the release still casts exactly once  — [{"locks":0,"dropped":true},{"casts":1,"phase":"idle","charge":0}]
+PASS  nothing in reach: a tap casts once, five pellets  — {"casts":1,"phase":"idle","charge":0,"pellets":5,"facing":-1.5707963267948966}
+PASS  not charged: press and release do nothing  — [{"casts":0,"phase":"idle","charge":2},{"casts":0,"phase":"idle","charge":2}]
+
+== 6. pointer and touch
+PASS  a held F follows the mouse once it moves: the heading turns from the nearest (right) to the pointer (up) and the second enemy is locked; the real keyup casts once  — {"h0":{"h":0,"n":1},"h1":{"h":-1.5707963270186476,"n":2,"on":true},"casts":1}
+PASS  a REAL touch tap on the Super button: one cast, at the nearest enemy (right)  — {"casts":1,"a":0,"phase":"idle"}
+PASS  a REAL touch hold-drag on the Super button: targeting while held (heading follows the drag left, the left enemy locked, no red cone, no cast), one cast on the release along the drag  — {"mid":{"casts":1,"phase":"targeting","h":3.141592653589793,"locks":2,"aiming":false},"t2":{"casts":2,"a":3.141592653589793}}
+
+== 7. power: tap vs hold on one staged crowd
+   tap : locks 1, damage 832, kills 2/6
+   hold: locks 5, damage 1870, kills 5/6, locked targets hit by their pellet 5
+PASS  measured and reported: per-pellet damage is unchanged (5 x 600 available in both); a hold redistributes the same five pellets over its locks  — tap 832 dmg / 2 kills, hold 1870 dmg / 5 kills
+
+== 8. candidate visuals
+PASS  candidate: the bolt keeps ONE colour at every charge (B2-B ramps through several)  — candidate ff6950; B2-B 19 tints
+PASS  candidate: the charge thread is drawn in rounds fired with charge (and never in B2-B)  — thread frames 871 / 0
+PASS  candidate: three quarter-step rings while the meter fills to 3.9 (no primed rim; full belongs to the P1-B ring)  — {"steps":3,"rim":0}
+PASS  candidate: no streak halos and no impact pools (the "fireworks"); B2-B draws both  — streak halos 0 / 42, impact pools 0 / 7
+PASS  targeting graphics use no red (ice-white / violet / dark keyline only)  — ["8c9cff","eef8ff","10142c"]
+
+== 9. scope
+PASS  the B0 / B1 / B2 scope guard (b2Super.js is one of B2's modules; GameScene still +4 lines; one BootScene line)  — B0 (dc7d9ea..a3866f2): 5 files, GameScene +13 tag/install lines; B1 (a3866f2..266b1ac): 6 files, GameScene +5 install/branch lines; B2 (266b1ac..): 10 files, GameScene +4 install/branch lines
+
+38/38 passed
+exit 0

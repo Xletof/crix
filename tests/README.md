@@ -2404,3 +2404,27 @@ Evidence in `docs/evidence/b1-combat-experiments/`.
 - **`enemyJsGuard` returns `{ outside, bomberOnlyVeto, vetoCode }`**, not
   `.ok`.
 
+## The B2 closure rigs (`&b2c=1`, `&b2dbg=1`)
+
+- `smoke-b2c.mjs [--old=URL] [--only=0,3]` (standalone, :5173; a `2ee948c`
+  server for §1): flags; B2-B unchanged (seeded `?b2=B` = `2ee948c` tick for
+  tick, `B2_DEFAULTS` identical, candidate with no Super input = B2-B); the
+  tracer invariant over the reproduction matrix; F tap = the shipped fan;
+  F hold locks / pivot / one directed pellet per lock; edge cases; real mouse
+  pivot and REAL touch tap / hold-drag on the Super button; tap vs hold power
+  on a staged crowd (reported); candidate visuals; the scope guard.
+- `diag-b2-tracers.mjs OUTDIR [base]` — the tracer reproduction matrix with
+  the `&b2dbg=1` overlay; prints the invariant per scenario and saves frames.
+
+### What it taught
+
+- **A pooled object is not an identity.** Any presentation state keyed by a
+  bullet (or any pooled sprite) must carry the generation it belongs to and
+  be consumed with it; a WeakMap keyed by the object outlives the round.
+- **A small move force sets no heading.** `setMoveInput` scales by speed;
+  below ~0.003 force the move target is under 1px/s, which B2's pivot treats
+  as "not moving". Tests that steer by movement use force 0.01.
+- **Display-list events are presentation.** A candidate that creates
+  different pooled images changes `addedtoscene` counts; leave them out of a
+  replay's event hash when the claim is about the fight.
+

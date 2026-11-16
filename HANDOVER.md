@@ -273,6 +273,34 @@ command, fix the line.*
     `tests/diag-b2-perf.mjs`. Links, mechanics, measurements, deviations and
     limitations: `docs/evidence/b2-flagship/README.md`. The final verdict
     needs HANDSET play; no promotion without a separate HUMAN decision.
+  - **B2-1 HUMAN PLAYTESTS (2026-11-16): B2-B is the PREFERRED balance and
+    damage candidate (keep its mechanical tuning); NOT approved / frozen.**
+    Verdicts: the Super indicator's progression ("thin red strips into bright
+    white firework-like effects") is weak; the Super must fire on F RELEASE;
+    holding F must allow locking several targets while pivoting; a CRITICAL
+    bug: gun tracers appear detached / beside the hero when shooting empty
+    space (firing range).
+  - **B2 CLOSURE (2026-11-16), opt-in, NOT approved, NOT a default.**
+    (1) TRACER BUG FIXED for every B2 link: b2Feel keyed a body contact by
+    the POOLED bullet and never cleared it, so a recycled bullet that missed
+    drew its streak ending at its previous life's kill site. Contacts now
+    carry the round's generation and are consumed (presentation only;
+    `tests/diag-b2-tracers.mjs`: 641 violations before, 0 after, on the same
+    instrument; `&b2dbg=1` overlay). (2) CANDIDATE `&b2c=1`
+    (`src/systems/b2Super.js`): Super on F / ENTER release; tap = the shipped
+    fan at the nearest enemy; hold = targeting (nearest locked, mouse or
+    movement pivots a 22-degree cone, 110ms dwell locks, up to 5), release =
+    one cast with one directed pellet per lock; cancels on focus loss /
+    pause / death / suppression / meter loss; touch Super button feeds the
+    same machine; no `superAiming`, no camera lead. Candidate visuals: one
+    bolt colour plus a P1-B-blue charge thread and quarter-step rings (no
+    white-gold ramp, halos, impact pools or primed rim), ice-white / violet
+    cone / brackets / diamonds / tethers, an ice-violet release flash.
+    Measured: a 5-lock hold did 1,870 damage / 5 kills vs a tap's 832 / 2 on
+    one staged spread crowd (per-pellet damage unchanged). B2-B unchanged:
+    seeded `?b2=B` fights = `2ee948c` tick for tick, `B2_DEFAULTS` identical.
+    Proof: `tests/smoke-b2c.mjs`; evidence and links:
+    `docs/evidence/b2-closure/README.md`. Awaiting the HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -293,8 +321,11 @@ command, fix the line.*
   JSON (`docs/evidence/b0-combat-baseline/README.md`). Runs A and B were
   analysed; B1 (`?b1=G|M|S`, opt-in experiments) was played and NOT approved
   (`docs/evidence/b1-combat-experiments/README.md`); B2-1 (`?b2=A|B`, the
-  flagship rifle and the damage economy, opt-in) is delivered and awaits the
-  HUMAN handset verdict (`docs/evidence/b2-flagship/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
+  flagship rifle and the damage economy, opt-in) was played: B2-B is the
+  preferred balance (`docs/evidence/b2-flagship/README.md`); the B2 closure
+  (tracer fix, `&b2c=1` F-release targeting candidate) awaits the HUMAN
+  handset verdict (`docs/evidence/b2-closure/README.md`). The next major
+  combat milestone is assigned to Fable. The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
 

@@ -1,0 +1,27 @@
+
+== 0. flags
+PASS  "(none)": B2 off; nothing installed, nothing wrapped, the meter blip intact; PLAYER.ammoMax 3  — {"v":null,"w":"0000","tick":true,"ammoMax":3}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3": B2 off; nothing installed, nothing wrapped, the meter blip intact; PLAYER.ammoMax 3  — {"v":null,"w":"0000","tick":true,"ammoMax":3}
+PASS  "b2=A": B2 A; installed; PLAYER.ammoMax 3  — {"v":"A","w":"1111","tick":false,"ammoMax":3}
+PASS  "b2=b": B2 B; installed; PLAYER.ammoMax 3  — {"v":"B","w":"1111","tick":false,"ammoMax":3}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B": B2 B; installed; PLAYER.ammoMax 3  — {"v":"B","w":"0111","tick":false,"ammoMax":3}
+PASS  "b2=X": B2 off; nothing installed, nothing wrapped, the meter blip intact; PLAYER.ammoMax 3  — {"v":null,"w":"0000","tick":true,"ammoMax":3}
+PASS  "b2=": B2 off; nothing installed, nothing wrapped, the meter blip intact; PLAYER.ammoMax 3  — {"v":null,"w":"0000","tick":true,"ammoMax":3}
+PASS  "b2=1": B2 off; nothing installed, nothing wrapped, the meter blip intact; PLAYER.ammoMax 3  — {"v":null,"w":"0000","tick":true,"ammoMax":3}
+PASS  "b1=G&b2=B": B2 off (a B1 variant wins); nothing installed, nothing wrapped, the meter blip intact; PLAYER.ammoMax 10  — {"v":null,"w":"0000","tick":true,"ammoMax":10}
+PASS  "b2=B&b1=S": B2 off (a B1 variant wins); nothing installed, nothing wrapped, the meter blip intact; PLAYER.ammoMax 10  — {"v":null,"w":"0000","tick":true,"ammoMax":10}
+PASS  knobs: b2x.dmg=80 and b2x.mag=12 apply; cadence clamps to its floor (40); a non-number and an unknown knob are ignored  — {"dmg":80,"cadence":40,"mag":12,"reload":900,"idleReload":1100,"speed":1000,"range":450,"sweep":900,"snap":20,"lead":1,"lethal":1,"flinch":600,"stop":250,"meter":1000,"melee":1600,"meleeToSuper":0.5,"nemesis":0.34,"hot":1.4,"hotRounds":80}
+PASS  b2range=1 needs a B2 variant: on with b2=A (panel present), ignored without
+
+== 1. flag off = 266b1ac (http://localhost:5174/)
+PASS  SWARM TIDE, R1: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 18666 draws, 28 kills
+PASS  MIXED s6, R1: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 18619 draws, 31 kills
+PASS  VANGUARD, R1: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 14805 draws, 11 kills
+PASS  SWARM TIDE, legacy: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 15541 draws, 22 kills
+PASS  MIXED s6, V2C+P1+P2-A3: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 18619 draws, 31 kills
+PASS  MIXED s6, V2C+P1+P2-A3 + B0 instrument: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 18619 draws, 31 kills
+PASS  SWARM TIDE, R1 + B0 instrument: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 18666 draws, 28 kills
+PASS  MIXED s6, B1-G: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 22905 draws, 37 kills
+PASS  SWARM TIDE, B1-S + B0 instrument: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 21406 draws, 41 kills
+PASS  VANGUARD, B1-M: 1500 ticks identical to 266b1ac (state, ammo, draws, per-tick events)  — 17385 draws, 10 kills
+PASS  MIXED s6, V2C+P1+P2-A3, god mode off: identical to 266b1ac
