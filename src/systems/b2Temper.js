@@ -45,10 +45,10 @@ const LAMPS = [5, 6, 7, 8, 9, 11, 12, 13, 14, 15];     // art x of each lamp, on
 export const TEMPER = {
   boltLen: 78,
   muzzleMs: [28, 56, 84],          // frame ends
-  hitMs: [34, 70, 110, 150],
+  hitMs: [30, 64, 100, 136],
   crownMs: [40, 80, 120, 160],
   ringMs: [[30, 70], [70, 110], [110, 150]],
-  dimMs: [36, 72], dimAlpha: [0.34, 0.17],
+  dimMs: [36, 72], dimAlpha: [0.42, 0.2],
   windupMs: [35, 70],
   heatMs: [150, 400, 700, 1000],
   igniteMs: 90, pulseMs: 1100, pulseStepMs: 60,
@@ -206,8 +206,9 @@ function buildAtlas(scene) {
     ['.s........................', '.s........................', '..........................', '..........................', '..........................', '..........................', '..........................', '..........................', '..........................', '..............HHHHHHMMMMss', '..........................', '..........................', '..........................', '..........................', '..........................', '..........................', '..........................', '.s........................', '.s........................'],
     ['s.........................', '..........................', '..........................', '..........................', '..........................', '..........................', '..........................', '..........................', '..........................', '......................s..s', '..........................', '..........................', '..........................', '..........................', '..........................', '..........................', '..........................', '..........................', 's.........................'],
   ];
-  CROWN.forEach((rows, f) => add(`crown-${f}`, rows, { W: '#ffffff', H: ICE.hot, M: ICE.mid, S: ICE.hot, s: ICE.mid }));
-  [[7, ICE.hot], [11, ICE.mid], [15, ICE.deep]].forEach(([r, col], f) => {
+  // at the hero art's own grain (4): the one moment the gun out-sizes its ordinary flash
+  CROWN.forEach((rows, f) => add(`crown-${f}`, rows, { W: '#ffffff', H: ICE.hot, M: ICE.mid, S: ICE.hot, s: ICE.mid }, 4));
+  [[9, ICE.hot], [14, ICE.mid], [19, ICE.deep]].forEach(([r, col], f) => {
     const n = r * 2 + 1, rows = [];
     for (let y = 0; y < n; y++) { let s = ''; for (let x = 0; x < n; x++) { const d = Math.hypot(x - r, y - r); const on = d >= r - 0.5 && d < r + 0.5 && !(f === 2 && (x + y) % 2 === 0); s += on ? 'A' : '.'; } rows.push(s); }
     add(`ring-${f}`, rows, { A: col });
@@ -367,7 +368,10 @@ export function createTemperSkin(scene, api, K, h) {
     lastN = n;
     stats.gun.n = n; stats.gun.stage = lampStage(n);
     if (n <= 0) return null;
-    if (n < 10) return clock < igniteUntil ? `gun-${n}i` : `gun-${n}`;
+    // each round draws on the charge: the head lamp flares with the shot (FULL: the muzzle end)
+    const shot = clock - lastShot < TEMPER.muzzleMs[0];
+    if (n < 10) return clock < igniteUntil || shot ? `gun-${n}i` : `gun-${n}`;
+    if (shot) return 'gun-10p3';
     const ph = (clock - readyAt) % TEMPER.pulseMs;
     const step = Math.floor(ph / TEMPER.pulseStepMs);
     return step < 4 ? `gun-10p${step}` : 'gun-10';
@@ -492,7 +496,7 @@ export function createTemperSkin(scene, api, K, h) {
       c.crown.setFrame(`crown-${fr}`).setOrigin(2.5 / 26, 0.5).setPosition(m.x, m.y).setRotation(m.rot).setDepth(8010).setVisible(true);
       const rf = TEMPER.ringMs.findIndex(([a, b]) => c.t >= a && c.t < b);
       if (rf < 0) c.ring.setVisible(false);
-      else { stats.frameSeen.ring[rf]++; c.ring.setFrame(`ring-${rf}`).setOrigin(0.5).setPosition(m.x + Math.cos(m.rot) * 10, m.y + Math.sin(m.rot) * 10).setDepth(8009).setVisible(true); }
+      else { stats.frameSeen.ring[rf]++; c.ring.setFrame(`ring-${rf}`).setOrigin(0.5).setPosition(m.x + Math.cos(m.rot) * 14, m.y + Math.sin(m.rot) * 14).setDepth(8009).setVisible(true); }
     }
     for (let i = lances.length - 1; i >= 0; i--) {
       const L = lances[i], b = L.b;

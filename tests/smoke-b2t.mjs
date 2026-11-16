@@ -151,6 +151,207 @@ if (on(1)) {
   check('with the closure candidate on both sides (&b2c=1, F-release Supers): TEMPER = no TEMPER tick for tick', d < 0 && b.supers === 3, d < 0 ? `${b.shots} rounds, ${b.supers} Supers` : `first divergent tick ${d}`);
 }
 
+// helpers shared by the sections below (in page)
+const prep = (p) => p.evaluate(() => {
+  const gs = window.__gs;
+  window.__ts = () => gs._b2.stats.feel.temper;
+  window.__mine = () => gs.children.list.filter((o) => o.texture?.key === 'b2t' && o.visible);
+  window.__charge = (c) => { gs.player.superCharge = c * 4; gs.events.emit('player-super-changed'); };
+  window.__fire = (n, c = null, dt) => { gs.cursors.space.isDown = true; for (let i = 0; i < n; i++) { if (c != null) gs.player.superCharge = c * 4; window.__adv(1, dt); } gs.cursors.space.isDown = false; };
+  window.__super = () => { gs.player.superCharge = 4; gs.input.keyboard.emit('keydown-F', { repeat: false }); gs.input.keyboard.emit('keyup-F', { repeat: false }); };
+});
+
+// ── 2. THE TRACER INVARIANT ──────────────────────────────────────────────
+if (on(2)) {
+  console.log('\n== 2. the tracer invariant under the skin');
+  const p = await boot(T); await prep(p);
+  const r = await p.evaluate(() => {
+    const gs = window.__gs, P = gs.player; window.__stage();
+    const sp = window.__spots(240, 3) || [];
+    sp.forEach((q) => window.__dummy('grunt', q.x, q.y, 130));
+    window.__fire(110, 0.6);                               // kills, then the stream runs on into empty space and walls
+    for (const a of [0, 1.57, 3.14, -1.57, 0.8, -2.3]) { P.facing = a; P.aim = a; window.__fire(26, 1); window.__adv(14); }
+    window.__super(); window.__adv(40);
+    const inv = gs._b2.stats.feel.inv;
+    return { checks: inv.checks, bad: inv.bad, samples: inv.samples.slice(0, 2), stale: gs._b2.stats.feel.staleContacts, kills: gs.runKills, rounds: window.__ts().rounds };
+  });
+  await p.close();
+  check('every visible TEMPER bolt, every frame: on its round\'s line, never behind the barrel, its head at the collider, a finished bolt ending where its round stopped (kills, blank space in six directions, walls, a Super)', r.checks > 800 && r.bad === 0 && r.rounds > 35, JSON.stringify(r));
+}
+
+// ── 3. THE GUN ───────────────────────────────────────────────────────────
+if (on(3)) {
+  console.log('\n== 3. the gun');
+  const p = await boot(T); await prep(p);
+  const r = await p.evaluate(() => {
+    const gs = window.__gs, P = gs.player, out = { stages: [] }; window.__stage(); window.__headless = false;
+    const tex = window.game.textures.get('b2t'), cv = tex.getSourceImage(), c2 = cv.getContext('2d');
+    const hexAt = (f, ax, ay, g = 4) => { const fr = tex.frames[f]; const d = c2.getImageData(fr.cutX + ax * g + 1, fr.cutY + ay * g + 1, 1, 1).data; return d[3] ? '#' + [d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, '0')).join('') : null; };
+    const base = window.game.textures.get('p1-rifle').getSourceImage(); const cb = document.createElement('canvas'); cb.width = 72; cb.height = 40; const c3 = cb.getContext('2d'); c3.drawImage(base, 0, 0);
+    const baseAt = (ax, ay) => { const d = c3.getImageData(ax * 4 + 1, ay * 4 + 1, 1, 1).data; return d[3] ? '#' + [d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, '0')).join('') : null; };
+    for (const c of [0, 0.12, 0.35, 0.55, 0.7, 0.95, 1]) { window.__charge(c); window.__adv(12); const g = window.__ts().gun; out.stages.push([c, g.n, g.stage, g.frame, g.shown]); }
+    // the silhouette and the outline of every gun frame are the approved sprite's
+    out.silhouette = Object.keys(tex.frames).filter((f) => /^gun-/.test(f)).every((f) => { for (let y = 0; y < 10; y++) for (let x = 0; x < 18; x++) { const a = baseAt(x, y), b = hexAt(f, x, y); if ((a == null) !== (b == null)) return false; if (a === '#06070a' && b !== a) return false; } return true; });
+    out.heatInside = [0, 1, 2, 3].every((i) => { for (let y = 0; y < 10; y++) for (let x = 0; x < 18; x++) { const b = hexAt(`heat-${i}`, x, y); if (b && (baseAt(x, y) == null || baseAt(x, y) === '#06070a')) return false; } return true; });
+    out.gunFrames = Object.keys(tex.frames).filter((f) => /^gun-/.test(f)).length;
+    out.fullLamp = hexAt('gun-10', 7, 4); out.fullDeep = hexAt('gun-10', 13, 5); out.q1Lamp = hexAt('gun-3', 5, 4); out.q3Lamp = hexAt('gun-8', 5, 4);
+    // the overlay sits on the weapon in every rendered frame: a turn, then a stream (the kick)
+    window.__charge(0.7); const s0 = { ...window.__ts().sync };
+    for (let i = 0; i < 40; i++) { P.facing += 0.17; P.superCharge = 2.8; window.__adv(1); }
+    window.__fire(40, 0.7);
+    const s1 = window.__ts().sync; out.sync = { checks: s1.checks - s0.checks, bad: s1.bad - s0.bad };
+    const v = gs._p2a.loadout.view; out.viewKey = v.texture.key;
+    // ignite: a new lamp
+    const ig0 = window.__ts().ignites; window.__charge(0.72); window.__adv(1); window.__charge(0.81); window.__adv(2); out.igniteFrame = window.__ts().gun.frame; out.ignites = window.__ts().ignites - ig0; window.__adv(10); out.settled = window.__ts().gun.frame;
+    // mid-combo the weapon is the blade: no gun overlay
+    window.__charge(0.7); P.meleeCharge = 99; P.tryMeleeCombo(); window.__adv(5); out.combo = { key: v.texture.key, shown: window.__ts().gun.shown, mine: window.__mine().filter((o) => /^gun|^heat/.test(o.frame.name)).length };
+    for (let i = 0; i < 200 && P._meleeAnimT > 0; i++) window.__adv(1);
+    window.__adv(20);
+    // dead: nothing
+    window.__dbg.setGodMode(false); P.damage(99999); window.__adv(6); out.dead = { alive: P.alive, shown: window.__ts().gun.shown, mine: window.__mine().filter((o) => /^gun|^heat/.test(o.frame.name)).length };
+    return out;
+  });
+  await p.close();
+  const want = [[0, 0, 0], [0.12, 1, 1], [0.35, 3, 1], [0.55, 5, 2], [0.7, 7, 3], [0.95, 9, 3], [1, 10, 4]];
+  check('lamps and stage per charge: 0 = no overlay (the approved sprite), then 1 / 3 / 5 / 7 / 9 lamps through cyan, sky and periwinkle, FULL = 10', r.stages.every((q, i) => q[1] === want[i][1] && q[2] === want[i][2]) && r.stages[0][3] == null && r.stages[0][4] === false && /^gun-10/.test(r.stages[6][3]) && r.stages[3][3] === 'gun-5', JSON.stringify(r.stages));
+  check('every gun frame keeps the approved rifle\'s silhouette and outline, and the spent-barrel pixels stay inside it', r.silhouette && r.heatInside && r.gunFrames >= 25, JSON.stringify({ frames: r.gunFrames, silhouette: r.silhouette, heatInside: r.heatInside }));
+  check('FULL wears the approved Super-ready colours (ice-white #eef8ff lamps, periwinkle #8c9cff beneath); the first quarter is the hero\'s cyan', r.fullLamp === '#eef8ff' && r.fullDeep === '#8c9cff' && r.q1Lamp === '#7fe8ff' && r.q3Lamp === '#9aa8ff', JSON.stringify([r.q1Lamp, r.q3Lamp, r.fullLamp, r.fullDeep]));
+  check('the overlay is on the weapon in every rendered frame of a turn and a stream (position, rotation, flip, origin, alpha)', r.sync.checks >= 70 && r.sync.bad === 0 && /^p1-rifle/.test(r.viewKey), JSON.stringify(r.sync));
+  check('a new lamp ignites (one white frame set), then settles', r.ignites >= 1 && r.igniteFrame === 'gun-8i' && r.settled === 'gun-8', JSON.stringify([r.ignites, r.igniteFrame, r.settled]));
+  check('mid-combo (the blade) and dead: no gun overlay', r.combo.key === 'p1-blade' && !r.combo.shown && r.combo.mine === 0 && !r.dead.alive && !r.dead.shown && r.dead.mine === 0, JSON.stringify([r.combo, r.dead]));
+}
+
+// ── 4. THE BOLT ──────────────────────────────────────────────────────────
+if (on(4)) {
+  console.log('\n== 4. the bolt');
+  const p = await boot(T); await prep(p);
+  const r = await p.evaluate(() => {
+    const gs = window.__gs, P = gs.player, out = { by: {} }; window.__stage();
+    const tex = window.game.textures.get('b2t');
+    out.sizes = [...new Set(Object.keys(tex.frames).filter((f) => /^bolt-/.test(f)).map((f) => `${tex.frames[f].width}x${tex.frames[f].height}`))];
+    out.boltFrames = Object.keys(tex.frames).filter((f) => /^bolt-/.test(f)).length;
+    let bad = 0, seen = 0, old = 0;
+    const scan = () => { for (const o of window.__mine()) { seen++; if (o.blendMode !== 0 || o.scaleX !== 1 || o.scaleY !== 1 || (o.alpha !== 1 && !/^spill/.test(o.frame.name))) bad++; } old += gs.children.list.filter((o) => o.visible && /^b2-(trail|halo|body|core|head|mz|spark|ring|spill)/.test(o.texture?.key || '')).length; };
+    for (const c of [0, 0.5, 1]) {
+      const names = new Set();
+      P.facing = 0; P.aim = 0; gs.cursors.space.isDown = true;
+      for (let i = 0; i < 30; i++) { P.superCharge = c * 4; window.__adv(1); scan(); for (const o of window.__mine()) if (/^bolt-/.test(o.frame.name)) names.add(o.frame.name); }
+      gs.cursors.space.isDown = false; window.__adv(40);
+      out.by[c] = [...names];
+    }
+    // OVERCHARGE rounds: the gold slug, the same tip rule
+    gs._b2.state.hot = 20; const names = new Set(); gs.cursors.space.isDown = true; for (let i = 0; i < 20; i++) { P.superCharge = 2; window.__adv(1); scan(); for (const o of window.__mine()) if (/^bolt-/.test(o.frame.name)) names.add(o.frame.name); } gs.cursors.space.isDown = false; window.__adv(30);
+    out.hot = [...names]; out.bad = bad; out.seen = seen; out.old = old;
+    return out;
+  });
+  await p.close();
+  const pc = await boot(B);
+  const ctl = await pc.evaluate(() => { const gs = window.__gs; window.__stage(); gs.player.superCharge = 2; gs.cursors.space.isDown = true; let add = 0; for (let i = 0; i < 20; i++) { window.__adv(1); add += gs.children.list.filter((o) => o.visible && o.blendMode === 1 && /^b2-/.test(o.texture?.key || '')).length; } gs.cursors.space.isDown = false; return add; });
+  await pc.close();
+  check('one bolt size at every charge and for OVERCHARGE rounds (78x15, 18 frames)', r.sizes.length === 1 && r.sizes[0] === '78x15' && r.boltFrames === 18, JSON.stringify(r.sizes));
+  check('every TEMPER object in a stream at 0 / 50 / 100%: NORMAL blend, scale 1, opaque (the floor light aside); none of the B2-1 glow sprites is drawn', r.seen > 150 && r.bad === 0 && r.old === 0, JSON.stringify({ seen: r.seen, bad: r.bad, old: r.old }));
+  check('CONTROL: B2-B draws additive glow sprites in the same stream (the check above can see them)', ctl > 20, `${ctl} additive sprite-frames`);
+  check('the cool tip: none at 0, half the bolt at 50%, the whole round at FULL; OVERCHARGE rounds are gold with the same tip', r.by[0].join() === 'bolt-r0' && r.by[0.5].join() === 'bolt-r4' && r.by[1].join() === 'bolt-r8' && r.hot.join() === 'bolt-g4', JSON.stringify([r.by, r.hot]));
+}
+
+// ── 5. FRAMES ────────────────────────────────────────────────────────────
+if (on(5)) {
+  console.log('\n== 5. frames');
+  for (const [fps, dt] of [[60, 1000 / 60], [30, 1000 / 30]]) {
+    const p = await boot(T); await prep(p);
+    const r = await p.evaluate((dt) => {
+      const gs = window.__gs; window.__stage();
+      const sp = window.__spots(220, 2) || []; sp.forEach((q) => window.__dummy('grunt', q.x, q.y));
+      window.__fire(Math.round(3000 / dt), 0.4, dt); for (let i = 0; i < 20; i++) window.__adv(1, dt);
+      const t = window.__ts();
+      return { flashes: t.flashes, hits: t.hits, mz: t.frameSeen.mz, hit: t.frameSeen.hit, shots: gs._b2.stats.shots };
+    }, dt);
+    await p.close();
+    const per = fps === 60 ? 2 : 1;
+    check(`${fps} fps: every round gets a muzzle flash and every flash shows all three frames (${per} tick${per > 1 ? 's' : ''} each), frame 0 never skipped`, r.flashes === r.shots && r.shots > 20 && r.mz.every((n) => n === r.flashes * per), JSON.stringify(r));
+    check(`${fps} fps: every contact shows its first frame, and the later frames follow`, r.hits > 15 && r.hit[0] >= r.hits && r.hit[1] >= r.hits && r.hit[3] >= r.hits * 0.9, JSON.stringify({ hits: r.hits, hit: r.hit }));
+  }
+}
+
+// ── 6. THE SUPER ─────────────────────────────────────────────────────────
+if (on(6)) {
+  console.log('\n== 6. the Super');
+  const cast = async (flags) => {
+    const p = await boot(flags); await prep(p);
+    const r = await p.evaluate(() => {
+      const gs = window.__gs, P = gs.player, out = {}; window.__stage();
+      // burn the room's one-time alarm (a camera flash of its own) before measuring the Super's
+      P.facing = 0; window.__super(); window.__adv(300); window.__clear(); window.__headless = false;
+      window.__ring(3, 300, -0.4, 0.4);
+      P.facing = 0; window.__pellets.length = 0; window.__super();
+      let flash = false, addGfx = 0, heat = [], wind = [];
+      for (let i = 0; i < 12; i++) { window.__adv(1); wind.push(gs._b2.stats.feel.temper?.gun.frame ?? null); if (gs.playerSuperBullets.getChildren().some((b) => b.active)) break; }
+      const live = gs.playerSuperBullets.getChildren().filter((b) => b.active);
+      out.pellets = window.__pellets.map((q) => [+q.a.toFixed(6), q.dmg]);
+      out.body = live.map((b) => [b.body.width, b.body.halfWidth, b.body.radius, b.body.isCircle]);
+      out.tex = [...new Set(live.map((b) => `${b.texture.key}/${b.frame.name}/${b.scaleX}x${+b.scaleY.toFixed(2)}`))];
+      for (let i = 0; i < 80; i++) {
+        flash = flash || gs.cameras.main.flashEffect.isRunning;
+        addGfx += gs.children.list.filter((o) => o.visible && o.blendMode === 1 && o.depth >= 34 && o.depth <= 36).length;
+        heat.push(gs._b2.stats.feel.temper?.gun.heat ?? null);
+        window.__adv(1);
+      }
+      out.flash = flash; out.addGfx = addGfx; out.heat = [...new Set(heat)]; out.wind = [...new Set(wind)];
+      out.t = gs._b2.stats.feel.temper ? JSON.parse(JSON.stringify(gs._b2.stats.feel.temper)) : null;
+      // a second cast: pooled pellets
+      window.__super(); window.__adv(12);
+      out.second = [...new Set(gs.playerSuperBullets.getChildren().filter((b) => b.active).map((b) => `${b.texture.key}/${b.frame.name}`))];
+      out.lances2 = gs._b2.stats.feel.temper?.lances ?? null;
+      return out;
+    });
+    await p.close();
+    return r;
+  };
+  const b = await cast(B), t = await cast(T);
+  check('the pellets are the shipped ones: the same five angles and damage, the same body (width, radius, circle)', JSON.stringify(b.pellets) === JSON.stringify(t.pellets) && t.pellets.length === 5 && JSON.stringify(b.body) === JSON.stringify(t.body) && !t.t.hitboxChanged, JSON.stringify({ pellets: t.pellets.length, body: t.body[0] }));
+  check('each pellet wears the lance on the shipped 54x24 canvas with square pixels; pooled pellets get it again on the next cast', t.tex.join() === 'b2t/lance/1x1' && /^bullet-super/.test(b.tex.join()) && t.second.join() === 'b2t/lance' && t.t.lances === 10 && t.lances2 === 15, JSON.stringify([b.tex, t.tex, t.second, t.lances2]));
+  check('no screen flash and none of the shipped additive blast shapes (wind-up ring, fireball, cone, disc, ring) is visible — and B2-B shows them (control)', !t.flash && t.addGfx === 0 && b.flash && b.addGfx > 5 && t.t.cloak.objects >= 12, JSON.stringify({ temper: { flash: t.flash, addGfx: t.addGfx, hidden: t.t.cloak }, b2b: { flash: b.flash, addGfx: b.addGfx } }));
+  check('the release is drawn in frames: the charge collapses in the wind-up, all four crown frames and three ring frames are seen, the barrel cools through four steps and the gun is the approved sprite again', t.wind.includes('gun-w0') && t.t.frameSeen.crown.every((n) => n > 0) && t.t.frameSeen.ring.every((n) => n > 0) && [0, 1, 2, 3, -1].every((h) => t.heat.includes(h)), JSON.stringify({ wind: t.wind, crown: t.t.frameSeen.crown, ring: t.t.frameSeen.ring, heat: t.heat }));
+}
+
+// ── 7. RESTARTS ──────────────────────────────────────────────────────────
+if (on(7)) {
+  console.log('\n== 7. restarts');
+  const p = await boot(T); await prep(p);
+  const r = await p.evaluate(() => {
+    const gs = window.__gs, own = (o, k) => Object.prototype.hasOwnProperty.call(o, k), out = {};
+    const state = () => ({ skin: !!gs._b2?.stats.feel?.temper, pre: window.game.events.listeners('prerender').length, blast: gs.events.listeners('player-super-blast').length, mine: gs.children.list.filter((o) => o.texture?.key === 'b2t').length });
+    const use = () => { window.__stage(); window.__ring(2, 280, 0, 0.5); window.__fire(30, 0.5); window.__super(); window.__adv(30); return { rounds: gs._b2.stats.feel.temper.rounds, supers: gs._b2.stats.feel.temper.supers }; };
+    const restart = () => { gs.scene.restart({ mode: 'endless', seed: 4242 }); window.__adv(3); for (let i = 0; i < 400 && !gs.roomSpec; i++) window.__adv(1); window.__adv(20); };
+    out.first = state(); out.use1 = use();
+    restart(); out.second = state(); out.use2 = use();
+    restart(); out.third = state(); out.use3 = use();
+    const fx = gs.fx;
+    gs.scene.stop('HUD'); gs.scene.start('Title'); window.__adv(5);
+    out.title = { b2: !!gs._b2, pre: window.game.events.listeners('prerender').length, own: ['firePlayerSuper', '_superBlast'].filter((k) => own(gs, k)), dl: !!gs.sys.displayList && own(gs.sys.displayList, 'add'), flash: !!gs.cameras?.main && own(gs.cameras.main, 'flash'), atlas: window.game.textures.exists('b2t') };
+    return out;
+  });
+  await p.close();
+  const same = (a, b) => a.skin && b.skin && a.pre === b.pre && a.blast === b.blast;
+  check('restart twice: one install each time (prerender and blast listeners do not grow), and the skin draws rounds and a Super after each', same(r.first, r.second) && same(r.second, r.third) && [r.use1, r.use2, r.use3].every((u) => u.rounds >= 4 && u.supers === 1), JSON.stringify([r.first, r.second, r.third, r.use3]));
+  check('quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind', !r.title.b2 && r.title.pre === r.first.pre - 1 && r.title.own.length === 0 && !r.title.dl && !r.title.flash, JSON.stringify(r.title));
+}
+
+// ── 8. COST ──────────────────────────────────────────────────────────────
+if (on(8)) {
+  console.log('\n== 8. cost');
+  const run = async (flags) => { const p = await boot(flags, { q: Q_SWARM }); const r = await p.evaluate((x) => { const tr = window.__trace(x); const f = window.__gs._b2.stats.feel; return { shots: tr.shots, updMs: f.updMs / Math.max(1, f.updN), updMax: f.updMax, peakB2: f.peakObjects, peakT: f.temper?.peak ?? 0, madeT: f.temper?.made ?? 0, peakRounds: f.peakRounds, list: window.__gs.children.list.length }; }, { seed: 9071, ticks: 1200, seg: FIGHT_SEG, hold: [[30, 1200]], superTaps: [400, 800], melee: [] }); await p.close(); return r; };
+  const b = await run(B), t = await run(T);
+  check('TEMPER draws fewer objects than B2-B in the same fight, with no additive blending (reported: update time)', t.peakT > 0 && t.peakT < b.peakB2 && t.shots === b.shots, `peak pooled objects: B2-B ${b.peakB2}, TEMPER ${t.peakT} (${t.madeT} ever created); update ${b.updMs.toFixed(3)}ms -> ${t.updMs.toFixed(3)}ms per frame (max ${b.updMax.toFixed(2)} / ${t.updMax.toFixed(2)}); peak live rounds ${t.peakRounds}`);
+}
+
+// ── 9. SCOPE ─────────────────────────────────────────────────────────────
+if (on(9)) {
+  console.log('\n== 9. scope');
+  const s = b0Scope(new URL('..', import.meta.url).pathname);
+  check('the B0 / B1 / B2 scope guard (b2Temper.js is one of B2\'s modules; GameScene and every frozen file untouched)', s.ok, s.detail);
+}
+
 await browser.close();
 const bad = results.filter((r) => !r.ok);
 console.log(`\n${results.length - bad.length}/${results.length} passed`);
