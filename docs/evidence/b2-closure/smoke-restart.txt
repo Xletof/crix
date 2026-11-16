@@ -1,0 +1,18 @@
+  ok    listeners are tracked for removal
+  ok    enemy-hit has no duplicate handler after 4 restarts
+  ok    enemy-died has no duplicate handler after 4 restarts
+  ok    player-fire has no duplicate handler after 4 restarts
+  ok    player-melee-land has no duplicate handler after 4 restarts
+  ok    boss-died has no duplicate handler after 4 restarts
+  ok    terminal-hacked has no duplicate handler after 4 restarts
+  ok    the tracked-handler list does not grow either
+  ok    a kill fires exactly one enemy-died
+  ok    a kill scores exactly once
+  ok    the game loop is still running after the restarts
+  ok    the WebGL context is intact
+  ok    a medal after a restart draws onto a LIVE text object
+  ok    and the medal actually rendered its name
+  ok    and the medal queue is still draining, not stranded
+  ok    no exception is thrown across the restarts
+PASS: 16 checks — restarts leave no duplicate handlers and no stale arena
+exit 0

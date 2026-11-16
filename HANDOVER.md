@@ -299,7 +299,9 @@ command, fix the line.*
     Measured: a 5-lock hold did 1,870 damage / 5 kills vs a tap's 832 / 2 on
     one staged spread crowd (per-pellet damage unchanged). B2-B unchanged:
     seeded `?b2=B` fights = `2ee948c` tick for tick, `B2_DEFAULTS` identical.
-    Proof: `tests/smoke-b2c.mjs`; evidence and links:
+    Proof: `tests/smoke-b2c.mjs` 43/43 (smoke-b2 88/88, smoke-b1 71/71,
+    smoke-b0 46/46; captel 20/22 inherited, fails identically on 2ee948c;
+    run-all NOT re-run); evidence and links:
     `docs/evidence/b2-closure/README.md`. Awaiting the HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,

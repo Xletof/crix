@@ -1,0 +1,22 @@
+# B2 closure — suites run (2026-11-16), Vite servers owned by PID
+# (HEAD :5173, 2ee948c (the B2-1 delivery) :5174 with its own cacheDir)
+
+smoke-b2c --old=2ee948c: 43/43 (smoke-b2c.txt) — flags; B2-B = 2ee948c tick for tick (held stream + four F-press
+  Supers + a Broken Wings chain, three fights) and B2_DEFAULTS identical; candidate with no Super input = B2-B; the
+  tracer invariant (0 violations, B2-B and candidate); F tap = the shipped fan; F hold locks / pivot / one directed
+  pellet per lock; unaimed holds (real keys D and D+SPACE) aim like a tap; edge cases (repeat, focus, pause,
+  suppression, meter, death, a lock dying, nothing in reach, not charged); real mouse pivot; REAL touch tap,
+  hold-drag (camera lead kept, red cone hidden, with a control) and a two-finger hold; tap vs hold power
+  (832 dmg / 2 kills vs 1,870 / 5 on one staged crowd); candidate visuals; scope guard
+smoke-b2 --old=2ee948c: 88/88 (smoke-b2.txt) — B2-1 checks incl. flag-off identity
+smoke-b1 --old=2ee948c: 71/71 (smoke-b1.txt)
+smoke-b0 --old=2ee948c: 46/46 (smoke-b0.txt)
+smoke-fx-p2a3 --only=10: 4/4 · smoke-fx-p2a --only=10: 4/4 · smoke-fx-p2a2 --only=10: 3/3 (scope guard)
+smoke-controls: PASS · smoke-restart: PASS (16 checks) · smoke-cluster: PASS
+smoke-captel: 20/22 — the same two real-time Super-cast checks fail at HEAD (in sequence and standalone) AND on
+  2ee948c (smoke-captel-on-2ee948c.txt): inherited and intermittent (it passed standalone on 2026-11-12); captel runs
+  without any B2 flag, so B2 code is not installed in it
+diag-b2-tracers (the reproduction matrix): before 194 / 64 / 146 / 237 violations in the four scenarios with body
+  contacts (tracer-before/matrix.txt, on 6e096af = the instrument over the unfixed renderer); after 0 in all six
+npm run build: OK (the pre-existing >500 kB chunk warning only)
+run-all: NOT re-run.

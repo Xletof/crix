@@ -66,14 +66,19 @@ It only shows **after body contacts**. That is why the human saw it on the range
 - **Tap** (released within 160ms): the shipped cast. One Super on the release, the shipped 5-pellet 30° fan at the nearest eligible enemy, 600 per pellet. The pellet angles were checked to 1e-6 rad against the shipped fan.
 - **Hold:**
   - keydown arms targeting, and the nearest eligible enemy is locked at once;
-  - the heading pivots by the mouse (once it moves 4px), else the movement direction;
-  - an enemy that stays 110ms inside the ±22° cone is locked and stays locked, up to 5 (one per pellet);
+  - the cone (±22°) pivots by the mouse once it has moved 24px, by a touch drag, else by the movement direction;
+  - an enemy that stays 110ms inside the cone is locked and stays locked, up to 5 (one per pellet);
   - keyup casts exactly once.
-- **The fan:** centred on the heading at release. Every lock takes the nearest free pellet, re-aimed straight at it as the blast leaves. That is one directed pellet per locked target: never two on one target, never more than five.
+- **The fan's centre at release.** It follows the heading only after an EXPLICIT aim (the mouse moved on purpose, or a touch drag). Otherwise a held move key or a pushed move stick only steered the cone, and the fan aims like a tap: at the first lock, else the nearest enemy. So a hold never throws the Super away from the fight.
+- **Locks and pellets:** every lock of a hold, a lone one included, takes the nearest free pellet, re-aimed straight at it as the blast leaves. That is one directed pellet per locked target: never two on one target, never more than five.
 - **Unchanged:** the cast still runs through the frozen `firePlayerSuper` → `_superBlast` path. Damage, speed, range, pierce, knockback, charge, cooldown and eligibility are untouched.
 - **Cancelled with no cast and nothing left armed:** key repeat (ignored), focus loss, pause, death, a suppression, the meter emptying, a lock dying (dropped, the cast still happens), nothing in reach (the tap still casts), not charged (nothing happens).
 - **Touch:** the Super button's tap / hold / drag / release feeds the same state machine.
-- **Never added:** no `superAiming`, so no red cone and no camera ability lead. No forced aim, no slow-motion.
+- **Camera:**
+  - a keyboard hold sets no `superAiming`, so no camera movement and no red cone are added;
+  - a touch hold sets `superAiming` as the shipped touch hold did, so the frozen camera's lead is unchanged. The red aim cone it would bring is hidden (GameScene's `drawAimCone` runs with the flag lowered).
+  - In a sideways touch drag at phone size the locks stay on screen (`candidate/touch-sideways-held.png`).
+- **Never added:** forced aim, slow-motion.
 - **Not changed:** the release still commits the shipped camera behaviour that every cast has.
 
 **Power (measured, `smoke-b2c` §7).** The staged crowd was five Riflemen spread over 120° plus a Gunner, each at its real HP.
@@ -103,13 +108,22 @@ Frames are in `candidate/` (phone size, 390×844 @2x): `cand-1-stream-charging`,
 
 ## B2-B unchanged (P3)
 
-- **Seeded fights:** `?b2=B` held-stream fights (MIXED s6, SWARM TIDE, MIXED s6 with god mode off, 1,500 ticks each) are **identical tick for tick to `2ee948c`**: positions, hp, ammo, meters, every enemy and bolt, `Math.random` draws and events (display-list events included in that run).
+- **Seeded fights:** `?b2=B` fights (MIXED s6, SWARM TIDE, MIXED s6 with god mode off; 1,500 ticks each; a held stream plus four F-press Supers and a Broken Wings chain) are **identical tick for tick to `2ee948c`**: positions, hp, ammo, meters, every enemy, bolt and pellet, `Math.random` draws and events.
 - **Tuning:** `B2_DEFAULTS` (weapon, economy, impact) is identical to `2ee948c`.
 - **The candidate with no Super input:** identical to B2-B tick for tick. Display-list bookkeeping is excluded, because the candidate creates different pooled images.
 
 ## Validation
 
-Logs are in this folder. Counts are filled in from the final run; see `suites.txt`.
+Logs are in this folder (`suites.txt`).
+
+- `smoke-b2c --old=2ee948c`: **43 / 43**. It covers the 0–9 sections above, including unaimed holds with real keys (D, D+SPACE), a two-finger touch hold, and a red-cone control.
+- `smoke-b2 --old=2ee948c`: 88 / 88 (flag-off identity, the B2-1 weapon, economy, controls, telemetry, presentation).
+- `smoke-b1 --old=2ee948c`: 71 / 71.
+- `smoke-b0 --old=2ee948c`: 46 / 46.
+- P2-A frozen-file sections: `smoke-fx-p2a3` 4 / 4, `-p2a` 4 / 4, `-p2a2` 3 / 3.
+- `smoke-controls`, `smoke-restart`, `smoke-cluster`: pass.
+- `smoke-captel`: 20 / 22. The same two real-time Super-cast checks fail at HEAD and on `2ee948c`, so they are inherited and intermittent. Captel runs without any B2 flag.
+- `run-all` (52 suites): not re-run.
 
 ## Files
 
@@ -130,7 +144,8 @@ GameScene, BootScene, `Enemy.js`, entities, config, data, HUD, P1 / P2-A modules
 
 - **Untested on a handset.** All verification ran in the harness and a phone-sized viewport.
 - **Locking strength:** it raises the Super's effect on spread crowds (above).
-- **Coarse keyboard pivot:** WASD pivots in 45° steps; the mouse gives a fine pivot. Mouse pivot needs the pointer to move after F goes down.
+- **Coarse keyboard pivot:** WASD pivots the cone in 45° steps; the mouse gives a fine pivot and also aims the fan. Mouse pivot needs the pointer to move 24px after F goes down.
+- **Footage inspected:** the human's 18–22 s window shows spawning and targeted fire; 25–32 s shows a crowd fight. The clearest detached-streak case in the recording is 15.3–16.5 s (stray streaks beside old blood splats); 0–17 s is blank-space fire. Frames were read at 60 fps in those windows, 1–6 fps elsewhere.
 - **Thin cues:** the charge thread and quarter rings are subtle by design. At phone size the thread reads; the ring is small.
 - **One-time red flash:** the first loud event in a room still flashes red ("DETECTED"). That is the room alarm, not the Super.
 - **Super pellet art:** the striped red-white pellets are the shipped art and were not redesigned.
