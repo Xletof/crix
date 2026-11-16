@@ -8,7 +8,10 @@
 //     is locked at once. The hero keeps moving and the gun keeps working.
 //     The TARGETING HEADING pivots with, in order of authority: a dragged
 //     Super button (touch), the mouse pointer once it has moved, else the
-//     movement direction. Any eligible enemy that stays inside the cone around
+//     movement direction. The movement direction only steers the cone; the
+//     fan's centre follows the heading only after an EXPLICIT aim (the mouse
+//     moved on purpose, a touch drag), else it aims like a tap (first lock or
+//     nearest). Any eligible enemy that stays inside the cone around
 //     the heading for DWELL_MS is locked and STAYS locked (up to one per
 //     pellet). keyup commits: the Super fires exactly once.
 //   Cancelled, with no cast and nothing left armed: focus loss, pause, death,
@@ -18,12 +21,10 @@
 //   The Super is still the shipped 5-pellet, 30-degree fan at the shipped
 //   damage, speed, range, pierce and knockback, fired through the frozen
 //   `firePlayerSuper` -> `_superBlast` path; charge, cooldown and eligibility
-//   rules are untouched. The fan is centred on the heading at release (on a
-//   tap, the nearest enemy). Each lock beyond the first takes over the fan
-//   pellet nearest to it in angle, re-aimed straight at that target when the
-//   blast leaves — ONE directed pellet per locked target, never more, so a
-//   lock cannot stack pellets on one enemy. With one lock (any tap) the fan is
-//   bit-for-bit the shipped one.
+//   rules are untouched. On a hold every lock takes over the fan pellet
+//   nearest to it in angle, re-aimed straight at that target when the blast
+//   leaves — ONE directed pellet per locked target, never more, so a lock
+//   cannot stack pellets on one enemy. A tap is bit-for-bit the shipped fan.
 //
 // DRAWN (one pooled Graphics, player-owned ice-white / violet; never red):
 //   1 preparation  the cone: two thin ice-white rays to the Super's reach and
@@ -36,7 +37,9 @@
 //   5 impact       a locked target hit by its pellet throws one violet ring;
 //                  the mark is gone
 // No camera movement and no slow-motion are added; `superAiming` (the red
-// cone and the camera's ability lead) is never set by this path.
+// cone and the camera's ability lead) is never set by a KEYBOARD hold; a
+// TOUCH hold sets it as the shipped touch hold did, for the frozen camera's
+// lead, with the red cone hidden.
 import Phaser from 'phaser';
 import { PLAYER } from '../config.js';
 
@@ -45,7 +48,7 @@ export const B2C_SUPER = {
   showMs: 90,       // the cone appears after this (a tap never flashes it)
   coneDeg: 22,      // half-angle of the acquisition cone
   dwellMs: 110,     // time inside the cone that makes a lock
-  mouseMovePx: 4,   // the mouse takes the heading once it has moved this far
+  mouseMovePx: 24,  // the mouse takes the heading once it has moved this far (a deliberate move, not a nudge)
 };
 const ICE = 0xeef8ff, VIOLET = 0x8c9cff, KEY = 0x10142c;   // KEY: the dark keyline that keeps a mark legible on white armour
 const TAU = Math.PI * 2;
@@ -58,7 +61,7 @@ export function installB2Super(scene, api, wrap, voice) {
   const MAX_LOCKS = PLAYER.superPellets;
   const st = {
     phase: 'idle', src: null, downAt: 0, heading: 0, locks: [], dwell: new Map(),
-    touchVec: null, mouse0: null, mouseOn: false, plan: null, lastLocks: [], fx: [],
+    touchVec: null, mouse0: null, mouseOn: false, aimed: false, plan: null, lastLocks: [], fx: [],
   };
   const stats = { taps: 0, holds: 0, casts: 0, locks: 0, maxLocks: 0, directed: 0, cancels: {}, denied: 0, impacts: 0, ignoredRepeat: 0 };
   let clock = 0;
@@ -86,13 +89,13 @@ export function installB2Super(scene, api, wrap, voice) {
     st.locks = n ? [n] : [];
     st.heading = n ? Math.atan2(n.y - p.y, n.x - p.x) : (p.facing ?? 0);
     const ptr = scene.input?.activePointer;
-    st.mouse0 = ptr ? { x: ptr.x, y: ptr.y } : null; st.mouseOn = false;
+    st.mouse0 = ptr ? { x: ptr.x, y: ptr.y } : null; st.mouseOn = false; st.aimed = false;
     st.touchVec = null;
     if (n) stats.locks++;
   }
   function cancel(reason) {
     if (st.phase === 'idle') return;
-    st.phase = 'idle'; st.locks = []; st.dwell.clear(); st.touchVec = null;
+    st.phase = 'idle'; st.locks = []; st.dwell.clear(); st.touchVec = null; touchLead(false);
     stats.cancels[reason] = (stats.cancels[reason] || 0) + 1;
   }
   function commit() {
@@ -111,7 +114,17 @@ export function installB2Super(scene, api, wrap, voice) {
       const n = nearest(p);
       heading = flick ? Math.atan2(st.touchVec.y, st.touchVec.x) : n ? Math.atan2(n.y - p.y, n.x - p.x) : (p.facing ?? 0);
       stats.taps++;
-    } else { heading = st.heading; stats.holds++; }
+    } else {
+      // THE FAN'S CENTRE on a hold. An EXPLICIT aim (the mouse moved on purpose, or a touch
+      // drag) owns it. Otherwise the heading only steered the acquisition cone (a held move
+      // key, a pushed move stick) and must not throw the Super away from the fight: the
+      // centre is the first lock, or the nearest enemy, exactly as a tap would aim.
+      const first = locks[0] || nearest(p);
+      heading = st.aimed ? st.heading : first ? Math.atan2(first.y - p.y, first.x - p.x) : st.heading;
+      stats.holds++;
+      if (st.aimed) stats.aimedHolds = (stats.aimedHolds || 0) + 1;
+    }
+    touchLead(false);
     const plan = tap ? null : { locks: locks.slice(0, MAX_LOCKS) };
     st.plan = plan;
     const ok = p.tryFireSuper(heading);
@@ -140,7 +153,8 @@ export function installB2Super(scene, api, wrap, voice) {
     const plan = st.plan; st.plan = null;
     const p = this.player;
     const locks = plan ? plan.locks.filter((e) => live(e)) : [];
-    if (!p || locks.length <= 1) return coolFlash(() => prev.call(this, angle));
+    // a tap (no plan) is the shipped fan; on a hold EVERY lock takes a pellet, a lone one too
+    if (!p || !plan || locks.length === 0) return coolFlash(() => prev.call(this, angle));
     const n = PLAYER.superPellets, half = (n - 1) / 2;
     const step = Phaser.Math.DegToRad(PLAYER.superSpreadDeg) / Math.max(1, n - 1);
     const slots = Array.from({ length: n }, (_, i) => angle + (i - half) * step);
@@ -172,13 +186,33 @@ export function installB2Super(scene, api, wrap, voice) {
   // touch: the Super button's own hold / drag / release, into the same machine
   wrap(p0, 'setSuperAimInput', () => function (vec) {
     if (st.phase === 'idle') begin('touch');
-    if (st.src === 'touch') st.touchVec = vec || null;
+    if (st.src !== 'touch') return;
+    st.touchVec = vec || null;
+    if (vec && vec.force > 0.05) st.aimed = true;
+  });
+  // TOUCH KEEPS THE SHIPPED CAMERA. The frozen camera leads toward a held Super aim by reading
+  // `superAiming` / `superAim`; the shipped touch hold set them, so the candidate sets them
+  // too while a TOUCH hold is targeting (keyboard holds add no camera movement). The one thing
+  // `superAiming` also brings, the red aim cone, is hidden: GameScene.drawAimCone runs with
+  // the flag lowered for that call only.
+  function touchLead(onOff) {
+    const p = scene.player;
+    if (!p) return;
+    if (onOff) { p.superAiming = true; p.superAim = st.heading; }
+    else if (st.leading) p.superAiming = false;
+    st.leading = !!onOff;
+  }
+  wrap(scene, 'drawAimCone', (prev) => function (...a) {
+    const p = this.player;
+    if (!st.leading || !p) return prev.apply(this, a);
+    const was = p.superAiming; p.superAiming = false;
+    try { return prev.apply(this, a); } finally { p.superAiming = was; }
   });
   wrap(p0, 'releaseSuperAim', () => function (vec) {
     if (st.phase === 'idle') begin('touch');
     if (st.phase !== 'targeting' || st.src !== 'touch') return;
     st.touchVec = vec || null;
-    if (vec && vec.force > 0.05) st.heading = Math.atan2(vec.y, vec.x);
+    if (vec && vec.force > 0.05) { st.heading = Math.atan2(vec.y, vec.x); st.aimed = true; }
     commit();
   });
   const onBlur = () => cancel('focus');
@@ -199,11 +233,11 @@ export function installB2Super(scene, api, wrap, voice) {
   const g = scene.add.graphics().setDepth(8800);
   function headingSource(p) {
     const tv = st.touchVec;
-    if (st.src === 'touch' && tv && tv.force > 0.05) return Math.atan2(tv.y, tv.x);
+    if (st.src === 'touch' && tv && tv.force > 0.05) { st.aimed = true; return Math.atan2(tv.y, tv.x); }
     const ptr = scene.input?.activePointer;
     if (st.src === 'key' && ptr && st.mouse0) {
       if (!st.mouseOn && Math.hypot(ptr.x - st.mouse0.x, ptr.y - st.mouse0.y) >= C.mouseMovePx) st.mouseOn = true;
-      if (st.mouseOn) { const w = ptr.positionToCamera(scene.cameras.main); return Math.atan2(w.y - p.y, w.x - p.x); }
+      if (st.mouseOn) { st.aimed = true; const w = ptr.positionToCamera(scene.cameras.main); return Math.atan2(w.y - p.y, w.x - p.x); }
     }
     const mx = p._moveTargetX || 0, my = p._moveTargetY || 0;
     if (Math.hypot(mx, my) > 1) return Math.atan2(my, mx);
@@ -220,6 +254,7 @@ export function installB2Super(scene, api, wrap, voice) {
     if (st.phase === 'targeting') {
       const h = headingSource(p);
       if (h != null) st.heading = h;
+      if (st.src === 'touch') touchLead(true);
       st.locks = st.locks.filter((e) => live(e));
       const half = Phaser.Math.DegToRad(C.coneDeg);
       for (const e of candidates()) {

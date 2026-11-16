@@ -98,7 +98,7 @@ async function boot(flags, { base = NOW, q = Q_STAGE, seed = 4242, god = true, c
     window.__pellets = [];
     const grp = gs.playerSuperBullets, f0 = grp.fire;
     grp.fire = function (x, y, a, sp, dmg, ...r) { const b = f0.call(this, x, y, a, sp, dmg, ...r); window.__pellets.push({ a, dmg }); return b; };
-    window.__trace = ({ seed, ticks, seg, hold, superTaps = [], b2c = false }) => {
+    window.__trace = ({ seed, ticks, seg, hold, superTaps = [], melee = [] }) => {
       const K = gs.keys, cam = gs.cameras.main, kb = gs.input.keyboard;
       window.__seed(seed); window.__draws = 0; window.__evN = 0; window.__ev.addedtoscene = 0; window.__ev.removedfromscene = 0;
       const hashes = []; const f = (v) => (Math.round(v * 1000) / 1000).toString();
@@ -107,6 +107,10 @@ async function boot(flags, { base = NOW, q = Q_STAGE, seed = 4242, god = true, c
         const cur = seg.find(([a, bb]) => i >= a && i < bb)[2];
         K.A.isDown = cur.includes('A'); K.D.isDown = cur.includes('D'); K.W.isDown = cur.includes('W'); K.S.isDown = cur.includes('S');
         gs.cursors.space.isDown = hold.some(([a, bb]) => i >= a && i < bb);
+        // the B2-1 F press (the path the closure edited): charge it, press it, release next tick
+        if (superTaps.includes(i)) { P.superCharge = 4; kb.emit('keydown-F', { repeat: false }); }
+        if (superTaps.includes(i - 1)) kb.emit('keyup-F', {});
+        if (melee.includes(i)) { P.meleeCharge = 99; P.tryMeleeCombo(); }
         window.__adv(1);
         const w = gs._b2?.state;
         let s2 = `${i}|${f(P.x)},${f(P.y)},${f(P.hp)},${P.shieldHp},${P.alive},${f(P.superCharge)},${f(P.meleeCharge)},${w ? `${w.mag},${f(w.cool)},${f(w.reloadLeft)}` : '-'}|${f(cam.scrollX)},${f(cam.scrollY)}|${f(gs.time.timeScale)}|k${gs.runKills}|`;
@@ -117,7 +121,7 @@ async function boot(flags, { base = NOW, q = Q_STAGE, seed = 4242, god = true, c
         hashes.push(fnv(s2));
       }
       K.A.isDown = K.D.isDown = K.W.isDown = K.S.isDown = false; gs.cursors.space.isDown = false;
-      return { hashes, draws: window.__draws, kills: gs.runKills, shots: gs._b2?.stats.shots ?? 0 };
+      return { hashes, draws: window.__draws, kills: gs.runKills, shots: gs._b2?.stats.shots ?? 0, supers: window.__ev['player-fire-super'] || 0 };
     };
   }, { seed, god });
   return page;
@@ -141,12 +145,13 @@ if (on(0)) {
 // ── 1. B2-B UNCHANGED ────────────────────────────────────────────────────
 if (on(1)) {
   console.log('\n== 1. B2-B unchanged');
-  const run = async (flags, base, q, o = {}) => { const p = await boot(flags, { base, q, god: o.god ?? true }); const r = await p.evaluate((x) => window.__trace(x), { seed: 9071, ticks: 1500, seg: FIGHT_SEG, hold: HOLD }); const k = await p.evaluate(async () => (await window.__mod(/systems\/b2Flagship\.js/)).B2_DEFAULTS); await p.close(); return { ...r, k }; };
+  const run = async (flags, base, q, o = {}) => { const p = await boot(flags, { base, q, god: o.god ?? true }); const r = await p.evaluate((x) => window.__trace(x), { seed: 9071, ticks: 1500, seg: FIGHT_SEG, hold: HOLD, superTaps: o.supers ?? [], melee: o.melee ?? [] }); const k = await p.evaluate(async () => (await window.__mod(/systems\/b2Flagship\.js/)).B2_DEFAULTS); await p.close(); return { ...r, k }; };
   if (OLD) {
     for (const [label, q, god] of [['MIXED s6', Q_MIXED, true], ['SWARM TIDE', Q_SWARM, true], ['MIXED s6, god mode off', Q_MIXED, false]]) {
-      const a = await run(join(VIS, 'b2=B'), OLD, q, { god }), b = await run(join(VIS, 'b2=B'), NOW, q, { god });
+      const o = { god, supers: [300, 700, 1100, 1400], melee: [500, 525, 550] };
+      const a = await run(join(VIS, 'b2=B'), OLD, q, o), b = await run(join(VIS, 'b2=B'), NOW, q, o);
       const d = firstDiff(a.hashes, b.hashes);
-      check(`${label}: ?b2=B held-stream fight, 1500 ticks — HEAD = 2ee948c tick for tick (state, ammo, meters, every enemy and bolt, draws, events)`, d < 0 && a.shots > 100, d < 0 ? `${b.shots} rounds, ${b.kills} kills, ${b.draws} draws` : `first divergent tick ${d}`);
+      check(`${label}: ?b2=B fight, 1500 ticks, held stream + FOUR F-press Supers + a Broken Wings chain — HEAD = 2ee948c tick for tick (state, ammo, meters, every enemy, bolt and pellet, draws, events)`, d < 0 && a.shots > 100 && b.supers === 4, d < 0 ? `${b.shots} rounds, ${b.supers} Supers, ${b.kills} kills, ${b.draws} draws` : `first divergent tick ${d}`);
       if (label === 'MIXED s6') check('B2_DEFAULTS (every weapon, economy and impact value) identical to 2ee948c', JSON.stringify(a.k) === JSON.stringify(b.k), JSON.stringify(b.k));
     }
   } else console.log('   (2ee948c comparison skipped: no --old=URL)');
@@ -253,6 +258,32 @@ if (on(4)) {
   await p.close();
 }
 
+// ── 4b. A HOLD WITHOUT AN EXPLICIT AIM ───────────────────────────────────
+if (on(4)) {
+  console.log('\n== 4b. a hold without an explicit aim does no worse than a tap');
+  const trial = async (mode) => {
+    const p = await boot(join(VIS, 'b2=B', 'b2c=1'));
+    await p.evaluate(() => { const gs = window.__gs, P = gs.player; window.__stage(); window.__e = window.__dummy('grunt', P.x - 260, P.y); P.superCharge = 4; window.__pellets.length = 0; window.__adv(3); });
+    if (mode === 'tap') { await p.keyboard.press('f'); await p.evaluate(() => window.__adv(40)); }
+    if (mode === 'hold+D') {   // real keys: F held 300ms while D walks the hero away (right)
+      await p.keyboard.down('d'); await p.keyboard.down('f'); await p.evaluate(() => window.__adv(18));
+      await p.keyboard.up('f'); await p.keyboard.up('d'); await p.evaluate(() => window.__adv(40));
+    }
+    if (mode === 'hold+SPACE+D') {
+      await p.keyboard.down('Space'); await p.keyboard.down('d'); await p.keyboard.down('f'); await p.evaluate(() => window.__adv(18));
+      await p.keyboard.up('f'); await p.keyboard.up('d'); await p.keyboard.up('Space'); await p.evaluate(() => window.__adv(40));
+    }
+    const r = await p.evaluate(() => { const gs = window.__gs, S = gs._b2.superInput; const sup = window.__e.hpMax - window.__e.hp; return { superDmg: gs._b2.stats.charge ? null : null, pellets: window.__pellets.map((q) => +q.a.toFixed(3)), stats: { casts: S.stats.casts, holds: S.stats.holds, directed: S.stats.directed, aimed: S.stats.aimedHolds || 0 }, hp: window.__e.hp, dmg: sup }; });
+    await p.close(); return r;
+  };
+  const t = await trial('tap'), h = await trial('hold+D'), hs = await trial('hold+SPACE+D');
+  // the gun also hits the target in the SPACE case; the Super's share is checked through its pellets
+  const towardLeft = (r) => r.pellets.some((a) => Math.abs(Math.abs(a) - Math.PI) < 0.3);
+  check('real keys: F held 300ms while D walks right, the only enemy LEFT — the Super still goes left (centre on the lock, the lone lock takes a pellet), one cast', h.stats.casts === 1 && h.stats.holds === 1 && h.stats.aimed === 0 && h.stats.directed >= 1 && towardLeft(h), JSON.stringify(h));
+  check('...and it does no worse than a tap on that enemy (same Super damage)', h.dmg >= t.dmg && t.dmg > 0, `tap ${t.dmg}, hold+D ${h.dmg}`);
+  check('the same with SPACE held (the gun streaming) — still one cast, still left', hs.stats.casts === 1 && towardLeft(hs), JSON.stringify(hs.stats));
+}
+
 // ── 5. EDGE CASES ────────────────────────────────────────────────────────
 if (on(5)) {
   console.log('\n== 5. edge cases');
@@ -325,11 +356,35 @@ if (on(6)) {
   await pt.evaluate(() => { window.__gs.player.superCharge = 4; window.__adv(3); });
   await touch('touchStart', g2.x, g2.y); await pt.evaluate(() => window.__adv(4));
   for (let i = 1; i <= 6; i++) { await touch('touchMove', g2.x - i * 12, g2.y); await pt.evaluate(() => window.__adv(4)); }
-  const mid = await pt.evaluate(() => ({ casts: window.__casts, phase: window.__gs._b2.superInput.state.phase, h: window.__gs._b2.superInput.state.heading, locks: window.__gs._b2.superInput.state.locks.length, aiming: window.__gs.player.superAiming }));
+  const mid = await pt.evaluate(() => { const gs = window.__gs; const cmds = gs.aimGraphics?.commandBuffer || []; return { casts: window.__casts, phase: gs._b2.superInput.state.phase, h: gs._b2.superInput.state.heading, locks: gs._b2.superInput.state.locks.length, aiming: gs.player.superAiming, redCone: cmds.includes(0xff4020) }; });
   await touch('touchEnd'); await pt.evaluate(() => window.__adv(12));
   const t2 = await pt.evaluate(() => ({ casts: window.__casts, a: window.__castA[1] }));
-  check('a REAL touch hold-drag on the Super button: targeting while held (heading follows the drag left, the left enemy locked, no red cone, no cast), one cast on the release along the drag', mid.casts === 1 && mid.phase === 'targeting' && near(Math.abs(mid.h), Math.PI, 0.1) && mid.locks === 2 && !mid.aiming && t2.casts === 2 && near(Math.abs(t2.a), Math.PI, 0.1), JSON.stringify({ mid, t2 }));
+  check('a REAL touch hold-drag on the Super button: targeting while held (heading follows the drag left, the left enemy locked, no cast), the shipped camera lead kept (superAiming) with the red cone hidden, one cast on the release along the drag', mid.casts === 1 && mid.phase === 'targeting' && near(Math.abs(mid.h), Math.PI, 0.1) && mid.locks === 2 && mid.aiming && !mid.redCone && t2.casts === 2 && near(Math.abs(t2.a), Math.PI, 0.1), JSON.stringify({ mid, t2 }));
+  // two fingers: the move stick pushed right while the Super button is held WITHOUT a drag,
+  // the only enemy LEFT — the cast must still go left
+  const g3 = await pt.evaluate(async () => { const gs = window.__gs, P = gs.player; window.__clear(); window.__adv(5); window.__dummy('grunt', P.x - 260, P.y); P.superCharge = 4; window.__adv(3);
+    const L = await window.__mod(/systems\/controlLayout\.js/); const r = window.game.canvas.getBoundingClientRect(), k = r.width / 720, m = L.getControl('moveStick');
+    window.__castA = []; return { mx: r.left + m.x * k, my: r.top + m.y * k }; });
+  const two = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts });
+  await two('touchStart', [{ x: g3.mx, y: g3.my, id: 2 }]); await pt.evaluate(() => window.__adv(2));
+  await two('touchMove', [{ x: g3.mx + 60, y: g3.my, id: 2 }]); await pt.evaluate(() => window.__adv(2));
+  await two('touchStart', [{ x: g3.mx + 60, y: g3.my, id: 2 }, { x: g2.x, y: g2.y, id: 1 }]); await pt.evaluate(() => window.__adv(18));
+  await two('touchMove', [{ x: g3.mx + 60, y: g3.my, id: 2 }, { x: g2.x, y: g2.y, id: 1 }]); await pt.evaluate(() => window.__adv(2));
+  await two('touchEnd', [{ x: g3.mx + 60, y: g3.my, id: 2 }]); await pt.evaluate(() => window.__adv(2));
+  await two('touchEnd', []); await pt.evaluate(() => window.__adv(10));
+  const t3 = await pt.evaluate(() => ({ a: window.__castA[0], stats: { ...window.__gs._b2.superInput.stats } }));
+  check('two fingers: move stick pushed right, Super button held with no drag, the only enemy LEFT — one cast, aimed left (the move stick steers only the cone)', t3.a != null && near(Math.abs(t3.a), Math.PI, 0.15), JSON.stringify({ a: t3.a, holds: t3.stats.holds, aimed: t3.stats.aimedHolds || 0 }));
   await pt.close(); await ctx.close();
+  // CONTROL: without the candidate, the same touch hold draws the shipped red cone (so the check above can see it)
+  const ctx2 = await browser.newContext({ viewport: { width: 720, height: 1280 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 });
+  const pc = await boot(join(VIS, 'b2=B'), { ctx: ctx2 });
+  const g4 = await pc.evaluate(() => { const gs = window.__gs, P = gs.player; window.__stage(); window.__dummy('grunt', P.x - 260, P.y); P.superCharge = 4; window.__adv(5); const hud = window.game.scene.getScene('HUD'), r = window.game.canvas.getBoundingClientRect(), k = r.width / 720; return { x: r.left + hud.superButton.x * k, y: r.top + hud.superButton.y * k }; });
+  const cdp2 = await ctx2.newCDPSession(pc);
+  await cdp2.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: g4.x, y: g4.y, id: 1 }] }); await pc.evaluate(() => window.__adv(10));
+  const ctl = await pc.evaluate(() => ({ red: (window.__gs.aimGraphics?.commandBuffer || []).includes(0xff4020), aiming: window.__gs.player.superAiming }));
+  await cdp2.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await pc.evaluate(() => window.__adv(5));
+  check('CONTROL: without the candidate the same touch hold draws the shipped red cone (the hidden-cone check can see it)', ctl.red && ctl.aiming, JSON.stringify(ctl));
+  await pc.close(); await ctx2.close();
 }
 
 // ── 7. POWER ─────────────────────────────────────────────────────────────
