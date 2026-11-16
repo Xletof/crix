@@ -130,7 +130,7 @@ Logs are in this folder (`suites.txt`).
 
 ## Deploy
 
-- `FRIX` was fast-forwarded `2ee948c..d84a9b5`; Pages run #298 succeeded.
+- `FRIX` was fast-forwarded `2ee948c..d84a9b5` (Pages run #298), then to `5337832` (#299), then to `fd85504` (#300), the final code: the touch-hold guard (`cd4108f`) plus evidence. All three runs succeeded. This record is pushed on top; it changes docs only.
 - **Production bundle check.** The bundle (`npm run build`, served locally) was driven in its real loop with real clicks and keys: no console or page errors on either link or with no flags. On the candidate, SPACE + F hold showed the cone and a lock, and the F release cast. On B2-B, F press cast at once (`production-bundle-real-loop.png`).
 - The live Pages site cannot be opened from the build container.
 
