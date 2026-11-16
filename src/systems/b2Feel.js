@@ -34,6 +34,7 @@ import { PixelCanvas } from './pixelArt.js';
 import { P1_WEAPONS } from './p1Paint.js';
 import { circleEntry } from './p2aFx.js';
 import { isB2Debug } from './debug.js';
+import { createTemperSkin, tipStep } from './b2Temper.js';
 
 const TEX = { core: 'b2-core', trail: 'b2-trail', body: 'b2-body', head: 'b2-head', halo: 'b2-halo', spill: 'b2-spill', mz: ['b2-mz0', 'b2-mz1', 'b2-mz2'], spark: 'b2-spark', ring: 'b2-ring' };
 const FLICK = [1, 0.86, 1.1, 0.93, 1.04];
@@ -135,7 +136,11 @@ export function installB2Feel(scene, api, K, voice) {
   // pools and the primed rim are gone, and the charge is carried by a cool ice-white THREAD
   // inside each bolt whose length is the Super charge when it was fired, plus a ring pulse at
   // the barrel at each quarter of the meter. FULL belongs to the approved P1-B ring alone.
-  const cand = () => !!api.candidate;
+  // TEMPER (`&b2t=1`, systems/b2Temper.js): a SKIN that draws the round, the muzzle, the
+  // contact, the gun and the Super. This file keeps the round's lifecycle and the tracer
+  // invariant; with the skin on, the B2-1 and closure-candidate drawing below is not used.
+  let skin = null;
+  const cand = () => !!api.candidate && !skin;
   // THREAD is the P1-B charging gauge's own lit colour, so the gun and the gauge share a hue
   const COLD = b2HeatColor(0.12), THREAD = 0xa9c4ee, STEP = 0xeef8ff;
   const tone = (heat) => (cand() ? COLD : b2HeatColor(heat));
@@ -197,6 +202,15 @@ export function installB2Feel(scene, api, K, voice) {
     if (face == null) face = tipLen();
     const ang = rec.ang;
     const ox = p.x + Math.cos(ang) * face, oy = p.y + Math.sin(ang) * face;
+    if (skin) {
+      const sv = { r: rec, ox, oy, ang, heat: rec.heat, len: skin.boltLen, speed: K.speed, dead: false, back: 0 };
+      skin.roundNew(sv, rec);
+      recs.push(sv);
+      if (recs.length > stats.peakRounds) stats.peakRounds = recs.length;
+      skin.flashNew(rec, ang);
+      lastShotClock = clockNow; lastDir = ang; shotN = rec.n;
+      return;
+    }
     const heat = cand() ? 0 : Math.min(1, rec.heat + (rec.hot ? 0.35 : 0));
     const col = tone(heat);
     const len = cand() ? 84 * (rec.accent ? 1.15 : 1) : (78 + 20 * heat) * (rec.accent ? 1.2 : 1);
@@ -251,6 +265,7 @@ export function installB2Feel(scene, api, K, voice) {
   }
   function drawStreak(v, hx, hy, L, live, alpha) {
     if (L > 1.5) checkStreak(v, hx, hy, L, live);
+    if (skin) { skin.roundDraw(v, hx, hy, L, live); return; }
     if (L <= 1.5) { v.trail?.setVisible(false); v.body.setVisible(false); v.core.setVisible(false); v.head.setVisible(false); v.halo?.setVisible(false); v.thread?.setVisible(false); return; }
     const depth = hy + 3;
     const wide = (v.r.accent ? 1.25 : 1) * (0.9 + 0.35 * v.heat);
@@ -275,7 +290,7 @@ export function installB2Feel(scene, api, K, voice) {
       // the light already in flight runs into the end point
       v.back += v.speed * dt / 1000;
       const L = v.tLen - v.back;
-      if (L <= 1.5) { free(v.trail); free(v.body); free(v.core); free(v.head); free(v.halo); free(v.thread); recs.splice(i, 1); continue; }
+      if (L <= 1.5) { if (skin) skin.roundFree(v); else { free(v.trail); free(v.body); free(v.core); free(v.head); free(v.halo); free(v.thread); } recs.splice(i, 1); continue; }
       drawStreak(v, v.endX, v.endY, L, false, v.hit ? 1 : Math.max(0, L / Math.max(1, v.tLen)));
     }
   }
@@ -285,6 +300,7 @@ export function installB2Feel(scene, api, K, voice) {
   let cur = null;                    // the enemy the current hit call is resolving
   function spark(x, y, ang, heat, big, depth) {
     stats.contacts++;
+    if (skin) { skin.hitNew(x, y, ang, big, depth); return; }
     if (big && !low() && !cand()) stats.impactPools = (stats.impactPools || 0) + 1;
     const col = tone(heat);
     sparks.push({ t: 0, life: big ? 110 : 74, x, y, big, depth,
@@ -306,6 +322,7 @@ export function installB2Feel(scene, api, K, voice) {
       // the entry radius + the body + the bolt's hitbox + one frame of travel
       r: R + (e.cfg?.radius ?? 22) + (b.body?.radius ?? 30) + 20 };
     contactOf.set(b, c);
+    skin?.setContactRound(recs.find((q) => q.r.b === b && q.r.gen === b._gen) || null);
     spark(c.x, c.y, ang, Math.min(1, api.charge01() + (flinch ? 0.15 : 0)), flinch, Math.max(e.depth ?? e.y, c.y) + 4);
   }
   function updateSparks(dt) {
@@ -350,6 +367,7 @@ export function installB2Feel(scene, api, K, voice) {
     if (C.hit && cur && color === 'red' && count === 7) { stats.dropped.burst++; return undefined; }
     if (C.wall && color === 'yellow' && count === 6) {
       stats.dropped.burst++;
+      skin?.setContactRound(null, tipStep(api.charge01()));
       spark(x, y, ang, api.charge01() * 0.6, false, y + 60);     // thrown back off the surface
       return undefined;
     }
@@ -379,7 +397,8 @@ export function installB2Feel(scene, api, K, voice) {
     if (a.sum < 0.5) return;
     stats.numbersOut++;
     passNumber = true;
-    try { fx.damageNumber(a.x, a.y, Math.round(a.sum), hex(lerpInt(tone(api.charge01()), 0xffffff, killed ? 0.15 : 0.55)), 'minor'); } finally { passNumber = false; }
+    const numCol = skin ? skin.numberColor(killed, tipStep(api.charge01())) : hex(lerpInt(tone(api.charge01()), 0xffffff, killed ? 0.15 : 0.55));
+    try { fx.damageNumber(a.x, a.y, Math.round(a.sum), numCol, 'minor'); } finally { passNumber = false; }
   };
   wrap(fx, 'damageNumber', (prev) => function (x, y, amount, color, tier) {
     if (passNumber || !(C.dmg && cur) || typeof amount !== 'number' || tier === 'major') return prev.call(this, x, y, amount, color, tier);
@@ -400,6 +419,10 @@ export function installB2Feel(scene, api, K, voice) {
     if (scene._dmgSrc === 'primary') voice?.killTick();
   };
   scene.events.on('enemy-died', onDied);
+
+  // TEMPER: created after the wrappers above, so its own (the Super's shipped effects) sit
+  // outside them and are restored first.
+  if (api.temper) { skin = createTemperSkin(scene, api, K, { muzzleNow, wrap }); stats.temper = skin.stats; }
 
   // ── HUD: the pips are for a three-round pistol ──────────────────────────
   const hudRestore = [];
@@ -556,10 +579,15 @@ export function installB2Feel(scene, api, K, voice) {
     const t0 = performance.now();
     clockNow = clock;
     const p = scene.player;
-    updateSparks(dt);
-    updateRounds(dt);
-    updateMuzzle(dt, p);
-    updateMeter(dt, p);
+    if (skin) {
+      updateRounds(dt);
+      skin.update(dt, clock, p);
+    } else {
+      updateSparks(dt);
+      updateRounds(dt);
+      updateMuzzle(dt, p);
+      updateMeter(dt, p);
+    }
     updateMag(dt, p);
     if (dg) drawDebug(p);
     for (const [e, a] of acc) if (clockNow - a.t0 >= 260 || !e.active || !e.alive) flush(e, a, false);
@@ -573,18 +601,19 @@ export function installB2Feel(scene, api, K, voice) {
     onReload(kind) { reload = kind; magKey = ''; },
     onReloaded() { reload = null; magKey = ''; magShown = 700; },
     onRelease() { /* the stream's light decays on its own */ },
-    onSuper() { superAt = clockNow; },
+    onSuper() { superAt = clockNow; skin?.onSuper(); },
     onPrimed() { if (clockNow - primedAt > 400) voice?.primed(); primedAt = clockNow; },
     onOvercharge() { hotFlashAt = clockNow; magKey = ''; },
     heatColor: b2HeatColor,
     destroy() {
       scene.events.off('enemy-died', onDied);
       hudScene?.events?.off('create', onHudCreate);
+      try { skin?.destroy(); } catch (_) { /* */ }
       restores.splice(0).reverse().forEach((f) => { try { f(); } catch (_) { /* */ } });
       hudRestore.splice(0).forEach((f) => { try { f(); } catch (_) { /* */ } });
       for (const o of [ember, rim, spill, magBar, dg, ...pool]) { try { o?.destroy(); } catch (_) { /* */ } }
       dpanel?.remove();
-      for (const v of recs) for (const o of [v.trail, v.body, v.core, v.head, v.halo, v.thread]) { try { o?.destroy(); } catch (_) { /* */ } }
+      for (const v of recs) for (const o of [v.trail, v.body, v.core, v.head, v.halo, v.thread, v.bolt]) { try { o?.destroy(); } catch (_) { /* */ } }
       for (const f of flashes) { try { f.img.destroy(); f.glow?.destroy(); } catch (_) { /* */ } }
       for (const s of sparks) { try { s.img.destroy(); s.glow?.destroy(); s.spill?.destroy(); } catch (_) { /* */ } }
       for (const s2 of steps) { try { s2.img.destroy(); } catch (_) { /* */ } }
