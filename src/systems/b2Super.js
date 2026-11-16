@@ -15,7 +15,8 @@
 //     the heading for DWELL_MS is locked and STAYS locked (up to one per
 //     pellet). keyup commits: the Super fires exactly once.
 //   Cancelled, with no cast and nothing left armed: focus loss, pause, death,
-//     a suppression, the meter emptied (respawn), scene shutdown.
+//     a suppression, the meter emptied (respawn), scene shutdown, and a touch
+//     hold whose Super button is no longer pressed (the HUD's resume reset).
 //
 // WHAT A LOCK DOES (and does not)
 //   The Super is still the shipped 5-pellet, 30-degree fan at the shipped
@@ -250,6 +251,13 @@ export function installB2Super(scene, api, wrap, voice) {
       if (!p?.alive) cancel('dead');
       else if (p.suppressed) cancel('suppressed');
       else if (!ready(p)) cancel('meter');
+      // A touch hold lives only while its finger is on the Super button. The HUD's
+      // resume hard-reset (SuperButton.forceRelease) clears the button without a
+      // release callback, so a hold it drops must not stay armed and cast later.
+      else if (st.src === 'touch') {
+        const btn = scene.game?.scene?.getScene?.('HUD')?.superButton;
+        if (btn && btn.pointerId == null) cancel('released');
+      }
     }
     if (st.phase === 'targeting') {
       const h = headingSource(p);

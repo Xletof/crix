@@ -322,6 +322,29 @@ if (on(5)) {
   check('nothing in reach: a tap casts once, five pellets', r.empty.casts === 1 && r.empty.pellets === 5, JSON.stringify(r.empty));
   check('not charged: press and release do nothing', r.notReady.casts === 0 && r.notReady.phase === 'idle' && r.notReadyRelease.casts === 0 && r.notReadyRelease.charge === 2, JSON.stringify([r.notReady, r.notReadyRelease]));
   await p.close();
+  // restarts and quit to title under the candidate: one install each time, nothing left behind
+  const pr = await boot(join(VIS, 'b2=B', 'b2c=1'));
+  const rr = await pr.evaluate(() => {
+    const gs = window.__gs, own = (o, k) => Object.prototype.hasOwnProperty.call(o, k), out = {};
+    let blur = 0; const add0 = window.addEventListener, rem0 = window.removeEventListener;
+    window.addEventListener = function (t, ...a) { if (t === 'blur') blur++; return add0.call(this, t, ...a); };
+    window.removeEventListener = function (t, ...a) { if (t === 'blur') blur--; return rem0.call(this, t, ...a); };
+    const gfx = () => gs.children.list.filter((o) => o.type === 'Graphics' && o.depth === 8800).length;
+    const state = () => ({ si: !!gs._b2?.superInput, kup: gs.input.keyboard.listeners('keyup-F').length, kdn: gs.input.keyboard.listeners('keydown-F').length, pause: gs.events.listeners('pause').filter((f) => /cancel\('pause'\)/.test(String(f))).length, post: gs.events.listeners('postupdate').length, gfx: gfx(), blur });
+    const tap = () => { const P = gs.player; window.__stage(); window.__ring(1, 300); P.superCharge = 4; let n = 0; const f = () => { n++; }; gs.events.on('player-fire-super', f); window.__keyF(true); window.__adv(2); window.__keyF(false); window.__adv(8); gs.events.off('player-fire-super', f); return n; };
+    const restart = () => { gs.scene.restart({ mode: 'endless', seed: 4242 }); window.__adv(3); for (let i = 0; i < 400 && !gs.roomSpec; i++) window.__adv(1); window.__adv(20); };
+    out.first = state(); out.tap1 = tap();
+    restart(); out.second = state(); out.tap2 = tap();
+    restart(); out.third = state(); out.tap3 = tap();
+    gs.scene.stop('HUD'); gs.scene.start('Title'); window.__adv(5);
+    out.title = { b2: !!gs._b2, blur, own: ['_superBlast', 'drawAimCone'].filter((k) => own(gs, k)), player: !!gs.player && ['setSuperAimInput', 'releaseSuperAim'].some((k) => own(gs.player, k)) };
+    window.addEventListener = add0; window.removeEventListener = rem0;
+    return out;
+  });
+  const same = (a, b) => a.si && b.si && a.kup === b.kup && a.kdn === b.kdn && a.pause === 1 && b.pause === 1 && a.post === b.post && a.gfx === 1 && b.gfx === 1 && b.blur === 0;
+  check('candidate restart twice: one install each time (F listeners, the candidate own pause listener (the scene total grows by one per restart on plain R1 too: inherited), postupdate listeners, one targeting Graphics, the blur listener replaced not stacked), and an F tap casts exactly once after each', same(rr.first, rr.second) && same(rr.second, rr.third) && rr.tap1 === 1 && rr.tap2 === 1 && rr.tap3 === 1, JSON.stringify(rr));
+  check('candidate quit to title: no B2, no blur listener left, no _superBlast / drawAimCone / Super-aim wrapper left behind', !rr.title.b2 && rr.title.blur === -1 && rr.title.own.length === 0 && !rr.title.player, JSON.stringify(rr.title));
+  await pr.close();
 }
 
 // ── 6. POINTER AND TOUCH ─────────────────────────────────────────────────
@@ -374,6 +397,16 @@ if (on(6)) {
   await two('touchEnd', []); await pt.evaluate(() => window.__adv(10));
   const t3 = await pt.evaluate(() => ({ a: window.__castA[0], stats: { ...window.__gs._b2.superInput.stats } }));
   check('two fingers: move stick pushed right, Super button held with no drag, the only enemy LEFT — one cast, aimed left (the move stick steers only the cone)', t3.a != null && near(Math.abs(t3.a), Math.PI, 0.15), JSON.stringify({ a: t3.a, holds: t3.stats.holds, aimed: t3.stats.aimedHolds || 0 }));
+  // the HUD's resume hard-reset (SuperButton.forceRelease) clears the button WITHOUT a release
+  // callback: a touch hold it drops must cancel, not stay armed and cast on a later touch
+  await pt.evaluate(() => { const gs = window.__gs, P = gs.player; window.__clear(); window.__adv(5); window.__dummy('grunt', P.x + 230, P.y); P.superCharge = 4; window.__casts = 0; window.__adv(3); });
+  await touch('touchStart', g2.x, g2.y); await pt.evaluate(() => window.__adv(6));
+  const fr0 = await pt.evaluate(() => ({ phase: window.__gs._b2.superInput.state.phase, src: window.__gs._b2.superInput.state.src }));
+  await pt.evaluate(() => { window.game.scene.getScene('HUD').superButton.forceRelease(); window.__adv(4); });
+  const fr1 = await pt.evaluate(() => { const si = window.__gs._b2.superInput; return { phase: si.state.phase, aiming: window.__gs.player.superAiming, casts: window.__casts, released: si.stats.cancels.released || 0 }; });
+  await touch('touchEnd'); await pt.evaluate(() => window.__adv(12));
+  const fr2 = await pt.evaluate(() => ({ casts: window.__casts, charge: window.__gs.player.superCharge, phase: window.__gs._b2.superInput.state.phase }));
+  check('a touch hold dropped by the HUD resume reset (forceRelease, no release callback) cancels: idle, camera lead cleared, no cast — and the finger lifting afterwards casts nothing', fr0.phase === 'targeting' && fr0.src === 'touch' && fr1.phase === 'idle' && !fr1.aiming && fr1.casts === 0 && fr1.released === 1 && fr2.casts === 0 && fr2.charge >= 4 && fr2.phase === 'idle', JSON.stringify({ fr0, fr1, fr2 }));
   await pt.close(); await ctx.close();
   // CONTROL: without the candidate, the same touch hold draws the shipped red cone (so the check above can see it)
   const ctx2 = await browser.newContext({ viewport: { width: 720, height: 1280 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 });
