@@ -1,0 +1,7 @@
+1 stationary, 8 directions, empty space      checks  1428  BAD    0  max off 0px  max end err 0px
+2 rotating 360 deg/s while firing            checks   913  BAD    0  max off 0px  max end err 0px
+3 kill a squad, then blank-space bursts      checks  1420  BAD  194  max off 230.83px  max end err 345.7px  e.g. {"why":"end-not-at-death","n":84,"live":false,"hit":true,"off":0,"endErr":5,"head":[716,647],"death":[736,683],"origin":[777,758]}
+4 into cover and the arena edge              checks   171  BAD   64  max off 330.96px  max end err 743.3px  e.g. {"why":"off-line","n":147,"live":false,"hit":true,"off":29,"endErr":176.6,"head":[1070,690],"death":[1243,566],"origin":[842,778]}
+5 dense combat (HORDE x2), auto aim          checks   504  BAD  146  max off 38.88px  max end err 345.3px  e.g. {"why":"off-line","n":163,"live":false,"hit":true,"off":31.5,"endErr":18.6,"head":[762,785],"death":[795,816],"origin":[797,852]}
+6 kills, then walk + fire into empty space   checks  1409  BAD  237  max off 215.81px  max end err 392.8px  e.g. {"why":"end-not-at-death","n":239,"live":false,"hit":true,"off":0,"endErr":2.7,"head":[668,791],"death":[676,819],"origin":[686,854]}
+frames saved with a violation on screen: 4

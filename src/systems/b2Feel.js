@@ -33,6 +33,7 @@ import { isLowQuality, SFX } from './FX.js';
 import { PixelCanvas } from './pixelArt.js';
 import { P1_WEAPONS } from './p1Paint.js';
 import { circleEntry } from './p2aFx.js';
+import { isB2Debug } from './debug.js';
 
 const TEX = { core: 'b2-core', trail: 'b2-trail', body: 'b2-body', head: 'b2-head', halo: 'b2-halo', spill: 'b2-spill', mz: ['b2-mz0', 'b2-mz1', 'b2-mz2'], spark: 'b2-spark', ring: 'b2-ring' };
 const FLICK = [1, 0.86, 1.1, 0.93, 1.04];
@@ -130,7 +131,12 @@ export function installB2Feel(scene, api, K, voice) {
   paint(scene);
   const fx = scene.fx;
   const low = () => isLowQuality();
-  const stats = { rounds: 0, contacts: 0, flashesFull: 0, flashesSoft: 0, numbersIn: 0, numbersOut: 0, peakRounds: 0, peakObjects: 0, updN: 0, updMs: 0, updMax: 0, dropped: { ring: 0, burst: 0, beep: 0 } };
+  // THE TRACER INVARIANT, checked on every visible streak every frame: it lies on its own
+  // origin -> collider line, never reaches behind the barrel, its live head IS the collider,
+  // and a finished streak ends where its collider actually stopped (or, for a body hit, at
+  // that body). `bad` counts frames x streaks that break it; `samples` keeps the first few.
+  const inv = { checks: 0, bad: 0, samples: [], maxOff: 0, maxEndErr: 0 };
+  const stats = { inv, rounds: 0, contacts: 0, flashesFull: 0, flashesSoft: 0, numbersIn: 0, numbersOut: 0, peakRounds: 0, peakObjects: 0, updN: 0, updMs: 0, updMax: 0, dropped: { ring: 0, burst: 0, beep: 0 } };
 
   // ── pools ───────────────────────────────────────────────────────────────
   const pool = [];
@@ -196,11 +202,31 @@ export function installB2Feel(scene, api, K, voice) {
     const b = rec.b;
     // a contact B2 drew, else where the collider stopped (range, wall, field)
     v.endX = c ? c.x : b.x; v.endY = c ? c.y : b.y;
+    v.deathX = b.x; v.deathY = b.y; v.hitR = c ? (c.r ?? 0) : 0;
     const along = (v.endX - v.ox) * Math.cos(v.ang) + (v.endY - v.oy) * Math.sin(v.ang);
     v.tLen = Math.max(0, Math.min(v.len, along));
     v.hit = !!c;
   }
+  function checkStreak(v, hx, hy, L, live) {
+    inv.checks++;
+    const cx = Math.cos(v.ang), cy = Math.sin(v.ang);
+    const off = Math.abs(-(hx - v.ox) * cy + (hy - v.oy) * cx);            // distance from the line
+    const headAlong = (hx - v.ox) * cx + (hy - v.oy) * cy, tailAlong = headAlong - L;
+    let endErr = 0, why = null;
+    if (live) endErr = Math.hypot(hx - v.r.b.x, hy - v.r.b.y);
+    else endErr = Math.max(0, Math.hypot(hx - v.deathX, hy - v.deathY) - (v.hit ? v.hitR : 0));
+    if (off > 1.5) why = 'off-line';
+    else if (tailAlong < -2) why = 'behind-barrel';
+    else if (endErr > 2) why = live ? 'head-not-at-collider' : 'end-not-at-death';
+    if (off > inv.maxOff) inv.maxOff = off;
+    if (endErr > inv.maxEndErr) inv.maxEndErr = endErr;
+    if (why) {
+      inv.bad++;
+      if (inv.samples.length < 12) inv.samples.push({ why, n: v.r.n, live, hit: !!v.hit, off: +off.toFixed(1), endErr: +endErr.toFixed(1), head: [Math.round(hx), Math.round(hy)], death: v.dead ? [Math.round(v.deathX), Math.round(v.deathY)] : null, origin: [Math.round(v.ox), Math.round(v.oy)] });
+    }
+  }
   function drawStreak(v, hx, hy, L, live, alpha) {
+    if (L > 1.5) checkStreak(v, hx, hy, L, live);
     if (L <= 1.5) { v.trail?.setVisible(false); v.body.setVisible(false); v.core.setVisible(false); v.head.setVisible(false); v.halo?.setVisible(false); return; }
     const depth = hy + 3;
     const wide = (v.r.accent ? 1.25 : 1) * (0.9 + 0.35 * v.heat);
@@ -245,6 +271,7 @@ export function installB2Feel(scene, api, K, voice) {
     const ang = Math.atan2(b.body.velocity.y, b.body.velocity.x);
     const R = (e.cfg?.radius ?? 22) * 0.82;
     const c = circleEntry(b.x - Math.cos(ang) * 40, b.y - Math.sin(ang) * 40, ang, e.x, e.y, R);
+    c.r = (e.cfg?.radius ?? 22) + 14;
     contactOf.set(b, c);
     spark(c.x, c.y, ang, Math.min(1, api.charge01() + (flinch ? 0.15 : 0)), flinch, Math.max(e.depth ?? e.y, c.y) + 4);
   }
@@ -427,6 +454,45 @@ export function installB2Feel(scene, api, K, voice) {
     for (let i = 1; i < 4; i++) magBar.fillRect(-W / 2 + Math.round((W * i) / 4), -H / 2, 1, H);
   }
 
+  // ── `&b2dbg=1`: the diagnostic overlay ───────────────────────────────────
+  //  yellow +  the barrel face the eye sees (the P1 weapon's muzzle)
+  //  green  +  where gameplay spawns the round (PLAYER.radius + 12 along the aim)
+  //  cyan      each live round: its recorded origin -> its collider, and the collider
+  //  orange    each finishing streak: the segment drawn this frame; red x = where its
+  //            collider actually stopped
+  //  The panel shows the invariant counters (see `inv`).
+  const dbg = isB2Debug();
+  const dg = dbg ? scene.add.graphics().setDepth(9000) : null;
+  const dpanel = dbg && typeof document !== 'undefined' ? document.createElement('div') : null;
+  if (dpanel) {
+    dpanel.id = 'b2-dbg';
+    dpanel.style.cssText = 'position:fixed;right:6px;bottom:6px;z-index:31;font:11px monospace;color:#cfe;background:rgba(0,0,0,.7);padding:4px 6px;pointer-events:none;white-space:pre';
+    document.body.appendChild(dpanel);
+    if (typeof window !== 'undefined') window.__b2dbg = inv;
+  }
+  const cross = (x, y, col, r = 5) => { dg.lineStyle(1.5, col, 1); dg.lineBetween(x - r, y, x + r, y); dg.lineBetween(x, y - r, x, y + r); };
+  function drawDebug(p) {
+    dg.clear();
+    if (p?.alive) {
+      const a = api.state.aimAng ?? p.aim ?? p.facing;
+      const m = muzzleNow(p, a);
+      cross(m.x, m.y, 0xffe040);
+      cross(p.x + Math.cos(a) * (PLAYER.radius + 12), p.y + Math.sin(a) * (PLAYER.radius + 12), 0x40ff60);
+    }
+    for (const v of recs) {
+      const cx = Math.cos(v.ang), cy = Math.sin(v.ang);
+      if (!v.dead) {
+        dg.lineStyle(1, 0x40e0ff, 0.8); dg.lineBetween(v.ox, v.oy, v.r.b.x, v.r.b.y);
+        dg.fillStyle(0x40e0ff, 1); dg.fillCircle(v.r.b.x, v.r.b.y, 2.5);
+      } else {
+        const L = Math.max(0, v.tLen - v.back);
+        dg.lineStyle(2, 0xff9020, 1); dg.lineBetween(v.endX - cx * L, v.endY - cy * L, v.endX, v.endY);
+        dg.lineStyle(1.5, 0xff2020, 1); dg.lineBetween(v.deathX - 4, v.deathY - 4, v.deathX + 4, v.deathY + 4); dg.lineBetween(v.deathX - 4, v.deathY + 4, v.deathX + 4, v.deathY - 4);
+      }
+    }
+    if (dpanel) dpanel.textContent = `B2 TRACERS  streaks ${recs.length}\nchecks ${inv.checks}  BAD ${inv.bad}\nmax off-line ${inv.maxOff.toFixed(1)}px  max end err ${inv.maxEndErr.toFixed(1)}px${inv.samples.length ? `\nlast: ${inv.samples[inv.samples.length - 1].why}` : ''}`;
+  }
+
   function update(dt, clock) {
     const t0 = performance.now();
     clockNow = clock;
@@ -436,6 +502,7 @@ export function installB2Feel(scene, api, K, voice) {
     updateMuzzle(dt, p);
     updateMeter(dt, p);
     updateMag(dt, p);
+    if (dg) drawDebug(p);
     for (const [e, a] of acc) if (clockNow - a.t0 >= 260 || !e.active || !e.alive) flush(e, a, false);
     const ms = performance.now() - t0;
     stats.updN++; stats.updMs += ms; if (ms > stats.updMax) stats.updMax = ms;
@@ -456,7 +523,8 @@ export function installB2Feel(scene, api, K, voice) {
       hudScene?.events?.off('create', onHudCreate);
       restores.splice(0).reverse().forEach((f) => { try { f(); } catch (_) { /* */ } });
       hudRestore.splice(0).forEach((f) => { try { f(); } catch (_) { /* */ } });
-      for (const o of [ember, rim, spill, magBar, ...pool]) { try { o.destroy(); } catch (_) { /* */ } }
+      for (const o of [ember, rim, spill, magBar, dg, ...pool]) { try { o?.destroy(); } catch (_) { /* */ } }
+      dpanel?.remove();
       for (const v of recs) for (const o of [v.trail, v.body, v.core, v.head, v.halo]) { try { o?.destroy(); } catch (_) { /* */ } }
       for (const f of flashes) { try { f.img.destroy(); f.glow?.destroy(); } catch (_) { /* */ } }
       for (const s of sparks) { try { s.img.destroy(); s.glow?.destroy(); s.spill?.destroy(); } catch (_) { /* */ } }
