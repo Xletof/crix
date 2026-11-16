@@ -115,6 +115,11 @@ export function b2VoiceKit(ctx, dest) {
       tone(t, { type: 'triangle', f0: 1250, f1: 1750, dur: 0.05, gain: 0.065 });
       noise(t, { hp: 3000, dur: 0.009, gain: 0.04 });
     },
+    /** A Super lock (closure candidate): a short bright tick, one step higher per lock. */
+    lockTick(t, k = 1) {
+      tone(t, { type: 'triangle', f0: 2200 + 180 * k, f1: 2600 + 180 * k, dur: 0.045, gain: 0.07 });
+      noise(t, { hp: 4200, dur: 0.008, gain: 0.03 });
+    },
     /** The weapon is primed: a high shimmer over the shipped ready chime. */
     primed(t) {
       tone(t, { type: 'sine', f0: 2640, f1: 2640, dur: 0.28, gain: 0.035, attack: 0.02 });
@@ -154,6 +159,7 @@ export function createB2Voice() {
     hitTick(heat) { if (!ready() || ctx.currentTime - lastTick < 0.055) return; lastTick = ctx.currentTime; stats.ticks++; kit.hitTick(at(), heat); },
     killTick() { if (ready()) kit.killTick(at()); },
     primed() { if (ready()) kit.primed(at()); },
+    lockTick(k) { if (ready()) kit.lockTick(at(), k); },
     /** Hold the music a little under a running stream. */
     duck() {
       if (!ready() || ctx.currentTime - lastDuck < 0.18) return;

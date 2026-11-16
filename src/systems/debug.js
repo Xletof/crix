@@ -301,18 +301,23 @@ let b2Variant = null;
 let b2Range = false;
 let b2Knobs = {};
 let b2Debug = false;
+let b2Cand = false;
 export function getB2Variant() { return b2Variant; }
 export function isB2Range() { return b2Range; }
 export function getB2Knobs() { return b2Knobs; }
 /** `&b2dbg=1`: the tracer diagnostic overlay (barrel, collider origin, streak, end points). */
 export function isB2Debug() { return b2Debug; }
+/** `&b2c=1`: the B2 closure CANDIDATE (Super on F release with hold-to-lock targeting, and
+ *  the redesigned charge / Super visuals). Absent = the B2-1 input and visuals. */
+export function isB2Candidate() { return b2Cand; }
 export function setB2(v, params = null) {
   const s = v == null ? '' : String(v).trim().toUpperCase();
   b2Variant = (s === 'A' || s === 'B') && !b1Variant ? s : null;
-  b2Range = false; b2Knobs = {}; b2Debug = false;
+  b2Range = false; b2Knobs = {}; b2Debug = false; b2Cand = false;
   if (!b2Variant || !params) return;
   b2Range = params.get('b2range') === '1';
   b2Debug = params.get('b2dbg') === '1';
+  b2Cand = params.get('b2c') === '1';
   for (const [k, val] of params) {
     if (!k.startsWith('b2x.')) continue;
     const n = Number(val);

@@ -41,12 +41,13 @@
 //  No `Math.random` anywhere in B2 code.
 import Phaser from 'phaser';
 import { PLAYER } from '../config.js';
-import { getB2Variant, getB2Knobs, isB2Range } from './debug.js';
+import { getB2Variant, getB2Knobs, isB2Range, isB2Candidate } from './debug.js';
 import { SFX, duckMusic } from './FX.js';
 import { BulletGroup } from '../entities/Bullet.js';
 import { installB2Feel } from './b2Feel.js';
 import { createB2Voice } from './b2Voice.js';
 import { installB2Range } from './b2Range.js';
+import { installB2Super } from './b2Super.js';
 
 /** Starting hypotheses. `&b2x.<key>=<number>` overrides one for a session. */
 export const B2_DEFAULTS = {
@@ -389,8 +390,12 @@ export function installB2(scene) {
       if (!p?.alive) return;
       p.tryFireSuper(w.trig && w.aimAng != null ? w.aimAng : p._autoAimAngle());
     };
-    kb.on('keydown-F', (ev) => { if (!ev?.repeat) castSuper(); });
-    kb.on('keydown-ENTER', (ev) => { if (!ev?.repeat) castSuper(); });
+    // B2-1: the Super on the PRESS. The closure candidate (`&b2c=1`, systems/b2Super.js) owns
+    // F / ENTER instead: targeting on the press, the cast on the release.
+    if (!isB2Candidate()) {
+      kb.on('keydown-F', (ev) => { if (!ev?.repeat) castSuper(); });
+      kb.on('keydown-ENTER', (ev) => { if (!ev?.repeat) castSuper(); });
+    }
   }
 
   function tickTrigger(dt) {
@@ -564,12 +569,18 @@ export function installB2(scene) {
 
   const range = isB2Range() ? installB2Range(scene, api, wrap) : null;
   api.range = range;
+  api.candidate = isB2Candidate();
+  const superInput = api.candidate ? installB2Super(scene, api, wrap, voice) : null;
+  api.superInput = superInput;
+  stats.candidate = api.candidate;
+  stats.superInput = superInput ? superInput.stats : null;
 
   const teardown = () => {
     scene.events.off('postupdate', onPost);
     bound.splice(0).forEach(([ev, fn]) => scene.events.off(ev, fn));
     restores.splice(0).reverse().forEach((f) => { try { f(); } catch (_) { /* */ } });
     try { range?.destroy(); } catch (_) { /* */ }
+    try { superInput?.destroy(); } catch (_) { /* */ }
     try { feel?.destroy(); } catch (_) { /* */ }
     try { voice.destroy(); } catch (_) { /* */ }
     rounds.length = 0; pending.clear();

@@ -129,6 +129,16 @@ function paint(scene) {
 export function installB2Feel(scene, api, K, voice) {
   if (!scene?.add || !scene.fx) return null;
   paint(scene);
+  // THE CLOSURE CANDIDATE (`&b2c=1`). The HUMAN judged the charge progression ("thin red
+  // strips into bright white firework-like effects") weak. Under the candidate the bolt keeps
+  // ONE identity (the hero's warm red, cold), the white-gold ramp, the halos, the orange impact
+  // pools and the primed rim are gone, and the charge is carried by a cool ice-white THREAD
+  // inside each bolt whose length is the Super charge when it was fired, plus a ring pulse at
+  // the barrel at each quarter of the meter. FULL belongs to the approved P1-B ring alone.
+  const cand = () => !!api.candidate;
+  // THREAD is the P1-B charging gauge's own lit colour, so the gun and the gauge share a hue
+  const COLD = b2HeatColor(0.12), THREAD = 0xa9c4ee, STEP = 0xeef8ff;
+  const tone = (heat) => (cand() ? COLD : b2HeatColor(heat));
   const fx = scene.fx;
   const low = () => isLowQuality();
   // THE TRACER INVARIANT, checked on every visible streak every frame: it lies on its own
@@ -187,16 +197,18 @@ export function installB2Feel(scene, api, K, voice) {
     if (face == null) face = tipLen();
     const ang = rec.ang;
     const ox = p.x + Math.cos(ang) * face, oy = p.y + Math.sin(ang) * face;
-    const heat = Math.min(1, rec.heat + (rec.hot ? 0.35 : 0));
-    const col = b2HeatColor(heat);
-    const len = (78 + 20 * heat) * (rec.accent ? 1.2 : 1);
+    const heat = cand() ? 0 : Math.min(1, rec.heat + (rec.hot ? 0.35 : 0));
+    const col = tone(heat);
+    const len = cand() ? 84 * (rec.accent ? 1.15 : 1) : (78 + 20 * heat) * (rec.accent ? 1.2 : 1);
     const v = {
       r: rec, ox, oy, ang, heat, col, len, speed: K.speed, dead: false, back: 0,
       trail: low() ? null : img(TEX.trail, true).setOrigin(1, 0.5).setTint(col).setVisible(false),
       body: img(TEX.body, false).setOrigin(1, 0.5).setTint(lerpInt(col, 0xffffff, 0.18)).setVisible(false),
       core: img(TEX.core, false).setOrigin(1, 0.5).setTint(lerpInt(col, 0xffffff, 0.8)).setVisible(false),
       head: img(TEX.head, false).setTint(lerpInt(col, 0xffffff, 0.92)).setVisible(false),
-      halo: low() ? null : img(TEX.halo, true).setTint(col).setVisible(false),
+      halo: low() || cand() ? null : img(TEX.halo, true).setTint(col).setVisible(false),
+      thread: cand() && rec.heat > 0.03 ? img(TEX.body, false).setOrigin(1, 0.5).setTint(THREAD).setVisible(false) : null,
+      frac: rec.heat,
     };
     recs.push(v);
     if (recs.length > stats.peakRounds) stats.peakRounds = recs.length;
@@ -238,12 +250,13 @@ export function installB2Feel(scene, api, K, voice) {
   }
   function drawStreak(v, hx, hy, L, live, alpha) {
     if (L > 1.5) checkStreak(v, hx, hy, L, live);
-    if (L <= 1.5) { v.trail?.setVisible(false); v.body.setVisible(false); v.core.setVisible(false); v.head.setVisible(false); v.halo?.setVisible(false); return; }
+    if (L <= 1.5) { v.trail?.setVisible(false); v.body.setVisible(false); v.core.setVisible(false); v.head.setVisible(false); v.halo?.setVisible(false); v.thread?.setVisible(false); return; }
     const depth = hy + 3;
     const wide = (v.r.accent ? 1.25 : 1) * (0.9 + 0.35 * v.heat);
     v.trail?.setVisible(true).setPosition(hx, hy).setRotation(v.ang).setScale(L / 72, wide).setDepth(depth).setAlpha(alpha * (0.7 + 0.3 * v.heat));
     v.body.setVisible(true).setPosition(hx, hy).setRotation(v.ang).setScale(L / 72, v.r.accent ? 1.25 : 1).setDepth(depth + 0.05).setAlpha(alpha);
     v.core.setVisible(true).setPosition(hx, hy).setRotation(v.ang).setScale((L * 0.7) / 72, 1).setDepth(depth + 0.1).setAlpha(alpha);
+    v.thread?.setVisible(true).setPosition(hx, hy).setRotation(v.ang).setScale((L * 0.96 * v.frac) / 72, 1.0).setDepth(depth + 0.15).setAlpha(alpha);
     if (live) {
       v.head.setVisible(true).setPosition(hx, hy).setRotation(v.ang).setScale(v.r.accent ? 1.2 : 1).setDepth(depth + 0.2);
       v.halo?.setVisible(true).setPosition(hx, hy).setScale((0.62 + 0.4 * v.heat) * (v.r.accent ? 1.25 : 1)).setAlpha(0.5 + 0.3 * v.heat).setDepth(depth + 0.05);
@@ -261,7 +274,7 @@ export function installB2Feel(scene, api, K, voice) {
       // the light already in flight runs into the end point
       v.back += v.speed * dt / 1000;
       const L = v.tLen - v.back;
-      if (L <= 1.5) { free(v.trail); free(v.body); free(v.core); free(v.head); free(v.halo); recs.splice(i, 1); continue; }
+      if (L <= 1.5) { free(v.trail); free(v.body); free(v.core); free(v.head); free(v.halo); free(v.thread); recs.splice(i, 1); continue; }
       drawStreak(v, v.endX, v.endY, L, false, v.hit ? 1 : Math.max(0, L / Math.max(1, v.tLen)));
     }
   }
@@ -271,11 +284,11 @@ export function installB2Feel(scene, api, K, voice) {
   let cur = null;                    // the enemy the current hit call is resolving
   function spark(x, y, ang, heat, big, depth) {
     stats.contacts++;
-    const col = b2HeatColor(heat);
+    const col = tone(heat);
     sparks.push({ t: 0, life: big ? 110 : 74, x, y, big, depth,
       img: img(TEX.spark, false).setOrigin(0.1, 0.5).setRotation(ang).setTint(lerpInt(col, 0xffffff, 0.6)),
       glow: low() ? null : img(TEX.halo, true).setTint(col),
-      spill: low() || !big ? null : img(TEX.spill, true).setTint(col) });
+      spill: low() || !big || cand() ? null : img(TEX.spill, true).setTint(col) });
   }
   function onContact(e, b, flinch) {
     cur = e; C.dmg = true;
@@ -364,7 +377,7 @@ export function installB2Feel(scene, api, K, voice) {
     if (a.sum < 0.5) return;
     stats.numbersOut++;
     passNumber = true;
-    try { fx.damageNumber(a.x, a.y, Math.round(a.sum), hex(lerpInt(b2HeatColor(api.charge01()), 0xffffff, killed ? 0.15 : 0.55)), 'minor'); } finally { passNumber = false; }
+    try { fx.damageNumber(a.x, a.y, Math.round(a.sum), hex(lerpInt(tone(api.charge01()), 0xffffff, killed ? 0.15 : 0.55)), 'minor'); } finally { passNumber = false; }
   };
   wrap(fx, 'damageNumber', (prev) => function (x, y, amount, color, tier) {
     if (passNumber || !(C.dmg && cur) || typeof amount !== 'number' || tier === 'major') return prev.call(this, x, y, amount, color, tier);
@@ -414,13 +427,39 @@ export function installB2Feel(scene, api, K, voice) {
       const u = f.t / f.life;
       const m = p?.alive ? muzzleNow(p, f.ang) : null;
       if (u >= 1 || !m) { free(f.img); free(f.glow); flashes.splice(i, 1); continue; }
-      const col = b2HeatColor(f.heat);
-      const s = (1.0 + 0.45 * f.heat) * (f.accent ? 1.3 : 1) * FLICK[f.n % 5];
+      const col = tone(f.heat);
+      const s = (1.0 + (cand() ? 0 : 0.45 * f.heat)) * (f.accent ? 1.3 : 1) * FLICK[f.n % 5];
       f.img.setOrigin(0, 0.5).setPosition(m.x, m.y).setRotation(m.rot).setScale(s * (0.75 + 0.55 * u), s * (1 - 0.45 * u)).setAlpha(1 - u * u).setTint(lerpInt(col, 0xffffff, 0.7)).setDepth((m.depth ?? p.depth) + 0.3);
       f.glow?.setPosition(m.x, m.y).setScale(s * (0.9 + 0.5 * u)).setAlpha(0.85 * (1 - u)).setTint(col).setDepth((m.depth ?? p.depth) + 0.2);
     }
   }
+  // the candidate's quarter steps: a ring pops at the barrel as each quarter of the meter fills
+  let lastStep = 0;
+  const steps = [];
+  function updateSteps(dt, p) {
+    const c = api.charge01();
+    const k = c >= 1 ? 4 : Math.floor(c * 4 + 1e-9);
+    if (k > lastStep && k < 4 && p?.alive) { steps.push({ t: 0, k, img: img(TEX.ring, true).setTint(STEP) }); stats.steps = (stats.steps || 0) + 1; }
+    lastStep = k;
+    for (let i = steps.length - 1; i >= 0; i--) {
+      const s2 = steps[i]; s2.t += dt;
+      const u = s2.t / 220;
+      const m = p?.alive ? muzzleNow(p, api.state.aimAng ?? p.facing) : null;
+      if (u >= 1 || !m) { free(s2.img); steps.splice(i, 1); continue; }
+      s2.img.setPosition(m.x, m.y).setDepth((m.depth ?? p.depth) + 0.4).setScale((0.35 + 0.18 * s2.k) * (0.6 + 0.8 * u)).setAlpha(1 - u);
+    }
+  }
   function updateMeter(dt, p) {
+    if (cand()) {
+      ember.setVisible(false); rim.setVisible(false);
+      updateSteps(dt, p);
+      if (low() || !p?.alive) { spill.setVisible(false); return; }
+      const since2 = clockNow - lastShotClock, fire2 = Math.max(0, 1 - since2 / 150);
+      if (fire2 <= 0.01) { spill.setVisible(false); return; }
+      spill.setVisible(true).setTint(lerpInt(COLD, 0xffffff, 0.25)).setAlpha(fire2 * 0.28)
+        .setPosition(p.x + Math.cos(lastDir) * 46, p.y + Math.sin(lastDir) * 46 + 14).setScale(1.4 * FLICK[shotN % 5], 1.0 * FLICK[shotN % 5]);
+      return;
+    }
     const c = api.charge01();
     const m = p?.alive ? muzzleNow(p, p.aiming || api.state.trig ? (api.state.aimAng ?? p.facing) : p.facing) : null;
     const since = clockNow - lastShotClock;
@@ -543,9 +582,11 @@ export function installB2Feel(scene, api, K, voice) {
       hudRestore.splice(0).forEach((f) => { try { f(); } catch (_) { /* */ } });
       for (const o of [ember, rim, spill, magBar, dg, ...pool]) { try { o?.destroy(); } catch (_) { /* */ } }
       dpanel?.remove();
-      for (const v of recs) for (const o of [v.trail, v.body, v.core, v.head, v.halo]) { try { o?.destroy(); } catch (_) { /* */ } }
+      for (const v of recs) for (const o of [v.trail, v.body, v.core, v.head, v.halo, v.thread]) { try { o?.destroy(); } catch (_) { /* */ } }
       for (const f of flashes) { try { f.img.destroy(); f.glow?.destroy(); } catch (_) { /* */ } }
       for (const s of sparks) { try { s.img.destroy(); s.glow?.destroy(); s.spill?.destroy(); } catch (_) { /* */ } }
+      for (const s2 of steps) { try { s2.img.destroy(); } catch (_) { /* */ } }
+      steps.length = 0;
       pool.length = 0; recs.length = 0; flashes.length = 0; sparks.length = 0; acc.clear();
     },
   };
