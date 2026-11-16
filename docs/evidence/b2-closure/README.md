@@ -33,11 +33,11 @@ Optional on either link: `&b2range=1` = the firing range; `&b2dbg=1` = the trace
 
 ## P0 — the displaced tracers: root cause and fix
 
-**Confirmed root cause.** The presentation layer (`src/systems/b2Feel.js`) recorded where a round touched an enemy in a `WeakMap` keyed by the **bullet object**. Bullets are pooled: the same object carries round after round, and the map entry was never cleared or tied to a round.
+**Root cause (reproduced, and the only cause found).** The presentation layer (`src/systems/b2Feel.js`) recorded where a round touched an enemy in a `WeakMap` keyed by the **bullet object**. Bullets are pooled: the same object carries round after round, and the map entry was never cleared or tied to a round.
 
 When a recycled bullet later missed (empty space, range expiry, a wall), its streak's end point was read from the map: its **previous life's enemy contact**. The game then drew a full-brightness streak ending at that old kill site, along the new round's heading. It appeared beside the hero or across the room, detached from any live round. Hits, damage, collision and aim were never affected: it was purely the drawn end point.
 
-It only shows **after body contacts**. That is why the human saw it on the range after killing groups and then shooting into empty space. In the footage, stray streaks sit next to old blood splats (kill sites): at 9.0 s, short spikes beside the stream at the crate after kills there; at 15.3–16.5 s, streaks beside old splats.
+It only shows **after body contacts**. That is why the human saw it on the range after killing groups and then shooting into empty space. In the footage (clip times), off-line streaks flicker beside the blue canister at 2.0–3.4 s and 4.9–6.1 s, which are inside the brief's 18–22 s and 25–32 s if those are original-recording times. Spikes sit beside the stream at the crate at 9.0 s, and streaks beside old splats at 15.3–16.5 s.
 
 **Fix** (presentation only):
 - each contact carries the round's generation (`b._gen`);
@@ -152,15 +152,16 @@ GameScene, BootScene, `Enemy.js`, entities, config, data, HUD, P1 / P2-A modules
 ## Limitations
 
 - **Untested on a handset.** All verification ran in the harness and a phone-sized viewport.
+- **App-switching on a phone:** the hold cancels on window `blur` and the scene `pause` (tested with a synthetic `blur`). Phaser's `hidden` (visibilitychange) and a `touchcancel` are not hooked or tested. A touch hold the HUD resets on resume is cancelled (tested).
 - **Locking strength:** it raises the Super's effect on spread crowds (above).
 - **Coarse keyboard pivot:** WASD pivots the cone in 45° steps; the mouse gives a fine pivot and also aims the fan. Mouse pivot needs the pointer to move 24px after F goes down.
-- **Footage inspected:** `Firing Range.mp4` is 55.4 s long (a trim of 0:19.3–1:12.1 of the original recording); the brief's windows were read as clip times.
-  - **18–22 s:** an Elite squad is spawned and streamed at; the streaks there are on their lines.
-  - **25–32 s:** fights after multi-kills. At 25.0 s a lone streak sits about 60px ahead of the hero. Frame by frame at 30 fps it is the last round of a stream, still in flight after the release, on the stream's line. That is a real round, unchanged by the fix.
-  - **Clearest off-line cases in the clip:**
-    - 9.0–9.27 s: at the crate after kills, short spikes beside the stream. They point along the heading, sit forward of the muzzle, last about 4–8 frames and are off the round's line, which is what a stale contact draws.
-    - 15.3–16.5 s: streaks beside old blood splats.
-- **Frame rate read:** 60 fps in those windows, 1–6 fps elsewhere.
+- **Footage inspected.** `Firing Range.mp4` is 55.4 s long. Its filename says it was trimmed from 0:19.3–1:12.1 of the original recording, so the brief's windows most likely refer to the original.
+  - **Original 18–22 s ≈ clip 0–3 s.** Blank-space fire into the railing. At clip 2.0–3.4 s, short streaks at the stream's angle keep flickering beside the blue canister by the crate, every 2–4 frames, entirely off the stream's line (`tracer-before/footage-clip-1.95s-offline-streaks.png`, 60 fps).
+  - **Original 25–32 s ≈ clip 6–13 s.** The same off-line streaks at the canister at clip 4.9–6.1 s, the last of them after the stream has stopped. Then the 9.0–9.27 s crate case: short spikes beside the stream, pointing along the heading, forward of the muzzle, lasting 4–8 frames.
+  - Both are what a stale contact draws: a streak along the new round's heading, ending at the bullet's previous life's contact point. They recur at one spot because pooled bullets carry contacts from kills there.
+  - **If the windows were clip times instead** (clip 18–22 s and 25–32 s: a spawned squad under targeted fire, then fights after multi-kills), the streaks there are on their lines.
+  - **Caveat:** two things stay by design, because they are real rounds: a round still flying ahead of the hero after the trigger is released (e.g. clip 25.0 s), and parallel tracks from a moving shooter. If the remaining complaint is about those, a `&b2dbg=1` screenshot would settle it.
+- **Frame rate read:** clip 0–15.5 s at 15 fps, the cases above at 60 fps, the rest at 2–6 fps.
 - **The 9.0 s situation, re-staged on the fixed build** (kills at a crate, then a stream straight into it): 16 frames show no side spikes, and the invariant holds (206 checks, 0 bad). See `tracer-after/crate-repro-sheet.png`.
 - **Thin cues:** the charge thread and quarter rings are subtle by design. At phone size the thread reads; the ring is small.
 - **One-time red flash:** the first loud event in a room still flashes red ("DETECTED"). That is the room alarm, not the Super.
