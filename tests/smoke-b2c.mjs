@@ -74,6 +74,23 @@ async function boot(flags, { base = NOW, q = Q_STAGE, seed = 4242, god = true, c
       for (const gg of [...gs.hostileBullets, gs.playerBullets, gs.playerRifleBullets, gs.playerSuperBullets]) for (const bb of gg.getChildren()) if (bb.active) bb.kill();
     };
     window.__stage = (x = 800, y = 900) => { window.__adv(200); window.__clear(); window.__adv(3); window.__clear(); const P = gs.player; P.x = x; P.y = y; P.body.reset(x, y); P.superCharge = 0; P.meleeCharge = 0; window.__adv(60); window.__clear(); P.superCharge = 0; P.meleeCharge = 0; };
+    window.__spots = (d, n, gap = 0.16) => {
+      const P = gs.player, rects = gs.losRects || [], b = gs.roomSpec?.bounds ?? { w: 1600, h: 1600 };
+      const cut = (x1, y1, x2, y2, r) => {
+        let t0 = 0, t1 = 1; const dx = x2 - x1, dy = y2 - y1;
+        const pp = [-dx, dx, -dy, dy], qq = [x1 - (r.x - 30), (r.right + 30) - x1, y1 - (r.y - 30), (r.bottom + 30) - y1];
+        for (let i = 0; i < 4; i++) {
+          if (pp[i] === 0) { if (qq[i] < 0) return false; } else { const t = qq[i] / pp[i]; if (pp[i] < 0) { if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; } }
+        }
+        return true;
+      };
+      const ok = (a) => { const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d; return x > 130 && y > 170 && x < b.w - 130 && y < b.h - 130 && !rects.some((r) => cut(P.x, P.y, x, y, r)); };
+      for (let k = 0; k < 126; k++) {
+        const a0 = k * 0.05;
+        if (Array.from({ length: n }, (_, i) => ok(a0 + i * gap)).every(Boolean)) return Array.from({ length: n }, (_, i) => ({ x: P.x + Math.cos(a0 + i * gap) * d, y: P.y + Math.sin(a0 + i * gap) * d, a: a0 + i * gap }));
+      }
+      return null;
+    };
     window.__dummy = (type, x, y, hp = 1e6) => { const e = gs.spawnEnemyAt(type, x, y); e.hp = e.hpMax = hp; e.cfg = { ...e.cfg, speed: 0 }; return e; };
     window.__ring = (n, r, a0 = -Math.PI / 2, step = 0.6) => { const P = gs.player; return Array.from({ length: n }, (_, i) => window.__dummy('grunt', P.x + Math.cos(a0 + i * step) * r, P.y + Math.sin(a0 + i * step) * r)); };
     window.__keyF = (down) => gs.input.keyboard.emit(down ? 'keydown-F' : 'keyup-F', { repeat: false });
@@ -83,7 +100,7 @@ async function boot(flags, { base = NOW, q = Q_STAGE, seed = 4242, god = true, c
     grp.fire = function (x, y, a, sp, dmg, ...r) { const b = f0.call(this, x, y, a, sp, dmg, ...r); window.__pellets.push({ a, dmg }); return b; };
     window.__trace = ({ seed, ticks, seg, hold, superTaps = [], b2c = false }) => {
       const K = gs.keys, cam = gs.cameras.main, kb = gs.input.keyboard;
-      window.__seed(seed); window.__draws = 0; window.__evN = 0;
+      window.__seed(seed); window.__draws = 0; window.__evN = 0; window.__ev.addedtoscene = 0; window.__ev.removedfromscene = 0;
       const hashes = []; const f = (v) => (Math.round(v * 1000) / 1000).toString();
       for (let i = 0; i < ticks; i++) {
         const P = gs.player;
@@ -95,7 +112,8 @@ async function boot(flags, { base = NOW, q = Q_STAGE, seed = 4242, god = true, c
         let s2 = `${i}|${f(P.x)},${f(P.y)},${f(P.hp)},${P.shieldHp},${P.alive},${f(P.superCharge)},${f(P.meleeCharge)},${w ? `${w.mag},${f(w.cool)},${f(w.reloadLeft)}` : '-'}|${f(cam.scrollX)},${f(cam.scrollY)}|${f(gs.time.timeScale)}|k${gs.runKills}|`;
         for (const e of gs.enemies.getChildren()) if (e.active) s2 += `${e.enemyType}:${f(e.x)},${f(e.y)},${Math.round(e.hp)},${e.state};`;
         for (const g2 of [...gs.hostileBullets, gs.playerBullets, gs.playerRifleBullets, gs.playerSuperBullets]) for (const bb of g2?.getChildren?.() || []) if (bb.active) s2 += `b${f(bb.x)},${f(bb.y)},${bb.damage};`;
-        s2 += `|d${window.__draws}|e${window.__evN}`;
+        // display-list bookkeeping (a pooled image created) is presentation, not the fight
+        s2 += `|d${window.__draws}|e${window.__evN - (window.__ev.addedtoscene || 0) - (window.__ev.removedfromscene || 0)}`;
         hashes.push(fnv(s2));
       }
       K.A.isDown = K.D.isDown = K.W.isDown = K.S.isDown = false; gs.cursors.space.isDown = false;
@@ -350,10 +368,10 @@ if (on(8)) {
     const r = await p.evaluate(() => {
       const gs = window.__gs, P = gs.player, out = { tints: new Set(), threads: 0, halos: 0, spills: 0, steps: 0, rimShown: 0, red: 0 };
       window.__headless = false;
-      window.__stage(); window.__dummy('shooter', P.x + 320, P.y);
+      window.__stage(); const sp = window.__spots(300, 1)[0]; window.__dummy('shooter', sp.x, sp.y);
       gs.cursors.space.isDown = true;
       for (let i = 0; i < 300; i++) {
-        P.superCharge = Math.min(3.9, i / 75);
+        P.superCharge = Math.min(3.9, Math.max(P.superCharge, i / 75));   // monotonic, as in play until a cast
         window.__adv(1);
         for (const o of gs.children.list) {
           if (!o.visible || !o.texture) continue;
@@ -367,6 +385,7 @@ if (on(8)) {
       }
       gs.cursors.space.isDown = false;
       out.stepEvents = gs._b2.stats.feel.steps || 0;
+      out.streakHalos = gs._b2.stats.feel.streakHalos || 0; out.pools = gs._b2.stats.feel.impactPools || 0;
       // targeting draws: every colour the Super's graphics uses
       window.__clear(); window.__ring(4, 300, -Math.PI / 2, 0.5); P.superCharge = 4; window.__keyF?.(true); window.__adv(30);
       const S = gs._b2.superInput;
@@ -381,7 +400,7 @@ if (on(8)) {
   check('candidate: the bolt keeps ONE colour at every charge (B2-B ramps through several)', c.tints.length === 1 && b.tints.length >= 4, `candidate ${c.tints.join(',')}; B2-B ${b.tints.length} tints`);
   check('candidate: the charge thread is drawn in rounds fired with charge (and never in B2-B)', c.threads > 50 && b.threads === 0, `thread frames ${c.threads} / ${b.threads}`);
   check('candidate: three quarter-step rings while the meter fills to 3.9 (no primed rim; full belongs to the P1-B ring)', c.stepEvents === 3 && c.rimShown === 0, JSON.stringify({ steps: c.stepEvents, rim: c.rimShown }));
-  check('candidate: no streak halos and no impact pools ("fireworks")', c.halos === 0, `halo frames candidate ${c.halos}, B2-B ${b.halos}`);
+  check('candidate: no streak halos and no impact pools (the "fireworks"); B2-B draws both', c.streakHalos === 0 && c.pools === 0 && b.streakHalos > 0 && b.pools > 0, `streak halos ${c.streakHalos} / ${b.streakHalos}, impact pools ${c.pools} / ${b.pools}`);
   check('targeting graphics use no red (ice-white / violet / dark keyline only)', c.red === 0 && c.cols && c.cols.length > 0, JSON.stringify(c.cols));
 }
 

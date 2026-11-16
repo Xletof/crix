@@ -125,11 +125,22 @@ export function installB2Super(scene, api, wrap, voice) {
   }
 
   // ── the blast: one directed pellet per extra lock ────────────────────────
+  // 4 RELEASE, on the camera: the shipped blast washes the screen warm orange (255,150,60),
+  // the family of every enemy warning. The candidate's release flash is the player's own
+  // ice-violet; everything else the blast does (pellets, sparks, shake, punch) is untouched.
+  const coolFlash = (fn) => {
+    const cam = scene.cameras.main, f0 = cam.flash;
+    cam.flash = function (dur, r, gg, b, force, ...rest) {
+      if (dur === 220 && r === 255 && gg === 150 && b === 60) return f0.call(this, 180, 150, 170, 255, force, ...rest);
+      return f0.call(this, dur, r, gg, b, force, ...rest);
+    };
+    try { return fn(); } finally { cam.flash = f0; }
+  };
   wrap(scene, '_superBlast', (prev) => function (angle) {
     const plan = st.plan; st.plan = null;
     const p = this.player;
     const locks = plan ? plan.locks.filter((e) => live(e)) : [];
-    if (!p || locks.length <= 1) return prev.call(this, angle);
+    if (!p || locks.length <= 1) return coolFlash(() => prev.call(this, angle));
     const n = PLAYER.superPellets, half = (n - 1) / 2;
     const step = Phaser.Math.DegToRad(PLAYER.superSpreadDeg) / Math.max(1, n - 1);
     const slots = Array.from({ length: n }, (_, i) => angle + (i - half) * step);
@@ -147,7 +158,7 @@ export function installB2Super(scene, api, wrap, voice) {
     const fire0 = group.fire;
     let i = 0;
     group.fire = function (x, y, a, ...rest) { const k = i++; return fire0.call(this, x, y, assigned[k] != null ? assigned[k] : a, ...rest); };
-    try { return prev.call(this, angle); } finally { group.fire = fire0; }
+    try { return coolFlash(() => prev.call(this, angle)); } finally { group.fire = fire0; }
   });
 
   // ── inputs ───────────────────────────────────────────────────────────────

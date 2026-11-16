@@ -210,6 +210,7 @@ export function installB2Feel(scene, api, K, voice) {
       thread: cand() && rec.heat > 0.03 ? img(TEX.body, false).setOrigin(1, 0.5).setTint(THREAD).setVisible(false) : null,
       frac: rec.heat,
     };
+    if (v.halo) stats.streakHalos = (stats.streakHalos || 0) + 1;
     recs.push(v);
     if (recs.length > stats.peakRounds) stats.peakRounds = recs.length;
     flashes.push({ t: 0, life: rec.accent ? 70 : 54, ang, heat, accent: rec.accent, n: rec.n, img: img(TEX.mz[rec.n % 3], false), glow: low() ? null : img(TEX.halo, true) });
@@ -284,6 +285,7 @@ export function installB2Feel(scene, api, K, voice) {
   let cur = null;                    // the enemy the current hit call is resolving
   function spark(x, y, ang, heat, big, depth) {
     stats.contacts++;
+    if (big && !low() && !cand()) stats.impactPools = (stats.impactPools || 0) + 1;
     const col = tone(heat);
     sparks.push({ t: 0, life: big ? 110 : 74, x, y, big, depth,
       img: img(TEX.spark, false).setOrigin(0.1, 0.5).setRotation(ang).setTint(lerpInt(col, 0xffffff, 0.6)),
