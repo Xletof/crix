@@ -43,12 +43,15 @@ PASS  cancel reasons are recorded (focus, pause, suppressed, meter, dead)  — {
 PASS  a locked target that dies is dropped; the release still casts exactly once  — [{"locks":0,"dropped":true},{"casts":1,"phase":"idle","charge":0}]
 PASS  nothing in reach: a tap casts once, five pellets  — {"casts":1,"phase":"idle","charge":0,"pellets":5,"facing":-1.0707963267948963}
 PASS  not charged: press and release do nothing  — [{"casts":0,"phase":"idle","charge":2},{"casts":0,"phase":"idle","charge":2}]
+PASS  candidate restart twice: one install each time (F listeners, the candidate own pause listener (the scene total grows by one per restart on plain R1 too: inherited), postupdate listeners, one targeting Graphics, the blur listener replaced not stacked), and an F tap casts exactly once after each  — {"first":{"si":true,"kup":1,"kdn":1,"pause":1,"post":12,"gfx":1,"blur":0},"tap1":1,"second":{"si":true,"kup":1,"kdn":1,"pause":1,"post":12,"gfx":1,"blur":0},"tap2":1,"third":{"si":true,"kup":1,"kdn":1,"pause":1,"post":12,"gfx":1,"blur":0},"tap3":1,"title":{"b2":false,"blur":-1,"own":[],"player":false}}
+PASS  candidate quit to title: no B2, no blur listener left, no _superBlast / drawAimCone / Super-aim wrapper left behind  — {"b2":false,"blur":-1,"own":[],"player":false}
 
 == 6. pointer and touch
 PASS  a held F follows the mouse once it moves: the heading turns from the nearest (right) to the pointer (up) and the second enemy is locked; the real keyup casts once  — {"h0":{"h":0,"n":1},"h1":{"h":-1.5707963270186476,"n":2,"on":true},"casts":1}
 PASS  a REAL touch tap on the Super button: one cast, at the nearest enemy (right)  — {"casts":1,"a":0,"phase":"idle"}
 PASS  a REAL touch hold-drag on the Super button: targeting while held (heading follows the drag left, the left enemy locked, no cast), the shipped camera lead kept (superAiming) with the red cone hidden, one cast on the release along the drag  — {"mid":{"casts":1,"phase":"targeting","h":3.141592653589793,"locks":2,"aiming":true,"redCone":false},"t2":{"casts":2,"a":3.141592653589793}}
 PASS  two fingers: move stick pushed right, Super button held with no drag, the only enemy LEFT — one cast, aimed left (the move stick steers only the cone)  — {"a":3.141592653589793,"holds":2,"aimed":1}
+PASS  a touch hold dropped by the HUD resume reset (forceRelease, no release callback) cancels: idle, camera lead cleared, no cast — and the finger lifting afterwards casts nothing  — {"fr0":{"phase":"targeting","src":"touch"},"fr1":{"phase":"idle","aiming":false,"casts":0,"released":1},"fr2":{"casts":0,"charge":4,"phase":"idle"}}
 PASS  CONTROL: without the candidate the same touch hold draws the shipped red cone (the hidden-cone check can see it)  — {"red":true,"aiming":true}
 
 == 7. power: tap vs hold on one staged crowd
@@ -66,5 +69,4 @@ PASS  targeting graphics use no red (ice-white / violet / dark keyline only)  �
 == 9. scope
 PASS  the B0 / B1 / B2 scope guard (b2Super.js is one of B2's modules; GameScene still +4 lines; one BootScene line)  — B0 (dc7d9ea..a3866f2): 5 files, GameScene +13 tag/install lines; B1 (a3866f2..266b1ac): 6 files, GameScene +5 install/branch lines; B2 (266b1ac..): 10 files, GameScene +4 install/branch lines
 
-43/43 passed
-exit 0
+46/46 passed

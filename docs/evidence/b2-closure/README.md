@@ -16,9 +16,10 @@ Optional on either link: `&b2range=1` = the firing range; `&b2dbg=1` = the trace
 1. **Empty-space shooting and tracer attachment** (firing range, `&b2range=1`):
    - Spawn SQUAD, kill it, then hold fire into empty space in several directions, near crates and the arena edge, and while turning.
    - Every streak should leave the barrel and stay on its own straight path. No streak should appear beside the hero, at an old kill site, or hang in place.
+   - A round still flying after you let go is real and keeps going along its line, ahead of the hero. That is expected, not the bug.
    - Add `&b2dbg=1` to see the barrel (yellow), the gameplay spawn point (green), each round's path (cyan) and each finishing streak (orange) with where its round stopped (red x). The panel's BAD counter should stay 0.
 2. **F tap versus hold, pivot, release** (desktop, candidate link):
-   - Tap F: the Super fires on the release, at the nearest enemy, exactly like before.
+   - Tap F: the Super fires on the release, at the nearest enemy in reach. **This changed:** in B2-1, F fired on the press along the hero's current aim or facing, so a Super cast while streaming with SPACE went where the stream was going. The tap now uses the touch button's shipped rule (nearest, no line-of-sight check).
    - Hold F: nothing fires. The cone appears, the nearest enemy is locked (diamond).
    - While holding, turn with the **mouse** (or WASD): enemies the cone passes over get brackets, then lock. Earlier locks stay.
    - Release: one Super. Each locked enemy takes one pellet aimed straight at it.
@@ -36,7 +37,7 @@ Optional on either link: `&b2range=1` = the firing range; `&b2dbg=1` = the trace
 
 When a recycled bullet later missed (empty space, range expiry, a wall), its streak's end point was read from the map: its **previous life's enemy contact**. The game then drew a full-brightness streak ending at that old kill site, along the new round's heading. It appeared beside the hero or across the room, detached from any live round. Hits, damage, collision and aim were never affected: it was purely the drawn end point.
 
-It only shows **after body contacts**. That is why the human saw it on the range after killing groups and then shooting into empty space. In the footage, stray streaks sit next to old blood splats (kill sites), for example at 15.3–16.5 s.
+It only shows **after body contacts**. That is why the human saw it on the range after killing groups and then shooting into empty space. In the footage, stray streaks sit next to old blood splats (kill sites): at 9.0 s, short spikes beside the stream at the crate after kills there; at 15.3–16.5 s, streaks beside old splats.
 
 **Fix** (presentation only):
 - each contact carries the round's generation (`b._gen`);
@@ -63,7 +64,7 @@ It only shows **after body contacts**. That is why the human saw it on the range
 
 ## P1 — the Super on F release (candidate, `src/systems/b2Super.js`)
 
-- **Tap** (released within 160ms): the shipped cast. One Super on the release, the shipped 5-pellet 30° fan at the nearest eligible enemy, 600 per pellet. The pellet angles were checked to 1e-6 rad against the shipped fan.
+- **Tap** (released within 160ms): one Super on the release, the shipped 5-pellet 30° fan at the nearest eligible enemy, 600 per pellet. The pellet angles were checked to 1e-6 rad against the shipped fan. The aim rule is the touch button's shipped release: nearest, no line-of-sight check. B2-1's keyboard F instead fired on the press along the current aim or facing.
 - **Hold:**
   - keydown arms targeting, and the nearest eligible enemy is locked at once;
   - the cone (±22°) pivots by the mouse once it has moved 24px, by a touch drag, else by the movement direction;
@@ -92,6 +93,8 @@ Per-pellet damage is unchanged, but **locking makes a Super much stronger agains
 
 ## P2 — the Super visual progression (candidate)
 
+**Interpretation.** I read "thin red strips that become bright white fireworks" as B2-1's charge ramp on the gun's own bolts: they whitened and bloomed as the Super charged. The striped Super pellets are not part of it and were not changed.
+
 Player-owned colours: ice-white `#eef8ff`, violet `#8c9cff` (P1-B's ring and pawl family), a dark keyline. No red anywhere in the targeting graphics (tested).
 
 | Stage | What is drawn |
@@ -116,7 +119,7 @@ Frames are in `candidate/` (phone size, 390×844 @2x): `cand-1-stream-charging`,
 
 Logs are in this folder (`suites.txt`).
 
-- `smoke-b2c --old=2ee948c`: **43 / 43**. It covers the 0–9 sections above, including unaimed holds with real keys (D, D+SPACE), a two-finger touch hold, and a red-cone control.
+- `smoke-b2c --old=2ee948c`: **46 / 46**. It covers the 0–9 sections above, including unaimed holds with real keys (D, D+SPACE), a two-finger touch hold, a red-cone control, restart twice / quit to title under `b2c`, and a touch hold dropped by the HUD's resume reset. The last check was A/B'd: with the guard disabled it fails, because the hold stays armed with the camera lead on.
 - `smoke-b2 --old=2ee948c`: 88 / 88 (flag-off identity, the B2-1 weapon, economy, controls, telemetry, presentation).
 - `smoke-b1 --old=2ee948c`: 71 / 71.
 - `smoke-b0 --old=2ee948c`: 46 / 46.
@@ -151,7 +154,15 @@ GameScene, BootScene, `Enemy.js`, entities, config, data, HUD, P1 / P2-A modules
 - **Untested on a handset.** All verification ran in the harness and a phone-sized viewport.
 - **Locking strength:** it raises the Super's effect on spread crowds (above).
 - **Coarse keyboard pivot:** WASD pivots the cone in 45° steps; the mouse gives a fine pivot and also aims the fan. Mouse pivot needs the pointer to move 24px after F goes down.
-- **Footage inspected:** the human's 18–22 s window shows spawning and targeted fire; 25–32 s shows a crowd fight. The clearest detached-streak case in the recording is 15.3–16.5 s (stray streaks beside old blood splats); 0–17 s is blank-space fire. Frames were read at 60 fps in those windows, 1–6 fps elsewhere.
+- **Footage inspected:** `Firing Range.mp4` is 55.4 s long (a trim of 0:19.3–1:12.1 of the original recording); the brief's windows were read as clip times.
+  - **18–22 s:** an Elite squad is spawned and streamed at; the streaks there are on their lines.
+  - **25–32 s:** fights after multi-kills. At 25.0 s a lone streak sits about 60px ahead of the hero. Frame by frame at 30 fps it is the last round of a stream, still in flight after the release, on the stream's line. That is a real round, unchanged by the fix.
+  - **Clearest off-line cases in the clip:**
+    - 9.0–9.27 s: at the crate after kills, short spikes beside the stream. They point along the heading, sit forward of the muzzle, last about 4–8 frames and are off the round's line, which is what a stale contact draws.
+    - 15.3–16.5 s: streaks beside old blood splats.
+- **Frame rate read:** 60 fps in those windows, 1–6 fps elsewhere.
+- **The 9.0 s situation, re-staged on the fixed build** (kills at a crate, then a stream straight into it): 16 frames show no side spikes, and the invariant holds (206 checks, 0 bad). See `tracer-after/crate-repro-sheet.png`.
 - **Thin cues:** the charge thread and quarter rings are subtle by design. At phone size the thread reads; the ring is small.
 - **One-time red flash:** the first loud event in a room still flashes red ("DETECTED"). That is the room alarm, not the Super.
 - **Super pellet art:** the striped red-white pellets are the shipped art and were not redesigned.
+- **Inherited, not fixed:** every scene restart leaves one more `pause` listener on the Game scene, on plain R1 too (smoke-b2c counts only the candidate's own listener, which stays at one).

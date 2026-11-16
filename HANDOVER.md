@@ -288,18 +288,24 @@ command, fix the line.*
     `tests/diag-b2-tracers.mjs`: 641 violations before, 0 after, on the same
     instrument; `&b2dbg=1` overlay). (2) CANDIDATE `&b2c=1`
     (`src/systems/b2Super.js`): Super on F / ENTER release; tap = the shipped
-    fan at the nearest enemy; hold = targeting (nearest locked, mouse or
-    movement pivots a 22-degree cone, 110ms dwell locks, up to 5), release =
-    one cast with one directed pellet per lock; cancels on focus loss /
-    pause / death / suppression / meter loss; touch Super button feeds the
-    same machine; no `superAiming`, no camera lead. Candidate visuals: one
+    fan at the nearest enemy (the touch release's rule; B2-1's F fired on the
+    press along the current aim / facing); hold = targeting (nearest locked,
+    mouse or movement pivots a 22-degree cone, 110ms dwell locks, up to 5),
+    release = one cast with one directed pellet per lock; the fan's centre
+    follows the heading only after an explicit aim (mouse moved 24px, touch
+    drag), else the first lock / nearest; cancels on focus loss / pause /
+    death / suppression / meter loss / a touch hold the HUD resume reset
+    dropped; touch Super button feeds the same machine. Keyboard holds set no
+    `superAiming` (no camera lead); touch holds set it as shipped, so the
+    frozen camera's lead is unchanged, with the red aim cone hidden.
+    Candidate visuals: one
     bolt colour plus a P1-B-blue charge thread and quarter-step rings (no
     white-gold ramp, halos, impact pools or primed rim), ice-white / violet
     cone / brackets / diamonds / tethers, an ice-violet release flash.
     Measured: a 5-lock hold did 1,870 damage / 5 kills vs a tap's 832 / 2 on
     one staged spread crowd (per-pellet damage unchanged). B2-B unchanged:
     seeded `?b2=B` fights = `2ee948c` tick for tick, `B2_DEFAULTS` identical.
-    Proof: `tests/smoke-b2c.mjs` 43/43 (smoke-b2 88/88, smoke-b1 71/71,
+    Proof: `tests/smoke-b2c.mjs` 46/46 (smoke-b2 88/88, smoke-b1 71/71,
     smoke-b0 46/46; captel 20/22 inherited, fails identically on 2ee948c;
     run-all NOT re-run); evidence and links:
     `docs/evidence/b2-closure/README.md`. Awaiting the HUMAN handset verdict.
