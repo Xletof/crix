@@ -329,6 +329,20 @@ command, fix the line.*
     repeatable (one effect a tick late, ~1 run in 6, cause not found).
     Assessment, films, links, limits and three recommendations:
     `docs/evidence/b2-temper/README.md`. Awaiting the HUMAN handset verdict.
+  - **B2 REACTOR OVERLOAD (2026-11-17), opt-in `&b2r=1` over `?b2=A|B`, NOT
+    approved, NOT a default.** HUMAN direction after TEMPER: the gun houses
+    an unstable generator, violet at 0 through magenta and crimson to a
+    critical red with orbiting containment threads; B2-B's connected glowing
+    stream with TEMPER's slug bodies; a chunky red Super. Pixels only
+    (`src/systems/b2Reactor.js`, a second skin on b2Feel's hooks; wins over
+    `b2t`). The Super pellet object is untouched and not drawn; a red mass is
+    drawn on it. Proof: `tests/smoke-b2r.mjs` 38/38 (= B2-B tick for tick,
+    also on the shipped links; smoke-b2t 37/37; smoke-b2c 46/46, smoke-b2
+    88/88, smoke-b1 71/71, smoke-b0 46/46 against `2ee948c`). OPEN, inherited:
+    the `&b2c=1` fight alone is intermittently not repeatable (a banner a tick
+    late at tick 741, 1 in 11 then 0 in 30); not caused by the skins; cause
+    not found. `docs/evidence/b2-reactor/README.md`. Awaiting the HUMAN
+    handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -353,8 +367,9 @@ command, fix the line.*
   preferred balance (`docs/evidence/b2-flagship/README.md`); the B2 closure
   (tracer fix, `&b2c=1` F-release targeting candidate) awaits the HUMAN
   handset verdict (`docs/evidence/b2-closure/README.md`); B2 TEMPER
-  (`&b2t=1`, the gun-as-meter visual language, pixels only) awaits the HUMAN
-  handset verdict (`docs/evidence/b2-temper/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
+  (`&b2t=1`) was superseded by the HUMAN's REACTOR OVERLOAD direction
+  (`&b2r=1`, pixels only), which awaits the HUMAN handset verdict
+  (`docs/evidence/b2-reactor/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
 

@@ -2404,6 +2404,18 @@ Evidence in `docs/evidence/b1-combat-experiments/`.
 - **`enemyJsGuard` returns `{ outside, bomberOnlyVeto, vetoCode }`**, not
   `.ok`.
 
+## The B2 REACTOR OVERLOAD rig (`&b2r=1`)
+
+- `smoke-b2r.mjs [--only=0,3]` (standalone, :5173): the TEMPER rig's sections
+  with REACTOR's expectations (reactor stages and threads, the connected
+  stream and its glow, the Super with the shipped pellet untouched and not
+  drawn, impacts on targets), plus an `&b2c=1` check that nothing of the
+  release plays on a held or cancelled F.
+- **Stage Super targets on a clear line** (`__spots`). Dummies placed with
+  `__ring` can sit behind cover; a test that only counts pellets never notices.
+- **The `&b2c=1` intermittent is in the closure candidate alone**: one catch
+  without any skin (`smoke-b2t --diag=hunt --alone`), a banner a tick late.
+
 ## The B2 TEMPER rig (`&b2t=1`)
 
 - `smoke-b2t.mjs [--only=0,3] [--diag=1]` (standalone, :5173): flags; PIXELS

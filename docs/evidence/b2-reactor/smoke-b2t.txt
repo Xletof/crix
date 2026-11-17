@@ -1,0 +1,61 @@
+
+== 0. flags
+PASS  "b2t=1": TEMPER off  — {"flag":false,"b2":false,"skin":false,"atlas":false}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B": TEMPER off  — {"flag":false,"b2":true,"skin":false,"atlas":false}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2t=1": TEMPER ON  — {"flag":true,"b2":true,"skin":true,"atlas":true}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=A&b2t=1": TEMPER ON  — {"flag":true,"b2":true,"skin":true,"atlas":true}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2t=0": TEMPER off  — {"flag":false,"b2":true,"skin":false,"atlas":false}
+
+== 1. pixels only: the same fight
+PASS  MIXED s6: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — TEMPER = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)  — 197 rounds, 4 Supers, 37 kills, 18855 draws; hidden: 32 objects, 814 particles in 718 calls
+PASS  SWARM TIDE: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — TEMPER = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)  — 197 rounds, 4 Supers, 44 kills, 19458 draws; hidden: 32 objects, 798 particles in 702 calls
+PASS  MIXED s6, god mode off: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — TEMPER = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)  — 197 rounds, 4 Supers, 35 kills, 19367 draws; hidden: 32 objects, 830 particles in 734 calls
+PASS  with the closure candidate on both sides (&b2c=1, F-release Supers): TEMPER = no TEMPER tick for tick (KNOWN INTERMITTENT, about 1 run in 6: one effect lands a tick late at tick 741; see docs/evidence/b2-temper/README.md)  — 197 rounds, 3 Supers; localStorage keys written by a run: none
+
+== 2. the tracer invariant under the skin
+PASS  every visible TEMPER bolt, every frame: on its round's line, never behind the barrel, its head at the collider, a finished bolt ending where its round stopped (kills, blank space in six directions, walls, a Super)  — {"checks":1083,"bad":0,"samples":[],"stale":0,"kills":3,"rounds":41,"drawn":{"checks":1083,"bad":0}}
+PASS  ...and the sprite itself, read back from its own crop and position, shows exactly that segment  — {"checks":1083,"bad":0}
+
+== 3. the gun
+PASS  lamps and stage per charge: 0 = no overlay (the approved sprite), then 1 / 3 / 5 / 7 / 9 lamps through cyan, sky and periwinkle, FULL = 10  — [[0,0,0,null,false],[0.12,1,1,"gun-1",true],[0.35,3,1,"gun-3",true],[0.55,5,2,"gun-5",true],[0.7,7,3,"gun-7",true],[0.95,9,3,"gun-9",true],[1,10,4,"gun-10p3",true]]
+PASS  every gun frame keeps the approved rifle's silhouette and outline, and the spent-barrel pixels stay inside it  — {"frames":25,"silhouette":true,"heatInside":true}
+PASS  FULL wears the approved Super-ready colours (ice-white #eef8ff lamps, periwinkle #8c9cff beneath); the first quarter is the hero's cyan  — ["#7fe8ff","#9aa8ff","#eef8ff","#8c9cff"]
+PASS  the overlay is on the weapon in every rendered frame of a turn and a stream (position, rotation, flip, origin, alpha)  — {"checks":80,"bad":0}
+PASS  a new lamp ignites (one white frame set), then settles  — [1,"gun-8i","gun-8"]
+PASS  mid-combo (the blade) and dead: no gun overlay  — [{"key":"p1-blade","shown":false,"mine":0},{"alive":false,"shown":false,"mine":0}]
+
+== 4. the bolt
+PASS  one bolt size at every charge and for OVERCHARGE rounds (78x15, 18 frames)  — ["78x15"]
+PASS  every TEMPER object in a stream at 0 / 50 / 100%: NORMAL blend, scale 1, opaque (the floor light aside); none of the B2-1 glow sprites is drawn  — {"seen":493,"bad":0,"old":0}
+PASS  CONTROL: B2-B draws additive glow sprites in the same stream (the check above can see them)  — 131 additive sprite-frames
+PASS  the cool tip: none at 0, half the bolt at 50%, the whole round at FULL; OVERCHARGE rounds are gold with the same tip  — [{"0":["bolt-r0"],"1":["bolt-r8"],"0.5":["bolt-r4"]},["bolt-g4"]]
+
+== 5. frames
+PASS  60 fps: every round gets a muzzle flash and every flash shows all three frames (2 ticks each), frame 0 never skipped  — {"flashes":30,"hits":30,"mz":[60,60,60],"hit":[60,60,60,90],"shots":30}
+PASS  60 fps: every contact shows its first frame, and the later frames follow  — {"hits":30,"hit":[60,60,60,90]}
+PASS  30 fps: every round gets a muzzle flash and every flash shows all three frames (1 tick each), frame 0 never skipped  — {"flashes":30,"hits":30,"mz":[30,30,30],"hit":[30,30,30,60],"shots":30}
+PASS  30 fps: every contact shows its first frame, and the later frames follow  — {"hits":30,"hit":[30,30,30,60]}
+
+== 6. the Super
+PASS  the pellets are the shipped ones: the same five angles and damage, the same body (width, radius, circle)  — {"pellets":5,"body":[54,27,27,true]}
+PASS  each pellet wears the lance on the shipped 54x24 canvas with square pixels; pooled pellets get it again on the next cast  — [["bullet-super/__BASE/1x1.9"],["b2t/lance/1x1"],["b2t/lance"],15]
+PASS  no screen flash and none of the shipped additive blast shapes (wind-up ring, fireball, cone, disc, ring) is visible — and B2-B shows them (control)  — {"temper":{"flash":false,"addGfx":0,"hidden":{"calls":98,"objects":16,"particles":146}},"b2b":{"flash":true,"addGfx":35}}
+PASS  the release is drawn in frames: the charge collapses in the wind-up, all four crown frames and three ring frames are seen, the barrel cools through four steps and the gun is the approved sprite again  — {"wind":["gun-w0","gun-w1",null],"crown":[6,4,6,4],"ring":[6,4,4],"heat":[0,1,2,3,-1]}
+
+== 7. restarts
+PASS  restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":1,"b0":false},{"skin":true,"pre":2,"blast":1,"b0":false},{"skin":true,"pre":2,"blast":1,"b0":false},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+
+== 8. cost
+PASS  TEMPER draws fewer objects than B2-B in the same fight, with no additive blending (reported: update time)  — peak pooled objects: B2-B 40, TEMPER 17 (17 ever created); update 0.032ms -> 0.035ms per frame (max 3.20 / 3.10); peak live rounds 6
+
+== 10. the playtest links, as shipped (&b0=...)
+PASS  the two links as shipped (B0 telemetry on, labels B2B / B2T): the same fight tick for tick, telemetry attached on both, the skin only on the candidate  — 197 rounds, 4 Supers, 37 kills, 18855 draws
+PASS  the candidate link: restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":2,"b0":true},{"skin":true,"pre":2,"blast":2,"b0":true},{"skin":true,"pre":2,"blast":2,"b0":true},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  the candidate link: quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+PASS  the candidate link keeps its telemetry through the restarts  — {"label":"B2T"}
+
+== 9. scope
+PASS  the B0 / B1 / B2 scope guard (b2Temper.js is one of B2's modules; GameScene and every frozen file untouched)  — B0 (dc7d9ea..a3866f2): 5 files, GameScene +13 tag/install lines; B1 (a3866f2..266b1ac): 6 files, GameScene +5 install/branch lines; B2 (266b1ac..): 12 files, GameScene +4 install/branch lines
+
+37/37 passed

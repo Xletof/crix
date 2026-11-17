@@ -55,7 +55,7 @@ export const REACTOR = {
   windupMs: [35, 70], heatMs: [150, 400, 700, 1000],
   igniteMs: 90, pulseMs: 900, pulseStepMs: 60, throbMs: 320, throbOnMs: 100,
   swirlMs: 55, swirlSlowMs: 95, swirlFrames: 12,
-  massMs: 50, impMs: [40, 90, 150], wakeLen: 120, glowAlpha: 1,
+  massMs: 50, impMs: [40, 90, 150], wakeLen: 84, glowAlpha: 1,
 };
 const mix = (a, b, t) => {
   const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16)), pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16));
