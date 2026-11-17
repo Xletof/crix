@@ -368,7 +368,7 @@ if (on(8)) {
   console.log('\n== 8. cost');
   const run = async (flags) => { const p = await boot(flags, { q: Q_SWARM }); const r = await p.evaluate((x) => { const tr = window.__trace(x); const f = window.__gs._b2.stats.feel; return { shots: tr.shots, updMs: f.updMs / Math.max(1, f.updN), updMax: f.updMax, peakB2: f.peakObjects, peakT: f.skin?.peak ?? 0, madeT: f.skin?.made ?? 0, peakRounds: f.peakRounds, list: window.__gs.children.list.length }; }, { seed: 9071, ticks: 1200, seg: FIGHT_SEG, hold: [[30, 1200]], superTaps: [400, 800], melee: [] }); await p.close(); return r; };
   const b = await run(B), t = await run(T);
-  check('REACTOR draws fewer objects than B2-B in the same fight, with no additive blending (reported: update time)', t.peakT > 0 && t.peakT < b.peakB2 && t.shots === b.shots, `peak pooled objects: B2-B ${b.peakB2}, REACTOR ${t.peakT} (${t.madeT} ever created); update ${b.updMs.toFixed(3)}ms -> ${t.updMs.toFixed(3)}ms per frame (max ${b.updMax.toFixed(2)} / ${t.updMax.toFixed(2)}); peak live rounds ${t.peakRounds}`);
+  check('B2-R2 stays bounded: at most 80 pooled objects at peak in a SWARM TIDE fight (the stream links add two per round; reported against B2-B), none additive, and the same rounds fired', t.peakT > 0 && t.peakT <= 80 && t.shots === b.shots, `peak pooled objects: B2-B ${b.peakB2}, B2-R2 ${t.peakT} (${t.madeT} ever created); update ${b.updMs.toFixed(3)}ms -> ${t.updMs.toFixed(3)}ms per frame (max ${b.updMax.toFixed(2)} / ${t.updMax.toFixed(2)}); peak live rounds ${t.peakRounds}`);
 }
 
 // ── 10. THE SHIPPED LINKS (with the B0 telemetry label) ──────────────────

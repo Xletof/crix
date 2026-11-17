@@ -132,7 +132,7 @@ if (on(0)) {
     const p = await boot(fl);
     const r = await p.evaluate(() => { const gs = window.__gs; return { flag: window.__dbg.isB2Reactor(), b2: !!gs._b2, skin: !!gs._b2?.stats.feel?.skin, atlas: Object.keys(window.game.textures.list).some((k) => /^b2r-/.test(k)) }; });
     await p.close();
-    check(`"${fl}": REACTOR ${want ? 'ON' : 'off'}`, r.flag === want && r.skin === want && r.atlas === want, JSON.stringify(r));
+    check(`"${fl}": REACTOR ${want ? 'ON' : 'off'}`, !!r.flag === want && r.skin === want && r.atlas === want, JSON.stringify(r));
   }
 }
 
