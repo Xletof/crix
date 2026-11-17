@@ -304,6 +304,7 @@ let b2Debug = false;
 let b2Cand = false;
 let b2Temper = false;
 let b2Reactor = false;
+let b2Audio = null;
 export function getB2Variant() { return b2Variant; }
 export function isB2Range() { return b2Range; }
 export function getB2Knobs() { return b2Knobs; }
@@ -318,16 +319,20 @@ export function isB2Temper() { return b2Temper; }
 /** `&b2r=1`: REACTOR OVERLOAD, the second visual-language candidate over B2 (systems/b2Reactor.js):
  *  a violet-to-critical-red reactor on the gun, a connected glowing stream, a chunky Super. Pixels only. */
 export function isB2Reactor() { return b2Reactor; }
+/** `&b2a=A|B`: the B2-R2 audio candidates (systems/b2Audio.js): A heavy energy rifle, B plasma reactor. */
+export function getB2Audio() { return b2Audio; }
 export function setB2(v, params = null) {
   const s = v == null ? '' : String(v).trim().toUpperCase();
   b2Variant = (s === 'A' || s === 'B') && !b1Variant ? s : null;
-  b2Range = false; b2Knobs = {}; b2Debug = false; b2Cand = false; b2Temper = false; b2Reactor = false;
+  b2Range = false; b2Knobs = {}; b2Debug = false; b2Cand = false; b2Temper = false; b2Reactor = false; b2Audio = null;
   if (!b2Variant || !params) return;
   b2Range = params.get('b2range') === '1';
   b2Debug = params.get('b2dbg') === '1';
   b2Cand = params.get('b2c') === '1';
   b2Temper = params.get('b2t') === '1';
-  b2Reactor = params.get('b2r') === '1';
+  // `&b2r=1` REACTOR OVERLOAD; `&b2r=2` B2-R2 (REACTOR's gun, the R2 stream, hero indicators and Super)
+  b2Reactor = params.get('b2r') === '2' ? 2 : params.get('b2r') === '1' ? 1 : false;
+  { const a = String(params.get('b2a') || '').toUpperCase(); b2Audio = a === 'A' || a === 'B' ? a : null; }
   for (const [k, val] of params) {
     if (!k.startsWith('b2x.')) continue;
     const n = Number(val);

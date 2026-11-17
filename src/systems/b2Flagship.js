@@ -41,11 +41,12 @@
 //  No `Math.random` anywhere in B2 code.
 import Phaser from 'phaser';
 import { PLAYER } from '../config.js';
-import { getB2Variant, getB2Knobs, isB2Range, isB2Candidate, isB2Temper, isB2Reactor } from './debug.js';
+import { getB2Variant, getB2Knobs, isB2Range, isB2Candidate, isB2Temper, isB2Reactor, getB2Audio } from './debug.js';
 import { SFX, duckMusic } from './FX.js';
 import { BulletGroup } from '../entities/Bullet.js';
 import { installB2Feel } from './b2Feel.js';
 import { createB2Voice } from './b2Voice.js';
+import { createB2Audio } from './b2Audio.js';
 import { installB2Range } from './b2Range.js';
 import { installB2Super } from './b2Super.js';
 
@@ -146,7 +147,10 @@ export function installB2(scene) {
   const bound = [];
   const on = (ev, fn) => { scene.events.on(ev, fn); bound.push([ev, fn]); };
 
-  const voice = createB2Voice(K);
+  // `&b2a=A|B`: the B2-R2 audio candidates (systems/b2Audio.js) in place of the B2-1 kit
+  const audioKind = getB2Audio();
+  const voice = audioKind ? createB2Audio(audioKind) : createB2Voice(K);
+  api.voice = voice;                  // diagnostics (the A/B demonstrations record its calls)
   api.temper = isB2Temper();          // read by b2Feel at install (systems/b2Temper.js)
   stats.temper = api.temper;
   api.reactor = isB2Reactor();       // systems/b2Reactor.js; wins over temper
@@ -505,7 +509,7 @@ export function installB2(scene) {
       p.superCharge = Math.min(SUPER_MAX, before + units);
       const add = p.superCharge - before;
       c.added += add; c.wasted += units - add;
-      if (before < SUPER_MAX && p.superCharge >= SUPER_MAX) { SFX.superReady?.(); scene.events.emit('player-super-ready'); }
+      if (before < SUPER_MAX && p.superCharge >= SUPER_MAX) { if (!audioKind) SFX.superReady?.(); scene.events.emit('player-super-ready'); }
       else if (add > 0) scene.events.emit('player-super-changed');
     } else {
       const before = p.meleeCharge;
@@ -541,6 +545,13 @@ export function installB2(scene) {
   wrap(SFX, 'superTick', () => () => {});
   wrap(SFX, 'superHalf', () => () => {});
   on('player-super-ready', () => feel?.onPrimed());
+  // the R2 audio candidates: the Super's own sounds, and the shipped Super shot replaced
+  if (audioKind) {
+    on('player-fire-super', () => voice.windup?.());
+    on('player-super-blast', () => voice.release?.());
+    on('enemy-hit', () => { if (scene._dmgSrc === 'super') voice.superHit?.(); });
+    wrap(SFX, 'shootSuper', () => function () { stats.audio = (stats.audio || 0) + 1; return undefined; });
+  }
 
   // ── THE FRAME ───────────────────────────────────────────────────────────
   function sweepRounds() {
@@ -568,6 +579,7 @@ export function installB2(scene) {
       w.mag = K.mag; w.reloadLeft = 0; w.reloadKind = null; w.cool = 0; w.target = null; w.aimAng = null; w.keyTap = false;
     }
     feel?.update(dt, clock);
+    voice.update?.(dt, { heat: api.charge01(), firing: !!p?.alive && (w.trig || clock - w.lastShotAt < K.cadence * 1.5), suppressed: (p?._suppressedMs || 0) > 0 });
   };
   scene.events.on('postupdate', onPost);
 

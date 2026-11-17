@@ -29,6 +29,8 @@
 // random stream is drawn exactly as in B2-B.
 import Phaser from 'phaser';
 import { isLowQuality } from './FX.js';
+import { PLAYER } from '../config.js';
+import { buildR2Atlas, R2_KEY, R2_SLUG, R2_RIB } from './b2R2Art.js';
 
 export const REACTOR_KEY = 'b2r';
 const G = 3, GG = 4;
@@ -264,8 +266,17 @@ function readRifle(scene) {
 }
 
 /** The skin `systems/b2Feel.js` draws through when `&b2r=1` (the same hooks as TEMPER's). */
-export function createReactorSkin(scene, api, K, h) {
+export const R2 = {
+  disMs: [30, 60, 100, 140], wallMs: [30, 64, 100], burnMs: [40, 85, 135, 185],
+  linkGapK: 2.2, linkPad: 30, linkTurnDeg: 45, muzzleHoldK: 1.35,
+  arcSlotMs: 70, arcPressureMs: 420, plateHitMs: 90, plateOffMs: 120, massMs: 50, wake2: 56,
+};
+/** `opts.r2`: B2-R2 (`&b2r=2`) — the stream ribbon, range dissipation, armour arcs and shield
+ *  plates instead of the P1 rings and the shield bubble, and the dense Super mass. */
+export function createReactorSkin(scene, api, K, h, opts = {}) {
+  const IS2 = !!opts.r2;
   const tex = buildAtlas(scene, K), KEY = tex.key;
+  if (IS2) buildR2Atlas(scene);
   const has = (f) => !!tex.frames[f];
   const fx = scene.fx;
   const low = () => isLowQuality();
@@ -276,23 +287,35 @@ export function createReactorSkin(scene, api, K, h) {
     sync: { checks: 0, bad: 0 }, drawn: { checks: 0, bad: 0 },
     frameSeen: { mz: [0, 0, 0], hit: [0, 0, 0, 0], crown: [0, 0, 0], ring: [0, 0], imp: [0, 0, 0] },
     pellet: { hidden: 0, restored: 0 },
+    r2: IS2 ? { links: { drawn: 0, checks: 0, bad: 0, maxLen: 0, muzzle: 0, retract: 0, broken: 0 }, dis: [0, 0, 0, 0], wall: [0, 0, 0], burn: [0, 0, 0, 0], ends: {}, plates: { shown: 0, hits: 0, breaks: 0 }, arcs: 0, hidden: { shield: 0, ring: 0 } } : null,
   };
-  const pool = [];
+  if (IS2) stats.name = 'reactor2';
+  const pools = {}, pool = [];
   let out = 0;
-  const img = (frame) => {
-    const o = pool.pop() || (stats.made++, scene.add.image(0, 0, KEY, frame));
+  const img = (frame, key = KEY) => {
+    const pl = key === KEY ? pool : (pools[key] = pools[key] || []);
+    const o = pl.pop() || (stats.made++, scene.add.image(0, 0, key, frame));
     o.setFrame(frame).setCrop().setBlendMode(Phaser.BlendModes.NORMAL).setOrigin(0.5).setScale(1).setAlpha(1).setRotation(0).setFlipY(false).clearTint().setVisible(true);
     out++; if (out > stats.peak) stats.peak = out;
     return o;
   };
-  const free = (o) => { if (!o) return; o.setVisible(false); pool.push(o); out--; };
+  const free = (o) => { if (!o) return; o.setVisible(false); (o.texture.key === KEY ? pool : (pools[o.texture.key] = pools[o.texture.key] || [])).push(o); out--; };
   let clock = 0;
 
   // ── the round ───────────────────────────────────────────────────────────
-  const W = boltArtLen(K) * G, BH = 5 * G, GH = 11 * G;
+  const W = (IS2 ? R2_SLUG : boltArtLen(K)) * G, BH = 5 * G, GH = 11 * G;
+  const chain = [];          // R2: the live and dying rounds, in firing order
+  let frameNo = 0;
   function roundNew(v, rec) {
     stats.rounds++;
     v.st = rec.hot ? 'g' : String(reactorStage(rec.heat));
+    if (IS2) {
+      v.glow = low() ? null : img(`sglow-${v.st}`, R2_KEY).setOrigin(1, 0.5).setVisible(false);
+      v.bolt = img(`slug-${v.st}`, R2_KEY).setOrigin(1, 0.5).setVisible(false);
+      v.n = rec.n; v.t0 = clock; v.cx = Math.cos(v.ang); v.cy = Math.sin(v.ang); v.seen = -1;
+      chain.push(v);
+      return;
+    }
     v.glow = low() ? null : img(`glow-${v.st}`).setOrigin(1, 0.5).setVisible(false);
     v.bolt = img(`bolt-${v.st}`).setOrigin(1, 0.5).setVisible(false);
   }
@@ -310,8 +333,9 @@ export function createReactorSkin(scene, api, K, h) {
     if (L <= 1.5) { v.bolt.setVisible(false); v.glow?.setVisible(false); return; }
     if (v.glow) place(v.glow, GH, v, hx, hy, L, live, -0.02);
     place(v.bolt, BH, v, hx, hy, L, live, 0);
+    if (IS2) { v.seen = frameNo; v.hx = hx; v.hy = hy; v.L = L; v.rx = hx - v.cx * L; v.ry = hy - v.cy * L; }
   }
-  function roundFree(v) { free(v.bolt); free(v.glow); v.bolt = v.glow = null; }
+  function roundFree(v) { free(v.bolt); free(v.glow); v.bolt = v.glow = null; v.freed = true; }
 
   // ── the muzzle ──────────────────────────────────────────────────────────
   const flashes = [];
@@ -340,8 +364,13 @@ export function createReactorSkin(scene, api, K, h) {
   // ── the contact ─────────────────────────────────────────────────────────
   const hits = [];
   let curSt = '0';
-  function hitNew(x, y, ang, big, depth) {
+  function hitNew(x, y, ang, big, depth, kind) {
     stats.hits++;
+    if (IS2 && kind === 'wall') {
+      // a wall: a flat flare across the surface and two sparks thrown back (not the body splash)
+      hits.push({ t: -1, x, y, depth, key: `wall-${curSt}`, wall: true, img: img(`wall-${curSt}-0`, R2_KEY).setOrigin(0.4, 0.5).setRotation(ang).setVisible(false) });
+      return;
+    }
     const key = `hit-${curSt}${big ? 'b' : 's'}`;
     hits.push({ t: -1, x, y, depth, key, img: img(`${key}-0`).setRotation(ang).setVisible(false) });
   }
@@ -349,10 +378,10 @@ export function createReactorSkin(scene, api, K, h) {
     for (let i = hits.length - 1; i >= 0; i--) {
       const s = hits[i];
       s.t = s.t < 0 ? 0 : s.t + dt;
-      const M = REACTOR.hitMs;
-      const fr = s.t < M[0] ? 0 : s.t < M[1] ? 1 : s.t < M[2] ? 2 : s.t < M[3] ? 3 : -1;
+      const M = s.wall ? R2.wallMs : REACTOR.hitMs;
+      const fr = s.t < M[0] ? 0 : s.t < M[1] ? 1 : s.t < M[2] ? 2 : (!s.wall && s.t < M[3]) ? 3 : -1;
       if (fr < 0) { free(s.img); hits.splice(i, 1); continue; }
-      stats.frameSeen.hit[fr]++;
+      if (s.wall) stats.r2.wall[fr]++; else stats.frameSeen.hit[fr]++;
       s.img.setFrame(`${s.key}-${fr}`).setPosition(s.x, s.y).setDepth(s.depth).setVisible(true);
     }
   }
@@ -414,6 +443,7 @@ export function createReactorSkin(scene, api, K, h) {
     if (sf) follow(swirl, v, sf, 0.03, (v.originX * 72 + 16) / 104, 0.5); else swirl.setVisible(false);
   }
   const onPrerender = () => {
+    hideRings();
     const v = view();
     for (const o of [gun, heat, swirl]) { if (!o.visible || !v) continue; stats.sync.checks++; if (!sameAs(o, v)) stats.sync.bad++; }
   };
@@ -479,13 +509,23 @@ export function createReactorSkin(scene, api, K, h) {
       // THE PELLET IS NOT TOUCHED: its texture, scale, body and motion are the shipped ones. It
       // is only not drawn; the mass is drawn where it is.
       stats.lances++;
-      masses.push({ b, gen: b._gen, ox: b.x, oy: b.y, ang: Math.atan2(b.body.velocity.y, b.body.velocity.x), n: masses.length, img: img('mass-0').setVisible(false), wake: img('wake').setOrigin(1, 0.5).setVisible(false) });
+      const ang = Math.atan2(b.body.velocity.y, b.body.velocity.x);
+      if (IS2) masses.push({ b, gen: b._gen, ox: b.x, oy: b.y, ang, n: masses.length, img: img('mass2-0', R2_KEY).setVisible(false), wake: img('wake2', R2_KEY).setOrigin(1, 0.5).setVisible(false), glow: low() ? null : img('mglow', R2_KEY).setVisible(false) });
+      else masses.push({ b, gen: b._gen, ox: b.x, oy: b.y, ang, n: masses.length, img: img('mass-0').setVisible(false), wake: img('wake').setOrigin(1, 0.5).setVisible(false) });
     }
   };
   scene.events.on('player-super-blast', onBlast);
   const onHit = (e) => {
     if (scene._dmgSrc !== 'super' || !e) return;
     stats.impacts++;
+    if (IS2) {
+      // burn-through: a white-hot slab where the mass enters, shards out the far side
+      let best = null, bd = 1e9;
+      for (const L of masses) { const d = Math.hypot(L.b.x - e.x, L.b.y - e.y); if (d < bd) { bd = d; best = L; } }
+      const ang = best ? best.ang : blast.ang, R = (e.cfg?.radius ?? 22) * 0.5;
+      imps.push({ t: -1, burn: true, x: e.x - Math.cos(ang) * R, y: e.y - Math.sin(ang) * R, ang, depth: (e.depth ?? e.y) + 6, img: img('burn-0', R2_KEY).setOrigin(0.3, 0.5).setRotation(ang).setVisible(false) });
+      return;
+    }
     imps.push({ t: -1, x: e.x, y: e.y, depth: (e.depth ?? e.y) + 6, img: img('imp-0').setVisible(false) });
   };
   scene.events.on('enemy-hit', onHit);
@@ -513,9 +553,19 @@ export function createReactorSkin(scene, api, K, h) {
     }
     for (let i = masses.length - 1; i >= 0; i--) {
       const L = masses[i], b = L.b;
-      if (!b.active || b._gen !== L.gen) { free(L.img); free(L.wake); masses.splice(i, 1); continue; }
+      if (!b.active || b._gen !== L.gen) { free(L.img); free(L.wake); free(L.glow); masses.splice(i, 1); continue; }
       if (b.visible) { b.setVisible(false); stats.pellet.hidden++; }
       const cx = Math.cos(L.ang), cy = Math.sin(L.ang);
+      if (IS2) {
+        L.img.setFrame(`mass2-${(Math.floor(clock / R2.massMs) + L.n) & 1}`).setPosition(b.x, b.y).setRotation(L.ang).setDepth(b.depth + 0.1).setVisible(true);
+        L.glow?.setPosition(b.x - cx * 6, b.y - cy * 6).setRotation(L.ang).setDepth(b.depth - 0.2).setVisible(true);
+        // the wake starts at the mass's tail (44px behind its centre) and never reaches behind the barrel
+        const along = (b.x - L.ox) * cx + (b.y - L.oy) * cy - 40;
+        const len = Math.min(R2.wake2, along);
+        if (len <= 2) { L.wake.setVisible(false); continue; }
+        L.wake.setCrop(R2.wake2 - len, 0, len, 8 * GG).setPosition(b.x - cx * 40, b.y - cy * 40).setRotation(L.ang).setDepth(b.depth).setVisible(true);
+        continue;
+      }
       L.img.setFrame(`mass-${(Math.floor(clock / REACTOR.massMs) + L.n) & 1}`).setPosition(b.x, b.y).setRotation(L.ang).setDepth(b.depth + 0.1).setVisible(true);
       const along = (b.x - L.ox) * cx + (b.y - L.oy) * cy - 30;
       const len = Math.min(REACTOR.wakeLen, along);
@@ -525,6 +575,14 @@ export function createReactorSkin(scene, api, K, h) {
     for (let i = imps.length - 1; i >= 0; i--) {
       const s = imps[i];
       s.t = s.t < 0 ? 0 : s.t + dt;
+      if (s.burn) {
+        const M = R2.burnMs;
+        const fr = s.t < M[0] ? 0 : s.t < M[1] ? 1 : s.t < M[2] ? 2 : s.t < M[3] ? 3 : -1;
+        if (fr < 0) { free(s.img); imps.splice(i, 1); continue; }
+        stats.r2.burn[fr]++; stats.frameSeen.imp[Math.min(2, fr)]++;
+        s.img.setFrame(`burn-${fr}`).setPosition(s.x, s.y).setDepth(s.depth).setVisible(true);
+        continue;
+      }
       const M = REACTOR.impMs;
       const fr = s.t < M[0] ? 0 : s.t < M[1] ? 1 : s.t < M[2] ? 2 : -1;
       if (fr < 0) { free(s.img); imps.splice(i, 1); continue; }
@@ -538,8 +596,165 @@ export function createReactorSkin(scene, api, K, h) {
     } else dim.setVisible(false);
   }
 
+
+  // ── R2: THE STREAM RIBBON ───────────────────────────────────────────────
+  // Every round keeps its own straight path (b2Feel's tracer lifecycle draws its slug). The
+  // ribbon is the stream BETWEEN rounds: from each round's head back to the rear of the round
+  // fired just before it, and from the live muzzle to the newest round while the trigger runs.
+  // A moving shooter bends it like water from a hose; nothing is dragged off its path. A link
+  // whose older round has ended collapses into the newer one at the rounds' speed; a link to
+  // the muzzle collapses the same way when the stream stops. Links break (are not drawn)
+  // across a gap in the cadence, a turn sharper than linkTurnDeg, or a stretch longer than
+  // linkGapK round spacings.
+  const RW = R2_RIB * G;
+  const links = new Map();           // newer round (or 'mz') -> { rib, glow, fx, fy, retract }
+  let mzLink = null, mzRound = null;
+  const spacing = (K.speed * K.cadence) / 1000;
+  const cap = spacing * R2.linkGapK + R2.linkPad;
+  const linkSprites = () => ({ rib: img('rib-0', R2_KEY).setOrigin(1, 0.5).setVisible(false), glow: low() ? null : img('rglow-0', R2_KEY).setOrigin(1, 0.5).setVisible(false) });
+  function drawLink(L, st, nx, ny, fx, fy, depth) {
+    const len = Math.hypot(nx - fx, ny - fy);
+    if (len < 2 || len > Math.min(cap, RW)) { L.rib.setVisible(false); L.glow?.setVisible(false); if (len > cap) stats.r2.links.broken++; return false; }
+    const ang = Math.atan2(ny - fy, nx - fx);
+    L.rib.setFrame(`rib-${st}`).setCrop(RW - len, 0, len, 3 * G).setPosition(nx, ny).setRotation(ang).setDepth(depth).setVisible(true);
+    L.glow?.setFrame(`rglow-${st}`).setCrop(RW - len, 0, len, 9 * G).setPosition(nx, ny).setRotation(ang).setDepth(depth - 0.02).setVisible(true);
+    // read back what the sprite shows: its near end at (nx, ny), its far end at (fx, fy)
+    const c = L.rib._crop;
+    stats.r2.links.checks++;
+    const ex = L.rib.x - Math.cos(ang) * c.width, ey = L.rib.y - Math.sin(ang) * c.width;
+    if (Math.abs(c.width - len) > 0.01 || Math.hypot(ex - fx, ey - fy) > 0.05 || Math.hypot(L.rib.x - nx, L.rib.y - ny) > 0.01) stats.r2.links.bad++;
+    stats.r2.links.drawn++;
+    if (len > stats.r2.links.maxLen) stats.r2.links.maxLen = len;
+    return true;
+  }
+  const freeLink = (L) => { if (!L) return; free(L.rib); free(L.glow); };
+  const turnOk = (a, b) => Math.abs(Math.atan2(a.cx * b.cy - a.cy * b.cx, a.cx * b.cx + a.cy * b.cy)) <= (R2.linkTurnDeg * Math.PI) / 180;
+  function updateLinks(dt, p) {
+    const step = (K.speed * dt) / 1000;
+    for (let i = 0; i < chain.length; i++) {
+      const b = chain[i];
+      if (b.freed && !links.has(b)) continue;
+      const a = chain[i - 1];
+      const near = !b.freed && b.seen === frameNo && b.L > 1.5;
+      let L = links.get(b);
+      const linked = a && a.n === b.n - 1 && b.t0 - a.t0 <= K.cadence * 1.6 && turnOk(a, b);
+      if (!near || !linked) { if (L) { freeLink(L); links.delete(b); } continue; }
+      if (!L) { L = linkSprites(); links.set(b, L); L.retract = false; }
+      const aLive = !a.freed && a.seen === frameNo && a.L > 1.5;
+      // into the middle of the older round's body: the band overlaps it instead of meeting its rear at a corner
+      if (aLive) { L.fx = a.hx - a.cx * a.L * 0.5; L.fy = a.hy - a.cy * a.L * 0.5; L.retract = false; }
+      else {
+        // the older round has ended: the stream behind it runs on into the newer round
+        if (L.fx == null) { freeLink(L); links.delete(b); continue; }
+        if (!L.retract) { L.retract = true; stats.r2.links.retract++; }
+        const d = Math.hypot(b.hx - L.fx, b.hy - L.fy);
+        if (d <= step + 2) { freeLink(L); links.delete(b); continue; }
+        L.fx += ((b.hx - L.fx) / d) * step; L.fy += ((b.hy - L.fy) / d) * step;
+      }
+      drawLink(L, b.st, b.hx, b.hy, L.fx, L.fy, Math.max(b.hy, L.fy) + 2.9);
+    }
+    // the muzzle link: from the live barrel to the newest round, while the stream runs
+    const r = chain.length ? chain[chain.length - 1] : null;
+    const running = clock - lastShot <= K.cadence * R2.muzzleHoldK;
+    const rDrawn = r && !r.freed && r.seen === frameNo && r.L > 1.5;
+    if (r !== mzRound) { if (mzLink) { freeLink(mzLink); mzLink = null; } mzRound = r; }
+    if (rDrawn && p?.alive) {
+      if (!mzLink) mzLink = { ...linkSprites(), mx: null, my: null };
+      if (running) { const m = h.muzzleNow(p, r.ang); mzLink.mx = m.x; mzLink.my = m.y; }
+      else if (mzLink.mx != null) {
+        const d = Math.hypot(r.rx - mzLink.mx, r.ry - mzLink.my);
+        if (d <= step + 2) mzLink.mx = null;
+        else { mzLink.mx += ((r.rx - mzLink.mx) / d) * step; mzLink.my += ((r.ry - mzLink.my) / d) * step; }
+      }
+      if (mzLink.mx != null) {
+        if (drawLink(mzLink, r.st, mzLink.mx, mzLink.my, r.rx, r.ry, Math.max(r.ry, mzLink.my) + 2.9)) stats.r2.links.muzzle++;
+      } else { mzLink.rib.setVisible(false); mzLink.glow?.setVisible(false); }
+    } else if (mzLink) { freeLink(mzLink); mzLink = null; }
+    // forget rounds nothing refers to any more (keep the newest for the next link)
+    while (chain.length > 1 && chain[0].freed && !links.has(chain[1])) chain.shift();
+  }
+
+  // ── R2: RANGE EXPIRY ────────────────────────────────────────────────────
+  // Called by b2Feel when a round ends: 'hit' | 'wall' | 'expire' | 'cancel'. Only an expiry
+  // draws the dissipation; the round already stopped where gameplay stopped it.
+  const dissolves = [];
+  function roundEnd(v, kind) {
+    if (!IS2) return;
+    stats.r2.ends[kind] = (stats.r2.ends[kind] || 0) + 1;
+    if (kind !== 'expire') return;
+    dissolves.push({ t: -1, x: v.endX, y: v.endY, ang: v.ang, st: v.st, alt: v.r.n & 1, depth: v.endY + 3, img: img(`dis-${v.st}-${v.r.n & 1}-0`, R2_KEY).setOrigin(0, 0.5).setRotation(v.ang).setVisible(false) });
+  }
+  function updateDissolves(dt) {
+    for (let i = dissolves.length - 1; i >= 0; i--) {
+      const d = dissolves[i];
+      d.t = d.t < 0 ? 0 : d.t + dt;
+      const M = R2.disMs;
+      const fr = d.t < M[0] ? 0 : d.t < M[1] ? 1 : d.t < M[2] ? 2 : d.t < M[3] ? 3 : -1;
+      if (fr < 0) { free(d.img); dissolves.splice(i, 1); continue; }
+      stats.r2.dis[fr]++;
+      d.img.setFrame(`dis-${d.st}-${d.alt}-${fr}`).setPosition(d.x, d.y).setDepth(d.depth).setVisible(true);
+    }
+  }
+
+  // ── R2: THE HERO — no rings; armour arcs at critical charge, shield plates ──────
+  // The P1-B gauge / ready ring and the shield bubble (Player.shieldRing, drawn every frame
+  // while shieldHp > 0) keep running and are hidden at pre-render. The gun is the Super meter.
+  // At FULL, small red arcs run over the shoulders, chest and weapon arm (from 75%, a rare one
+  // on the weapon arm). The shield is four corner plates round the hero, lit by how much of it
+  // is left; a hit flashes them, the last point breaks them.
+  const ARC_PTS = [[-14, -12], [13, -11], [0, -2], [-9, 8], [10, 6]];
+  const arcs = IS2 ? [img('arc-0-0', R2_KEY).setVisible(false), img('arc-1-0', R2_KEY).setVisible(false), img('arc-0-0', R2_KEY).setVisible(false)] : [];
+  const plates = IS2 ? [0, 1, 2, 3].map((k) => img('plate', R2_KEY).setRotation((k * Math.PI) / 2).setVisible(false)) : [];
+  const PLATE_AT = [[-20, -24], [20, -24], [20, 20], [-20, 20]];
+  let lastShield = 0, plateHitAt = -1e9, plateOffAt = -1e9;
+  function updateHero(p) {
+    if (!IS2) return;
+    const alive = !!p?.alive && p.visible !== false;
+    // arcs
+    const k = reactorStep(api.charge01());
+    const suppressed = (p?._suppressedMs || 0) > 0;
+    const slot = Math.floor(clock / R2.arcSlotMs), ph = Math.floor(((clock % R2.arcSlotMs) / R2.arcSlotMs) * 3);
+    const show = [];
+    if (alive && !suppressed && !winding()) {
+      if (k >= 8) {
+        show.push([ARC_PTS[slot % ARC_PTS.length], slot & 1, (slot >> 1) & 3]);
+        show.push([ARC_PTS[(slot + 2) % ARC_PTS.length], (slot + 1) & 1, (slot + 1) & 3]);
+        if (slot % 3 === 0) { const v = view(); if (v) show.push([[v.x - p.x, v.y - p.y], slot & 1, (slot + 2) & 3]); }
+      } else if (k >= 6 && clock % R2.arcPressureMs < R2.arcSlotMs) {
+        const v = view();
+        if (v) show.push([[v.x - p.x, v.y - p.y], slot & 1, slot & 3]);
+      }
+    }
+    arcs.forEach((o, i) => {
+      const a = show[i];
+      if (!a) { o.setVisible(false); return; }
+      stats.r2.arcs++;
+      o.setFrame(`arc-${a[1]}-${ph}`).setPosition(Math.round(p.x + a[0][0]), Math.round(p.y + a[0][1])).setRotation((a[2] * Math.PI) / 2).setDepth(p.depth + 0.7).setVisible(true);
+    });
+    // shield plates
+    const hp = alive ? (p.shieldHp || 0) : 0;
+    if (hp < lastShield) { if (hp <= 0) { plateOffAt = clock; stats.r2.plates.breaks++; } else { plateHitAt = clock; stats.r2.plates.hits++; } }
+    lastShield = hp;
+    const lit = hp > 0 ? Math.max(1, Math.ceil((4 * hp) / PLAYER.shieldHpMax)) : 0;
+    const hit = clock - plateHitAt < R2.plateHitMs, off = hp <= 0 && clock - plateOffAt < R2.plateOffMs;
+    plates.forEach((o, i) => {
+      if (!alive || (hp <= 0 && !off)) { o.setVisible(false); return; }
+      const kick = hit ? 2 : 0, sx = Math.sign(PLATE_AT[i][0]), sy = Math.sign(PLATE_AT[i][1]);
+      const f = off ? 'plate-off' : hit ? 'plate-hit' : i < lit ? 'plate' : 'plate-dim';
+      o.setFrame(f).setPosition(Math.round(p.x + PLATE_AT[i][0] + sx * kick), Math.round(p.y + PLATE_AT[i][1] + sy * kick)).setDepth(p.depth + 0.6).setVisible(true);
+    });
+    if (hp > 0) stats.r2.plates.shown++;
+  }
+  function hideRings() {
+    if (!IS2) return;
+    const P = scene.player;
+    if (P?.shieldRing?.visible) { P.shieldRing.setVisible(false); stats.r2.hidden.shield++; }
+    const p1 = scene._p1Player;
+    if (p1) for (const o of [p1.gauge, p1.ring, p1.ticks, p1.ping]) if (o?.visible) { o.setVisible(false); stats.r2.hidden.ring++; }
+  }
+
   return {
-    stats, boltLen: W,
+    stats, boltLen: W, roundEnd,
     roundNew, roundDraw, roundFree, flashNew, hitNew, setContactRound,
     numberColor(killed) { const s = reactorStage(api.charge01()); return killed ? BOLT[s].body : '#ffeef4'; },
     onSuper() { windupAt = clock; },
@@ -549,16 +764,21 @@ export function createReactorSkin(scene, api, K, h) {
       updateMuzzle(dt, p);
       updateGun(p);
       updateSuper(dt, p);
+      if (IS2) { updateLinks(dt, p); updateDissolves(dt); updateHero(p); }
+      frameNo++;              // rounds b2Feel draws next frame carry the next number
     },
     destroy() {
       scene.game.events.off('prerender', onPrerender);
       scene.events.off('player-super-blast', onBlast);
       scene.events.off('enemy-hit', onHit);
       try { showPellets(); } catch (_) { /* scene going down */ }
-      for (const o of [gun, heat, swirl, dim, ...pool, ...comps]) { try { o?.destroy(); } catch (_) { /* */ } }
+      for (const o of [gun, heat, swirl, dim, ...pool, ...comps, ...Object.values(pools).flat(), ...arcs, ...plates]) { try { o?.destroy(); } catch (_) { /* */ } }
+      for (const L of [...links.values(), mzLink]) { try { L?.rib.destroy(); L?.glow?.destroy(); } catch (_) { /* */ } }
+      for (const d of dissolves) { try { d.img.destroy(); } catch (_) { /* */ } }
+      links.clear(); chain.length = 0; dissolves.length = 0;
       for (const f of flashes) { try { f.img.destroy(); f.glow?.destroy(); } catch (_) { /* */ } }
       for (const s of [...hits, ...imps, ...bursts]) { try { s.img.destroy(); } catch (_) { /* */ } }
-      for (const L of masses) { try { L.img.destroy(); L.wake.destroy(); } catch (_) { /* */ } }
+      for (const L of masses) { try { L.img.destroy(); L.wake.destroy(); L.glow?.destroy(); } catch (_) { /* */ } }
       pool.length = 0; flashes.length = 0; hits.length = 0; bursts.length = 0; masses.length = 0; imps.length = 0; comps.length = 0;
     },
   };

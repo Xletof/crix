@@ -152,7 +152,7 @@ export function installB2Feel(scene, api, K, voice) {
   // and a finished streak ends where its collider actually stopped (or, for a body hit, at
   // that body). `bad` counts frames x streaks that break it; `samples` keeps the first few.
   const inv = { checks: 0, bad: 0, samples: [], maxOff: 0, maxEndErr: 0 };
-  const stats = { inv, staleContacts: 0, rounds: 0, contacts: 0, flashesFull: 0, flashesSoft: 0, numbersIn: 0, numbersOut: 0, peakRounds: 0, peakObjects: 0, updN: 0, updMs: 0, updMax: 0, dropped: { ring: 0, burst: 0, beep: 0 } };
+  const stats = { inv, ends: {}, staleContacts: 0, rounds: 0, contacts: 0, flashesFull: 0, flashesSoft: 0, numbersIn: 0, numbersOut: 0, peakRounds: 0, peakObjects: 0, updN: 0, updMs: 0, updMax: 0, dropped: { ring: 0, burst: 0, beep: 0 } };
 
   // ── pools ───────────────────────────────────────────────────────────────
   const pool = [];
@@ -195,6 +195,7 @@ export function installB2Feel(scene, api, K, voice) {
   // at an old kill site, along the new round's heading: the detached tracers in the HUMAN's
   // firing-range recording.
   const contactOf = new WeakMap();
+  const wallEnd = new WeakMap();      // bullet -> the generation a wall stopped
 
   function onRound(rec, p) {
     stats.rounds++;
@@ -245,6 +246,12 @@ export function installB2Feel(scene, api, K, voice) {
     const along = (v.endX - v.ox) * Math.cos(v.ang) + (v.endY - v.oy) * Math.sin(v.ang);
     v.tLen = Math.max(0, Math.min(v.len, along));
     v.hit = !!c;
+    // how it ended, for the skin: a body contact, a wall, its range (Bullet.preUpdate kills it the
+    // frame `traveled` reaches `range`), or anything else (a field, a clear, a restart)
+    const kind = c ? 'hit' : wallEnd.get(b) === rec.gen ? 'wall' : (b._gen === rec.gen && b.range > 0 && b.traveled >= b.range) ? 'expire' : 'cancel';
+    wallEnd.delete(b);
+    stats.ends[kind] = (stats.ends[kind] || 0) + 1;
+    skin?.roundEnd?.(v, kind);
   }
   function checkStreak(v, hx, hy, L, live) {
     inv.checks++;
@@ -299,9 +306,9 @@ export function installB2Feel(scene, api, K, voice) {
   // ── contacts ────────────────────────────────────────────────────────────
   const lastFull = new WeakMap();    // enemy -> clock of its last full white flash
   let cur = null;                    // the enemy the current hit call is resolving
-  function spark(x, y, ang, heat, big, depth) {
+  function spark(x, y, ang, heat, big, depth, kind) {
     stats.contacts++;
-    if (skin) { skin.hitNew(x, y, ang, big, depth); return; }
+    if (skin) { skin.hitNew(x, y, ang, big, depth, kind); return; }
     if (big && !low() && !cand()) stats.impactPools = (stats.impactPools || 0) + 1;
     const col = tone(heat);
     sparks.push({ t: 0, life: big ? 110 : 74, x, y, big, depth,
@@ -356,7 +363,8 @@ export function installB2Feel(scene, api, K, voice) {
   });
   wrap(scene, 'handleBulletWallHits', (prev) => function (g, ...r) {
     if (!mineGroup(g)) return prev.call(this, g, ...r);
-    C.wall = true; try { return prev.call(this, g, ...r); } finally { C.wall = false; }
+    const live = g.getChildren().filter((b) => b.active);
+    C.wall = true; try { return prev.call(this, g, ...r); } finally { C.wall = false; for (const b of live) if (!b.active) wallEnd.set(b, b._gen); }
   });
   wrap(scene, '_impactMicroFlash', (prev) => function (...a) { return C.wall ? undefined : prev.apply(this, a); });
   wrap(fx, 'impactRing', (prev) => function (x, y, color, ...r) {
@@ -369,7 +377,7 @@ export function installB2Feel(scene, api, K, voice) {
     if (C.wall && color === 'yellow' && count === 6) {
       stats.dropped.burst++;
       skin?.setContactRound(null, tipStep(api.charge01()));
-      spark(x, y, ang, api.charge01() * 0.6, false, y + 60);     // thrown back off the surface
+      spark(x, y, ang, api.charge01() * 0.6, false, y + 60, 'wall');     // thrown back off the surface
       return undefined;
     }
     return prev.call(this, x, y, color, count, ang, spread);
@@ -424,7 +432,7 @@ export function installB2Feel(scene, api, K, voice) {
   // TEMPER: created after the wrappers above, so its own (the Super's shipped effects) sit
   // outside them and are restored first.
   // REACTOR OVERLOAD (`&b2r=1`, systems/b2Reactor.js) is a second skin on the same hooks; it wins if both are set.
-  if (api.reactor) { skin = createReactorSkin(scene, api, K, { muzzleNow, wrap }); stats.reactor = skin.stats; }
+  if (api.reactor) { skin = createReactorSkin(scene, api, K, { muzzleNow, wrap }, { r2: api.reactor === 2 }); stats.reactor = skin.stats; }
   else if (api.temper) { skin = createTemperSkin(scene, api, K, { muzzleNow, wrap }); stats.temper = skin.stats; }
   if (skin) stats.skin = skin.stats;
 
