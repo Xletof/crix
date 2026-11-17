@@ -548,6 +548,7 @@ export function installB2(scene) {
   // the R2 audio candidates: the Super's own sounds, and the shipped Super shot replaced
   if (audioKind) {
     on('player-fire-super', () => voice.windup?.());
+    on('pause', () => voice.silence?.());
     on('player-super-blast', () => voice.release?.());
     on('enemy-hit', () => { if (scene._dmgSrc === 'super') voice.superHit?.(); });
     wrap(SFX, 'shootSuper', () => function () { stats.audio = (stats.audio || 0) + 1; return undefined; });
@@ -579,7 +580,7 @@ export function installB2(scene) {
       w.mag = K.mag; w.reloadLeft = 0; w.reloadKind = null; w.cool = 0; w.target = null; w.aimAng = null; w.keyTap = false;
     }
     feel?.update(dt, clock);
-    voice.update?.(dt, { heat: api.charge01(), firing: !!p?.alive && (w.trig || clock - w.lastShotAt < K.cadence * 1.5), suppressed: (p?._suppressedMs || 0) > 0 });
+    voice.update?.(dt, { heat: api.charge01(), firing: !!p?.alive && (w.trig || clock - w.lastShotAt < K.cadence * 1.5), suppressed: !p?.alive || (p?._suppressedMs || 0) > 0 });
   };
   scene.events.on('postupdate', onPost);
 

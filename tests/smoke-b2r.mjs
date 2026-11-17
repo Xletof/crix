@@ -25,7 +25,7 @@ import { CHROME, FIGHT_SEG } from './diag-stuck-audit.mjs';
 import { b0Scope } from './b0-scope.mjs';
 
 const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').split('=').slice(1).join('=') || d;
-const NOW = 'http://localhost:5173/';
+const NOW = process.env.CRIX_URL || 'http://localhost:5173/';
 const ONLY = opt('only', '') ? new Set(opt('only', '').split(',').map(Number)) : null;
 const on = (n) => !ONLY || ONLY.has(n);
 const VIS = 'visualPilot=v2c&polish=p1&fxPilot=p2a3';

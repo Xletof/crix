@@ -733,7 +733,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
       const a = show[i];
       if (!a) { o.setVisible(false); return; }
       stats.r2.arcs++;
-      o.setFrame(`arc-${a[1]}-${ph}`).setPosition(Math.round(p.x + a[0][0]), Math.round(p.y + a[0][1])).setRotation((a[2] * Math.PI) / 2).setDepth(p.depth + 0.7).setVisible(true);
+      o.setFrame(`arc-${a[1]}-${ph}`).setPosition(Math.round(p.x + a[0][0]), Math.round(p.y + a[0][1])).setRotation((a[2] * Math.PI) / 2).setDepth(p.depth + 0.7).setAlpha(p.hiddenInBush ? PLAYER.bushAlpha : 1).setVisible(true);
     });
     // shield plates
     const hp = alive ? (p.shieldHp || 0) : 0;
@@ -745,7 +745,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
       if (!alive || (hp <= 0 && !off)) { o.setVisible(false); return; }
       const kick = hit ? 2 : 0, sx = Math.sign(PLATE_AT[i][0]), sy = Math.sign(PLATE_AT[i][1]);
       const f = off ? 'plate-off' : hit ? 'plate-hit' : i < lit ? 'plate' : 'plate-dim';
-      o.setFrame(f).setPosition(Math.round(p.x + PLATE_AT[i][0] + sx * kick), Math.round(p.y + PLATE_AT[i][1] + sy * kick)).setDepth(p.depth + 0.6).setVisible(true);
+      o.setFrame(f).setPosition(Math.round(p.x + PLATE_AT[i][0] + sx * kick), Math.round(p.y + PLATE_AT[i][1] + sy * kick)).setDepth(p.depth + 0.6).setAlpha(p.hiddenInBush ? PLAYER.bushAlpha : 1).setVisible(true);
     });
     if (hp > 0) stats.r2.plates.shown++;
   }

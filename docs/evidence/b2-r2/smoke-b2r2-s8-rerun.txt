@@ -1,5 +1,0 @@
-
-== 8. cost
-PASS  B2-R2 stays bounded: at most 80 pooled objects at peak in a SWARM TIDE fight (the stream links add two per round; reported against B2-B), none additive, and the same rounds fired  — peak pooled objects: B2-B 40, B2-R2 53 (55 ever created); update 0.037ms -> 0.066ms per frame (max 6.10 / 3.70); peak live rounds 6
-
-1/1 passed

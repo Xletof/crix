@@ -62,7 +62,7 @@ export function buildR2Atlas(scene) {
       const d = Math.abs(y - 5), row = [];
       for (let x = 0; x < R2_SLUG; x++) {
         const t = x / (R2_SLUG - 1), along = t < 0.25 ? 0.35 : t < 0.6 ? 0.7 : 1;
-        const across = d <= 1 ? 0 : d === 2 ? 0.5 : d === 3 ? 0.36 : d === 4 ? 0.2 : 0.09;
+        const across = d <= 1 ? 0 : d === 2 ? 0.6 : d === 3 ? 0.44 : d === 4 ? 0.26 : 0.12;
         const a = across * along;
         row.push(a > 0.01 ? rgba(P.glow, a) : null);
       }
@@ -73,10 +73,13 @@ export function buildR2Atlas(scene) {
     //    never scaled), its far end (x = 0, the older round) thins over 6 px ──
     // one bright centre row (the glow below carries the width); both ends thin out, so a link
     // never shows a hard edge where it meets a round or the barrel
+    // a body-coloured centre with dithered rims: three rows wide but soft, so a bent stream
+    // stays a stream and never a zig-zag of hard bars
     const rb = blank(R2_RIB, 3);
     for (let x = 0; x < R2_RIB; x++) {
       const far = x < 6;
-      if (!far || x % 2 === 0) rb[1][x] = x < 3 ? P.rim : P.trail;
+      if (!far || x % 2 === 0) rb[1][x] = x < 3 ? P.rim : x < 10 ? P.trail : P.body;
+      if (x >= 6 && x % 2 === 0) { rb[0][x] = P.rim; rb[2][x] = P.rim; }
     }
     grid(`rib-${s}`, rb);
     const rg = [];
@@ -84,7 +87,7 @@ export function buildR2Atlas(scene) {
       const d = Math.abs(y - 4), row = [];
       for (let x = 0; x < R2_RIB; x++) {
         const fade = x < 8 ? 0.4 + 0.075 * x : 1;
-        const across = d === 0 ? 0 : d === 1 ? 0.42 : d === 2 ? 0.3 : d === 3 ? 0.16 : 0.07;
+        const across = d === 0 ? 0 : d === 1 ? 0.5 : d === 2 ? 0.4 : d === 3 ? 0.24 : 0.11;
         const a = across * fade;
         row.push(a > 0.01 ? rgba(P.glow, a) : null);
       }

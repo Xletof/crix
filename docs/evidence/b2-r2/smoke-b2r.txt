@@ -2,8 +2,8 @@
 == 0. flags
 PASS  "b2r=1": REACTOR off  — {"flag":false,"b2":false,"skin":false,"atlas":false}
 PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B": REACTOR off  — {"flag":false,"b2":true,"skin":false,"atlas":false}
-FAIL  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=1": REACTOR ON  — {"flag":1,"b2":true,"skin":true,"atlas":true}
-FAIL  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=A&b2r=1": REACTOR ON  — {"flag":1,"b2":true,"skin":true,"atlas":true}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=1": REACTOR ON  — {"flag":1,"b2":true,"skin":true,"atlas":true}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=A&b2r=1": REACTOR ON  — {"flag":1,"b2":true,"skin":true,"atlas":true}
 PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=0": REACTOR off  — {"flag":false,"b2":true,"skin":false,"atlas":false}
 
 == 1. pixels only: the same fight
@@ -48,7 +48,7 @@ PASS  restart twice: one install each time (prerender and blast listeners do not
 PASS  quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
 
 == 8. cost
-PASS  REACTOR draws fewer objects than B2-B in the same fight, with no additive blending (reported: update time)  — peak pooled objects: B2-B 40, REACTOR 32 (32 ever created); update 0.041ms -> 0.036ms per frame (max 4.40 / 3.60); peak live rounds 7
+PASS  REACTOR draws fewer objects than B2-B in the same fight, with no additive blending (reported: update time)  — peak pooled objects: B2-B 40, REACTOR 32 (32 ever created); update 0.040ms -> 0.055ms per frame (max 3.90 / 4.20); peak live rounds 7
 
 == 10. the playtest links, as shipped (&b0=...)
 PASS  the two links as shipped (B0 telemetry on, labels B2B / B2T): the same fight tick for tick, telemetry attached on both, the skin only on the candidate  — 197 rounds, 4 Supers, 37 kills, 18855 draws
@@ -59,7 +59,5 @@ PASS  the candidate link keeps its telemetry through the restarts  — {"label":
 == 9. scope
 PASS  the B0 / B1 / B2 scope guard (b2Temper.js is one of B2's modules; GameScene and every frozen file untouched)  — B0 (dc7d9ea..a3866f2): 5 files, GameScene +13 tag/install lines; B1 (a3866f2..266b1ac): 6 files, GameScene +5 install/branch lines; B2 (266b1ac..): 14 files, GameScene +4 install/branch lines
 
-36/38 passed
-FAILED:
-  - "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=1": REACTOR ON
-  - "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=A&b2r=1": REACTOR ON
+38/38 passed
+exit 0

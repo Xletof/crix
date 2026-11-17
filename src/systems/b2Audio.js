@@ -101,7 +101,7 @@ function kitA(ctx, dest, stats, now) {
     const out = ctx.createGain(); out.gain.value = 0.0001;
     o.connect(bp); bp.connect(trem); trem.connect(out); out.connect(dest);
     o.start(); lfo.start();
-    return { o, lfo, out, level: 0, next: 0, rng: mulberry32(0xb2a0a11e) };
+    return { o, lfo, out, level: 0, next: 0, holdUntil: 0, rng: mulberry32(0xb2a0a11e) };
   })();
   return {
     shot(t, { heat = 0, n = 0, hot = false, sustained = false }) {
@@ -126,6 +126,9 @@ function kitA(ctx, dest, stats, now) {
     impact(t, heat) { v.noise(t, { f: 3000, q: 1.6, dur: 0.012, gain: 0.08 + 0.04 * heat }); v.osc(t, { type: 'square', f: 260, f2: 140, dur: 0.022, gain: 0.05, lp: 1200 }); },
     kill(t) { v.noise(t, { f: 1600, f2: 600, q: 1.2, dur: 0.06, gain: 0.1, drive: 'soft' }); v.osc(t, { type: 'triangle', f: 700, f2: 1100, dur: 0.05, gain: 0.05 }); },
     stage(t, k) { v.osc(t, { type: 'square', f: 520 + 140 * k, f2: 760 + 140 * k, dur: 0.05, gain: 0.05, lp: 3000 }); v.noise(t, { f: 3600, q: 2, dur: 0.01, gain: 0.04 }); },
+    // the Super silences the ready hum and holds it off while it plays
+    holdBed(t, until) { amb.holdUntil = until; amb.out.gain.cancelScheduledValues(t); amb.out.gain.setValueAtTime(Math.max(0.0001, amb.level), t); amb.out.gain.linearRampToValueAtTime(0.0001, t + 0.02); amb.level = 0; },
+    silence(t) { amb.out.gain.cancelScheduledValues(t); amb.out.gain.setValueAtTime(0.0001, t); amb.level = 0; },
     windup(t) {
       v.osc(t, { type: 'sawtooth', f: 260, f2: 1300, dur: 0.07, gain: 0.12, lp: 1200, lp2: 5000, q: 6, a: 0.01 });
       v.noise(t, { f: 900, f2: 5200, q: 2.5, dur: 0.07, gain: 0.12, a: 0.03 });
@@ -149,7 +152,8 @@ function kitA(ctx, dest, stats, now) {
     // the ready ambience: a quiet, tremolo'd electrical hum with sparse sharp crackles
     bed(t, { heat, ready, suppressed }) {
       const lvl = ready && !suppressed ? 0.03 : 0;
-      if (Math.abs(lvl - amb.level) > 0.002) { amb.out.gain.cancelScheduledValues(t); amb.out.gain.setValueAtTime(Math.max(0.0001, amb.out.gain.value), t); amb.out.gain.linearRampToValueAtTime(Math.max(0.0001, lvl), t + (lvl > amb.level ? 0.25 : 0.06)); amb.level = lvl; }
+      if (t < amb.holdUntil) return;
+      if (Math.abs(lvl - amb.level) > 0.002) { amb.out.gain.cancelScheduledValues(t); amb.out.gain.setValueAtTime(Math.max(0.0001, amb.level), t); amb.out.gain.linearRampToValueAtTime(Math.max(0.0001, lvl), t + (lvl > amb.level ? 0.25 : 0.06)); amb.level = lvl; }
       if (ready && !suppressed && t >= amb.next) {
         v.noise(t, { f: 3200 + 1600 * amb.rng(), q: 5, dur: 0.01, gain: 0.05, drive: 'hard' });
         amb.next = t + 0.12 + amb.rng() * 0.35;
@@ -183,7 +187,7 @@ function kitB(ctx, dest, stats, now) {
   const t0 = ctx.currentTime;
   for (const o of [o1, o2, o3, lfo, wob]) o.start(t0);
   const crackle = mulberry32(0xb2a0c0de);
-  let nextCrack = 0, lastLevel = 0;
+  let nextCrack = 0, lastLevel = 0, holdUntil = 0, bpHz = 700;
   return {
     shot(t, { heat = 0, n = 0, hot = false, sustained = false }) {
       const r = ROT[n % ROT.length] * (hot ? 1.05 : 1), up = 1 + 0.2 * heat;
@@ -198,14 +202,16 @@ function kitB(ctx, dest, stats, now) {
     kill(t) { v.noise(t, { f: 1100, f2: 400, q: 2, dur: 0.09, gain: 0.1 }); v.osc(t, { type: 'sine', f: 600, f2: 900, dur: 0.06, gain: 0.05 }); },
     stage(t, k) { v.osc(t, { type: 'sine', f: 380 + 90 * k, f2: 620 + 90 * k, dur: 0.09, gain: 0.05, a: 0.01 }); },
     windup(t) {
-      bp.frequency.cancelScheduledValues(t); bp.frequency.setValueAtTime(bp.frequency.value, t); bp.frequency.exponentialRampToValueAtTime(4200, t + 0.07);
-      out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(Math.max(0.0001, out.gain.value), t); out.gain.linearRampToValueAtTime(0.16, t + 0.065);
+      holdUntil = t + 0.7;                                   // the bed is the Super's until the cooldown
+      bp.frequency.cancelScheduledValues(t); bp.frequency.setValueAtTime(bpHz, t); bp.frequency.exponentialRampToValueAtTime(4200, t + 0.07); bpHz = 4200;
+      out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(Math.max(0.0001, lastLevel), t); out.gain.linearRampToValueAtTime(0.16, t + 0.065); lastLevel = 0.16;
       v.noise(t, { f: 700, f2: 4800, q: 3, dur: 0.07, gain: 0.1, a: 0.04 });
     },
     release(t) {
       // the bed is cut by the discharge, then relights quietly (cooldown)
-      out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(0.0001, t + 0.004);
-      bp.frequency.cancelScheduledValues(t); bp.frequency.setValueAtTime(500, t + 0.01);
+      holdUntil = Math.max(holdUntil, t + 0.6);
+      out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(Math.max(0.0001, lastLevel), t); out.gain.linearRampToValueAtTime(0.0001, t + 0.004);
+      bp.frequency.cancelScheduledValues(t); bp.frequency.setValueAtTime(500, t + 0.01); bpHz = 500;
       for (const d of [-18, 0, 15]) v.osc(t, { type: 'sawtooth', f: 225, f2: 55, dur: 0.46, gain: 0.2, lp: 5200, lp2: 280, q: 3, drive: 'hard', detune: d });
       v.noise(t, { f: 6000, f2: 300, type: 'lowpass', q: 0.9, dur: 0.36, gain: 0.42, drive: 'soft' });
       v.osc(t, { type: 'sine', f: 140, f2: 55, dur: 0.26, gain: 0.3 });
@@ -219,10 +225,11 @@ function kitB(ctx, dest, stats, now) {
     reloadEnd(t) { v.noise(t, { f: 2000, q: 1, dur: 0.02, gain: 0.12 }); v.osc(t + 0.04, { type: 'sine', f: 500, f2: 800, dur: 0.07, gain: 0.07 }); },
     /** Per frame: the bed follows firing, charge and readiness. */
     bed(t, { heat, firing, ready, suppressed }) {
+      if (t < holdUntil) return;
       const lvl = suppressed ? 0 : firing ? 0.06 + 0.05 * heat : ready ? 0.035 : heat > 0.5 ? 0.012 : 0;
-      if (Math.abs(lvl - lastLevel) > 0.002) { out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(Math.max(0.0001, out.gain.value), t); out.gain.linearRampToValueAtTime(Math.max(0.0001, lvl), t + (lvl > lastLevel ? 0.03 : 0.12)); lastLevel = lvl; }
+      if (Math.abs(lvl - lastLevel) > 0.002) { out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(Math.max(0.0001, lastLevel), t); out.gain.linearRampToValueAtTime(Math.max(0.0001, lvl), t + (lvl > lastLevel ? 0.03 : 0.12)); lastLevel = lvl; }
       base(110 + 50 * heat);
-      bp.frequency.setTargetAtTime(600 + 1500 * heat + (ready ? 400 : 0), t, 0.05);
+      bpHz = 600 + 1500 * heat + (ready ? 400 : 0); bp.frequency.setTargetAtTime(bpHz, t, 0.05);
       lfoG.gain.setTargetAtTime(firing ? 0.55 : ready ? 0.25 : 0, t, 0.03);
       lfo.frequency.setTargetAtTime(firing ? 10 : 4.4, t, 0.05);
       wobG.gain.setTargetAtTime(heat > 0.5 ? 6 + 30 * (heat - 0.5) + (ready ? 20 : 0) : 0, t, 0.1);
@@ -232,6 +239,8 @@ function kitB(ctx, dest, stats, now) {
         nextCrack = t + (ready ? 0.08 : 0.22) + crackle() * (ready ? 0.18 : 0.4);
       }
     },
+    silence(t) { out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(0.0001, t); lastLevel = 0; },
+    holdBed() {},
     destroy() { for (const o of [o1, o2, o3, lfo, wob]) { try { o.stop(); } catch (_) { /* */ } } try { out.disconnect(); } catch (_) { /* */ } },
   };
 }
@@ -279,9 +288,11 @@ export function createB2Audio(kind, opts = {}) {
     lockTick(k) { ev('lock'); if (ready()) kit.lock(at(), k); },
     duck() { if (!ready() || now() - lastDuck < 0.18) return; lastDuck = now(); stats.ducks++; if (!opts.ctx) duckMusic(0.32, 340); },
     // R2 events
-    windup() { ev('windup'); if (ready()) kit.windup(at()); },
+    windup() { ev('windup'); if (!ready()) return; const t = at(); kit.holdBed?.(t, t + 0.7); kit.windup(t); },
     release() { ev('release'); if (!ready()) return; const t = at(); kit.release(t); kit.cooldown(t + 0.32); if (!opts.ctx) duckMusic(0.45, 500); },
     superHit() { ev('superHit'); if (!ready() || now() - lastTick < 0.03) return; lastTick = now(); kit.superHit(at()); },
+    /** The scene paused (or the hero died): the beds go silent until the next update. */
+    silence() { ev('silence'); if (ready()) kit.silence?.(now()); },
     /** Per frame from the flagship: charge 0..1, the trigger, the meter full, suppressed. */
     update(dt, s) {
       ambT += dt;

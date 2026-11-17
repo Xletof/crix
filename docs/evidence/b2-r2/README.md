@@ -116,10 +116,12 @@ All films are real time at 60 fps, phone size (390x844 CSS px at 2x), the same s
 
 The older suites compare against `2ee948c` (the B2-1 delivery), served on its own port. Logs are in this folder.
 
+`smoke-b2r2` and `smoke-b2r` ran on the final code. The others ran one commit earlier. The changes since touch only what runs under `b2r=2` or `b2a`: the audio level tracking, its Super hold and pause silence, the band's weight, and the bush alpha. Those suites set neither flag.
+
 | Suite | Result |
 |---|---|
-| `smoke-b2r2` (new) | **57 / 57**: 56/57 in the full run; the one failure was REACTOR's inherited "fewer objects than B2-B" expectation, replaced by a bound (≤ 80; measured 53 against B2-B's 40) and re-run alone (`smoke-b2r2-s8-rerun.txt`) |
-| `smoke-b2r` | **38 / 38**: 36/38 in the full run; the two failures were its flag check comparing the reactor flag to `true` (it now reports the level, 1 or 2), fixed and re-run alone (`smoke-b2r-s0-rerun.txt`) |
+| `smoke-b2r2` (new) | **62 / 62**, one clean full run on the final code. REACTOR's inherited "fewer objects than B2-B" check is a bound here: ≤ 80, measured 53 against B2-B's 40 |
+| `smoke-b2r` | **38 / 38**, one clean full run on the final code (its flag check now reads the reactor level, 1 or 2) |
 | `smoke-b2t` | 37 / 37 |
 | `smoke-b2c --old=2ee948c` | 46 / 46 |
 | `smoke-b2 --old=2ee948c` | 88 / 88 |

@@ -50,12 +50,16 @@ PASS  restart twice: one install each time (prerender and blast listeners do not
 PASS  quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
 
 == 8. cost
-FAIL  REACTOR draws fewer objects than B2-B in the same fight, with no additive blending (reported: update time)  — peak pooled objects: B2-B 40, REACTOR 53 (55 ever created); update 0.036ms -> 0.067ms per frame (max 3.70 / 4.70); peak live rounds 6
+PASS  B2-R2 stays bounded: at most 80 pooled objects at peak in a SWARM TIDE fight (the stream links add two per round; reported against B2-B), none additive, and the same rounds fired  — peak pooled objects: B2-B 40, B2-R2 53 (55 ever created); update 0.037ms -> 0.075ms per frame (max 3.50 / 3.30); peak live rounds 6
 
 == 10. the playtest links, as shipped (&b0=...)
 PASS  the two links as shipped (B0 telemetry on, labels B2B / B2T): the same fight tick for tick, telemetry attached on both, the skin only on the candidate  — 197 rounds, 4 Supers, 37 kills, 18855 draws
 PASS  the candidate link: restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"rounds":5,"supers":1},{"hiddenLeft":0}]
 PASS  the candidate link: quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+PASS  the playtest link (audio A, b2c): restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  the playtest link (audio A, b2c): quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+PASS  the playtest link (audio B, b2c): restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  the playtest link (audio B, b2c): quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
 PASS  the candidate link keeps its telemetry through the restarts  — {"label":"B2R2A"}
 
 == 11. the stream under motion
@@ -69,6 +73,7 @@ PASS  60 fps: every range expiry (B2 classifies it from Bullet.traveled >= range
 PASS  60 fps: the dissipation is visual only: the round itself dies where Bullet.preUpdate kills it (no extra travel), and no bullet stays active after  — {"deaths":24,"overshoot":16.666666666665833,"live":0}
 PASS  30 fps: every range expiry (B2 classifies it from Bullet.traveled >= range at the kill) plays the dissipation, every frame of it, frame 0 included  — {"exp":16,"dis":[16,16,16,32],"deaths":24,"expiredDeaths":16,"overshoot":16.666666666665833,"lane":{"x":480,"y":540,"a":-0.7853981633974483},"live":0}
 PASS  30 fps: the dissipation is visual only: the round itself dies where Bullet.preUpdate kills it (no extra travel), and no bullet stays active after  — {"deaths":24,"overshoot":16.666666666665833,"live":0}
+PASS  range expiry in every direction with a clear lane in the room (N, NE, E, SE, S, SW, W, NW): each expiry plays the dissipation to its last frame  — [{"deg":-90,"exp":7,"dis":21},{"deg":-45,"exp":7,"dis":21},{"deg":0,"exp":7,"dis":21},{"deg":45,"exp":7,"dis":21},{"deg":90,"exp":7,"dis":21},{"deg":135,"exp":7,"dis":21},{"deg":180,"exp":7,"dis":21},{"deg":-135,"exp":7,"dis":21}]
 
 == 13. how a round ends: distinct outcomes
 PASS  a wall: the rounds end as wall contacts and draw the wall flare, not the dissipation and not the body splash  — {"hit":0,"wall":10,"expire":0,"cancel":0,"disF":0,"wallF":20,"hitF":0,"lane":{"x":1160,"y":340,"a":-0.7853981633974483},"walls":[[485,325,70,70,true],[805,325,70,70,true],[1045,325,70,70,true],[485,1045,70,70,true]]}
@@ -88,6 +93,5 @@ PASS  audio B: shot, impact, the charge stages, primed, Super wind-up, release a
 == 9. scope
 PASS  the B0 / B1 / B2 scope guard (b2Temper.js is one of B2's modules; GameScene and every frozen file untouched)  — B0 (dc7d9ea..a3866f2): 5 files, GameScene +13 tag/install lines; B1 (a3866f2..266b1ac): 6 files, GameScene +5 install/branch lines; B2 (266b1ac..): 14 files, GameScene +4 install/branch lines
 
-56/57 passed
-FAILED:
-  - REACTOR draws fewer objects than B2-B in the same fight, with no additive blending (reported: update time)
+62/62 passed
+exit 0

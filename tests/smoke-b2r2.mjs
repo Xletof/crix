@@ -27,7 +27,7 @@ import { CHROME, FIGHT_SEG } from './diag-stuck-audit.mjs';
 import { b0Scope } from './b0-scope.mjs';
 
 const opt = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').split('=').slice(1).join('=') || d;
-const NOW = 'http://localhost:5173/';
+const NOW = process.env.CRIX_URL || 'http://localhost:5173/';
 const ONLY = opt('only', '') ? new Set(opt('only', '').split(',').map(Number)) : null;
 const on = (n) => !ONLY || ONLY.has(n);
 const VIS = 'visualPilot=v2c&polish=p1&fxPilot=p2a3';
@@ -380,6 +380,7 @@ if (on(10)) {
   const d = firstDiff(a.hashes, b.hashes);
   check('the two links as shipped (B0 telemetry on, labels B2B / B2T): the same fight tick for tick, telemetry attached on both, the skin only on the candidate', d < 0 && a.m.b0 && b.m.b0 && a.m.label === 'B2B' && b.m.label === 'B2R2A' && !a.m.skin && b.m.skin && b.supers === 4, d < 0 ? `${b.shots} rounds, ${b.supers} Supers, ${b.kills} kills, ${b.draws} draws` : `first divergent tick ${d}`);
   const r = await restartCheck(TL, 'the candidate link: ');
+  for (const k of ['A', 'B']) await restartCheck(join(VIS, 'b2=B', 'b2r=2', `b2a=${k}`, 'b2c=1', `b0=B2R2${k}`), `the playtest link (audio ${k}, b2c): `);
   check('the candidate link keeps its telemetry through the restarts', r.first.b0 && r.second.b0 && r.third.b0 && r.label === 'B2R2A', JSON.stringify({ label: r.label }));
 }
 
@@ -387,13 +388,13 @@ if (on(10)) {
 const r2prep = (p) => p.evaluate(() => {
   const gs = window.__gs, P = gs.player;
   window.__stick = (a, on = true) => { const fs = window.game.scene.getScene('HUD').fireStick; fs.active = on; fs.vec = { x: Math.cos(a), y: Math.sin(a), force: on ? 1 : 0, angle: a }; };
-  window.__lane = (len = 540, want = null) => {
+  window.__lane = (len = 540, want = null, only = null) => {
     const los = gs.losRects || [], bd = gs.roomSpec?.bounds ?? { w: 1600, h: 1600 };
     // the bodies bullets actually stop on (GameScene.handleBulletWallHits)
     const walls = (gs.walls?.getChildren?.() || []).map((w) => { const b = w.body; return b ? { x: b.x, y: b.y, right: b.x + b.width, bottom: b.y + b.height } : null; }).filter(Boolean);
     const rects = want === 'wall' ? walls : [...los, ...walls];
     const hitAt = (x1, y1, a, L) => { for (let k = 0; k <= 60; k++) { const x = x1 + Math.cos(a) * L * k / 60, y = y1 + Math.sin(a) * L * k / 60; if (want !== 'wall' && (x < 90 || y < 130 || x > bd.w - 90 || y > bd.h - 90)) return k / 60; const m = want === 'wall' ? -6 : 26; if (rects.some((r) => x > r.x - m && x < r.right + m && y > r.y - m && y < r.bottom + m)) return k / 60; } return 2; };
-    for (const a of [-Math.PI / 4, -3 * Math.PI / 4, Math.PI / 4, 3 * Math.PI / 4, 0, Math.PI]) for (let y = 300; y <= bd.h - 200; y += 40) for (let x = 200; x <= bd.w - 200; x += 40) {
+    for (const a of (only != null ? [only] : [-Math.PI / 4, -3 * Math.PI / 4, Math.PI / 4, 3 * Math.PI / 4, 0, Math.PI])) for (let y = 300; y <= bd.h - 200; y += 40) for (let x = 200; x <= bd.w - 200; x += 40) {
       if ([...los, ...walls].some((r) => x > r.x - 40 && x < r.right + 40 && y > r.y - 40 && y < r.bottom + 40)) continue;
       const h = hitAt(x, y, a, len);
       if (want === 'clear' && h === 2) return { x, y, a };
@@ -473,6 +474,27 @@ if (on(12)) {
     check(`${fps} fps: every range expiry (B2 classifies it from Bullet.traveled >= range at the kill) plays the dissipation, every frame of it, frame 0 included`, r.exp >= 12 && r.exp === r.expiredDeaths && r.dis.every((n) => n >= r.exp * per), JSON.stringify(r));
     check(`${fps} fps: the dissipation is visual only: the round itself dies where Bullet.preUpdate kills it (no extra travel), and no bullet stays active after`, r.deaths >= r.exp && r.live === 0 && r.overshoot < 40, JSON.stringify({ deaths: r.deaths, overshoot: r.overshoot, live: r.live }));
   }
+}
+
+if (on(12)) {
+  const p = await boot(T); await prep(p); await r2prep(p);
+  const r = await p.evaluate(() => {
+    const gs = window.__gs, sk = gs._b2.stats.feel.skin, f = gs._b2.stats.feel, out = [];
+    for (const deg of [-90, -45, 0, 45, 90, 135, 180, -135]) {
+      const a = (deg * Math.PI) / 180;
+      window.__stage(); window.__headless = false;
+      const lane = window.__lane(540, 'clear', a);
+      if (!lane) { out.push({ deg, lane: false }); continue; }
+      window.__put(lane);
+      const e0 = f.ends.expire || 0, d0 = sk.r2.dis[3];
+      for (let i = 0; i < 40; i++) { window.__stick(a, true); window.__adv(1); } window.__stick(a, false); window.__adv(50);
+      out.push({ deg, exp: (f.ends.expire || 0) - e0, dis: sk.r2.dis[3] - d0 });
+    }
+    return out;
+  });
+  await p.close();
+  const tested = r.filter((q) => q.lane !== false);
+  check('range expiry in every direction with a clear lane in the room (N, NE, E, SE, S, SW, W, NW): each expiry plays the dissipation to its last frame', tested.length >= 6 && tested.every((q) => q.exp >= 3 && q.dis >= q.exp), JSON.stringify(r));
 }
 
 // ── 13. HOW A ROUND ENDS ─────────────────────────────────────────────────

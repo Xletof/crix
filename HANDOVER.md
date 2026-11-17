@@ -356,8 +356,8 @@ command, fix the line.*
     state untouched) for armour arcs at full charge and four shield corner
     plates; a stepped white-faced Super mass with burn-through hits. Audio A
     (heavy energy rifle) and B (plasma reactor): no `Math.random`, voices
-    capped; NOT LISTENED TO by the author. Proof: `tests/smoke-b2r2.mjs`
-    57/57 (= B2-B tick for tick with audio A; the shipped links with `&b0=`);
+    capped, silenced on pause; NOT LISTENED TO by the author. Proof:
+    `tests/smoke-b2r2.mjs` 62/62 (= B2-B tick for tick with audio A; the shipped links with `&b0=`);
     smoke-b2r 38/38, smoke-b2t 37/37, smoke-b2c 46/46, smoke-b2 88/88,
     smoke-b1 71/71, smoke-b0 46/46 against `2ee948c`. The `&b2c=1`
     intermittent stays unresolved and inherited.
