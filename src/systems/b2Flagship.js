@@ -41,7 +41,7 @@
 //  No `Math.random` anywhere in B2 code.
 import Phaser from 'phaser';
 import { PLAYER } from '../config.js';
-import { getB2Variant, getB2Knobs, isB2Range, isB2Candidate, isB2Temper } from './debug.js';
+import { getB2Variant, getB2Knobs, isB2Range, isB2Candidate, isB2Temper, isB2Reactor } from './debug.js';
 import { SFX, duckMusic } from './FX.js';
 import { BulletGroup } from '../entities/Bullet.js';
 import { installB2Feel } from './b2Feel.js';
@@ -149,6 +149,8 @@ export function installB2(scene) {
   const voice = createB2Voice(K);
   api.temper = isB2Temper();          // read by b2Feel at install (systems/b2Temper.js)
   stats.temper = api.temper;
+  api.reactor = isB2Reactor();       // systems/b2Reactor.js; wins over temper
+  stats.reactor = api.reactor;
   const feel = installB2Feel(scene, api, K, voice);
   stats.feel = feel?.stats || null;
 

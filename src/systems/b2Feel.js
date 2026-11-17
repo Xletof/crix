@@ -35,6 +35,7 @@ import { P1_WEAPONS } from './p1Paint.js';
 import { circleEntry } from './p2aFx.js';
 import { isB2Debug } from './debug.js';
 import { createTemperSkin, tipStep } from './b2Temper.js';
+import { createReactorSkin } from './b2Reactor.js';
 
 const TEX = { core: 'b2-core', trail: 'b2-trail', body: 'b2-body', head: 'b2-head', halo: 'b2-halo', spill: 'b2-spill', mz: ['b2-mz0', 'b2-mz1', 'b2-mz2'], spark: 'b2-spark', ring: 'b2-ring' };
 const FLICK = [1, 0.86, 1.1, 0.93, 1.04];
@@ -422,7 +423,10 @@ export function installB2Feel(scene, api, K, voice) {
 
   // TEMPER: created after the wrappers above, so its own (the Super's shipped effects) sit
   // outside them and are restored first.
-  if (api.temper) { skin = createTemperSkin(scene, api, K, { muzzleNow, wrap }); stats.temper = skin.stats; }
+  // REACTOR OVERLOAD (`&b2r=1`, systems/b2Reactor.js) is a second skin on the same hooks; it wins if both are set.
+  if (api.reactor) { skin = createReactorSkin(scene, api, K, { muzzleNow, wrap }); stats.reactor = skin.stats; }
+  else if (api.temper) { skin = createTemperSkin(scene, api, K, { muzzleNow, wrap }); stats.temper = skin.stats; }
+  if (skin) stats.skin = skin.stats;
 
   // ── HUD: the pips are for a three-round pistol ──────────────────────────
   const hudRestore = [];
@@ -613,7 +617,7 @@ export function installB2Feel(scene, api, K, voice) {
       hudRestore.splice(0).forEach((f) => { try { f(); } catch (_) { /* */ } });
       for (const o of [ember, rim, spill, magBar, dg, ...pool]) { try { o?.destroy(); } catch (_) { /* */ } }
       dpanel?.remove();
-      for (const v of recs) for (const o of [v.trail, v.body, v.core, v.head, v.halo, v.thread, v.bolt]) { try { o?.destroy(); } catch (_) { /* */ } }
+      for (const v of recs) for (const o of [v.trail, v.body, v.core, v.head, v.halo, v.thread, v.bolt, v.glow]) { try { o?.destroy(); } catch (_) { /* */ } }
       for (const f of flashes) { try { f.img.destroy(); f.glow?.destroy(); } catch (_) { /* */ } }
       for (const s of sparks) { try { s.img.destroy(); s.glow?.destroy(); s.spill?.destroy(); } catch (_) { /* */ } }
       for (const s2 of steps) { try { s2.img.destroy(); } catch (_) { /* */ } }

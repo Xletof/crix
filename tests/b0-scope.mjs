@@ -74,7 +74,7 @@ export function b1Scope(root = process.cwd() + '/') {
 
 export function b2Scope(root = process.cwd() + '/') {
   const range = B2_BASE;
-  const NEW = ['src/systems/b2Flagship.js', 'src/systems/b2Feel.js', 'src/systems/b2Voice.js', 'src/systems/b2Range.js', 'src/systems/b2Super.js', 'src/systems/b2Temper.js'];
+  const NEW = ['src/systems/b2Flagship.js', 'src/systems/b2Feel.js', 'src/systems/b2Voice.js', 'src/systems/b2Range.js', 'src/systems/b2Super.js', 'src/systems/b2Temper.js', 'src/systems/b2Reactor.js'];
   const ALLOWED = [...NEW, 'src/systems/debug.js', 'src/scenes/BootScene.js', 'src/scenes/GameScene.js', 'src/systems/b0Telemetry.js', 'src/systems/b0Report.js'];
   const files = execSync(`git diff --name-only ${range} -- src/ && git ls-files --others --exclude-standard -- src/`, { cwd: root, encoding: 'utf8' })
     .split('\n').filter(Boolean).sort();
