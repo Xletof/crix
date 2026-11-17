@@ -2416,8 +2416,8 @@ Evidence in `docs/evidence/b1-combat-experiments/`.
   additive sprites); frames at 60 and 30 fps (frame 0 never skipped); the
   Super (pellets and hitbox identical, shipped effects hidden with a B2-B
   control, crown / ring / heat frames); restarts; cost; the scope guard.
-  `--diag=1` runs the `&b2c=1` fight twice with and twice without TEMPER and
-  prints the first tick any pair differs.
+  `--diag=1|order|hist|hunt` are the rigs used on the `&b2c=1&b2t=1`
+  intermittent (below).
 
 ### What it taught
 
@@ -2430,9 +2430,12 @@ Evidence in `docs/evidence/b1-combat-experiments/`.
   event in a room flashes the camera red on its own.
 - **`window.__t` is the harness clock** in the smoke-b2c boot. Do not name a
   helper `__t`.
-- **Give each parity run its own browser context.** The `&b2c=1` pair
-  diverged at one tick twice when it ran after six other pages, and never in
-  isolation (`--diag=1`) or with a context per run. Cause not found.
+- **`&b2c=1&b2t=1` is intermittently not repeatable** (about 1 run in 6 of
+  one seeded fight: one effect lands a tick late at tick 741; positions equal
+  at that tick). Page order is not the cause: `--diag=order` once showed it
+  and once did not, `--diag=hist` did not, `--diag=hunt` caught it on a first
+  repeat and then gave ten clean ones. Cause not found; the check is labelled
+  KNOWN INTERMITTENT. Neither `b2c` alone nor `b2t` alone has shown it.
 
 ## The B2 closure rigs (`&b2c=1`, `&b2dbg=1`)
 

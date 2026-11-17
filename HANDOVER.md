@@ -322,7 +322,12 @@ command, fix the line.*
     ring, five ice lances on the shipped pellet canvas and a 72ms dim, then a
     barrel that cools. No additive blending. The shipped Super effects still
     RUN and are hidden (so `Math.random` is drawn as in B2-B). Independent of
-    `&b2c=1`. Assessment, films, links, limits and three recommendations:
+    `&b2c=1`. Proof: `tests/smoke-b2t.mjs` 37/37 (TEMPER = B2-B tick for
+    tick, also on the shipped links with `&b0=`; smoke-b2c 46/46, smoke-b2
+    88/88, smoke-b1 71/71, smoke-b0 46/46 against `2ee948c`; run-all and
+    captel NOT re-run). OPEN: `&b2c=1&b2t=1` together is intermittently not
+    repeatable (one effect a tick late, ~1 run in 6, cause not found).
+    Assessment, films, links, limits and three recommendations:
     `docs/evidence/b2-temper/README.md`. Awaiting the HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,

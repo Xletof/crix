@@ -266,7 +266,7 @@ export function createTemperSkin(scene, api, K, h) {
     made: 0, peak: 0, rounds: 0, flashes: 0, hits: 0, supers: 0, lances: 0, ignites: 0,
     gun: { n: 0, stage: 0, frame: null, heat: -1, shown: false, hasArt: has('gun-1') },
     cloak: { calls: 0, objects: 0, particles: 0 },
-    sync: { checks: 0, bad: 0 },
+    sync: { checks: 0, bad: 0 }, drawn: { checks: 0, bad: 0 },
     frameSeen: { mz: [0, 0, 0], hit: [0, 0, 0, 0], crown: [0, 0, 0, 0], ring: [0, 0, 0] },
   };
   // ── pool (NORMAL blend only) ────────────────────────────────────────────
@@ -303,6 +303,11 @@ export function createTemperSkin(scene, api, K, h) {
       o.setCrop(W - v.tLen, 0, L, BH).setPosition(hx + Math.cos(v.ang) * eaten, hy + Math.sin(v.ang) * eaten);
     }
     o.setVisible(true).setRotation(v.ang).setDepth(hy + 3);
+    // what the sprite REALLY shows, read back from its own crop and position: it must be
+    // exactly the L px that end at (hx, hy)
+    const c = o._crop, near = W - c.x - c.width;
+    stats.drawn.checks++;
+    if (Math.abs(c.width - L) > 0.01 || Math.hypot(o.x - Math.cos(v.ang) * near - hx, o.y - Math.sin(v.ang) * near - hy) > 0.01) stats.drawn.bad++;
   }
   function roundFree(v) { free(v.bolt); v.bolt = null; }
 

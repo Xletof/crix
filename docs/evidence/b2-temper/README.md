@@ -109,6 +109,10 @@ Enemy reactions, hit-stop, camera, cadence, damage and the economy are frozen or
 - **Films, real time at 60 fps, phone size, B2-B left and TEMPER right, the same seeded fight tick for tick:**
   - `films/range-b2b-vs-temper-60fps.mp4`: charge from 0 to full on three static targets, a second at full, the Super, the barrel cooling.
   - `films/fight-b2b-vs-temper-60fps.mp4`: a Sector 3 MIXED ASSAULT wave with movement, a Super and an OVERCHARGE pickup. The debug panel in the corner is the encounter selector.
+  - `films/swarm-b2b-vs-temper-60fps.mp4`: a Sector 3 SWARM TIDE wave with movement and a Super.
+- **How motion was judged.** I cannot watch a film. I read consecutive 60 fps frames from them (`after/stream-12-frames-…`, `after/super-12-frames-…`) and pairs at matched ticks (`after/swarm-pairs-…`). The films are for you.
+- **Crowds are the least-evidenced part.** The recorded waves are sparse at the moments sampled, and the one dense still is the weakest case (below).
+- **Against B2-C:** the closure candidate's stills are in `docs/evidence/b2-closure/candidate/`. Its charge thread and quarter rings are replaced here; its targeting marks are untouched and still draw with `&b2c=1`.
 - **Stills:** `after/` beside `before/` (gun at 0 / 35 / 70 / 100%, the stream at the same four charges, the Super frame by frame, a crowd at phone size).
 
 ## 4. Verification
@@ -117,7 +121,7 @@ Logs are in this folder. The comparison build for the older suites is `2ee948c` 
 
 | Suite | Result |
 |---|---|
-| `smoke-b2t` (new) | **32 / 32** |
+| `smoke-b2t` (new) | **37 / 37** |
 | `smoke-b2c --old=2ee948c` | 46 / 46 (B2-B = the B2-1 delivery tick for tick) |
 | `smoke-b2 --old=2ee948c` | 88 / 88 |
 | `smoke-b1 --old=2ee948c` | 71 / 71 |
@@ -130,15 +134,18 @@ Logs are in this folder. The comparison build for the older suites is `2ee948c` 
 What `smoke-b2t` proves:
 
 - **Pixels only.** `?b2=B&b2t=1` and `?b2=B` are the same fight tick for tick on the same build, over a held stream, four Supers and a Broken Wings chain, in three fights (MIXED s6, SWARM TIDE, MIXED s6 with god mode off): positions, hp, ammo, meters, every enemy, bolt and pellet, `Math.random` draws and events. In MIXED s6 that is 197 rounds, 4 Supers, 37 kills and 18,855 draws, with 32 shipped objects and 814 particles hidden. The same holds with `&b2c=1` on both sides.
-- **The tracer fix holds under the skin:** 1,083 streak checks across kills, blank space in six directions, walls and a Super; 0 off the line, behind the barrel or ending anywhere but where the round stopped.
+- **The tracer fix holds under the skin:** 1,083 streak checks across kills, blank space in six directions, walls and a Super; 0 off the line, behind the barrel or ending anywhere but where the round stopped. The sprite's own crop and position are read back each frame and match that segment exactly.
 - **The gun:** lamp count and colour stage at seven charges; every gun frame keeps the approved rifle's silhouette and outline; the overlay matched the weapon's position, rotation, flip, origin and alpha in every rendered frame of a turn and a stream; it is off at 0, mid-combo (the blade) and dead.
 - **The bolt:** one size (78x15) at every charge and for OVERCHARGE rounds; every TEMPER object in a stream is NORMAL blend at scale 1; a B2-B control shows the additive sprites the check looks for.
 - **Frames:** at 60 fps and at 30 fps every round gets a flash and every flash shows all three frames; frame 0 is never skipped. The same for contacts.
 - **The Super:** the five pellets have the shipped angles, damage and body (width 54, radius 27, circle); no camera flash and none of the shipped additive blast shapes is visible, while B2-B shows both (control); crown, ring and the four cooling steps are all seen.
-- **Restarts:** one install per restart; nothing left behind at the title.
+- **Restarts:** one install per restart; nothing left behind at the title; every shipped object the skin hid is gone two seconds later.
+- **The links as shipped:** with their `&b0=` telemetry labels, the two playtest queries are the same fight tick for tick, and the candidate link survives two restarts and a quit with telemetry attached.
+- **The production bundle** (`npm run build`, served locally, real loop, real key presses): no console or page errors on the candidate link, the B2-B link, the candidate with `&b2c=1`, and no flags (`after/production-bundle-real-loop-…png`).
+- **Square pixels on the Super pellet.** The shipped pellet is stretched 1.9x in thickness; the lance is drawn at 1x. That changes the pellet body's height and nothing else. I checked that nothing reads it: no physics collider or overlap is registered for any bullet group, every bullet hit test is `circleOverlap` (sprite position and `body.width / 2`) or the wall test (sprite position against wall rectangles), and no code reads a bullet body's height, centre, top or bottom. Pellet positions are also in the per-tick hash of every parity fight.
 - **Cost:** peak pooled objects in the same fight 40 (B2-B) against 17 (TEMPER), none additive. The layer's own update cost is 0.02–0.04 ms per frame on either side, inside the run-to-run noise.
 
-**One unexplained intermittent.** The `&b2c=1` pair diverged at tick 741 in two runs where it followed six other pages in one browser. It has never diverged in isolation (`--diag=1`, four runs of the fight, twice), and the suite now gives every parity run its own browser context (two clean full runs since). The three B2-B fights have not diverged in any run. I did not find the cause, so treat the `&b2c=1` + `&b2t=1` combination as the less proven one.
+**One open issue, on an optional combination.** With `&b2c=1` and `&b2t=1` together, about 4 runs in 25 of one seeded fight differ from the rest at tick 741: a single effect (48 `Math.random` draws and one scene event) lands one tick later, and every position, hp and meter at that tick is identical. It then changes the fight that follows, because AI draws from the same stream. `&b2c=1` alone has not shown it (5 runs), and neither playtest link's configuration has (B2-B and TEMPER, more than 20 fights). I could not make it reproduce on demand (ten clean repeats in a row), so the cause is not found. `smoke-b2t --diag=hunt` repeats the fight and prints the difference. Until it is found, do not use `&b2c=1&b2t=1` for a seeded comparison.
 
 ## 5. Files and flags
 

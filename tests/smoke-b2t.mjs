@@ -17,6 +17,7 @@
 //   7  RESTARTS: one install each time, nothing left behind
 //   8  COST: objects and update time against B2-B (reported)
 //   9  the scope guard
+//  10  THE SHIPPED LINKS: both playtest queries with their `&b0=` label
 //
 // usage: node tests/smoke-b2t.mjs [--only=0,3]
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
@@ -115,13 +116,62 @@ async function boot(flags, { base = NOW, q = Q_STAGE, seed = 4242, god = true, c
         for (const g2 of [...gs.hostileBullets, gs.playerBullets, gs.playerRifleBullets, gs.playerSuperBullets]) for (const bb of g2?.getChildren?.() || []) if (bb.active) s2 += `b${f(bb.x)},${f(bb.y)},${bb.damage};`;
         // display-list bookkeeping (a pooled image created) is presentation, not the fight
         s2 += `|d${window.__draws}|e${window.__evN - (window.__ev.addedtoscene || 0) - (window.__ev.removedfromscene || 0)}`;
-        hashes.push(fnv(s2)); if (window.__raw) window.__raw.push(s2);
+        hashes.push(fnv(s2)); if (window.__raw) { window.__raw.push(s2); (window.__evlog = window.__evlog || []).push({ ...window.__ev }); }
       }
       K.A.isDown = K.D.isDown = K.W.isDown = K.S.isDown = false; gs.cursors.space.isDown = false;
       return { hashes, draws: window.__draws, kills: gs.runKills, shots: gs._b2?.stats.shots ?? 0, supers: window.__ev['player-fire-super'] || 0 };
     };
   }, { seed, god });
   return page;
+}
+
+// `--diag=hunt`: run the b2c+TEMPER fight again and again until one run differs from the first; print the fields.
+if (opt('diag', '') === 'hunt') {
+  const tr = { seed: 9071, ticks: 800, seg: FIGHT_SEG, hold: HOLD, superTaps: [300, 700], melee: [500, 525, 550] };
+  const raw = async (flags) => { const p = await boot(flags, { q: Q_MIXED }); const r = await p.evaluate((x) => { window.__raw = []; window.__trace(x); const t = window.__gs._b2.stats.feel.temper; return { raw: window.__raw, ev: window.__evlog, cloak: t?.cloak, audio: window.__gs.sound?.context?.state ?? null, voice: window.__gs._b2.stats.voice ?? null }; }, tr); await p.close(); return r; };
+  const flags = join(T, 'b2c=1');
+  const ref = await raw(flags);
+  console.log('reference', JSON.stringify({ cloak: ref.cloak, audio: ref.audio, voice: ref.voice }));
+  for (let k = 0; k < +(opt('n', '8')); k++) {
+    const t = await raw(flags);
+    const d = ref.raw.findIndex((v, i) => v !== t.raw[i]);
+    console.log(`run ${k}: first divergent tick ${d}`, JSON.stringify({ cloak: t.cloak, audio: t.audio, voice: t.voice }));
+    if (d < 0) continue;
+    for (const dd of [d - 1, d, d + 1]) { const x = ref.ev[dd], y = t.ev[dd], x0 = ref.ev[dd - 1], y0 = t.ev[dd - 1]; const names = new Set([...Object.keys(x), ...Object.keys(y)]); const out = []; for (const nm of names) { const a2 = (x[nm] || 0) - (x0[nm] || 0), b2 = (y[nm] || 0) - (y0[nm] || 0); if (a2 !== b2) out.push(`${nm}: ref +${a2}, run +${b2}`); } console.log(` events @${dd}: ${out.join('; ') || 'same'}`); }
+    for (const dd of [d, d + 1]) { const A = ref.raw[dd].split(/[|;]/), Bb = t.raw[dd].split(/[|;]/); let n = 0; console.log(` @${dd}: ${A.length} / ${Bb.length} fields`); for (let i = 0; i < Math.max(A.length, Bb.length) && n < 6; i++) if (A[i] !== Bb[i]) { n++; console.log(`  [${i}] ref: ${A[i]}\n      run: ${Bb[i]}`); } }
+    break;
+  }
+  await browser.close(); process.exit(0);
+}
+
+// `--diag=hist`: does page HISTORY alone (N boots before) move the b2c+TEMPER fight? Prints the fields that differ.
+if (opt('diag', '') === 'hist') {
+  const tr = { seed: 9071, ticks: 800, seg: FIGHT_SEG, hold: HOLD, superTaps: [300, 700], melee: [500, 525, 550] };
+  const raw = async (flags, iso) => { const ctx = iso ? await browser.newContext({ viewport: { width: 720, height: 1280 } }) : null; const p = await boot(flags, { q: Q_MIXED, ctx }); const r = await p.evaluate((x) => { window.__raw = []; window.__trace(x); const t = window.__gs._b2.stats.feel.temper; return { raw: window.__raw, cloak: t?.cloak, lances: t?.lances, supers: t?.supers }; }, tr); if (ctx) await ctx.close(); else await p.close(); return r; };
+  const n = +(opt('n', '7'));
+  for (let i = 0; i < n; i++) { const p = await boot(i % 2 ? T : B, { q: Q_MIXED }); await p.evaluate(() => window.__adv(200)); await p.close(); }
+  const t1 = await raw(join(T, 'b2c=1'), false), t2 = await raw(join(T, 'b2c=1'), true);
+  const d = t1.raw.findIndex((v, i) => v !== t2.raw[i]);
+  console.log(`after ${n} pages vs fresh: first divergent tick ${d}`, JSON.stringify({ a: [t1.cloak, t1.lances, t1.supers], b: [t2.cloak, t2.lances, t2.supers] }));
+  if (d >= 0) { const A = t1.raw[d].split(/[|;]/), Bb = t2.raw[d].split(/[|;]/); let k = 0; for (let i = 0; i < Math.max(A.length, Bb.length) && k < 5; i++) if (A[i] !== Bb[i]) { k++; console.log(`  [${i}] history: ${A[i]}\n       fresh:   ${Bb[i]}`); } }
+  await browser.close(); process.exit(0);
+}
+
+// `--diag=order`: the page order in which the &b2c=1 pair diverged (six parity pages first, all
+// from browser.newPage), then the same pair again in fresh contexts: which side moved?
+if (opt('diag', '') === 'order') {
+  const tr = { seed: 9071, ticks: 1500, seg: FIGHT_SEG, hold: HOLD };
+  const run = async (flags, q, o, iso) => { const ctx = iso ? await browser.newContext({ viewport: { width: 720, height: 1280 } }) : null; const p = await boot(flags, { q, god: o.god ?? true, ctx }); const r = await p.evaluate((x) => { window.__raw = []; window.__trace(x); return window.__raw; }, { ...tr, superTaps: o.supers, melee: o.melee }); if (ctx) await ctx.close(); else await p.close(); return r; };
+  const o4 = { supers: [300, 700, 1100, 1400], melee: [500, 525, 550] }, o3 = { supers: [300, 700, 1100], melee: [500, 525, 550] };
+  for (const [q, god] of [[Q_MIXED, true], [Q_SWARM, true], [Q_MIXED, false]]) { const a = await run(B, q, { ...o4, god }), b = await run(T, q, { ...o4, god }); console.log(`B2-B vs TEMPER (${q}, god ${god}): first divergent tick ${firstDiff(a, b)}`); }
+  const c1 = await run(join(B, 'b2c=1'), Q_MIXED, o3), t1 = await run(join(T, 'b2c=1'), Q_MIXED, o3);
+  const c2 = await run(join(B, 'b2c=1'), Q_MIXED, o3, true), t2 = await run(join(T, 'b2c=1'), Q_MIXED, o3, true);
+  console.log(`in the old order:   b2c vs b2c+TEMPER first divergent tick ${firstDiff(c1, t1)}`);
+  console.log(`in fresh contexts:  b2c vs b2c+TEMPER first divergent tick ${firstDiff(c2, t2)}`);
+  console.log(`b2c alone, old order vs fresh:         ${firstDiff(c1, c2)}`);
+  console.log(`b2c+TEMPER, old order vs fresh:        ${firstDiff(t1, t2)}`);
+  for (const [nm, x, y] of [['t1 vs t2', t1, t2], ['c1 vs t1', c1, t1]]) { const d = firstDiff(x, y); if (d < 0) continue; for (const dd of [d, d + 1]) { const A = x[dd].split(/[|;]/), Bb = y[dd].split(/[|;]/); let k = 0; console.log(`${nm} @${dd}: ${A.length} / ${Bb.length} fields`); for (let i = 0; i < Math.max(A.length, Bb.length) && k < 6; i++) if (A[i] !== Bb[i]) { k++; console.log(`  [${i}] ${A[i]}\n      ${Bb[i]}`); } } }
+  await browser.close(); process.exit(0);
 }
 
 // `--diag=1`: is the &b2c=1 fight itself repeatable? Runs it twice without and twice with
@@ -165,7 +215,7 @@ if (on(1)) {
   }
   const a = await run(join(B, 'b2c=1'), Q_MIXED, { supers: [300, 700, 1100], melee: [500, 525, 550] }), b = await run(join(T, 'b2c=1'), Q_MIXED, { supers: [300, 700, 1100], melee: [500, 525, 550] });
   const d = firstDiff(a.hashes, b.hashes);
-  check('with the closure candidate on both sides (&b2c=1, F-release Supers): TEMPER = no TEMPER tick for tick', d < 0 && b.supers === 3, d < 0 ? `${b.shots} rounds, ${b.supers} Supers; localStorage keys written by a run: ${b.ls.join(', ') || 'none'}` : `first divergent tick ${d}`);
+  check('with the closure candidate on both sides (&b2c=1, F-release Supers): TEMPER = no TEMPER tick for tick (KNOWN INTERMITTENT, about 1 run in 6: one effect lands a tick late at tick 741; see docs/evidence/b2-temper/README.md)', d < 0 && b.supers === 3, d < 0 ? `${b.shots} rounds, ${b.supers} Supers; localStorage keys written by a run: ${b.ls.join(', ') || 'none'}` : `first divergent tick ${d}`);
 }
 
 // helpers shared by the sections below (in page)
@@ -190,10 +240,11 @@ if (on(2)) {
     for (const a of [0, 1.57, 3.14, -1.57, 0.8, -2.3]) { P.facing = a; P.aim = a; window.__fire(26, 1); window.__adv(14); }
     window.__super(); window.__adv(40);
     const inv = gs._b2.stats.feel.inv;
-    return { checks: inv.checks, bad: inv.bad, samples: inv.samples.slice(0, 2), stale: gs._b2.stats.feel.staleContacts, kills: gs.runKills, rounds: window.__ts().rounds };
+    return { checks: inv.checks, bad: inv.bad, samples: inv.samples.slice(0, 2), stale: gs._b2.stats.feel.staleContacts, kills: gs.runKills, rounds: window.__ts().rounds, drawn: window.__ts().drawn };
   });
   await p.close();
   check('every visible TEMPER bolt, every frame: on its round\'s line, never behind the barrel, its head at the collider, a finished bolt ending where its round stopped (kills, blank space in six directions, walls, a Super)', r.checks > 800 && r.bad === 0 && r.rounds > 35, JSON.stringify(r));
+  check('...and the sprite itself, read back from its own crop and position, shows exactly that segment', r.drawn.checks > 800 && r.drawn.bad === 0, JSON.stringify(r.drawn));
 }
 
 // ── 3. THE GUN ───────────────────────────────────────────────────────────
@@ -332,26 +383,32 @@ if (on(6)) {
 }
 
 // ── 7. RESTARTS ──────────────────────────────────────────────────────────
-if (on(7)) {
-  console.log('\n== 7. restarts');
-  const p = await boot(T); await prep(p);
+const restartCheck = async (flags, label) => {
+  const p = await boot(flags); await prep(p);
   const r = await p.evaluate(() => {
     const gs = window.__gs, own = (o, k) => Object.prototype.hasOwnProperty.call(o, k), out = {};
-    const state = () => ({ skin: !!gs._b2?.stats.feel?.temper, pre: window.game.events.listeners('prerender').length, blast: gs.events.listeners('player-super-blast').length, mine: gs.children.list.filter((o) => o.texture?.key === 'b2t').length });
+    const state = () => ({ skin: !!gs._b2?.stats.feel?.temper, pre: window.game.events.listeners('prerender').length, blast: gs.events.listeners('player-super-blast').length, b0: !!gs._b0 });
     const use = () => { window.__stage(); window.__ring(2, 280, 0, 0.5); window.__fire(30, 0.5); window.__super(); window.__adv(30); return { rounds: gs._b2.stats.feel.temper.rounds, supers: gs._b2.stats.feel.temper.supers }; };
     const restart = () => { gs.scene.restart({ mode: 'endless', seed: 4242 }); window.__adv(3); for (let i = 0; i < 400 && !gs.roomSpec; i++) window.__adv(1); window.__adv(20); };
+    out.label = window.__dbg.getB0Label?.() ?? null;
     out.first = state(); out.use1 = use();
     restart(); out.second = state(); out.use2 = use();
     restart(); out.third = state(); out.use3 = use();
-    const fx = gs.fx;
+    // every shipped object the cloak hid is a one-shot: gone two seconds later
+    window.__adv(150); out.hiddenLeft = gs.children.list.filter((o) => o.visible === false && o.depth >= 34 && o.depth <= 36 && (o.type === 'Graphics' || o.texture?.key === 'muzzle')).length;
     gs.scene.stop('HUD'); gs.scene.start('Title'); window.__adv(5);
     out.title = { b2: !!gs._b2, pre: window.game.events.listeners('prerender').length, own: ['firePlayerSuper', '_superBlast'].filter((k) => own(gs, k)), dl: !!gs.sys.displayList && own(gs.sys.displayList, 'add'), flash: !!gs.cameras?.main && own(gs.cameras.main, 'flash'), atlas: window.game.textures.exists('b2t') };
     return out;
   });
   await p.close();
   const same = (a, b) => a.skin && b.skin && a.pre === b.pre && a.blast === b.blast;
-  check('restart twice: one install each time (prerender and blast listeners do not grow), and the skin draws rounds and a Super after each', same(r.first, r.second) && same(r.second, r.third) && [r.use1, r.use2, r.use3].every((u) => u.rounds >= 4 && u.supers === 1), JSON.stringify([r.first, r.second, r.third, r.use3]));
-  check('quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind', !r.title.b2 && r.title.pre === r.first.pre - 1 && r.title.own.length === 0 && !r.title.dl && !r.title.flash, JSON.stringify(r.title));
+  check(`${label}restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later`, same(r.first, r.second) && same(r.second, r.third) && [r.use1, r.use2, r.use3].every((u) => u.rounds >= 4 && u.supers === 1) && r.hiddenLeft === 0, JSON.stringify([r.first, r.second, r.third, r.use3, { hiddenLeft: r.hiddenLeft }]));
+  check(`${label}quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind`, !r.title.b2 && r.title.pre === r.first.pre - 1 && r.title.own.length === 0 && !r.title.dl && !r.title.flash, JSON.stringify(r.title));
+  return r;
+};
+if (on(7)) {
+  console.log('\n== 7. restarts');
+  await restartCheck(T, '');
 }
 
 // ── 8. COST ──────────────────────────────────────────────────────────────
@@ -360,6 +417,18 @@ if (on(8)) {
   const run = async (flags) => { const p = await boot(flags, { q: Q_SWARM }); const r = await p.evaluate((x) => { const tr = window.__trace(x); const f = window.__gs._b2.stats.feel; return { shots: tr.shots, updMs: f.updMs / Math.max(1, f.updN), updMax: f.updMax, peakB2: f.peakObjects, peakT: f.temper?.peak ?? 0, madeT: f.temper?.made ?? 0, peakRounds: f.peakRounds, list: window.__gs.children.list.length }; }, { seed: 9071, ticks: 1200, seg: FIGHT_SEG, hold: [[30, 1200]], superTaps: [400, 800], melee: [] }); await p.close(); return r; };
   const b = await run(B), t = await run(T);
   check('TEMPER draws fewer objects than B2-B in the same fight, with no additive blending (reported: update time)', t.peakT > 0 && t.peakT < b.peakB2 && t.shots === b.shots, `peak pooled objects: B2-B ${b.peakB2}, TEMPER ${t.peakT} (${t.madeT} ever created); update ${b.updMs.toFixed(3)}ms -> ${t.updMs.toFixed(3)}ms per frame (max ${b.updMax.toFixed(2)} / ${t.updMax.toFixed(2)}); peak live rounds ${t.peakRounds}`);
+}
+
+// ── 10. THE SHIPPED LINKS (with the B0 telemetry label) ──────────────────
+if (on(10)) {
+  console.log('\n== 10. the playtest links, as shipped (&b0=...)');
+  const TL = join(T, 'b0=B2T'), BL = join(B, 'b0=B2B');
+  const run = async (flags) => { const ctx = await browser.newContext({ viewport: { width: 720, height: 1280 } }); const p = await boot(flags, { q: Q_MIXED, ctx }); const r = await p.evaluate((x) => window.__trace(x), { seed: 9071, ticks: 1500, seg: FIGHT_SEG, hold: HOLD, superTaps: [300, 700, 1100, 1400], melee: [500, 525, 550] }); const m = await p.evaluate(() => ({ b0: !!window.__gs._b0, label: window.__dbg.getB0Label(), skin: !!window.__gs._b2.stats.feel.temper })); await ctx.close(); return { ...r, m }; };
+  const a = await run(BL), b = await run(TL);
+  const d = firstDiff(a.hashes, b.hashes);
+  check('the two links as shipped (B0 telemetry on, labels B2B / B2T): the same fight tick for tick, telemetry attached on both, the skin only on the candidate', d < 0 && a.m.b0 && b.m.b0 && a.m.label === 'B2B' && b.m.label === 'B2T' && !a.m.skin && b.m.skin && b.supers === 4, d < 0 ? `${b.shots} rounds, ${b.supers} Supers, ${b.kills} kills, ${b.draws} draws` : `first divergent tick ${d}`);
+  const r = await restartCheck(TL, 'the candidate link: ');
+  check('the candidate link keeps its telemetry through the restarts', r.first.b0 && r.second.b0 && r.third.b0 && r.label === 'B2T', JSON.stringify({ label: r.label }));
 }
 
 // ── 9. SCOPE ─────────────────────────────────────────────────────────────
