@@ -130,8 +130,8 @@ The older suites compare against `2ee948c` (the B2-1 delivery), served on its ow
 | `smoke-fx-p2a3 --only=10` (scope guard) | 4 / 4 |
 | `smoke-controls`, `smoke-restart` | pass (16 restart checks) |
 | `npm run build`; production bundle in its real loop | OK; no console or page errors on all three links and with no flags |
-| `run-all` (the full 52-suite run) | RUNALL_RESULT |
-| `smoke-captel` | not run separately (it is part of `run-all`) |
+| `run-all` (the full 52-suite run) | **47 / 52** (`run-all.txt`). The five failures are explained below; none is caused by B2-R2. |
+| `smoke-captel` | passed inside `run-all` |
 
 What the new checks prove:
 - **Pixels and sound only:**
@@ -157,6 +157,20 @@ What the new checks prove:
   - With `&b2c=1`, nothing of the release plays on a held or cancelled F.
 - **Restarts and quit to title** (also on both exact playtest queries, with `b2c=1` and audio A or B): one install each time, nothing left behind.
 - **Audio:** every event fires for both kits; the shipped Super shot is replaced; voices stay ≤ 48 with none dropped; the module has no `Math.random`.
+
+### The five `run-all` failures
+
+`run-all` ran on the commit before the final one (the changes since are flag-gated, and `run-all` sets no B2 flag). The films were recording at the same time, so its timing-sensitive suites ran under load. Each failure was re-run standalone (logs in `run-all-reruns/`, named by the build they ran against):
+
+| Suite | Standalone on this build | On `d722707` (the previous delivery) | Reading |
+|---|---|---|---|
+| `smoke-vanguard-front` | PASS (30 checks) | not needed | load |
+| `smoke-deflect` | PASS (73 checks) | not needed | load; on HANDOVER's inherited list |
+| `smoke-boss-moves` | FAIL, 1 of 18 (a different check than in `run-all`) | FAIL, 2 of 18 | inherited, intermittent; on HANDOVER's list |
+| `smoke-readability` | FAIL, 1 of 19, twice (Vader "planted through his wind-up") | FAIL in 4 of 5 runs (the same check twice, other saber checks twice), PASS once | inherited, intermittent; on HANDOVER's list |
+| `smoke-champion-placement` | FAIL, 6 of 60 | not re-run (register #9: fails identically under `baseline=legacy`) | inherited |
+
+Nothing in the R1 path changed since `d722707`. The new modules load without `?b2=` but install nothing.
 
 ## Critical self-review: what is still not right
 

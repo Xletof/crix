@@ -1,0 +1,67 @@
+  ok    THE CAPTAIN'S ACTOR, GRENADE, MOVES AND ART ARE UNCHANGED since the approved baseline
+  ok    the Enemy BASE CLASS the Captain inherits is byte-identical to the approved baseline
+  ok    the CHAMPION config block is byte-identical to the approved baseline
+  ok    NO PLACEMENT RESOLVES BEFORE THE FIRST VADER (sectors 1-4), for any arena, wave or archetype
+  ok    the placement table is a handful of authored rows, not a distribution
+  ok    every row names the archetype its own plan cell already resolves to
+  ok    no row lives in the early (teaching) band
+  ok    the only placeable Champion is the approved Shock Captain
+  ok    no encounter POOL can name a Champion — placement is the only door
+  ok    placements are VANGUARD and CROSSFIRE only
+  ok    SWARMTIDE can never carry a placement, natural or forced
+  ok    SNIPERNEST can never carry a placement, natural or forced
+  ok    BOMBERRUN can never carry a placement, natural or forced
+  ok    MIXED can never carry a placement, natural or forced
+  ok    THE BOSS ROOM carries no placement, at any sector
+  ok    no row names the detention duel wave
+  ok    every placement the natural plan reaches is one of the authored rows
+  ok    applying a placement yields EXACTLY ONE Champion token
+  ok    and the queue shrinks by cost - 1 events (he consumes budget, he is not added)
+  ok    the lead AHEAD of his slot is untouched — the archetype still opens as authored
+  ok    &wave=2 lands the harness on the placement cell
+  ok    both halves of the pair run the real VANGUARD
+  ok    the authored placement resolves
+  ok    &nochamp=1 suppresses it — the matched baseline has no Captain
+  FAIL  EXACTLY ONE Captain token, in his authored lead slot — captain,shielded,shooter,shielded,shielded,shielded
+  ok    HE CONSUMES BUDGET: the wave has cost - 1 fewer spawn events than the matched baseline
+  ok    and cost fewer ORDINARY bodies
+  FAIL  every other event is the SAME event, in the same order — no hidden reroll
+  ok    cap and cadence are untouched — no hidden pressure increase
+  FAIL  the shields still lead — VANGUARD opens as VANGUARD — captain,shielded,shooter
+  ok    the wave drains through the real spawner
+  ok    the placement puts EXACTLY ONE Shock Captain on the floor
+  ok    the debug injector STANDS DOWN on a placement wave — the two paths never stack
+  ok    he arrives at the frozen 3400 + 1900 — no sector hp ramp, no elite roll
+  ok    not an elite, not a mini-boss, not a nemesis
+  ok    speed and body are the approved values — no sector speed ramp
+  ok    no boss is spawned, so no boss bar exists
+  ok    he scores the flat Champion tier (1500), not the grunt fallback
+  ok    WAVE CLEAR WAITS FOR HIM — every ordinary enemy dead, Captain alive, wave still clearing
+  ok    the real damage path kills him
+  ok    his death reaches the room exactly once
+  ok    HIS DEATH CANNOT LEAVE THE WAVE STUCK — the wave clears and moves on
+  ok    the kill pays exactly the Champion value
+  ok    a Captain was live before the room change
+  ok    ROOM TEARDOWN REMOVES HIM — actor and rifle destroyed, none carried into the next room
+  ok    no Captain: SWARM TIDE forced onto the placement cell
+  ok    no Captain: SNIPER NEST forced onto the placement cell
+  ok    no Captain: BOMBER RUN forced onto the placement cell
+  ok    no Captain: VANGUARD at the same cell before the first Vader (sector 4)
+  ok    no Captain: the other mid-band hangar waves
+  ok    no Captain: late hangar VANGUARD — not every VANGUARD carries him
+  ok    no Captain: the Vader chamber at a boss sector
+  ok    no Captain: the Nemesis duel wave
+  ok    no Captain: the Reactor Junction VANGUARD in the mid band
+  ok    the late CROSSFIRE cell carries its authored placement
+  FAIL  exactly one Captain token there too — shooter,grunt,shooter,grunt,shooter
+  FAIL  the opposed shooters still open CROSSFIRE — shooter,grunt,shooter
+  ok    THE SAME SEED REPRODUCES THE SAME WAVE, Captain included
+  FAIL  and a DIFFERENT seed still places him in the same cell, slot and budget — placement is authored, not rolled
+  ok    a fresh production run places no Captain in any sector-1 wave
+
+  placement cells:
+    hangar mid wave 2  vanguard  slot 2  cost 2
+    hangar late wave 3  crossfire  slot 2  cost 2
+  VANGUARD s8 w2: captain,shielded,shooter,shielded,shielded,shielded  (baseline shooter,shielded,shooter,shielded,shielded,shielded,grunt)
+  CROSSFIRE s16 w3: shooter,grunt,shooter,grunt,shooter
+FAIL: 6 of 60 checks failed: EXACTLY ONE Captain token, in his authored lead slot; every other event is the SAME event, in the same order — no hidden reroll; the shields still lead — VANGUARD opens as VANGUARD; exactly one Captain token there too; the opposed shooters still open CROSSFIRE; and a DIFFERENT seed still places him in the same cell, slot and budget — placement is authored, not rolled

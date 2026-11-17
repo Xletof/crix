@@ -1,0 +1,225 @@
+smoke-arc        … PASS  14s
+smoke-arena      … PASS  15s
+smoke-boss       … PASS  12s
+smoke-boss-moves … FAIL  76s
+  ok    Vader HAS a move kit
+  ok    and a clock to fire it on
+  ok    SABER THROW sends the saber away from his hand
+  ok    and he is unarmed while it is gone
+  ok    and open when it comes back
+  ok    FORCE PULL drags the player against their input
+  ok    VANISH relocates him
+  ok    FORCE PUSH shoves the player
+  ok    and costs them a dash charge
+  FAIL  a live move really does paint a zone (the control) — -1 telegraph(s)
+  FAIL  and cancelling the move wipes it off the floor — -1 left behind — cancel used to clear only the TIMERS, so the zone kept filling and flashing for an attack that was never coming
+  ok    his rotation has real variety from phase 1
+  ok    and VANISH is NOT on it — it is a reaction to being hurt, not a timer
+  ok    his charge now draws a LANE on the floor
+  ok    afterimages spawn
+  ok    and die to a single hit
+  ok    while the real one does not — that is how you tell them apart
+  ok    standing among them HURTS — they are a threat, not scenery
+FAIL: 2 of 18 checks failed: a live move really does paint a zone (the control); and cancelling the move wipes it off the floor
+
+smoke-camera     … PASS  61s
+smoke-champion   … PASS  182s
+smoke-champion-placement … FAIL  519s
+  ok    a Captain was live before the room change
+  ok    ROOM TEARDOWN REMOVES HIM — actor and rifle destroyed, none carried into the next room
+  ok    no Captain: SWARM TIDE forced onto the placement cell
+  ok    no Captain: SNIPER NEST forced onto the placement cell
+  ok    no Captain: BOMBER RUN forced onto the placement cell
+  ok    no Captain: VANGUARD at the same cell before the first Vader (sector 4)
+  ok    no Captain: the other mid-band hangar waves
+  ok    no Captain: late hangar VANGUARD — not every VANGUARD carries him
+  ok    no Captain: the Vader chamber at a boss sector
+  ok    no Captain: the Nemesis duel wave
+  ok    no Captain: the Reactor Junction VANGUARD in the mid band
+  ok    the late CROSSFIRE cell carries its authored placement
+  ok    exactly one Captain token there too
+  FAIL  the opposed shooters still open CROSSFIRE — shooter,captain,shooter
+  ok    THE SAME SEED REPRODUCES THE SAME WAVE, Captain included
+  FAIL  and a DIFFERENT seed still places him in the same cell, slot and budget — placement is authored, not rolled
+  ok    a fresh production run places no Captain in any sector-1 wave
+
+  placement cells:
+    hangar mid wave 2  vanguard  slot 2  cost 2
+    hangar late wave 3  crossfire  slot 2  cost 2
+  VANGUARD s8 w2: captain,shielded,shooter,shielded,shielded,shielded  (baseline shooter,shielded,shooter,shielded,shielded,shielded,grunt)
+  CROSSFIRE s16 w3: shooter,captain,shooter,shooter,shooter,shooter,grunt,shooter,grunt,shooter
+FAIL: 5 of 60 checks failed: EXACTLY ONE Captain token, in his authored lead slot; every other event is the SAME event, in the same order — no hidden reroll; the shields still lead — VANGUARD opens as VANGUARD; the opposed shooters still open CROSSFIRE; and a DIFFERENT seed still places him in the same cell, slot and budget — placement is authored, not rolled
+
+smoke-vanguard-screen … PASS  220s
+smoke-vanguard-front … FAIL  183s
+  ok    the wave still clears normally
+  ok    &nofront=1: no staging, no slots, no lanes
+  ok    &nofront=1 leaves the 140px close screen ON
+  ok    &nofront=1: the third event follows on the ordinary cadence
+  ok    THE VANGUARD QUEUE IS IDENTICAL with and without the staging — content and order
+  FAIL  the opening lanes SEPARATE the pair at the close hold (vs the same pair unlaned) — laned 32px apart vs unlaned 77px
+  ok    the front releases when both opening shields are inside establishPx
+  ok    killing an opening shield BREACHES the front and the backline releases
+  ok    a shield killed before the second even exists still releases (no deadlock)
+  ok    both opening shields destroyed quickly: no deadlock
+  ok    a player kiting away cannot freeze the wave — the timeout releases
+  ok    and the timeout runs from the second shield's MATERIALISATION, on game time
+  FAIL  a SURGE during the hold neither releases, re-arms nor resets the front — {"mode":"surge","second":7433,"holdAt0":14545.7,"stillHolding":false,"holdAtSame":true,"surgeShields":[{"lane":false,"screen":true}],"pairSame":true,"released":true,"why":"timeout","release":10383,"sinceSecond":2950,"sinceSecondMs":3052,"timeoutMs":3000,"resumed":true}
+  ok    surge shields are VANGUARD screens but never opening-pair members
+  ok    an ordinary room start still has the room's authored opening enemies
+  ok    &wave=2 starts WITHOUT them — every living enemy came from this wave's own spawner
+  ok    CROSSFIRE + Captain: no front staging, placement intact
+  ok    a non-VANGUARD wave never arms it
+
+  natural timeline (wall ms from wave start): {"s1":4817,"s2":7867,"second":7867,"release":10833,"gate3":10833,"captain":11583} release=timeout after 3025ms of GAME time from the 2nd shield
+  pair at hold: laned {"da":122,"db":121,"lateral":32,"apart":32,"lanes":[null,null]} vs unlaned 77px apart · lateral at release 164px
+  nofront gap event2->event3: 717ms (spawnRate 616)
+  kite: timeout after 3017ms · establish: 233ms after 2nd shield
+FAIL: 2 of 30 checks failed: the opening lanes SEPARATE the pair at the close hold (vs the same pair unlaned); a SURGE during the hold neither releases, re-arms nor resets the front
+
+smoke-vanguard-reinforce … PASS  47s
+smoke-harrower   … PASS  211s
+smoke-captain    … PASS  233s
+smoke-captain-state … PASS  212s
+smoke-captain-damage … PASS  56s
+smoke-arcgrenade … PASS  89s
+smoke-captel     … PASS  139s
+smoke-captain-step … PASS  145s
+smoke-captain-rifle … PASS  136s
+smoke-captain-visual … PASS  64s
+smoke-captain-closeout … PASS  132s
+smoke-boost      … PASS  12s
+smoke-cluster    … PASS  20s
+smoke-controls   … PASS  36s
+smoke-debug      … PASS  41s
+smoke-deflect    … FAIL  55s
+  ok    and NOTHING ever slows it — it is thrown, it does not run down
+  ok    it is still alive well past the old settle window
+  ok    the hand-drawn body sits ON its own sprite, not one physics step behind it
+  ok    the speed change did NOT move the hitbox
+  ok    the launch beat is carved OUT of the approved anticipation, not added to it
+  ok    the flight effect is actually running while the orb is in the air
+  ok    every remnant lies along the orb's REAL velocity
+  ok    ...and that is a different direction from "at the player", so the check above bites
+  ok    the wake is bounded — three reused remnants, not a growing tail
+  ok    and the corona is alive around it in flight
+  ok    and it is a different, much bigger class of object
+  ok    the orb is actually observed in flight
+  ok    and it never steers, even after the player walks out of its way
+  ok    so ordinary movement is enough to survive it
+  ok    and it is in hostileBullets, so every sweep of incoming fire sees it
+  ok    an orb inside the world keeps flying
+  ok    and one that leaves the world is cleaned up
+  ok    and its wake goes with it
+  ok    its range is a backstop, not the thing that ends the flight
+  ok    a room teardown is staged with an orb actually in the air
+  ok    and the room teardown takes it, and its wake, with everything else
+  ok    and a throw interrupted by his wound does not leave the saber owned
+  ok    the held-energy graphic dies with the boss who was holding it
+FAIL: 1 of 73 checks failed: no second saber was conjured to do it
+
+smoke-depth      … PASS  19s
+smoke-dialogue   … PASS  33s
+smoke-duel       … PASS  70s
+smoke-encdbg     … PASS  201s
+smoke-encounters … PASS  27s
+smoke-endless    … PASS  52s
+smoke-flight     … PASS  14s
+smoke-hangar     … PASS  15s
+smoke-hum        … PASS  10s
+smoke-junction   … PASS  17s
+smoke-detention  … PASS  39s
+smoke-leak       … PASS  18s
+smoke-march      … PASS  42s
+smoke-moves      … PASS  108s
+smoke-music-tiers … PASS  191s
+smoke-nemesis    … PASS  31s
+smoke-nemesis-fx … PASS  82s
+smoke-nemesis-kit … PASS  36s
+smoke-nemesis-memory … PASS  30s
+smoke-pathing    … PASS  13s
+smoke-progress   … PASS  18s
+smoke-readability … FAIL  106s
+  ok    EVERY move puts a zone on the floor before it hurts you
+  ok    and never more than ONE zone per attack
+  ok    every move under test actually RAN
+  ok    he is PLANTED through his wind-up, not walking through it
+  ok    and his BODY visibly winds up
+  ok      sabercombo: 0px/s during anticipate, body change 0.32
+  ok      saberthrow: 0px/s during anticipate, body change 0.44
+  ok      forcepull: 0px/s during anticipate, body change 0.4
+  ok      vanishslash: 0px/s during anticipate, body change 1.281
+  ok      forcepush: 0px/s during anticipate, body change 0.48
+  ok    a zone follows the actor that will hit you
+  ok    with NOTHING silenced, he never has two zones out at once
+  ok    and his own state machine never attacks underneath a scripted move
+  ok    no exception across the run
+  ok    he SETTLES at saber range instead of standing on you
+  ok    a super does NOT shove him, even mid-move
+  ok    the thrown saber really leaves his hand
+  FAIL  and comes back to his hand EVEN AFTER HE MOVES — ended 470px from HIM and 433px from where he was — the old return flew to the coordinates he had left, was caught there, and snapped into his hand from that spot, which looks identical to a homing blade unless the measurement stops at the catch
+  ok    and FLIES home rather than teleporting
+FAIL: 1 of 19 checks failed: and comes back to his hand EVEN AFTER HE MOVES
+
+smoke-rng        … PASS  32s
+smoke-restart    … PASS  114s
+smoke-score      … PASS  20s
+smoke-title      … PASS  14s
+smoke-vader      … PASS  87s
+
+────────────────────────────────────────────────────────────
+  ok   smoke-arc        PASS: pop above the burst, then cascade onto the pack
+  ok   smoke-arena      PASS: the arena pilot is art — geometry, collision, the darkness owner
+  ok   smoke-boss       PASS: phases fire once each at the configured thresholds and never rev
+ FAIL  smoke-boss-moves FAIL: 2 of 18 checks failed: a live move really does paint a zone (the
+  ok   smoke-camera     smoke-camera OK
+  ok   smoke-champion   PASS: 36 checks — the Champion is authored, placed, cleaned up, and de
+ FAIL  smoke-champion-placement FAIL: 5 of 60 checks failed: EXACTLY ONE Captain token, in his authore
+  ok   smoke-vanguard-screen PASS: 22 checks — VANGUARD shields close to a screen; nothing else mov
+ FAIL  smoke-vanguard-front FAIL: 2 of 30 checks failed: the opening lanes SEPARATE the pair at th
+  ok   smoke-vanguard-reinforce PASS: 26 checks — one more guaranteed shield, same budget, and the sur
+  ok   smoke-harrower   PASS: 28 checks — the Harrower moves, carves only by moving, cleans up
+  ok   smoke-captain    PASS: 38 checks — the Shock Captain moves, fights, breaks once, and st
+  ok   smoke-captain-state PASS: 29 checks — transitions fire once, the body carries the state, n
+  ok   smoke-captain-damage PASS: 9 checks — the number the player reads is the durability actuall
+  ok   smoke-arcgrenade PASS: 16 checks — thrown, travelled, landed, armed, bounded, and swept
+  ok   smoke-captel     PASS: 22 checks — the instrument observes, reconciles, and changes not
+  ok   smoke-captain-step PASS: 24 checks — pools authored, arithmetic unchanged, the step is ho
+  ok   smoke-captain-rifle PASS: 21 checks — one plan per commitment, drawn once, executed whole,
+  ok   smoke-captain-visual PASS: 17 checks — the damage is the model, the boundary is the radius
+  ok   smoke-captain-closeout PASS: 60 checks — hard geometry, a device with a middle, and a promise
+  ok   smoke-boost      PASS: the burn sustains through the dive and stops after
+  ok   smoke-cluster    PASS: distinct locks, flat scale, no ground phase, lines clean up
+  ok   smoke-controls   PASS: the editor moves the real controls, persists, and resets
+  ok   smoke-debug      PASS: debug menu works and the HUD stays in sync
+ FAIL  smoke-deflect    FAIL: 1 of 73 checks failed: no second saber was conjured to do it
+  ok   smoke-depth      PASS: draws over the room, no tumble
+  ok   smoke-dialogue   PASS: 22 checks — they speak, they do not repeat, and a stranger stays
+  ok   smoke-duel       PASS: 20 checks — a nemesis encounter is a duel, and the bomber surviv
+  ok   smoke-encdbg     PASS: 33 checks — the harness is debug-only, real-runtime, and cannot 
+  ok   smoke-encounters PASS: 25 checks — the encounter table is well-formed, wired, and not r
+  ok   smoke-endless    PASS: 20 checks — the climb reaches Vader, scales him, and carries on 
+  ok   smoke-flight     PASS: curved attack run, arrives under power, exhaust lit
+  ok   smoke-hangar     PASS: the hangar is art — its geometry, its collision, the chamber and
+  ok   smoke-hum        PASS: hum carries in the phone-audible band and stops cleanly
+  ok   smoke-junction   smoke-junction OK
+  ok   smoke-detention  49 passed, 0 failed
+  ok   smoke-leak       PASS: primary fire is isolated from the cluster
+  ok   smoke-march      PASS  full 8-bar Imperial March phrase
+  ok   smoke-moves      PASS: 34 checks — the enemy performs the move, and beating it pays
+  ok   smoke-music-tiers PASS  tiers change the bed and the director tracks the situation
+  ok   smoke-nemesis    PASS: 20 checks — nemeses are named, composed, escalating and mechanic
+  ok   smoke-nemesis-fx PASS: 8 checks — the nemeses perform their moves, in their own colours
+  ok   smoke-nemesis-kit PASS: 25 checks — a nemesis looks and fights like its own enemy
+  ok   smoke-nemesis-memory PASS: 33 checks — the nemesis remembers, scars, dies once, and is repl
+  ok   smoke-pathing    PASS (diagnostic): mean efficiency 0.83, 0 max reversals, 0% funnel
+  ok   smoke-progress   PASS: 43 checks — upgrades apply and stack, rooms tear down, stats per
+ FAIL  smoke-readability FAIL: 1 of 19 checks failed: and comes back to his hand EVEN AFTER HE 
+  ok   smoke-rng        PASS: 17 checks — runs are reproducible and the streams do not couple
+  ok   smoke-restart    PASS: 16 checks — restarts leave no duplicate handlers and no stale ar
+  ok   smoke-score      PASS: 41 checks — kills, chain multiplier and wave bonuses all score
+  ok   smoke-title      PASS: 15 checks — endless leads, and its record is the first thing you
+  ok   smoke-vader      PASS: 116 checks — the ladder is mechanics, not multipliers
+────────────────────────────────────────────────────────────
+47/52 passed
+EXIT 1

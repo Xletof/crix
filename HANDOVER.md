@@ -359,8 +359,10 @@ command, fix the line.*
     capped, silenced on pause; NOT LISTENED TO by the author. Proof:
     `tests/smoke-b2r2.mjs` 62/62 (= B2-B tick for tick with audio A; the shipped links with `&b0=`);
     smoke-b2r 38/38, smoke-b2t 37/37, smoke-b2c 46/46, smoke-b2 88/88,
-    smoke-b1 71/71, smoke-b0 46/46 against `2ee948c`. The `&b2c=1`
-    intermittent stays unresolved and inherited.
+    smoke-b1 71/71, smoke-b0 46/46 against `2ee948c`; run-all 47/52, every
+    failure inherited or load (boss-moves and readability fail on `d722707`
+    too; vanguard-front and deflect pass standalone; champion-placement is
+    register #9). The `&b2c=1` intermittent stays unresolved and inherited.
     `docs/evidence/b2-r2/README.md`. Awaiting the HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
