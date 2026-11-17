@@ -38,6 +38,7 @@ Your recording (00:41–00:43 and 01:38–01:40) shows the same thing in both wi
   - **No dragging:** no round is moved off its path. The band only connects real positions.
   - **When it stops:** when a round ends, the band behind it runs on into the next round at the rounds' speed; when the trigger is released, the band at the barrel runs off after the last round.
   - **When it breaks:** across a gap in the cadence, a turn sharper than 45°, or a stretch longer than 2.2 round spacings (a dash). The tests count these breaks.
+- **Glow:** after a 3x side-by-side with REACTOR showed the R2 stream was not yet brighter, the band became a body-coloured centre with dithered rims (soft, three rows wide), and both the band's and the slug's glow were raised.
 - **What I rejected:** the first version joined each round to the rear of the one before. Under strafing that drew a hard zig-zag (long horizontal bodies, short steep links). Joining to the middle of the older body, with a soft band, gives a smooth diagonal stream.
 
 ### B. Range expiry
@@ -57,6 +58,7 @@ Your recording (00:41–00:43 and 01:38–01:40) shows the same thing in both wi
   - **The shield:** four small cyan corner plates round the hero, lit by how much shield is left. A hit flashes them outward; the last point breaks them.
   - **Mechanics unchanged:** shield, invulnerability, collision and damage are untouched (tested against B2-B).
 - **When the flag is off:** the P1 implementation is unchanged.
+- **Bushes and suppression:** arcs and plates take the hero's bush alpha. Under Vader's suppression the arcs stop, but the gun keeps REACTOR's critical red and threads (REACTOR's approved behaviour). P1-B's dim "offline" ring has no R2 equivalent yet.
 
 ### D. The Super
 
@@ -81,7 +83,14 @@ Your recording (00:41–00:43 and 01:38–01:40) shows the same thing in both wi
 - **Both:** initial shot (sustained rounds have a lighter transient), sustained fire, charge stages, ready ambience, Super wind-up, release (a driven low-passed noise blast with detuned saws falling to ~55 Hz and a thump), Super impact, rifle impact, cooldown.
 - **Safeguards:** no `Math.random` (private mulberry32 streams); a compressor on the kit's bus; one-shot voices capped at 48 and counted by scheduled end time.
 - **Replaced sounds:** the shipped Super shot and ready chime are not played under `b2a`. They are noise-based and draw `Math.random` when audio is live, so on a device the random stream differs from B2-B's when audio runs. That is a pre-existing property of the shipped sound code; gameplay values are unaffected.
-- **What I could check, and what I could not:** that every event fires, that voices stay bounded with nothing dropped, and that an offline render peaks under full scale (A 0.77, B 0.80). That is structure, not sound. I cannot hear these. The WAV renders in `audio/` and the muxed films are for you; the decision is yours.
+- **Fixes after review:**
+  - The beds start every level change from the level the kit tracks, not from `AudioParam.value` (before an offline render that getter reads its initial value, and browsers differ live).
+  - The beds hold off while the Super's wind-up and release play.
+  - They go silent on scene pause and when the hero dies.
+- **What I could check, and what I could not:**
+  - **Offline:** every event fires, voices stay bounded with nothing dropped, and a render peaks under full scale.
+  - **Live, in the real loop** (real clicks; the kit built on the game's own audio context): A and B both live, 20 and 19 voices at peak, none dropped, silenced on a pause.
+  - That is structure, not sound. I cannot hear these. The WAV renders in `audio/` and the muxed films are for you; the decision is yours.
 
 ## Evidence
 
@@ -92,10 +101,10 @@ All films are real time at 60 fps, phone size (390x844 CSS px at 2x), the same s
 | 1. Matched B2-B / REACTOR / B2-R2 videos | `films/strafe-…`, `films/range-…`, `films/swarm-b2b-reactor-r2-60fps.mp4` |
 | 2. Firing west while strafing north and south | `films/strafe-…` 5–9 s; still `after/strafe-west-b2b-reactor-r2.jpg` |
 | 3. The same eastward, plus rotation and dashing | `films/strafe-…` 0–5 s (east, a dash at 2.5 s), 9–11 s (rotation), a second dash at 7 s; stills `after/strafe-east-…`, `after/strafe-dash-…` |
-| 4. Projectile bodies, glow and continuity close up | `after/strafe-*` stills; the R2 slug and stream at phone size in every film |
+| 4. Projectile bodies, glow and continuity close up | `after/closeup-3x-still-b2b-reactor-r2.png` and `after/closeup-3x-strafe-b2b-reactor-r2.png` (3x nearest neighbour, same tick); `after/strafe-*` stills |
 | 5. Range dissipation frame by frame | `after/range-expiry-8-frames-zoom.png` (3x), `after/range-expiry-24-frames-phone.png` |
-| 6. Gun charge and Super-ready with the circles removed | `after/full-charge-no-rings-east-north.png`; `films/range-…` (charging 0–2.5 s, full 2.5–3.6 s) |
-| 7. Super release and impacts | `after/super-12-frames-b2b-reactor-r2.jpg`; `films/range-…` 3.6 s; `films/swarm-…` 2.4 s |
+| 6. Gun charge and Super-ready with the circles removed | `after/full-charge-arcs-E-S-W-N-and-bush.png` (two frames per facing); `after/shield-plates-full-hit-partial-break-gone.png`; `films/range-…` (charging 0–2.5 s, full 2.5–3.6 s) |
+| 7. Super release and impacts | `after/super-12-frames-b2b-reactor-r2.jpg`; `after/super-burn-through-14-frames.png` (three targets in line); `films/range-…` 3.6 s; `films/swarm-…` 2.4 s |
 | 8. Audio A/B at gameplay cadence | `films/*-r2-audio-A.mp4` and `-audio-B.mp4` (the same footage with each kit), and the WAVs in `audio/` |
 | The production bundle in its real loop | `after/production-bundle-stream-full-Fhold-release.png` (stream, full, F held with the targeting cone, released) |
 
@@ -133,6 +142,7 @@ What the new checks prove:
   - **Under fast rotation:** pairs 0.64 and barrel 0.83, because links break past a 45° turn (reported, not required).
   - **Long links:** links over 2.2 round spacings are not drawn.
 - **Range expiry:** at 60 and 30 fps every expiry (counted from `Bullet.traveled >= range` at the kill) plays every dissipation frame. The round dies where gameplay kills it; no bullet stays active.
+  - In all eight directions (N, NE, E, SE, S, SW, W, NW) each expiry plays its dissipation to the last frame.
 - **Distinct outcomes:**
   - Wall contacts draw the wall flare, not the dissipation or the splash.
   - Hits draw the splash.
@@ -143,6 +153,7 @@ What the new checks prove:
   - There is no screen flash.
   - Burn-through plays on hits.
   - With `&b2c=1`, nothing of the release plays on a held or cancelled F.
+- **Restarts and quit to title** (also on both exact playtest queries, with `b2c=1` and audio A or B): one install each time, nothing left behind.
 - **Audio:** every event fires for both kits; the shipped Super shot is replaced; voices stay ≤ 48 with none dropped; the module has no `Math.random`.
 
 ## Critical self-review: what is still not right
