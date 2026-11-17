@@ -2404,6 +2404,25 @@ Evidence in `docs/evidence/b1-combat-experiments/`.
 - **`enemyJsGuard` returns `{ outside, bomberOnlyVeto, vetoCode }`**, not
   `.ok`.
 
+## The B2-R2 rig (`&b2r=2`, `&b2a=A|B`)
+
+- `smoke-b2r2.mjs [--only=0,11]` (standalone, :5173): REACTOR's sections run
+  against `b2r=2&b2a=A`, plus §11 the stream under strafing / dash / rotation /
+  reversal (tracer and link read-back, continuity ratios), §12 range expiry at
+  60 and 30 fps (counted against `Bullet.traveled >= range` at the kill), §13
+  distinct end outcomes (wall / hit / cancel), §14 the hero indicators with a
+  B2-B control, §15 the audio candidates (events, bounds, no `Math.random`).
+- **Drive manual aim through the HUD fire stick** (`fireStick.active` and
+  `vec`). SPACE plus a held move key fires along the movement (blind facing),
+  not along `setAimInput`.
+- **A bullet wall is a `gs.walls` body, tested without padding.** Line-of-sight
+  rects include things bullets pass, and a padded test picks near misses.
+- **Offline audio counts voices by end time.** `onended` never fires while an
+  OfflineAudioContext is being scheduled.
+- **Expiry happens near the screen edge.** Range 450 + 34 is about half the
+  view, so horizontal expiries are off screen. Film them diagonally in a
+  clear lane.
+
 ## The B2 REACTOR OVERLOAD rig (`&b2r=1`)
 
 - `smoke-b2r.mjs [--only=0,3]` (standalone, :5173): the TEMPER rig's sections

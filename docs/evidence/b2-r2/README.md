@@ -83,9 +83,79 @@ Your recording (00:41–00:43 and 01:38–01:40) shows the same thing in both wi
 - **Replaced sounds:** the shipped Super shot and ready chime are not played under `b2a`. They are noise-based and draw `Math.random` when audio is live, so on a device the random stream differs from B2-B's when audio runs. That is a pre-existing property of the shipped sound code; gameplay values are unaffected.
 - **What I could check, and what I could not:** that every event fires, that voices stay bounded with nothing dropped, and that an offline render peaks under full scale (A 0.77, B 0.80). That is structure, not sound. I cannot hear these. The WAV renders in `audio/` and the muxed films are for you; the decision is yours.
 
-EVIDENCE_BLOCK
+## Evidence
 
-VERIFY_BLOCK
+All films are real time at 60 fps, phone size (390x844 CSS px at 2x), the same seeded fight on every build tick for tick, at B2-B's real charge speed. The strafe film forces the charge in three steps, so all stages show while moving; its rounds and timings are otherwise real.
+
+| What you asked for | Where |
+|---|---|
+| 1. Matched B2-B / REACTOR / B2-R2 videos | `films/strafe-…`, `films/range-…`, `films/swarm-b2b-reactor-r2-60fps.mp4` |
+| 2. Firing west while strafing north and south | `films/strafe-…` 5–9 s; still `after/strafe-west-b2b-reactor-r2.jpg` |
+| 3. The same eastward, plus rotation and dashing | `films/strafe-…` 0–5 s (east, a dash at 2.5 s), 9–11 s (rotation), a second dash at 7 s; stills `after/strafe-east-…`, `after/strafe-dash-…` |
+| 4. Projectile bodies, glow and continuity close up | `after/strafe-*` stills; the R2 slug and stream at phone size in every film |
+| 5. Range dissipation frame by frame | `after/range-expiry-8-frames-zoom.png` (3x), `after/range-expiry-24-frames-phone.png` |
+| 6. Gun charge and Super-ready with the circles removed | `after/full-charge-no-rings-east-north.png`; `films/range-…` (charging 0–2.5 s, full 2.5–3.6 s) |
+| 7. Super release and impacts | `after/super-12-frames-b2b-reactor-r2.jpg`; `films/range-…` 3.6 s; `films/swarm-…` 2.4 s |
+| 8. Audio A/B at gameplay cadence | `films/*-r2-audio-A.mp4` and `-audio-B.mp4` (the same footage with each kit), and the WAVs in `audio/` |
+| The production bundle in its real loop | `after/production-bundle-stream-full-Fhold-release.png` (stream, full, F held with the targeting cone, released) |
+
+**How the audio films were made.** The R2 films record every call to the weapon voice with its tick. Each kit then renders that exact timeline offline, and the result is muxed onto the footage. It is the sound the game would make for that fight, rendered without a sound card. The B2-B and REACTOR films have no sound.
+
+**How motion was judged.** I cannot watch a film. I read consecutive 60 fps frames and matched pairs.
+
+## Verification
+
+The older suites compare against `2ee948c` (the B2-1 delivery), served on its own port. Logs are in this folder.
+
+| Suite | Result |
+|---|---|
+| `smoke-b2r2` (new) | **57 / 57**: 56/57 in the full run; the one failure was REACTOR's inherited "fewer objects than B2-B" expectation, replaced by a bound (≤ 80; measured 53 against B2-B's 40) and re-run alone (`smoke-b2r2-s8-rerun.txt`) |
+| `smoke-b2r` | **38 / 38**: 36/38 in the full run; the two failures were its flag check comparing the reactor flag to `true` (it now reports the level, 1 or 2), fixed and re-run alone (`smoke-b2r-s0-rerun.txt`) |
+| `smoke-b2t` | 37 / 37 |
+| `smoke-b2c --old=2ee948c` | 46 / 46 |
+| `smoke-b2 --old=2ee948c` | 88 / 88 |
+| `smoke-b1 --old=2ee948c` | 71 / 71 |
+| `smoke-b0 --old=2ee948c` | 46 / 46 |
+| `smoke-fx-p2a3 --only=10` (scope guard) | 4 / 4 |
+| `smoke-controls`, `smoke-restart` | pass (16 restart checks) |
+| `npm run build`; production bundle in its real loop | OK; no console or page errors on all three links and with no flags |
+| `run-all` (the full 52-suite run) | RUNALL_RESULT |
+| `smoke-captel` | not run separately (it is part of `run-all`) |
+
+What the new checks prove:
+- **Pixels and sound only:**
+  - `?b2=B&b2r=2&b2a=A` is the same fight as `?b2=B` tick for tick in three seeded fights (held stream, four Supers, a Broken Wings chain): positions, hp, ammo, meters, every enemy, bolt and pellet, `Math.random` draws and events.
+  - The same holds on the playtest link with its `&b0=` label.
+  - Shield and health take exactly what B2-B's take.
+- **The tracer fix holds under motion:** the tracer invariant, and the slug, glow and stream-link sprites read back from their own crop and position, show 0 violations under strafing, a dash, rotation and a reversal.
+- **Continuity:** the threshold is ≥ 85% of successive round pairs joined and the barrel joined to the stream.
+  - **Stationary and strafing north / south, firing east and west:** pairs 0.97–1.07 (values above 1 include links still collapsing behind ended rounds); barrel joined in 98–100% of frames.
+  - **Under fast rotation:** pairs 0.64 and barrel 0.83, because links break past a 45° turn (reported, not required).
+  - **Long links:** links over 2.2 round spacings are not drawn.
+- **Range expiry:** at 60 and 30 fps every expiry (counted from `Bullet.traveled >= range` at the kill) plays every dissipation frame. The round dies where gameplay kills it; no bullet stays active.
+- **Distinct outcomes:**
+  - Wall contacts draw the wall flare, not the dissipation or the splash.
+  - Hits draw the splash.
+  - Cancels draw neither.
+- **The hero:** the P1-B ring and the shield bubble never reach the screen under R2, while B2-B shows both (control). Arcs show facing east and north. The plates light, flash on a hit and break.
+- **The Super:**
+  - The pellets have the shipped angles, damage, body and sprite (1x1.9), only not drawn.
+  - There is no screen flash.
+  - Burn-through plays on hits.
+  - With `&b2c=1`, nothing of the release plays on a held or cancelled F.
+- **Audio:** every event fires for both kits; the shipped Super shot is replaced; voices stay ≤ 48 with none dropped; the module has no `Math.random`.
+
+## Critical self-review: what is still not right
+
+1. **The moving stream bends correctly but can look soft.** Under strafing the band is a single bright row plus glow. At phone size it reads as one stream, but as a thinner, less muscular line than the stationary stream. A hard three-row band was worse (a zig-zag). It may need a second pass on the band's weight.
+2. **Fast rotation still separates the stream.** Links break past a 45° turn between rounds. During a fast spin the stream becomes separate slugs, which is physically right but loses the "one stream" read. It's acceptable, not elegant.
+3. **The five Super masses merge for the first ~100 px.** The 30° fan starts from one point, so the masses overlap into one red clump before they separate. It reads as heavy, but not yet as five distinct blocks at launch.
+4. **The armour arcs are small.** At 2–3 px per stroke they are restrained as asked, but on a handset they may be too faint, especially over the hero's light armour.
+5. **The shield plates are a new language.** Four corner brackets are compact and clear in stills, but they replace a full circle the player knows. Whether they read as "shielded" in a fight is the human's call.
+6. **The audio is unheard by its author.** I designed it from synthesis principles and verified only that it is structurally sound. It may be wrong in ways only listening reveals (harsh, thin, repetitive, too loud against the music). Treat A and B as starting points.
+7. **Range expiry is mostly off screen when firing sideways.** The range (484 px with the barrel) is about half the view, so most horizontal expiries happen at the screen edge. The dissipation is most visible firing up, down or diagonally.
+8. **The `&b2c=1` intermittent is still unexplained** (above).
+9. **Not run:** nothing beyond what is listed; `run-all` is reported as it finished.
 
 ## The inherited `&b2c=1` intermittent (unresolved)
 

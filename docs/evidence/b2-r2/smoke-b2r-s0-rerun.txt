@@ -1,0 +1,9 @@
+
+== 0. flags
+PASS  "b2r=1": REACTOR off  — {"flag":false,"b2":false,"skin":false,"atlas":false}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B": REACTOR off  — {"flag":false,"b2":true,"skin":false,"atlas":false}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=1": REACTOR ON  — {"flag":1,"b2":true,"skin":true,"atlas":true}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=A&b2r=1": REACTOR ON  — {"flag":1,"b2":true,"skin":true,"atlas":true}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=0": REACTOR off  — {"flag":false,"b2":true,"skin":false,"atlas":false}
+
+5/5 passed

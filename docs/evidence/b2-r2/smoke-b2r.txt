@@ -1,0 +1,65 @@
+
+== 0. flags
+PASS  "b2r=1": REACTOR off  — {"flag":false,"b2":false,"skin":false,"atlas":false}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B": REACTOR off  — {"flag":false,"b2":true,"skin":false,"atlas":false}
+FAIL  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=1": REACTOR ON  — {"flag":1,"b2":true,"skin":true,"atlas":true}
+FAIL  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=A&b2r=1": REACTOR ON  — {"flag":1,"b2":true,"skin":true,"atlas":true}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=0": REACTOR off  — {"flag":false,"b2":true,"skin":false,"atlas":false}
+
+== 1. pixels only: the same fight
+PASS  MIXED s6: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — REACTOR = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)  — 197 rounds, 4 Supers, 37 kills, 18855 draws; hidden: 32 objects, 814 particles in 718 calls
+PASS  SWARM TIDE: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — REACTOR = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)  — 197 rounds, 4 Supers, 44 kills, 19458 draws; hidden: 32 objects, 798 particles in 702 calls
+PASS  MIXED s6, god mode off: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — REACTOR = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)  — 197 rounds, 4 Supers, 35 kills, 19367 draws; hidden: 32 objects, 830 particles in 734 calls
+PASS  with the closure candidate on both sides (&b2c=1, F-release Supers): REACTOR = no REACTOR tick for tick (KNOWN INTERMITTENT, inherited: the &b2c=1 fight alone is not repeatable about 1 run in 11, a wave banner lands a tick late at tick 741; see docs/evidence/b2-reactor/README.md)  — 197 rounds, 3 Supers; localStorage keys written by a run: none
+
+== 2. the tracer invariant under the skin
+PASS  every visible REACTOR bolt, every frame: on its round's line, never behind the barrel, its head at the collider, a finished bolt ending where its round stopped (kills, blank space in six directions, walls, a Super)  — {"checks":1157,"bad":0,"samples":[],"stale":0,"kills":3,"rounds":41,"drawn":{"checks":2314,"bad":0}}
+PASS  ...and the sprite itself, read back from its own crop and position, shows exactly that segment  — {"checks":2314,"bad":0}
+
+== 3. the gun
+PASS  the reactor per charge: a violet core at 0 (2 channels lit), then 4 / 6 / 7 / 9 channels through magenta, crimson and scarlet, FULL = all 10 in red; the threads orbit from three quarters (one, slow) and at FULL (two)  — [[[0,2,0,"gun-0",true],[0.12,2,0,"gun-0",true],[0.35,4,1,"gun-2",true],[0.55,6,2,"gun-4",true],[0.7,7,2,"gun-5",true],[0.95,9,3,"gun-7t",true],[1,10,4,"gun-8p3",true]],[null,"sh","sw"]]
+PASS  every gun frame keeps the approved rifle's silhouette and outline, and the spent-barrel pixels stay inside it  — {"frames":31,"silhouette":true,"heatInside":true}
+PASS  the palette: a violet lens and core at 0 (#b98cff), scarlet channels at three quarters (#ff4030), and at FULL a hot highlight on the core (#ffd9a0) over dark ruby (#7a0a14)  — ["#b98cff","#ff4030","#ffd9a0","#7a0a14"]
+PASS  the overlay is on the weapon in every rendered frame of a turn and a stream (position, rotation, flip, origin, alpha)  — {"checks":80,"bad":0}
+PASS  a new lamp ignites (one white frame set), then settles  — [1,"gun-6i","gun-6"]
+PASS  mid-combo (the blade) and dead: no gun overlay  — [{"key":"p1-blade","shown":false,"mine":0},{"alive":false,"shown":false,"mine":0}]
+
+== 4. the bolt
+PASS  one bolt size at every stage and for OVERCHARGE rounds (6 frames), and long enough to reach the round behind it (speed x cadence = 100px)  — ["105x15"]
+PASS  every REACTOR object in a stream at 0 / 50 / 100%: NORMAL blend, scale 1, opaque (the floor light aside); none of the B2-1 glow sprites is drawn  — {"seen":692,"bad":0,"old":0}
+PASS  CONTROL: B2-B draws additive glow sprites in the same stream (the check above can see them)  — 131 additive sprite-frames
+PASS  the round by stage: violet at 0, crimson at 50%, critical red at FULL; OVERCHARGE rounds are gold; every round has its glow under it  — [{"0":["bolt-0"],"1":["bolt-4"],"0.5":["bolt-2"]},["bolt-g"]]
+
+== 5. frames
+PASS  60 fps: every round gets a muzzle flash and every flash shows all three frames (2 ticks each), frame 0 never skipped  — {"flashes":30,"hits":30,"mz":[60,60,60],"hit":[60,60,60,90],"shots":30}
+PASS  60 fps: every contact shows its first frame, and the later frames follow  — {"hits":30,"hit":[60,60,60,90]}
+PASS  30 fps: every round gets a muzzle flash and every flash shows all three frames (1 tick each), frame 0 never skipped  — {"flashes":30,"hits":30,"mz":[30,30,30],"hit":[30,30,30,60],"shots":30}
+PASS  30 fps: every contact shows its first frame, and the later frames follow  — {"hits":30,"hit":[30,30,30,60]}
+
+== 6. the Super
+PASS  the pellets are the shipped ones: the same five angles and damage, the same body and sprite (width, height, half sizes, radius, circle, scale, display size)  — {"pellets":5,"body":[54,102.6,27,51,27,true,1,1.9,54,45.599999999999994]}
+PASS  the pellet is the shipped object, untouched: the same texture and 1x1.9 scale as B2-B, only not drawn; a mass is drawn on each (5 per cast)  — [["bullet-super/__BASE/1x1.9"],["bullet-super/__BASE/1x1.9"],[false,false,false,false,false],15]
+PASS  no screen flash and none of the shipped additive blast shapes (wind-up ring, fireball, cone, disc, ring) is visible — and B2-B shows them (control)  — {"temper":{"flash":false,"addGfx":0,"hidden":{"calls":192,"objects":16,"particles":240}},"b2b":{"flash":true,"addGfx":31}}
+PASS  the release is drawn in frames: the reactor collapses and a band closes on the muzzle in the wind-up, all three burst frames are seen, each target hit gets its three impact frames, the barrel cools through four steps  — {"wind":["gun-w0","gun-w1","gun-0"],"crown":[6,6,4],"ring":[4,4],"heat":[0,1,2,3,-1],"impacts":6,"imp":[18,18,18]}
+PASS  with &b2c=1: a held F plays no collapse and no compression band; a cancelled hold plays none; they play on the release, with the cast  — {"held":{"wind":false,"rings":0,"supers":0,"phase":"targeting"},"cancel":{"wind":false,"rings":0,"supers":0},"release":{"wind":true,"ringsBefore":0,"rings":4,"supers":1}}
+
+== 7. restarts
+PASS  restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":1,"b0":false},{"skin":true,"pre":2,"blast":1,"b0":false},{"skin":true,"pre":2,"blast":1,"b0":false},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+
+== 8. cost
+PASS  REACTOR draws fewer objects than B2-B in the same fight, with no additive blending (reported: update time)  — peak pooled objects: B2-B 40, REACTOR 32 (32 ever created); update 0.041ms -> 0.036ms per frame (max 4.40 / 3.60); peak live rounds 7
+
+== 10. the playtest links, as shipped (&b0=...)
+PASS  the two links as shipped (B0 telemetry on, labels B2B / B2T): the same fight tick for tick, telemetry attached on both, the skin only on the candidate  — 197 rounds, 4 Supers, 37 kills, 18855 draws
+PASS  the candidate link: restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":2,"b0":true},{"skin":true,"pre":2,"blast":2,"b0":true},{"skin":true,"pre":2,"blast":2,"b0":true},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  the candidate link: quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+PASS  the candidate link keeps its telemetry through the restarts  — {"label":"B2R"}
+
+== 9. scope
+PASS  the B0 / B1 / B2 scope guard (b2Temper.js is one of B2's modules; GameScene and every frozen file untouched)  — B0 (dc7d9ea..a3866f2): 5 files, GameScene +13 tag/install lines; B1 (a3866f2..266b1ac): 6 files, GameScene +5 install/branch lines; B2 (266b1ac..): 14 files, GameScene +4 install/branch lines
+
+36/38 passed
+FAILED:
+  - "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=1": REACTOR ON
+  - "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=A&b2r=1": REACTOR ON

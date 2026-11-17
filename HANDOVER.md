@@ -343,6 +343,25 @@ command, fix the line.*
     late at tick 741, 1 in 11 then 0 in 30); not caused by the skins; cause
     not found. `docs/evidence/b2-reactor/README.md`. Awaiting the HUMAN
     handset verdict.
+  - **B2-R2 (2026-11-17), opt-in `&b2r=2` (visuals) and `&b2a=A|B` (audio),
+    NOT approved, NOT a default.** HUMAN verdict on REACTOR: keep B2-B's
+    balance, the reactor gun and its swirl, the Super's speed; fix the
+    moving-shooter tracers, glow, abrupt range expiry, the hero's circles, the
+    light Super, and the rejected weapon sound. Root cause of the tracer
+    complaint: rigid ~100 px rods on their own paths with hard ends (not a
+    coordinate bug). R2: short slugs plus a luminous stream band joining
+    successive rounds and the live barrel (bends like a hose, nothing dragged
+    off its path); a four-frame range-expiry dissipation (visual only; wall /
+    hit / cancel distinct); the P1-B ring and the shield bubble hidden (their
+    state untouched) for armour arcs at full charge and four shield corner
+    plates; a stepped white-faced Super mass with burn-through hits. Audio A
+    (heavy energy rifle) and B (plasma reactor): no `Math.random`, voices
+    capped; NOT LISTENED TO by the author. Proof: `tests/smoke-b2r2.mjs`
+    57/57 (= B2-B tick for tick with audio A; the shipped links with `&b0=`);
+    smoke-b2r 38/38, smoke-b2t 37/37, smoke-b2c 46/46, smoke-b2 88/88,
+    smoke-b1 71/71, smoke-b0 46/46 against `2ee948c`. The `&b2c=1`
+    intermittent stays unresolved and inherited.
+    `docs/evidence/b2-r2/README.md`. Awaiting the HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -368,8 +387,8 @@ command, fix the line.*
   (tracer fix, `&b2c=1` F-release targeting candidate) awaits the HUMAN
   handset verdict (`docs/evidence/b2-closure/README.md`); B2 TEMPER
   (`&b2t=1`) was superseded by the HUMAN's REACTOR OVERLOAD direction
-  (`&b2r=1`, pixels only), which awaits the HUMAN handset verdict
-  (`docs/evidence/b2-reactor/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
+  (`&b2r=1`, pixels only); its playtest led to B2-R2 (`&b2r=2`, audio
+  `&b2a=A|B`), which awaits the HUMAN verdict (`docs/evidence/b2-r2/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
 
