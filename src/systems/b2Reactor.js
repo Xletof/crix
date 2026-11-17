@@ -287,7 +287,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
     sync: { checks: 0, bad: 0 }, drawn: { checks: 0, bad: 0 },
     frameSeen: { mz: [0, 0, 0], hit: [0, 0, 0, 0], crown: [0, 0, 0], ring: [0, 0], imp: [0, 0, 0] },
     pellet: { hidden: 0, restored: 0 },
-    r2: IS2 ? { links: { drawn: 0, checks: 0, bad: 0, maxLen: 0, muzzle: 0, retract: 0, broken: 0 }, dis: [0, 0, 0, 0], wall: [0, 0, 0], burn: [0, 0, 0, 0], ends: {}, plates: { shown: 0, hits: 0, breaks: 0 }, arcs: 0, hidden: { shield: 0, ring: 0 } } : null,
+    r2: IS2 ? { links: { drawn: 0, checks: 0, bad: 0, maxLen: 0, muzzle: 0, joined: 0, retract: 0, broken: 0 }, dis: [0, 0, 0, 0], wall: [0, 0, 0], burn: [0, 0, 0, 0], ends: {}, plates: { shown: 0, hits: 0, breaks: 0 }, arcs: 0, hidden: { shield: 0, ring: 0 } } : null,
   };
   if (IS2) stats.name = 'reactor2';
   const pools = {}, pool = [];
@@ -653,10 +653,12 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
       }
       drawLink(L, b.st, b.hx, b.hy, L.fx, L.fy, Math.max(b.hy, L.fy) + 2.9);
     }
-    // the muzzle link: from the live barrel to the newest round, while the stream runs
-    const r = chain.length ? chain[chain.length - 1] : null;
+    // the muzzle link: from the live barrel to the newest round that is drawn (the round fired
+    // this frame is not drawn until it clears the barrel), while the stream runs
+    let r = null;
+    for (let i = chain.length - 1; i >= 0 && i >= chain.length - 2; i--) { const q = chain[i]; if (!q.freed && q.seen === frameNo && q.L > 1.5) { r = q; break; } }
     const running = clock - lastShot <= K.cadence * R2.muzzleHoldK;
-    const rDrawn = r && !r.freed && r.seen === frameNo && r.L > 1.5;
+    const rDrawn = !!r;
     if (r !== mzRound) { if (mzLink) { freeLink(mzLink); mzLink = null; } mzRound = r; }
     if (rDrawn && p?.alive) {
       if (!mzLink) mzLink = { ...linkSprites(), mx: null, my: null };
@@ -666,8 +668,10 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
         if (d <= step + 2) mzLink.mx = null;
         else { mzLink.mx += ((r.rx - mzLink.mx) / d) * step; mzLink.my += ((r.ry - mzLink.my) / d) * step; }
       }
+      // joined: the link is drawn, or there is no gap to bridge (a still shooter's newest round starts at the barrel)
+      if (running && mzLink.mx != null && Math.hypot(mzLink.mx - r.rx, mzLink.my - r.ry) < 6) stats.r2.links.joined++;
       if (mzLink.mx != null) {
-        if (drawLink(mzLink, r.st, mzLink.mx, mzLink.my, r.rx, r.ry, Math.max(r.ry, mzLink.my) + 2.9)) stats.r2.links.muzzle++;
+        if (drawLink(mzLink, r.st, mzLink.mx, mzLink.my, r.rx, r.ry, Math.max(r.ry, mzLink.my) + 2.9)) { stats.r2.links.muzzle++; stats.r2.links.joined++; }
       } else { mzLink.rib.setVisible(false); mzLink.glow?.setVisible(false); }
     } else if (mzLink) { freeLink(mzLink); mzLink = null; }
     // forget rounds nothing refers to any more (keep the newest for the next link)
