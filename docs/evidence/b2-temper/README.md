@@ -147,6 +147,8 @@ What `smoke-b2t` proves:
 
 **One open issue, on an optional combination.** With `&b2c=1` and `&b2t=1` together, about 4 runs in 25 of one seeded fight differ from the rest at tick 741: a single effect (48 `Math.random` draws and one scene event) lands one tick later, and every position, hp and meter at that tick is identical. It then changes the fight that follows, because AI draws from the same stream. `&b2c=1` alone has not shown it (5 runs), and neither playtest link's configuration has (B2-B and TEMPER, more than 20 fights). I could not make it reproduce on demand (ten clean repeats in a row), so the cause is not found. `smoke-b2t --diag=hunt` repeats the fight and prints the difference. Until it is found, do not use `&b2c=1&b2t=1` for a seeded comparison.
 
+**Deploy.** `FRIX` was fast-forwarded `6511b0c..603ed9f`; Pages run #302 succeeded. This record is pushed on top and changes docs only. The live Pages site cannot be opened from the build container; the production bundle was checked locally (above).
+
 ## 5. Files and flags
 
 - **New:** `src/systems/b2Temper.js`, `tests/smoke-b2t.mjs`.
