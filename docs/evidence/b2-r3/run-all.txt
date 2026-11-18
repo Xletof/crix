@@ -1,0 +1,311 @@
+smoke-arc        … PASS  12s
+smoke-arena      … PASS  14s
+smoke-boss       … PASS  11s
+smoke-boss-moves … FAIL  58s
+  ok    Vader HAS a move kit
+  ok    and a clock to fire it on
+  ok    SABER THROW sends the saber away from his hand
+  ok    and he is unarmed while it is gone
+  ok    and open when it comes back
+  ok    FORCE PULL drags the player against their input
+  ok    VANISH relocates him
+  ok    FORCE PUSH shoves the player
+  FAIL  and costs them a dash charge — spent 0 — the move deals no damage, so taking position AND options is the whole threat
+  ok    a live move really does paint a zone (the control)
+  ok    and cancelling the move wipes it off the floor
+  ok    his rotation has real variety from phase 1
+  ok    and VANISH is NOT on it — it is a reaction to being hurt, not a timer
+  ok    his charge now draws a LANE on the floor
+  ok    afterimages spawn
+  ok    and die to a single hit
+  ok    while the real one does not — that is how you tell them apart
+  ok    standing among them HURTS — they are a threat, not scenery
+FAIL: 1 of 18 checks failed: and costs them a dash charge
+
+smoke-camera     … PASS  52s
+smoke-champion   … FAIL  46s
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+page.evaluate: TypeError: Cannot read properties of null (reading 'phase')
+    at eval (eval at evaluate (:311:30), <anonymous>:21:14)
+    at async <anonymous>:337:30
+    at /home/user/crix/tests/smoke-champion.mjs:98:78
+    at run (/home/user/crix/tests/smoke-champion.mjs:39:21)
+    at async file:///home/user/crix/tests/smoke-champion.mjs:98:14 {
+  log: []
+}
+
+Node.js v22.23.4
+
+smoke-champion-placement … FAIL  385s
+  ok    a Captain was live before the room change
+  ok    ROOM TEARDOWN REMOVES HIM — actor and rifle destroyed, none carried into the next room
+  ok    no Captain: SWARM TIDE forced onto the placement cell
+  ok    no Captain: SNIPER NEST forced onto the placement cell
+  ok    no Captain: BOMBER RUN forced onto the placement cell
+  ok    no Captain: VANGUARD at the same cell before the first Vader (sector 4)
+  ok    no Captain: the other mid-band hangar waves
+  ok    no Captain: late hangar VANGUARD — not every VANGUARD carries him
+  ok    no Captain: the Vader chamber at a boss sector
+  ok    no Captain: the Nemesis duel wave
+  ok    no Captain: the Reactor Junction VANGUARD in the mid band
+  ok    the late CROSSFIRE cell carries its authored placement
+  FAIL  exactly one Captain token there too — shooter
+  ok    the opposed shooters still open CROSSFIRE
+  FAIL  THE SAME SEED REPRODUCES THE SAME WAVE, Captain included
+  FAIL  and a DIFFERENT seed still places him in the same cell, slot and budget — placement is authored, not rolled
+  ok    a fresh production run places no Captain in any sector-1 wave
+
+  placement cells:
+    hangar mid wave 2  vanguard  slot 2  cost 2
+    hangar late wave 3  crossfire  slot 2  cost 2
+  VANGUARD s8 w2: captain,shielded,shooter,shielded,shielded,shielded  (baseline shooter,shielded,shooter,shielded,shielded,shielded,grunt)
+  CROSSFIRE s16 w3: shooter
+FAIL: 6 of 60 checks failed: EXACTLY ONE Captain token, in his authored lead slot; every other event is the SAME event, in the same order — no hidden reroll; the shields still lead — VANGUARD opens as VANGUARD; exactly one Captain token there too; THE SAME SEED REPRODUCES THE SAME WAVE, Captain included; and a DIFFERENT seed still places him in the same cell, slot and budget — placement is authored, not rolled
+
+smoke-vanguard-screen … PASS  163s
+smoke-vanguard-front … PASS  124s
+smoke-vanguard-reinforce … PASS  35s
+smoke-harrower   … PASS  176s
+smoke-captain    … PASS  204s
+smoke-captain-state … PASS  189s
+smoke-captain-damage … PASS  50s
+smoke-arcgrenade … PASS  80s
+smoke-captel     … FAIL  120s
+  ok    without ?captel=1 the instrument is not constructed at all
+  ok    and nothing is drawn — no panel exists to be hidden
+  ok    and the Captain's telemetry taps are emitted into an empty room
+  ok    CHAMPION.captain is byte-identical with the instrument on
+  ok    and so is every player damage input it measures
+  ok    and a freshly spawned Captain arrives with identical hp, armour and speed
+  ok    a session opens on champion-spawned
+  ok    ATTRIBUTION RECONCILES — the sum of attributed damage is the durability actually lost
+  ok    each source is attributed to itself, not inferred from a magnitude
+  ok    and nothing a tagged path produced fell into OTHER
+  ok    the lethal blow is recorded at what the pool HELD, never at what was asked for
+  ok    and no source can exceed the durability the Captain ever had
+  FAIL  the Super count is the real `player-fire-super` count — 0 casts, 0 timestamps
+  FAIL  pellets come from the blast that really happened, not from the authored number — 0 from 2 casts of 5
+  ok    a hit is counted once per landed hit, per source
+  ok    the milestones are ordered: spawn -> first damage -> armour break
+  ok    Captain actions are counted from his own state machine
+  ok    the session closes on death with a real TTK
+  ok    and the panel renders the record the tests read
+  ok    a new Captain retires the old session and starts clean
+  ok    normal Endless has no Champion and no instrument
+  ok    and the damage source tag is cleared after every hit, never left standing
+FAIL: 2 of 22 checks failed: the Super count is the real `player-fire-super` count; pellets come from the blast that really happened, not from the authored number
+
+smoke-captain-step … PASS  113s
+smoke-captain-rifle … FAIL  116s
+  ok    the per-round intercept solver is GONE, not merely unused
+  ok    and the rifle cannot read the player's Super either
+  ok    the commitment is 3 to 6 rounds — variable, and still a controlled rifle
+  ok    and every authored length is inside that band
+  ok    the distribution is AUTHORED, not uniform — §18 forbids a flat roll
+  ok    ONE FREE CHOICE — which side the sweep starts on, and nothing else
+  ok    the corridor is bounded — a route is not an arena traversal
+  ok    he opened real commitments in a real fight
+  ok    ONE PLAN PER COMMITMENT, NEVER ONE PER ROUND — the whole point of the law
+  ok    every drawn length is inside 3-6
+  FAIL  and the burst fires exactly the length it drew — the count is decided ONCE — [4,5,3,5,4,3,5,4] against [4,5,3,5,4,3,5,6]
+  ok    the lengths actually VARY — a fixed three is what the handset rejected
+  ok    EVERY ROUND OF A BURST LIES ON THE ONE COMMITTED CORRIDOR, and stopping dead mid-burst does not move it
+  ok    each commitment carries exactly one named spray shape
+  ok    NO HOMING — a round in flight keeps the velocity it left with
+  ok    several multi-round bursts were observed end to end
+  ok    EVERY BURST SWEEPS ONE WAY — no round steps back along its own corridor
+  ok    and the corridor dies with the commitment — no plan outlives a brace or a burst
+  ok    a stationary player produces a STILL plan every time
+  ok    and that plan is the authored fan, not a corridor
+  ok    STANDING STILL IS NOT SAFE — every round is aimed inside the fan around them
+FAIL: 1 of 21 checks failed: and the burst fires exactly the length it drew — the count is decided ONCE
+
+smoke-captain-visual … FAIL  48s
+  ok    three authored body sheets exist — intact, broken, critical
+  ok    and all three are DIFFERENT PAINTED SHEETS, not one texture tinted
+  ok    the body state follows the authoritative armour and health transitions
+  ok    THE DAMAGE TURNS WITH HIM — four facings give four different anchor offsets
+  ok    and every anchor sits on the body rather than beside it
+  FAIL  a state change swaps the sheet and KEEPS the pose — the cycle is not restarted — captain-idle-front#1 -> captainbrk-idle-front#1
+  ok    the electrical failure is an EVENT — nothing persistent is drawn over the actor
+  ok    and nothing it owned outlives it
+  ok    the field reached its live phase
+  ok    the gameplay radius is the authored one, untouched by this pass
+  ok    inside, near-edge and EXACTLY ON the boundary are all dangerous, at eight bearings
+  ok    and a fifth of a percent outside is already safe — no invisible dangerous annulus
+  ok    the perimeter is built from deliberate nodes sitting EXACTLY on the real radius
+  ok    and the drawn geometry is DERIVED from that radius — halve it and the nodes move
+  ok    ONE physical device owns the whole lifecycle — it flies, and it stays as the source
+  ok    the device is drawn above the actor band while it is the thing to watch
+  ok    and the device is destroyed with the field — no orphan Image
+FAIL: 1 of 17 checks failed: a state change swaps the sheet and KEEPS the pose — the cycle is not restarted
+
+smoke-captain-closeout … PASS  103s
+smoke-boost      … PASS  10s
+smoke-cluster    … PASS  12s
+smoke-controls   … PASS  27s
+smoke-debug      … PASS  33s
+smoke-deflect    … FAIL  43s
+  ok    and NOTHING ever slows it — it is thrown, it does not run down
+  ok    it is still alive well past the old settle window
+  ok    the hand-drawn body sits ON its own sprite, not one physics step behind it
+  ok    the speed change did NOT move the hitbox
+  ok    the launch beat is carved OUT of the approved anticipation, not added to it
+  ok    the flight effect is actually running while the orb is in the air
+  ok    every remnant lies along the orb's REAL velocity
+  ok    ...and that is a different direction from "at the player", so the check above bites
+  ok    the wake is bounded — three reused remnants, not a growing tail
+  ok    and the corona is alive around it in flight
+  ok    and it is a different, much bigger class of object
+  ok    the orb is actually observed in flight
+  ok    and it never steers, even after the player walks out of its way
+  ok    so ordinary movement is enough to survive it
+  ok    and it is in hostileBullets, so every sweep of incoming fire sees it
+  ok    an orb inside the world keeps flying
+  ok    and one that leaves the world is cleaned up
+  ok    and its wake goes with it
+  ok    its range is a backstop, not the thing that ends the flight
+  ok    a room teardown is staged with an orb actually in the air
+  ok    and the room teardown takes it, and its wake, with everything else
+  ok    and a throw interrupted by his wound does not leave the saber owned
+  ok    the held-energy graphic dies with the boss who was holding it
+FAIL: 1 of 73 checks failed: and the blade is travelling FASTEST as it arrives there
+
+smoke-depth      … PASS  12s
+smoke-dialogue   … PASS  27s
+smoke-duel       … PASS  60s
+smoke-encdbg     … PASS  159s
+smoke-encounters … PASS  22s
+smoke-endless    … PASS  49s
+smoke-flight     … FAIL  12s
+    {
+      "sinuosity": 1.951,
+      "turnedDeg": 140,
+      "peakSpeed": 3616,
+      "peakHSpeed": 1472,
+      "peakVSpeed": 3303,
+      "arrivalSpeed": 841,
+      "arrivalFrac": 0.232
+    }
+  ],
+  "avgSinuosity": 2.386,
+  "avgTurnedDeg": 202,
+  "maxTurnedDeg": 301,
+  "avgArrivalFrac": 0.751,
+  "avgPeakSpeed": 2541,
+  "maxHSpeed": 1472,
+  "maxVSpeed": 3303,
+  "maxFlamesSeen": 8
+}
+page errors: none
+
+FAIL:
+ - horizontal peak 1472px/s is over fragMaxSpeed — the cap is not holding
+ - vertical peak 3303px/s is over fragMaxSink — the descent is spiking again
+
+smoke-hangar     … PASS  14s
+smoke-hum        … PASS  9s
+smoke-junction   … PASS  16s
+smoke-detention  … PASS  35s
+smoke-leak       … PASS  15s
+smoke-march      … PASS  41s
+smoke-moves      … PASS  104s
+smoke-music-tiers … PASS  189s
+smoke-nemesis    … PASS  27s
+smoke-nemesis-fx … PASS  78s
+smoke-nemesis-kit … PASS  32s
+smoke-nemesis-memory … PASS  25s
+smoke-pathing    … FAIL  13s
+FAIL: efficiency 1.02 exceeds 1.0 — the sampler is dropping movement, not the game pathing well
+
+smoke-progress   … PASS  17s
+smoke-readability … PASS  90s
+smoke-rng        … PASS  26s
+smoke-restart    … PASS  94s
+smoke-score      … PASS  19s
+smoke-title      … PASS  13s
+smoke-vader      … FAIL  80s
+  ok    the LIGHTS OUT saber treatment exists and is config-driven
+  ok    in normal light the approved saber is untouched — no glow layer is drawn
+  ok    and in the dark arena BOTH emissive layers come up
+  ok    both are ADDITIVE — light added to darkness, not paint laid over it
+  ok    the glow IS the blade's pose on the frame it appears — position and rotation, same frame
+  ok    the glow IS the blade's pose and still a beat later — position and rotation, same frame
+  ok    and so is the tight bloom — one pose, three layers, no second author
+  ok    the glow is VISUAL — nothing it added can be collided with
+  ok    the SABER THROW probe actually threw the blade
+  ok    while it is away he is genuinely unarmed
+  ok    and the light goes WITH the blade — no phantom glowing saber at his hand
+  ok    restoration takes the LIGHTS OUT-only treatment away with the darkness
+  ok    and destroying him removes the postupdate reader — no handler outlives the room
+  ok    FROZEN: the approved LIGHTS OUT cadence is untouched by this pass
+  ok    FROZEN: the arena material values and transition timings are untouched
+  ok    FROZEN: the vignette geometry is untouched
+  ok    FROZEN: SUPPRESSION lasts 4000ms
+  ok    FROZEN: every DEFLECTION timing is untouched
+  ok    FROZEN: the returned super travels at the player's own super speed, 1080
+  ok    FROZEN: the return damage schedule is 180 + 55 per pellet, over 5 pellets
+  ok    FROZEN: a full five-pellet super comes back as 455 — THIS is the delivered damage
+  ok    FROZEN: 620 is the CEILING and it is not reached — never report it as the damage
+  ok    FROZEN: Afterimages scheduling and clone count are untouched
+FAIL: 1 of 116 checks failed: the power CUTS — it does not dim
+
+
+────────────────────────────────────────────────────────────
+  ok   smoke-arc        PASS: pop above the burst, then cascade onto the pack
+  ok   smoke-arena      PASS: the arena pilot is art — geometry, collision, the darkness owner
+  ok   smoke-boss       PASS: phases fire once each at the configured thresholds and never rev
+ FAIL  smoke-boss-moves FAIL: 1 of 18 checks failed: and costs them a dash charge
+  ok   smoke-camera     smoke-camera OK
+ FAIL  smoke-champion   Node.js v22.23.4
+ FAIL  smoke-champion-placement FAIL: 6 of 60 checks failed: EXACTLY ONE Captain token, in his authore
+  ok   smoke-vanguard-screen PASS: 22 checks — VANGUARD shields close to a screen; nothing else mov
+  ok   smoke-vanguard-front PASS: 30 checks — the VANGUARD front establishes before the backline, 
+  ok   smoke-vanguard-reinforce PASS: 26 checks — one more guaranteed shield, same budget, and the sur
+  ok   smoke-harrower   PASS: 28 checks — the Harrower moves, carves only by moving, cleans up
+  ok   smoke-captain    PASS: 38 checks — the Shock Captain moves, fights, breaks once, and st
+  ok   smoke-captain-state PASS: 29 checks — transitions fire once, the body carries the state, n
+  ok   smoke-captain-damage PASS: 9 checks — the number the player reads is the durability actuall
+  ok   smoke-arcgrenade PASS: 16 checks — thrown, travelled, landed, armed, bounded, and swept
+ FAIL  smoke-captel     FAIL: 2 of 22 checks failed: the Super count is the real `player-fire-
+  ok   smoke-captain-step PASS: 24 checks — pools authored, arithmetic unchanged, the step is ho
+ FAIL  smoke-captain-rifle FAIL: 1 of 21 checks failed: and the burst fires exactly the length it
+ FAIL  smoke-captain-visual FAIL: 1 of 17 checks failed: a state change swaps the sheet and KEEPS 
+  ok   smoke-captain-closeout PASS: 60 checks — hard geometry, a device with a middle, and a promise
+  ok   smoke-boost      PASS: the burn sustains through the dive and stops after
+  ok   smoke-cluster    PASS: distinct locks, flat scale, no ground phase, lines clean up
+  ok   smoke-controls   PASS: the editor moves the real controls, persists, and resets
+  ok   smoke-debug      PASS: debug menu works and the HUD stays in sync
+ FAIL  smoke-deflect    FAIL: 1 of 73 checks failed: and the blade is travelling FASTEST as it
+  ok   smoke-depth      PASS: draws over the room, no tumble
+  ok   smoke-dialogue   PASS: 22 checks — they speak, they do not repeat, and a stranger stays
+  ok   smoke-duel       PASS: 20 checks — a nemesis encounter is a duel, and the bomber surviv
+  ok   smoke-encdbg     PASS: 33 checks — the harness is debug-only, real-runtime, and cannot 
+  ok   smoke-encounters PASS: 25 checks — the encounter table is well-formed, wired, and not r
+  ok   smoke-endless    PASS: 20 checks — the climb reaches Vader, scales him, and carries on 
+ FAIL  smoke-flight      - vertical peak 3303px/s is over fragMaxSink — the descent is spiking
+  ok   smoke-hangar     PASS: the hangar is art — its geometry, its collision, the chamber and
+  ok   smoke-hum        PASS: hum carries in the phone-audible band and stops cleanly
+  ok   smoke-junction   smoke-junction OK
+  ok   smoke-detention  49 passed, 0 failed
+  ok   smoke-leak       PASS: primary fire is isolated from the cluster
+  ok   smoke-march      PASS  full 8-bar Imperial March phrase
+  ok   smoke-moves      PASS: 34 checks — the enemy performs the move, and beating it pays
+  ok   smoke-music-tiers PASS  tiers change the bed and the director tracks the situation
+  ok   smoke-nemesis    PASS: 20 checks — nemeses are named, composed, escalating and mechanic
+  ok   smoke-nemesis-fx PASS: 8 checks — the nemeses perform their moves, in their own colours
+  ok   smoke-nemesis-kit PASS: 25 checks — a nemesis looks and fights like its own enemy
+  ok   smoke-nemesis-memory PASS: 33 checks — the nemesis remembers, scars, dies once, and is repl
+ FAIL  smoke-pathing    FAIL: efficiency 1.02 exceeds 1.0 — the sampler is dropping movement, 
+  ok   smoke-progress   PASS: 43 checks — upgrades apply and stack, rooms tear down, stats per
+  ok   smoke-readability PASS: 19 checks — the attacks can be seen coming
+  ok   smoke-rng        PASS: 17 checks — runs are reproducible and the streams do not couple
+  ok   smoke-restart    PASS: 16 checks — restarts leave no duplicate handlers and no stale ar
+  ok   smoke-score      PASS: 41 checks — kills, chain multiplier and wave bonuses all score
+  ok   smoke-title      PASS: 15 checks — endless leads, and its record is the first thing you
+ FAIL  smoke-vader      FAIL: 1 of 116 checks failed: the power CUTS — it does not dim
+────────────────────────────────────────────────────────────
+42/52 passed
