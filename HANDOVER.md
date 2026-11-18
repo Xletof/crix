@@ -363,7 +363,11 @@ command, fix the line.*
     failure inherited or load (boss-moves and readability fail on `d722707`
     too; vanguard-front and deflect pass standalone; champion-placement is
     register #9). The `&b2c=1` intermittent stays unresolved and inherited.
-    `docs/evidence/b2-r2/README.md`. Awaiting the HUMAN handset verdict.
+    `docs/evidence/b2-r2/README.md`. Played on the handset with both audio
+    kits (2026-11-18): the HUMAN asked to keep its gun, rounds, glow and
+    dissipation, to remove the ribbon, the Super masses and the shield plates,
+    and to build on audio B — that is B2-R3 below. Nothing in R2 is approved or
+    frozen.
   - **B2-R3 (2026-11-18), opt-in `&b2r=3` (visuals) and `&b2a=B2` (audio),
     NOT approved, NOT a default.** HUMAN verdict on R2 (both audio kits
     played): remove the stream ribbon (an electrical cable, not a rifle);

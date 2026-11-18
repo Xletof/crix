@@ -604,6 +604,13 @@ if (on(14)) {
   check('the overlay is in sync with the sprite at every render (position, scale, alpha, frame, flip)', t.sync.checks > 60 && t.sync.bad === 0, JSON.stringify(t.sync));
   check('partial charge reads in quarters (3, 2, 1 lit) and the bush alpha is the sprite\'s', t.bands[3] > 0 && t.bands[2] > 0 && t.bands[1] > 0 && t.bush.alpha === t.bush.sprite && t.bush.sprite < 1, JSON.stringify({ bands: t.bands, bush: t.bush }));
   check('an absorbed hit shimmers on the side it came from, the shipped cyan ring is hidden (it still runs), the last point breaks with shards; dead, nothing drawn', t.afterHit.hits >= 1 && t.afterHit.sided > 0 && t.cyanRings === 0 && b.cyanRings > 0 && t.ringsHidden >= 1 && t.afterBreak.breaks === 1 && t.afterBreak.shards > 0 && !t.dead.alive && !t.dead.overlay, JSON.stringify({ hit: t.afterHit, rings: { r3: t.cyanRings, b2b: b.cyanRings, hidden: t.ringsHidden }, brk: t.afterBreak, dead: t.dead }));
+  // a whole rendered fight: wave-clear shields, Broken Wings, Supers, dashes and hits
+  {
+    const p = await boot(T, { q: Q_MIXED, god: false });
+    const f = await p.evaluate((x) => { window.__headless = false; window.__trace(x); const S = window.__gs._b2.stats.feel.skin.r3.shield; return { sync: S.sync, drawn: S.drawn, hits: S.hits, breaks: S.breaks, frames: S.frames }; }, { seed: 9071, ticks: 1500, seg: FIGHT_SEG, hold: HOLD, superTaps: [300, 700, 1100, 1400], melee: [500, 525, 550] });
+    await p.close();
+    check('through a whole rendered fight (MIXED s6, god mode off: wave-clear shields, Broken Wings, four Supers, hits) the armour shield is read back in sync with the sprite at every render', f.sync.checks > 200 && f.sync.bad === 0 && f.drawn > 200, JSON.stringify(f));
+  }
   check('shield and health take exactly what B2-B takes (a hit and the break)', t.afterHit.shield === b.afterHit.shield && t.afterHit.hp === b.afterHit.hp && t.afterBreak.shield === b.afterBreak.shield && t.afterBreak.hp === b.afterBreak.hp, JSON.stringify({ r3: [t.afterHit, t.afterBreak], b2b: [b.afterHit, b.afterBreak] }));
 }
 
