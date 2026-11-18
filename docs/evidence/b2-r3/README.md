@@ -207,7 +207,31 @@ loudness and true peak; "phone filter" = high-pass 300 Hz (4-pole) + low-pass
 All suites standalone against the dev server; comparisons against the previous
 build `40adb64` (B2-R2's deploy) where a suite takes `--old`.
 
-(Being run at the time of this commit; the table follows in the next commit.)
+| Suite | Result | Notes |
+|---|---|---|
+| `smoke-b2r3` (new) | **80/80** | one clean run on the final code (`smoke-b2r3.txt`) |
+| `smoke-b2r2` | 62/62 | R2 unchanged, incl. its audio after the timed-pitch fix |
+| `smoke-b2r` | 38/38 | REACTOR level 1 |
+| `smoke-b2t` | 37/37 | TEMPER |
+| `smoke-b2c --old=40adb64` | 46/46 | the closure candidate (F-hold targeting, F-release cast) |
+| `smoke-b2 --old=40adb64` | 88/88 | B2-1 / B2-B economy, controls, range |
+| `smoke-b1 --old=40adb64` | 71/71 | |
+| `smoke-b0 --old=40adb64` | 46/46 | |
+| `smoke-fx-p2a3 --only=10` | 4/4 | the frozen-file scope guard |
+| `smoke-controls` | PASS | |
+| `smoke-restart` | PASS (16 checks) | |
+| production bundle (`npm run build`, `vite preview`) | no page errors | the four links and a plain boot; `after/production-bundle-*.jpg` |
+| `run-all` (52 suites) | RUNALL_HERE | |
+
+Seeded parity: B2-R3 + audio B2 = B2-B tick for tick (state, ammo, meters, every
+enemy, bolt and pellet, `Math.random` draws, events) over three 1500-tick fights
+with four Supers and a Broken Wings chain each, with and without `&b2c=1`, and on
+the shipped links with their `&b0=` labels (§1, §10). The only objects R3 hides
+are the shipped cyan shield-absorb rings (§1 counts them).
+
+The `&b2c=1` intermittent (a wave banner a tick late at tick 741 in about 1 run
+in 11) is inherited and unresolved; it did not occur in these runs, which proves
+nothing either way.
 
 ## Observations (not changed)
 

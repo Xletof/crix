@@ -364,6 +364,33 @@ command, fix the line.*
     too; vanguard-front and deflect pass standalone; champion-placement is
     register #9). The `&b2c=1` intermittent stays unresolved and inherited.
     `docs/evidence/b2-r2/README.md`. Awaiting the HUMAN handset verdict.
+  - **B2-R3 (2026-11-18), opt-in `&b2r=3` (visuals) and `&b2a=B2` (audio),
+    NOT approved, NOT a default.** HUMAN verdict on R2 (both audio kits
+    played): remove the stream ribbon (an electrical cable, not a rifle);
+    restore B2-B's original Super visuals (R2's masses rejected); build on
+    Audio B (preferred over A): deeper charging and a Super-ready
+    confirmation, with the original B kept as the control and a level-matched
+    comparison; replace the floating shield plates with feedback on the armour;
+    show a full-but-suppressed reactor as unavailable. Five commits, one item
+    each: the ribbon off at level 3 (R2 vs R3 sprite read-back identical on
+    every tick apart from the ribbon; the stream now reads as separate bolts);
+    none of the reactor's Super code installed at level 3 (the cast's objects,
+    particles, pellets and camera flashes = B2-B on 90/90 ticks; the gun keeps
+    its own wind-up and cooling frames; the P1 ring's spend animation stays
+    hidden); a choked reactor under suppression (ruby, cold lens, clamp, a
+    strain beat); the shield as a cyan line on the hero's own outer armour edge
+    (four-step drain, a sided hit flare, shards on the break; the shipped absorb
+    ring hidden); kit B2 (a high-passed depth layer, low-mid body, the
+    confirmation on the availability edge, a lock pip; B2_TRIM 0.72: full game
+    mix +0.3 LU full-band / -0.2 LU phone-filtered vs B). NOT LISTENED TO by the
+    author. Offline-render fix in B and B2 (bed pitch set with setValueAtTime;
+    live behaviour identical). Inherited, now documented: with live audio any
+    `&b2a` kit skips two shipped SFX whose noise draws `Math.random`, so a
+    live-audio fight is not tick-identical to a no-`b2a` fight (the kits draw
+    nothing; the silent harness matches B2-B). The wave-clear flash the HUMAN
+    saw is the shipped `GameScene._onWaveCleared` flash, identical in all
+    builds. Proof: `tests/smoke-b2r3.mjs` 80/80 (= B2-B tick for tick with audio B2, also with `&b2c=1` and on the shipped links); smoke-b2r2 62/62, smoke-b2r 38/38, smoke-b2t 37/37, smoke-b2c 46/46, smoke-b2 88/88, smoke-b1 71/71, smoke-b0 46/46 (against `40adb64`), P2-A3 scope 4/4, controls and restart pass, production bundle without errors; run-all RUNALL_HERE. `docs/evidence/b2-r3/README.md`. Awaiting the
+    HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -390,7 +417,8 @@ command, fix the line.*
   handset verdict (`docs/evidence/b2-closure/README.md`); B2 TEMPER
   (`&b2t=1`) was superseded by the HUMAN's REACTOR OVERLOAD direction
   (`&b2r=1`, pixels only); its playtest led to B2-R2 (`&b2r=2`, audio
-  `&b2a=A|B`), which awaits the HUMAN verdict (`docs/evidence/b2-r2/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
+  `&b2a=A|B`); its playtest led to B2-R3 (`&b2r=3`, audio `&b2a=B2`), which
+  awaits the HUMAN verdict (`docs/evidence/b2-r3/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
 
