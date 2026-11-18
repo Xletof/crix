@@ -580,7 +580,7 @@ export function installB2(scene) {
       w.mag = K.mag; w.reloadLeft = 0; w.reloadKind = null; w.cool = 0; w.target = null; w.aimAng = null; w.keyTap = false;
     }
     feel?.update(dt, clock);
-    voice.update?.(dt, { heat: api.charge01(), firing: !!p?.alive && (w.trig || clock - w.lastShotAt < K.cadence * 1.5), suppressed: !p?.alive || (p?._suppressedMs || 0) > 0 });
+    voice.update?.(dt, { heat: api.charge01(), firing: !!p?.alive && (w.trig || clock - w.lastShotAt < K.cadence * 1.5), suppressed: !p?.alive || (p?._suppressedMs || 0) > 0, dead: !p?.alive, sup: (p?._suppressedMs || 0) > 0 });
   };
   scene.events.on('postupdate', onPost);
 

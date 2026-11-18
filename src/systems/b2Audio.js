@@ -45,12 +45,12 @@ function driveCurve(k) {
 }
 
 /** The synth primitives one kit schedules with, on `ctx`, into `dest`. */
-function voices(ctx, dest, stats, now = () => ctx.currentTime) {
+function voices(ctx, dest, stats, now = () => ctx.currentTime, shared = null) {
   const nb = noiseBuffer(ctx, 0xb2a0b2a0);
   const drv = { soft: driveCurve(2.5), hard: driveCurve(9) };
   // live voices are counted by their scheduled end times (onended does not fire while an
   // OfflineAudioContext is being scheduled), so the cap holds live and offline
-  const ends = [];
+  const ends = shared || [];          // B2's confirmation path shares the kit's count (one cap)
   const prune = () => { const t = now(); for (let i = ends.length - 1; i >= 0; i--) if (ends[i] <= t) ends.splice(i, 1); };
   const track = (src, end, off = 0) => { ends.push(end); stats.peakVoices = Math.max(stats.peakVoices, ends.length); if (off) src.start(src._t0, off); else src.start(src._t0); src.stop(end); };
   const room = () => { prune(); return ends.length < VOICE_CAP; };
@@ -63,7 +63,7 @@ function voices(ctx, dest, stats, now = () => ctx.currentTime) {
   };
   const shape = (node, kind) => { const w = ctx.createWaveShaper(); w.curve = drv[kind]; w.oversample = '2x'; node.connect(w); return w; };
   return {
-    room, get live() { prune(); return ends.length + live; },
+    room, ends, get live() { prune(); return ends.length + live; },
     noise(t, { f, f2 = 0, q = 0.8, type = 'bandpass', dur, gain, a = 0.001, off = 0, drive = null }) {
       if (!room()) { stats.dropped++; return; }
       const s = ctx.createBufferSource(); s.buffer = nb; s._t0 = t;
@@ -182,8 +182,11 @@ function kitB(ctx, dest, stats, now) {
   mixG.connect(bp); const sh = v.shape(bp, 'soft'); sh.connect(pulse); pulse.connect(out); out.connect(dest);
   lfo.connect(lfoG); lfoG.connect(pulse.gain);
   wob.connect(wobG); wobG.connect(o1.detune); wobG.connect(o2.detune);
-  const base = (f) => { o1.frequency.value = f; o2.frequency.value = f * 1.5; o3.frequency.value = f / 2; o2.detune.value = 7; };
-  base(110);
+  // the bed's pitch, at the kit's own time: `AudioParam.value =` lands at an OfflineAudioContext's
+  // render time 0 (its currentTime before rendering), which froze the pitch in offline renders;
+  // live, setValueAtTime(f, currentTime) is exactly what the setter does
+  const base = (f, t) => { o1.frequency.setValueAtTime(f, t); o2.frequency.setValueAtTime(f * 1.5, t); o3.frequency.setValueAtTime(f / 2, t); };
+  o2.detune.value = 7; base(110, ctx.currentTime);
   const t0 = ctx.currentTime;
   for (const o of [o1, o2, o3, lfo, wob]) o.start(t0);
   const crackle = mulberry32(0xb2a0c0de);
@@ -228,7 +231,7 @@ function kitB(ctx, dest, stats, now) {
       if (t < holdUntil) return;
       const lvl = suppressed ? 0 : firing ? 0.06 + 0.05 * heat : ready ? 0.035 : heat > 0.5 ? 0.012 : 0;
       if (Math.abs(lvl - lastLevel) > 0.002) { out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(Math.max(0.0001, lastLevel), t); out.gain.linearRampToValueAtTime(Math.max(0.0001, lvl), t + (lvl > lastLevel ? 0.03 : 0.12)); lastLevel = lvl; }
-      base(110 + 50 * heat);
+      base(110 + 50 * heat, t);
       bpHz = 600 + 1500 * heat + (ready ? 400 : 0); bp.frequency.setTargetAtTime(bpHz, t, 0.05);
       lfoG.gain.setTargetAtTime(firing ? 0.55 : ready ? 0.25 : 0, t, 0.03);
       lfo.frequency.setTargetAtTime(firing ? 10 : 4.4, t, 0.05);
@@ -242,6 +245,184 @@ function kitB(ctx, dest, stats, now) {
     silence(t) { out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(0.0001, t); lastLevel = 0; },
     holdBed() {},
     destroy() { for (const o of [o1, o2, o3, lfo, wob]) { try { o.stop(); } catch (_) { /* */ } } try { out.disconnect(); } catch (_) { /* */ } },
+  };
+}
+
+// ── B2: PLASMA REACTOR, REFINED (B2-R3; `&b2a=B2`, B stays as the control) ──
+// The HUMAN chose B and asked for a deeper, richer charge, a convincing climb to critical
+// overload, and an unmistakable Super-ready confirmation. B is kept whole (its shot, wheezing
+// band-passed bed, pulse at the cadence, crackle); B2 adds:
+//  DEPTH  a second bed layer: two detuned saws low in the register (55 Hz rising to 82 Hz
+//         with the charge) through a resonant low-pass that opens with the charge, driven,
+//         then high-passed at 200 Hz: the fundamental a phone cannot play is removed and its
+//         harmonics (200-1000 Hz, where a phone speaker still carries them) carry the pitch.
+//         Silent at zero charge (ordinary fire sounds like B), it grows with every quarter;
+//         at full it beats (the saws drift apart) under a slow throb.
+//  BODY   each shot, stage cue, release and Super hit gains a low-mid layer that scales with
+//         the charge.
+//  READY  a confirmation on the genuine transition into "the Super can be released" (full,
+//         not suppressed, alive): a restrained rising intake, two precisely tuned pips (B5,
+//         then E6 held), a metallic-electric ring and a low resonant thunk. Once per
+//         transition; it plays again only if availability is lost and regained (a Vader
+//         suppression ending while full). A wind-up, pause, death or suppression cuts it.
+//  LOCK   a target acquired during held-F targeting is one short pip from the same family
+//         (B5 rising a whole tone per lock), with no intake and no ring.
+//  RELEASE B's discharge with a low-mid body, opened by the E6 tone falling an octave.
+// Level: the bus is trimmed (B2_TRIM, before the kit's compressor) so B2 and B sit level on a
+// recorded 15 s fight's timeline: B2 +0.6 LU full-band, -0.6 LU through a phone-speaker filter
+// (EBU R128 integrated; docs/evidence/b2-r3/README.md). The author cannot listen; levels were
+// matched by measurement only.
+export const B2_TRIM = 0.72;
+export const B2_TONES = { pip1: 987.77, pip2: 1318.51, ring: 2637.02, thunk: 164.81 };
+function kitB2(ctx, dest, stats, now) {
+  const v = voices(ctx, dest, stats, now);
+  // B's bed, unchanged
+  const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), o3 = ctx.createOscillator();
+  o1.type = 'sawtooth'; o2.type = 'sawtooth'; o3.type = 'square';
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 2.2; bp.frequency.value = 700;
+  const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 10;
+  const lfoG = ctx.createGain(); lfoG.gain.value = 0.0;
+  const pulse = ctx.createGain(); pulse.gain.value = 1;
+  const wob = ctx.createOscillator(); wob.type = 'sine'; wob.frequency.value = 5.3;
+  const wobG = ctx.createGain(); wobG.gain.value = 0;
+  const out = ctx.createGain(); out.gain.value = 0.0001;
+  const mixG = ctx.createGain(); mixG.gain.value = 0.5;
+  o1.connect(mixG); o2.connect(mixG); const o3g = ctx.createGain(); o3g.gain.value = 0.25; o3.connect(o3g); o3g.connect(mixG);
+  mixG.connect(bp); const sh = v.shape(bp, 'soft'); sh.connect(pulse); pulse.connect(out); out.connect(dest);
+  lfo.connect(lfoG); lfoG.connect(pulse.gain);
+  wob.connect(wobG); wobG.connect(o1.detune); wobG.connect(o2.detune);
+  // the bed's pitch, at the kit's own time: `AudioParam.value =` lands at an OfflineAudioContext's
+  // render time 0 (its currentTime before rendering), which froze the pitch in offline renders;
+  // live, setValueAtTime(f, currentTime) is exactly what the setter does
+  const base = (f, t) => { o1.frequency.setValueAtTime(f, t); o2.frequency.setValueAtTime(f * 1.5, t); o3.frequency.setValueAtTime(f / 2, t); };
+  o2.detune.value = 7; base(110, ctx.currentTime);
+  // DEPTH: two low saws -> resonant low-pass -> drive -> tame -> its own pulse -> gain
+  const d1 = ctx.createOscillator(), d2 = ctx.createOscillator();
+  d1.type = 'sawtooth'; d2.type = 'sawtooth'; d1.frequency.value = 55; d2.frequency.value = 55;
+  const dMix = ctx.createGain(); dMix.gain.value = 0.5;
+  const dLp = ctx.createBiquadFilter(); dLp.type = 'lowpass'; dLp.Q.value = 7; dLp.frequency.value = 260;
+  d1.connect(dMix); d2.connect(dMix); dMix.connect(dLp);
+  const dSh = v.shape(dLp, 'hard');
+  const dTame = ctx.createBiquadFilter(); dTame.type = 'lowpass'; dTame.Q.value = 0.7; dTame.frequency.value = 1800;
+  dSh.connect(dTame);
+  // the fundamental itself is taken out (a phone cannot play it): what is left is its driven
+  // harmonics, which the ear still hears as that low pitch
+  const dHp1 = ctx.createBiquadFilter(), dHp2 = ctx.createBiquadFilter();
+  for (const f of [dHp1, dHp2]) { f.type = 'highpass'; f.Q.value = 0.7; f.frequency.value = 200; }
+  dTame.connect(dHp1); dHp1.connect(dHp2);
+  const dPulse = ctx.createGain(); dPulse.gain.value = 1;
+  const dLfo = ctx.createOscillator(); dLfo.type = 'sine'; dLfo.frequency.value = 2.2;
+  const dLfoG = ctx.createGain(); dLfoG.gain.value = 0;
+  dLfo.connect(dLfoG); dLfoG.connect(dPulse.gain); lfoG.connect(dPulse.gain);
+  const dOut = ctx.createGain(); dOut.gain.value = 0.0001;
+  dHp2.connect(dPulse); dPulse.connect(dOut); dOut.connect(dest);
+  // the confirmation's own path, so a wind-up, pause, death or suppression can cut it
+  const cBus = ctx.createGain(); cBus.gain.value = 1; cBus.connect(dest);
+  const cv = voices(ctx, cBus, stats, now, v.ends);
+  const t0 = ctx.currentTime;
+  for (const o of [o1, o2, o3, lfo, wob, d1, d2, dLfo]) o.start(t0);
+  const crackle = mulberry32(0xb2a0c0de);
+  let nextCrack = 0, lastLevel = 0, holdUntil = 0, bpHz = 700, dLevel = 0, dHz = 260, cLevel = 1;
+  const ramp = (g, from, to, t, dur) => { g.cancelScheduledValues(t); g.setValueAtTime(Math.max(0.0001, from), t); g.linearRampToValueAtTime(Math.max(0.0001, to), t + dur); };
+  return {
+    shot(t, { heat = 0, n = 0, hot = false, sustained = false }) {
+      const r = ROT[n % ROT.length] * (hot ? 1.05 : 1), up = 1 + 0.2 * heat;
+      v.osc(t, { type: 'sine', f: 560 * r * up, f2: 250 * r, dur: 0.045, gain: sustained ? 0.17 : 0.24 });
+      v.noise(t, { f: 1700 * r * up, q: 1.3, dur: 0.022, gain: sustained ? 0.13 : 0.2 });
+      v.osc(t, { type: 'sawtooth', f: 330 * r * up, f2: 165 * r, dur: 0.07, gain: 0.12, lp: 2200 + 1800 * heat, lp2: 500, q: 7, drive: 'soft' });
+      if (!sustained) v.osc(t, { type: 'square', f: 140, f2: 90, dur: 0.05, gain: 0.08, lp: 800 });
+      // BODY: a driven low saw and a low-mid chuff, both growing with the charge
+      v.osc(t, { type: 'sawtooth', f: 196 * r * (1 + 0.2 * heat), f2: 131, dur: 0.075, gain: 0.02 + 0.05 * heat, lp: 900 + 600 * heat, lp2: 420, q: 4, drive: 'soft' });
+      v.noise(t, { f: 420 * r, q: 1.6, dur: 0.04, gain: 0.04 + 0.07 * heat });
+    },
+    tail(t, heat) { v.noise(t, { f: 1200 + 500 * heat, f2: 300, q: 2, dur: 0.22, gain: 0.07, a: 0.006 }); v.osc(t, { type: 'sawtooth', f: 147, f2: 92, dur: 0.2, gain: 0.02 + 0.04 * heat, lp: 650, drive: 'soft' }); },
+    impact(t, heat) { v.noise(t, { f: 900, q: 2.4, dur: 0.05, gain: 0.07 + 0.04 * heat }); v.osc(t, { type: 'sine', f: 420, f2: 200, dur: 0.04, gain: 0.05 }); },
+    kill(t) { v.noise(t, { f: 1100, f2: 400, q: 2, dur: 0.09, gain: 0.1 }); v.osc(t, { type: 'sine', f: 600, f2: 900, dur: 0.06, gain: 0.05 }); },
+    stage(t, k) {
+      // a deeper resonant swell under B's chirp
+      v.osc(t, { type: 'sawtooth', f: 123 * (1 + k * 0.12), f2: 165 * (1 + k * 0.12), dur: 0.17, gain: 0.07, lp: 400, lp2: 1600, q: 9, a: 0.03, drive: 'soft' });
+      v.osc(t, { type: 'sine', f: 380 + 90 * k, f2: 620 + 90 * k, dur: 0.09, gain: 0.035, a: 0.01 });
+    },
+    confirm(t) {
+      ramp(cBus.gain, cLevel, 1, t, 0.004); cLevel = 1;
+      // intake: a band of noise and a low saw rising together, restrained
+      cv.noise(t, { f: 300, f2: 2600, q: 2.2, dur: 0.05, a: 0.1, gain: 0.06 });
+      cv.osc(t, { type: 'sawtooth', f: 110, f2: 220, dur: 0.05, a: 0.1, gain: 0.05, lp: 400, lp2: 1800, q: 6 });
+      // the two pips: B5, then E6 held; each with a square an octave down for a phone's body
+      const p1 = t + 0.15, p2 = t + 0.22, T = B2_TONES;
+      cv.osc(p1, { type: 'sine', f: T.pip1, dur: 0.045, gain: 0.1, a: 0.003 });
+      cv.osc(p1, { type: 'square', f: T.pip1 / 2, dur: 0.045, gain: 0.025, a: 0.003, lp: 2400 });
+      cv.osc(p2, { type: 'sine', f: T.pip2, dur: 0.13, gain: 0.11, a: 0.003 });
+      cv.osc(p2, { type: 'square', f: T.pip2 / 2, dur: 0.13, gain: 0.03, a: 0.003, lp: 2600 });
+      cv.noise(p2, { f: 3000, q: 1.5, dur: 0.006, gain: 0.03 });
+      // the ring: a narrow metallic band, an inharmonic partial, and a low resonant thunk
+      cv.noise(p2, { f: T.ring, q: 14, dur: 0.32, gain: 0.05, a: 0.004 });
+      cv.osc(p2, { type: 'sine', f: T.pip2 * 2.76, dur: 0.25, gain: 0.012, a: 0.004 });
+      cv.osc(p2, { type: 'sine', f: T.thunk, dur: 0.18, gain: 0.06, a: 0.004 });
+      cv.osc(p2, { type: 'sawtooth', f: T.thunk, f2: T.thunk * 0.9, dur: 0.16, gain: 0.03, lp: 600, a: 0.004 });
+    },
+    cutConfirm(t) { if (cLevel > 0.01) { ramp(cBus.gain, cLevel, 0.0001, t, 0.015); cLevel = 0; } },
+    windup(t) {
+      holdUntil = t + 0.7;
+      bp.frequency.cancelScheduledValues(t); bp.frequency.setValueAtTime(bpHz, t); bp.frequency.exponentialRampToValueAtTime(4200, t + 0.07); bpHz = 4200;
+      ramp(out.gain, lastLevel, 0.16, t, 0.065); lastLevel = 0.16;
+      ramp(dOut.gain, dLevel, 0.12, t, 0.065); dLevel = 0.12;
+      dLp.frequency.cancelScheduledValues(t); dLp.frequency.setValueAtTime(dHz, t); dLp.frequency.exponentialRampToValueAtTime(1400, t + 0.07); dHz = 1400;
+      v.noise(t, { f: 700, f2: 4800, q: 3, dur: 0.07, gain: 0.1, a: 0.04 });
+    },
+    release(t) {
+      holdUntil = Math.max(holdUntil, t + 0.6);
+      ramp(out.gain, lastLevel, 0.0001, t, 0.004); lastLevel = 0;
+      ramp(dOut.gain, dLevel, 0.0001, t, 0.004); dLevel = 0;
+      bp.frequency.cancelScheduledValues(t); bp.frequency.setValueAtTime(500, t + 0.01); bpHz = 500;
+      dLp.frequency.cancelScheduledValues(t); dLp.frequency.setValueAtTime(260, t + 0.01); dHz = 260;
+      v.osc(t, { type: 'sine', f: B2_TONES.pip2, f2: B2_TONES.pip2 / 2, dur: 0.05, gain: 0.05 });
+      for (const d of [-18, 0, 15]) v.osc(t, { type: 'sawtooth', f: 225, f2: 55, dur: 0.46, gain: 0.2, lp: 5200, lp2: 280, q: 3, drive: 'hard', detune: d });
+      v.noise(t, { f: 6000, f2: 300, type: 'lowpass', q: 0.9, dur: 0.36, gain: 0.42, drive: 'soft' });
+      v.osc(t, { type: 'sine', f: 140, f2: 55, dur: 0.26, gain: 0.3 });
+      // BODY: a driven low saw falling an octave, and a low-mid burst a phone carries
+      v.osc(t, { type: 'sawtooth', f: 165, f2: 82, dur: 0.5, gain: 0.14, lp: 1200, lp2: 320, q: 3, drive: 'hard' });
+      v.noise(t, { f: 420, q: 1.2, dur: 0.18, gain: 0.18 });
+    },
+    superHit(t) { v.noise(t, { f: 800, f2: 300, q: 1.5, dur: 0.1, gain: 0.2, drive: 'soft' }); v.osc(t, { type: 'sine', f: 300, f2: 110, dur: 0.08, gain: 0.14 }); v.noise(t, { f: 300, q: 1.2, dur: 0.07, gain: 0.08 }); },
+    cooldown(t) { v.osc(t, { type: 'sawtooth', f: 700, f2: 180, dur: 0.7, gain: 0.04, lp: 1400, lp2: 400, a: 0.03 }); v.osc(t, { type: 'sawtooth', f: 196, f2: 98, dur: 0.6, gain: 0.03, lp: 700, a: 0.03, drive: 'soft' }); },
+    primed() { /* the confirmation is driven by the availability edge (update), not the meter event */ },
+    lock(t, k) {
+      const f = B2_TONES.pip1 * Math.pow(2, (2 * Math.max(0, k - 1)) / 12);
+      v.osc(t, { type: 'sine', f, dur: 0.04, gain: 0.06, a: 0.003 });
+      v.osc(t, { type: 'square', f: f / 2, dur: 0.04, gain: 0.018, a: 0.003, lp: 2200 });
+      v.noise(t, { f: 3000, q: 1.5, dur: 0.005, gain: 0.02 });
+    },
+    reloadStart(t, dur) { v.noise(t, { f: 1600, q: 1, dur: 0.02, gain: 0.1 }); v.osc(t + 0.03, { type: 'sine', f: 160, f2: 420, dur: Math.max(0.05, dur - 0.06), gain: 0.035, a: 0.04 }); },
+    reloadEnd(t) { v.noise(t, { f: 2000, q: 1, dur: 0.02, gain: 0.12 }); v.osc(t + 0.04, { type: 'sine', f: 500, f2: 800, dur: 0.07, gain: 0.07 }); },
+    /** Per frame. `dead` silences both beds; `sup` (a suppression) withholds only the ready hum. */
+    bed(t, { heat, firing, ready, dead, sup }) {
+      if (t < holdUntil) return;
+      const avail = ready && !sup;
+      const lvl = dead ? 0 : firing ? 0.06 + 0.05 * heat : avail ? 0.035 : heat > 0.5 ? 0.012 : 0;
+      if (Math.abs(lvl - lastLevel) > 0.002) { ramp(out.gain, lastLevel, lvl, t, lvl > lastLevel ? 0.03 : 0.12); lastLevel = lvl; }
+      base(110 + 50 * heat, t);
+      bpHz = 600 + 1500 * heat + (avail ? 400 : 0); bp.frequency.setTargetAtTime(bpHz, t, 0.05);
+      lfoG.gain.setTargetAtTime(firing ? 0.55 : avail ? 0.25 : 0, t, 0.03);
+      lfo.frequency.setTargetAtTime(firing ? 10 : 4.4, t, 0.05);
+      wobG.gain.setTargetAtTime(heat > 0.5 ? 6 + 30 * (heat - 0.5) + (avail ? 20 : 0) : 0, t, 0.1);
+      // DEPTH: nothing at zero charge; with the charge it deepens, opens and, at full, beats
+      const dl = dead ? 0 : firing ? 0.02 + 0.07 * heat : avail ? 0.05 : heat > 0.25 ? 0.008 + 0.02 * heat : 0;
+      if (Math.abs(dl - dLevel) > 0.002) { ramp(dOut.gain, dLevel, dl, t, dl > dLevel ? 0.05 : 0.15); dLevel = dl; }
+      const f0 = 55 * (1 + 0.5 * heat);
+      d1.frequency.setTargetAtTime(f0, t, 0.08); d2.frequency.setTargetAtTime(f0, t, 0.08);
+      const spread = heat >= 1 ? 14 : 4 + 6 * heat;
+      d1.detune.setTargetAtTime(-spread, t, 0.2); d2.detune.setTargetAtTime(spread, t, 0.2);
+      dHz = 340 + 700 * heat; dLp.frequency.setTargetAtTime(dHz, t, 0.06);
+      dLfoG.gain.setTargetAtTime(avail && !firing ? 0.35 : 0, t, 0.1);
+      if (!dead && !sup && heat >= 0.75 && t >= nextCrack) {
+        v.noise(t, { f: 2500 + 2000 * crackle(), q: 4, dur: 0.012, gain: avail ? 0.05 : 0.03 });
+        nextCrack = t + (avail ? 0.08 : 0.22) + crackle() * (avail ? 0.18 : 0.4);
+      }
+    },
+    silence(t) { ramp(out.gain, 0.0001, 0.0001, t, 0.001); ramp(dOut.gain, 0.0001, 0.0001, t, 0.001); lastLevel = 0; dLevel = 0; },
+    holdBed() {},
+    destroy() { for (const o of [o1, o2, o3, lfo, wob, d1, d2, dLfo]) { try { o.stop(); } catch (_) { /* */ } } for (const g of [out, dOut, cBus]) { try { g.disconnect(); } catch (_) { /* */ } } },
   };
 }
 
@@ -259,9 +440,9 @@ export function createB2Audio(kind, opts = {}) {
       ctx = d.ctx;
       const comp = ctx.createDynamicsCompressor();
       comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 5; comp.attack.value = 0.002; comp.release.value = 0.12;
-      bus = ctx.createGain(); bus.gain.value = 0.9;
+      bus = ctx.createGain(); bus.gain.value = 0.9 * (kind === 'B2' ? B2_TRIM : 1);
       bus.connect(comp); comp.connect(d.sfxGain);
-      kit = kind === 'A' ? kitA(ctx, bus, stats, now) : kitB(ctx, bus, stats, now);
+      kit = kind === 'A' ? kitA(ctx, bus, stats, now) : kind === 'B2' ? kitB2(ctx, bus, stats, now) : kitB(ctx, bus, stats, now);
     }
     stats.live = opts.now ? true : ctx.state === 'running';
     return stats.live;
@@ -269,6 +450,9 @@ export function createB2Audio(kind, opts = {}) {
   const now = () => (opts.now ? opts.now() : ctx.currentTime);
   const at = (late = 0) => Math.max(now(), now() + LOOK - late / 1000);
   let press = 0, lastShotT = -1, lastStage = 0, firing = false;
+  // B2: "the Super can be released" — full, not suppressed, alive; seeded from the first frame
+  let avail = null, wasDead = false, wasSup = false;
+  stats.confirms = 0; stats.cuts = 0;
   return {
     stats, kind,
     shot(o) {
@@ -288,21 +472,31 @@ export function createB2Audio(kind, opts = {}) {
     lockTick(k) { ev('lock'); if (ready()) kit.lock(at(), k); },
     duck() { if (!ready() || now() - lastDuck < 0.18) return; lastDuck = now(); stats.ducks++; if (!opts.ctx) duckMusic(0.32, 340); },
     // R2 events
-    windup() { ev('windup'); if (!ready()) return; const t = at(); kit.holdBed?.(t, t + 0.7); kit.windup(t); },
+    windup() { ev('windup'); if (!ready()) return; const t = at(); if (kit.cutConfirm) { kit.cutConfirm(t); stats.cuts++; } kit.holdBed?.(t, t + 0.7); kit.windup(t); },
     release() { ev('release'); if (!ready()) return; const t = at(); kit.release(t); kit.cooldown(t + 0.32); if (!opts.ctx) duckMusic(0.45, 500); },
     superHit() { ev('superHit'); if (!ready() || now() - lastTick < 0.03) return; lastTick = now(); kit.superHit(at()); },
     /** The scene paused (or the hero died): the beds go silent until the next update. */
-    silence() { ev('silence'); if (ready()) kit.silence?.(now()); },
+    silence() { ev('silence'); if (ready()) { kit.silence?.(now()); if (kit.cutConfirm) { kit.cutConfirm(now()); stats.cuts++; } } },
     /** Per frame from the flagship: charge 0..1, the trigger, the meter full, suppressed. */
     update(dt, s) {
       ambT += dt;
       firing = !!s.firing;
       const k = s.heat >= 1 ? 4 : Math.floor(s.heat * 4);
       if (k > lastStage && k < 4) ev('stage');
+      const dead = s.dead ?? false, sup = s.sup ?? false;
+      const av = s.heat >= 1 && !dead && !sup;
+      const rose = avail !== null && av && !avail;
+      const cut = kind === 'B2' && ((dead && !wasDead) || (sup && !wasSup));
+      avail = av; wasDead = dead; wasSup = sup;
+      if (kind === 'B2' && rose) ev('confirm');
       if (!ready()) { lastStage = k; return; }
       if (k > lastStage && k < 4) kit.stage(at(), k);
       lastStage = k;
-      kit.bed?.(now(), { heat: s.heat, firing, ready: s.heat >= 1, suppressed: s.suppressed });
+      if (kind === 'B2') {
+        if (cut) { kit.cutConfirm(now()); stats.cuts++; }
+        if (rose) { kit.confirm(at()); stats.confirms++; }
+      }
+      kit.bed?.(now(), { heat: s.heat, firing, ready: s.heat >= 1, suppressed: s.suppressed, dead, sup });
     },
     destroy() { try { kit?.destroy?.(); } catch (_) { /* */ } try { bus?.disconnect(); } catch (_) { /* */ } kit = null; void motorUntil; },
   };
