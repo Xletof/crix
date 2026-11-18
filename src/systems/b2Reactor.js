@@ -254,6 +254,38 @@ function buildAtlas(scene, K) {
   return tex;
 }
 
+// ── B2-R3: the reactor CHOKED (full, but the Super is suppressed) ─────────
+// Every channel stays lit, so the charge reads as kept, but in ruby with no hot highlight,
+// no pressure pulse and no threads; the lens goes cold grey and a steel clamp closes across
+// the channel between the core and the barrel. `gun-8sf` is the strain: the core pushes to
+// crimson for one beat against the clamp.
+export const R3_KEY = 'b2r3';
+export const R3_CHOKE = { strainMs: 900, strainOnMs: 90 };
+function buildR3Gun(scene) {
+  if (scene.textures.exists(R3_KEY)) return scene.textures.get(R3_KEY);
+  const base = readRifle(scene);
+  const tex = scene.textures.createCanvas(R3_KEY, 2 * (18 * GG + 2) + 2, 10 * GG + 2), ctx = tex.getContext();
+  const paint = (name, i, strain) => {
+    const gr = base ? base.map((r) => r.slice()) : null;
+    if (gr) {
+      CH.forEach((x, j) => {
+        const core = j < 2;
+        gr[4][x] = core ? (strain ? CRIM : '#a8143f') : (strain && j < 4 ? '#a8143f' : RUBY);
+        gr[5][x] = x >= 12 ? '#3a0609' : mix(base[5][x], '#3a0609', 0.6);
+        if (base[3][x] && base[3][x] !== OUT) gr[3][x] = mix(base[3][x], RUBY, 0.3);
+      });
+      gr[1][10] = '#7c8794'; gr[2][10] = '#3c434c';                  // the lens: cold
+      gr[3][10] = '#aab3bd'; gr[4][10] = '#8f99a6'; gr[5][10] = '#5a626c';   // the clamp
+    }
+    const x0 = 1 + i * (18 * GG + 2);
+    if (gr) gr.forEach((row, y) => row.forEach((c, x) => { if (c) { ctx.fillStyle = c; ctx.fillRect(x0 + x * GG, 1 + y * GG, GG, GG); } }));
+    tex.add(name, 0, x0, 1, 18 * GG, 10 * GG);
+  };
+  paint('gun-8s', 0, false); paint('gun-8sf', 1, true);
+  tex.refresh();
+  return tex;
+}
+
 function readRifle(scene) {
   if (!scene.textures.exists('p1-rifle') || typeof document === 'undefined') return null;
   const src = scene.textures.get('p1-rifle').getSourceImage();
@@ -295,6 +327,8 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
     r2: IS2 ? { links: { drawn: 0, checks: 0, bad: 0, maxLen: 0, muzzle: 0, joined: 0, retract: 0, broken: 0 }, dis: [0, 0, 0, 0], wall: [0, 0, 0], burn: [0, 0, 0, 0], ends: {}, plates: { shown: 0, hits: 0, breaks: 0 }, arcs: 0, hidden: { shield: 0, ring: 0 } } : null,
   };
   if (IS2) stats.name = IS3 ? 'reactor3' : 'reactor2';
+  if (IS3) { buildR3Gun(scene); stats.r3 = { choked: 0, strain: 0 }; }
+  const suppressedNow = () => (scene.player?._suppressedMs || 0) > 0;
   const pools = {}, pool = [];
   let out = 0;
   const img = (frame, key = KEY) => {
@@ -403,6 +437,13 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   function gunFrame() {
     if (winding()) return clock - windupAt < REACTOR.windupMs[0] ? 'gun-w0' : 'gun-w1';
     const k = reactorStep(api.charge01());
+    // R3: full but suppressed — choked, ahead of the shot flash (a shot must not flash "ready").
+    // On release from the suppression the ready pulse starts again from its first step.
+    if (IS3 && k >= 8 && suppressedNow()) {
+      lastK = 7; stats.gun.n = 10; stats.gun.stage = 4; stats.r3.choked++;
+      if (clock % R3_CHOKE.strainMs < R3_CHOKE.strainOnMs) { stats.r3.strain++; return 'gun-8sf'; }
+      return 'gun-8s';
+    }
     if (k > lastK && k < 8) { igniteUntil = clock + REACTOR.igniteMs; stats.ignites++; }
     if (k === 8 && lastK < 8) readyAt = clock;
     lastK = k;
@@ -421,6 +462,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   function swirlFrame() {
     if (winding()) return null;
     const k = reactorStep(api.charge01());
+    if (IS3 && k >= 8 && suppressedNow()) return null;          // choked: the threads stop
     if (k >= 8) return `sw-${Math.floor(clock / REACTOR.swirlMs) % REACTOR.swirlFrames}`;
     if (k >= 6) return `sh-${Math.floor(clock / REACTOR.swirlSlowMs) % REACTOR.swirlFrames}`;
     return null;
@@ -434,6 +476,8 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   }
   const sameAs = (o, v) => o.x === v.x && o.y === v.y && o.rotation === v.rotation && o.flipY === v.flipY && o.alpha === v.alpha;
   function follow(o, v, frame, dz, ox = v.originX, oy = v.originY) {
+    const tk = frame.startsWith('gun-8s') ? R3_KEY : KEY;
+    if (o.texture.key !== tk) o.setTexture(tk);
     o.setFrame(frame).setOrigin(ox, oy).setPosition(v.x, v.y).setRotation(v.rotation).setFlipY(v.flipY).setAlpha(v.alpha).setDepth(v.depth + dz).setVisible(true);
   }
   function updateGun(p) {
