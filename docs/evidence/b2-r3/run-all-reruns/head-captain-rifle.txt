@@ -1,0 +1,22 @@
+  ok    the per-round intercept solver is GONE, not merely unused
+  ok    and the rifle cannot read the player's Super either
+  ok    the commitment is 3 to 6 rounds — variable, and still a controlled rifle
+  ok    and every authored length is inside that band
+  ok    the distribution is AUTHORED, not uniform — §18 forbids a flat roll
+  ok    ONE FREE CHOICE — which side the sweep starts on, and nothing else
+  ok    the corridor is bounded — a route is not an arena traversal
+  ok    he opened real commitments in a real fight
+  ok    ONE PLAN PER COMMITMENT, NEVER ONE PER ROUND — the whole point of the law
+  ok    every drawn length is inside 3-6
+  ok    and the burst fires exactly the length it drew — the count is decided ONCE
+  ok    the lengths actually VARY — a fixed three is what the handset rejected
+  ok    EVERY ROUND OF A BURST LIES ON THE ONE COMMITTED CORRIDOR, and stopping dead mid-burst does not move it
+  ok    each commitment carries exactly one named spray shape
+  ok    NO HOMING — a round in flight keeps the velocity it left with
+  ok    several multi-round bursts were observed end to end
+  ok    EVERY BURST SWEEPS ONE WAY — no round steps back along its own corridor
+  ok    and the corridor dies with the commitment — no plan outlives a brace or a burst
+  ok    a stationary player produces a STILL plan every time
+  ok    and that plan is the authored fan, not a corridor
+  ok    STANDING STILL IS NOT SAFE — every round is aimed inside the fan around them
+PASS: 21 checks — one plan per commitment, drawn once, executed whole, never re-solved

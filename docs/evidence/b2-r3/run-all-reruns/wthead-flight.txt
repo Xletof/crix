@@ -1,0 +1,90 @@
+{
+  "n": 8,
+  "perMunition": [
+    {
+      "sinuosity": 2.238,
+      "turnedDeg": 195,
+      "peakSpeed": 1734,
+      "peakHSpeed": 1471,
+      "peakVSpeed": 1431,
+      "arrivalSpeed": 1462,
+      "arrivalFrac": 0.843
+    },
+    {
+      "sinuosity": 2.701,
+      "turnedDeg": 215,
+      "peakSpeed": 1869,
+      "peakHSpeed": 1472,
+      "peakVSpeed": 1591,
+      "arrivalSpeed": 1845,
+      "arrivalFrac": 0.987
+    },
+    {
+      "sinuosity": 1.959,
+      "turnedDeg": 177,
+      "peakSpeed": 2409,
+      "peakHSpeed": 1471,
+      "peakVSpeed": 2200,
+      "arrivalSpeed": 2107,
+      "arrivalFrac": 0.875
+    },
+    {
+      "sinuosity": 3.016,
+      "turnedDeg": 228,
+      "peakSpeed": 2276,
+      "peakHSpeed": 1472,
+      "peakVSpeed": 2054,
+      "arrivalSpeed": 1745,
+      "arrivalFrac": 0.767
+    },
+    {
+      "sinuosity": 1.109,
+      "turnedDeg": 91,
+      "peakSpeed": 3033,
+      "peakHSpeed": 1471,
+      "peakVSpeed": 2652,
+      "arrivalSpeed": 2110,
+      "arrivalFrac": 0.696
+    },
+    {
+      "sinuosity": 2.081,
+      "turnedDeg": 194,
+      "peakSpeed": 2329,
+      "peakHSpeed": 1471,
+      "peakVSpeed": 2113,
+      "arrivalSpeed": 2057,
+      "arrivalFrac": 0.883
+    },
+    {
+      "sinuosity": 2.814,
+      "turnedDeg": 291,
+      "peakSpeed": 3616,
+      "peakHSpeed": 1471,
+      "peakVSpeed": 3303,
+      "arrivalSpeed": 1695,
+      "arrivalFrac": 0.469
+    },
+    {
+      "sinuosity": 2.01,
+      "turnedDeg": 187,
+      "peakSpeed": 2443,
+      "peakHSpeed": 1472,
+      "peakVSpeed": 2200,
+      "arrivalSpeed": 1393,
+      "arrivalFrac": 0.57
+    }
+  ],
+  "avgSinuosity": 2.241,
+  "avgTurnedDeg": 197,
+  "maxTurnedDeg": 291,
+  "avgArrivalFrac": 0.761,
+  "avgPeakSpeed": 2464,
+  "maxHSpeed": 1472,
+  "maxVSpeed": 3303,
+  "maxFlamesSeen": 8
+}
+page errors: none
+
+FAIL:
+ - horizontal peak 1472px/s is over fragMaxSpeed — the cap is not holding
+ - vertical peak 3303px/s is over fragMaxSink — the descent is spiking again

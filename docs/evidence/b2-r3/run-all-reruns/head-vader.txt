@@ -1,0 +1,117 @@
+  ok    the ladder carries no stat-only entries
+  ok    and has a mechanic for each of the early encounters
+  ok    every id the ladder table names exists in the registry
+  ok    the cadence table covers every rung of the ladder
+  ok    the FIRST Vader has DEFLECTION
+  ok    and a live reflect clock, not just the flag
+  ok    and SUNDERING SLAM on a running clock — the recurring event that fills the dead air
+  ok    and the full scripted rotation from the first fight
+  ok    the rotation does NOT widen with the encounter — it never did
+  ok    the first Vader still has none of the late mechanics
+  ok    and each rung strictly gains on the one before it
+  ok    the ladder is cumulative — nothing is taken back
+  ok    the last rung carries THE DARK and LEGION
+  ok    mechanic clocks tighten down the ladder
+  ok    but DEFLECTION keeps its frozen 9s cadence at every rung
+  ok    and a bigger pool each time
+  ok    hp scaling is applied exactly once, linearly in the boss number
+  ok    and DAMAGE does not scale with the encounter at all
+  ok    every rung spawns at full hp in phase 1 with both thresholds still ahead of him
+  ok    a shot with the saber DOWN lands (the control)
+  ok    and the same shot with the saber UP deals nothing
+  ok    it is turned around — exactly one deflection, and only while guarding
+  ok    and the window closes on its own
+  ok    this block's shot really was deflected
+  ok    the returned bolt wears the PLAYER bolt texture, not the green enemy one
+  ok    and it put nothing at all in the green enemy pool
+  ok    it comes back at the speed it went out at
+  ok    and with the reach to get home
+  ok    turning a bolt puts Vader in a parry
+  ok    and a parry swings his blade off its guard to the bearing it was given
+  ok    both Supers are available before he takes them
+  ok    SUPPRESSED fires on a player carrying no secondary at all
+  ok    and it does not throw anything on the floor
+  ok    PRIMARY FIRE KEEPS WORKING while suppressed
+  ok    and dash keeps working
+  ok    the ranged Super is blocked
+  ok    Broken Wings is blocked too
+  ok    and a live Broken Wings chain cannot be continued through it
+  ok    a blocked attempt spends NOTHING
+  ok    switching Super mode is not a way round it
+  ok    both Super controls read as unavailable on the HUD
+  ok    it lasts the configured 4000ms
+  ok    a second activation REFRESHES rather than stacking or being ignored
+  ok    both Supers come back when it expires
+  ok    and the HUD controls relight
+  ok    a secondary in hand is neither required nor taken
+  ok    and the mechanic behaves identically whatever is equipped
+  ok    a death clears the lock
+  ok    the arena carries no darkness tint with the lights on
+  ok    every arena object declares which material it darkens as
+  ok    LIGHTS OUT darkens the ARENA ITSELF — the floor loses its ambient light
+  ok    structure falls to silhouette without being erased
+  ok    terminals stay powered while the room around them does not
+  ok    the endless ambient colour wash goes out with the room
+  ok    and the arena comes back exactly as it was
+  ok    including the sector wash
+  ok    combat presentation is exempt BY CONSTRUCTION, not by a list
+  ok    the power CUTS — it does not dim
+  ok    and the secondary vignette rides with it, then leaves
+  ok    no circular geometry anywhere the fight happens
+  ok    and the falloff is broad and soft rather than a wall
+  ok    the vignette never gets to own the frame
+  ok    the overlay is screen-locked and exactly VIEW-sized
+  ok    the persistent DARKNESS room modifier is untouched
+  ok    a request against an idle arena is accepted
+  ok    a request during darkness is deferred, and a second one coalesces — ONE pending maximum
+  ok    and nothing extends an active darkness
+  ok    ECLIPSE displaces a pending standalone BLACKOUT
+  ok    and a standalone BLACKOUT can never displace a pending ECLIPSE
+  ok    the re-entry interval is measured from the END of darkness
+  ok    and the arena is already back when the cooldown starts
+  ok    no activation before the minimum re-entry interval
+  ok    the standalone BLACKOUT mechanic goes through the owner
+  ok    ECLIPSE does not fire its clones into a lit room
+  ok    and the composition arrives whole when the arena is eligible
+  ok    below encounter 6 AFTERIMAGES is exactly what it was — clones, no darkness
+  ok    a teardown clears state, pending, both timers and every tint
+  ok    LIGHTS OUT writes nothing to his attack scheduler
+  ok    DEFLECTION keeps its own frozen cadence, unconditional on any of it
+  ok    and no move carries an exclusion rule against another mechanic
+  ok    afterimages spawn
+  ok    wearing HIS silhouette, not a tinted grunt
+  ok    and dying to a single hit
+  ok    while the real one shrugs off the same hit — that is how you tell them apart
+  ok    each encounter can be driven down
+  ok    Vader is never KILLED in endless — he withdraws
+  ok    each time as a wound
+  ok    and he returns harder AND weirder each time
+  ok    the test put the room transition back
+  ok    the punish probe is aimed at a retreating Vader
+  ok    a hit that is only lethal AFTER the punish bonus still WOUNDS him, never kills
+  ok    a big hit lands in FULL — there is no intake cap
+  ok    and no per-boss cap field survives to be re-enabled by accident
+  ok    the LIGHTS OUT saber treatment exists and is config-driven
+  ok    in normal light the approved saber is untouched — no glow layer is drawn
+  ok    and in the dark arena BOTH emissive layers come up
+  ok    both are ADDITIVE — light added to darkness, not paint laid over it
+  ok    the glow IS the blade's pose on the frame it appears — position and rotation, same frame
+  ok    the glow IS the blade's pose and still a beat later — position and rotation, same frame
+  ok    and so is the tight bloom — one pose, three layers, no second author
+  ok    the glow is VISUAL — nothing it added can be collided with
+  ok    the SABER THROW probe actually threw the blade
+  ok    while it is away he is genuinely unarmed
+  ok    and the light goes WITH the blade — no phantom glowing saber at his hand
+  ok    restoration takes the LIGHTS OUT-only treatment away with the darkness
+  ok    and destroying him removes the postupdate reader — no handler outlives the room
+  ok    FROZEN: the approved LIGHTS OUT cadence is untouched by this pass
+  ok    FROZEN: the arena material values and transition timings are untouched
+  ok    FROZEN: the vignette geometry is untouched
+  ok    FROZEN: SUPPRESSION lasts 4000ms
+  ok    FROZEN: every DEFLECTION timing is untouched
+  ok    FROZEN: the returned super travels at the player's own super speed, 1080
+  ok    FROZEN: the return damage schedule is 180 + 55 per pellet, over 5 pellets
+  ok    FROZEN: a full five-pellet super comes back as 455 — THIS is the delivered damage
+  ok    FROZEN: 620 is the CEILING and it is not reached — never report it as the damage
+  ok    FROZEN: Afterimages scheduling and clone count are untouched
+PASS: 116 checks — the ladder is mechanics, not multipliers

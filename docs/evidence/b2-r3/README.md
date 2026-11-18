@@ -221,7 +221,7 @@ build `40adb64` (B2-R2's deploy) where a suite takes `--old`.
 | `smoke-controls` | PASS | |
 | `smoke-restart` | PASS (16 checks) | |
 | production bundle (`npm run build`, `vite preview`) | no page errors | the four links and a plain boot; `after/production-bundle-*.jpg` |
-| `run-all` (52 suites) | RUNALL_HERE | |
+| `run-all` (52 suites) | 42/52 | every failure re-run standalone on this build and on `40adb64`: three pass standalone (load), seven fail on both builds (inherited; two intermittent) — `run-all-reruns/README.md` |
 
 Seeded parity: B2-R3 + audio B2 = B2-B tick for tick (state, ammo, meters, every
 enemy, bolt and pellet, `Math.random` draws, events) over three 1500-tick fights

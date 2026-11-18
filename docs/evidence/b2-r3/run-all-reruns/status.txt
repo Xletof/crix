@@ -1,0 +1,54 @@
+head boss-moves exit 1 62s FAIL: 3 of 18 checks failed: and costs them a dash charge; a live move really does paint a zone (the control); and cance
+head champion exit 1 46s page.evaluate: TypeError: Cannot read properties of null (reading 'phase')
+head champion-placement exit 1 378s FAIL: 7 of 60 checks failed: EXACTLY ONE Captain token, in his authored lead slot; every other event is the SAME event, 
+head captel exit 1 121s FAIL: 2 of 22 checks failed: the Super count is the real `player-fire-super` count; pellets come from the blast that rea
+head captain-rifle exit 0 116s PASS: 21 checks — one plan per commitment, drawn once, executed whole, never re-solved
+head captain-visual exit 1 49s FAIL: 1 of 17 checks failed: a state change swaps the sheet and KEEPS the pose — the cycle is not restarted
+head deflect exit 0 44s PASS: 73 checks — he bats your fire back and keeps your power
+head flight exit 1 12s FAIL:
+head pathing exit 1 12s FAIL: efficiency 1.05 exceeds 1.0 — the sampler is dropping movement, not the game pathing well
+head vader exit 0 83s PASS: 116 checks — the ladder is mechanics, not multipliers
+head DONE
+old boss-moves exit 0 60s PASS: 18 checks — Vader performs his own moves, and his copies bite
+old champion exit 1 45s page.evaluate: TypeError: Cannot read properties of null (reading 'phase')
+old champion-placement exit 1 385s FAIL: 6 of 60 checks failed: EXACTLY ONE Captain token, in his authored lead slot; every other event is the SAME event, 
+old captel exit 1 123s FAIL: 2 of 22 checks failed: the Super count is the real `player-fire-super` count; pellets come from the blast that rea
+old captain-visual exit 1 48s FAIL: 1 of 17 checks failed: a state change swaps the sheet and KEEPS the pose — the cycle is not restarted
+old flight exit 0 13s PASS: curved attack run, arrives under power, exhaust lit
+old pathing exit 1 13s FAIL: efficiency 1.02 exceeds 1.0 — the sampler is dropping movement, not the game pathing well
+old DONE
+oldrep boss-moves exit 0 64s PASS: 18 checks — Vader performs his own moves, and his copies bite
+oldrep flight exit 0 13s PASS: curved attack run, arrives under power, exhaust lit
+oldrep boss-moves exit 1 65s FAIL: 3 of 18 checks failed: and costs them a dash charge; a live move really does paint a zone (the control); and cance
+oldrep flight exit 0 13s PASS: curved attack run, arrives under power, exhaust lit
+oldrep boss-moves exit 0 67s PASS: 18 checks — Vader performs his own moves, and his copies bite
+oldrep flight exit 0 12s PASS: curved attack run, arrives under power, exhaust lit
+oldrep DONE
+headrep flight exit 1 12s FAIL:
+headrep boss-moves exit 1 61s FAIL: 3 of 18 checks failed: FORCE PUSH shoves the player; a live move really does paint a zone (the control); and cance
+headrep flight exit 1 13s FAIL:
+wthead flight exit 0 13s PASS: curved attack run, arrives under power, exhaust lit
+wthead flight exit 0 12s PASS: curved attack run, arrives under power, exhaust lit
+wthead boss-moves exit 1 60s FAIL: 2 of 18 checks failed: a live move really does paint a zone (the control); and cancelling the move wipes it off th
+wthead flight exit 1 12s FAIL:
+wthead boss-moves exit 1 60s FAIL: 2 of 18 checks failed: a live move really does paint a zone (the control); and cancelling the move wipes it off th
+wthead DONE
+wthead2 flight exit 1 12s FAIL:
+wthead2 flight exit 1 12s FAIL:
+wthead2 flight exit 1 13s FAIL:
+wthead2 flight exit 1 12s FAIL:
+wthead2 flight exit 0 12s PASS: curved attack run, arrives under power, exhaust lit
+wthead2 flight exit 0 13s PASS: curved attack run, arrives under power, exhaust lit
+wthead2 DONE
+old2 flight exit 0 13s PASS: curved attack run, arrives under power, exhaust lit
+old2 flight exit 1 12s FAIL:
+old2 flight exit 0 13s PASS: curved attack run, arrives under power, exhaust lit
+old2 flight exit 1 12s FAIL:
+old2 flight exit 1 12s FAIL:
+old2 flight exit 1 12s FAIL:
+old2 DONE
+old3 boss-moves exit 1 59s FAIL: 1 of 18 checks failed: and costs them a dash charge
+old3 boss-moves exit 1 60s FAIL: 1 of 18 checks failed: and costs them a dash charge
+old3 boss-moves exit 1 58s FAIL: 2 of 18 checks failed: a live move really does paint a zone (the control); and cancelling the move wipes it off th
+old3 boss-moves exit 1 59s FAIL: 3 of 18 checks failed: FORCE PUSH shoves the player; a live move really does paint a zone (the control); and cance
+old3 DONE

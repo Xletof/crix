@@ -1,0 +1,88 @@
+{
+  "n": 8,
+  "perMunition": [
+    {
+      "sinuosity": 2.5,
+      "turnedDeg": 227,
+      "peakSpeed": 2413,
+      "peakHSpeed": 982,
+      "peakVSpeed": 2204,
+      "arrivalSpeed": 2107,
+      "arrivalFrac": 0.873
+    },
+    {
+      "sinuosity": 3.769,
+      "turnedDeg": 223,
+      "peakSpeed": 2408,
+      "peakHSpeed": 982,
+      "peakVSpeed": 2200,
+      "arrivalSpeed": 2408,
+      "arrivalFrac": 1
+    },
+    {
+      "sinuosity": 2.873,
+      "turnedDeg": 205,
+      "peakSpeed": 2413,
+      "peakHSpeed": 982,
+      "peakVSpeed": 2205,
+      "arrivalSpeed": 2109,
+      "arrivalFrac": 0.874
+    },
+    {
+      "sinuosity": 2.732,
+      "turnedDeg": 214,
+      "peakSpeed": 1564,
+      "peakHSpeed": 982,
+      "peakVSpeed": 1220,
+      "arrivalSpeed": 1338,
+      "arrivalFrac": 0.856
+    },
+    {
+      "sinuosity": 2.474,
+      "turnedDeg": 207,
+      "peakSpeed": 1618,
+      "peakHSpeed": 982,
+      "peakVSpeed": 1286,
+      "arrivalSpeed": 1370,
+      "arrivalFrac": 0.847
+    },
+    {
+      "sinuosity": 1.795,
+      "turnedDeg": 182,
+      "peakSpeed": 1772,
+      "peakHSpeed": 982,
+      "peakVSpeed": 1476,
+      "arrivalSpeed": 1521,
+      "arrivalFrac": 0.858
+    },
+    {
+      "sinuosity": 1.696,
+      "turnedDeg": 181,
+      "peakSpeed": 2409,
+      "peakHSpeed": 982,
+      "peakVSpeed": 2200,
+      "arrivalSpeed": 2408,
+      "arrivalFrac": 1
+    },
+    {
+      "sinuosity": 5.413,
+      "turnedDeg": 250,
+      "peakSpeed": 2323,
+      "peakHSpeed": 978,
+      "peakVSpeed": 2200,
+      "arrivalSpeed": 1317,
+      "arrivalFrac": 0.567
+    }
+  ],
+  "avgSinuosity": 2.907,
+  "avgTurnedDeg": 211,
+  "maxTurnedDeg": 250,
+  "avgArrivalFrac": 0.859,
+  "avgPeakSpeed": 2115,
+  "maxHSpeed": 982,
+  "maxVSpeed": 2205,
+  "maxFlamesSeen": 8
+}
+page errors: none
+
+PASS: curved attack run, arrives under power, exhaust lit

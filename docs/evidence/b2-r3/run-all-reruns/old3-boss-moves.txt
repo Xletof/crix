@@ -1,0 +1,19 @@
+  ok    Vader HAS a move kit
+  ok    and a clock to fire it on
+  ok    SABER THROW sends the saber away from his hand
+  ok    and he is unarmed while it is gone
+  ok    and open when it comes back
+  ok    FORCE PULL drags the player against their input
+  ok    VANISH relocates him
+  FAIL  FORCE PUSH shoves the player — moved 54px
+  ok    and costs them a dash charge
+  FAIL  a live move really does paint a zone (the control) — -1 telegraph(s)
+  FAIL  and cancelling the move wipes it off the floor — -1 left behind — cancel used to clear only the TIMERS, so the zone kept filling and flashing for an attack that was never coming
+  ok    his rotation has real variety from phase 1
+  ok    and VANISH is NOT on it — it is a reaction to being hurt, not a timer
+  ok    his charge now draws a LANE on the floor
+  ok    afterimages spawn
+  ok    and die to a single hit
+  ok    while the real one does not — that is how you tell them apart
+  ok    standing among them HURTS — they are a threat, not scenery
+FAIL: 3 of 18 checks failed: FORCE PUSH shoves the player; a live move really does paint a zone (the control); and cancelling the move wipes it off the floor

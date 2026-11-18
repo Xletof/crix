@@ -1,0 +1,18 @@
+  ok    three authored body sheets exist — intact, broken, critical
+  ok    and all three are DIFFERENT PAINTED SHEETS, not one texture tinted
+  ok    the body state follows the authoritative armour and health transitions
+  ok    THE DAMAGE TURNS WITH HIM — four facings give four different anchor offsets
+  ok    and every anchor sits on the body rather than beside it
+  FAIL  a state change swaps the sheet and KEEPS the pose — the cycle is not restarted — captain-idle-front#1 -> captainbrk-idle-front#1
+  ok    the electrical failure is an EVENT — nothing persistent is drawn over the actor
+  ok    and nothing it owned outlives it
+  ok    the field reached its live phase
+  ok    the gameplay radius is the authored one, untouched by this pass
+  ok    inside, near-edge and EXACTLY ON the boundary are all dangerous, at eight bearings
+  ok    and a fifth of a percent outside is already safe — no invisible dangerous annulus
+  ok    the perimeter is built from deliberate nodes sitting EXACTLY on the real radius
+  ok    and the drawn geometry is DERIVED from that radius — halve it and the nodes move
+  ok    ONE physical device owns the whole lifecycle — it flies, and it stays as the source
+  ok    the device is drawn above the actor band while it is the thing to watch
+  ok    and the device is destroyed with the field — no orphan Image
+FAIL: 1 of 17 checks failed: a state change swaps the sheet and KEEPS the pose — the cycle is not restarted

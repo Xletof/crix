@@ -1,0 +1,1 @@
+FAIL: efficiency 1.05 exceeds 1.0 — the sampler is dropping movement, not the game pathing well

@@ -1,0 +1,89 @@
+{
+  "n": 8,
+  "perMunition": [
+    {
+      "sinuosity": 2.303,
+      "turnedDeg": 203,
+      "peakSpeed": 2192,
+      "peakHSpeed": 1471,
+      "peakVSpeed": 1625,
+      "arrivalSpeed": 1481,
+      "arrivalFrac": 0.676
+    },
+    {
+      "sinuosity": 2.522,
+      "turnedDeg": 214,
+      "peakSpeed": 1918,
+      "peakHSpeed": 982,
+      "peakVSpeed": 1648,
+      "arrivalSpeed": 1683,
+      "arrivalFrac": 0.878
+    },
+    {
+      "sinuosity": 2.589,
+      "turnedDeg": 200,
+      "peakSpeed": 2408,
+      "peakHSpeed": 980,
+      "peakVSpeed": 2200,
+      "arrivalSpeed": 2106,
+      "arrivalFrac": 0.874
+    },
+    {
+      "sinuosity": 2.089,
+      "turnedDeg": 187,
+      "peakSpeed": 2403,
+      "peakHSpeed": 980,
+      "peakVSpeed": 2195,
+      "arrivalSpeed": 2106,
+      "arrivalFrac": 0.876
+    },
+    {
+      "sinuosity": 2.331,
+      "turnedDeg": 219,
+      "peakSpeed": 2408,
+      "peakHSpeed": 980,
+      "peakVSpeed": 2200,
+      "arrivalSpeed": 2106,
+      "arrivalFrac": 0.874
+    },
+    {
+      "sinuosity": 2.158,
+      "turnedDeg": 204,
+      "peakSpeed": 2409,
+      "peakHSpeed": 980,
+      "peakVSpeed": 2200,
+      "arrivalSpeed": 2108,
+      "arrivalFrac": 0.875
+    },
+    {
+      "sinuosity": 1.979,
+      "turnedDeg": 156,
+      "peakSpeed": 2408,
+      "peakHSpeed": 980,
+      "peakVSpeed": 2200,
+      "arrivalSpeed": 1694,
+      "arrivalFrac": 0.704
+    },
+    {
+      "sinuosity": 1.481,
+      "turnedDeg": 173,
+      "peakSpeed": 2408,
+      "peakHSpeed": 980,
+      "peakVSpeed": 2200,
+      "arrivalSpeed": 2406,
+      "arrivalFrac": 0.999
+    }
+  ],
+  "avgSinuosity": 2.182,
+  "avgTurnedDeg": 195,
+  "maxTurnedDeg": 219,
+  "avgArrivalFrac": 0.844,
+  "avgPeakSpeed": 2319,
+  "maxHSpeed": 1471,
+  "maxVSpeed": 2200,
+  "maxFlamesSeen": 8
+}
+page errors: none
+
+FAIL:
+ - horizontal peak 1471px/s is over fragMaxSpeed — the cap is not holding
