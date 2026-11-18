@@ -451,7 +451,8 @@ export function createB2Audio(kind, opts = {}) {
   const at = (late = 0) => Math.max(now(), now() + LOOK - late / 1000);
   let press = 0, lastShotT = -1, lastStage = 0, firing = false;
   // B2: "the Super can be released" — full, not suppressed, alive; seeded from the first frame
-  let avail = null, wasDead = false, wasSup = false;
+  let avail = null, wasDead = false, wasSup = false, lastConfirm = -1e9;
+  const CONFIRM_GAP = 500;            // ms of game time: a meter that touches full twice in a breath confirms once
   stats.confirms = 0; stats.cuts = 0;
   return {
     stats, kind,
@@ -485,7 +486,8 @@ export function createB2Audio(kind, opts = {}) {
       if (k > lastStage && k < 4) ev('stage');
       const dead = s.dead ?? false, sup = s.sup ?? false;
       const av = s.heat >= 1 && !dead && !sup;
-      const rose = avail !== null && av && !avail;
+      const rose = avail !== null && av && !avail && ambT - lastConfirm >= CONFIRM_GAP;
+      if (rose) lastConfirm = ambT;
       const cut = kind === 'B2' && ((dead && !wasDead) || (sup && !wasSup));
       avail = av; wasDead = dead; wasSup = sup;
       if (kind === 'B2' && rose) ev('confirm');
