@@ -275,6 +275,11 @@ export const R2 = {
  *  plates instead of the P1 rings and the shield bubble, and the dense Super mass. */
 export function createReactorSkin(scene, api, K, h, opts = {}) {
   const IS2 = !!opts.r2;
+  // B2-R3 (`&b2r=3`, HUMAN direction 2026-11-18) is B2-R2 with: no stream ribbon (each round is
+  // its own slug, glow and dissipation, nothing joins them), B2-B's own Super (none of the
+  // Super code below is installed), shield highlights on the hero's armour edges instead of
+  // the plates, and a choked reactor while the Super is suppressed.
+  const IS3 = IS2 && !!opts.r3;
   const tex = buildAtlas(scene, K), KEY = tex.key;
   if (IS2) buildR2Atlas(scene);
   const has = (f) => !!tex.frames[f];
@@ -289,7 +294,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
     pellet: { hidden: 0, restored: 0 },
     r2: IS2 ? { links: { drawn: 0, checks: 0, bad: 0, maxLen: 0, muzzle: 0, joined: 0, retract: 0, broken: 0 }, dis: [0, 0, 0, 0], wall: [0, 0, 0], burn: [0, 0, 0, 0], ends: {}, plates: { shown: 0, hits: 0, breaks: 0 }, arcs: 0, hidden: { shield: 0, ring: 0 } } : null,
   };
-  if (IS2) stats.name = 'reactor2';
+  if (IS2) stats.name = IS3 ? 'reactor3' : 'reactor2';
   const pools = {}, pool = [];
   let out = 0;
   const img = (frame, key = KEY) => {
@@ -313,7 +318,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
       v.glow = low() ? null : img(`sglow-${v.st}`, R2_KEY).setOrigin(1, 0.5).setVisible(false);
       v.bolt = img(`slug-${v.st}`, R2_KEY).setOrigin(1, 0.5).setVisible(false);
       v.n = rec.n; v.t0 = clock; v.cx = Math.cos(v.ang); v.cy = Math.sin(v.ang); v.seen = -1;
-      chain.push(v);
+      if (!IS3) chain.push(v);           // R3 draws no ribbon: nothing needs the firing order
       return;
     }
     v.glow = low() ? null : img(`glow-${v.st}`).setOrigin(1, 0.5).setVisible(false);
@@ -768,7 +773,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
       updateMuzzle(dt, p);
       updateGun(p);
       updateSuper(dt, p);
-      if (IS2) { updateLinks(dt, p); updateDissolves(dt); updateHero(p); }
+      if (IS2) { if (!IS3) updateLinks(dt, p); updateDissolves(dt); updateHero(p); }
       frameNo++;              // rounds b2Feel draws next frame carry the next number
     },
     destroy() {

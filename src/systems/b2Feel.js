@@ -432,7 +432,7 @@ export function installB2Feel(scene, api, K, voice) {
   // TEMPER: created after the wrappers above, so its own (the Super's shipped effects) sit
   // outside them and are restored first.
   // REACTOR OVERLOAD (`&b2r=1`, systems/b2Reactor.js) is a second skin on the same hooks; it wins if both are set.
-  if (api.reactor) { skin = createReactorSkin(scene, api, K, { muzzleNow, wrap }, { r2: api.reactor === 2 }); stats.reactor = skin.stats; }
+  if (api.reactor) { skin = createReactorSkin(scene, api, K, { muzzleNow, wrap }, { r2: api.reactor >= 2, r3: api.reactor === 3 }); stats.reactor = skin.stats; }
   else if (api.temper) { skin = createTemperSkin(scene, api, K, { muzzleNow, wrap }); stats.temper = skin.stats; }
   if (skin) stats.skin = skin.stats;
 

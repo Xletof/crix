@@ -261,7 +261,7 @@ export function createB2Audio(kind, opts = {}) {
       comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 5; comp.attack.value = 0.002; comp.release.value = 0.12;
       bus = ctx.createGain(); bus.gain.value = 0.9;
       bus.connect(comp); comp.connect(d.sfxGain);
-      kit = kind === 'B' ? kitB(ctx, bus, stats, now) : kitA(ctx, bus, stats, now);
+      kit = kind === 'A' ? kitA(ctx, bus, stats, now) : kitB(ctx, bus, stats, now);
     }
     stats.live = opts.now ? true : ctx.state === 'running';
     return stats.live;

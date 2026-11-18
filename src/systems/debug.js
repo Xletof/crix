@@ -317,9 +317,11 @@ export function isB2Candidate() { return b2Cand; }
  *  the gun as the charge meter, re-cut bolts, muzzle, contacts and Super release. Pixels only. */
 export function isB2Temper() { return b2Temper; }
 /** `&b2r=1`: REACTOR OVERLOAD, the second visual-language candidate over B2 (systems/b2Reactor.js):
- *  a violet-to-critical-red reactor on the gun, a connected glowing stream, a chunky Super. Pixels only. */
+ *  a violet-to-critical-red reactor on the gun, a connected glowing stream, a chunky Super. Pixels only.
+ *  `&b2r=2` B2-R2, `&b2r=3` B2-R3 (the level, 1..3; false when off). */
 export function isB2Reactor() { return b2Reactor; }
-/** `&b2a=A|B`: the B2-R2 audio candidates (systems/b2Audio.js): A heavy energy rifle, B plasma reactor. */
+/** `&b2a=A|B|B2`: the audio candidates (systems/b2Audio.js): A heavy energy rifle, B plasma reactor,
+ *  B2 the B2-R3 refinement of B (B stays as the control). */
 export function getB2Audio() { return b2Audio; }
 export function setB2(v, params = null) {
   const s = v == null ? '' : String(v).trim().toUpperCase();
@@ -330,9 +332,10 @@ export function setB2(v, params = null) {
   b2Debug = params.get('b2dbg') === '1';
   b2Cand = params.get('b2c') === '1';
   b2Temper = params.get('b2t') === '1';
-  // `&b2r=1` REACTOR OVERLOAD; `&b2r=2` B2-R2 (REACTOR's gun, the R2 stream, hero indicators and Super)
-  b2Reactor = params.get('b2r') === '2' ? 2 : params.get('b2r') === '1' ? 1 : false;
-  { const a = String(params.get('b2a') || '').toUpperCase(); b2Audio = a === 'A' || a === 'B' ? a : null; }
+  // `&b2r=1` REACTOR OVERLOAD; `&b2r=2` B2-R2 (REACTOR's gun, the R2 stream, hero indicators and Super);
+  // `&b2r=3` B2-R3 (R2 without the ribbon, B2-B's Super, armour-seam shield, a suppressed reactor)
+  { const r = params.get('b2r'); b2Reactor = r === '3' ? 3 : r === '2' ? 2 : r === '1' ? 1 : false; }
+  { const a = String(params.get('b2a') || '').toUpperCase(); b2Audio = a === 'A' || a === 'B' || a === 'B2' ? a : null; }
   for (const [k, val] of params) {
     if (!k.startsWith('b2x.')) continue;
     const n = Number(val);
