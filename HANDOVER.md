@@ -388,10 +388,12 @@ command, fix the line.*
     confirmation on the availability edge, a lock pip; B2_TRIM 0.72: full game
     mix +0.3 LU full-band / -0.2 LU phone-filtered vs B). NOT LISTENED TO by the
     author. Offline-render fix in B and B2 (bed pitch set with setValueAtTime;
-    live behaviour identical). Inherited, now documented: with live audio any
-    `&b2a` kit skips two shipped SFX whose noise draws `Math.random`, so a
-    live-audio fight is not tick-identical to a no-`b2a` fight (the kits draw
-    nothing; the silent harness matches B2-B). The wave-clear flash the HUMAN
+    live behaviour identical). Inherited, now measured: with live audio, choosing an
+    `&b2a` kit changes the shared random stream against the B2-1 kit (B2-B +
+    audio B without a skin = B2-R3 + audio B2 on 780/780 ticks; both diverge
+    from B2-B without `b2a` at tick 423) — the game's own sound code draws
+    `Math.random` when audio is live; the kits draw nothing; the silent harness
+    matches B2-B. The wave-clear flash the HUMAN
     saw is the shipped `GameScene._onWaveCleared` flash, identical in all
     builds. Proof: `tests/smoke-b2r3.mjs` 80/80 (= B2-B tick for tick with audio B2, also with `&b2c=1` and on the shipped links); smoke-b2r2 62/62, smoke-b2r 38/38, smoke-b2t 37/37, smoke-b2c 46/46, smoke-b2 88/88, smoke-b1 71/71, smoke-b0 46/46 (against `40adb64`), P2-A3 scope 4/4, controls and restart pass, production bundle without errors; run-all 42/52: captain-rifle, deflect and vader pass standalone (load); boss-moves, flight (both intermittent), champion, champion-placement, captel, captain-visual and pathing fail on `40adb64` too (champion, captel and captain-visual passed in R2's run the day before and fail today on both builds — an environment change, not investigated); `docs/evidence/b2-r3/run-all-reruns/`. `docs/evidence/b2-r3/README.md`. Awaiting the
     HUMAN handset verdict.

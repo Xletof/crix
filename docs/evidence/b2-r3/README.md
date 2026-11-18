@@ -118,25 +118,27 @@ where noted.
 | # | Brief item | Film |
 |---|---|---|
 | 1 | R2 vs R3 normal fire at 0%, 50%, full | `stages-0-50-full-r2-vs-r3-60fps.mp4` (touch) |
-| 2 | Manual fire into empty space, rapid direction changes | `flick-touch-r2-vs-r3-60fps.mp4` (touch flicks, still then moving), `flick-desktop-r2-vs-r3-60fps.mp4` (SPACE + WASD flicks, then the mouse on the aim stick) |
-| 3, 4 | East / west while strafing N / S; rotation; dashes | `strafe-dash-rotate-r2-vs-r3-60fps.mp4` (touch sticks, dash button taps) |
-| 5 | Range-end dissipation | `range-expiry-r2-vs-r3-60fps.mp4` |
+| 2 | Manual fire into empty space, rapid direction changes | `flick-touch-r2-vs-r3-60fps.mp4` (touch flicks, still then moving), `flick-desktop-r2-vs-r3-60fps.mp4` (SPACE + WASD flicks; SPACE released; then the mouse dragging the aim stick — one keyboard press and one mouse press registered) |
+| 3, 4 | East / west while strafing N / S; rotation; a dash | `strafe-dash-rotate-r2-vs-r3-60fps.mp4` (touch move and aim sticks; a dash at tick 150 via the dash button; rotation from tick 540). A second dash tap at tick 420 did not register in the harness: the dash button waits for the first finger's `pointerup`, which the CDP touch sequence apparently did not deliver |
+| 5 | Range-end dissipation | `range-expiry-r2-vs-r3-60fps.mp4` (up a clear diagonal lane, in frame: all 30 rounds end as range expiries, each with its four dissipation frames, at 0 / 50% / full) |
 | 6 | Original B2-B Super vs restored | `super-b2b-vs-r3-vs-r2-60fps.mp4` (B2-B, R3, R2's rejected mass) |
 | 7 | Super in a crowd, impacts | `super-crowd-b2b-vs-r3-60fps.mp4` (identical through the cast; see note) |
-| 8 | Shield full, partial, hit, break | `shield-r2-plates-vs-r3-armour-60fps.mp4` |
+| 8 | Shield full, partial, hit, break | `shield-r2-plates-vs-r3-armour-60fps.mp4` (four facings, seven 45-point hits from four sides, a break that absorbs exactly what is left, an unshielded hit, a refill) |
 | 9 | Ready vs suppressed-but-charged | `ready-vs-suppressed-r2-vs-r3-60fps.mp4` (incl. firing and a denied cast while suppressed) |
 | 10 | Held-F selection, release, cancellation | `target-hold-release-cancel-r3-60fps.mp4` (keyboard F held, cone steered across five targets, release; a second hold cancelled by a suppression) |
 
 Note on 7: the crowd film's two runs are identical through the filmed cast (tick
-340) and diverge from tick 423. In these keyboard-driven films the browser's audio
-is live, and the game's own `FX.js` sound code fills noise buffers from
-`Math.random` when audio is live. Any `&b2a` kit skips two shipped sounds (the
-Super shot and the Super-ready chime), so the random stream shifts after the first
-Super-ready. This is inherited from B2-R2's audio flag, not caused by R3's
-visuals: the kits themselves draw nothing (the B and B2 full-mix films, audio
-live, are identical on all 900 ticks), and the silent seeded harness matches B2-B
-tick for tick (§1). With audio live, a `b2a` fight is not tick-identical to a
-no-`b2a` fight.
+340) and diverge from tick 423. Measured: in these keyboard-driven films the
+browser's audio is live, and a third run — B2-B with audio B and **no skin** — is
+identical to B2-R3 + audio B2 on all 780 ticks, while both diverge from B2-B
+without `&b2a` at tick 423. So R3's visuals do not touch the fight; choosing an
+`&b2a` audio kit (instead of the B2-1 kit) changes the shared random stream when
+audio is live. The game's own `FX.js` sound code draws `Math.random` for noise
+when audio is live, and a `b2a` kit replaces some of those shipped sounds; which
+draws differ exactly was not isolated. Inherited from B2-R2's audio flag. The
+kits themselves are equal to each other (the B and B2 full-mix films, audio live,
+identical on all 900 ticks), and the silent seeded harness matches B2-B tick for
+tick (§1).
 
 ### Stills (`after/`)
 
@@ -152,6 +154,14 @@ no-`b2a` fight.
   flash because that break let damage through); bush.
 - `shield-full-hit-break-bush-zoom.png` — full; the hit's two beats (from the
   west); the break; shards; bush.
+- `shield-break-clean-300-311-313-316-319-323-hurt341-refill404.jpg` — from the
+  shield film: one quarter left (helmet only), the break absorbing exactly what is
+  left (the whole edge white), shards at 313–319, gone at 323, an unshielded hit
+  under the game's hurt flash at 341, the refill at 404.
+- `range-expiry-r2-top-r3-bottom-ticks-30-45.jpg` — the range expiry, R2 above,
+  R3 below, every third tick.
+- `production-bundle-r3-stream-full-after-super.jpg` — the production build
+  (`npm run build`): the R3 stream at 0, at full, and after a Super.
 
 ### Audio (`audio/`, FLAC; `films/*-audio-*.mp4`)
 
@@ -201,6 +211,10 @@ loudness and true peak; "phone filter" = high-pass 300 Hz (4-pole) + low-pass
 - **Determinism.** `b2Audio.js` draws no `Math.random` (private mulberry32
   streams); the kits change no gameplay state (the B and B2 live-audio fights are
   identical).
+- **Live, in a real browser AudioContext** (dev server, the playtest queries, a
+  stream, FILL SUPER, a held-F cast, a pause): B2 live, 53 shots, peak 22 voices,
+  none dropped, one confirmation on reaching full, one cut by the wind-up, silent
+  on pause; B live, peak 12 voices, none dropped. Page errors: none.
 
 ## Verification
 
@@ -281,7 +295,8 @@ Each would be one reversible knob; none is in this build.
   frame has the fewest edge pixels (18, against 33 front and 32 back). A hit's flare is
   visible in stills; whether it reads in a fight is untested.
 - **When damage gets through a breaking shield, the game's own hurt flash covers
-  the break flash**; only the shards show.
+  the break flash**; only the shards show. (A break that absorbs exactly what is
+  left shows the full sequence — `after/shield-break-clean-*.jpg`.)
 - **The B2 confirmation is unheard.** Its tones were chosen to sit at 1–1.3 kHz
   (audible on phones, below the harshest band); whether it feels like "the reactor
   is full" is the HUMAN's call. The same holds for the depth layer, the lock pip
