@@ -472,8 +472,13 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   };
   const blast = { on: false, x: 0, y: 0, ang: 0, at: -1e9, casings: 0, pops: 0 };
   const bursts = [], masses = [], imps = [], comps = [];
-  const dim = scene.add.rectangle(0, 0, 4, 4, 0x04050a, 1).setOrigin(0).setScrollFactor(0).setDepth(7990).setVisible(false);
+  // B2-R3: B2-B's own Super. None of the Super code below is installed: the shipped cast, muzzle
+  // flash, pops, casings, sparks, pellets, smoke trails, camera flash (and the closure
+  // candidate's ice-violet one) draw exactly as in B2-B. The gun keeps its own wind-up and
+  // cooling frames (updateGun), which are the reactor's, not the attack's.
+  const dim = IS3 ? null : scene.add.rectangle(0, 0, 4, 4, 0x04050a, 1).setOrigin(0).setScrollFactor(0).setDepth(7990).setVisible(false);
   let dimAt = -1e9;
+  if (!IS3) {
   h.wrap(scene, 'firePlayerSuper', (prev) => function (...a) { return cloak(() => prev.apply(this, a)); });
   h.wrap(scene, '_superBlast', (prev) => function (angle, ...r) {
     const cam = this.cameras.main;
@@ -502,10 +507,12 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   const isMass = (x, y) => { for (const L of masses) if (L.b.active && L.b._gen === L.gen && L.b.x === x && L.b.y === y) return true; return false; };
   h.wrap(fx, 'smokeTrail', (prev) => function (x, y, ...r) { return isMass(x, y) ? cloak(() => prev.call(this, x, y, ...r)) : prev.call(this, x, y, ...r); });
   h.wrap(fx, 'trail', (prev) => function (x, y, ...r) { return isMass(x, y) ? cloak(() => prev.call(this, x, y, ...r)) : prev.call(this, x, y, ...r); });
+  }
 
   const onBlast = () => {
     stats.supers++;
     blastAt = clock;
+    if (IS3) return;                     // the gun cools; the attack is B2-B's
     bursts.push({ t: -1, ang: blast.ang, img: img('burst-0').setVisible(false) });
     if (!low()) dimAt = clock;
     const g = scene.playerSuperBullets;
@@ -521,7 +528,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   };
   scene.events.on('player-super-blast', onBlast);
   const onHit = (e) => {
-    if (scene._dmgSrc !== 'super' || !e) return;
+    if (IS3 || scene._dmgSrc !== 'super' || !e) return;
     stats.impacts++;
     if (IS2) {
       // burn-through: a white-hot slab where the mass enters, shards out the far side
@@ -537,6 +544,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   const showPellets = () => { for (const b of scene.playerSuperBullets?.getChildren?.() || []) if (b.active && !b.visible) { b.setVisible(true); stats.pellet.restored++; } };
 
   function updateSuper(dt, p) {
+    if (IS3) return;
     // compression: a band closes on the muzzle during the shipped wind-up
     if (winding() && p?.alive) {
       const m = h.muzzleNow(p, p.superAim ?? p.facing);
