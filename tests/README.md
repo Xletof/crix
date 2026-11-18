@@ -2423,6 +2423,33 @@ Evidence in `docs/evidence/b1-combat-experiments/`.
   view, so horizontal expiries are off screen. Film them diagonally in a
   clear lane.
 
+## The B2-R3 rig (`&b2r=3`, `&b2a=B2`)
+
+- `smoke-b2r3.mjs [--only=0,11]` (standalone, :5173): the R2 rig's shared
+  sections against `b2r=3&b2a=B2`, plus §6 the Super compared with B2-B per tick
+  (every object the cast creates, emitter particles, pellets, camera flashes;
+  B2-R2 is the failing control), §11 R2 vs R3 sprite read-back (the single
+  variable), §14 the armour shield, §15 audio B / B2 and the confirmation edge
+  with an offline render, §16 the choked reactor, §17 real input (CDP touch,
+  keyboard, mouse).
+- **Real input works with the stepped loop.** CDP `Input.dispatchTouchEvent`
+  on the right half claims the floating aim stick; `page.keyboard` and
+  `page.mouse` reach Phaser on the next step. `stats.pressTouch / pressMouse /
+  pressKey` prove which path fired.
+- **Compare pooled sprites by active crop only.** `setCrop()` with no
+  arguments leaves stale `_crop` values; test `isCropped` first.
+- **The bush flag is recomputed every frame.** Hold `hiddenInBush = true` for
+  each frame you measure.
+- **`AudioParam.value =` lands at an OfflineAudioContext's time 0** (its
+  `currentTime` before rendering). Offline renders need explicitly timed
+  automation (`setValueAtTime(v, t)`).
+- **Whole-game audio can be captured on the stepped clock** (the evidence film
+  harness, `--mix`): replace `AudioContext` with an `OfflineAudioContext` whose
+  `currentTime` is the stepped clock, route `AudioParam.value` writes through
+  `setValueAtTime(v, now)`, and step the game's `setTimeout`s (the music's bar
+  loop) on the same clock. Set the clock's origin before the first gesture
+  creates the context.
+
 ## The B2 REACTOR OVERLOAD rig (`&b2r=1`)
 
 - `smoke-b2r.mjs [--only=0,3]` (standalone, :5173): the TEMPER rig's sections

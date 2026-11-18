@@ -161,8 +161,8 @@ if (on(1)) {
     const o = { god, supers: [300, 700, 1100, 1400], melee: [500, 525, 550] };
     const a = await run(B, q, o), b = await run(T, q, o);
     const d = firstDiff(a.hashes, b.hashes);
-    check(`${label}: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — B2-R3 + audio B2 = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)`, d < 0 && b.shots > 100 && b.supers === 4 && b.t.supers >= 3 && b.t.cloak.calls === 0,
-      d < 0 ? `${b.shots} rounds, ${b.supers} Supers, ${b.kills} kills, ${b.draws} draws; nothing hidden (cloak calls ${b.t.cloak.calls})` : `first divergent tick ${d} (draws ${a.draws} vs ${b.draws})`);
+    check(`${label}: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — B2-R3 + audio B2 = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)`, d < 0 && b.shots > 100 && b.supers === 4 && b.t.supers >= 3 && b.t.cloak.calls === (b.t.r3?.shield?.ringsHidden ?? -1),
+      d < 0 ? `${b.shots} rounds, ${b.supers} Supers, ${b.kills} kills, ${b.draws} draws; hidden: only the shipped cyan shield-absorb rings (${b.t.cloak.calls} cloak calls = ${b.t.r3?.shield?.ringsHidden} rings), nothing of the Super` : `first divergent tick ${d} (draws ${a.draws} vs ${b.draws})`);
   }
   const a = await run(join(B, 'b2c=1'), Q_MIXED, { supers: [300, 700, 1100], melee: [500, 525, 550] }), b = await run(join(T, 'b2c=1'), Q_MIXED, { supers: [300, 700, 1100], melee: [500, 525, 550] });
   const d = firstDiff(a.hashes, b.hashes);
