@@ -223,7 +223,7 @@ build `40adb64` (B2-R2's deploy) where a suite takes `--old`.
 
 | Suite | Result | Notes |
 |---|---|---|
-| `smoke-b2r3` (new) | **80/80** | one clean run on the final code (`smoke-b2r3.txt`) |
+| `smoke-b2r3` (new) | **81/81** | one clean run on the final code (`smoke-b2r3.txt`), incl. a whole rendered fight with the armour shield in sync at all 576 renders |
 | `smoke-b2r2` | 62/62 | R2 unchanged, incl. its audio after the timed-pitch fix |
 | `smoke-b2r` | 38/38 | REACTOR level 1 |
 | `smoke-b2t` | 37/37 | TEMPER |

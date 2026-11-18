@@ -54,7 +54,7 @@ PASS  restart twice: one install each time (prerender and blast listeners do not
 PASS  quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
 
 == 8. cost
-PASS  B2-R3 stays bounded: fewer pooled objects at peak than B2-R2 in a SWARM TIDE fight (no ribbon links, no Super masses), and the same rounds fired  — peak pooled objects: B2-B 40, B2-R2 53, B2-R3 22 (25 ever created); update B2-B 0.029ms, B2-R2 0.056ms, B2-R3 0.044ms per frame (max 2.60 / 2.10 / 2.60); peak live rounds 6
+PASS  B2-R3 stays bounded: fewer pooled objects at peak than B2-R2 in a SWARM TIDE fight (no ribbon links, no Super masses), and the same rounds fired  — peak pooled objects: B2-B 40, B2-R2 53, B2-R3 22 (25 ever created); update B2-B 0.032ms, B2-R2 0.059ms, B2-R3 0.050ms per frame (max 2.80 / 2.30 / 3.90); peak live rounds 6
 
 == 10. the playtest links, as shipped (&b0=...)
 PASS  the two links as shipped (B0 telemetry on, labels B2B / B2R3B2): the same fight tick for tick, telemetry attached on both, the skin only on the candidate  — 197 rounds, 4 Supers, 37 kills, 18855 draws
@@ -91,6 +91,7 @@ PASS  the shield is on the armour edge on every facing (S, N, E, W — the side 
 PASS  the overlay is in sync with the sprite at every render (position, scale, alpha, frame, flip)  — {"checks":152,"bad":0}
 PASS  partial charge reads in quarters (3, 2, 1 lit) and the bush alpha is the sprite's  — {"bands":[0,4,4,4,0],"bush":{"alpha":0.5,"sprite":0.5}}
 PASS  an absorbed hit shimmers on the side it came from, the shipped cyan ring is hidden (it still runs), the last point breaks with shards; dead, nothing drawn  — {"hit":{"shield":300,"hp":0,"hits":4,"sided":6},"rings":{"r3":0,"b2b":1,"hidden":3},"brk":{"shield":0,"hp":-200,"breaks":1,"shards":18},"dead":{"alive":false,"overlay":false}}
+PASS  through a whole rendered fight (MIXED s6, god mode off: wave-clear shields, Broken Wings, four Supers, hits) the armour shield is read back in sync with the sprite at every render  — {"sync":{"checks":576,"bad":0},"drawn":575,"hits":3,"breaks":1,"frames":18}
 PASS  shield and health take exactly what B2-B takes (a hit and the break)  — {"r3":[{"shield":300,"hp":0,"hits":4,"sided":6},{"shield":0,"hp":-200,"breaks":1,"shards":18}],"b2b":[{"shield":300,"hp":0,"hits":null,"sided":null},{"shield":0,"hp":-200,"breaks":null,"shards":null}]}
 
 == 15. audio
@@ -99,7 +100,7 @@ PASS  audio B: shot, impact, the charge stages, Super wind-up, release, Super hi
 PASS  audio B (control): no confirmation event (B keeps its own primed cue)  — {"shot":40,"impact":40,"stage":3,"primed":1,"reload":1,"tail":1,"reloaded":1,"silence":2,"lock":1,"windup":1,"release":1,"superHit":4}
 PASS  audio B2: shot, impact, the charge stages, Super wind-up, release, Super hits and target locks all fire; the shipped Super shot is replaced (audio is not live in this headless rig: voices and peaks are measured in the offline render below)  — {"events":{"shot":40,"impact":40,"stage":3,"primed":1,"confirm":2,"reload":1,"tail":1,"reloaded":1,"silence":2,"lock":1,"windup":1,"release":1,"superHit":4},"peak":0,"dropped":0}
 PASS  audio B2: the Super-ready confirmation fires once on the transition to full, not again while full (5 s), not while suppressed, once more when the suppression ends, not on pause / resume  — {"atFull":1,"stillFull":1,"suppressed":1,"released":2,"resumed":2}
-PASS  offline render (synthetic 13 s timeline): no clipping, nothing dropped, voices bounded; B2 confirms 3 times (full, refilled after the cast, the suppression ending) and cuts 3 times (wind-up, suppression, pause)  — {"B":{"peak":0.7373483180999756,"rms":0.039134216922178576,"voices":9,"dropped":0,"confirms":0,"cuts":0},"B2":{"peak":0.7099670171737671,"rms":0.04427133755668342,"voices":14,"dropped":0,"confirms":3,"cuts":3}}
+PASS  offline render (synthetic 13 s timeline): no clipping, nothing dropped, voices bounded; B2 confirms 3 times (full, refilled after the cast, the suppression ending) and cuts 3 times (wind-up, suppression, pause)  — {"B":{"peak":0.7373483180999756,"rms":0.039134216952853795,"voices":9,"dropped":0,"confirms":0,"cuts":0},"B2":{"peak":0.7099670171737671,"rms":0.044271337550701235,"voices":14,"dropped":0,"confirms":3,"cuts":3}}
 
 == 16. the choked reactor
 PASS  full and available: the ready reactor (pressure pulse, two threads, armour arcs facing east and north)  — {"ready":{"frames":["gun-8p0","gun-8p1","gun-8p2","gun-8p3","gun-8"],"swirl":["sw"],"arcs":141},"north":93}
@@ -115,4 +116,4 @@ PASS  mouse: the real input path fires (the mouse dragging the aim stick), every
 == 9. scope
 PASS  the B0 / B1 / B2 scope guard (b2Temper.js is one of B2's modules; GameScene and every frozen file untouched)  — B0 (dc7d9ea..a3866f2): 5 files, GameScene +13 tag/install lines; B1 (a3866f2..266b1ac): 6 files, GameScene +5 install/branch lines; B2 (266b1ac..): 14 files, GameScene +4 install/branch lines
 
-80/80 passed
+81/81 passed
