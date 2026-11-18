@@ -260,6 +260,18 @@ function buildAtlas(scene, K) {
 // the channel between the core and the barrel. `gun-8sf` is the strain: the core pushes to
 // crimson for one beat against the clamp.
 export const R3_KEY = 'b2r3';
+/** B2-R3 shield on the armour (`&b2r=3`): the hero's own outer steel edge, lit cyan. */
+export const R3_SHIELD = {
+  alpha: 0.8,                 // blend of the cyan over the steel it sits on (the shading shows through)
+  edges: [0, 8, 13, 19, 26],  // art rows lit at 0..4 quarters left: the shield recedes from the feet to the helmet
+  fillMs: 220,                // a gain spreads down from the helmet over this
+  glintMs: 1600, glintRunMs: 320,     // a brighter row runs down the edge once per glintMs
+  hitMs: [50, 110],           // the shimmer on the side the hit came from: white, then bright cyan
+  breakMs: [45, 95, 145, 195],        // the last point: the whole edge flashes, then shards fly 4/10/16px
+  shards: 8,
+};
+// cyan per steel tone (hi, lt, md, dk): kept apart from the reactor's reds and violets
+const SH_CY = [[214, 250, 255], [150, 236, 255], [90, 214, 240], [50, 160, 196]];
 export const R3_CHOKE = { strainMs: 900, strainOnMs: 90 };
 function buildR3Gun(scene) {
   if (scene.textures.exists(R3_KEY)) return scene.textures.get(R3_KEY);
@@ -327,7 +339,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
     r2: IS2 ? { links: { drawn: 0, checks: 0, bad: 0, maxLen: 0, muzzle: 0, joined: 0, retract: 0, broken: 0 }, dis: [0, 0, 0, 0], wall: [0, 0, 0], burn: [0, 0, 0, 0], ends: {}, plates: { shown: 0, hits: 0, breaks: 0 }, arcs: 0, hidden: { shield: 0, ring: 0 } } : null,
   };
   if (IS2) stats.name = IS3 ? 'reactor3' : 'reactor2';
-  if (IS3) { buildR3Gun(scene); stats.r3 = { choked: 0, strain: 0 }; }
+  if (IS3) { buildR3Gun(scene); stats.r3 = { choked: 0, strain: 0, shield: { drawn: 0, frames: 0, rims: 0, bands: [0, 0, 0, 0, 0], hits: 0, sided: 0, breaks: 0, shards: 0, fills: 0, glints: 0, ringsHidden: 0, sync: { checks: 0, bad: 0 }, alpha: null } }; }
   const suppressedNow = () => (scene.player?._suppressedMs || 0) > 0;
   const pools = {}, pool = [];
   let out = 0;
@@ -493,6 +505,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   }
   const onPrerender = () => {
     hideRings();
+    syncShield();
     const v = view();
     for (const o of [gun, heat, swirl]) { if (!o.visible || !v) continue; stats.sync.checks++; if (!sameAs(o, v)) stats.sync.bad++; }
   };
@@ -765,7 +778,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   // is left; a hit flashes them, the last point breaks them.
   const ARC_PTS = [[-14, -12], [13, -11], [0, -2], [-9, 8], [10, 6]];
   const arcs = IS2 ? [img('arc-0-0', R2_KEY).setVisible(false), img('arc-1-0', R2_KEY).setVisible(false), img('arc-0-0', R2_KEY).setVisible(false)] : [];
-  const plates = IS2 ? [0, 1, 2, 3].map((k) => img('plate', R2_KEY).setRotation((k * Math.PI) / 2).setVisible(false)) : [];
+  const plates = IS2 && !IS3 ? [0, 1, 2, 3].map((k) => img('plate', R2_KEY).setRotation((k * Math.PI) / 2).setVisible(false)) : [];
   const PLATE_AT = [[-20, -24], [20, -24], [20, 20], [-20, 20]];
   let lastShield = 0, plateHitAt = -1e9, plateOffAt = -1e9;
   function updateHero(p) {
@@ -792,6 +805,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
       stats.r2.arcs++;
       o.setFrame(`arc-${a[1]}-${ph}`).setPosition(Math.round(p.x + a[0][0]), Math.round(p.y + a[0][1])).setRotation((a[2] * Math.PI) / 2).setDepth(p.depth + 0.7).setAlpha(p.hiddenInBush ? PLAYER.bushAlpha : 1).setVisible(true);
     });
+    if (IS3) { updateShield(p, alive); return; }
     // shield plates
     const hp = alive ? (p.shieldHp || 0) : 0;
     if (hp < lastShield) { if (hp <= 0) { plateOffAt = clock; stats.r2.plates.breaks++; } else { plateHitAt = clock; stats.r2.plates.hits++; } }
@@ -805,6 +819,155 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
       o.setFrame(f).setPosition(Math.round(p.x + PLATE_AT[i][0] + sx * kick), Math.round(p.y + PLATE_AT[i][1] + sy * kick)).setDepth(p.depth + 0.6).setAlpha(p.hiddenInBush ? PLAYER.bushAlpha : 1).setVisible(true);
     });
     if (hp > 0) stats.r2.plates.shown++;
+  }
+  // ── R3: THE SHIELD ON THE ARMOUR ────────────────────────────────────────
+  // No bubble, no plates: the hero's own outer steel edge (steel pixels on the silhouette, read
+  // from the frame the sprite shows) carries the shield, drawn over the sprite at its frame,
+  // flip, scale and alpha, so the silhouette and the base sprite never change. The charge left
+  // is how far down the edge stays lit (four steps, receding from the feet to the helmet); a
+  // brighter row runs down it now and then; a hit shimmers on the side it came from; the last
+  // point flashes the whole edge and throws a few shards. The shipped cyan absorb ring is hidden.
+  const SH = R3_SHIELD;
+  const shG = IS3 ? scene.add.graphics().setVisible(false) : null;
+  const rimCache = new Map();
+  let sheet = null, shKey = '', shDrawn = null;
+  let shLast = 0, shEdge = 0, shFillFrom = 0, shFillAt = -1e9, shHitAt = -1e9, shHitSide = null, shBreakAt = -1e9, shBreakFrame = null, shGlintAt = 0;
+  function rimsOf(p) {
+    const fr = p.frame, key = `${p.texture.key}/${fr.name}`;
+    if (rimCache.has(key)) return rimCache.get(key);
+    let out = null;
+    try {
+      if (!sheet || sheet.src !== p.texture.getSourceImage()) {
+        const src = p.texture.getSourceImage(), cv = document.createElement('canvas');
+        cv.width = src.width; cv.height = src.height;
+        const c = cv.getContext('2d'); c.drawImage(src, 0, 0);
+        sheet = { src, w: src.width, d: c.getImageData(0, 0, src.width, src.height).data };
+      }
+      const g = fr.width % 4 === 0 && fr.height % 4 === 0 ? 4 : 1, W = fr.width / g, H = fr.height / g;
+      const at = (x, y) => { const i = ((fr.cutY + y * g + (g >> 1) - (g > 1 ? 1 : 0)) * sheet.w + fr.cutX + x * g + (g >> 1) - (g > 1 ? 1 : 0)) * 4; return sheet.d[i + 3] ? [sheet.d[i], sheet.d[i + 1], sheet.d[i + 2]] : null; };
+      const lum = (c) => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+      const cell = [];
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const c = at(x, y);
+        // steel: a cool grey (blue over red, low saturation) and not dark; outline: near black
+        cell.push(!c ? 0 : lum(c) < 45 ? 1 : (c[2] - c[0] >= 8 && Math.max(...c) - Math.min(...c) <= 60 && lum(c) >= 75) ? 2 + (lum(c) >= 220 ? 0 : lum(c) >= 165 ? 1 : lum(c) >= 115 ? 2 : 3) : 9);
+      }
+      const ix = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? -1 : y * W + x);
+      // the outside: transparent cells reached from the frame's border
+      const ext = new Uint8Array(W * H), st = [];
+      for (let x = 0; x < W; x++) st.push([x, 0], [x, H - 1]);
+      for (let y = 0; y < H; y++) st.push([0, y], [W - 1, y]);
+      while (st.length) { const [x, y] = st.pop(), i = ix(x, y); if (i < 0 || ext[i] || cell[i] !== 0) continue; ext[i] = 1; st.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]); }
+      const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      const outside = (x, y) => { const i = ix(x, y); return i < 0 || ext[i] === 1; };
+      const outline = (x, y) => { const i = ix(x, y); return i >= 0 && cell[i] === 1 && N4.some(([dx, dy]) => outside(x + dx, y + dy)); };
+      out = { g, W, H, px: [], inner: [] };
+      const rim = new Uint8Array(W * H);
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const v = cell[y * W + x];
+        if (v < 2 || v > 5) continue;
+        if (N4.some(([dx, dy]) => outside(x + dx, y + dy) || outline(x + dx, y + dy))) { out.px.push([x, y, v - 2]); rim[y * W + x] = 1; }
+      }
+      // the steel just inside the edge: a hit's first beat and the break's flash run two cells deep
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const v = cell[y * W + x];
+        if (v >= 2 && v <= 5 && !rim[y * W + x] && N4.some(([dx, dy]) => { const i = ix(x + dx, y + dy); return i >= 0 && rim[i]; })) out.inner.push([x, y, v - 2]);
+      }
+      // the shards leave from the outermost edge cell in each of eight directions
+      const cx = W / 2, cy = H / 2, best = new Array(SH.shards).fill(null);
+      for (const q of out.px) { const a = Math.atan2(q[1] + 0.5 - cy, q[0] + 0.5 - cx), k = ((Math.round((a / (Math.PI * 2)) * SH.shards) % SH.shards) + SH.shards) % SH.shards, r = Math.hypot(q[1] + 0.5 - cy, q[0] + 0.5 - cx); if (!best[k] || r > best[k][2]) best[k] = [q[0], q[1], r, a]; }
+      out.shards = best.filter(Boolean);
+    } catch (_) { out = null; }
+    rimCache.set(key, out);
+    if (out) { stats.r3.shield.frames++; stats.r3.shield.rims = Math.max(stats.r3.shield.rims, out.px.length); }
+    return out;
+  }
+  const hexOf = (c) => (c[0] << 16) | (c[1] << 8) | c[2];
+  const toward = (c, t) => [0, 1, 2].map((i) => Math.round(c[i] + (255 - c[i]) * t));
+  if (IS3) {
+    // where a hit came from: the shot's travel direction is passed in; the hit lands on the far side
+    h.wrap(scene.player, 'damage', (prev) => function (amount, dir, ...r) {
+      const had = this.shieldHp > 0;
+      const ret = had ? cloakRing(() => prev.call(this, amount, dir, ...r)) : prev.call(this, amount, dir, ...r);
+      if (had && this.shieldHp < shLast) { shHitAt = clock; shHitSide = typeof dir === 'number' ? dir + Math.PI : null; }
+      return ret;
+    });
+  }
+  let inAbsorb = false;
+  function cloakRing(fn) { inAbsorb = true; try { return fn(); } finally { inAbsorb = false; } }
+  if (IS3) h.wrap(fx, 'impactRing', (prev) => function (x, y, color, ...r) {
+    if (inAbsorb && color === 0x00ffff) { stats.r3.shield.ringsHidden++; return cloak(() => prev.call(this, x, y, color, ...r)); }
+    return prev.call(this, x, y, color, ...r);
+  });
+  function updateShield(p, alive) {
+    const S = stats.r3.shield;
+    const hp = alive ? (p.shieldHp || 0) : 0;
+    const quarters = hp > 0 ? Math.max(1, Math.min(4, Math.ceil((4 * hp) / PLAYER.shieldHpMax))) : 0;
+    if (hp < shLast && hp <= 0 && alive) { shBreakAt = clock; shBreakFrame = null; S.breaks++; }
+    if (hp < shLast && hp > 0) S.hits++;
+    const target = SH.edges[quarters];
+    if (target > shEdge) { shFillFrom = shEdge; shFillAt = clock; S.fills++; }
+    shEdge = target;
+    shLast = hp;
+    const tb = clock - shBreakAt, breaking = alive && tb >= 0 && tb < SH.breakMs[3];
+    const show = alive && p.visible !== false && p.alpha > 0 && (hp > 0 || breaking);
+    const R = show ? rimsOf(p) : null;
+    if (!R) { shG.setVisible(false); shDrawn = null; return; }
+    // the lit edge row, easing down from the helmet after a gain
+    const tf = (clock - shFillAt) / SH.fillMs;
+    const edge = tf < 1 ? Math.round(shFillFrom + (shEdge - shFillFrom) * Math.max(0, tf)) : shEdge;
+    const th = clock - shHitAt, hit = hp > 0 && th >= 0 && th < SH.hitMs[1] ? (th < SH.hitMs[0] ? 0 : 1) : -1;
+    const brk = breaking ? (tb < SH.breakMs[0] ? 0 : tb < SH.breakMs[1] ? 1 : tb < SH.breakMs[2] ? 2 : 3) : -1;
+    if (hp > 0 && clock - shGlintAt > SH.glintMs) { shGlintAt = clock; S.glints++; }
+    const tg = clock - shGlintAt, glint = hp > 0 && tg < SH.glintRunMs ? Math.floor((tg / SH.glintRunMs) * edge) : -99;
+    const flip = !!p.flipX;
+    const key = `${p.texture.key}/${p.frame.name}|${flip}|${edge}|${glint}|${hit}|${brk}`;
+    const dox = p.displayOriginX, doy = p.displayOriginY, g = R.g;
+    if (key !== shKey) {
+      shKey = key;
+      shG.clear();
+      const lx = (x) => (flip ? dox - (x + 1) * g : x * g - dox), ly = (y) => y * g - doy;
+      let sx = 0, sy = 0;
+      if (hit >= 0 && shHitSide != null) { sx = Math.cos(shHitSide - p.rotation) * (p.scaleX < 0 ? -1 : 1); sy = Math.sin(shHitSide - p.rotation); }
+      const deep = brk === 0 || hit === 0;
+      if (brk <= 0) for (const [x, y, t, inner] of deep ? [...R.px, ...R.inner.map((q) => [...q, 1])] : R.px) {
+        const lit = brk === 0 || y < edge || (hit === 0 && inner !== 1);
+        if (!lit) continue;
+        let c = SH_CY[t], a = SH.alpha;
+        if (brk === 0) { c = toward(c, inner ? 0.5 : 0.85); a = inner ? 0.85 : 1; }
+        else {
+          if (y === glint || y === glint - 1) { c = toward(c, 0.45); a = 0.95; }
+          if (hit >= 0) {
+            const ux = lx(x) + g / 2, uy = ly(y) + g / 2, d = Math.hypot(ux, uy) || 1;
+            const side = shHitSide == null || (ux * sx + uy * sy) / d > 0.15;
+            if (side) { c = hit === 0 ? toward(c, inner ? 0.55 : 0.9) : toward(c, 0.4); a = 1; }
+            else if (inner || y >= edge) continue;           // off the struck side: only what is lit anyway
+          }
+        }
+        shG.fillStyle(hexOf(c), a); shG.fillRect(lx(x), ly(y), g, g);
+      }
+      if (brk >= 1) {
+        const d = [0, 4, 10, 16][brk], al = [0, 0.9, 0.6, 0.3][brk];
+        for (const [x, y, , a0] of R.shards) {
+          const ang = flip ? Math.PI - a0 : a0;
+          shG.fillStyle(hexOf(SH_CY[1]), al); shG.fillRect(lx(x) + Math.cos(ang) * d, ly(y) + Math.sin(ang) * d, g, g);
+          S.shards++;
+        }
+      }
+      shDrawn = { frame: p.frame.name, tex: p.texture.key, flip };
+    }
+    if (hit >= 0) { S.sided++; }
+    if (edge > 0 || brk >= 0) S.drawn++;
+    S.bands[quarters]++;
+    S.alpha = p.alpha;
+    shG.setPosition(p.x, p.y).setScale(Math.abs(p.scaleX), p.scaleY).setRotation(p.rotation).setAlpha(p.alpha).setDepth(p.depth + 0.01).setVisible(true);
+  }
+  function syncShield() {
+    // what the overlay shows, read back against the sprite at render time
+    if (!IS3 || !shG.visible || !shDrawn) return;
+    const P = scene.player, S = stats.r3.shield.sync;
+    S.checks++;
+    if (!P || shG.x !== P.x || shG.y !== P.y || shG.scaleY !== P.scaleY || shG.scaleX !== Math.abs(P.scaleX) || shG.alpha !== P.alpha || shDrawn.frame !== P.frame.name || shDrawn.tex !== P.texture.key || shDrawn.flip !== !!P.flipX) S.bad++;
   }
   function hideRings() {
     if (!IS2) return;
@@ -833,7 +996,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
       scene.events.off('player-super-blast', onBlast);
       scene.events.off('enemy-hit', onHit);
       try { showPellets(); } catch (_) { /* scene going down */ }
-      for (const o of [gun, heat, swirl, dim, ...pool, ...comps, ...Object.values(pools).flat(), ...arcs, ...plates]) { try { o?.destroy(); } catch (_) { /* */ } }
+      for (const o of [gun, heat, swirl, dim, shG, ...pool, ...comps, ...Object.values(pools).flat(), ...arcs, ...plates]) { try { o?.destroy(); } catch (_) { /* */ } }
       for (const L of [...links.values(), mzLink]) { try { L?.rib.destroy(); L?.glow?.destroy(); } catch (_) { /* */ } }
       for (const d of dissolves) { try { d.img.destroy(); } catch (_) { /* */ } }
       links.clear(); chain.length = 0; dissolves.length = 0;
