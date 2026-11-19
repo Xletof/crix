@@ -1,0 +1,206 @@
+{
+  "before": {
+    "dash": {
+      "x": 416,
+      "y": 1102,
+      "r": 56,
+      "s": 1
+    },
+    "move": {
+      "x": 126,
+      "y": 1154,
+      "r": 90
+    },
+    "fire": {
+      "x": 594,
+      "y": 1154,
+      "r": 90
+    },
+    "superB": {
+      "x": 534,
+      "y": 984,
+      "r": 58
+    },
+    "melee": {
+      "x": 416,
+      "y": 984,
+      "r": 46
+    },
+    "pipX": 566,
+    "pipY": 1014,
+    "secX": 126,
+    "secY": 1004,
+    "baseX": 126,
+    "baseY": 1154,
+    "baseScale": 0.8181818181818182
+  },
+  "opened": {
+    "editorOpen": true,
+    "gamePaused": true,
+    "hudPaused": true,
+    "realDashShown": false,
+    "realStickShown": false
+  },
+  "afterDrag": {
+    "selected": "dashBtn",
+    "proxyX": 620,
+    "proxyY": 700
+  },
+  "edited": {
+    "selected": "moveStick",
+    "stored": {
+      "moveStick": {
+        "x": 130.5,
+        "y": 1149.5,
+        "scale": 1.45
+      },
+      "fireStick": {
+        "x": 594,
+        "y": 1154,
+        "scale": 1
+      },
+      "superBtn": {
+        "x": 534,
+        "y": 984,
+        "scale": 1
+      },
+      "meleeBtn": {
+        "x": 416,
+        "y": 984,
+        "scale": 1
+      },
+      "dashBtn": {
+        "x": 620,
+        "y": 700,
+        "scale": 1
+      }
+    },
+    "proxyScale": 1.1863636363636363
+  },
+  "closed": {
+    "editorOpen": false,
+    "gameRunning": true,
+    "hudRunning": true,
+    "realDashShown": true,
+    "realStickShown": true
+  },
+  "applied": {
+    "dash": {
+      "x": 620,
+      "y": 700,
+      "r": 56,
+      "s": 1
+    },
+    "move": {
+      "x": 130.5,
+      "y": 1149.5,
+      "r": 130.5
+    },
+    "fire": {
+      "x": 594,
+      "y": 1154,
+      "r": 90
+    },
+    "superB": {
+      "x": 534,
+      "y": 984,
+      "r": 58
+    },
+    "melee": {
+      "x": 416,
+      "y": 984,
+      "r": 46
+    },
+    "pipX": 566,
+    "pipY": 1014,
+    "secX": 130.5,
+    "secY": 959,
+    "baseX": 130.5,
+    "baseY": 1149.5,
+    "baseScale": 1.1863636363636363
+  },
+  "dashNew": {
+    "before": 2,
+    "after": 1,
+    "dashed": true
+  },
+  "dashOld": {
+    "before": 2,
+    "after": 2,
+    "dashed": false
+  },
+  "reloaded": {
+    "dash": {
+      "x": 620,
+      "y": 700,
+      "r": 56,
+      "s": 1
+    },
+    "move": {
+      "x": 130.5,
+      "y": 1149.5,
+      "r": 130.5
+    },
+    "fire": {
+      "x": 594,
+      "y": 1154,
+      "r": 90
+    },
+    "superB": {
+      "x": 534,
+      "y": 984,
+      "r": 58
+    },
+    "melee": {
+      "x": 416,
+      "y": 984,
+      "r": 46
+    },
+    "pipX": 566,
+    "pipY": 1014,
+    "secX": 130.5,
+    "secY": 959,
+    "baseX": 130.5,
+    "baseY": 1149.5,
+    "baseScale": 1.1863636363636363
+  },
+  "reset": {
+    "dash": {
+      "x": 416,
+      "y": 1102,
+      "r": 56,
+      "s": 1
+    },
+    "move": {
+      "x": 126,
+      "y": 1154,
+      "r": 90
+    },
+    "fire": {
+      "x": 594,
+      "y": 1154,
+      "r": 90
+    },
+    "superB": {
+      "x": 534,
+      "y": 984,
+      "r": 58
+    },
+    "melee": {
+      "x": 416,
+      "y": 984,
+      "r": 46
+    },
+    "pipX": 566,
+    "pipY": 1014,
+    "secX": 126,
+    "secY": 1004,
+    "baseX": 126,
+    "baseY": 1154,
+    "baseScale": 0.8181818181818182
+  }
+}
+page errors: none
+
+PASS: the editor moves the real controls, persists, and resets
+exit 0

@@ -231,12 +231,12 @@ Every suite ran standalone against the dev server. Where a suite takes `--old`, 
 | `smoke-b2r` | 38/38 | |
 | `smoke-b2t` | 37/37 | |
 | `smoke-b2c --old=bfa765f` | 46/46 | |
-| `smoke-b2 --old=bfa765f` | PENDING | |
-| `smoke-b1 --old=bfa765f` | PENDING | |
-| `smoke-b0 --old=bfa765f` | PENDING | |
-| `smoke-fx-p2a3 --only=10` | PENDING | the frozen-file scope guard |
-| `smoke-controls` | PENDING | |
-| `smoke-restart` | PENDING | |
+| `smoke-b2 --old=bfa765f` | 88/88 | B2-1 / B2-B economy, controls, range |
+| `smoke-b1 --old=bfa765f` | 71/71 | |
+| `smoke-b0 --old=bfa765f` | 46/46 | |
+| `smoke-fx-p2a3 --only=10` | 4/4 | the frozen-file scope guard |
+| `smoke-controls` | PASS | |
+| `smoke-restart` | PASS (16 checks) | |
 | production bundle (`npm run build`, `vite preview`) | no page errors | the four links and a plain boot |
 | `run-all` (52 suites) | PENDING | |
 

@@ -397,6 +397,58 @@ command, fix the line.*
     saw is the shipped `GameScene._onWaveCleared` flash, identical in all
     builds. Proof: `tests/smoke-b2r3.mjs` 81/81 (= B2-B tick for tick with audio B2, also with `&b2c=1` and on the shipped links); smoke-b2r2 62/62, smoke-b2r 38/38, smoke-b2t 37/37, smoke-b2c 46/46, smoke-b2 88/88, smoke-b1 71/71, smoke-b0 46/46 (against `40adb64`), P2-A3 scope 4/4, controls and restart pass, production bundle without errors; run-all 42/52: captain-rifle, deflect and vader pass standalone (load); boss-moves, flight (both intermittent), champion, champion-placement, captel, captain-visual and pathing fail on `40adb64` too (champion, captel and captain-visual passed in R2's run the day before and fail today on both builds — an environment change, not investigated); `docs/evidence/b2-r3/run-all-reruns/`. `docs/evidence/b2-r3/README.md`. Awaiting the
     HUMAN handset verdict.
+  - **B2-R4 (2026-11-19), opt-in: `&b2r=4` (visuals), `&b2a=B2S` (audio),
+    `&b2iso=1` (audio RNG isolation). NOT approved, NOT a default.**
+    - **The HUMAN direction:** a finishing pass over B2-R3. Everything the
+      HUMAN passed stays exactly as it was: the B2-B balance, R3's rounds,
+      dissipation, reactor, the original Super projectiles, the screen flash,
+      Audio B2's approved cues, hold-F targeting and the armour shield
+      approach.
+    - **Seven `src/` commits, each reversible:**
+      - `eaa4444` `&b2iso=1`: every `SFX` function runs on a private
+        mulberry32 stream during its call. Live audio then equals the silent
+        run tick for tick; without it, live audio diverges at tick 51.
+      - `9c3711c`: the reactor holds its compressed wind-up from
+        `player-fire-super` to `player-super-blast`. R3 showed the empty
+        reactor for two frames there. Two `gun-dis` discharge frames follow at
+        the blast, then the existing cooling. The blast tick is unchanged.
+      - `18649d1` (fix): the discharge frames play only within 70 ms of the
+        blast. The blade can hide the rifle during the 70 ms wind-up.
+      - `96b4bd5`: the Super's muzzle fireball recoloured to pale pink-white,
+        scarlet, crimson and dark ruby. The `explosion` / `muzzle` sheets are
+        palette-swapped copies, plus four Graphics colours during the call.
+        Pellets, impacts and flash are B2-B's on 90/90 ticks.
+      - `f23631d`: a slightly brighter armour shield. Edge alpha is
+        0.8/0.85/0.95/1.0 by quarter (R3 0.8), plus a cyan glow on the
+        sprite's own dark outline cells at three quarters and full. A
+        one-game-pixel sliver shows outside the silhouette on some right-hand
+        cells at 400/300; it is documented with an inset fix proposed, not
+        done. Values, HP and recharge are untouched.
+      - `8e23ff0`, `9f48805`: Audio B2S, which is B2 with a four-phase Super:
+        compression, discharge, five separated zips, then merged, queued
+        impacts and a decay. B2's approved cues are the same code (render
+        difference 1.2e-7, below the renderer's own run-to-run noise).
+        Level-matched to the legacy Super (Super window −26.9 vs −27.1 LUFS
+        isolated, −26.0 vs −26.7 in a fight; phone filter −33.9 vs −33.1),
+        peaking lower. NOT LISTENED TO by the author.
+    - **Open, inherited, NOT resolved:**
+      - The music loop draws `Math.random` (`FX.js:1166/1681/1723`, from its
+        own `setTimeout` loop), so `&b2iso=1` does not make a phone fight with
+        music reproducible.
+      - Proposed fix for HUMAN approval: a private PRNG for those three
+        buffers in `FX.js`. It changes every link including R1, so it is a
+        default change.
+    - **Found in the evidence rig:** the offline capture renders a 440 Hz
+      tone at the start of every full-game capture. B2-R3's fight films carry
+      it too. It is silenced before measuring (`tests/README.md`, B2-R4 rig).
+    - **Proof:**
+      - `tests/smoke-b2r4.mjs` 97/97 (= B2-B tick for tick with audio B2S and the isolation; the wind-up by events incl. suppression, death and the blade; the fireball = B2-B but the named recolour; the shield per value; B2S phases).
+      - Against `bfa765f`: smoke-b2r2 62/62, smoke-b2r 38/38, smoke-b2t 37/37,
+        smoke-b2c 46/46, smoke-b2 88/88, smoke-b1 71/71, smoke-b0 46/46;
+        P2-A3 scope 4/4; controls and restart pass; SMOKE_B2R3.
+      - The production bundle shows no page errors on the four links.
+      - RUN_ALL.
+    - `docs/evidence/b2-r4/README.md`. Awaiting the HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -423,8 +475,9 @@ command, fix the line.*
   handset verdict (`docs/evidence/b2-closure/README.md`); B2 TEMPER
   (`&b2t=1`) was superseded by the HUMAN's REACTOR OVERLOAD direction
   (`&b2r=1`, pixels only); its playtest led to B2-R2 (`&b2r=2`, audio
-  `&b2a=A|B`); its playtest led to B2-R3 (`&b2r=3`, audio `&b2a=B2`), which
-  awaits the HUMAN verdict (`docs/evidence/b2-r3/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
+  `&b2a=A|B`); its playtest led to B2-R3 (`&b2r=3`, audio `&b2a=B2`), and the
+  HUMAN's R3 verdict to the finishing pass B2-R4 (`&b2r=4`, audio `&b2a=B2S`,
+  `&b2iso=1`), which awaits the HUMAN verdict (`docs/evidence/b2-r4/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
 
