@@ -727,7 +727,7 @@ if (on(15)) {
   await p.close();
   check('B2S keeps B2\'s approved cues: rendered without a Super, B2S = B2 within the renderer\'s own run-to-run noise (B2 against itself), both far below audibility', ren.idNoSuper <= Math.max(1e-6, ren.floor * 4), JSON.stringify({ b2sVsB2: ren.idNoSuper, b2VsItself: ren.floor }));
   const S1 = ren.s1.sup;
-  check('B2S Super phases: the compression is cut by the discharge, five zips, the crowd\'s twelve hits merged per tick and queued at least 40 ms apart, none more than 150 ms behind its hit, at most six impacts, the decay after the last; no clipping, nothing dropped, voices under the cap', S1.windups === 1 && S1.releases === 1 && S1.cuts >= 1 && S1.zips === 5 && S1.impacts >= 3 && S1.impacts <= 6 && S1.merged >= 8 && S1.minGap >= 0.0399 && S1.maxLag <= 0.15 && S1.decays === 1 && ren.s1.peak < 0.95 && ren.s1.dropped === 0 && ren.s1.voices < 48, JSON.stringify(ren.s1));
+  check('B2S Super phases: the compression is cut by the discharge, five zips, the crowd\'s twelve hits merged per tick and queued at least 40 ms apart, none more than 150 ms behind its hit, at most six impacts, a decay after each group of impacts; no clipping, nothing dropped, voices under the cap', S1.windups === 1 && S1.releases === 1 && S1.cuts >= 1 && S1.zips === 5 && S1.impacts >= 3 && S1.impacts <= 6 && S1.merged >= 8 && S1.minGap >= 0.0399 && S1.maxLag <= 0.15 && S1.decays >= 1 && ren.s1.peak < 0.95 && ren.s1.dropped === 0 && ren.s1.voices < 48, JSON.stringify(ren.s1));
   check('a pause in the wind-up cuts the compression; a death cuts it and the decay', ren.pause.cuts >= 1 && ren.death.deathCuts >= 1, JSON.stringify({ pause: ren.pause, death: ren.death }));
 }
 

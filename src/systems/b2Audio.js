@@ -456,7 +456,7 @@ function kitB2(ctx, dest, stats, now) {
 // Its own bus and compressor (the approved shots are not pumped by it), its own private random
 // stream; the compression and decay buses are cut by the discharge, a pause, death or restart.
 /** The Super bus level (B2S), before its own compressor; see docs/evidence/b2-r4/README.md. */
-export const B2S_TRIM = 1.6;
+export const B2S_TRIM = 1.45;
 export const B2S_SUPER = { compMaxS: 0.2, zips: 5, zipGapS: 0.011, impactGapS: 0.04, impactMax: 6, impactLagS: 0.15, windowS: 1.2, pitch: [1, 0.92, 1.08, 0.96, 1.04, 0.9] };
 function kitB2S(ctx, dest, stats, now, superDest) {
   const base = kitB2(ctx, dest, stats, now);
@@ -515,7 +515,7 @@ function kitB2S(ctx, dest, stats, now, superDest) {
       if (compOn) { cut(compBus, t); compOn = false; st.cuts++; }
       relT = t; impN = 0; lastImpT = -1; lastHitCall = -1; decayAt = -1;
       // B: the discharge
-      sv.noise(t, { f: 1800, q: 0.9, dur: 0.01, gain: 0.5, drive: 'hard' });
+      sv.noise(t, { f: 1800, q: 0.9, dur: 0.01, gain: 0.4, drive: 'hard' });
       sv.noise(t, { f: 3000, q: 1.2, dur: 0.025, gain: 0.22, drive: 'soft' });     // the snap a phone carries
       sv.osc(t, { type: 'square', f: 3000, f2: 1200, dur: 0.004, gain: 0.08 });
       sv.osc(t, { type: 'square', f: 220, f2: 70, dur: 0.06, gain: 0.35, lp: 1400, lp2: 500, drive: 'hard' });
