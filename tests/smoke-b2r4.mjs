@@ -428,14 +428,16 @@ if (on(8)) {
 // ── 10. THE SHIPPED LINKS (with the B0 telemetry label) ──────────────────
 if (on(10)) {
   console.log('\n== 10. the playtest links, as shipped (&b0=...)');
-  const TL = join(T, 'b0=B2R3B2'), BL = join(B, 'b0=B2B');
+  const TL = join(T, 'b0=B2R4S'), BL = join(B, 'b0=B2B');
   const run = async (flags) => { const ctx = await browser.newContext({ viewport: { width: 720, height: 1280 } }); const p = await boot(flags, { q: Q_MIXED, ctx }); const r = await p.evaluate((x) => window.__trace(x), { seed: 9071, ticks: 1500, seg: FIGHT_SEG, hold: HOLD, superTaps: [300, 700, 1100, 1400], melee: [500, 525, 550] }); const m = await p.evaluate(() => ({ b0: !!window.__gs._b0, label: window.__dbg.getB0Label(), skin: !!window.__gs._b2.stats.feel.skin })); await ctx.close(); return { ...r, m }; };
   const a = await run(BL), b = await run(TL);
   const d = firstDiff(a.hashes, b.hashes);
-  check('the two links as shipped (B0 telemetry on, labels B2B / B2R3B2): the same fight tick for tick, telemetry attached on both, the skin only on the candidate', d < 0 && a.m.b0 && b.m.b0 && a.m.label === 'B2B' && b.m.label === 'B2R3B2' && !a.m.skin && b.m.skin && b.supers === 4, d < 0 ? `${b.shots} rounds, ${b.supers} Supers, ${b.kills} kills, ${b.draws} draws` : `first divergent tick ${d}`);
+  check('the two links as shipped (B0 telemetry on, labels B2B / B2R4S): the same fight tick for tick, telemetry attached on both, the skin only on the candidate', d < 0 && a.m.b0 && b.m.b0 && a.m.label === 'B2B' && b.m.label === 'B2R4S' && !a.m.skin && b.m.skin && b.supers === 4, d < 0 ? `${b.shots} rounds, ${b.supers} Supers, ${b.kills} kills, ${b.draws} draws` : `first divergent tick ${d}`);
   const r = await restartCheck(TL, 'the candidate link: ');
-  for (const [lvl, k] of [[3, 'B2'], [3, 'B'], [2, 'B']]) await restartCheck(join(VIS, 'b2=B', `b2r=${lvl}`, `b2a=${k}`, 'b2c=1', `b0=B2R${lvl}${k}`), `the playtest link (R${lvl}, audio ${k}, b2c): `);
-  check('the candidate link keeps its telemetry through the restarts', r.first.b0 && r.second.b0 && r.third.b0 && r.label === 'B2R3B2', JSON.stringify({ label: r.label }));
+  await restartCheck(join(T, 'b2c=1', 'b0=B2R4S'), 'the shipped candidate link (R4, audio B2S, b2iso, b2c): ');
+  await restartCheck(join(VIS, 'b2=B', 'b2r=4', 'b2a=B2', 'b2iso=1', 'b2c=1', 'b0=B2R4B2'), 'the R4 link with the legacy Super audio (R4, audio B2, b2iso, b2c): ');
+  for (const [lvl, k] of [[3, 'B2']]) await restartCheck(join(VIS, 'b2=B', `b2r=${lvl}`, `b2a=${k}`, 'b2c=1', `b0=B2R${lvl}${k}`), `the R3 control link (R${lvl}, audio ${k}, b2c): `);
+  check('the candidate link keeps its telemetry through the restarts', r.first.b0 && r.second.b0 && r.third.b0 && r.label === 'B2R4S', JSON.stringify({ label: r.label }));
 }
 
 // R2 helpers (in page): a clear lane, the fire stick, per-frame continuity
