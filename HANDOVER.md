@@ -445,9 +445,9 @@ command, fix the line.*
       - `tests/smoke-b2r4.mjs` 97/97 (= B2-B tick for tick with audio B2S and the isolation; the wind-up by events incl. suppression, death and the blade; the fireball = B2-B but the named recolour; the shield per value; B2S phases).
       - Against `bfa765f`: smoke-b2r2 62/62, smoke-b2r 38/38, smoke-b2t 37/37,
         smoke-b2c 46/46, smoke-b2 88/88, smoke-b1 71/71, smoke-b0 46/46;
-        P2-A3 scope 4/4; controls and restart pass; SMOKE_B2R3.
+        P2-A3 scope 4/4; controls and restart pass; smoke-b2r3 81/81 (R3 unchanged).
       - The production bundle shows no page errors on the four links.
-      - RUN_ALL.
+      - run-all: not yet run at the deploy commit (it runs right after).
     - `docs/evidence/b2-r4/README.md`. Awaiting the HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,

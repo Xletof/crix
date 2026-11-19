@@ -226,7 +226,7 @@ Every suite ran standalone against the dev server. Where a suite takes `--old`, 
 | Suite | Result | Notes |
 |---|---|---|
 | `smoke-b2r4` (new) | **97/97** | one clean run on the final code (`smoke-b2r4.txt`), including the five suppression and blade checks added with `18649d1`. The blade check fails on the code before that fix. The earlier 92/92 run (before the fix and the §10 link correction) is in git history. |
-| `smoke-b2r3` | PENDING | R3 unchanged |
+| `smoke-b2r3` | 81/81 | R3 unchanged, on the final code |
 | `smoke-b2r2` | 62/62 | |
 | `smoke-b2r` | 38/38 | |
 | `smoke-b2t` | 37/37 | |
@@ -238,7 +238,7 @@ Every suite ran standalone against the dev server. Where a suite takes `--old`, 
 | `smoke-controls` | PASS | |
 | `smoke-restart` | PASS (16 checks) | |
 | production bundle (`npm run build`, `vite preview`) | no page errors | the four links and a plain boot |
-| `run-all` (52 suites) | PENDING | |
+| `run-all` (52 suites) | not yet run at deploy | run straight after the deploy; this row is updated with the result |
 
 **Seeded parity.** B2-R4 plus B2S plus isolation equals B2-B tick for tick: state, ammo, meters, every enemy, bolt and pellet, `Math.random` draws and events.
 - It held over three 1500-tick fights with four Supers and a Broken Wings chain each (one with god mode off), and with `&b2c=1` on both sides.

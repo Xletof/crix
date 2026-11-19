@@ -1,0 +1,120 @@
+
+== 0. flags
+PASS  "b2r=3&b2a=B2": skin none, audio none  — {"lvl":false,"aud":null,"b2":false,"skin":null,"r3":false,"voice":null}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B": skin none, audio B2-1 kit  — {"lvl":false,"aud":null,"b2":true,"skin":null,"r3":false,"voice":"b2-1"}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=1": skin reactor, audio B2-1 kit  — {"lvl":1,"aud":null,"b2":true,"skin":"reactor","r3":false,"voice":"b2-1"}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=2": skin reactor2, audio B2-1 kit  — {"lvl":2,"aud":null,"b2":true,"skin":"reactor2","r3":false,"voice":"b2-1"}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=3": skin reactor3, audio B2-1 kit  — {"lvl":3,"aud":null,"b2":true,"skin":"reactor3","r3":true,"voice":"b2-1"}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=3&b2a=B2": skin reactor3, audio B2  — {"lvl":3,"aud":"B2","b2":true,"skin":"reactor3","r3":true,"voice":"B2"}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=3&b2a=B": skin reactor3, audio B  — {"lvl":3,"aud":"B","b2":true,"skin":"reactor3","r3":true,"voice":"B"}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=2&b2a=B": skin reactor2, audio B  — {"lvl":2,"aud":"B","b2":true,"skin":"reactor2","r3":false,"voice":"B"}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2a=B2": skin none, audio B2  — {"lvl":false,"aud":"B2","b2":true,"skin":null,"r3":false,"voice":"B2"}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=A&b2r=3": skin reactor3, audio B2-1 kit  — {"lvl":3,"aud":null,"b2":true,"skin":"reactor3","r3":true,"voice":"b2-1"}
+
+== 1. pixels only: the same fight
+PASS  MIXED s6: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — B2-R3 + audio B2 = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)  — 197 rounds, 4 Supers, 37 kills, 18855 draws; hidden: only the shipped cyan shield-absorb rings (0 cloak calls = 0 rings), nothing of the Super
+PASS  SWARM TIDE: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — B2-R3 + audio B2 = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)  — 197 rounds, 4 Supers, 44 kills, 19458 draws; hidden: only the shipped cyan shield-absorb rings (0 cloak calls = 0 rings), nothing of the Super
+PASS  MIXED s6, god mode off: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — B2-R3 + audio B2 = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)  — 197 rounds, 4 Supers, 35 kills, 19367 draws; hidden: only the shipped cyan shield-absorb rings (4 cloak calls = 4 rings), nothing of the Super
+PASS  with the closure candidate on both sides (&b2c=1, F-release Supers): B2-R3 = B2-B tick for tick (KNOWN INTERMITTENT, inherited: the &b2c=1 fight alone is not repeatable about 1 run in 11, a wave banner lands a tick late at tick 741; see docs/evidence/b2-reactor/README.md)  — 197 rounds, 3 Supers; localStorage keys written by a run: none
+
+== 2. the tracer invariant under the skin
+PASS  every visible REACTOR bolt, every frame: on its round's line, never behind the barrel, its head at the collider, a finished bolt ending where its round stopped (kills, blank space in six directions, walls, a Super)  — {"checks":1083,"bad":0,"samples":[],"stale":0,"kills":3,"rounds":41,"drawn":{"checks":2166,"bad":0}}
+PASS  ...and the sprite itself, read back from its own crop and position, shows exactly that segment  — {"checks":2166,"bad":0}
+
+== 3. the gun
+PASS  the reactor per charge: a violet core at 0 (2 channels lit), then 4 / 6 / 7 / 9 channels through magenta, crimson and scarlet, FULL = all 10 in red; the threads orbit from three quarters (one, slow) and at FULL (two)  — [[[0,2,0,"gun-0",true],[0.12,2,0,"gun-0",true],[0.35,4,1,"gun-2",true],[0.55,6,2,"gun-4",true],[0.7,7,2,"gun-5",true],[0.95,9,3,"gun-7t",true],[1,10,4,"gun-8p3",true]],[null,"sh","sw"]]
+PASS  every gun frame keeps the approved rifle's silhouette and outline, the spent-barrel pixels stay inside it, and so do the two choked frames  — {"frames":31,"silhouette":true,"heatInside":true,"choked":true}
+PASS  the palette: a violet lens and core at 0 (#b98cff), scarlet channels at three quarters (#ff4030), and at FULL a hot highlight on the core (#ffd9a0) over dark ruby (#7a0a14)  — ["#b98cff","#ff4030","#ffd9a0","#7a0a14"]
+PASS  the overlay is on the weapon in every rendered frame of a turn and a stream (position, rotation, flip, origin, alpha)  — {"checks":80,"bad":0}
+PASS  a new lamp ignites (one white frame set), then settles  — [1,"gun-6i","gun-6"]
+PASS  mid-combo (the blade) and dead: no gun overlay  — [{"key":"p1-blade","shown":false,"mine":0},{"alive":false,"shown":false,"mine":0}]
+
+== 4. the R2 round
+PASS  one slug size (78x15: a 20 px body and a 6 px tapering tail, no hard rear edge) at every stage  — ["78x15"]
+PASS  every R3 object in a stream: NORMAL blend, scale 1, opaque (the stream is cropped, never scaled)  — {"seen":612,"bad":0}
+PASS  the round by stage: violet at 0, crimson at 50%, critical red at FULL (R2's slug); and NO ribbon: no link drawn, no ribbon sprite ever created  — [{"0":["slug-0"],"1":["slug-4"],"0.5":["slug-2"]},0,0]
+
+== 5. frames
+PASS  60 fps: every round gets a muzzle flash and every flash shows all three frames (2 ticks each), frame 0 never skipped  — {"flashes":30,"hits":30,"mz":[60,60,60],"hit":[60,60,60,90],"shots":30}
+PASS  60 fps: every contact shows its first frame, and the later frames follow  — {"hits":30,"hit":[60,60,60,90]}
+PASS  30 fps: every round gets a muzzle flash and every flash shows all three frames (1 tick each), frame 0 never skipped  — {"flashes":30,"hits":30,"mz":[30,30,30],"hit":[30,30,30,60],"shots":30}
+PASS  30 fps: every contact shows its first frame, and the later frames follow  — {"hits":30,"hit":[30,30,30,60]}
+
+== 6. the Super is B2-B's
+PASS  B2-1 F press: every object the cast creates, every emitter particle and every pellet = B2-B on all 90 ticks; the same camera flashes; the same damage; nothing hidden  — same ticks 90/90; visible shipped objects 714 (B2-B 714); flashes ["2:160,120,0,0","8:220,255,150,60"]; cloak {"calls":0,"objects":0,"particles":0}
+PASS  B2-1 F press: control — B2-R2 (its own Super) fails the same comparison  — B2-R2 same ticks 26/90, visible shipped objects 473, flashes ["2:160,120,0,0"]
+PASS  B2-1 F press: the gun keeps its own reactor frames: it collapses into the brake on the wind-up and cools through four steps after  — {"wind":["gun-w0","gun-w1"],"heat":[-1,0,1,2,3]}
+PASS  b2c=1: every object the cast creates, every emitter particle and every pellet = B2-B on all 90 ticks; the same camera flashes; the same damage; nothing hidden  — same ticks 90/90; visible shipped objects 714 (B2-B 714); flashes ["4:160,120,0,0","10:180,150,170,255"]; cloak {"calls":0,"objects":0,"particles":0}
+PASS  b2c=1: control — B2-R2 (its own Super) fails the same comparison  — B2-R2 same ticks 26/90, visible shipped objects 473, flashes ["4:160,120,0,0"]
+PASS  b2c=1: the gun keeps its own reactor frames: it collapses into the brake on the wind-up and cools through four steps after  — {"wind":["gun-w0","gun-w1"],"heat":[-1,0,1,2,3]}
+PASS  with &b2c=1: a held F plays no wind-up; a cancelled hold plays none; it plays on the release, with the cast  — {"held":{"wind":false,"supers":0,"phase":"targeting"},"cancel":{"wind":false,"supers":0},"release":{"wind":true,"supers":1}}
+
+== 7. restarts
+PASS  restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":2,"b0":false},{"skin":true,"pre":2,"blast":2,"b0":false},{"skin":true,"pre":2,"blast":2,"b0":false},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+
+== 8. cost
+PASS  B2-R3 stays bounded: fewer pooled objects at peak than B2-R2 in a SWARM TIDE fight (no ribbon links, no Super masses), and the same rounds fired  — peak pooled objects: B2-B 40, B2-R2 53, B2-R3 22 (25 ever created); update B2-B 0.032ms, B2-R2 0.072ms, B2-R3 0.051ms per frame (max 3.30 / 4.50 / 3.90); peak live rounds 6
+
+== 10. the playtest links, as shipped (&b0=...)
+PASS  the two links as shipped (B0 telemetry on, labels B2B / B2R3B2): the same fight tick for tick, telemetry attached on both, the skin only on the candidate  — 197 rounds, 4 Supers, 37 kills, 18855 draws
+PASS  the candidate link: restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  the candidate link: quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+PASS  the playtest link (R3, audio B2, b2c): restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  the playtest link (R3, audio B2, b2c): quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+PASS  the playtest link (R3, audio B, b2c): restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  the playtest link (R3, audio B, b2c): quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+PASS  the playtest link (R2, audio B, b2c): restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  the playtest link (R2, audio B, b2c): quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+PASS  the candidate link keeps its telemetry through the restarts  — {"label":"B2R3B2"}
+
+== 11. single variable: R2 vs R3, the ribbon only
+PASS  R2 vs R3, same seed, 420 ticks of moving manual fire with abrupt flicks, dashes, walls, expiries and a Super: every slug, glow, muzzle, contact and dissipation sprite identical per tick (frame, active crop, position, rotation, alpha, depth)  — identical 420/420, first diff -1; slug sprites drawn 1417; dissipation frames [60,60,60,87] (R2 [60,60,60,87])
+PASS  ...and the only difference: R3 draws no ribbon (R2 draws it, control)  — ribbon sprites R2 2468 / R3 0; links R2 1234 / R3 0
+PASS  every round keeps its own straight path under flicks, strafing and dashes (the tracer invariant 0 violations; slug and glow sprites read back exactly)  — {"inv":{"checks":1417,"bad":0},"drawn":{"checks":2834,"bad":0}}
+
+== 12. range expiry
+PASS  60 fps: every range expiry (B2 classifies it from Bullet.traveled >= range at the kill) plays the dissipation, every frame of it, frame 0 included  — {"exp":16,"dis":[32,32,32,48],"deaths":24,"expiredDeaths":16,"overshoot":16.666666666665833,"lane":{"x":480,"y":540,"a":-0.7853981633974483},"live":0}
+PASS  60 fps: the dissipation is visual only: the round itself dies where Bullet.preUpdate kills it (no extra travel), and no bullet stays active after  — {"deaths":24,"overshoot":16.666666666665833,"live":0}
+PASS  30 fps: every range expiry (B2 classifies it from Bullet.traveled >= range at the kill) plays the dissipation, every frame of it, frame 0 included  — {"exp":16,"dis":[16,16,16,32],"deaths":24,"expiredDeaths":16,"overshoot":16.666666666665833,"lane":{"x":480,"y":540,"a":-0.7853981633974483},"live":0}
+PASS  30 fps: the dissipation is visual only: the round itself dies where Bullet.preUpdate kills it (no extra travel), and no bullet stays active after  — {"deaths":24,"overshoot":16.666666666665833,"live":0}
+PASS  range expiry in every direction with a clear lane in the room (N, NE, E, SE, S, SW, W, NW): each expiry plays the dissipation to its last frame  — [{"deg":-90,"exp":7,"dis":21},{"deg":-45,"exp":7,"dis":21},{"deg":0,"exp":7,"dis":21},{"deg":45,"exp":7,"dis":21},{"deg":90,"exp":7,"dis":21},{"deg":135,"exp":7,"dis":21},{"deg":180,"exp":7,"dis":21},{"deg":-135,"exp":7,"dis":21}]
+
+== 13. how a round ends: distinct outcomes
+PASS  a wall: the rounds end as wall contacts and draw the wall flare, not the dissipation and not the body splash  — {"hit":0,"wall":10,"expire":0,"cancel":0,"disF":0,"wallF":20,"hitF":0,"lane":{"x":1160,"y":340,"a":-0.7853981633974483},"walls":[[485,325,70,70,true],[805,325,70,70,true],[1045,325,70,70,true],[485,1045,70,70,true]]}
+PASS  a body: the rounds end as hits and draw the contact splash, not the dissipation  — {"hit":10,"wall":0,"expire":0,"cancel":0,"disF":0,"wallF":0,"hitF":20}
+PASS  cancelled in flight: the rounds end as cancels with neither a dissipation nor a splash  — {"hit":0,"wall":0,"expire":0,"cancel":4,"disF":0,"wallF":0,"hitF":0}
+
+== 14. the shield on the armour
+PASS  no shield bubble, no spiked ready ring, no gauge and no corner plates are ever on screen under B2-R3; B2-B shows the bubble and the ring, B2-R2 the plates (controls)  — {"r3":{"shield":0,"ring":0,"plates":0,"cyanRing":0,"frames":158},"b2b":{"shield":140,"ring":154,"plates":0,"cyanRing":0,"frames":158},"r2":{"shield":0,"ring":0,"plates":592,"cyanRing":0,"frames":158}}
+PASS  the shield is on the armour edge on every facing (S, N, E, W — the side frame flipped for W), read from the frame the sprite shows, drawn just over the hero  — {"facings":{"S":{"frame":0,"flip":false,"visible":true},"N":{"frame":8,"flip":false,"visible":true},"E":{"frame":16,"flip":false,"visible":true},"W":{"frame":16,"flip":true,"visible":true}},"frames":3,"rims":33}
+PASS  the overlay is in sync with the sprite at every render (position, scale, alpha, frame, flip)  — {"checks":152,"bad":0}
+PASS  partial charge reads in quarters (3, 2, 1 lit) and the bush alpha is the sprite's  — {"bands":[0,4,4,4,0],"bush":{"alpha":0.5,"sprite":0.5}}
+PASS  an absorbed hit shimmers on the side it came from, the shipped cyan ring is hidden (it still runs), the last point breaks with shards; dead, nothing drawn  — {"hit":{"shield":300,"hp":0,"hits":4,"sided":6},"rings":{"r3":0,"b2b":1,"hidden":3},"brk":{"shield":0,"hp":-200,"breaks":1,"shards":18},"dead":{"alive":false,"overlay":false}}
+PASS  through a whole rendered fight (MIXED s6, god mode off: wave-clear shields, Broken Wings, four Supers, hits) the armour shield is read back in sync with the sprite at every render  — {"sync":{"checks":576,"bad":0},"drawn":575,"hits":3,"breaks":1,"frames":18}
+PASS  shield and health take exactly what B2-B takes (a hit and the break)  — {"r3":[{"shield":300,"hp":0,"hits":4,"sided":6},{"shield":0,"hp":-200,"breaks":1,"shards":18}],"b2b":[{"shield":300,"hp":0,"hits":null,"sided":null},{"shield":0,"hp":-200,"breaks":null,"shards":null}]}
+
+== 15. audio
+PASS  b2Audio.js draws no Math.random (private mulberry32 streams only)
+PASS  audio B: shot, impact, the charge stages, Super wind-up, release, Super hits and target locks all fire; the shipped Super shot is replaced (audio is not live in this headless rig: voices and peaks are measured in the offline render below)  — {"events":{"shot":40,"impact":40,"stage":3,"primed":1,"reload":1,"tail":1,"reloaded":1,"silence":2,"lock":1,"windup":1,"release":1,"superHit":4},"peak":0,"dropped":0}
+PASS  audio B (control): no confirmation event (B keeps its own primed cue)  — {"shot":40,"impact":40,"stage":3,"primed":1,"reload":1,"tail":1,"reloaded":1,"silence":2,"lock":1,"windup":1,"release":1,"superHit":4}
+PASS  audio B2: shot, impact, the charge stages, Super wind-up, release, Super hits and target locks all fire; the shipped Super shot is replaced (audio is not live in this headless rig: voices and peaks are measured in the offline render below)  — {"events":{"shot":40,"impact":40,"stage":3,"primed":1,"confirm":2,"reload":1,"tail":1,"reloaded":1,"silence":2,"lock":1,"windup":1,"release":1,"superHit":4},"peak":0,"dropped":0}
+PASS  audio B2: the Super-ready confirmation fires once on the transition to full, not again while full (5 s), not while suppressed, once more when the suppression ends, not on pause / resume  — {"atFull":1,"stillFull":1,"suppressed":1,"released":2,"resumed":2}
+PASS  offline render (synthetic 13 s timeline): no clipping, nothing dropped, voices bounded; B2 confirms 3 times (full, refilled after the cast, the suppression ending) and cuts 3 times (wind-up, suppression, pause)  — {"B":{"peak":0.7373483180999756,"rms":0.03913421697824908,"voices":9,"dropped":0,"confirms":0,"cuts":0},"B2":{"peak":0.7099670171737671,"rms":0.044271337532476675,"voices":14,"dropped":0,"confirms":3,"cuts":3}}
+
+== 16. the choked reactor
+PASS  full and available: the ready reactor (pressure pulse, two threads, armour arcs facing east and north)  — {"ready":{"frames":["gun-8p0","gun-8p1","gun-8p2","gun-8p3","gun-8"],"swirl":["sw"],"arcs":141},"north":93}
+PASS  full but suppressed: only the choked frames (ruby, cold lens, clamp; a strain beat), no threads, no arcs — firing included (a shot never flashes "ready")  — {"choked":{"frames":["gun-8s","gun-8sf"],"swirl":[null],"arcs":0},"fire":{"frames":["gun-8s","gun-8sf"],"swirl":[null],"arcs":0}}
+PASS  released: the ready pulse and threads return at once  — {"frames":["gun-8p0","gun-8p1","gun-8p2","gun-8p3","gun-8"],"swirl":["sw"],"arcs":68}
+PASS  control: B2-R2 shows the ready reactor under the same suppression (the issue R3 addresses)  — {"frames":["gun-8","gun-8p0","gun-8p1","gun-8p2","gun-8p3"],"swirl":["sw"],"arcs":0}
+
+== 17. real input paths
+PASS  touch: the real input path fires (CDP touch on the floating aim stick), every round on its own path, no ribbon  — {"shots":40,"touch":1,"mouse":0,"key":0,"inv":0,"checks":1031,"drawnBad":0,"links":0,"ribs":0,"dis":{"wall":13,"expire":27}}
+PASS  keys: the real input path fires (keyboard SPACE + WASD flicks), every round on its own path, no ribbon  — {"shots":40,"touch":0,"mouse":0,"key":1,"inv":0,"checks":513,"drawnBad":0,"links":0,"ribs":0,"dis":{"wall":28,"expire":12}}
+PASS  mouse: the real input path fires (the mouse dragging the aim stick), every round on its own path, no ribbon  — {"shots":40,"touch":0,"mouse":1,"key":0,"inv":0,"checks":1031,"drawnBad":0,"links":0,"ribs":0,"dis":{"wall":13,"expire":27}}
+
+== 9. scope
+PASS  the B0 / B1 / B2 scope guard (b2Temper.js is one of B2's modules; GameScene and every frozen file untouched)  — B0 (dc7d9ea..a3866f2): 5 files, GameScene +13 tag/install lines; B1 (a3866f2..266b1ac): 6 files, GameScene +5 install/branch lines; B2 (266b1ac..): 14 files, GameScene +4 install/branch lines
+
+81/81 passed
+exit 0
