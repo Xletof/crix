@@ -275,6 +275,51 @@ const SH_CY = [[214, 250, 255], [150, 236, 255], [90, 214, 240], [50, 160, 196]]
 export const R3_CHOKE = { strainMs: 900, strainOnMs: 90 };
 /** B2-R4 timings: the wind-up hold's last-resort exit, and the discharge's drawn frames. */
 export const R4 = { holdMaxMs: 1500, disFrames: 2 };
+
+// ── B2-R4: THE SUPER'S MUZZLE DISCHARGE IN THE REACTOR'S REDS ─────────────
+// The shipped discharge is five layers (FX.superMuzzleFlash): the additive `muzzle` bloom,
+// two `explosion` sprite pops (the yellow-orange fireball), a hot disc, a cone and a
+// shockwave ring. The fireball keeps its frames, layering and timing: a copy of its sheet is
+// palette-mapped role for role (white core -> pale pink-white, yellow -> scarlet, orange ->
+// crimson, red-orange -> ruby, grey smoke -> dark ruby smoke). The bloom keeps its reds;
+// its yellow sparks go scarlet. The disc, cone and ring keep their shapes; their four colours
+// are mapped at draw time. Only the Super's own calls use these; every other explosion is
+// unchanged. The five pellets, their impacts and the screen flash are not touched.
+export const R4_FIRE = {
+  explosion: { '#ffffff': '#fff0f2', '#ffee20': '#ff4a36', '#ff8810': '#d81e30', '#cc3010': '#7e0c16', '#504848': '#3c1a1e' },
+  muzzle: { '#ffffff': '#fff0f2', '#ffee20': '#ff4a36' },
+  draw: { 0xffffff: 0xfff0f2, 0xffe0c0: 0xffb8c0, 0xff6040: 0xff2a36, 0xffd0b0: 0xff8a96 },
+};
+const hex6 = (r, g, b) => `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+function remapSheet(scene, from, to, map, stats) {
+  if (scene.textures.exists(to)) return true;
+  if (!scene.textures.exists(from) || typeof document === 'undefined') return false;
+  const src = scene.textures.get(from), img = src.getSourceImage();
+  const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+  const c = cv.getContext('2d'); c.drawImage(img, 0, 0);
+  const d = c.getImageData(0, 0, cv.width, cv.height), px = d.data;
+  const rgb = Object.fromEntries(Object.entries(map).map(([k, v]) => [k, [1, 3, 5].map((i) => parseInt(v.slice(i, i + 2), 16))]));
+  for (let i = 0; i < px.length; i += 4) {
+    if (!px[i + 3]) continue;
+    const k = hex6(px[i], px[i + 1], px[i + 2]), m = rgb[k];
+    if (m) { px[i] = m[0]; px[i + 1] = m[1]; px[i + 2] = m[2]; stats.mapped++; } else stats.kept[k] = (stats.kept[k] || 0) + 1;
+  }
+  c.putImageData(d, 0, 0);
+  const tex = scene.textures.addCanvas(to, cv);
+  for (const name of src.getFrameNames()) { const f = src.frames[name]; tex.add(name, 0, f.cutX, f.cutY, f.cutWidth, f.cutHeight); }
+  return true;
+}
+function buildR4Fire(scene) {
+  const st = { mapped: 0, kept: {} };
+  const okE = remapSheet(scene, 'explosion', 'explosion-r4', R4_FIRE.explosion, st);
+  const keptExplosion = { ...st.kept };
+  const okM = remapSheet(scene, 'muzzle', 'muzzle-r4', R4_FIRE.muzzle, st);
+  const a = scene.anims.get('explode');
+  if (okE && a && !scene.anims.exists('explode-r4')) {
+    scene.anims.create({ key: 'explode-r4', frames: a.frames.map((f) => ({ key: 'explosion-r4', frame: f.textureFrame })), frameRate: a.frameRate, repeat: 0 });
+  }
+  return { okE, okM, mapped: st.mapped, keptExplosion, kept: st.kept };
+}
 function buildR3Gun(scene) {
   if (scene.textures.exists(R3_KEY)) return scene.textures.get(R3_KEY);
   const base = readRifle(scene);
@@ -566,6 +611,43 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   // candidate's ice-violet one) draw exactly as in B2-B. The gun keeps its own wind-up and
   // cooling frames (updateGun), which are the reactor's, not the attack's.
   const dim = IS3 ? null : scene.add.rectangle(0, 0, 4, 4, 0x04050a, 1).setOrigin(0).setScrollFactor(0).setDepth(7990).setVisible(false);
+  if (IS4) {
+    // R4: the shipped Super discharge runs exactly as in B2-B (every object, tween and timing);
+    // what it creates is drawn in the reactor's reds. No Math.random is drawn here.
+    stats.r4.fire = buildR4Fire(scene);
+    const pop = { x: 0, y: 0, ang: 0, at: -1e9, n: 0 };
+    const GP = Phaser.GameObjects.Graphics.prototype;
+    const mapC = (c) => (R4_FIRE.draw[c] ?? c);
+    const recolour = (fn) => {
+      const dl = scene.sys.displayList, caught = [];
+      const had = Object.prototype.hasOwnProperty.call(dl, 'add'), prevAdd = dl.add;
+      dl.add = function (child, ...r) { caught.push(child); return prevAdd.call(this, child, ...r); };
+      const f0 = GP.fillStyle, l0 = GP.lineStyle;
+      GP.fillStyle = function (c, a) { return f0.call(this, mapC(c), a); };
+      GP.lineStyle = function (w, c, a) { return l0.call(this, w, mapC(c), a); };
+      try { return fn(); } finally {
+        GP.fillStyle = f0; GP.lineStyle = l0;
+        if (had) dl.add = prevAdd; else delete dl.add;
+        for (const o of caught.flat()) {
+          if (!o) continue;
+          if (o.type === 'Image' && o.texture?.key === 'muzzle' && stats.r4.fire.okM) { o.setTexture('muzzle-r4'); stats.r4.fireball.images++; }
+          else if (o.type === 'Sprite' && o.texture?.key === 'explosion' && stats.r4.fire.okE) { const f = o.frame.name; o.setTexture('explosion-r4', f); o.play('explode-r4'); stats.r4.fireball.swapped++; }
+          else if (o.type === 'Graphics') stats.r4.fireball.graphics++;
+        }
+      }
+    };
+    h.wrap(fx, 'superMuzzleFlash', (prev) => function (x, y, angle, ...r) {
+      pop.x = x; pop.y = y; pop.ang = angle; pop.at = clock; pop.n = 0;
+      return recolour(() => prev.call(this, x, y, angle, ...r));
+    });
+    // the second pop arrives 45ms later from a delayed call: recognised by its exact position
+    h.wrap(fx, 'explosion', (prev) => function (x, y, ...r) {
+      const mine = clock - pop.at < 200 && pop.n < 2 && [16, 44].some((d) => x === pop.x + Math.cos(pop.ang) * d && y === pop.y + Math.sin(pop.ang) * d);
+      if (!mine) return prev.call(this, x, y, ...r);
+      pop.n++; stats.r4.fireball.pops++;
+      return recolour(() => prev.call(this, x, y, ...r));
+    });
+  }
   let dimAt = -1e9;
   if (!IS3) {
   h.wrap(scene, 'firePlayerSuper', (prev) => function (...a) { return cloak(() => prev.apply(this, a)); });
