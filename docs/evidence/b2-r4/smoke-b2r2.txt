@@ -1,0 +1,97 @@
+
+== 0. flags
+PASS  "b2r=2": skin none, audio none  — {"lvl":false,"aud":null,"b2":false,"skin":null,"r2":false,"voice":null}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B": skin none, audio B2-1 kit  — {"lvl":false,"aud":null,"b2":true,"skin":null,"r2":false,"voice":"b2-1"}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=1": skin reactor, audio B2-1 kit  — {"lvl":1,"aud":null,"b2":true,"skin":"reactor","r2":false,"voice":"b2-1"}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=2": skin reactor2, audio B2-1 kit  — {"lvl":2,"aud":null,"b2":true,"skin":"reactor2","r2":true,"voice":"b2-1"}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=2&b2a=A": skin reactor2, audio A  — {"lvl":2,"aud":"A","b2":true,"skin":"reactor2","r2":true,"voice":"A"}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=2&b2a=B": skin reactor2, audio B  — {"lvl":2,"aud":"B","b2":true,"skin":"reactor2","r2":true,"voice":"B"}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2a=B": skin none, audio B  — {"lvl":false,"aud":"B","b2":true,"skin":null,"r2":false,"voice":"B"}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=A&b2r=2": skin reactor2, audio B2-1 kit  — {"lvl":2,"aud":null,"b2":true,"skin":"reactor2","r2":true,"voice":"b2-1"}
+
+== 1. pixels only: the same fight
+PASS  MIXED s6: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — B2-R2 + audio A = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)  — 197 rounds, 4 Supers, 37 kills, 18855 draws; hidden: 32 objects, 814 particles in 718 calls
+PASS  SWARM TIDE: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — B2-R2 + audio A = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)  — 197 rounds, 4 Supers, 44 kills, 19458 draws; hidden: 32 objects, 798 particles in 702 calls
+PASS  MIXED s6, god mode off: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — B2-R2 + audio A = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)  — 197 rounds, 4 Supers, 35 kills, 19367 draws; hidden: 32 objects, 830 particles in 734 calls
+PASS  with the closure candidate on both sides (&b2c=1, F-release Supers): B2-R2 = no B2-R2 tick for tick (KNOWN INTERMITTENT, inherited: the &b2c=1 fight alone is not repeatable about 1 run in 11, a wave banner lands a tick late at tick 741; see docs/evidence/b2-reactor/README.md)  — 197 rounds, 3 Supers; localStorage keys written by a run: none
+
+== 2. the tracer invariant under the skin
+PASS  every visible REACTOR bolt, every frame: on its round's line, never behind the barrel, its head at the collider, a finished bolt ending where its round stopped (kills, blank space in six directions, walls, a Super)  — {"checks":1083,"bad":0,"samples":[],"stale":0,"kills":3,"rounds":41,"drawn":{"checks":2166,"bad":0}}
+PASS  ...and the sprite itself, read back from its own crop and position, shows exactly that segment  — {"checks":2166,"bad":0}
+
+== 3. the gun
+PASS  the reactor per charge: a violet core at 0 (2 channels lit), then 4 / 6 / 7 / 9 channels through magenta, crimson and scarlet, FULL = all 10 in red; the threads orbit from three quarters (one, slow) and at FULL (two)  — [[[0,2,0,"gun-0",true],[0.12,2,0,"gun-0",true],[0.35,4,1,"gun-2",true],[0.55,6,2,"gun-4",true],[0.7,7,2,"gun-5",true],[0.95,9,3,"gun-7t",true],[1,10,4,"gun-8p3",true]],[null,"sh","sw"]]
+PASS  every gun frame keeps the approved rifle's silhouette and outline, and the spent-barrel pixels stay inside it  — {"frames":31,"silhouette":true,"heatInside":true}
+PASS  the palette: a violet lens and core at 0 (#b98cff), scarlet channels at three quarters (#ff4030), and at FULL a hot highlight on the core (#ffd9a0) over dark ruby (#7a0a14)  — ["#b98cff","#ff4030","#ffd9a0","#7a0a14"]
+PASS  the overlay is on the weapon in every rendered frame of a turn and a stream (position, rotation, flip, origin, alpha)  — {"checks":80,"bad":0}
+PASS  a new lamp ignites (one white frame set), then settles  — [1,"gun-6i","gun-6"]
+PASS  mid-combo (the blade) and dead: no gun overlay  — [{"key":"p1-blade","shown":false,"mine":0},{"alive":false,"shown":false,"mine":0}]
+
+== 4. the R2 round
+PASS  one slug size (78x15: a 20 px body and a 6 px tapering tail, no hard rear edge) at every stage  — ["78x15"]
+PASS  every R2 object in a stream: NORMAL blend, scale 1, opaque (the stream is cropped, never scaled)  — {"seen":720,"bad":0}
+PASS  the round by stage: violet at 0, crimson at 50%, critical red at FULL; and a stationary stream is linked into one line  — [{"0":["slug-0"],"1":["slug-4"],"0.5":["slug-2"]},60]
+
+== 5. frames
+PASS  60 fps: every round gets a muzzle flash and every flash shows all three frames (2 ticks each), frame 0 never skipped  — {"flashes":30,"hits":30,"mz":[60,60,60],"hit":[60,60,60,90],"shots":30}
+PASS  60 fps: every contact shows its first frame, and the later frames follow  — {"hits":30,"hit":[60,60,60,90]}
+PASS  30 fps: every round gets a muzzle flash and every flash shows all three frames (1 tick each), frame 0 never skipped  — {"flashes":30,"hits":30,"mz":[30,30,30],"hit":[30,30,30,60],"shots":30}
+PASS  30 fps: every contact shows its first frame, and the later frames follow  — {"hits":30,"hit":[30,30,30,60]}
+
+== 6. the Super
+PASS  the pellets are the shipped ones: the same five angles and damage, the same body and sprite (width, height, half sizes, radius, circle, scale, display size)  — {"pellets":5,"body":[54,102.6,27,51,27,true,1,1.9,54,45.599999999999994]}
+PASS  the pellet is the shipped object, untouched: the same texture and 1x1.9 scale as B2-B, only not drawn; a mass is drawn on each (5 per cast)  — [["bullet-super/__BASE/1x1.9"],["bullet-super/__BASE/1x1.9"],[false,false,false,false,false],15]
+PASS  no screen flash and none of the shipped additive blast shapes (wind-up ring, fireball, cone, disc, ring) is visible — and B2-B shows them (control)  — {"temper":{"flash":false,"addGfx":0,"hidden":{"calls":192,"objects":16,"particles":240}},"b2b":{"flash":true,"addGfx":31}}
+PASS  the release is drawn in frames: the reactor collapses and a band closes on the muzzle in the wind-up, all three burst frames are seen, each target hit gets its three impact frames, the barrel cools through four steps  — {"wind":["gun-w0","gun-w1","gun-0"],"crown":[6,6,4],"ring":[4,4],"heat":[0,1,2,3,-1],"impacts":6,"imp":[18,18,36]}
+PASS  with &b2c=1: a held F plays no collapse and no compression band; a cancelled hold plays none; they play on the release, with the cast  — {"held":{"wind":false,"rings":0,"supers":0,"phase":"targeting"},"cancel":{"wind":false,"rings":0,"supers":0},"release":{"wind":true,"ringsBefore":0,"rings":4,"supers":1}}
+
+== 7. restarts
+PASS  restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":2,"b0":false},{"skin":true,"pre":2,"blast":2,"b0":false},{"skin":true,"pre":2,"blast":2,"b0":false},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+
+== 8. cost
+PASS  B2-R2 stays bounded: at most 80 pooled objects at peak in a SWARM TIDE fight (the stream links add two per round; reported against B2-B), none additive, and the same rounds fired  — peak pooled objects: B2-B 40, B2-R2 53 (55 ever created); update 0.030ms -> 0.068ms per frame (max 3.40 / 4.00); peak live rounds 6
+
+== 10. the playtest links, as shipped (&b0=...)
+PASS  the two links as shipped (B0 telemetry on, labels B2B / B2T): the same fight tick for tick, telemetry attached on both, the skin only on the candidate  — 197 rounds, 4 Supers, 37 kills, 18855 draws
+PASS  the candidate link: restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  the candidate link: quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+PASS  the playtest link (audio A, b2c): restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  the playtest link (audio A, b2c): quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+PASS  the playtest link (audio B, b2c): restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"skin":true,"pre":2,"blast":3,"b0":true},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  the playtest link (audio B, b2c): quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind  — {"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+PASS  the candidate link keeps its telemetry through the restarts  — {"label":"B2R2A"}
+
+== 11. the stream under motion
+PASS  every round keeps its own straight path under strafing, a dash, rotation and a reversal (the tracer invariant: 0 violations; the slug and glow sprites read back exactly)  — {"inv":{"checks":5022,"bad":0},"drawn":{"checks":10044,"bad":0}}
+PASS  every stream link reads back exactly from its sprite (near end on the newer round or the barrel, far end on the older round), and none is longer than 2.2 round spacings  — {"links":{"drawn":4683,"checks":4683,"bad":0,"maxLen":206.15789834571822,"muzzle":928,"joined":1277,"retract":150,"broken":157},"cap":250.00000000000003}
+PASS  the stream is linked: stationary, and strafing north / south while firing east and west, almost every pair of successive rounds is joined and the barrel is joined to the newest round  — {"still":{"pairs":1,"muzzle":1,"frames":142},"east":{"pairs":1.067,"muzzle":1,"frames":216},"west":{"pairs":0.968,"muzzle":0.98,"frames":204}}
+PASS  a dash, fast rotation and a reversal break the links they should (stretch, turn) and nothing else (reported)  — {"dash":{"pairs":1.09,"muzzle":1,"frames":129},"rotate":{"pairs":0.644,"muzzle":0.825,"frames":114},"reverse":{"pairs":1.04,"muzzle":0.95,"frames":141},"broken":157,"retract":150}
+
+== 12. range expiry
+PASS  60 fps: every range expiry (B2 classifies it from Bullet.traveled >= range at the kill) plays the dissipation, every frame of it, frame 0 included  — {"exp":16,"dis":[32,32,32,48],"deaths":24,"expiredDeaths":16,"overshoot":16.666666666665833,"lane":{"x":480,"y":540,"a":-0.7853981633974483},"live":0}
+PASS  60 fps: the dissipation is visual only: the round itself dies where Bullet.preUpdate kills it (no extra travel), and no bullet stays active after  — {"deaths":24,"overshoot":16.666666666665833,"live":0}
+PASS  30 fps: every range expiry (B2 classifies it from Bullet.traveled >= range at the kill) plays the dissipation, every frame of it, frame 0 included  — {"exp":16,"dis":[16,16,16,32],"deaths":24,"expiredDeaths":16,"overshoot":16.666666666665833,"lane":{"x":480,"y":540,"a":-0.7853981633974483},"live":0}
+PASS  30 fps: the dissipation is visual only: the round itself dies where Bullet.preUpdate kills it (no extra travel), and no bullet stays active after  — {"deaths":24,"overshoot":16.666666666665833,"live":0}
+PASS  range expiry in every direction with a clear lane in the room (N, NE, E, SE, S, SW, W, NW): each expiry plays the dissipation to its last frame  — [{"deg":-90,"exp":7,"dis":21},{"deg":-45,"exp":7,"dis":21},{"deg":0,"exp":7,"dis":21},{"deg":45,"exp":7,"dis":21},{"deg":90,"exp":7,"dis":21},{"deg":135,"exp":7,"dis":21},{"deg":180,"exp":7,"dis":21},{"deg":-135,"exp":7,"dis":21}]
+
+== 13. how a round ends: distinct outcomes
+PASS  a wall: the rounds end as wall contacts and draw the wall flare, not the dissipation and not the body splash  — {"hit":0,"wall":10,"expire":0,"cancel":0,"disF":0,"wallF":20,"hitF":0,"lane":{"x":1160,"y":340,"a":-0.7853981633974483},"walls":[[485,325,70,70,true],[805,325,70,70,true],[1045,325,70,70,true],[485,1045,70,70,true]]}
+PASS  a body: the rounds end as hits and draw the contact splash, not the dissipation  — {"hit":10,"wall":0,"expire":0,"cancel":0,"disF":0,"wallF":0,"hitF":20}
+PASS  cancelled in flight: the rounds end as cancels with neither a dissipation nor a splash  — {"hit":0,"wall":0,"expire":0,"cancel":4,"disF":0,"wallF":0,"hitF":0}
+
+== 14. the hero indicators
+PASS  the P1-B gauge / spiked ready ring and the shield bubble are never on screen under B2-R2 (they still run, hidden at pre-render); B2-B shows both (control)  — {"r2":{"shield":0,"ring":0,"frames":86},"b2b":{"shield":80,"ring":80,"frames":80}}
+PASS  at full charge small red arcs run over the armour, facing east and facing north (gun hidden)  — {"east":93,"north":92}
+PASS  the shield is four corner plates: shown while it holds, a hit flashes them, the last point breaks them; shield and health take exactly what B2-B takes  — {"r2":[{"shield":300,"hp":0,"hits":1},{"shield":0,"hp":-100,"breaks":1},{"shown":83,"hits":1,"breaks":1}],"b2b":[{"shield":300,"hp":0,"hits":null},{"shield":0,"hp":-100,"breaks":null}]}
+
+== 15. the audio candidates
+PASS  b2Audio.js draws no Math.random (private mulberry32 streams only)
+PASS  audio A: shot, impact, the charge stages, primed, Super wind-up, release and Super hits all fire; the shipped Super shot is replaced; voices bounded  — {"kind":"A","events":{"shot":40,"impact":40,"stage":8,"primed":1,"reload":1,"tail":1,"reloaded":1,"windup":1,"release":1,"superHit":4},"peak":0,"dropped":0,"shipped":1}
+PASS  audio B: shot, impact, the charge stages, primed, Super wind-up, release and Super hits all fire; the shipped Super shot is replaced; voices bounded  — {"kind":"B","events":{"shot":40,"impact":40,"stage":8,"primed":1,"reload":1,"tail":1,"reloaded":1,"windup":1,"release":1,"superHit":4},"peak":0,"dropped":0,"shipped":1}
+
+== 9. scope
+PASS  the B0 / B1 / B2 scope guard (b2Temper.js is one of B2's modules; GameScene and every frozen file untouched)  — B0 (dc7d9ea..a3866f2): 5 files, GameScene +13 tag/install lines; B1 (a3866f2..266b1ac): 6 files, GameScene +5 install/branch lines; B2 (266b1ac..): 14 files, GameScene +4 install/branch lines
+
+62/62 passed
+exit 0

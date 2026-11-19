@@ -30,7 +30,7 @@ All four links use the closure targeting (`&b2c=1`): hold F (or the Super button
 
 Links 1 and 2 differ only in the Super's sound. Links 2 and 3 differ only in the visuals, plus `&b2iso=1`, which changes which fight a seed produces but not the balance (see "The `&b2a` randomness issue" below).
 
-## What changed: six commits, each reversible on its own
+## What changed: seven commits, each reversible on its own
 
 1. **`eaa4444`: audio cannot consume gameplay randomness (`&b2iso=1`, technical, opt-in).** See "The `&b2a` randomness issue" below.
 
@@ -40,6 +40,14 @@ Links 1 and 2 differ only in the Super's sound. Links 2 and 3 differ only in the
    - From the blast tick it draws two frames of a new **discharge** frame (`gun-dis`): the core already dark, the channels pale coral, the barrel and muzzle white-hot, inside the rifle's silhouette.
    - After that it returns to the existing reactor. The existing cooling (the barrel heat overlay: 150, 400, 700 and 1000 ms) runs unchanged from the blast.
    - The hold ends early only if the hero dies first (a death cancels the blast). It also ends after 1.5 s as a last-resort exit, which no shipped Super path reaches.
+   - **Suppression:**
+     - A suppressed press is refused before `player-fire-super` (`Player.js:438`), so it starts no hold and keeps the charge.
+     - Suppression that lands during the wind-up does not stop the blast (the shipped delayed call checks only `alive`). The Super leaves on R3's tick, the hold ends with it, and nothing is held afterwards.
+     - The rig checks both, for the B2-1 press and the `&b2c=1` tap.
+   - **`18649d1` (fix, found in review):**
+     - Melee is not blocked during the 70 ms wind-up, so the blade can hide the rifle when the blast lands.
+     - The two discharge frames counted only *drawn* rifle frames, so they played late, when the rifle came back (tick 16 for a blast at tick 9; the new check fails on the earlier code).
+     - They now play only within 70 ms of the blast (`R4.disMaxMs`).
    - Nothing about *when* the Super happens changed. The shipped wind-up still decides the blast tick: it is the same tick in R3 and R4 on every path tested.
    - Targeting, damage, ammo and the Super economy are untouched (the parity checks below).
    - No new delay or animation was added. Only which gun frame is shown changed.
@@ -61,18 +69,24 @@ Links 1 and 2 differ only in the Super's sound. Links 2 and 3 differ only in the
      - B2-R3 still equals B2-B with no mapping at all.
      - Not one yellow or orange pixel is left in the fireball.
 
-4. **`f23631d`: the armour shield, a little more luminous (`&b2r=4`).** It is the same overlay as R3: the hero's own outer steel edge, read from the frame the sprite shows. It still has no bubble, ring, bracket, outline outside the sprite, aura, or sprite redraw. The changes:
+4. **`f23631d`: the armour shield, a little more luminous (`&b2r=4`).** It is the same overlay as R3: the hero's own outer steel edge, read from the frame the sprite shows. It still has no bubble, ring, bracket, outline around the sprite, aura, or sprite redraw. The changes:
 
    | Element | R3 | R4 |
    |---|---|---|
    | Lit-edge alpha, by quarter (100 / 200 / 300 / 400) | 0.8 at every value | 0.80 / 0.85 / 0.95 / 1.0 |
-   | Keyline glow | none | 0.35 at three quarters, 0.75 at full: the sprite's own dark outline cells that touch a lit edge cell, tinted cyan `rgb(60,190,220)`. This is *inside* the silhouette. |
-   | Shimmer | every 1.6 s | every 1.3 s, two rows |
-   | Absorbed-hit flare | (R3's) | slightly longer: 50 ms white, then 140 ms |
-   | Break | eight shards | four steps (45 / 95 / 145 / 195 ms), twelve shards at 6 / 14 / 22 px fading 1 / 0.7 / 0.35 |
+   | Keyline glow | none | 0.35 at three quarters, 0.75 at full: the sprite's own dark outline cells that touch a lit edge cell, tinted cyan `rgb(60,190,220)`. These are cells of the sprite itself, but see the one-pixel sliver below. |
+   | Shimmer | one row, every 1.6 s | two rows, every 1.3 s; highlights lifted 0.15 toward white |
+   | Absorbed-hit flare (on the side it came from) | 50 ms white, then cyan until 110 ms | 50 ms white, then cyan until 140 ms; the keyline on that side flares too |
+   | Break | the edge flashes (45 / 95 / 145 / 195 ms), eight shards at 4 / 10 / 16 px | the same timing, the keyline flashes too, twelve shards at 6 / 14 / 22 px fading 1 / 0.7 / 0.35 |
 
    - An earlier spike put the keyline glow *outside* the silhouette. At phone size it read as a halo, which is the rejected look, so it went inside (`after/shield-halo-spike-r3-keyline-outside.png`).
    - At every value R4 lights as many edge cells as R3 (14 at 100, 26 at 200), with a mean alpha at or above R3's. Nothing is drawn outside the sprite's frame.
+   - **A one-pixel sliver outside the silhouette, found in the phone-size stills.**
+     - At 400 and 300 only (the only values with a keyline), some of the outermost keyline cells show a sliver about one game pixel wide on their *right* side, where R3 at the same tick shows bare floor.
+     - It measures 52 device pixels in a 180 × 180 phone crop at 400, and 29 at 300 (`after/shield-r4-minus-r3-diffmap-400-300-red-is-floor.png`, red).
+     - The overlay's geometry is the sprite's own (`x * g − displayOriginX`, as in R3), and the game renders with `roundPixels: false`. The exact cause (a rasterisation offset, or a cell sampled at one texel being partly transparent) is not established.
+     - R3's overlay probably has the same offset, but its outermost lit cells sit one step inward, so its sliver falls on the dark outline, not the floor.
+     - It is a faint, half-transparent cyan hairline, nowhere near a halo or outline. If the HUMAN sees it, the smallest fix is to inset the keyline rects by one texel on their outside-facing sides (level 4 only). That is not done here.
    - The overlay was read back in sync with the sprite at all 576 renders of a whole fight.
    - Shield values, HP, i-frames and recharge are untouched: the shield and health take exactly what B2-B takes.
 
@@ -101,7 +115,7 @@ Links 1 and 2 differ only in the Super's sound. Links 2 and 3 differ only in the
    - Measured:
      - in a crowd of twelve, the hits merge, so impacts never form a run of beeps;
      - kit-only offline peak 0.93, no clipping;
-     - peak voices 36 in the full-mix fight, none dropped.
+     - peak voices, against the cap of 48: 37 in the full-mix fight (legacy B2: 25) and 36 in the five-target hold-F cast (legacy: 21). None was dropped.
 
 ## The `&b2a` randomness issue: the exact call path
 
@@ -167,7 +181,8 @@ As a result, the next AI cooldown draws a different value, and the same seed pla
 | `fireball-3x-r3-top-r4-bottom-ticks-69-73.jpg` | the fireball at 3×, R3 vs R4 on the same ticks |
 | `muzzle-layers-r3-left-r4-right-frames-1-3-6.png` | each fireball layer alone |
 | `shield-film-r3-top-r4-bottom-full-hit-drain-break-refill-bush.jpg` | the shield across its states |
-| `shield-values-r3-vs-r4-phone-1x-and-3x.png` | 400 / 300 / 200 / 100 / 0 at phone size, at actual size and at 3×; the four facings, a hit and the break |
+| `shield-values-r3-vs-r4-phone-1x-and-3x.png` | top: every state at phone size, in device pixels (400 / 300 / 200 / 100 / 0, the four facings, a hit, the break, a bush); bottom: the five values at 3× |
+| `shield-r4-minus-r3-diffmap-400-300-red-is-floor.png` | where R4's shield pixels differ from R3's at 400 and 300: cyan on the sprite, red on bare floor (the sliver) |
 | `shield-halo-spike-r3-keyline-outside.png` | the rejected spike: the keyline outside reads as a halo |
 | `production-bundle-r4-full-hold-super-and-r3-super.jpg` | the production bundle: R4 at full, holding F, after the release, and R3 after its release |
 
@@ -233,13 +248,15 @@ Every suite ran standalone against the dev server. Where a suite takes `--old`, 
 ## Imperfections and open points
 
 - **The sound is unheard by its author.** "Low-mid weight", "no pit-pit-pit", "not a laser" are design intentions checked by measurement only: the merged and queued impacts, the 300 Hz–8 kHz energy, the absence of a sustained tone. The HUMAN's ears decide.
-- **The discharge frame is per drawn frame.** Two frames last about 33 ms at 60 fps and about 67 ms at 30 fps. It never changes the blast tick.
+- **The discharge is two drawn frames within 70 ms of the blast.** That is about 33 ms at 60 fps and 67 ms at 30 fps. Below about 15 fps the second frame is skipped. It never changes the blast tick.
 - **The fireball recolour has two narrow spots:**
   - During the synchronous Super call, the Graphics colour methods are briefly remapped for exactly four colours.
   - The two pops are recognised by position (16 and 44 px from the muzzle, within 200 ms). An unrelated explosion at exactly that spot in that window would also turn red. None was seen in any fight.
 - **The music path above is open.** `&b2iso=1` does not make a phone fight with music reproducible.
 - **The `&b2c=1` intermittent is inherited and unresolved:** a wave banner lands a tick late at tick 741 in about 1 run in 11.
-- **The shield:** whether the R4 keyline at full reads as "subtle" or starts to look like the rejected shield is the HUMAN's call. If it does, the keyline (0.75 at full) is the first value to lower.
+- **The shield:**
+  - Whether the R4 keyline at full reads as "subtle" or starts to look like the rejected shield is the HUMAN's call. If it does, the keyline (0.75 at full) is the first value to lower.
+  - At 400 and 300 the keyline shows a one-game-pixel sliver outside the silhouette on some right-hand cells (above). It is documented, not fixed.
 
 ## Changed files and commits
 
@@ -253,5 +270,6 @@ Every suite ran standalone against the dev server. Where a suite takes `--old`, 
 | `f23631d` | the shield |
 | `8e23ff0` | B2S and the rig |
 | `9f48805` | B2S level and test fix |
+| `18649d1` | the discharge bounded to 70 ms after the blast, plus the suppression and blade checks |
 
 The evidence and documentation commits follow.

@@ -2470,6 +2470,22 @@ Evidence in `docs/evidence/b1-combat-experiments/`.
   the Game scene), so these runs have live SFX and no music.
 - **Never pattern-match your own job** (`ps | grep`, `pgrep -f`): the shell that
   launched it matches too, and killing it ends the command mid-way.
+- **The offline full-game capture starts with a steady 440 Hz tone.** The
+  OfflineAudioContext film rig (virtual clock, `.value` writes turned into
+  `setValueAtTime`) renders a steady tone at about 0.55 amplitude through the
+  music bus at the start of every capture:
+  - 0.67 s in a hold-F capture, 0.17 s in a fight, 6 ms with the music muted;
+  - identical in every variant;
+  - B2-R3's delivered fight films (`docs/evidence/b2-r3/films/fight-full-mix-*`)
+    carry it.
+  440 Hz is an `OscillatorNode`'s default frequency, so the most likely cause is
+  a music voice sounding at its defaults until the rig's automation lands. A live
+  context does not do this. It dominates any whole-clip loudness or true-peak
+  figure: silence it before measuring, and say so (B2-R4's `levels-and-exports.md`
+  gives the windows).
+- **Melee is not blocked during the Super's 70 ms wind-up**, so the rifle can be
+  hidden when the blast lands. Gun-frame logic that counts drawn frames must also
+  be bounded in time (§6 checks this for the R4 discharge).
 
 ## The B2 REACTOR OVERLOAD rig (`&b2r=1`)
 
