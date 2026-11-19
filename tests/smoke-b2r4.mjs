@@ -365,6 +365,42 @@ if (on(6)) {
   }
   const d4 = await wind(join('b2r=4', 'b2c=1'), 'tap', true);
   check('a death between the cast and the blast ends the wind-up hold (no held frame afterwards, alive or not)', !d4.frames.slice(d4.castT + 3).some((f) => /^gun-w/.test(f || '')), JSON.stringify({ cast: d4.castT, blast: d4.blastT, after: [...new Set(d4.frames.slice(d4.castT + 3))] }));
+  // SUPPRESSION AND THE BLADE AROUND THE WIND-UP: the hold and the discharge never outlive the cast's own blast
+  const edge = async (flags, mode) => {
+    const p = await boot(join(VIS, 'b2=B', flags));
+    const r = await p.evaluate(({ mode }) => {
+      const gs = window.__gs, P = gs.player, kb = gs.input.keyboard; window.__stage(); window.__headless = false; window.__ring(4, 230, -1, 0.3);
+      let ti = 0, castT = -1, blastT = -1, bladeT = -1; gs.events.on('player-fire-super', () => { castT = ti; }); gs.events.on('player-super-blast', () => { blastT = ti; });
+      P.superCharge = 4; P.meleeCharge = 3; gs.events.emit('player-super-changed'); gs.events.emit('player-melee-changed'); window.__adv(5);
+      if (mode === 'suppressed') P.suppress(3000);
+      const frames = [];
+      for (let i = 0; i < 120; i++) {
+        ti = i;
+        if (i === 3) kb.emit('keydown-F', { repeat: false }); if (i === 4) kb.emit('keyup-F', {});
+        if (mode === 'mid' && castT >= 0 && i === castT + 1) P.suppress(3000);
+        if (mode === 'blade' && castT >= 0 && i === castT + 1 && P.tryMeleeCombo(0)) bladeT = i;
+        window.__adv(1);
+        frames.push(gs._b2.stats.feel.skin.gun.frame);
+      }
+      return { castT, blastT, bladeT, frames, charge: P.superCharge, sup: P._suppressedMs > 0 };
+    }, { mode });
+    await p.close();
+    return r;
+  };
+  for (const fl of ['', 'b2c=1']) {
+    const tag = fl ? 'b2c=1 tap' : 'B2-1 press';
+    const s4 = await edge(join('b2r=4', fl), 'suppressed'), s3 = await edge(join('b2r=3', fl), 'suppressed');
+    check(`${tag}, suppressed at the press: no cast, no wind-up hold, no discharge, the charge kept (as R3)`, s4.castT === -1 && s3.castT === -1 && !s4.frames.some((f) => /^gun-(w|dis)/.test(f || '')) && s4.charge === 4 && s3.charge === 4 && s4.sup,
+      JSON.stringify({ r4: { cast: s4.castT, charge: s4.charge, frames: [...new Set(s4.frames)] }, r3: { cast: s3.castT, charge: s3.charge } }));
+    const m4 = await edge(join('b2r=4', fl), 'mid'), m3 = await edge(join('b2r=3', fl), 'mid');
+    const mb = m4.blastT > m4.castT ? m4.frames.slice(m4.castT, m4.blastT) : [];
+    check(`${tag}, suppressed during the wind-up: the Super still leaves on R3's tick; the hold shows only the compressed reactor, two discharge frames at the blast, and nothing held after`, m4.castT >= 0 && m4.blastT === m3.blastT && m4.castT === m3.castT && mb.length >= 4 && mb.every((f) => /^gun-w[01]$/.test(f)) && m4.frames[m4.blastT] === 'gun-dis' && m4.frames[m4.blastT + 1] === 'gun-dis' && !m4.frames.slice(m4.blastT + 2).some((f) => /^gun-(w|dis)/.test(f || '')) && m4.sup,
+      JSON.stringify({ cast: m4.castT, blast: m4.blastT, r3blast: m3.blastT, between: mb, after: m4.frames.slice(m4.blastT, m4.blastT + 4) }));
+  }
+  const b4 = await edge('b2r=4', 'blade');
+  const late = b4.frames.map((f, i) => (f === 'gun-dis' ? i : -1)).filter((i) => i >= 0 && i > b4.blastT + 4);
+  check('the blade drawn during the wind-up (the rifle hidden at the blast): the discharge does not play late when the rifle returns (only within R4.disMaxMs = 70 ms of the blast; the check allows 4 ticks), and no held frame after the blast', b4.bladeT >= 0 && b4.blastT > b4.castT && b4.frames[b4.blastT] === null && b4.frames.slice(b4.blastT).some((f) => /^gun-/.test(f || '')) && late.length === 0 && !b4.frames.slice(b4.blastT).some((f) => /^gun-w/.test(f || '')),
+    JSON.stringify({ cast: b4.castT, blade: b4.bladeT, blast: b4.blastT, atBlast: b4.frames[b4.blastT], back: b4.frames.findIndex((f, i) => i > b4.blastT && /^gun-/.test(f || '')), late, seen: [...new Set(b4.frames)] }));
 }
 
 // the F-release candidate stays independent: no reactor wind-up on keydown or after a cancelled hold

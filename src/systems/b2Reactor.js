@@ -283,8 +283,10 @@ export const R4_SHIELD = {
   shards: 12, shardD: [0, 6, 14, 22], shardA: [0, 1, 0.7, 0.35],
 };
 export const R3_CHOKE = { strainMs: 900, strainOnMs: 90 };
-/** B2-R4 timings: the wind-up hold's last-resort exit, and the discharge's drawn frames. */
-export const R4 = { holdMaxMs: 1500, disFrames: 2 };
+/** B2-R4 timings: the wind-up hold's last-resort exit, the discharge's drawn frames, and how long
+ *  after the blast they may still be drawn (two frames at 30 fps; a rifle hidden by the blade at the
+ *  blast must not play the discharge when it returns). */
+export const R4 = { holdMaxMs: 1500, disFrames: 2, disMaxMs: 70 };
 
 // ── B2-R4: THE SUPER'S MUZZLE DISCHARGE IN THE REACTOR'S REDS ─────────────
 // The shipped discharge is five layers (FX.superMuzzleFlash): the additive `muzzle` bloom,
@@ -415,7 +417,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
     r2: IS2 ? { links: { drawn: 0, checks: 0, bad: 0, maxLen: 0, muzzle: 0, joined: 0, retract: 0, broken: 0 }, dis: [0, 0, 0, 0], wall: [0, 0, 0], burn: [0, 0, 0, 0], ends: {}, plates: { shown: 0, hits: 0, breaks: 0 }, arcs: 0, hidden: { shield: 0, ring: 0 } } : null,
   };
   if (IS2) stats.name = IS4 ? 'reactor4' : IS3 ? 'reactor3' : 'reactor2';
-  if (IS4) stats.r4 = { held: 0, discharge: 0, fireball: { pops: 0, swapped: 0, images: 0, graphics: 0 } };
+  if (IS4) stats.r4 = { held: 0, discharge: 0, disLapsed: 0, fireball: { pops: 0, swapped: 0, images: 0, graphics: 0 } };
   if (IS3) { buildR3Gun(scene); stats.r3 = { choked: 0, strain: 0, shield: { drawn: 0, frames: 0, rims: 0, bands: [0, 0, 0, 0, 0], hits: 0, sided: 0, breaks: 0, shards: 0, fills: 0, glints: 0, ringsHidden: 0, sync: { checks: 0, bad: 0 }, alpha: null } }; }
   const suppressedNow = () => (scene.player?._suppressedMs || 0) > 0;
   const pools = {}, pool = [];
@@ -534,7 +536,10 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   function gunFrame() {
     if (winding()) { if (IS4 && clock - windupAt >= REACTOR.windupMs[1]) stats.r4.held++; return clock - windupAt < REACTOR.windupMs[0] ? 'gun-w0' : 'gun-w1'; }
     // R4: the reactor empties through the barrel for the first frames drawn after the blast
-    if (IS4 && disLeft > 0) { disLeft--; stats.r4.discharge++; return 'gun-dis'; }
+    if (IS4 && disLeft > 0) {
+      if (clock - blastAt < R4.disMaxMs) { disLeft--; stats.r4.discharge++; return 'gun-dis'; }
+      disLeft = 0; stats.r4.disLapsed++;
+    }
     const k = reactorStep(api.charge01());
     // R3: full but suppressed — choked, ahead of the shot flash (a shot must not flash "ready").
     // On release from the suppression the ready pulse starts again from its first step.
