@@ -1,0 +1,20 @@
+  ok    EVERY move puts a zone on the floor before it hurts you
+  ok    and never more than ONE zone per attack
+  ok    every move under test actually RAN
+  FAIL  he is PLANTED through his wind-up, not walking through it — vanishslash 0px/s drift 94px — measured at 165px/s on the rejected build, which is why the anticipation never rendered
+  ok    and his BODY visibly winds up
+  ok      sabercombo: 0px/s during anticipate, body change 0.32
+  ok      saberthrow: 0px/s during anticipate, body change 0.44
+  ok      forcepull: 0px/s during anticipate, body change 0.4
+  ok      vanishslash: 0px/s during anticipate, body change 1
+  ok      forcepush: 0px/s during anticipate, body change 0.48
+  ok    a zone follows the actor that will hit you
+  ok    with NOTHING silenced, he never has two zones out at once
+  ok    and his own state machine never attacks underneath a scripted move
+  ok    no exception across the run
+  ok    he SETTLES at saber range instead of standing on you
+  ok    a super does NOT shove him, even mid-move
+  ok    the thrown saber really leaves his hand
+  ok    and comes back to his hand EVEN AFTER HE MOVES
+  ok    and FLIES home rather than teleporting
+FAIL: 1 of 19 checks failed: he is PLANTED through his wind-up, not walking through it

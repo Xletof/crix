@@ -221,6 +221,8 @@ As a result, the next AI cooldown draws a different value, and the same seed pla
 
 ## Verification
 
+**Deployed:** `FRIX` was fast-forwarded to `7367198`, and Pages run #309 succeeded. The run-all results below were recorded after that deploy, and the documentation was re-deployed with them.
+
 Every suite ran standalone against the dev server. Where a suite takes `--old`, it compared against `bfa765f`, B2-R3's deploy.
 
 | Suite | Result | Notes |
@@ -238,7 +240,7 @@ Every suite ran standalone against the dev server. Where a suite takes `--old`, 
 | `smoke-controls` | PASS | |
 | `smoke-restart` | PASS (16 checks) | |
 | production bundle (`npm run build`, `vite preview`) | no page errors | the four links and a plain boot |
-| `run-all` (52 suites) | not yet run at deploy | run straight after the deploy; this row is updated with the result |
+| `run-all` (52 suites) | **46/52** | Every failure was re-run standalone on this build and on `bfa765f`. None is new: champion-placement, captain-closeout and deflect fail on both builds on the same checks; boss-moves and nemesis pass standalone (known intermittents); readability failed 1 run in 4 on each build, on the same check. Details in `run-all-reruns/README.md`. |
 
 **Seeded parity.** B2-R4 plus B2S plus isolation equals B2-B tick for tick: state, ammo, meters, every enemy, bolt and pellet, `Math.random` draws and events.
 - It held over three 1500-tick fights with four Supers and a Broken Wings chain each (one with god mode off), and with `&b2c=1` on both sides.

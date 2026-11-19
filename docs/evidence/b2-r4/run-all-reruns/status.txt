@@ -1,0 +1,20 @@
+head boss-moves exit 0 76s PASS: 18 checks — Vader performs his own moves, and his copies bite
+head champion-placement exit 1 462s FAIL: 6 of 60 checks failed: EXACTLY ONE Captain token, in his authored lead slot; every other event is the SAME event, in the same order �
+head captain-closeout exit 1 125s FAIL: 1 of 60 checks failed: a damage tick makes the source react — and the tick itself is exactly the authored damage on the authored cad
+head deflect exit 1 50s FAIL: 2 of 73 checks failed: and the blade is travelling FASTEST as it arrives there; the deferred DEFLECTION starts as soon as the blade is
+head nemesis exit 0 31s PASS: 20 checks — nemeses are named, composed, escalating and mechanically real
+head readability exit 1 100s FAIL: 1 of 19 checks failed: he is PLANTED through his wind-up, not walking through it
+head DONE
+old champion-placement exit 1 463s FAIL: 7 of 60 checks failed: EXACTLY ONE Captain token, in his authored lead slot; every other event is the SAME event, in the same order �
+old captain-closeout exit 1 127s FAIL: 1 of 60 checks failed: a damage tick makes the source react — and the tick itself is exactly the authored damage on the authored cad
+old deflect exit 1 51s FAIL: 2 of 73 checks failed: and the blade is travelling FASTEST as it arrives there; the deferred DEFLECTION starts as soon as the blade is
+old readability exit 0 102s PASS: 19 checks — the attacks can be seen coming
+old DONE
+oldrep readability#1 exit 0 106s PASS: 19 checks — the attacks can be seen coming
+oldrep readability#2 exit 0 110s PASS: 19 checks — the attacks can be seen coming
+oldrep readability#3 exit 1 112s FAIL: 1 of 19 checks failed: he is PLANTED through his wind-up, not walking through it
+oldrep REP DONE
+headrep readability#1 exit 0 100s PASS: 19 checks — the attacks can be seen coming
+headrep readability#2 exit 0 99s PASS: 19 checks — the attacks can be seen coming
+headrep readability#3 exit 0 105s PASS: 19 checks — the attacks can be seen coming
+headrep REP DONE

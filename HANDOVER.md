@@ -447,7 +447,13 @@ command, fix the line.*
         smoke-b2c 46/46, smoke-b2 88/88, smoke-b1 71/71, smoke-b0 46/46;
         P2-A3 scope 4/4; controls and restart pass; smoke-b2r3 81/81 (R3 unchanged).
       - The production bundle shows no page errors on the four links.
-      - run-all: not yet run at the deploy commit (it runs right after).
+      - run-all 46/52, every failure inherited or intermittent:
+        - champion-placement, captain-closeout and deflect fail standalone on
+          `bfa765f` too, on the same checks;
+        - boss-moves and nemesis pass standalone;
+        - readability failed 1 run in 4 on each build;
+        - `docs/evidence/b2-r4/run-all-reruns/`.
+      - Deployed: `FRIX` at `7367198`, Pages #309.
     - `docs/evidence/b2-r4/README.md`. Awaiting the HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,

@@ -1,0 +1,74 @@
+  ok    a dedicated power sweep RAN, on both bearings, and both launched
+  ok    the blade is already moving BEFORE the launch and carries on after it
+  ok    the sweep is carved OUT of the approved anticipation, not added to it
+  ok    the orb leaves ON the power frame of the sweep, not beside it
+  FAIL  and the blade is travelling FASTEST as it arrives there — peak per-frame travel 87deg at u=0.288 (east), 89deg at u=0.365 (west). The drive is `1-k^2` for exactly this reason — a linear sweep peaks nowhere and reads as the blade drifting to a halt next to a ball that then leaves
+  ok    it is a MIRRORED pair — the two bearings sweep opposite ways
+  ok    the gesture is unmistakably bigger than any ordinary parry
+  ok    and the live blade IS `superSwingPose` — one curve, one writer
+  ok    no second saber was conjured to do it
+  ok    the throw OWNS the saber — nothing can seize it mid-gesture
+  ok    and hands it straight back — offense is eligible the frame the finish ends
+  ok    the orb is one object and it goes on living after he is done with it
+  ok    staged on a Vader who has actually earned DEFLECTION
+  ok    eight bearing sectors resolve to eight distinct parry families
+  ok    and the families are genuinely different gestures, not one arc rotated
+  ok    every family sweeps the blade right through the bolt, not onto it
+  ok    and thrusts it out at contact
+  ok    a finished parry leaves the blade back on guard, every family
+  ok    real player fire really does put him through parries
+  ok    and different incoming bearings select different families
+  ok    the blade drawn on screen IS the pose parryPose describes, on every frame
+  ok    and it goes somewhere his ordinary aim pose never does
+  ok    the stance is readable with nothing in the air — the guard is not the aim pose
+  ok    DEFLECTION is a state he is in, and it ends
+  ok    no saber move and no stock attack may START while the guard owns the blade
+  ok    and offense resumes the moment it drops, with no dead recovery
+  ok    melee still hurts him through the guard — it is projectile defence, not immunity
+  ok    the stance lasts long enough to see several parries
+  ok    SABER THROW ran and the blade really did leave his hand
+  ok    DEFLECTION came DUE mid-flight and was marked pending rather than lost
+  ok    and NOTHING was announced while he had no saber to announce it with
+  ok    the guard was never up while the blade was in the air
+  ok    and real bolts fired at the unarmed Vader HIT him instead of being parried
+  ok    no second saber was conjured to cover the gap
+  FAIL  the deferred DEFLECTION starts as soon as the blade is back in his hand — tell 950ms after the catch (deferred 3333ms in total), guard opened yes. A dropped occurrence never tells; a restarted 9000ms cadence would show a handoff in the thousands
+  ok    and the recovered stance parries for real
+  ok    the inverse holds: SABER THROW cannot start while the guard owns the blade
+  ok    and it is available again the moment the stance drops — no dead gap
+  ok    all five super pellets are absorbed
+  ok    and NONE of them is batted back as a projectile
+  ok    the energy visibly gathers on him before anything comes back
+  ok    he commits once, not once per pellet
+  ok    and exactly ONE thing comes back
+  ok    the orb carries a bounded number, not the pellets it swallowed
+  ok    and cannot delete a full-health player from one accidental super
+  ok    it comes back at least as fast as an ordinary deflected bolt
+  ok    the return speed IS the player's super speed, not a number of its own
+  ok    the velocity was actually sampled in flight
+  ok    and it is that speed on EVERY frame — no ramp up, no settle, no falloff
+  ok    the end of the flight is exactly as fast as the beginning
+  ok    and NOTHING ever slows it — it is thrown, it does not run down
+  ok    it is still alive well past the old settle window
+  ok    the hand-drawn body sits ON its own sprite, not one physics step behind it
+  ok    the speed change did NOT move the hitbox
+  ok    the launch beat is carved OUT of the approved anticipation, not added to it
+  ok    the flight effect is actually running while the orb is in the air
+  ok    every remnant lies along the orb's REAL velocity
+  ok    ...and that is a different direction from "at the player", so the check above bites
+  ok    the wake is bounded — three reused remnants, not a growing tail
+  ok    and the corona is alive around it in flight
+  ok    and it is a different, much bigger class of object
+  ok    the orb is actually observed in flight
+  ok    and it never steers, even after the player walks out of its way
+  ok    so ordinary movement is enough to survive it
+  ok    and it is in hostileBullets, so every sweep of incoming fire sees it
+  ok    an orb inside the world keeps flying
+  ok    and one that leaves the world is cleaned up
+  ok    and its wake goes with it
+  ok    its range is a backstop, not the thing that ends the flight
+  ok    a room teardown is staged with an orb actually in the air
+  ok    and the room teardown takes it, and its wake, with everything else
+  ok    and a throw interrupted by his wound does not leave the saber owned
+  ok    the held-energy graphic dies with the boss who was holding it
+FAIL: 2 of 73 checks failed: and the blade is travelling FASTEST as it arrives there; the deferred DEFLECTION starts as soon as the blade is back in his hand
