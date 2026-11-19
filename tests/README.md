@@ -2450,6 +2450,27 @@ Evidence in `docs/evidence/b1-combat-experiments/`.
   loop) on the same clock. Set the clock's origin before the first gesture
   creates the context.
 
+## The B2-R4 rig (`&b2r=4`, `&b2a=B2S`, `&b2iso=1`)
+
+- `smoke-b2r4.mjs [--only=6,15]` (standalone, :5173; Chromium with
+  `--autoplay-policy=no-user-gesture-required`): the R3 rig's shared sections
+  against the R4 link, plus §6 the Super equal to B2-B except the named recolour
+  (the `muzzle-r4` / `explosion-r4` sheets mapped back) with R3 strictly equal,
+  and the wind-up checked by events (`player-fire-super` -> `player-super-blast`)
+  with R3 as the failing control; §14 the shield's drawn rects per value against
+  R3; §15 B2S (renders against B2, the Super's phases, pause / death cuts, the
+  Super hit beep routed); §18 the audio-RNG isolation (live audio = silent run).
+- **The player's death event is `player-dead`**, not `player-died`.
+- **A death between the cast and the blast cancels the blast** (`player-super-blast`
+  never fires).
+- **Offline audio renders are not bit-deterministic.** Two renders of the same
+  build differ by ~1e-7; compare against that floor, not against zero.
+- **`boot(..., { audio: true })` presses a key before the game starts** so the
+  game creates its AudioContext; the music does not start (it waits for a key in
+  the Game scene), so these runs have live SFX and no music.
+- **Never pattern-match your own job** (`ps | grep`, `pgrep -f`): the shell that
+  launched it matches too, and killing it ends the command mid-way.
+
 ## The B2 REACTOR OVERLOAD rig (`&b2r=1`)
 
 - `smoke-b2r.mjs [--only=0,3]` (standalone, :5173): the TEMPER rig's sections
