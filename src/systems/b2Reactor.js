@@ -709,6 +709,9 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
     }
   };
   scene.events.on('player-super-blast', onBlast);
+  // R4: a death between the cast and the blast ends the wind-up hold (no held frame after a respawn)
+  const onDied = () => { if (IS4 && blastAt < windupAt) windupAt = -1e9; };
+  if (IS4) scene.events.on('player-dead', onDied);
   const onHit = (e) => {
     if (IS3 || scene._dmgSrc !== 'super' || !e) return;
     stats.impacts++;
@@ -1172,6 +1175,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
     destroy() {
       scene.game.events.off('prerender', onPrerender);
       scene.events.off('player-super-blast', onBlast);
+      scene.events.off('player-dead', onDied);
       scene.events.off('enemy-hit', onHit);
       try { showPellets(); } catch (_) { /* scene going down */ }
       for (const o of [gun, heat, swirl, dim, shG, ...pool, ...comps, ...Object.values(pools).flat(), ...arcs, ...plates]) { try { o?.destroy(); } catch (_) { /* */ } }

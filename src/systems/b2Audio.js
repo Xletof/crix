@@ -362,20 +362,29 @@ function kitB2(ctx, dest, stats, now) {
       cv.osc(p2, { type: 'sawtooth', f: T.thunk, f2: T.thunk * 0.9, dur: 0.16, gain: 0.03, lp: 600, a: 0.004 });
     },
     cutConfirm(t) { if (cLevel > 0.01) { ramp(cBus.gain, cLevel, 0.0001, t, 0.015); cLevel = 0; } },
-    windup(t) {
+    // the Super's bed control (the reactor swells into the wind-up, is cut by the discharge and
+    // held off until the cooldown) is split from its sound layers so B2S can keep the bed and
+    // replace the layers; B2 calls both, in the same order as before
+    windupBed(t) {
       holdUntil = t + 0.7;
       bp.frequency.cancelScheduledValues(t); bp.frequency.setValueAtTime(bpHz, t); bp.frequency.exponentialRampToValueAtTime(4200, t + 0.07); bpHz = 4200;
       ramp(out.gain, lastLevel, 0.16, t, 0.065); lastLevel = 0.16;
       ramp(dOut.gain, dLevel, 0.12, t, 0.065); dLevel = 0.12;
       dLp.frequency.cancelScheduledValues(t); dLp.frequency.setValueAtTime(dHz, t); dLp.frequency.exponentialRampToValueAtTime(1400, t + 0.07); dHz = 1400;
+    },
+    windup(t) {
+      this.windupBed(t);
       v.noise(t, { f: 700, f2: 4800, q: 3, dur: 0.07, gain: 0.1, a: 0.04 });
     },
-    release(t) {
+    releaseBed(t) {
       holdUntil = Math.max(holdUntil, t + 0.6);
       ramp(out.gain, lastLevel, 0.0001, t, 0.004); lastLevel = 0;
       ramp(dOut.gain, dLevel, 0.0001, t, 0.004); dLevel = 0;
       bp.frequency.cancelScheduledValues(t); bp.frequency.setValueAtTime(500, t + 0.01); bpHz = 500;
       dLp.frequency.cancelScheduledValues(t); dLp.frequency.setValueAtTime(260, t + 0.01); dHz = 260;
+    },
+    release(t) {
+      this.releaseBed(t);
       v.osc(t, { type: 'sine', f: B2_TONES.pip2, f2: B2_TONES.pip2 / 2, dur: 0.05, gain: 0.05 });
       for (const d of [-18, 0, 15]) v.osc(t, { type: 'sawtooth', f: 225, f2: 55, dur: 0.46, gain: 0.2, lp: 5200, lp2: 280, q: 3, drive: 'hard', detune: d });
       v.noise(t, { f: 6000, f2: 300, type: 'lowpass', q: 0.9, dur: 0.36, gain: 0.42, drive: 'soft' });
@@ -422,7 +431,135 @@ function kitB2(ctx, dest, stats, now) {
     },
     silence(t) { ramp(out.gain, 0.0001, 0.0001, t, 0.001); ramp(dOut.gain, 0.0001, 0.0001, t, 0.001); lastLevel = 0; dLevel = 0; },
     holdBed() {},
+    _v: v,
     destroy() { for (const o of [o1, o2, o3, lfo, wob, d1, d2, dLfo]) { try { o.stop(); } catch (_) { /* */ } } for (const g of [out, dOut, cBus]) { try { g.disconnect(); } catch (_) { /* */ } } },
+  };
+}
+
+// ── B2S: AUDIO B2 WITH THE B2-R4 SUPER (`&b2a=B2S`; B2 stays as the control) ──
+// The HUMAN approved B2's shot, charge, ready confirmation and lock; only the Super attack
+// still sounded disconnected (in play, every Super pellet hit also fired the game's generic
+// hit beep — the flagship routes those to this kit under B2S). B2S is kit B2 itself — every
+// approved method is B2's own object, unchanged — with the Super's sound layers replaced:
+//  A COMPRESSION  from the cast to the discharge: two driven saws (98 / 147 Hz) through a
+//     resonant band-pass sweeping up as it squeezes, a noise band sucked inward, a rising
+//     tension tone, all swelling; held until the discharge cuts them (its own bus).
+//  B DISCHARGE  a hard transient (driven noise and a click), a low-mid punch (a driven square
+//     falling 220 -> 70 Hz, harmonics a phone carries), a dense electrical body (three detuned
+//     driven saws 165 -> 62 Hz under a closing low-pass), a crackling band, a low-mid weight,
+//     and B2's E6 tone falling an octave (the confirmation's pitch, now spent).
+//  C PASSAGE  five short falling noise zips 11ms apart: the five masses leaving fast (no beam).
+//  D IMPACTS  each a chunky thump, crack and electrical spit, round-robin in pitch; hits on the
+//     same tick merge, the rest queue at least 40ms apart, at most six per release, never more
+//     than 150ms behind their hit; after the last, an unstable electrical decay (sparse
+//     crackles thinning out, a falling hiss) on its own cuttable bus. B2's cooldown follows.
+// Its own bus and compressor (the approved shots are not pumped by it), its own private random
+// stream; the compression and decay buses are cut by the discharge, a pause, death or restart.
+/** The Super bus level (B2S), before its own compressor; see docs/evidence/b2-r4/README.md. */
+export const B2S_TRIM = 1.6;
+export const B2S_SUPER = { compMaxS: 0.2, zips: 5, zipGapS: 0.011, impactGapS: 0.04, impactMax: 6, impactLagS: 0.15, windowS: 1.2, pitch: [1, 0.92, 1.08, 0.96, 1.04, 0.9] };
+function kitB2S(ctx, dest, stats, now, superDest) {
+  const base = kitB2(ctx, dest, stats, now);
+  const sv = voices(ctx, superDest, stats, now, base._v.ends);
+  const ends = base._v.ends;
+  const compBus = ctx.createGain(); compBus.gain.value = 1; compBus.connect(superDest);
+  const cv = voices(ctx, compBus, stats, now, ends);
+  const tailBus = ctx.createGain(); tailBus.gain.value = 1; tailBus.connect(superDest);
+  const tv = voices(ctx, tailBus, stats, now, ends);
+  const rnd = mulberry32(0xb25e0f17);
+  const S = B2S_SUPER;
+  const st = (stats.super = { windups: 0, releases: 0, zips: 0, impacts: 0, merged: 0, late: 0, capped: 0, decays: 0, cuts: 0, deathCuts: 0, minGap: Infinity, maxLag: 0 });
+  let compOn = false, relT = -1, impN = 0, lastImpT = -1, lastHitCall = -1, decayAt = -1;
+  const cut = (bus, t) => { bus.gain.cancelScheduledValues(t); bus.gain.setValueAtTime(bus.gain.value > 0.001 ? 1 : 0.0001, t); bus.gain.linearRampToValueAtTime(0.0001, t + 0.006); };
+  const open = (bus, t) => { bus.gain.cancelScheduledValues(t); bus.gain.setValueAtTime(1, t); };
+  // the compression: driven saws through a rising band-pass, a noise band sucked inward, a tension tone
+  const compression = (t) => {
+    const D = S.compMaxS, nodes = [];
+    const mk = (type, f, f2) => { const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f2, t + 0.11); nodes.push(o); return o; };
+    const a = mk('sawtooth', 98, 104), b = mk('sawtooth', 147, 156);
+    const mx = ctx.createGain(); mx.gain.value = 0.5; a.connect(mx); b.connect(mx);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 6; bp.frequency.setValueAtTime(300, t); bp.frequency.exponentialRampToValueAtTime(1600, t + 0.11);
+    mx.connect(bp); const sh = sv.shape(bp, 'soft');
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16, t + 0.1); g.gain.setValueAtTime(0.16, t + D - 0.03); g.gain.linearRampToValueAtTime(0.0001, t + D);
+    sh.connect(g); g.connect(compBus);
+    for (const o of nodes) { o.start(t); o.stop(t + D + 0.02); ends.push(t + D + 0.02); }
+    stats.peakVoices = Math.max(stats.peakVoices, ends.length);
+    cv.noise(t, { f: 2400, f2: 600, q: 2.5, a: 0.1, dur: D - 0.1, gain: 0.09 });
+    cv.osc(t, { type: 'sine', f: 220, f2: 440, a: 0.1, dur: D - 0.1, gain: 0.04 });
+  };
+  const impact = (t, k, w) => {
+    const r = S.pitch[k % S.pitch.length];
+    sv.osc(t, { type: 'square', f: 190 * r, f2: 70 * r, dur: 0.07, gain: 0.22 * w, lp: 1000, lp2: 300, drive: 'soft' });
+    sv.noise(t, { f: 1500 * r, q: 1.3, dur: 0.03, gain: 0.32 * w, drive: 'soft' });
+    sv.osc(t, { type: 'triangle', f: 640 * r, f2: 420 * r, dur: 0.05, gain: 0.08 * w });
+    sv.noise(t, { f: 3400, q: 4, dur: 0.02, gain: 0.06 * w });
+  };
+  const decay = (t) => {
+    st.decays++;
+    open(tailBus, t);
+    let u = t + 0.03;
+    for (let i = 0; i < 8 && u < t + 0.6; i++) { tv.noise(u, { f: 2200 + 2600 * rnd(), q: 4, dur: 0.012, gain: 0.09 * (1 - i / 9), drive: 'hard' }); u += 0.04 + rnd() * 0.07 * (1 + i * 0.4); }
+    tv.noise(t, { f: 2800, f2: 500, q: 1.6, a: 0.02, dur: 0.6, gain: 0.035 });
+  };
+  return {
+    ...base,
+    windup(t) {
+      st.windups++;
+      base.windupBed(t);
+      open(compBus, t); compOn = true;
+      compression(t);
+    },
+    release(t) {
+      st.releases++;
+      base.releaseBed(t);
+      if (compOn) { cut(compBus, t); compOn = false; st.cuts++; }
+      relT = t; impN = 0; lastImpT = -1; lastHitCall = -1; decayAt = -1;
+      // B: the discharge
+      sv.noise(t, { f: 1800, q: 0.9, dur: 0.01, gain: 0.5, drive: 'hard' });
+      sv.noise(t, { f: 3000, q: 1.2, dur: 0.025, gain: 0.22, drive: 'soft' });     // the snap a phone carries
+      sv.osc(t, { type: 'square', f: 3000, f2: 1200, dur: 0.004, gain: 0.08 });
+      sv.osc(t, { type: 'square', f: 220, f2: 70, dur: 0.06, gain: 0.35, lp: 1400, lp2: 500, drive: 'hard' });
+      for (const d of [-14, 0, 12]) sv.osc(t, { type: 'sawtooth', f: 165, f2: 62, dur: 0.42, gain: 0.16, lp: 3200, lp2: 380, q: 3, drive: 'hard', detune: d });
+      sv.noise(t, { f: 3500, f2: 600, q: 0.8, dur: 0.3, gain: 0.3, drive: 'soft' });   // the rush: mid-range, where a phone plays it
+      sv.noise(t, { f: 1200, q: 1.5, dur: 0.22, gain: 0.26, drive: 'soft' });
+      sv.noise(t + 0.01, { f: 2600, q: 4, dur: 0.12, gain: 0.08 });
+      sv.osc(t, { type: 'square', f: 110, f2: 82, dur: 0.28, gain: 0.12, lp: 500 });
+      sv.osc(t, { type: 'sine', f: B2_TONES.pip2, f2: B2_TONES.pip2 / 2, dur: 0.05, gain: 0.05 });
+      // C: the five masses leaving
+      for (let i = 0; i < S.zips; i++) {
+        const z = t + 0.012 + i * S.zipGapS;
+        sv.noise(z, { f: 2600 - i * 90, f2: 700, q: 2.2, dur: 0.08, gain: 0.07 });
+        st.zips++;
+      }
+    },
+    /** One Super pellet hit an enemy (the game's tick time `t`, as given by the caller). */
+    superHit(t) {
+      if (relT < 0 || t - relT > S.windowS) { relT = relT < 0 ? t : relT; }
+      if (lastHitCall >= 0 && Math.abs(t - lastHitCall) < 0.008) { st.merged++; return; }   // same tick: one impact
+      lastHitCall = t;
+      if (impN >= S.impactMax) { st.capped++; return; }
+      const at = Math.max(t, lastImpT < 0 ? t : lastImpT + S.impactGapS);
+      if (at - t > S.impactLagS) { st.late++; return; }
+      impact(at, impN, 1 - impN * 0.07);
+      if (lastImpT >= 0) st.minGap = Math.min(st.minGap, +(at - lastImpT).toFixed(4));
+      st.maxLag = Math.max(st.maxLag, +(at - t).toFixed(4));
+      lastImpT = at; impN++; st.impacts++;
+      // the decay follows the last impact (re-armed by each one)
+      decayAt = at + 0.09;
+    },
+    /** Per frame (the kit's bed and the decay's timing). */
+    bed(t, o) {
+      base.bed(t, o);
+      if (decayAt >= 0 && t >= decayAt) { decay(decayAt); decayAt = -1; }
+    },
+    silence(t) {
+      base.silence(t);
+      if (compOn) { cut(compBus, t); compOn = false; st.cuts++; }
+      cut(tailBus, t); decayAt = -1;
+    },
+    /** The hero died: the compression and the decay stop with it (the beds follow `dead`). */
+    cutSuper(t) { if (compOn) { cut(compBus, t); compOn = false; } cut(tailBus, t); decayAt = -1; st.deathCuts++; },
+    destroy() { base.destroy(); for (const g of [compBus, tailBus]) { try { g.disconnect(); } catch (_) { /* */ } } },
   };
 }
 
@@ -430,7 +567,8 @@ function kitB2(ctx, dest, stats, now) {
  *  `opts` { ctx, dest, now }: render into another context (an OfflineAudioContext replaying a
  *  recorded event timeline, for the A/B demonstrations); `now()` is that timeline's clock. */
 export function createB2Audio(kind, opts = {}) {
-  let ctx = null, kit = null, bus = null, motorUntil = 0, lastTick = -1, lastDuck = -1, ambT = 0;
+  let ctx = null, kit = null, bus = null, superBus = null, motorUntil = 0, lastTick = -1, lastDuck = -1, ambT = 0;
+  const B2FAM = kind === 'B2' || kind === 'B2S';       // the approved B2 behaviour: trim, confirmation, cuts
   const stats = { kind, shots: 0, ticks: 0, ducks: 0, live: false, events: {}, peakVoices: 0, dropped: 0 };
   const ev = (k) => { stats.events[k] = (stats.events[k] || 0) + 1; };
   const ready = () => {
@@ -440,9 +578,16 @@ export function createB2Audio(kind, opts = {}) {
       ctx = d.ctx;
       const comp = ctx.createDynamicsCompressor();
       comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 5; comp.attack.value = 0.002; comp.release.value = 0.12;
-      bus = ctx.createGain(); bus.gain.value = 0.9 * (kind === 'B2' ? B2_TRIM : 1);
+      bus = ctx.createGain(); bus.gain.value = 0.9 * (B2FAM ? B2_TRIM : 1);
       bus.connect(comp); comp.connect(d.sfxGain);
-      kit = kind === 'A' ? kitA(ctx, bus, stats, now) : kind === 'B2' ? kitB2(ctx, bus, stats, now) : kitB(ctx, bus, stats, now);
+      if (kind === 'B2S') {
+        // the Super's own bus and compressor, parallel to the kit's
+        const comp2 = ctx.createDynamicsCompressor();
+        comp2.threshold.value = -14; comp2.knee.value = 8; comp2.ratio.value = 5; comp2.attack.value = 0.002; comp2.release.value = 0.12;
+        superBus = ctx.createGain(); superBus.gain.value = 0.9 * B2S_TRIM;
+        superBus.connect(comp2); comp2.connect(d.sfxGain);
+      }
+      kit = kind === 'A' ? kitA(ctx, bus, stats, now) : kind === 'B2' ? kitB2(ctx, bus, stats, now) : kind === 'B2S' ? kitB2S(ctx, bus, stats, now, superBus) : kitB(ctx, bus, stats, now);
     }
     stats.live = opts.now ? true : ctx.state === 'running';
     return stats.live;
@@ -475,7 +620,12 @@ export function createB2Audio(kind, opts = {}) {
     // R2 events
     windup() { ev('windup'); if (!ready()) return; const t = at(); if (kit.cutConfirm) { kit.cutConfirm(t); stats.cuts++; } kit.holdBed?.(t, t + 0.7); kit.windup(t); },
     release() { ev('release'); if (!ready()) return; const t = at(); kit.release(t); kit.cooldown(t + 0.32); if (!opts.ctx) duckMusic(0.45, 500); },
-    superHit() { ev('superHit'); if (!ready() || now() - lastTick < 0.03) return; lastTick = now(); kit.superHit(at()); },
+    superHit() {
+      ev('superHit');
+      if (!ready()) return;
+      if (kind === 'B2S') { kit.superHit(at()); return; }   // B2S merges, spaces and caps its own impacts
+      if (now() - lastTick < 0.03) return; lastTick = now(); kit.superHit(at());
+    },
     /** The scene paused (or the hero died): the beds go silent until the next update. */
     silence() { ev('silence'); if (ready()) { kit.silence?.(now()); if (kit.cutConfirm) { kit.cutConfirm(now()); stats.cuts++; } } },
     /** Per frame from the flagship: charge 0..1, the trigger, the meter full, suppressed. */
@@ -488,13 +638,15 @@ export function createB2Audio(kind, opts = {}) {
       const av = s.heat >= 1 && !dead && !sup;
       const rose = avail !== null && av && !avail && ambT - lastConfirm >= CONFIRM_GAP;
       if (rose) lastConfirm = ambT;
-      const cut = kind === 'B2' && ((dead && !wasDead) || (sup && !wasSup));
+      const wasDeadPrev = wasDead;
+      const cut = B2FAM && ((dead && !wasDead) || (sup && !wasSup));
       avail = av; wasDead = dead; wasSup = sup;
-      if (kind === 'B2' && rose) ev('confirm');
+      if (B2FAM && rose) ev('confirm');
       if (!ready()) { lastStage = k; return; }
       if (k > lastStage && k < 4) kit.stage(at(), k);
       lastStage = k;
-      if (kind === 'B2') {
+      if (B2FAM) {
+        if (dead && !wasDeadPrev) kit.cutSuper?.(now());
         if (cut) { kit.cutConfirm(now()); stats.cuts++; }
         if (rose) { kit.confirm(at()); stats.confirms++; }
       }
