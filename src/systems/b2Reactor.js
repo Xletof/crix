@@ -272,6 +272,16 @@ export const R3_SHIELD = {
 };
 // cyan per steel tone (hi, lt, md, dk): kept apart from the reactor's reds and violets
 const SH_CY = [[214, 250, 255], [150, 236, 255], [90, 214, 240], [50, 160, 196]];
+/** B2-R4: the same armour edge, a little more luminous. The silhouette's own dark keyline next
+ *  to a lit edge takes a cyan glow (no pixel outside the sprite), stronger at full than at three
+ *  quarters; every quarter is at least as bright as R3's 0.8; highlights a touch whiter; the
+ *  shimmer two rows wide; a hit flares the keyline on its side too and holds a little longer;
+ *  the break flashes the keyline and throws up to twelve shards. No blinking state. */
+export const R4_SHIELD = {
+  alpha: [0, 0.8, 0.85, 0.95, 1], key: [0, 0, 0, 0.35, 0.75], keyRgb: [60, 190, 220], hiLift: 0.15,
+  glintMs: 1300, glintRows: 2, glintLift: 0.6, hitMs: [50, 140], breakMs: [45, 95, 145, 195],
+  shards: 12, shardD: [0, 6, 14, 22], shardA: [0, 1, 0.7, 0.35],
+};
 export const R3_CHOKE = { strainMs: 900, strainOnMs: 90 };
 /** B2-R4 timings: the wind-up hold's last-resort exit, and the discharge's drawn frames. */
 export const R4 = { holdMaxMs: 1500, disFrames: 2 };
@@ -945,7 +955,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   const SH = R3_SHIELD;
   const shG = IS3 ? scene.add.graphics().setVisible(false) : null;
   const rimCache = new Map();
-  let sheet = null, shKey = '', shDrawn = null;
+  let sheet = null, shKey = '', shDrawn = null, shGlintRow = -99;
   let shLast = 0, shEdge = 0, shFillFrom = 0, shFillAt = -1e9, shHitAt = -1e9, shHitSide = null, shBreakAt = -1e9, shBreakFrame = null, shGlintAt = 0;
   function rimsOf(p) {
     const fr = p.frame, key = `${p.texture.key}/${fr.name}`;
@@ -988,10 +998,16 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
         const v = cell[y * W + x];
         if (v >= 2 && v <= 5 && !rim[y * W + x] && N4.some(([dx, dy]) => { const i = ix(x + dx, y + dy); return i >= 0 && rim[i]; })) out.inner.push([x, y, v - 2]);
       }
-      // the shards leave from the outermost edge cell in each of eight directions
-      const cx = W / 2, cy = H / 2, best = new Array(SH.shards).fill(null);
-      for (const q of out.px) { const a = Math.atan2(q[1] + 0.5 - cy, q[0] + 0.5 - cx), k = ((Math.round((a / (Math.PI * 2)) * SH.shards) % SH.shards) + SH.shards) % SH.shards, r = Math.hypot(q[1] + 0.5 - cy, q[0] + 0.5 - cx); if (!best[k] || r > best[k][2]) best[k] = [q[0], q[1], r, a]; }
-      out.shards = best.filter(Boolean);
+      // the shards leave from the outermost edge cell in each of eight directions (R4: twelve)
+      const cx = W / 2, cy = H / 2;
+      const pick = (n) => { const best = new Array(n).fill(null); for (const q of out.px) { const a = Math.atan2(q[1] + 0.5 - cy, q[0] + 0.5 - cx), k = ((Math.round((a / (Math.PI * 2)) * n) % n) + n) % n, r = Math.hypot(q[1] + 0.5 - cy, q[0] + 0.5 - cx); if (!best[k] || r > best[k][2]) best[k] = [q[0], q[1], r, a]; } return best.filter(Boolean); };
+      out.shards = pick(SH.shards);
+      if (IS4) {
+        out.shards12 = pick(R4_SHIELD.shards);
+        // R4: the silhouette's dark keyline cells that touch a lit edge cell (inside the sprite)
+        const seen = new Set(); out.key = [];
+        for (const [x, y] of out.px) for (const [dx, dy] of N4) { const X = x + dx, Y = y + dy, k = Y * W + X; if (outline(X, Y) && !seen.has(k)) { seen.add(k); out.key.push([X, Y]); } }
+      }
     } catch (_) { out = null; }
     rimCache.set(key, out);
     if (out) { stats.r3.shield.frames++; stats.r3.shield.rims = Math.max(stats.r3.shield.rims, out.px.length); }
@@ -1031,14 +1047,17 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
     // the lit edge row, easing down from the helmet after a gain
     const tf = (clock - shFillAt) / SH.fillMs;
     const edge = tf < 1 ? Math.round(shFillFrom + (shEdge - shFillFrom) * Math.max(0, tf)) : shEdge;
-    const th = clock - shHitAt, hit = hp > 0 && th >= 0 && th < SH.hitMs[1] ? (th < SH.hitMs[0] ? 0 : 1) : -1;
+    const HM = IS4 ? R4_SHIELD.hitMs : SH.hitMs;
+    const th = clock - shHitAt, hit = hp > 0 && th >= 0 && th < HM[1] ? (th < HM[0] ? 0 : 1) : -1;
     const brk = breaking ? (tb < SH.breakMs[0] ? 0 : tb < SH.breakMs[1] ? 1 : tb < SH.breakMs[2] ? 2 : 3) : -1;
-    if (hp > 0 && clock - shGlintAt > SH.glintMs) { shGlintAt = clock; S.glints++; }
+    if (hp > 0 && clock - shGlintAt > (IS4 ? R4_SHIELD.glintMs : SH.glintMs)) { shGlintAt = clock; S.glints++; }
     const tg = clock - shGlintAt, glint = hp > 0 && tg < SH.glintRunMs ? Math.floor((tg / SH.glintRunMs) * edge) : -99;
+    shGlintRow = glint;
     const flip = !!p.flipX;
     const key = `${p.texture.key}/${p.frame.name}|${flip}|${edge}|${glint}|${hit}|${brk}`;
     const dox = p.displayOriginX, doy = p.displayOriginY, g = R.g;
-    if (key !== shKey) {
+    if (IS4 && key !== shKey) { shKey = key; drawShieldR4(R, p, flip, edge, quarters, hit, brk, dox, doy, g); shDrawn = { frame: p.frame.name, tex: p.texture.key, flip }; }
+    if (!IS4 && key !== shKey) {
       shKey = key;
       shG.clear();
       const lx = (x) => (flip ? dox - (x + 1) * g : x * g - dox), ly = (y) => y * g - doy;
@@ -1076,6 +1095,50 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
     S.bands[quarters]++;
     S.alpha = p.alpha;
     shG.setPosition(p.x, p.y).setScale(Math.abs(p.scaleX), p.scaleY).setRotation(p.rotation).setAlpha(p.alpha).setDepth(p.depth + 0.01).setVisible(true);
+  }
+  // R4: the brighter armour edge (see R4_SHIELD). Same overlay, same rules for what is lit.
+  function drawShieldR4(R, p, flip, edge, quarters, hit, brk, dox, doy, g) {
+    const S4 = R4_SHIELD, S = stats.r3.shield;
+    shG.clear();
+    const lx = (x) => (flip ? dox - (x + 1) * g : x * g - dox), ly = (y) => y * g - doy;
+    let sx = 0, sy = 0;
+    if (hit >= 0 && shHitSide != null) { sx = Math.cos(shHitSide - p.rotation); sy = Math.sin(shHitSide - p.rotation); }
+    const onSide = (x, y) => { if (hit < 0) return false; if (shHitSide == null) return true; const ux = lx(x) + g / 2, uy = ly(y) + g / 2, d = Math.hypot(ux, uy) || 1; return (ux * sx + uy * sy) / d > 0.15; };
+    const glint = shGlintRow;
+    if (brk <= 0) {
+      // the keyline glow first (under the edge), then the edge
+      const ka = brk === 0 ? 1 : S4.key[quarters];
+      for (const [x, y] of R.key || []) {
+        const side = onSide(x, y);
+        let a = y < edge ? ka : 0, c = S4.keyRgb;
+        if (brk === 0) { a = 1; c = toward(c, 0.8); }
+        else if (side) { a = Math.max(a, hit === 0 ? 0.9 : 0.8); c = hit === 0 ? toward(c, 0.75) : toward(c, 0.35); }
+        if (a <= 0.01) continue;
+        shG.fillStyle(hexOf(c), a); shG.fillRect(lx(x), ly(y), g, g);
+      }
+      const deep = brk === 0 || hit === 0;
+      for (const [x, y, t, inner] of deep ? [...R.px, ...R.inner.map((q) => [...q, 1])] : R.px) {
+        const side = onSide(x, y);
+        const lit = brk === 0 || y < edge || (hit === 0 && inner !== 1 && side);
+        if (!lit) continue;
+        if (inner === 1 && brk !== 0 && !side) continue;
+        let c = t <= 1 ? toward(SH_CY[t], S4.hiLift) : SH_CY[t], a = S4.alpha[Math.max(1, quarters)];
+        if (brk === 0) { c = toward(c, inner ? 0.5 : 0.85); a = inner ? 0.9 : 1; }
+        else {
+          if (glint >= 0 && y <= glint && y > glint - S4.glintRows) { c = toward(c, S4.glintLift); a = 1; }
+          if (side) { c = hit === 0 ? toward(c, inner ? 0.55 : 0.9) : toward(c, 0.45); a = 1; }
+        }
+        shG.fillStyle(hexOf(c), a); shG.fillRect(lx(x), ly(y), g, g);
+      }
+    }
+    if (brk >= 1) {
+      const d = S4.shardD[brk], al = S4.shardA[brk];
+      for (const [x, y, , a0] of R.shards12 || R.shards) {
+        const ang = flip ? Math.PI - a0 : a0;
+        shG.fillStyle(hexOf(toward(SH_CY[1], 0.3)), al); shG.fillRect(lx(x) + Math.cos(ang) * d, ly(y) + Math.sin(ang) * d, g, g);
+        S.shards++;
+      }
+    }
   }
   function syncShield() {
     // what the overlay shows, read back against the sprite at render time
