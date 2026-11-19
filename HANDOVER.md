@@ -422,8 +422,10 @@ command, fix the line.*
         0.8/0.85/0.95/1.0 by quarter (R3 0.8), plus a cyan glow on the
         sprite's own dark outline cells at three quarters and full. A
         one-game-pixel sliver shows outside the silhouette on some right-hand
-        cells at 400/300; it is documented with an inset fix proposed, not
-        done. Values, HP and recharge are untouched.
+        cells at 400/300. It does not follow the art (it stays on the right
+        when the sprite is flipped), so it is a screen-space offset, possibly
+        the harness's software renderer. It is documented for the HUMAN to
+        look for, not fixed. Values, HP and recharge are untouched.
       - `8e23ff0`, `9f48805`: Audio B2S, which is B2 with a four-phase Super:
         compression, discharge, five separated zips, then merged, queued
         impacts and a decay. B2's approved cues are the same code (render

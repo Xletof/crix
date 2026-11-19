@@ -84,9 +84,12 @@ Links 1 and 2 differ only in the Super's sound. Links 2 and 3 differ only in the
    - **A one-pixel sliver outside the silhouette, found in the phone-size stills.**
      - At 400 and 300 only (the only values with a keyline), some of the outermost keyline cells show a sliver about one game pixel wide on their *right* side, where R3 at the same tick shows bare floor.
      - It measures 52 device pixels in a 180 × 180 phone crop at 400, and 29 at 300 (`after/shield-r4-minus-r3-diffmap-400-300-red-is-floor.png`, red).
-     - The overlay's geometry is the sprite's own (`x * g − displayOriginX`, as in R3), and the game renders with `roundPixels: false`. The exact cause (a rasterisation offset, or a cell sampled at one texel being partly transparent) is not established.
+     - The overlay's geometry is the sprite's own (`x * g − displayOriginX`, as in R3), and the game renders with `roundPixels: false`.
+     - **It does not follow the art.** On the flipped W sprite the sliver is still on the right (35 px right, 0 left), as for S (40 / 0) and N (39 / 0). Facing E it is mostly above (24 px). A cause in the art would mirror with the sprite.
+     - So it is a screen-space offset between the textured sprite and the Graphics rects at fractional positions. It may come from the harness's software rasteriser (SwiftShader) and not exist on a phone GPU; that is unverified.
      - R3's overlay probably has the same offset, but its outermost lit cells sit one step inward, so its sliver falls on the dark outline, not the floor.
-     - It is a faint, half-transparent cyan hairline, nowhere near a halo or outline. If the HUMAN sees it, the smallest fix is to inset the keyline rects by one texel on their outside-facing sides (level 4 only). That is not done here.
+     - It is a faint, half-transparent cyan hairline, nowhere near a halo or outline.
+     - **For the HUMAN to look for:** the right edge of the helmet at full shield. If a cyan hairline shows outside the armour there, one way to absorb any sub-texel offset is to inset the keyline rects by one texel on their outside-facing sides (level 4 only). That is not done here, and the cause is not proven.
    - The overlay was read back in sync with the sprite at all 576 renders of a whole fight.
    - Shield values, HP, i-frames and recharge are untouched: the shield and health take exactly what B2-B takes.
 
@@ -111,6 +114,7 @@ Links 1 and 2 differ only in the Super's sound. Links 2 and 3 differ only in the
    **Routing and limits.**
    - The Super has its own bus (gain 0.9 × 1.45) and its own compressor. It shares B2's voice cap (48).
    - A pause cuts the compression. A death cuts the compression and the decay. A restart or quitting to the title tears everything down.
+   - **Cancellation and suppression:** in the hold-F capture, the voice log has exactly one compression, one discharge and that cast's impacts. The second hold (ticks 360–460, suppressed at 430, then released) produces no compression, discharge or impact: a cancelled or refused cast makes no Super sound. The rig also checks that a pause during the compression cuts it.
    - The game's generic hit beep is not played for Super pellet hits under B2S; the kit's impacts replace it. B2 keeps the beep.
    - Measured:
      - in a crowd of twelve, the hits merge, so impacts never form a run of beeps;
@@ -137,6 +141,10 @@ As a result, the next AI cooldown draws a different value, and the same seed pla
 **The isolation (`eaa4444`, `&b2iso=1`, opt-in, reversible).**
 - When B2 installs, every function on `SFX` (48 of them) is wrapped. During the call, `Math.random` is a private mulberry32 stream, restored in `finally`.
 - Teardown restores every original. The rig checks this at the title after restarts: 48 wrapped in play, 0 left.
+- **Coverage (grep):**
+  - In `FX.js`, every `tone()` / `noise()` call outside the `SFX` object is a comment, and neither function is exported.
+  - The only other audio modules (`b2Voice.js`, `b2Audio.js`) draw no `Math.random`.
+  - So the wrapped `SFX` functions plus the music loop below are the whole audio surface that touches gameplay randomness.
 - **Result:** with isolation and live audio (B2S, then B2), the fight equals the silent one tick for tick: four Supers, a Broken Wings chain and a death.
 - **Control:** without isolation, live audio consumes 402,120 draws against the silent run's 19,460, and the fight diverges at tick 51.
 - The flag changes no frozen module and no default.
@@ -158,6 +166,8 @@ As a result, the next AI cooldown draws a different value, and the same seed pla
 - Isolating the shipped `SFX` calls for everyone (making `&b2iso=1` the default) is the same kind of decision.
 
 ## Evidence
+
+**Capture provenance.** Most films and stills were captured before the discharge fix `18649d1`. The exceptions are the suppression film and the shield-values still, which come from the final code. The fix only changes frames when a discharge would be drawn 70 ms or more after the blast. A check of every R4 film's own frame log shows that never happens in them: the rifle is shown at every blast, and discharge frames fall only on the blast tick and the next. So they are frame-for-frame what the final code draws.
 
 **Films** (`films/`, 60 fps, real game frames from seeded fights; R3 and R4 run the same seed):
 
@@ -239,7 +249,7 @@ Every suite ran standalone against the dev server. Where a suite takes `--old`, 
 | `smoke-fx-p2a3 --only=10` | 4/4 | the frozen-file scope guard |
 | `smoke-controls` | PASS | |
 | `smoke-restart` | PASS (16 checks) | |
-| production bundle (`npm run build`, `vite preview`) | no page errors | the four links and a plain boot |
+| production bundle (`npm run build`, `vite preview`) | no page errors | rebuilt from the final code (`18649d1` included): the four links and a plain boot |
 | `run-all` (52 suites) | **46/52** | Every failure was re-run standalone on this build and on `bfa765f`. None is new: champion-placement, captain-closeout and deflect fail on both builds on the same checks; boss-moves and nemesis pass standalone (known intermittents); readability failed 1 run in 4 on each build, on the same check. Details in `run-all-reruns/README.md`. |
 
 **Seeded parity.** B2-R4 plus B2S plus isolation equals B2-B tick for tick: state, ammo, meters, every enemy, bolt and pellet, `Math.random` draws and events.
