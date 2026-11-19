@@ -169,6 +169,7 @@ As a result, the next AI cooldown draws a different value, and the same seed pla
 | `rifle-flicks-r3-vs-r4-60fps.mp4` | rifle fire under abrupt aim flicks; rounds identical |
 | `strafe-dash-rotate-r4-60fps.mp4` | strafing N/S while firing E/W, with a dash |
 | `range-expiry-r3-vs-r4-60fps.mp4` | range-end dissipation, unchanged (30/30 rounds dissipate in both) |
+| `suppressed-full-denied-cast-r3-vs-r4-60fps.mp4` | full, then suppressed while firing, a denied cast at 5 s, then released. Both show only the choked frames while suppressed; R4 shows no held or discharge frame from the denied cast (from the film's own frame log). |
 | `target-hold-release-cancel-r4-audio-B2S-60fps.mp4` | hold F, release, a cancelled hold, with the game's audio (B2S) |
 | `fight-full-mix-r3-audio-legacy-B2.mp4`, `fight-full-mix-r4-audio-new-B2S.mp4`, `fight-full-mix-r4-audio-legacy-B2.mp4` | the same MIXED fight with music, enemy fire and every game sound, at in-game level. The gameplay is identical: 900/900 ticks. |
 | `super-isolated-r3-legacy-B2-music-muted.mp4`, `super-isolated-r4-new-B2S-music-muted.mp4` | the hold-F cast with the music muted |
@@ -224,12 +225,12 @@ Every suite ran standalone against the dev server. Where a suite takes `--old`, 
 
 | Suite | Result | Notes |
 |---|---|---|
-| `smoke-b2r4` (new) | **92/92** | one clean run on the final code (`smoke-b2r4.txt`). §10 was re-run (10/10) after its labels were corrected to the R4 links, and §8 after a label fix (`smoke-b2r4-s8.txt`). |
+| `smoke-b2r4` (new) | **97/97** | one clean run on the final code (`smoke-b2r4.txt`), including the five suppression and blade checks added with `18649d1`. The blade check fails on the code before that fix. The earlier 92/92 run (before the fix and the §10 link correction) is in git history. |
 | `smoke-b2r3` | PENDING | R3 unchanged |
-| `smoke-b2r2` | PENDING | |
-| `smoke-b2r` | PENDING | |
-| `smoke-b2t` | PENDING | |
-| `smoke-b2c --old=bfa765f` | PENDING | |
+| `smoke-b2r2` | 62/62 | |
+| `smoke-b2r` | 38/38 | |
+| `smoke-b2t` | 37/37 | |
+| `smoke-b2c --old=bfa765f` | 46/46 | |
 | `smoke-b2 --old=bfa765f` | PENDING | |
 | `smoke-b1 --old=bfa765f` | PENDING | |
 | `smoke-b0 --old=bfa765f` | PENDING | |
