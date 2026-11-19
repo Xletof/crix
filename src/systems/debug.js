@@ -319,7 +319,7 @@ export function isB2Candidate() { return b2Cand; }
 export function isB2Temper() { return b2Temper; }
 /** `&b2r=1`: REACTOR OVERLOAD, the second visual-language candidate over B2 (systems/b2Reactor.js):
  *  a violet-to-critical-red reactor on the gun, a connected glowing stream, a chunky Super. Pixels only.
- *  `&b2r=2` B2-R2, `&b2r=3` B2-R3 (the level, 1..3; false when off). */
+ *  `&b2r=2` B2-R2, `&b2r=3` B2-R3, `&b2r=4` B2-R4 (the level, 1..4; false when off). */
 export function isB2Reactor() { return b2Reactor; }
 /** `&b2a=A|B|B2`: the audio candidates (systems/b2Audio.js): A heavy energy rifle, B plasma reactor,
  *  B2 the B2-R3 refinement of B (B stays as the control). */
@@ -337,8 +337,9 @@ export function setB2(v, params = null) {
   b2Cand = params.get('b2c') === '1';
   b2Temper = params.get('b2t') === '1';
   // `&b2r=1` REACTOR OVERLOAD; `&b2r=2` B2-R2 (REACTOR's gun, the R2 stream, hero indicators and Super);
-  // `&b2r=3` B2-R3 (R2 without the ribbon, B2-B's Super, armour-seam shield, a suppressed reactor)
-  { const r = params.get('b2r'); b2Reactor = r === '3' ? 3 : r === '2' ? 2 : r === '1' ? 1 : false; }
+  // `&b2r=3` B2-R3 (R2 without the ribbon, B2-B's Super, armour-seam shield, a suppressed reactor);
+  // `&b2r=4` B2-R4 (R3 with the wind-up held to the blast, a reactor-red Super fireball, a brighter shield)
+  { const r = params.get('b2r'); b2Reactor = r === '4' ? 4 : r === '3' ? 3 : r === '2' ? 2 : r === '1' ? 1 : false; }
   { const a = String(params.get('b2a') || '').toUpperCase(); b2Audio = a === 'A' || a === 'B' || a === 'B2' ? a : null; }
   b2AudioIso = params.get('b2iso') === '1';
   for (const [k, val] of params) {

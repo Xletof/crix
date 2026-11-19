@@ -273,10 +273,12 @@ export const R3_SHIELD = {
 // cyan per steel tone (hi, lt, md, dk): kept apart from the reactor's reds and violets
 const SH_CY = [[214, 250, 255], [150, 236, 255], [90, 214, 240], [50, 160, 196]];
 export const R3_CHOKE = { strainMs: 900, strainOnMs: 90 };
+/** B2-R4 timings: the wind-up hold's last-resort exit, and the discharge's drawn frames. */
+export const R4 = { holdMaxMs: 1500, disFrames: 2 };
 function buildR3Gun(scene) {
   if (scene.textures.exists(R3_KEY)) return scene.textures.get(R3_KEY);
   const base = readRifle(scene);
-  const tex = scene.textures.createCanvas(R3_KEY, 2 * (18 * GG + 2) + 2, 10 * GG + 2), ctx = tex.getContext();
+  const tex = scene.textures.createCanvas(R3_KEY, 3 * (18 * GG + 2) + 2, 10 * GG + 2), ctx = tex.getContext();
   const paint = (name, i, strain) => {
     const gr = base ? base.map((r) => r.slice()) : null;
     if (gr) {
@@ -294,6 +296,21 @@ function buildR3Gun(scene) {
     tex.add(name, 0, x0, 1, 18 * GG, 10 * GG);
   };
   paint('gun-8s', 0, false); paint('gun-8sf', 1, true);
+  // R4 `gun-dis`: the discharge — the core already dark, the energy rushing down the channels to a
+  // white-hot brake (core ruby, the middle channels pink-white, the barrel channels and brake white)
+  if (base) {
+    const gr = base.map((r) => r.slice());
+    CH.forEach((x, j) => {
+      gr[4][x] = j < 2 ? RUBY : x >= 12 ? '#fff6f2' : '#ffb4a8';
+      gr[5][x] = x >= 12 ? '#ffd0c4' : mix(base[5][x], '#3a0609', 0.5);
+      if (base[3][x] && base[3][x] !== OUT && x >= 11) gr[3][x] = mix(base[3][x], '#ffffff', 0.55);
+    });
+    for (const y of [3, 4, 5, 6]) gr[y][16] = '#ffffff';
+    gr[1][10] = RUBY; gr[2][10] = '#3a0609';
+    const x0 = 1 + 2 * (18 * GG + 2);
+    gr.forEach((row, y) => row.forEach((c, x) => { if (c) { ctx.fillStyle = c; ctx.fillRect(x0 + x * GG, 1 + y * GG, GG, GG); } }));
+    tex.add('gun-dis', 0, x0, 1, 18 * GG, 10 * GG);
+  }
   tex.refresh();
   return tex;
 }
@@ -324,6 +341,10 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   // Super code below is installed), shield highlights on the hero's armour edges instead of
   // the plates, and a choked reactor while the Super is suppressed.
   const IS3 = IS2 && !!opts.r3;
+  // B2-R4 (`&b2r=4`, HUMAN direction 2026-11-19) is B2-R3 plus: the reactor holds its compressed
+  // wind-up until the Super really leaves (no empty frames before the blast) and shows a short
+  // discharge, the Super's muzzle discharge in the reactor's reds, and a brighter armour shield.
+  const IS4 = IS3 && !!opts.r4;
   const tex = buildAtlas(scene, K), KEY = tex.key;
   if (IS2) buildR2Atlas(scene);
   const has = (f) => !!tex.frames[f];
@@ -338,7 +359,8 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
     pellet: { hidden: 0, restored: 0 },
     r2: IS2 ? { links: { drawn: 0, checks: 0, bad: 0, maxLen: 0, muzzle: 0, joined: 0, retract: 0, broken: 0 }, dis: [0, 0, 0, 0], wall: [0, 0, 0], burn: [0, 0, 0, 0], ends: {}, plates: { shown: 0, hits: 0, breaks: 0 }, arcs: 0, hidden: { shield: 0, ring: 0 } } : null,
   };
-  if (IS2) stats.name = IS3 ? 'reactor3' : 'reactor2';
+  if (IS2) stats.name = IS4 ? 'reactor4' : IS3 ? 'reactor3' : 'reactor2';
+  if (IS4) stats.r4 = { held: 0, discharge: 0, fireball: { pops: 0, swapped: 0, images: 0, graphics: 0 } };
   if (IS3) { buildR3Gun(scene); stats.r3 = { choked: 0, strain: 0, shield: { drawn: 0, frames: 0, rims: 0, bands: [0, 0, 0, 0, 0], hits: 0, sided: 0, breaks: 0, shards: 0, fills: 0, glints: 0, ringsHidden: 0, sync: { checks: 0, bad: 0 }, alpha: null } }; }
   const suppressedNow = () => (scene.player?._suppressedMs || 0) > 0;
   const pools = {}, pool = [];
@@ -445,9 +467,19 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   const swirl = scene.add.image(0, 0, KEY, has('sw-0') ? 'sw-0' : first).setVisible(false);
   let lastK = 0, igniteUntil = -1e9, windupAt = -1e9, blastAt = -1e9, readyAt = -1e9;
   const view = () => scene._p2a?.loadout?.view || null;
-  const winding = () => { const t = clock - windupAt; return t >= 0 && t < REACTOR.windupMs[1] && blastAt < windupAt; };
+  const winding = () => {
+    const t = clock - windupAt;
+    if (t < 0 || blastAt >= windupAt) return false;
+    // R4: the compressed reactor holds until the real blast (the shipped wind-up decides when);
+    // it lets go only if the hero dies first, or after R4.holdMaxMs as a last resort
+    if (IS4) return t < R4.holdMaxMs && !!scene.player?.alive;
+    return t < REACTOR.windupMs[1];
+  };
+  let disLeft = 0;                    // R4: drawn frames of the discharge still to show
   function gunFrame() {
-    if (winding()) return clock - windupAt < REACTOR.windupMs[0] ? 'gun-w0' : 'gun-w1';
+    if (winding()) { if (IS4 && clock - windupAt >= REACTOR.windupMs[1]) stats.r4.held++; return clock - windupAt < REACTOR.windupMs[0] ? 'gun-w0' : 'gun-w1'; }
+    // R4: the reactor empties through the barrel for the first frames drawn after the blast
+    if (IS4 && disLeft > 0) { disLeft--; stats.r4.discharge++; return 'gun-dis'; }
     const k = reactorStep(api.charge01());
     // R3: full but suppressed — choked, ahead of the shot flash (a shot must not flash "ready").
     // On release from the suppression the ready pulse starts again from its first step.
@@ -488,7 +520,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   }
   const sameAs = (o, v) => o.x === v.x && o.y === v.y && o.rotation === v.rotation && o.flipY === v.flipY && o.alpha === v.alpha;
   function follow(o, v, frame, dz, ox = v.originX, oy = v.originY) {
-    const tk = frame.startsWith('gun-8s') ? R3_KEY : KEY;
+    const tk = frame.startsWith('gun-8s') || frame === 'gun-dis' ? R3_KEY : KEY;
     if (o.texture.key !== tk) o.setTexture(tk);
     o.setFrame(frame).setOrigin(ox, oy).setPosition(v.x, v.y).setRotation(v.rotation).setFlipY(v.flipY).setAlpha(v.alpha).setDepth(v.depth + dz).setVisible(true);
   }
@@ -569,6 +601,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   const onBlast = () => {
     stats.supers++;
     blastAt = clock;
+    if (IS4) disLeft = R4.disFrames;
     if (IS3) return;                     // the gun cools; the attack is B2-B's
     bursts.push({ t: -1, ang: blast.ang, img: img('burst-0').setVisible(false) });
     if (!low()) dimAt = clock;
