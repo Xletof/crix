@@ -305,6 +305,7 @@ let b2Cand = false;
 let b2Temper = false;
 let b2Reactor = false;
 let b2Audio = null;
+let b2AudioIso = false;
 export function getB2Variant() { return b2Variant; }
 export function isB2Range() { return b2Range; }
 export function getB2Knobs() { return b2Knobs; }
@@ -323,10 +324,13 @@ export function isB2Reactor() { return b2Reactor; }
 /** `&b2a=A|B|B2`: the audio candidates (systems/b2Audio.js): A heavy energy rifle, B plasma reactor,
  *  B2 the B2-R3 refinement of B (B stays as the control). */
 export function getB2Audio() { return b2Audio; }
+/** `&b2iso=1`: audio cannot consume gameplay randomness — every shipped `SFX.*` call runs on a
+ *  private random stream (systems/b2Flagship.js). B2-R4 technical item; opt-in, off by default. */
+export function isB2AudioIso() { return b2AudioIso; }
 export function setB2(v, params = null) {
   const s = v == null ? '' : String(v).trim().toUpperCase();
   b2Variant = (s === 'A' || s === 'B') && !b1Variant ? s : null;
-  b2Range = false; b2Knobs = {}; b2Debug = false; b2Cand = false; b2Temper = false; b2Reactor = false; b2Audio = null;
+  b2Range = false; b2Knobs = {}; b2Debug = false; b2Cand = false; b2Temper = false; b2Reactor = false; b2Audio = null; b2AudioIso = false;
   if (!b2Variant || !params) return;
   b2Range = params.get('b2range') === '1';
   b2Debug = params.get('b2dbg') === '1';
@@ -336,6 +340,7 @@ export function setB2(v, params = null) {
   // `&b2r=3` B2-R3 (R2 without the ribbon, B2-B's Super, armour-seam shield, a suppressed reactor)
   { const r = params.get('b2r'); b2Reactor = r === '3' ? 3 : r === '2' ? 2 : r === '1' ? 1 : false; }
   { const a = String(params.get('b2a') || '').toUpperCase(); b2Audio = a === 'A' || a === 'B' || a === 'B2' ? a : null; }
+  b2AudioIso = params.get('b2iso') === '1';
   for (const [k, val] of params) {
     if (!k.startsWith('b2x.')) continue;
     const n = Number(val);

@@ -41,7 +41,8 @@
 //  No `Math.random` anywhere in B2 code.
 import Phaser from 'phaser';
 import { PLAYER } from '../config.js';
-import { getB2Variant, getB2Knobs, isB2Range, isB2Candidate, isB2Temper, isB2Reactor, getB2Audio } from './debug.js';
+import { getB2Variant, getB2Knobs, isB2Range, isB2Candidate, isB2Temper, isB2Reactor, getB2Audio, isB2AudioIso } from './debug.js';
+import { mulberry32 } from './rng.js';
 import { SFX, duckMusic } from './FX.js';
 import { BulletGroup } from '../entities/Bullet.js';
 import { installB2Feel } from './b2Feel.js';
@@ -147,6 +148,28 @@ export function installB2(scene) {
   const bound = [];
   const on = (ev, fn) => { scene.events.on(ev, fn); bound.push([ev, fn]); };
 
+  // `&b2iso=1` — AUDIO CANNOT CONSUME GAMEPLAY RANDOMNESS. The shipped sound functions draw
+  // `Math.random` whenever an AudioContext exists: FX.js `tone()` for pitch variation and
+  // `noise()`, which fills a fresh buffer of sampleRate x duration samples per call. So in live
+  // play every sound played or skipped moved the shared stream the AI rolls from, and choosing
+  // an audio kit (which replaces some shipped sounds) changed the fight. Under the flag every
+  // `SFX.*` call runs with `Math.random` swapped for a private stream, restored on return. It is
+  // installed first (innermost) and unwound last, after every wrapper stacked above it.
+  // NOT covered (FX.js internals, unchanged): the music's bar loop (its crash cymbal and
+  // percussion noise draw `Math.random` from a timer) and anything in FX.js that calls `tone()`
+  // or `noise()` without going through `SFX` — see docs/evidence/b2-r4/README.md.
+  const isoRestores = [];
+  if (isB2AudioIso()) {
+    const iso = mulberry32(0xa0d10150);
+    for (const k of Object.keys(SFX)) {
+      if (typeof SFX[k] !== 'function') continue;
+      const had = Object.prototype.hasOwnProperty.call(SFX, k), prev = SFX[k];
+      const mine = function (...a) { const r = Math.random; Math.random = iso; try { return prev.apply(this, a); } finally { Math.random = r; } };
+      SFX[k] = mine;
+      isoRestores.push(() => { if (SFX[k] === mine) { if (had) SFX[k] = prev; else delete SFX[k]; } });
+    }
+    stats.audioIso = isoRestores.length;
+  }
   // `&b2a=A|B`: the B2-R2 audio candidates (systems/b2Audio.js) in place of the B2-1 kit
   const audioKind = getB2Audio();
   const voice = audioKind ? createB2Audio(audioKind) : createB2Voice(K);
@@ -600,6 +623,7 @@ export function installB2(scene) {
     try { superInput?.destroy(); } catch (_) { /* */ }
     try { feel?.destroy(); } catch (_) { /* */ }
     try { voice.destroy(); } catch (_) { /* */ }
+    isoRestores.splice(0).reverse().forEach((f) => { try { f(); } catch (_) { /* */ } });   // last: every wrapper above has unwound
     rounds.length = 0; pending.clear();
     if (scene._b2 === api) scene._b2 = null;
   };
