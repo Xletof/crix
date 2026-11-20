@@ -1,0 +1,79 @@
+
+== 0. flags
+PASS  HC: visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=4&b2iso=1&b2a=B2HC&b2aura=1: B2 on, Super sound B2HC, aura on, isolation on  — {"b2":true,"kind":"B2HC","aura":true,"iso":true,"auraObj":true}
+PASS  RT: visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=4&b2iso=1&b2a=B2RT&b2aura=1: B2 on, Super sound B2RT, aura on, isolation on  — {"b2":true,"kind":"B2RT","aura":true,"iso":true,"auraObj":true}
+PASS  RTN: visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=4&b2iso=1&b2a=B2RT: B2 on, Super sound B2RT, aura off, isolation on  — {"b2":true,"kind":"B2RT","aura":false,"iso":true,"auraObj":false}
+PASS  S: visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=4&b2iso=1&b2a=B2S: B2 on, Super sound B2S, aura off, isolation on  — {"b2":true,"kind":"B2S","aura":false,"iso":true,"auraObj":false}
+PASS  lower case b2a=b2rt: B2 on, Super sound B2RT, aura off, isolation on  — {"b2":true,"kind":"B2RT","aura":false,"iso":true,"auraObj":false}
+PASS  R5 Reactor Detonation + aura still selectable: B2 on, Super sound B2RD, aura on, isolation on  — {"b2":true,"kind":"B2RD","aura":true,"iso":true,"auraObj":true}
+PASS  R5 aura with the B2S sound still selectable: B2 on, Super sound B2S, aura on, isolation on  — {"b2":true,"kind":"B2S","aura":true,"iso":true,"auraObj":true}
+PASS  legacy: B2-R3 + B2: B2 on, Super sound B2, aura off, isolation off  — {"b2":true,"kind":"B2","aura":false,"iso":false,"auraObj":false}
+PASS  legacy: B2-R2 + A: B2 on, Super sound A, aura off, isolation off  — {"b2":true,"kind":"A","aura":false,"iso":false,"auraObj":false}
+PASS  legacy: B2-R2 + B: B2 on, Super sound B, aura off, isolation off  — {"b2":true,"kind":"B","aura":false,"iso":false,"auraObj":false}
+PASS  b2aura without b2r=4 is ignored (with B2RT): B2 on, Super sound B2RT, aura off, isolation off  — {"b2":true,"kind":"B2RT","aura":false,"iso":false,"auraObj":false}
+PASS  B2RT without b2= does nothing: nothing installed  — {"b2":false,"kind":null,"aura":false,"iso":false,"auraObj":false}
+PASS  an unknown b2a value falls back to the B2-1 kit: B2 on, Super sound b2-1, aura off, isolation off  — {"b2":true,"kind":"b2-1","aura":false,"iso":false,"auraObj":false}
+
+== 1. gameplay parity: B2RT = B2-B
+PASS  RT (B2RT + aura), MIXED s6, 1500 ticks, four Supers and a Broken Wings chain: = B2-B tick for tick  — 197 rounds, 4 Supers, 37 kills, 18855 draws
+PASS  RTN (B2RT), MIXED s6, 1500 ticks, four Supers and a Broken Wings chain: = B2-B tick for tick  — 197 rounds, 4 Supers, 37 kills, 18855 draws
+PASS  HC (B2HC + aura), MIXED s6, 1500 ticks, four Supers and a Broken Wings chain: = B2-B tick for tick  — 197 rounds, 4 Supers, 37 kills, 18855 draws
+PASS  RT, SWARM TIDE: = B2-B tick for tick  — 197 rounds, 44 kills, 19458 draws
+PASS  RT, MIXED s6, god mode off (shield hits, breaks, a death possible): = B2-B tick for tick  — 197 rounds, 35 kills, 19367 draws
+
+== 2. in the game: the rush on the committed cast only, one event per real blast
+PASS  B2RT: the wind-up sound starts only on the committed cast (none during a 40-tick held-F aim, a cancelled hold, a suppressed press or release); one discharge per real blast; each blast took over the rush (two hand-overs); the shipped Super shot replaced  — {"held":{"blasts":0,"rel":0,"kit":0,"wind":0,"hand":0,"live":[]},"released":{"blasts":1,"rel":1,"kit":1,"wind":1,"hand":1},"cancelled":{"blasts":1,"rel":1,"kit":1,"wind":1,"hand":1},"suppressedPress":{"blasts":1,"rel":1,"kit":1,"wind":1,"hand":1},"suppressedRelease":{"blasts":1,"rel":1,"kit":1,"wind":1,"hand":1},"second":{"blasts":2,"rel":2,"kit":2,"wind":2,"hand":2},"shipped":2}
+PASS  B2RT: the game's generic hit beep is not played for Super pellet hits (routed to the kit's impacts)  — {"beeps":12,"superHit":12}
+PASS  B2HC: the wind-up sound starts only on the committed cast (none during a 40-tick held-F aim, a cancelled hold, a suppressed press or release); one discharge per real blast; the shipped Super shot replaced  — {"held":{"blasts":0,"rel":0,"kit":0,"wind":0,"hand":null,"live":null},"released":{"blasts":1,"rel":1,"kit":1,"wind":1,"hand":null},"cancelled":{"blasts":1,"rel":1,"kit":1,"wind":1,"hand":null},"suppressedPress":{"blasts":1,"rel":1,"kit":1,"wind":1,"hand":null},"suppressedRelease":{"blasts":1,"rel":1,"kit":1,"wind":1,"hand":null},"second":{"blasts":2,"rel":2,"kit":2,"wind":2,"hand":null},"shipped":2}
+PASS  B2HC: the game's generic hit beep is not played for Super pellet hits (routed to the kit's impacts)  — {"beeps":12,"superHit":12}
+
+== 3. renders (structure and identity; NOT a listening test)
+PASS  b2Audio.js, b2Thunder.js and the worker draw no Math.random and set no timer (private streams; the capture rig and the parity harness own the clocks)
+PASS  no legacy layer in R6: kitR6 and b2Thunder.js use no sawtooth and no B2_TONES (the E6 pip); kitR6 calls none of B2's release / cooldown / wind-up layers (only handBed / releaseBed for the charge bed) and schedules no oscillator  — kitR6 4424 chars, b2Thunder 20403 chars
+PASS  B2RT keeps B2's approved cues: rendered without a Super (rifle, charge, ready confirmation, locks), = B2 within the renderer's own run-to-run noise  — {"diff":8.940696716308594e-8,"floor":1.7136335372924805e-7}
+PASS  B2, B2S, B2HC and B2RD (the controls and the rejected R5 kits) are d3ecad6's exactly: with a Super, = its b2Audio.js within each kit's own run-to-run noise on this build  — {"old":{"B2":1.7136335372924805e-7,"B2S":4.3213367462158203e-7,"B2HC":2.384185791015625e-7,"B2RD":2.612359821796417e-7},"at":{"B2":0.815,"B2S":9.261,"B2HC":9.15,"B2RD":10.045},"self":{"B2":1.7136335372924805e-7,"B2S":1.7881393432617188e-7,"B2HC":0.0000010728836059570312,"B2RD":2.384185791015625e-7},"oldSelf":{"B2":1.7881393432617188e-7,"B2S":4.3213367462158203e-7,"B2HC":2.384185791015625e-7,"B2RD":2.384185791015625e-7},"floor":1.7136335372924805e-7}
+PASS  B2RT structure in context: one wind-up, one blast that took over the rush, the crowd's hits merged per tick, at most three impacts 50 ms apart within 150 ms; no clipping, nothing dropped, voices under the cap  — {"peak":0.6152126789093018,"voices":13,"dropped":0,"sup":{"design":"RT","windups":1,"releases":1,"blasts":1,"handovers":1,"impacts":3,"merged":9,"late":0,"capped":2,"cuts":0,"deathCuts":0,"minGap":0.05,"maxLag":0.0667,"render":{"mode":"worker","mainMs":0,"workerMs":135.4,"steps":0,"sync":0,"readyAtMs":199.7},"xfadeS":0.016}}
+PASS  the seam: with the blast 5, 7 or 15 ticks after the wind-up (83 / 117 / 250 ms; 117 is the game at 60 fps), the 10 ms level never dips more than 3 dB from 20 ms before the blast to 30 ms after it, and the blast lands above the rush  — {"5":{"ref":-33.3,"dip":0,"after":18,"hand":1},"7":{"ref":-24.5,"dip":0,"after":9.2,"hand":1},"15":{"ref":-20.2,"dip":-0.8,"after":4.9,"hand":1}}
+PASS  unreleased (the hero died in the wind-up window and no blast came): the rush plays, then ends by itself (back to the idle floor from 0.5 s)  — {"early":-20.8,"late":-82.9,"idleFloor":-83}
+PASS  a pause in the wind-up fades the rush within 60 ms; a pause 0.2 s after the blast fades the event within 60 ms (it is still loud there otherwise)  — {"pauseWind":{"after":-84.1,"cuts":1,"blasts":0},"pauseBlast":{"after":-82.4,"before":-22.3,"cuts":1},"ref":{"at250":-26.7,"at500":-36.9},"idleFloor":-83}
+PASS  death fades the event within 90 ms (after the blast) and the rush (in the wind-up)  — {"deathBlast":{"after":-82.3,"deathCuts":1},"deathWind":{"after":-83.5,"deathCuts":1},"idleFloor":-83}
+PASS  the rendered buffers: deterministic (two renders identical), finite at 44.1 and 48 kHz, peak at the ceiling (the limiter takes under 1.5 dB), the rush ends in silence, the event ends at zero  — {"same":true,"fin44":true,"fin48":true,"peak44":0.800000011920929,"peak48":0.800000011920929,"gr44":0.9605863773452038,"gr48":0.9404775238015584,"preTail":1.121467629872086e-8,"blastLast":0,"ceiling":0.8,"len44":1.9,"len48":1.9}
+PASS  no falling glide in the event (the legacy signature): the dominant low peak never falls more than 3 semitones over 0.1 s or longer; the same detector flags B2S (the A/B)  — {"RT":{"dur":0,"semis":0},"S":{"dur":0.16,"semis":6.5}}
+
+== 4. the approved shield (R5 aura) unchanged
+PASS  src/systems/b2Reactor.js (the aura) and b2Feel.js are byte-identical to d3ecad6
+PASS  a rendered fight (MIXED s6, god mode off, the shield topped to 400 every 120 ticks, two Supers, a Broken Wings chain, moving): every object on screen, the aura's drawing commands included, identical per tick between the R6 link and the R5 Heavy Cannon link  — 600 ticks; aura drawn on 329 ticks
+PASS  the same fight on the d3ecad6 build (R5 final, Heavy Cannon + aura) and on this build (R6 + aura): every object on screen, the aura's drawing included, identical per tick  — 600 ticks; aura drawn on 329 ticks on both
+
+== 5. restarts
+PASS  RT (B2RT + aura): restart twice: one install each time (prerender, blast and cast listeners do not grow), the skin draws rounds and a Super after each  — [{"skin":true,"pre":2,"blast":2,"wind":4},{"skin":true,"pre":2,"blast":2,"wind":4},{"skin":true,"pre":2,"blast":2,"wind":4},{"rounds":5,"supers":1}]
+PASS  RT (B2RT + aura): quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast wrapper left behind, every SFX function the original again (48 were wrapped in play)  — {"sfx":0,"b2":false,"pre":1,"own":[]}
+PASS  live audio, three runs (two restarts): each Super is one wind-up and one event in the run's new kit (buffer sources = rush + event + impacts: nothing duplicated from the old kits); the render is reused (not redone, never on the spot); each old run's Super bus disconnected  — {"runs":[{"kind":"B2RT","wind":1,"blasts":1,"hand":1,"impacts":1,"sources":3,"during":["pre","blast"],"render":{"mode":"worker","mainMs":0,"workerMs":179.4,"steps":0,"sync":0,"readyAtMs":359.8}},{"kind":"B2RT","wind":1,"blasts":1,"hand":1,"impacts":1,"sources":3,"during":["pre","blast"],"render":{"mode":"worker","mainMs":0,"workerMs":179.4,"steps":0,"sync":0,"readyAtMs":359.8}},{"kind":"B2RT","wind":1,"blasts":1,"hand":1,"impacts":1,"sources":3,"during":["pre","blast"],"render":{"mode":"worker","mainMs":0,"workerMs":179.4,"steps":0,"sync":0,"readyAtMs":359.8}}],"oldCut":[1,1]}
+
+== 6. the playtest links, as shipped (&b2c=1&b0=...)
+PASS  link HC (R5AUHC): telemetry on with its label, Super sound B2HC, aura on, F-release targeting  — {"b0":true,"label":"R5AUHC","kind":"B2HC","aura":true,"cand":true}
+PASS  link RT (R6AURT): telemetry on with its label, Super sound B2RT, aura on, F-release targeting  — {"b0":true,"label":"R6AURT","kind":"B2RT","aura":true,"cand":true}
+PASS  link RTN (R6RT): telemetry on with its label, Super sound B2RT, aura off, F-release targeting  — {"b0":true,"label":"R6RT","kind":"B2RT","aura":false,"cand":true}
+PASS  link S (B2R4S): telemetry on with its label, Super sound B2S, aura off, F-release targeting  — {"b0":true,"label":"B2R4S","kind":"B2S","aura":false,"cand":true}
+PASS  links B2B and RT (R6AURT), both with &b2c=1 as shipped: the same fight tick for tick  — 197 rounds, 4 Supers
+
+== 7. audio-RNG isolation with Reactor Thunder
+PASS  RT with live audio (the worker render) = the silent run tick for tick (four Supers, a Broken Wings chain, a death)  — 19460 draws
+PASS  RTN with live audio (the worker render) = the silent run tick for tick (four Supers, a Broken Wings chain, a death)  — 19460 draws
+PASS  RT with live audio and no Worker (the render runs as a per-frame job on the main thread) = the silent run tick for tick  — render {"mode":"job","mainMs":137.9,"workerMs":0,"steps":58,"sync":0,"readyAtMs":0}
+
+== 8. dense fights: voices on the game clock
+PASS  SWARM TIDE on the game clock, the rifle held for 1460 ticks, five Supers into the crowd: B2RT drops nothing and every blast played its event (blasts = casts = 5)  — B2RT peak 28/48, dropped 0, 5 events, 3 impacts (0 merged, 0 capped) | B2HC peak 48/48, dropped 18 | B2S peak 48/48, dropped 1
+PASS  B2RT peaks below B2HC in the same fight (the event is 1-3 sources against Heavy Cannon's ~30 voices) and under the cap  — B2RT 28 vs B2HC 48 (B2S 48)
+
+== 9. cost
+PASS  with a Worker (any current browser): the render arrives off the main thread (main-thread render time 0, nothing on the spot)  — {"mode":"worker","mainMs":0,"workerMs":153.7,"steps":0,"sync":0,"readyAtMs":301.9}
+PASS  without a Worker: the per-frame job (one block per frame) completes with no on-the-spot render; per-frame main-thread cost reported (this software-rendered harness; the first blocks run before the JIT optimizes)  — {"render":{"mode":"job","mainMs":163.3,"workerMs":0,"steps":58,"sync":0,"readyAtMs":0},"frames":25,"median":1.4000000000000057,"p95":4.899999999999977,"max":14.5}
+PASS  the audio update per frame with B2RT stays within B2HC's (+0.05 ms), and a blast costs under 2 ms on the main thread  — {"RT":{"perFrame":0.011444444438028667,"frames":900,"release":0.2999999998137355},"HC":{"perFrame":0.01522222222553359,"frames":900,"release":1.3999999994412065}}
+
+== 10. scope
+PASS  the B0 / B1 / B2 scope guard (GameScene and every frozen file untouched)  — B0 (dc7d9ea..a3866f2): 5 files, GameScene +13 tag/install lines; B1 (a3866f2..266b1ac): 6 files, GameScene +5 install/branch lines; B2 (266b1ac..): 16 files, GameScene +4 install/branch lines
+PASS  R6 touches only the audio pilot: src changes since d3ecad6 are b2Audio.js, b2Thunder.js, b2ThunderWorker.js and the flag lines in debug.js / b2Flagship.js  — ["src/systems/b2Audio.js","src/systems/b2Flagship.js","src/systems/b2Thunder.js","src/systems/b2ThunderWorker.js","src/systems/debug.js"]
+
+54/54 passed
+exit 0

@@ -156,14 +156,15 @@ clock; its inherited 440 Hz start tone is silenced first). `audio/levels.md` has
   and drops 18; B2S reaches 48 and drops 1. R6's event is one to three buffer sources, counted but
   never refused. Heavy Cannon used about 29 voices per Super.
 - **Cost:**
-  - The worker renders in 130–190 ms off the main thread and is ready about 0.3 s after the kit is
-    built.
-  - Without a `Worker`, the per-frame job costs a median 2.1 ms and a p95 of 5.9 ms per frame, with one
-    19.5 ms frame before the JIT warms, measured in this software-rendered harness.
+  - The worker renders in 130–190 ms off the main thread (154 ms in the final run) and is ready
+    about 0.3 s after the kit is built.
+  - Without a `Worker`, the per-frame job costs a median 1.4 ms and a p95 of 4.9 ms per frame, with one
+    14.5 ms frame before the JIT warms (final run, this software-rendered harness; earlier runs 2.1 /
+    5.9 / 19.5 ms).
   - An on-the-spot render (a Super before the worker answers) cost 140–250 ms here. That happens in the
     capture rig's stepped clock, not in normal play, where a full meter takes far longer than 0.3 s.
   - A blast costs 0.3–0.5 ms on the main thread (Heavy Cannon 1.2–1.9 ms). The audio update per frame
-    is 0.012 ms against 0.012 ms.
+    is 0.011 ms against Heavy Cannon's 0.015 ms (final run).
 
 ### The eight questions, answered candidly
 
@@ -243,7 +244,53 @@ clock; its inherited 440 Hz start tone is silenced first). `audio/levels.md` has
 
 ## Verification
 
-Filled in from the final runs below.
+All runs below are on the final code (`894b209`), standalone and sequential. The previous build is
+`d3ecad6`, served from its own worktree on :5174 with its own Vite cache.
+
+- `tests/smoke-b2r6.mjs` **54/54** (`smoke-b2r6.txt`):
+  - **flags:** the four conditions and every older audio flag;
+  - **parity:** R6 with and without the aura equals B2-B tick for tick in mixed (s6), swarm and
+    god-mode-off fights with four Supers and a Broken Wings chain;
+  - **in the game, with live audio:** the wind-up sound only on the committed cast. There is none during
+    a 40-tick held-F aim, a cancelled hold, or a suppressed press or release; no Super voice is live
+    during the aim. One event per real blast, each taking over the rush; the generic hit beep routed;
+  - **renders:**
+    - B2RT without a Super equals B2;
+    - B2, B2S, B2HC and B2RD equal `d3ecad6`'s `b2Audio.js` within each kit's own run-to-run noise;
+    - the structure and the seam at 83 / 117 / 250 ms;
+    - unreleased, the rush returns to the idle floor by 0.5 s;
+    - pause fades in 50 ms and death in 90 ms, both to the idle floor;
+    - deterministic buffers at 44.1 and 48 kHz, finite, at the ceiling, limiter under 1 dB;
+    - no legacy layer; no falling glide (the same detector flags B2S's);
+  - **the approved shield:** `b2Reactor.js` and `b2Feel.js` byte-identical to `d3ecad6`. A 600-tick
+    rendered fight, the aura drawn on 329 ticks, is identical per tick to the Heavy Cannon link and to
+    `d3ecad6`, every object on screen including the aura's draw commands;
+  - **restarts:** one install each time. Three runs with live audio each give one wind-up, one event and
+    rush + event + impacts sources, nothing from old kits. The render is reused, never redone, and the
+    old Super bus is disconnected;
+  - **the shipped links:** labels and the same fight as B2-B;
+  - **isolation:** live audio equals the silent run with the worker, and with no `Worker` (per-frame
+    job);
+  - **voices** on the game clock; **cost**; **scope:** the B0/B1/B2 guard, and R6 touches only
+    `b2Audio.js`, `b2Thunder.js`, `b2ThunderWorker.js` and the flag lines in `debug.js` /
+    `b2Flagship.js`.
+- Against `d3ecad6`, or unchanged:
+  - smoke-b2r5 63/63, smoke-b2r4 97/97, smoke-b2r3 81/81, smoke-b2r2 62/62, smoke-b2r 38/38, smoke-b2t
+    37/37;
+  - smoke-b2c 46/46, smoke-b2 88/88, smoke-b1 71/71, smoke-b0 46/46 (these four with `--old`);
+  - P2-A3 scope 4/4; controls pass; restart 16/16.
+- **Production bundle** (`vite build`, `vite preview`): no page errors on the four links or the
+  no-flag link. On the R6 link the built worker chunk is fetched (HTTP 200), starts, delivers and is
+  closed.
+- **Notes for honesty:**
+  - The rig's stepped clock reaches the first cast before the worker answers, so the captures use the
+    on-the-spot render: the same buffers, by the determinism check.
+  - The capture rig carries the inherited 440 Hz start tone, silenced before measuring.
+  - In one early run B2HC differed from `d3ecad6` by 1.1e-6. Its own run-to-run spread on one build
+    later measured 1.07e-6: render jitter of its graph, not a code difference.
+  - A first version of §8 counted voices against a live AudioContext while the game was stepped far
+    from real time. Both kits hit the cap there, so it was a harness artefact, and §8 now counts on the
+    game clock.
 
 ## Recommendation (critical)
 
