@@ -2450,6 +2450,42 @@ Evidence in `docs/evidence/b1-combat-experiments/`.
   loop) on the same clock. Set the clock's origin before the first gesture
   creates the context.
 
+## The B2-R5 rig (`&b2a=B2HC|B2RD`, `&b2aura=1`)
+
+- `smoke-b2r5.mjs [--only=2,4]` (standalone, :5173; Chromium with
+  `--autoplay-policy=no-user-gesture-required`). The six matrix conditions are
+  in `M`. Sections:
+  - §0 flags;
+  - §1 gameplay parity of every condition against B2-B;
+  - §2 the Super sound once per committed blast, with live audio;
+  - §3 offline renders (approved cues, structure, B2 and B2S against
+    `git show 7e73dae:src/systems/b2Audio.js`, no legacy layer in `kitR5`);
+  - §4 the aura (gating, facings, depth below the hero and the rifle, fade-in,
+    hit, break, sync, every other object identical to R4 per tick, cost);
+  - §5 restarts, plus the Super bus chain disconnected on teardown;
+  - §6 links; §7 live-audio isolation; §9 scope.
+- **The kit only exists with live audio.** `createB2Audio` builds its kit
+  lazily on the game's AudioContext, and the silent harness has none. Kit
+  counters (`voice.stats.super`) stay empty unless `boot(..., { audio: true })`;
+  the voice's event counts (`stats.events`) work either way.
+- **An envelope falls to −80 dB over `dur`.** The kits' `noise` / `osc` envelope
+  ramps exponentially to 0.0001 at `t + a + dur`, so a voice is heard for roughly
+  its first quarter. A "0.1 s" body is about 25 ms of sound. R5's Reactor
+  Detonation first had no body at all because of this; check envelopes in a
+  render, not by reading `dur`.
+- **`want > level` never holds at the top.** A fade written as
+  `want > level ? up : down` takes the down branch at level 1, so the value
+  flickers one frame in N. The aura check that "settled at 400 the level is 1"
+  caught this.
+- **Player draws the rifle at depth − 1 when facing north.** Anything meant to
+  sit "just behind the hero" must go below that (the aura is at depth − 1.05).
+  §4 checks the rifle's depth on all four facings, and a lossless R4 vs R5 pixel
+  diff of the north-facing still shows any overdraw.
+- **Measure punch in the game chain, not only offline.** At matched loudness,
+  the master compressor and any ducking change the initial-peak-to-loudness
+  ratio by 3–4 dB. In-fight comparisons between kits that duck differently are
+  confounded.
+
 ## The B2-R4 rig (`&b2r=4`, `&b2a=B2S`, `&b2iso=1`)
 
 - `smoke-b2r4.mjs [--only=6,15]` (standalone, :5173; Chromium with

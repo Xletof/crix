@@ -109,11 +109,19 @@ Both are new synthesized voices, built on B2's own kit object. So the rifle, the
 | Heavy Cannon | +12.3 dB | +8.6 dB | +6.3 dB |
 | Reactor Detonation | +10.3 dB | +6.4 dB | +3.7 dB |
 
-At matched loudness, **neither candidate's initial crack is punchier than B2S's in the game**:
-- Heavy Cannon's equals B2S's when isolated and is 2 dB lower in the fight.
-- Reactor Detonation's is 2–5 dB lower.
+At matched loudness, **neither candidate's initial crack is punchier than B2S's**.
+- Rank on the *isolated* row: Heavy Cannon equals B2S (+8.6 against +8.8 dB); Reactor Detonation is 2.4 dB lower.
+- **The in-fight row is confounded.** Only the R5 kits duck the other game sounds and dip the music deeper, so the fight around their blast is quieter than around B2S's. Read it as indicative only.
+- **Reactor Detonation's deficit is already there offline**, so the game chain is not its cause. The chain costs all three about the same: B2S 3.2 dB, Heavy Cannon 3.7, Reactor Detonation 3.9.
 
-The game's master compressor reacts to the candidates' longer, heavier low-mid bodies and pulls their onsets down. What the candidates add is body ("THOOOM"), low-mid weight that survives small speakers, space, and a non-tonal blast character. They do not add a bigger first peak. Raising that peak would mean a louder Super than B2S or less body; neither was done.
+What the candidates add is body ("THOOOM"), low-mid weight that survives small speakers, space, and a non-tonal blast character. They do not add a bigger first peak. Raising that peak means either a louder Super than B2S or less body.
+- In-game level was matched to B2S **by my choice**, for a fair comparison.
+- `R5_TRIM` in `src/systems/b2Audio.js` is the HUMAN's lever if a louder Super is wanted.
+
+**A versus B: the two candidates converged.**
+- On the final renders, Heavy Cannon and Reactor Detonation are *more alike than either is to B2S*: time-frequency similarity 0.86 and a spectral-shape distance of 2.1 dB. Against B2S they score 0.85 / 7.4 dB (Heavy Cannon) and 0.80 / 5.7 dB (Reactor Detonation).
+- They differ mainly in **time structure**. Reactor Detonation has a pressure collapse about 0.23 s after the blast, measured in game at −1.5 dB under its initial hit when isolated and −1.0 dB in the fight, plus a crackling decay of about 0.8 s. Heavy Cannon decays compactly, 12–15 dB down by then, and has two quiet breech steps.
+- Whether that is enough to tell them apart blind is for the HUMAN's ears; my measurements do not settle it.
 
 **Voices:** peaks of 34 and 37 in the isolated cast, 44 and 43 in the live fight (B2S: 36 and 37), out of a cap of 48, with none dropped. The live-fight figure is close to the cap; a denser fight could drop a voice (a sound layer, never gameplay).
 
