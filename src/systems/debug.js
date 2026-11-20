@@ -322,9 +322,10 @@ export function isB2Temper() { return b2Temper; }
  *  a violet-to-critical-red reactor on the gun, a connected glowing stream, a chunky Super. Pixels only.
  *  `&b2r=2` B2-R2, `&b2r=3` B2-R3, `&b2r=4` B2-R4 (the level, 1..4; false when off). */
 export function isB2Reactor() { return b2Reactor; }
-/** `&b2a=A|B|B2|B2S|B2HC|B2RD`: the audio candidates (systems/b2Audio.js): A heavy energy rifle, B plasma reactor,
+/** `&b2a=A|B|B2|B2S|B2HC|B2RD|B2RT`: the audio candidates (systems/b2Audio.js): A heavy energy rifle, B plasma reactor,
  *  B2 the B2-R3 refinement of B (B stays as the control), B2S = B2 with the B2-R4 Super (B2 stays as its control),
- *  B2HC / B2RD = B2 with a B2-R5 Super discharge (Heavy Cannon / Reactor Detonation; B2S stays as their control). */
+ *  B2HC / B2RD = B2 with a B2-R5 Super discharge (Heavy Cannon / Reactor Detonation; B2S stays as their control),
+ *  B2RT = B2 with the B2-R6 Reactor Thunder Super (systems/b2Thunder.js; B2HC stays as its control). */
 export function getB2Audio() { return b2Audio; }
 /** `&b2iso=1`: audio cannot consume gameplay randomness — every shipped `SFX.*` call runs on a
  *  private random stream (systems/b2Flagship.js). B2-R4 technical item; opt-in, off by default. */
@@ -344,7 +345,7 @@ export function setB2(v, params = null) {
   // `&b2r=3` B2-R3 (R2 without the ribbon, B2-B's Super, armour-seam shield, a suppressed reactor);
   // `&b2r=4` B2-R4 (R3 with the wind-up held to the blast, a reactor-red Super fireball, a brighter shield)
   { const r = params.get('b2r'); b2Reactor = r === '4' ? 4 : r === '3' ? 3 : r === '2' ? 2 : r === '1' ? 1 : false; }
-  { const a = String(params.get('b2a') || '').toUpperCase(); b2Audio = a === 'A' || a === 'B' || a === 'B2' || a === 'B2S' || a === 'B2HC' || a === 'B2RD' ? a : null; }
+  { const a = String(params.get('b2a') || '').toUpperCase(); b2Audio = a === 'A' || a === 'B' || a === 'B2' || a === 'B2S' || a === 'B2HC' || a === 'B2RD' || a === 'B2RT' ? a : null; }
   b2AudioIso = params.get('b2iso') === '1';
   b2Aura = params.get('b2aura') === '1' && b2Reactor === 4;
   for (const [k, val] of params) {

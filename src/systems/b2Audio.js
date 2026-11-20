@@ -28,6 +28,7 @@
 // single persistent nodes.
 import { __fxDebug, duckMusic, duckSfx } from './FX.js';
 import { mulberry32 } from './rng.js';
+import { THUNDER, thunderJob } from './b2Thunder.js';
 
 const VOICE_CAP = 48;               // live one-shot source nodes per kit
 const LOOK = 0.02;
@@ -375,6 +376,13 @@ function kitB2(ctx, dest, stats, now) {
     windup(t) {
       this.windupBed(t);
       v.noise(t, { f: 700, f2: 4800, q: 3, dur: 0.07, gain: 0.1, a: 0.04 });
+    },
+    /** B2-R6 only (unused by B2, B2S and R5): instead of swelling into the wind-up, the beds fade
+     *  out under the Super's own rush over `dur` and are held off as after a wind-up. */
+    handBed(t, dur) {
+      holdUntil = t + 0.7;
+      ramp(out.gain, lastLevel, 0.0001, t, dur); lastLevel = 0;
+      ramp(dOut.gain, dLevel, 0.0001, t, dur); dLevel = 0;
     },
     releaseBed(t) {
       holdUntil = Math.max(holdUntil, t + 0.6);
@@ -790,13 +798,155 @@ function kitR5(ctx, dest, stats, now, superDest, design) {
   };
 }
 
+// ── B2-R6: REACTOR THUNDER (`&b2a=B2RT`, HUMAN direction 2026-11-20) ────────────────────────
+// The HUMAN rejected both R5 sounds: Heavy Cannon "like a heavy door shutting... inside a fully
+// sound-insulated room" (no air, room, bass, echo or energy release), Reactor Detonation "two
+// separate sounds" (an electric swell, then a shotgun). R6 is one composed event rendered once,
+// offline (systems/b2Thunder.js: the energy release, the detonation and the room on one clock);
+// this kit plays it with only the timing-dependent parts live:
+//  - WIND-UP (`player-fire-super`, the committed cast; never on the hold-F aim): the rush starts
+//    (the `pre` buffer: it rises to its peak in ~0.11 s, holds, and ends by itself by 0.48 s if no
+//    blast comes, e.g. the hero died in the window); B2's beds hand over to it (fade out under it)
+//    instead of swelling (the bed's swell was a second, tonal rising sound beside the rush).
+//  - BLAST (`player-super-blast` only): the event buffer starts; the rush hands over to the rush
+//    inside it over 16 ms (equal power), so there is no gap and no restart.
+//  - IMPACTS: same-tick hits merge, the rest at least 50 ms apart, at most three, quieter after the
+//    first (three rendered variants, round robin).
+//  - CUTS: pause fades everything of the Super out over 50 ms, death over 80 ms; a restart stops
+//    and disconnects it. No compressor, no clipper: the event's dynamics are rendered, its bus is a
+//    gain, sized to stay under the master compressor's threshold when alone.
+// Voices: the event is 1-3 buffer sources (counted in the kit's voice count, never refused).
+// THE AUTHOR CANNOT LISTEN: designed from principles and checked by measurement; the HUMAN decides.
+/** In-game Super bus level (B2RT); see docs/evidence/b2-r6/README.md for how it was set. */
+export const R6_TRIM = 0.76;   // max momentary loudness of the Super window = B2HC's in the same capture (docs/evidence/b2-r6)
+export const R6_SUPER = { impactGapS: 0.05, impactMax: 3, impactLagS: 0.15, windowS: 1.2, impactGain: [0.5, 0.3, 0.24], bedHandS: 0.06, pauseCutS: 0.05, deathCutS: 0.08 };
+// The rendered buffers, once per sample rate for the page (the AudioContext outlives restarts):
+// a module worker renders them; without one (or if it fails) a job renders one block per frame;
+// if the Super comes first, the rest is rendered on the spot (same function, same result).
+const THUNDER_CACHE = new Map();
+function thunderEntry(sr) {
+  let e = THUNDER_CACHE.get(sr);
+  if (e) return e;
+  e = { sr, res: null, job: null, worker: null, stats: { mode: 'job', mainMs: 0, workerMs: 0, steps: 0, sync: 0, readyAtMs: 0 } };
+  THUNDER_CACHE.set(sr, e);
+  const t0 = typeof performance !== 'undefined' ? performance.now() : 0;
+  const toJob = () => { if (!e.res && !e.job) { e.job = thunderJob(sr); e.stats.mode = 'job'; } };
+  try {
+    if (typeof Worker === 'undefined') throw new Error('no Worker');
+    const w = new Worker(new URL('./b2ThunderWorker.js', import.meta.url), { type: 'module' });
+    e.worker = w; e.stats.mode = 'worker';
+    w.onmessage = (m) => {
+      if (!e.res) { e.res = m.data; e.stats.workerMs = +(m.data.ms || 0).toFixed(1); e.stats.readyAtMs = +(performance.now() - t0).toFixed(1); }
+      try { w.terminate(); } catch (_) { /* */ } e.worker = null;
+    };
+    w.onerror = () => { try { w.terminate(); } catch (_) { /* */ } e.worker = null; toJob(); };
+    w.postMessage({ sr });
+  } catch (_) { toJob(); }
+  return e;
+}
+function thunderStep(e, all) {
+  if (e.res) return e.res;
+  if (!e.job) { if (!all) return null; e.job = thunderJob(e.sr); e.stats.sync++; e.stats.mode += '+sync'; }
+  const t0 = performance.now();
+  let r = e.job.next(); e.stats.steps++;
+  while (!r.done && all) { r = e.job.next(); e.stats.steps++; }
+  e.stats.mainMs = +(e.stats.mainMs + performance.now() - t0).toFixed(2);
+  if (r.done) { e.res = r.value; e.job = null; if (e.worker) { try { e.worker.terminate(); } catch (_) { /* */ } e.worker = null; } }
+  return e.res;
+}
+const THUNDER_BUFS = new WeakMap();   // per AudioContext
+function thunderBuffers(ctx, res) {
+  let b = THUNDER_BUFS.get(ctx);
+  if (b && b.sr === res.sr) return b;
+  const mono = (a) => { const x = ctx.createBuffer(1, a.length, res.sr); x.copyToChannel(a, 0); return x; };
+  const blast = ctx.createBuffer(2, res.L.length, res.sr); blast.copyToChannel(res.L, 0); blast.copyToChannel(res.R, 1);
+  b = { sr: res.sr, pre: mono(res.pre), blast, impacts: res.impacts.map(mono) };
+  THUNDER_BUFS.set(ctx, b);
+  return b;
+}
+function kitR6(ctx, dest, stats, now, superDest) {
+  const base = kitB2(ctx, dest, stats, now);
+  const ends = base._v.ends;
+  const S = R6_SUPER, entry = thunderEntry(ctx.sampleRate);
+  const st = (stats.super = { design: 'RT', windups: 0, releases: 0, blasts: 0, handovers: 0, impacts: 0, merged: 0, late: 0, capped: 0, cuts: 0, deathCuts: 0, minGap: Infinity, maxLag: 0, render: entry.stats, xfadeS: THUNDER.xfadeS });
+  const live = [];      // { s, g, end, kind }
+  let pre = null, relT = -1, impN = 0, lastImpT = -1, lastHitCall = -1, bufs = null;
+  const ensure = (all) => { if (!bufs) { const r = thunderStep(entry, all); if (r) bufs = thunderBuffers(ctx, r); } return bufs; };
+  const play = (buf, t, gain, kind) => {
+    const s = ctx.createBufferSource(); s.buffer = buf; const g = ctx.createGain(); g.gain.setValueAtTime(gain, t);
+    s.connect(g); g.connect(superDest); s.start(t);
+    const v = { s, g, end: t + buf.duration, kind, gain };
+    s.onended = () => { const i = live.indexOf(v); if (i >= 0) live.splice(i, 1); try { g.disconnect(); } catch (_) { /* */ } };
+    live.push(v); ends.push(v.end); stats.peakVoices = Math.max(stats.peakVoices, ends.length);
+    return v;
+  };
+  const prune = (t) => { for (let i = live.length - 1; i >= 0; i--) if (live[i].end <= t) live.splice(i, 1); };
+  // fade every live Super voice out over `dur` (its gain is known: it was set, never automated, except the rush's hand-over)
+  const cutAll = (t, dur) => {
+    prune(t);
+    for (const v of live) {
+      try { v.g.gain.cancelScheduledValues(t); v.g.gain.setValueAtTime(v.handed ? 0.0001 : v.gain, t); v.g.gain.linearRampToValueAtTime(0.0001, t + dur); v.s.stop(t + dur + 0.005); } catch (_) { /* */ }
+      v.end = Math.min(v.end, t + dur + 0.005);
+    }
+    pre = null;
+    return live.length;
+  };
+  const xcurve = (() => { const n = 33, c = new Float32Array(n); for (let i = 0; i < n; i++) c[i] = Math.max(0.0001, Math.cos((Math.PI / 2) * (i / (n - 1)))); return c; })();
+  return {
+    ...base,
+    windup(t) {
+      st.windups++;
+      base.handBed(t, S.bedHandS);
+      const b = ensure(true);
+      if (pre) cutAll(t, 0.01);
+      pre = play(b.pre, t, 1, 'pre');
+    },
+    release(t) {
+      st.releases++;
+      base.releaseBed(t);
+      const b = ensure(true);
+      relT = t; impN = 0; lastImpT = -1; lastHitCall = -1;
+      if (pre && pre.end > t) {
+        // the hand-over: the wind-up rush fades (cosine) while the event's own rush fades in (sine, rendered)
+        try { pre.g.gain.cancelScheduledValues(t); pre.g.gain.setValueAtTime(1, t); pre.g.gain.setValueCurveAtTime(xcurve, t, THUNDER.xfadeS); pre.s.stop(t + THUNDER.xfadeS + 0.005); } catch (_) { /* */ }
+        pre.handed = true; pre.end = t + THUNDER.xfadeS + 0.005; st.handovers++;
+      }
+      pre = null;
+      play(b.blast, t, 1, 'blast'); st.blasts++;
+    },
+    cooldown() { /* the event's own decay is the cooldown; B2's falling-saw cooldown is not played */ },
+    /** One Super pellet hit an enemy: same-tick hits merge, the rest queue 50 ms apart, at most three. */
+    superHit(t) {
+      if (relT < 0 || t - relT > S.windowS) relT = t;
+      if (lastHitCall >= 0 && Math.abs(t - lastHitCall) < 0.008) { st.merged++; return; }
+      lastHitCall = t;
+      if (impN >= S.impactMax) { st.capped++; return; }
+      const at = Math.max(t, lastImpT < 0 ? t : lastImpT + S.impactGapS);
+      if (at - t > S.impactLagS) { st.late++; return; }
+      const b = ensure(true);
+      play(b.impacts[impN % b.impacts.length], at, S.impactGain[impN] ?? S.impactGain[S.impactGain.length - 1], 'impact');
+      if (lastImpT >= 0) st.minGap = Math.min(st.minGap, +(at - lastImpT).toFixed(4));
+      st.maxLag = Math.max(st.maxLag, +(at - t).toFixed(4));
+      lastImpT = at; impN++; st.impacts++;
+    },
+    /** Per frame: B2's beds, and the render (one block per frame when there is no worker). */
+    bed(t, o) { base.bed(t, o); if (!bufs) ensure(false); },
+    silence(t) { base.silence(t); if (cutAll(t, S.pauseCutS)) st.cuts++; },
+    /** The hero died: the rush and the event fade with it. */
+    cutSuper(t) { cutAll(t, S.deathCutS); st.deathCuts++; },
+    liveSuper() { prune(now()); return live.map((v) => v.kind); },
+    destroy() { base.destroy(); for (const v of live) { try { v.s.stop(); } catch (_) { /* */ } try { v.g.disconnect(); } catch (_) { /* */ } } live.length = 0; pre = null; },
+  };
+}
+
 /** Same interface as `createB2Voice`, plus the R2 events. `kind`: 'A' | 'B'.
  *  `opts` { ctx, dest, now }: render into another context (an OfflineAudioContext replaying a
  *  recorded event timeline, for the A/B demonstrations); `now()` is that timeline's clock. */
 export function createB2Audio(kind, opts = {}) {
   let ctx = null, kit = null, bus = null, superBus = null, superChain = [], motorUntil = 0, lastTick = -1, lastDuck = -1, ambT = 0;
   const R5 = kind === 'B2HC' || kind === 'B2RD';        // B2-R5: B2 with a new Super discharge
-  const B2FAM = kind === 'B2' || kind === 'B2S' || R5;   // the approved B2 behaviour: trim, confirmation, cuts
+  const R6 = kind === 'B2RT';                           // B2-R6: B2 with Reactor Thunder
+  const B2FAM = kind === 'B2' || kind === 'B2S' || R5 || R6;   // the approved B2 behaviour: trim, confirmation, cuts
   const stats = { kind, shots: 0, ticks: 0, ducks: 0, live: false, events: {}, peakVoices: 0, dropped: 0 };
   const ev = (k) => { stats.events[k] = (stats.events[k] || 0) + 1; };
   const ready = () => {
@@ -827,8 +977,13 @@ export function createB2Audio(kind, opts = {}) {
         superBus = ctx.createGain(); superBus.gain.value = 0.9 * R5_TRIM[kind];
         superBus.connect(comp3); comp3.connect(pre); pre.connect(clip); clip.connect(d.sfxGain);
         superChain = [superBus, comp3, pre, clip];
+      } else if (R6) {
+        // R6: a gain only (the event's dynamics are rendered); sized to sit under the master compressor alone
+        superBus = ctx.createGain(); superBus.gain.value = R6_TRIM;
+        superBus.connect(d.sfxGain);
+        superChain = [superBus];
       }
-      kit = kind === 'A' ? kitA(ctx, bus, stats, now) : kind === 'B2' ? kitB2(ctx, bus, stats, now) : kind === 'B2S' ? kitB2S(ctx, bus, stats, now, superBus) : R5 ? kitR5(ctx, bus, stats, now, superBus, kind === 'B2HC' ? 'HC' : 'RD') : kitB(ctx, bus, stats, now);
+      kit = kind === 'A' ? kitA(ctx, bus, stats, now) : kind === 'B2' ? kitB2(ctx, bus, stats, now) : kind === 'B2S' ? kitB2S(ctx, bus, stats, now, superBus) : R5 ? kitR5(ctx, bus, stats, now, superBus, kind === 'B2HC' ? 'HC' : 'RD') : R6 ? kitR6(ctx, bus, stats, now, superBus) : kitB(ctx, bus, stats, now);
     }
     stats.live = opts.now ? true : ctx.state === 'running';
     return stats.live;
@@ -864,16 +1019,19 @@ export function createB2Audio(kind, opts = {}) {
       ev('release'); if (!ready()) return; const t = at(); kit.release(t); kit.cooldown(t + 0.32);
       // R5: a deeper, shorter music dip and a brief dip of the other game sounds (the B2 kit and the
       // Super bus feed sfxGain directly, so neither is ducked); B2 / B2S keep their 0.45 / 500 ms
-      if (!opts.ctx) { if (R5) { duckMusic(0.6, 380); duckSfx(0.35, 240); stats.sfxDucks = (stats.sfxDucks || 0) + 1; } else duckMusic(0.45, 500); }
+      // R6: the music stays down through the event's decay, the other sounds briefly
+      if (!opts.ctx) { if (R5) { duckMusic(0.6, 380); duckSfx(0.35, 240); stats.sfxDucks = (stats.sfxDucks || 0) + 1; } else if (R6) { duckMusic(0.6, 750); duckSfx(0.4, 360); stats.sfxDucks = (stats.sfxDucks || 0) + 1; } else duckMusic(0.45, 500); }
     },
     superHit() {
       ev('superHit');
       if (!ready()) return;
-      if (kind === 'B2S' || R5) { kit.superHit(at()); return; }   // B2S / R5 merge, space and cap their own impacts
+      if (kind === 'B2S' || R5 || R6) { kit.superHit(at()); return; }   // B2S / R5 / R6 merge, space and cap their own impacts
       if (now() - lastTick < 0.03) return; lastTick = now(); kit.superHit(at());
     },
     /** The scene paused (or the hero died): the beds go silent until the next update. */
     silence() { ev('silence'); if (ready()) { kit.silence?.(now()); if (kit.cutConfirm) { kit.cutConfirm(now()); stats.cuts++; } } },
+    /** Diagnostics (B2-R6): the kinds of the Super voices still playing (null for other kits). */
+    liveSuper() { return kit?.liveSuper ? kit.liveSuper() : null; },
     /** Per frame from the flagship: charge 0..1, the trigger, the meter full, suppressed. */
     update(dt, s) {
       ambT += dt;
@@ -898,7 +1056,7 @@ export function createB2Audio(kind, opts = {}) {
       }
       kit.bed?.(now(), { heat: s.heat, firing, ready: s.heat >= 1, suppressed: s.suppressed, dead, sup });
     },
-    // the Super bus chain (B2S, R5) is disconnected too: it stayed wired after a restart before B2-R5
+    // the Super bus chain (B2S, R5, R6) is disconnected too: it stayed wired after a restart before B2-R5
     destroy() { try { kit?.destroy?.(); } catch (_) { /* */ } try { bus?.disconnect(); } catch (_) { /* */ } for (const n of superChain) { try { n.disconnect(); } catch (_) { /* */ } } stats.superChainCut = superChain.length; superChain = []; kit = null; void motorUntil; },
   };
 }

@@ -578,7 +578,7 @@ export function installB2(scene) {
     wrap(SFX, 'shootSuper', () => function () { stats.audio = (stats.audio || 0) + 1; return undefined; });
     // B2S: a Super pellet's hit is the kit's impact, not the game's generic hit beep (which
     // played once per pellet hit under every other kit)
-    if (audioKind === 'B2S' || audioKind === 'B2HC' || audioKind === 'B2RD') wrap(SFX, 'hit', (prev) => function (...a) { if (scene._dmgSrc === 'super') { stats.superBeeps = (stats.superBeeps || 0) + 1; return undefined; } return prev.apply(this, a); });
+    if (audioKind === 'B2S' || audioKind === 'B2HC' || audioKind === 'B2RD' || audioKind === 'B2RT') wrap(SFX, 'hit', (prev) => function (...a) { if (scene._dmgSrc === 'super') { stats.superBeeps = (stats.superBeeps || 0) + 1; return undefined; } return prev.apply(this, a); });
   }
 
   // ── THE FRAME ───────────────────────────────────────────────────────────
