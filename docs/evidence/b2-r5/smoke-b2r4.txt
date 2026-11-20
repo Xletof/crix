@@ -1,0 +1,62 @@
+
+== 0. flags
+PASS  "b2r=4&b2a=B2S&b2iso=1": skin none, audio none, isolation off  — {"lvl":false,"aud":null,"iso":false,"b2":false,"skin":null,"r4":false,"voice":null,"wrapped":0}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B": skin none, audio B2-1 kit, isolation off  — {"lvl":false,"aud":null,"iso":false,"b2":true,"skin":null,"r4":false,"voice":"b2-1","wrapped":0}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=3&b2a=B2": skin reactor3, audio B2, isolation off  — {"lvl":3,"aud":"B2","iso":false,"b2":true,"skin":"reactor3","r4":false,"voice":"B2","wrapped":0}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=4": skin reactor4, audio B2-1 kit, isolation off  — {"lvl":4,"aud":null,"iso":false,"b2":true,"skin":"reactor4","r4":true,"voice":"b2-1","wrapped":0}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=4&b2a=B2S&b2iso=1": skin reactor4, audio B2S, isolation on  — {"lvl":4,"aud":"B2S","iso":true,"b2":true,"skin":"reactor4","r4":true,"voice":"B2S","wrapped":48}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=4&b2a=B2&b2iso=1": skin reactor4, audio B2, isolation on  — {"lvl":4,"aud":"B2","iso":true,"b2":true,"skin":"reactor4","r4":true,"voice":"B2","wrapped":48}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2a=B2S": skin none, audio B2S, isolation off  — {"lvl":false,"aud":"B2S","iso":false,"b2":true,"skin":null,"r4":false,"voice":"B2S","wrapped":0}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2iso=1": skin none, audio B2-1 kit, isolation on  — {"lvl":false,"aud":null,"iso":true,"b2":true,"skin":null,"r4":false,"voice":"b2-1","wrapped":48}
+PASS  "visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=A&b2r=4": skin reactor4, audio B2-1 kit, isolation off  — {"lvl":4,"aud":null,"iso":false,"b2":true,"skin":"reactor4","r4":true,"voice":"b2-1","wrapped":0}
+
+== 1. pixels only: the same fight
+PASS  MIXED s6: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — B2-R4 + audio B2S + isolation = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)  — 197 rounds, 4 Supers, 37 kills, 18855 draws; hidden: only the shipped cyan shield-absorb rings (0 cloak calls = 0 rings), nothing of the Super
+PASS  SWARM TIDE: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — B2-R4 + audio B2S + isolation = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)  — 197 rounds, 4 Supers, 44 kills, 19458 draws; hidden: only the shipped cyan shield-absorb rings (0 cloak calls = 0 rings), nothing of the Super
+PASS  MIXED s6, god mode off: 1500 ticks, held stream + FOUR Supers + a Broken Wings chain — B2-R4 + audio B2S + isolation = B2-B tick for tick (state, ammo, meters, every enemy, bolt and pellet, Math.random draws, events)  — 197 rounds, 4 Supers, 35 kills, 19367 draws; hidden: only the shipped cyan shield-absorb rings (4 cloak calls = 4 rings), nothing of the Super
+PASS  with the closure candidate on both sides (&b2c=1, F-release Supers): B2-R4 = B2-B tick for tick (KNOWN INTERMITTENT, inherited: the &b2c=1 fight alone is not repeatable about 1 run in 11, a wave banner lands a tick late at tick 741; see docs/evidence/b2-reactor/README.md)  — 197 rounds, 3 Supers; localStorage keys written by a run: none
+
+== 2. the tracer invariant under the skin
+PASS  every visible REACTOR bolt, every frame: on its round's line, never behind the barrel, its head at the collider, a finished bolt ending where its round stopped (kills, blank space in six directions, walls, a Super)  — {"checks":1083,"bad":0,"samples":[],"stale":0,"kills":3,"rounds":41,"drawn":{"checks":2166,"bad":0}}
+PASS  ...and the sprite itself, read back from its own crop and position, shows exactly that segment  — {"checks":2166,"bad":0}
+
+== 3. the gun
+PASS  the reactor per charge: a violet core at 0 (2 channels lit), then 4 / 6 / 7 / 9 channels through magenta, crimson and scarlet, FULL = all 10 in red; the threads orbit from three quarters (one, slow) and at FULL (two)  — [[[0,2,0,"gun-0",true],[0.12,2,0,"gun-0",true],[0.35,4,1,"gun-2",true],[0.55,6,2,"gun-4",true],[0.7,7,2,"gun-5",true],[0.95,9,3,"gun-7t",true],[1,10,4,"gun-8p3",true]],[null,"sh","sw"]]
+PASS  every gun frame keeps the approved rifle's silhouette and outline, the spent-barrel pixels stay inside it, and so do the two choked frames and the R4 discharge frame  — {"frames":31,"silhouette":true,"heatInside":true,"choked":true}
+PASS  the palette: a violet lens and core at 0 (#b98cff), scarlet channels at three quarters (#ff4030), and at FULL a hot highlight on the core (#ffd9a0) over dark ruby (#7a0a14)  — ["#b98cff","#ff4030","#ffd9a0","#7a0a14"]
+PASS  the overlay is on the weapon in every rendered frame of a turn and a stream (position, rotation, flip, origin, alpha)  — {"checks":80,"bad":0}
+PASS  a new lamp ignites (one white frame set), then settles  — [1,"gun-6i","gun-6"]
+PASS  mid-combo (the blade) and dead: no gun overlay  — [{"key":"p1-blade","shown":false,"mine":0},{"alive":false,"shown":false,"mine":0}]
+
+== 4. the R2 round
+PASS  one slug size (78x15: a 20 px body and a 6 px tapering tail, no hard rear edge) at every stage  — ["78x15"]
+PASS  every R4 object in a stream: NORMAL blend, scale 1, opaque (the stream is cropped, never scaled)  — {"seen":612,"bad":0}
+PASS  the round by stage: violet at 0, crimson at 50%, critical red at FULL (R2's slug); and NO ribbon: no link drawn, no ribbon sprite ever created  — [{"0":["slug-0"],"1":["slug-4"],"0.5":["slug-2"]},0,0]
+
+== 5. frames
+PASS  60 fps: every round gets a muzzle flash and every flash shows all three frames (2 ticks each), frame 0 never skipped  — {"flashes":30,"hits":30,"mz":[60,60,60],"hit":[60,60,60,90],"shots":30}
+PASS  60 fps: every contact shows its first frame, and the later frames follow  — {"hits":30,"hit":[60,60,60,90]}
+PASS  30 fps: every round gets a muzzle flash and every flash shows all three frames (1 tick each), frame 0 never skipped  — {"flashes":30,"hits":30,"mz":[30,30,30],"hit":[30,30,30,60],"shots":30}
+PASS  30 fps: every contact shows its first frame, and the later frames follow  — {"hits":30,"hit":[30,30,30,60]}
+
+== 6. the Super
+PASS  B2-1 F press: every object the cast creates (texture names mapped back for the two recoloured sheets), every frame index, emitter particle and pellet = B2-B on all 90 ticks; the same camera flashes and damage  — same ticks 90/90; visible shipped objects 714 (B2-B 714); flashes ["2:160,120,0,0","8:220,255,150,60"]
+PASS  B2-1 F press: B2-R3 still equals B2-B with no mapping at all (R3 unchanged)  — R3 same ticks 90/90, red-sheet objects 0
+PASS  B2-1 F press: R4 draws the Super's discharge only from the red sheets (both pops, the bloom), with no yellow or orange pixel left in the fireball; the disc, cone and ring drawn in mapped colours; a later non-Super explosion keeps the shipped sheet  — {"red":35,"orig":0,"fireball":{"pops":2,"swapped":2,"images":1,"graphics":3},"kept":{},"other":"explosion"}
+PASS  b2c=1: every object the cast creates (texture names mapped back for the two recoloured sheets), every frame index, emitter particle and pellet = B2-B on all 90 ticks; the same camera flashes and damage  — same ticks 90/90; visible shipped objects 714 (B2-B 714); flashes ["4:160,120,0,0","10:180,150,170,255"]
+PASS  b2c=1: B2-R3 still equals B2-B with no mapping at all (R3 unchanged)  — R3 same ticks 90/90, red-sheet objects 0
+PASS  b2c=1: R4 draws the Super's discharge only from the red sheets (both pops, the bloom), with no yellow or orange pixel left in the fireball; the disc, cone and ring drawn in mapped colours; a later non-Super explosion keeps the shipped sheet  — {"red":35,"orig":0,"fireball":{"pops":2,"swapped":2,"images":1,"graphics":3},"kept":{},"other":"explosion"}
+PASS  wind-up (tap): R4 shows only the compressed reactor between player-fire-super and player-super-blast, the discharge from the blast tick, then the cooling; the blast tick is R3's  — {"r4":{"cast":5,"blast":11,"between":["gun-w0","gun-w0","gun-w1","gun-w1","gun-w1","gun-w1"],"after":["gun-dis","gun-dis","gun-0","gun-0"]}}
+PASS  wind-up (tap): control — R3 shows the empty reactor before the blast  — {"r3":["gun-w0","gun-w0","gun-w1","gun-w1","gun-0","gun-0"]}
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+browser.newPage: Target page, context or browser has been closed
+    at boot (/home/user/crix/tests/smoke-b2r4.mjs:53:58)
+    at wind (/home/user/crix/tests/smoke-b2r4.mjs:340:21)
+    at /home/user/crix/tests/smoke-b2r4.mjs:361:22 {
+  log: []
+}
+
+Node.js v22.23.4

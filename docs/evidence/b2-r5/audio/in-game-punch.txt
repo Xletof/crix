@@ -1,0 +1,7 @@
+In-game captures (full browser chain incl. the master compressor), the blast at the release + 20 ms look-ahead:
+  iso-S: initial 5 ms RMS peak  -15.2 dBFS | window max M  -24.0 | initial minus loudness  +8.8 dB | 0.18-0.45 s after vs initial  -6.8 dB
+  iso-HC: initial 5 ms RMS peak  -16.1 dBFS | window max M  -24.7 | initial minus loudness  +8.6 dB | 0.18-0.45 s after vs initial -14.6 dB
+  iso-RD: initial 5 ms RMS peak  -18.2 dBFS | window max M  -24.6 | initial minus loudness  +6.4 dB | 0.18-0.45 s after vs initial  -1.5 dB
+  mix-S: initial 5 ms RMS peak  -14.1 dBFS | window max M  -22.6 | initial minus loudness  +8.5 dB | 0.18-0.45 s after vs initial  -6.2 dB
+  mix-HC: initial 5 ms RMS peak  -16.3 dBFS | window max M  -22.6 | initial minus loudness  +6.3 dB | 0.18-0.45 s after vs initial  -3.4 dB
+  mix-RD: initial 5 ms RMS peak  -19.0 dBFS | window max M  -22.7 | initial minus loudness  +3.7 dB | 0.18-0.45 s after vs initial  -1.0 dB

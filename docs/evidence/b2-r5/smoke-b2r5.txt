@@ -1,0 +1,15 @@
+
+== 0. flags
+PASS  CTRL: visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=4&b2iso=1&b2a=B2S: B2 on, Super sound B2S, aura off, isolation on  — {"b2":true,"kind":"B2S","aura":false,"auraFlag":false,"iso":true,"auraObj":false}
+PASS  A: visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=4&b2iso=1&b2a=B2HC: B2 on, Super sound B2HC, aura off, isolation on  — {"b2":true,"kind":"B2HC","aura":false,"auraFlag":false,"iso":true,"auraObj":false}
+PASS  B: visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=4&b2iso=1&b2a=B2RD: B2 on, Super sound B2RD, aura off, isolation on  — {"b2":true,"kind":"B2RD","aura":false,"auraFlag":false,"iso":true,"auraObj":false}
+PASS  C: visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=4&b2iso=1&b2a=B2S&b2aura=1: B2 on, Super sound B2S, aura on, isolation on  — {"b2":true,"kind":"B2S","aura":true,"auraFlag":true,"iso":true,"auraObj":true}
+PASS  D: visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=4&b2iso=1&b2a=B2HC&b2aura=1: B2 on, Super sound B2HC, aura on, isolation on  — {"b2":true,"kind":"B2HC","aura":true,"auraFlag":true,"iso":true,"auraObj":true}
+PASS  E: visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=4&b2iso=1&b2a=B2RD&b2aura=1: B2 on, Super sound B2RD, aura on, isolation on  — {"b2":true,"kind":"B2RD","aura":true,"auraFlag":true,"iso":true,"auraObj":true}
+PASS  legacy: B2-R3 + B2: B2 on, Super sound B2, aura off, isolation off  — {"b2":true,"kind":"B2","aura":false,"auraFlag":false,"iso":false,"auraObj":false}
+PASS  b2aura without b2r=4 is ignored: B2 on, Super sound B2S, aura off, isolation off  — {"b2":true,"kind":"B2S","aura":false,"auraFlag":false,"iso":false,"auraObj":false}
+PASS  b2aura without b2= does nothing: nothing installed  — {"b2":false,"kind":null,"aura":false,"auraFlag":false,"iso":false,"auraObj":false}
+PASS  an unknown b2a value falls back to the B2-1 kit: B2 on, Super sound b2-1, aura off, isolation off  — {"b2":true,"kind":"b2-1","aura":false,"auraFlag":false,"iso":false,"auraObj":false}
+
+== 1. gameplay parity: every condition = B2-B
+PASS  CTRL (B2S), MIXED s6, 1500 ticks, four Supers and a Broken Wings chain: = B2-B tick for tick  — 197 rounds, 4 Supers, 37 kills, 18855 draws
