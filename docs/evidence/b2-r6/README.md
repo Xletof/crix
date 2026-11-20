@@ -40,6 +40,9 @@ and then add:
 
 Every earlier flag still works, including `b2a=B2RD` and `b2a=B2S&b2aura=1`.
 
+Deployed: the final mix at `FRIX` `b844cd0` (Pages #316). An earlier mix (`6bcc4fc`, #314) was live
+briefly; see the tuning history.
+
 ## Why R5 sounded dead and split (measured before designing)
 
 I first looked for measurements that reproduce the HUMAN's two verdicts on R5's own renders. Band
