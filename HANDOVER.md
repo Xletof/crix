@@ -543,21 +543,28 @@ command, fix the line.*
       - Original synthesis only: the network reaches only package registries,
         so no licensed recorded material was available.
     - **Measured (browser path):**
-      - Max momentary loudness matched to Heavy Cannon within 0.2 LU
-        (`R6_TRIM` 0.74).
-      - About 4.6× Heavy Cannon's energy after 150 ms; no second onset; no sweep.
+      - Max momentary loudness matched to Heavy Cannon exactly (`R6_TRIM`
+        0.70).
+      - 7× Heavy Cannon's energy after 150 ms; no second onset; no sweep.
+      - The rush continues across the hand-over (+0.6 to +0.8 dB).
+      - At matched loudness: sub-bass +1.3 dB, low mids within 0.9 dB over the
+        event, but 3.1 dB under in the first 150 ms.
       - The null of the browser path against the render sits at B2's idle
         floor.
       - Phone band 0.6 LU under Heavy Cannon.
       - **The first hit is less prominent than Heavy Cannon's at matched
-        loudness** (punch +4.9 dB vs +8.6). NOT LISTENED TO by the author.
+        loudness** (punch +2.9 dB vs +8.6): the trade-off for the heavier
+        body and room. NOT LISTENED TO by the author.
       - Voices in a dense swarm: 28 of 48 against Heavy Cannon's saturated 48.
+      - The mix shipped first (`894b209`, Pages #314) had less low end than
+        Heavy Cannon and a 3.5 dB rush drop at the hand-over. Both were caught
+        in review and fixed before this record.
     - **The approved shield is untouched:** `b2Reactor.js` is byte-identical,
       and every object on screen, the aura's draw commands included, is
       identical per tick to the Heavy Cannon link and to `d3ecad6`.
     - **Proof:**
-      - `tests/smoke-b2r6.mjs` 54/54.
-      - Against `d3ecad6`: smoke-b2r5 63/63, smoke-b2r4 97/97, smoke-b2r3
+      - `tests/smoke-b2r6.mjs` 55/55 on the final code.
+      - Against `d3ecad6` (run on `894b209`; the final commit changes only R6 data): smoke-b2r5 63/63, smoke-b2r4 97/97, smoke-b2r3
         81/81, smoke-b2r2 62/62, smoke-b2r 38/38, smoke-b2t 37/37, smoke-b2c
         46/46, smoke-b2 88/88, smoke-b1 71/71, smoke-b0 46/46; P2-A3 scope 4/4;
         controls and restart pass; the production bundle shows no page errors
@@ -569,7 +576,8 @@ command, fix the line.*
           standalone;
         - nemesis passed this time;
         - `docs/evidence/b2-r6/run-all-reruns/`.
-      - Deployed: `FRIX` at `6bcc4fc`, Pages #314 (then this record).
+      - Deployed: `FRIX` at `6bcc4fc` (Pages #314, the second mix), then the
+        final mix with this record (see `docs/evidence/b2-r6/README.md`).
     - `docs/evidence/b2-r6/README.md`. Awaiting the HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,

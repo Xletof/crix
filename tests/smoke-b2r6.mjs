@@ -310,6 +310,20 @@ if (on(3)) {
       return bestRun;
     };
     out.glide = { RT: glide(ref.x, ref.r), S: glide((await lone('B2S', 7)).x, ref.r) };
+    // the rush alone across the hand-over (the energy stem: the wind-up rush with its fade + the rush inside the event):
+    // 10 ms levels after the blast against the wind-up rush's level just before it. A/B: the first shipped mix
+    // (post 0.42, out 0.44) dropped ~3.5 dB there, which reads as the blast cutting the rush off.
+    const rushStep = (mix) => {
+      const keep = { ...thm.THUNDER.mix }; if (mix) Object.assign(thm.THUNDER.mix, mix);
+      const r = thm.renderThunder(SR, { stems: true }); Object.assign(thm.THUNDER.mix, keep);
+      const gapS = 0.117, W = Math.round(0.25 * SR), Rl = Math.round((0.25 + gapS) * SR), xf = Math.round(thm.THUNDER.xfadeS * SR), e = new Float64Array(Rl + r.L.length);
+      for (let i = 0; i < r.pre.length && W + i < e.length; i++) { const j = W + i; e[j] += r.pre[i] * (j < Rl ? 1 : j - Rl < xf ? Math.cos((Math.PI / 2) * ((j - Rl) / xf)) : 0); }
+      for (let i = 0; i < r.L.length; i++) e[Rl + i] += r.stems.energy[0][i];
+      const lv = (a, b) => { const i0 = Rl + Math.round(a * SR), i1 = Rl + Math.round(b * SR); let s2 = 0; for (let i = i0; i < i1; i++) s2 += e[i] * e[i]; return 10 * Math.log10(s2 / (i1 - i0) + 1e-20); };
+      const ref = lv(-0.015, -0.005);
+      return [[0, 0.01], [0.01, 0.02], [0.02, 0.03], [0.04, 0.05]].map(([a, b]) => +(lv(a, b) - ref).toFixed(1));
+    };
+    out.rush = { now: rushStep(null), firstMix: rushStep({ pre: 0.3, post: 0.42, crack: 0.8, grit: 0.9, punch: 0.9, low: 0.55, lowmid: 0.9, body: 0.66, out: 0.44 }) };
     // the buffers themselves
     const r1 = thm.renderThunder(44100), r2 = thm.renderThunder(44100), r3 = thm.renderThunder(48000);
     const same = ['pre', 'L', 'R'].every((k) => r1[k].length === r2[k].length && r1[k].every((v, i) => v === r2[k][i])) && r1.impacts.every((b, k) => b.every((v, i) => v === r2.impacts[k][i]));
@@ -330,6 +344,7 @@ if (on(3)) {
   check('unreleased (the hero died in the wind-up window and no blast came): the rush plays, then ends by itself (back to the idle floor from 0.5 s)', ren.never.early > -45 && ren.never.late < Q, JSON.stringify({ ...ren.never, idleFloor: ren.idleFloor }));
   check('a pause in the wind-up fades the rush within 60 ms; a pause 0.2 s after the blast fades the event within 60 ms (it is still loud there otherwise)', ren.pauseWind.after < Q && ren.pauseWind.cuts >= 1 && ren.pauseBlast.after < Q && ren.pauseBlast.before > -40 && ren.pauseBlast.cuts >= 1 && ren.ref.at250 > -50, JSON.stringify({ pauseWind: ren.pauseWind, pauseBlast: ren.pauseBlast, ref: ren.ref, idleFloor: ren.idleFloor }));
   check('death fades the event within 90 ms (after the blast) and the rush (in the wind-up)', ren.deathBlast.after < Q && ren.deathBlast.deathCuts >= 1 && ren.deathWind.after < Q && ren.deathWind.deathCuts >= 1, JSON.stringify({ deathBlast: ren.deathBlast, deathWind: ren.deathWind, idleFloor: ren.idleFloor }));
+  check('the rush continues through the hand-over: the energy stem alone stays within -2 / +3 dB of the wind-up rush for the first 30 ms after the blast and above -3 dB at 40-50 ms; the first shipped mix fails this (it dropped ~3.5 dB)', ren.rush.now.slice(0, 3).every((v) => v >= -2 && v <= 3) && ren.rush.now[3] > -3 && ren.rush.firstMix.slice(1, 3).some((v) => v < -2), JSON.stringify(ren.rush));
   const bf = ren.bufs;
   check('the rendered buffers: deterministic (two renders identical), finite at 44.1 and 48 kHz, peak at the ceiling (the limiter takes under 1.5 dB), the rush ends in silence, the event ends at zero', bf.same && bf.fin44 && bf.fin48 && bf.peak44 <= bf.ceiling + 1e-6 && bf.peak48 <= bf.ceiling + 1e-6 && bf.gr44 < 1.5 && bf.gr48 < 1.5 && bf.preTail < 1e-6 && bf.blastLast < 1e-6, JSON.stringify(bf));
   check('no falling glide in the event (the legacy signature): the dominant low peak never falls more than 3 semitones over 0.1 s or longer; the same detector flags B2S (the A/B)', ren.glide.RT.semis <= 3 && ren.glide.S.semis > 3, JSON.stringify(ren.glide));

@@ -2504,6 +2504,20 @@ Evidence in `docs/evidence/b1-combat-experiments/`.
   end at 48 kHz (NaN). Wrap the integer index too.
 - **IIR filters fed zeros decay into denormals.** That doubled the late blocks'
   cost; filters whose part of the event is over are not run.
+- **`THUNDER.mix.out` scales the event, not the wind-up rush or the impacts.** The
+  `pre` buffer and `R6_SUPER.impactGain` are absolute. Lowering `out` drops the rush
+  inside the event under the wind-up rush (a step at the hand-over) and makes the
+  impacts louder relative to the event. Keep `post × out ≈ pre`, and rescale the
+  impact gains with `out`. §3's rush-stem check catches the first.
+- **The composite seam check cannot fail on its own.** The crack fills the window
+  around the blast, so it would pass with no rush at all. The rush stem is measured
+  separately in §3, and A/B'd against the second mix (which dropped 3.5 dB).
+- **Onsets of a heavy low body need the envelope above 150 Hz.** A 54 Hz body
+  ripples a 10 ms RMS envelope by a few dB (period longer than the window), which
+  reads as a spurious second onset.
+- **Compare low end at matched loudness, not by band share.** R6's band shares
+  looked fine while its absolute low mids at equal LUFS were 6 dB under Heavy
+  Cannon's: K-weighting counts its 2–8 kHz energy heavily.
 
 ## The B2-R5 rig (`&b2a=B2HC|B2RD`, `&b2aura=1`)
 

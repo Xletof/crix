@@ -45,13 +45,13 @@ export const THUNDER = {
   zips: 5, zipGapS: 0.009,
   impacts: 3, impactS: 0.32,
   mix: {
-    pre: 0.3,           // the rush, at its plateau (after its drive)
-    post: 0.42,         // the rush inside the blast
-    crack: 0.8, grit: 0.9, modes: 0.08,   // a dense KRA: its first 5 ms carry the hit (punch +1.5 dB over the first cut)
-    punch: 0.9, low: 0.55, rumble: 0.35, lowmid: 0.9, body: 0.66,
+    pre: 0.2,           // the rush, at its plateau (after its drive)
+    post: 0.75,         // the rush inside the blast (x out: it takes over at the wind-up rush's level, then swells and disperses)
+    crack: 0.95, grit: 1.05, modes: 0.08,   // a dense KRA
+    punch: 1.2, low: 0.8, rumble: 0.35, lowmid: 1.5, body: 1.2,   // a heavy THOOOM: low end and low mids at least Heavy Cannon's at equal loudness
     zips: 0.05,
     er: 0.6, late: 1.35, bloom: 0.08,
-    out: 0.44,          // before the limiter (it should only touch the very first crack: under 1 dB)
+    out: 0.27,          // before the limiter (it should only touch the very first crack: 0.7 dB at 44.1 kHz, 1.2 at 48)
     send: { dry: 0.75, body: 0.5, rush: 0.55, zips: 0.3 },
   },
   room: {
