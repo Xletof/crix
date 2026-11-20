@@ -359,7 +359,7 @@ worktree on :5174 with its own Vite cache.
   - **the failing set differs from R5's 48/52**, and `vanguard-front` now fails standalone on both
     builds, where R5 recorded a standalone pass;
   - none of these suites installs B2, so R6's code (later changed only in R6 data) does not run in them.
-- **Production bundle** (`vite build`, `vite preview`, on `894b209`): no page errors on the four links
+- **Production bundle** (`vite build`, `vite preview`, on `894b209` and again on the final code): no page errors on the four links
   or the no-flag link. On the R6 link the built worker chunk is fetched (HTTP 200), starts, delivers
   and is closed.
 - **Notes for honesty:**
