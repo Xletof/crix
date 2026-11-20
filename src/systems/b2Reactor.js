@@ -287,8 +287,8 @@ export const R4_SHIELD = {
  *  head and shoulders, breathing slowly with a per-cell shimmer; a few tiny motes rise from the upper
  *  edge. Only in the top quarter (shield above 300); a hit knocks it out briefly; none at 0 or on a
  *  break. Deterministic (a hash of game time, no Math.random); redrawn at most every stepMs. */
-export const R5_AURA = { ring1: [120, 225, 255], ring2: [96, 176, 255], a1: 0.36, a2: 0.15, breathMs: 2400, breath: 0.25, shimmerMs: 700, sparse: 0.5, topW: 1, footW: 0.3,
-  fadeInMs: 320, fadeOutMs: 140, hitOffMs: 220, stepMs: 40, motes: 4, moteEveryMs: 560, moteLifeMs: 900, moteRise: [10, 16], moteA: 0.75, topFrac: 0.45 };
+export const R5_AURA = { ring1: [150, 235, 255], ring2: [100, 185, 255], a1: 0.58, a2: 0.26, breathMs: 2400, breath: 0.25, shimmerMs: 700, sparse: 0.5, topW: 1, footW: 0.15,
+  fadeInMs: 320, fadeOutMs: 140, hitOffMs: 220, stepMs: 40, motes: 4, moteEveryMs: 420, moteLifeMs: 900, moteRise: [10, 16], moteA: 0.95, topFrac: 0.45 };
 const hash3 = (a, b, c) => { let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(c | 0, 1274126177)) >>> 0; h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 export const R3_CHOKE = { strainMs: 900, strainOnMs: 90 };
 /** B2-R4 timings: the wind-up hold's last-resort exit, the discharge's drawn frames, and how long
