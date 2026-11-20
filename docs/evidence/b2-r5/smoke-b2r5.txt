@@ -13,3 +13,72 @@ PASS  an unknown b2a value falls back to the B2-1 kit: B2 on, Super sound b2-1, 
 
 == 1. gameplay parity: every condition = B2-B
 PASS  CTRL (B2S), MIXED s6, 1500 ticks, four Supers and a Broken Wings chain: = B2-B tick for tick  — 197 rounds, 4 Supers, 37 kills, 18855 draws
+PASS  A (B2HC), MIXED s6, 1500 ticks, four Supers and a Broken Wings chain: = B2-B tick for tick  — 197 rounds, 4 Supers, 37 kills, 18855 draws
+PASS  B (B2RD), MIXED s6, 1500 ticks, four Supers and a Broken Wings chain: = B2-B tick for tick  — 197 rounds, 4 Supers, 37 kills, 18855 draws
+PASS  C (B2S + aura), MIXED s6, 1500 ticks, four Supers and a Broken Wings chain: = B2-B tick for tick  — 197 rounds, 4 Supers, 37 kills, 18855 draws
+PASS  D (B2HC + aura), MIXED s6, 1500 ticks, four Supers and a Broken Wings chain: = B2-B tick for tick  — 197 rounds, 4 Supers, 37 kills, 18855 draws
+PASS  E (B2RD + aura), MIXED s6, 1500 ticks, four Supers and a Broken Wings chain: = B2-B tick for tick  — 197 rounds, 4 Supers, 37 kills, 18855 draws
+PASS  D, SWARM TIDE: = B2-B tick for tick  — 197 rounds, 44 kills, 19458 draws
+PASS  E, SWARM TIDE: = B2-B tick for tick  — 197 rounds, 44 kills, 19458 draws
+PASS  D, MIXED s6, god mode off (shield hits, breaks, a death possible): = B2-B tick for tick  — 197 rounds, 35 kills, 19367 draws
+PASS  E, MIXED s6, god mode off (shield hits, breaks, a death possible): = B2-B tick for tick  — 197 rounds, 35 kills, 19367 draws
+
+== 2. the Super sound: once per committed blast
+PASS  B2HC: the discharge plays once per committed blast (a held-F release, a second cast); none on a held F before release, a cancelled hold, a suppressed press or a suppressed release; the shipped Super shot replaced  — {"held":{"blasts":0,"rel":0,"kit":0,"wind":0},"released":{"blasts":1,"rel":1,"kit":1,"wind":1},"cancelled":{"blasts":1,"rel":1,"kit":1,"wind":1},"suppressedPress":{"blasts":1,"rel":1,"kit":1,"wind":1},"suppressedRelease":{"blasts":1,"rel":1,"kit":1,"wind":1},"second":{"blasts":2,"rel":2,"kit":2,"wind":2},"shipped":2}
+PASS  B2HC: the game's generic hit beep is not played for Super pellet hits (routed to the kit's impacts)  — {"beeps":12,"superHit":12}
+PASS  B2RD: the discharge plays once per committed blast (a held-F release, a second cast); none on a held F before release, a cancelled hold, a suppressed press or a suppressed release; the shipped Super shot replaced  — {"held":{"blasts":0,"rel":0,"kit":0,"wind":0},"released":{"blasts":1,"rel":1,"kit":1,"wind":1},"cancelled":{"blasts":1,"rel":1,"kit":1,"wind":1},"suppressedPress":{"blasts":1,"rel":1,"kit":1,"wind":1},"suppressedRelease":{"blasts":1,"rel":1,"kit":1,"wind":1},"second":{"blasts":2,"rel":2,"kit":2,"wind":2},"shipped":2}
+PASS  B2RD: the game's generic hit beep is not played for Super pellet hits (routed to the kit's impacts)  — {"beeps":12,"superHit":12}
+PASS  B2S: the discharge plays once per committed blast (a held-F release, a second cast); none on a held F before release, a cancelled hold, a suppressed press or a suppressed release; the shipped Super shot replaced  — {"held":{"blasts":0,"rel":0,"kit":0,"wind":0},"released":{"blasts":1,"rel":1,"kit":1,"wind":1},"cancelled":{"blasts":1,"rel":1,"kit":1,"wind":1},"suppressedPress":{"blasts":1,"rel":1,"kit":1,"wind":1},"suppressedRelease":{"blasts":1,"rel":1,"kit":1,"wind":1},"second":{"blasts":2,"rel":2,"kit":2,"wind":2},"shipped":2}
+PASS  B2S: the game's generic hit beep is not played for Super pellet hits (routed to the kit's impacts)  — {"beeps":12,"superHit":12}
+
+== 3. offline renders (structure and identity; NOT a listening test)
+PASS  b2Audio.js draws no Math.random (private mulberry32 streams only)
+PASS  no legacy layer in the R5 kits: no sawtooth, no B2_TONES (the E6 pip), no B2 release / cooldown layers called (only the charge-bed hand-off windupBed / releaseBed)  — kitR5: 11604 chars
+PASS  B2HC keeps B2's approved cues: rendered without a Super (rifle, charge, ready confirmation, locks), = B2 within the renderer's own run-to-run noise  — {"diff":1.1920928955078125e-7,"floor":8.940696716308594e-8}
+PASS  B2HC Super structure: the pre-blast cut by the blast, one blast, five zips, the crowd's hits merged per tick, at most three impacts 50 ms apart within 150 ms; no clipping, nothing dropped, voices under the cap  — {"peak":0.8327052593231201,"voices":29,"dropped":0,"sup":{"design":"HC","windups":1,"releases":1,"blasts":1,"zips":5,"impacts":3,"merged":9,"late":0,"capped":2,"tails":1,"breech":1,"cuts":1,"deathCuts":0,"minGap":0.05,"maxLag":0.0667}}
+PASS  B2HC: a pause in the wind-up cuts the pre-blast; a death cuts the tail  — {"pause":{"design":"HC","windups":1,"releases":1,"blasts":1,"zips":5,"impacts":3,"merged":9,"late":0,"capped":2,"tails":1,"breech":1,"cuts":1,"deathCuts":0,"minGap":0.05,"maxLag":0.0667},"death":{"design":"HC","windups":1,"releases":1,"blasts":1,"zips":5,"impacts":3,"merged":9,"late":0,"capped":2,"tails":1,"breech":1,"cuts":1,"deathCuts":1,"minGap":0.05,"maxLag":0.0667}}
+PASS  B2RD keeps B2's approved cues: rendered without a Super (rifle, charge, ready confirmation, locks), = B2 within the renderer's own run-to-run noise  — {"diff":1.4901161193847656e-7,"floor":8.940696716308594e-8}
+PASS  B2RD Super structure: the pre-blast cut by the blast, one blast, five zips, the crowd's hits merged per tick, at most three impacts 50 ms apart within 150 ms; no clipping, nothing dropped, voices under the cap  — {"peak":0.7361969947814941,"voices":31,"dropped":0,"sup":{"design":"RD","windups":1,"releases":1,"blasts":1,"zips":5,"impacts":3,"merged":9,"late":0,"capped":2,"tails":1,"breech":0,"cuts":1,"deathCuts":0,"minGap":0.05,"maxLag":0.0667}}
+PASS  B2RD: a pause in the wind-up cuts the pre-blast; a death cuts the tail  — {"pause":{"design":"RD","windups":1,"releases":1,"blasts":1,"zips":5,"impacts":3,"merged":9,"late":0,"capped":2,"tails":1,"breech":0,"cuts":1,"deathCuts":0,"minGap":0.05,"maxLag":0.0667},"death":{"design":"RD","windups":1,"releases":1,"blasts":1,"zips":5,"impacts":3,"merged":9,"late":0,"capped":2,"tails":1,"breech":0,"cuts":1,"deathCuts":1,"minGap":0.05,"maxLag":0.0667}}
+PASS  B2 and B2S (the controls) are the B2-R4 build's exactly: with a Super, = 7e73dae's b2Audio.js within the renderer's noise  — {"b2":1.7881393432617188e-7,"b2s":4.6193599700927734e-7,"floor":8.940696716308594e-8}
+
+== 4. the enchanted aura
+PASS  without the flag (the R4 control): no aura object and no aura stats  — {"r5":null}
+PASS  only at full: settled at 400 the aura is up (level 1); at 300, 200, 100 and 0 it is gone (level 0, not drawn)  — {"0":{"level":0,"visible":false},"100":{"level":0,"visible":false},"200":{"level":0,"visible":false},"300":{"level":0,"visible":false},"400":{"level":1,"visible":true}}
+PASS  all four facings at full draw the aura (the side frame flipped for W)  — {"S":{"ring1":74,"visible":true,"flip":false,"frame":0,"aura":908.7833333333333,"weapon":910.8333333333333,"hero":909.8333333333333},"N":{"ring1":66,"visible":true,"flip":false,"frame":8,"aura":898.95,"weapon":899,"hero":900},"E":{"ring1":64,"visible":true,"flip":false,"frame":16,"aura":898.95,"weapon":901,"hero":900},"W":{"ring1":66,"visible":true,"flip":true,"frame":16,"aura":898.95,"weapon":901,"hero":900}}
+PASS  the aura is below the hero AND below the rifle on every facing (Player draws the rifle at depth - 1 facing north)  — {"S":{"aura":908.7833333333333,"weapon":910.8333333333333,"hero":909.8333333333333},"N":{"aura":898.95,"weapon":899,"hero":900},"E":{"aura":898.95,"weapon":901,"hero":900},"W":{"aura":898.95,"weapon":901,"hero":900}}
+PASS  after a spell at 0 the aura fades in from nothing (no jump on the first frame back)  — {"first":0,"second":0.05208333333333144}
+PASS  a hit at full knocks the aura out at once and it returns; the break shows none  — {"hit":{"level":0,"shield":380},"afterHit":{"level":1,"shield":380},"brk":{"level":0,"visible":false,"shield":0}}
+PASS  behind the hero (depth below the sprite), never on a sprite cell, motes from a pool of at most four, redrawn at most every 40 ms  — {"depth":{"aura":898.95,"hero":900},"inside":0,"motes":22,"motesPeak":3,"draws":305,"frames":305,"ring1":64,"ring2":24}
+PASS  a rendered fight (MIXED s6, god mode off, the shield topped to 400 every 120 ticks on both sides, two Supers, a Broken Wings chain, moving): every object on screen other than the aura identical to the R4 control at every rendered tick (the aura covers, moves and recolours nothing)  — 600 ticks; aura shown on 329 ticks
+PASS  the aura in sync with the hero at every render (position, scale, alpha incl. a bush, depth below the sprite and the rifle)  — {"aura":{"checks":329,"bad":0},"shield":{"checks":600,"bad":0}}
+PASS  cost: the skin's per-frame update with the aura stays bounded (under 1.5 ms mean in this software-rendered harness) and the display list does not grow  — update 0.140 ms (R4) vs 0.170 ms (aura) per frame; display objects 205 vs 206; wall time 34899 vs 34058 ms for 600 rendered ticks; aura draws 194
+
+== 5. restarts
+PASS  D (B2HC + aura): restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":2,"b0":false},{"skin":true,"pre":2,"blast":2,"b0":false},{"skin":true,"pre":2,"blast":2,"b0":false},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  D (B2HC + aura): quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind, every SFX function the original again (48 were wrapped in play)  — {"sfx":0,"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+PASS  E (B2RD + aura): restart twice: one install each time (prerender and blast listeners do not grow), the skin draws rounds and a Super after each, and no hidden shipped blast object is left two seconds later  — [{"skin":true,"pre":2,"blast":2,"b0":false},{"skin":true,"pre":2,"blast":2,"b0":false},{"skin":true,"pre":2,"blast":2,"b0":false},{"rounds":5,"supers":1},{"hiddenLeft":0}]
+PASS  E (B2RD + aura): quit to title: no B2, the prerender listener gone, no firePlayerSuper / _superBlast / display-list / camera-flash wrapper left behind, every SFX function the original again (48 were wrapped in play)  — {"sfx":0,"b2":false,"pre":1,"own":[],"dl":false,"flash":false,"atlas":true}
+PASS  one aura object per run across restarts, none after quitting to the title  — {"counts":[1,1,1],"title":0}
+PASS  B2S: quitting to the title disconnects the Super bus chain (live audio, the kit built)  — {"built":true,"cut":2}
+PASS  B2HC: quitting to the title disconnects the Super bus chain (live audio, the kit built)  — {"built":true,"cut":4}
+PASS  B2RD: quitting to the title disconnects the Super bus chain (live audio, the kit built)  — {"built":true,"cut":4}
+
+== 6. the playtest links, as shipped (&b2c=1&b0=...)
+PASS  link CTRL (B2R4S): telemetry on with its label, Super sound B2S, aura off, F-release targeting  — {"b0":true,"label":"B2R4S","kind":"B2S","aura":false,"cand":true}
+PASS  link A (R5HC): telemetry on with its label, Super sound B2HC, aura off, F-release targeting  — {"b0":true,"label":"R5HC","kind":"B2HC","aura":false,"cand":true}
+PASS  link B (R5RD): telemetry on with its label, Super sound B2RD, aura off, F-release targeting  — {"b0":true,"label":"R5RD","kind":"B2RD","aura":false,"cand":true}
+PASS  link C (R5AUS): telemetry on with its label, Super sound B2S, aura on, F-release targeting  — {"b0":true,"label":"R5AUS","kind":"B2S","aura":true,"cand":true}
+PASS  link D (R5AUHC): telemetry on with its label, Super sound B2HC, aura on, F-release targeting  — {"b0":true,"label":"R5AUHC","kind":"B2HC","aura":true,"cand":true}
+PASS  link E (R5AURD): telemetry on with its label, Super sound B2RD, aura on, F-release targeting  — {"b0":true,"label":"R5AURD","kind":"B2RD","aura":true,"cand":true}
+PASS  links B2B and D (R5AUHC) as shipped: the same fight tick for tick  — 197 rounds, 4 Supers
+
+== 7. audio-RNG isolation with the new kits
+PASS  D with live audio and isolation = the silent run tick for tick (four Supers, a Broken Wings chain, a death; the music loop is not running in this harness and is not isolated)  — 19460 draws
+PASS  E with live audio and isolation = the silent run tick for tick (four Supers, a Broken Wings chain, a death; the music loop is not running in this harness and is not isolated)  — 19460 draws
+
+== 9. scope
+PASS  the B0 / B1 / B2 scope guard (GameScene and every frozen file untouched)  — B0 (dc7d9ea..a3866f2): 5 files, GameScene +13 tag/install lines; B1 (a3866f2..266b1ac): 6 files, GameScene +5 install/branch lines; B2 (266b1ac..): 14 files, GameScene +4 install/branch lines
+
+63/63 passed
+exit 0

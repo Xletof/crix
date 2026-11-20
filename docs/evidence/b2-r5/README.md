@@ -161,11 +161,39 @@ The FLAC trios:
 **Determinism and performance.**
 - With `&b2iso=1`, the new kits with live audio replay the silent run tick for tick.
 - The music loop still draws `Math.random` (inherited, see R4); it was not touched. So a phone fight with music is not exactly reproducible.
-- Aura cost in a rendered fight, in this software-rendered harness: the skin's update went from 0.128 ms (R4) to 0.202 ms per frame. That is one extra display object, about 95 rects per redraw, at most 25 redraws per second and at most 4 motes.
+- Aura cost in a rendered fight, in this software-rendered harness, on the final code (`smoke-b2r5.txt` §4): the skin's update is 0.140 ms (R4) against 0.170 ms (aura) per frame. That is one extra display object, about 95 rects per redraw, at most 25 redraws per second and at most 4 motes.
 
 ## Verification
 
-See the table below; the suite logs are in this folder.
+Every suite ran standalone on the final code. Where a suite takes `--old`, it compared against `7e73dae`, B2-R4's deploy, served from its own worktree. The logs are in this folder.
+
+| Suite | Result | Notes |
+|---|---|---|
+| `smoke-b2r5` (new) | **63/63** | one clean run on the final code (`smoke-b2r5.txt`). Covers: gameplay parity of all six conditions against B2-B (plus crowd and god mode off); the discharge once per committed blast, never on aim, lock, cancel or suppression; approved cues unchanged; the Super structure; pause and death cuts; no legacy layer; the aura's gating, facings, depth under the rifle, fade-in, sync and per-tick identity of everything else; restarts and the Super bus chain disconnect; links; live-audio isolation; scope |
+| `smoke-b2r4` | 97/97 | R4 unchanged (the B2S teardown fix included) |
+| `smoke-b2r3` | 81/81 | |
+| `smoke-b2r2` | 62/62 | |
+| `smoke-b2r` | 38/38 | |
+| `smoke-b2t` | 37/37 | |
+| `smoke-b2c --old=7e73dae` | 46/46 | |
+| `smoke-b2 --old=7e73dae` | 88/88 | |
+| `smoke-b1 --old=7e73dae` | 71/71 | |
+| `smoke-b0 --old=7e73dae` | 46/46 | |
+| `smoke-fx-p2a3 --only=10` | 4/4 | the frozen-file scope guard |
+| `smoke-controls` | PASS | |
+| `smoke-restart` | PASS (16 checks) | |
+| production bundle (`npm run build`, `vite preview`) | no page errors | the six matrix links and a plain boot |
+| `run-all` (52 suites) | not yet run at deploy | run straight after the deploy; this row is updated with the result |
+
+- **B2 and B2S unchanged.** Offline renders with a Super, against `7e73dae`'s `b2Audio.js`:
+
+  | | this build vs `7e73dae` | `7e73dae` vs itself |
+  |---|---|---|
+  | B2 | 2.1e-7 | 1.5e-7 |
+  | B2S | 2.4–4.3e-7 | 4.3e-7 |
+
+  Both differences are inside each render's own run-to-run noise.
+- **Frozen files.** Nothing under `src/scenes`, `src/entities`, `src/data`, `FX.js`, `config.js`, the camera or the P1 / P2-A3 modules changed since `7e73dae`. Only `src/systems/b2Audio.js`, `b2Reactor.js`, `b2Flagship.js`, `b2Feel.js` and `debug.js` changed, plus `tests/smoke-b2r5.mjs` (new) and `tests/README.md`.
 
 ## Recommendation (critical)
 

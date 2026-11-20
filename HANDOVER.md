@@ -483,9 +483,12 @@ command, fix the line.*
       popped in after a spell at 0 shield, a fade flicker, and the Super bus
       chain (B2S too) left wired after a restart.
     - **Proof:**
-      - `tests/smoke-b2r5.mjs` SMOKE_B2R5.
-      - COVERING_R5.
-      - RUN_ALL_R5.
+      - `tests/smoke-b2r5.mjs` 63/63.
+      - Against `7e73dae`: smoke-b2r4 97/97, smoke-b2r3 81/81, smoke-b2r2 62/62,
+        smoke-b2r 38/38, smoke-b2t 37/37, smoke-b2c 46/46, smoke-b2 88/88,
+        smoke-b1 71/71, smoke-b0 46/46; P2-A3 scope 4/4; controls and restart
+        pass; the production bundle shows no page errors on the six links.
+      - run-all: not yet run at the deploy commit (it runs right after).
     - `docs/evidence/b2-r5/README.md`. Awaiting the HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
