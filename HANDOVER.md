@@ -488,7 +488,13 @@ command, fix the line.*
         smoke-b2r 38/38, smoke-b2t 37/37, smoke-b2c 46/46, smoke-b2 88/88,
         smoke-b1 71/71, smoke-b0 46/46; P2-A3 scope 4/4; controls and restart
         pass; the production bundle shows no page errors on the six links.
-      - run-all: not yet run at the deploy commit (it runs right after).
+      - run-all 48/52, none new:
+        - champion-placement and captain-closeout fail on `7e73dae` too, on the
+          same checks;
+        - nemesis's VOLATILE check fails 2 runs in 4 on both builds;
+        - vanguard-front passes standalone;
+        - `docs/evidence/b2-r5/run-all-reruns/`.
+      - Deployed: `FRIX` at `1a88281`, Pages #312.
     - `docs/evidence/b2-r5/README.md`. Awaiting the HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,

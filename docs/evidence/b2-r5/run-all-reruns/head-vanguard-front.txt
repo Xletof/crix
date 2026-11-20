@@ -1,0 +1,36 @@
+  ok    a VANGUARD wave arms the front
+  ok    the opening is exactly two shield events
+  ok    the two opening events carry slots 0 and 1, and the third carries none
+  ok    both opening shields MATERIALISED and keep the VANGUARD close-screen role
+  ok    opening shield 0 takes the LEFT lane and shield 1 the RIGHT
+  ok    the front's clock starts when the SECOND SHIELD EXISTS, not at wave start or its telegraph
+  ok    THE THIRD EVENT IS NOT SCHEDULED UNTIL THE FRONT RESOLVES
+  ok    the Captain materialises after the release
+  ok    the pair still settles at the close hold
+  ok    and the lane is DROPPED at the hold — an ordinary screen from there
+  ok    once released it never re-arms in that wave
+  ok    later VANGUARD shields are screens but never pair members
+  ok    the wave still clears normally
+  ok    &nofront=1: no staging, no slots, no lanes
+  ok    &nofront=1 leaves the 140px close screen ON
+  ok    &nofront=1: the third event follows on the ordinary cadence
+  ok    THE VANGUARD QUEUE IS IDENTICAL with and without the staging — content and order
+  ok    the opening lanes SEPARATE the pair at the close hold (vs the same pair unlaned)
+  ok    the front releases when both opening shields are inside establishPx
+  ok    killing an opening shield BREACHES the front and the backline releases
+  ok    a shield killed before the second even exists still releases (no deadlock)
+  ok    both opening shields destroyed quickly: no deadlock
+  ok    a player kiting away cannot freeze the wave — the timeout releases
+  ok    and the timeout runs from the second shield's MATERIALISATION, on game time
+  ok    a SURGE during the hold neither releases, re-arms nor resets the front
+  ok    surge shields are VANGUARD screens but never opening-pair members
+  ok    an ordinary room start still has the room's authored opening enemies
+  ok    &wave=2 starts WITHOUT them — every living enemy came from this wave's own spawner
+  ok    CROSSFIRE + Captain: no front staging, placement intact
+  ok    a non-VANGUARD wave never arms it
+
+  natural timeline (wall ms from wave start): {"s1":3100,"s2":3950,"second":3950,"release":7000,"gate3":7000,"captain":7716} release=timeout after 3070ms of GAME time from the 2nd shield
+  pair at hold: laned {"da":129,"db":128,"lateral":94,"apart":94,"lanes":[null,null]} vs unlaned 11px apart · lateral at release 41px
+  nofront gap event2->event3: 667ms (spawnRate 616)
+  kite: timeout after 2950ms · establish: 250ms after 2nd shield
+PASS: 30 checks — the VANGUARD front establishes before the backline, and nothing else moved

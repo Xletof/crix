@@ -1,0 +1,21 @@
+  ok    names do not repeat in practice
+  ok    the loadout space is genuinely large
+  ok    more than one base archetype is used
+  ok    every trait can actually be rolled
+  ok    a nemesis never rolls the same trait twice
+  ok    deeper sectors stack more traits
+  ok    but the stack is capped so the loadout stays readable
+  ok    and a real roll reflects that
+  ok    the same loadout is tougher deeper in the climb
+  ok    ARMORED adds health
+  ok    SWIFT trades health for speed
+  ok    COLOSSAL is bigger
+  ok    REGENERATOR carries a heal rate
+  ok    SUMMONER carries a summon interval
+  ok    VOLATILE carries a real blast
+  ok    two traits compose — both apply, not just the last
+  ok    the mini-boss spawns as a named nemesis
+  ok    carrying at least one trait
+  ok    REGENERATOR heals in play
+  ok    VOLATILE damages the player who killed it up close
+PASS: 20 checks — nemeses are named, composed, escalating and mechanically real

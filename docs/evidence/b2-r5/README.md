@@ -165,6 +165,8 @@ The FLAC trios:
 
 ## Verification
 
+**Deployed:** `FRIX` was fast-forwarded to `1a88281`, and Pages run #312 succeeded. The run-all result below was recorded after that deploy, and these docs were re-deployed with it.
+
 Every suite ran standalone on the final code. Where a suite takes `--old`, it compared against `7e73dae`, B2-R4's deploy, served from its own worktree. The logs are in this folder.
 
 | Suite | Result | Notes |
@@ -183,7 +185,7 @@ Every suite ran standalone on the final code. Where a suite takes `--old`, it co
 | `smoke-controls` | PASS | |
 | `smoke-restart` | PASS (16 checks) | |
 | production bundle (`npm run build`, `vite preview`) | no page errors | the six matrix links and a plain boot |
-| `run-all` (52 suites) | not yet run at deploy | run straight after the deploy; this row is updated with the result |
+| `run-all` (52 suites) | **48/52** | Every failure was re-run standalone on this build and on `7e73dae`. None is new: champion-placement and captain-closeout fail on both builds on the same checks; nemesis's VOLATILE check fails 2 runs in 4 on each build; vanguard-front passes standalone (load). Details in `run-all-reruns/README.md`. |
 
 - **B2 and B2S unchanged.** Offline renders with a Super, against `7e73dae`'s `b2Audio.js`:
 

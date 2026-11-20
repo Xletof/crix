@@ -1,0 +1,205 @@
+smoke-arc        … PASS  13s
+smoke-arena      … PASS  15s
+smoke-boss       … PASS  11s
+smoke-boss-moves … PASS  67s
+smoke-camera     … PASS  62s
+smoke-champion   … PASS  183s
+smoke-champion-placement … FAIL  438s
+  ok    a Captain was live before the room change
+  ok    ROOM TEARDOWN REMOVES HIM — actor and rifle destroyed, none carried into the next room
+  ok    no Captain: SWARM TIDE forced onto the placement cell
+  ok    no Captain: SNIPER NEST forced onto the placement cell
+  ok    no Captain: BOMBER RUN forced onto the placement cell
+  ok    no Captain: VANGUARD at the same cell before the first Vader (sector 4)
+  ok    no Captain: the other mid-band hangar waves
+  ok    no Captain: late hangar VANGUARD — not every VANGUARD carries him
+  ok    no Captain: the Vader chamber at a boss sector
+  ok    no Captain: the Nemesis duel wave
+  ok    no Captain: the Reactor Junction VANGUARD in the mid band
+  ok    the late CROSSFIRE cell carries its authored placement
+  FAIL  exactly one Captain token there too — grunt,shooter,grunt,shooter
+  FAIL  the opposed shooters still open CROSSFIRE — grunt,shooter,grunt
+  FAIL  THE SAME SEED REPRODUCES THE SAME WAVE, Captain included
+  FAIL  and a DIFFERENT seed still places him in the same cell, slot and budget — placement is authored, not rolled
+  ok    a fresh production run places no Captain in any sector-1 wave
+
+  placement cells:
+    hangar mid wave 2  vanguard  slot 2  cost 2
+    hangar late wave 3  crossfire  slot 2  cost 2
+  VANGUARD s8 w2: captain,shielded,shooter,shielded,shielded,shielded  (baseline shooter,shielded,shooter,shielded,shielded,shielded,grunt)
+  CROSSFIRE s16 w3: grunt,shooter,grunt,shooter
+FAIL: 7 of 60 checks failed: EXACTLY ONE Captain token, in his authored lead slot; every other event is the SAME event, in the same order — no hidden reroll; the shields still lead — VANGUARD opens as VANGUARD; exactly one Captain token there too; the opposed shooters still open CROSSFIRE; THE SAME SEED REPRODUCES THE SAME WAVE, Captain included; and a DIFFERENT seed still places him in the same cell, slot and budget — placement is authored, not rolled
+
+smoke-vanguard-screen … PASS  203s
+smoke-vanguard-front … FAIL  153s
+  ok    the wave still clears normally
+  ok    &nofront=1: no staging, no slots, no lanes
+  ok    &nofront=1 leaves the 140px close screen ON
+  ok    &nofront=1: the third event follows on the ordinary cadence
+  ok    THE VANGUARD QUEUE IS IDENTICAL with and without the staging — content and order
+  FAIL  the opening lanes SEPARATE the pair at the close hold (vs the same pair unlaned) — laned 50px apart vs unlaned 5px
+  ok    the front releases when both opening shields are inside establishPx
+  ok    killing an opening shield BREACHES the front and the backline releases
+  ok    a shield killed before the second even exists still releases (no deadlock)
+  ok    both opening shields destroyed quickly: no deadlock
+  ok    a player kiting away cannot freeze the wave — the timeout releases
+  ok    and the timeout runs from the second shield's MATERIALISATION, on game time
+  ok    a SURGE during the hold neither releases, re-arms nor resets the front
+  ok    surge shields are VANGUARD screens but never opening-pair members
+  ok    an ordinary room start still has the room's authored opening enemies
+  ok    &wave=2 starts WITHOUT them — every living enemy came from this wave's own spawner
+  ok    CROSSFIRE + Captain: no front staging, placement intact
+  ok    a non-VANGUARD wave never arms it
+
+  natural timeline (wall ms from wave start): {"s1":3817,"s2":5800,"second":5800,"release":8783,"gate3":8783,"captain":9500} release=timeout after 3068ms of GAME time from the 2nd shield
+  pair at hold: laned {"da":128,"db":127,"lateral":50,"apart":50,"lanes":[null,null]} vs unlaned 5px apart · lateral at release 82px
+  nofront gap event2->event3: 667ms (spawnRate 616)
+  kite: timeout after 3050ms · establish: 83ms after 2nd shield
+FAIL: 1 of 30 checks failed: the opening lanes SEPARATE the pair at the close hold (vs the same pair unlaned)
+
+smoke-vanguard-reinforce … PASS  42s
+smoke-harrower   … PASS  206s
+smoke-captain    … PASS  234s
+smoke-captain-state … PASS  206s
+smoke-captain-damage … PASS  53s
+smoke-arcgrenade … PASS  94s
+smoke-captel     … PASS  137s
+smoke-captain-step … PASS  123s
+smoke-captain-rifle … PASS  120s
+smoke-captain-visual … PASS  51s
+smoke-captain-closeout … FAIL  104s
+  ok    the stock threat ring is never hidden, redrawn or deformed by the step
+  ok    exactly three traces per step, never more than three at once, none moving or growing
+  ok    every trace stands on a position the body really occupied — sampled, never placed
+  ok    the traces run along the travel in order, oldest faintest
+  ok    the catch belongs to the body — oldest trace gone as it lands, at most one left 60ms in, none after the step
+  ok    the catch contour is gone on the frame the step ends — it never outlines the next pose
+  ok    a Captain killed mid-travel with three traces up leaves no trace image behind
+  ok    after the step no step FX is left, and his body and speed are untouched
+  ok    the staged field reached its live phase
+  ok    the gameplay radius is the authored one — this pass moved no number
+  ok    a fraction inside is dangerous, the edge is dangerous, a fraction outside is safe — unchanged
+  ok    shutdown steps back DOWN the device's own ladder — armed, charging, inert — rather than fading out
+  ok    the device speaks twice: inert on landing, BLIP to charging, SILENT again, BLIP to armed, and holds
+  ok    and not one instant of the activation makes the centre dangerous — `contains` still waits for the field
+  ok    the source life creates no objects per frame — a destroyed grenade takes exactly its five Graphics and its device
+  ok    the source core is drawing at every sampled instant of the live field — alive between ticks, not only on them
+  FAIL  a damage tick makes the source react — and the tick itself is exactly the authored damage on the authored cadence — {"hitT":170,"removed":0,"cool":420}
+  ok    after `fieldMs` the device is SPENT: not live, `contains` false, and a player standing on it takes nothing
+  ok    the power-down is drawn on the device alone — no ring survives the danger
+  ok    it powers down for `spentMs` and is then gone — a visible shutdown, then a clean removal
+  ok    durability is 3400 + 1900 = 5300 with armourTake 0.85 and armourSpill 0.55 — untouched
+  ok    the step is 200px / 90 / 215 / 120 / 2800 — untouched
+  ok    the Arc Grenade's radius, timings, damage, tick, drag and cooldown are untouched
+FAIL: 1 of 60 checks failed: a damage tick makes the source react — and the tick itself is exactly the authored damage on the authored cadence
+
+smoke-boost      … PASS  10s
+smoke-cluster    … PASS  15s
+smoke-controls   … PASS  30s
+smoke-debug      … PASS  35s
+smoke-deflect    … PASS  47s
+smoke-depth      … PASS  13s
+smoke-dialogue   … PASS  27s
+smoke-duel       … PASS  66s
+smoke-encdbg     … PASS  167s
+smoke-encounters … PASS  23s
+smoke-endless    … PASS  49s
+smoke-flight     … PASS  13s
+smoke-hangar     … PASS  15s
+smoke-hum        … PASS  10s
+smoke-junction   … PASS  17s
+smoke-detention  … PASS  38s
+smoke-leak       … PASS  17s
+smoke-march      … PASS  41s
+smoke-moves      … PASS  113s
+smoke-music-tiers … PASS  190s
+smoke-nemesis    … FAIL  29s
+  ok    names do not repeat in practice
+  ok    the loadout space is genuinely large
+  ok    more than one base archetype is used
+  ok    every trait can actually be rolled
+  ok    a nemesis never rolls the same trait twice
+  ok    deeper sectors stack more traits
+  ok    but the stack is capped so the loadout stays readable
+  ok    and a real roll reflects that
+  ok    the same loadout is tougher deeper in the climb
+  ok    ARMORED adds health
+  ok    SWIFT trades health for speed
+  ok    COLOSSAL is bigger
+  ok    REGENERATOR carries a heal rate
+  ok    SUMMONER carries a summon interval
+  ok    VOLATILE carries a real blast
+  ok    two traits compose — both apply, not just the last
+  ok    the mini-boss spawns as a named nemesis
+  ok    carrying at least one trait
+  ok    REGENERATOR heals in play
+  FAIL  VOLATILE damages the player who killed it up close — player 1000 -> 1000 — this is what makes melee-spam a choice
+FAIL: 1 of 20 checks failed: VOLATILE damages the player who killed it up close
+
+smoke-nemesis-fx … PASS  82s
+smoke-nemesis-kit … PASS  36s
+smoke-nemesis-memory … PASS  27s
+smoke-pathing    … PASS  13s
+smoke-progress   … PASS  18s
+smoke-readability … PASS  98s
+smoke-rng        … PASS  33s
+smoke-restart    … PASS  107s
+smoke-score      … PASS  20s
+smoke-title      … PASS  15s
+smoke-vader      … PASS  90s
+
+────────────────────────────────────────────────────────────
+  ok   smoke-arc        PASS: pop above the burst, then cascade onto the pack
+  ok   smoke-arena      PASS: the arena pilot is art — geometry, collision, the darkness owner
+  ok   smoke-boss       PASS: phases fire once each at the configured thresholds and never rev
+  ok   smoke-boss-moves PASS: 18 checks — Vader performs his own moves, and his copies bite
+  ok   smoke-camera     smoke-camera OK
+  ok   smoke-champion   PASS: 36 checks — the Champion is authored, placed, cleaned up, and de
+ FAIL  smoke-champion-placement FAIL: 7 of 60 checks failed: EXACTLY ONE Captain token, in his authore
+  ok   smoke-vanguard-screen PASS: 22 checks — VANGUARD shields close to a screen; nothing else mov
+ FAIL  smoke-vanguard-front FAIL: 1 of 30 checks failed: the opening lanes SEPARATE the pair at th
+  ok   smoke-vanguard-reinforce PASS: 26 checks — one more guaranteed shield, same budget, and the sur
+  ok   smoke-harrower   PASS: 28 checks — the Harrower moves, carves only by moving, cleans up
+  ok   smoke-captain    PASS: 38 checks — the Shock Captain moves, fights, breaks once, and st
+  ok   smoke-captain-state PASS: 29 checks — transitions fire once, the body carries the state, n
+  ok   smoke-captain-damage PASS: 9 checks — the number the player reads is the durability actuall
+  ok   smoke-arcgrenade PASS: 16 checks — thrown, travelled, landed, armed, bounded, and swept
+  ok   smoke-captel     PASS: 22 checks — the instrument observes, reconciles, and changes not
+  ok   smoke-captain-step PASS: 24 checks — pools authored, arithmetic unchanged, the step is ho
+  ok   smoke-captain-rifle PASS: 21 checks — one plan per commitment, drawn once, executed whole,
+  ok   smoke-captain-visual PASS: 17 checks — the damage is the model, the boundary is the radius
+ FAIL  smoke-captain-closeout FAIL: 1 of 60 checks failed: a damage tick makes the source react — an
+  ok   smoke-boost      PASS: the burn sustains through the dive and stops after
+  ok   smoke-cluster    PASS: distinct locks, flat scale, no ground phase, lines clean up
+  ok   smoke-controls   PASS: the editor moves the real controls, persists, and resets
+  ok   smoke-debug      PASS: debug menu works and the HUD stays in sync
+  ok   smoke-deflect    PASS: 73 checks — he bats your fire back and keeps your power
+  ok   smoke-depth      PASS: draws over the room, no tumble
+  ok   smoke-dialogue   PASS: 22 checks — they speak, they do not repeat, and a stranger stays
+  ok   smoke-duel       PASS: 20 checks — a nemesis encounter is a duel, and the bomber surviv
+  ok   smoke-encdbg     PASS: 33 checks — the harness is debug-only, real-runtime, and cannot 
+  ok   smoke-encounters PASS: 25 checks — the encounter table is well-formed, wired, and not r
+  ok   smoke-endless    PASS: 20 checks — the climb reaches Vader, scales him, and carries on 
+  ok   smoke-flight     PASS: curved attack run, arrives under power, exhaust lit
+  ok   smoke-hangar     PASS: the hangar is art — its geometry, its collision, the chamber and
+  ok   smoke-hum        PASS: hum carries in the phone-audible band and stops cleanly
+  ok   smoke-junction   smoke-junction OK
+  ok   smoke-detention  49 passed, 0 failed
+  ok   smoke-leak       PASS: primary fire is isolated from the cluster
+  ok   smoke-march      PASS  full 8-bar Imperial March phrase
+  ok   smoke-moves      PASS: 34 checks — the enemy performs the move, and beating it pays
+  ok   smoke-music-tiers PASS  tiers change the bed and the director tracks the situation
+ FAIL  smoke-nemesis    FAIL: 1 of 20 checks failed: VOLATILE damages the player who killed it
+  ok   smoke-nemesis-fx PASS: 8 checks — the nemeses perform their moves, in their own colours
+  ok   smoke-nemesis-kit PASS: 25 checks — a nemesis looks and fights like its own enemy
+  ok   smoke-nemesis-memory PASS: 33 checks — the nemesis remembers, scars, dies once, and is repl
+  ok   smoke-pathing    PASS (diagnostic): mean efficiency 0.84, 1 max reversals, 25% funnel
+  ok   smoke-progress   PASS: 43 checks — upgrades apply and stack, rooms tear down, stats per
+  ok   smoke-readability PASS: 19 checks — the attacks can be seen coming
+  ok   smoke-rng        PASS: 17 checks — runs are reproducible and the streams do not couple
+  ok   smoke-restart    PASS: 16 checks — restarts leave no duplicate handlers and no stale ar
+  ok   smoke-score      PASS: 41 checks — kills, chain multiplier and wave bonuses all score
+  ok   smoke-title      PASS: 15 checks — endless leads, and its record is the first thing you
+  ok   smoke-vader      PASS: 116 checks — the ladder is mechanics, not multipliers
+────────────────────────────────────────────────────────────
+48/52 passed

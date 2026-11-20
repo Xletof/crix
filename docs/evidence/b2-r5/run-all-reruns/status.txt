@@ -1,0 +1,17 @@
+head champion-placement exit 1 453s FAIL: 7 of 60 checks failed: EXACTLY ONE Captain token, in his authored lead slot; every other event is the SAME event, in the same order �
+head vanguard-front exit 0 152s PASS: 30 checks — the VANGUARD front establishes before the backline, and nothing else moved
+head captain-closeout exit 1 109s FAIL: 1 of 60 checks failed: a damage tick makes the source react — and the tick itself is exactly the authored damage on the authored cad
+head nemesis exit 1 30s FAIL: 1 of 20 checks failed: VOLATILE damages the player who killed it up close
+head DONE
+old champion-placement exit 1 474s FAIL: 7 of 60 checks failed: EXACTLY ONE Captain token, in his authored lead slot; every other event is the SAME event, in the same order �
+old captain-closeout exit 1 114s FAIL: 1 of 60 checks failed: a damage tick makes the source react — and the tick itself is exactly the authored damage on the authored cad
+old DONE
+oldrep nemesis#1 exit 1 31s FAIL: 1 of 20 checks failed: VOLATILE damages the player who killed it up close
+oldrep nemesis#2 exit 0 29s PASS: 20 checks — nemeses are named, composed, escalating and mechanically real
+oldrep nemesis#3 exit 0 29s PASS: 20 checks — nemeses are named, composed, escalating and mechanically real
+oldrep nemesis#4 exit 1 35s FAIL: 1 of 20 checks failed: VOLATILE damages the player who killed it up close
+oldrep nemesis REP DONE
+headrep nemesis#1 exit 0 35s PASS: 20 checks — nemeses are named, composed, escalating and mechanically real
+headrep nemesis#2 exit 0 34s PASS: 20 checks — nemeses are named, composed, escalating and mechanically real
+headrep nemesis#3 exit 1 30s FAIL: 1 of 20 checks failed: VOLATILE damages the player who killed it up close
+headrep nemesis REP DONE
