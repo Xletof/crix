@@ -169,4 +169,29 @@ See the table below; the suite logs are in this folder.
 
 ## Recommendation (critical)
 
-PENDING
+**Audio: Heavy Cannon over Reactor Detonation, with further iteration expected. Neither is ready to adopt on measurements alone.**
+
+Heavy Cannon is the stronger candidate:
+- It moves the Super's energy into the low-mids: 51% of its first 300 ms at 200–900 Hz, against B2S's 17%.
+- It carries +3.1 LU more through a phone-speaker band at the same loudness.
+- It is a noise-led blast rather than tones (twice B2S's spectral flatness), with no falling glide.
+- Its decay is compact, 12–15 dB down by the time a next action would follow.
+- Isolated, its onset is as strong as B2S's, but not stronger.
+
+Reactor Detonation is weaker as measured:
+- Its onset is 2.4 dB lower relative to its loudness.
+- Its collapse nearly equals its initial hit in game (−1.5 dB).
+- Its longer crackle tail is more likely to muddy a dense fight.
+- It has converged with Heavy Cannon spectrally, so its separate identity rests on time structure alone.
+
+Against the success criterion: neither candidate is "absurd" by level, because each was matched to B2S's loudness on purpose. If, on the phone, Heavy Cannon feels heavier but not big enough, the levers in order are:
+1. `R5_TRIM.B2HC` (a louder Super, a design decision);
+2. more crack against less roar (more punch, less "THOOOM").
+
+If it does not feel heavier at all, the next step is a different approach (recorded or sampled impact material), not more synthesis tuning.
+
+**Aura: test it, then decide on strength.**
+- It is gated correctly (full shield only, knocked out by a hit), never covers the hero or the rifle, and changes nothing else on screen.
+- At native phone resolution it reads as a soft glow on the helmet and shoulders. In wide shots and at half scale it nearly vanishes.
+- Condition C (B2S + aura) isolates the aura; D (Heavy Cannon + aura) is the combined proposal.
+- If it is too faint, raise `R5_AURA.a1` / `a2`; if it clutters, lower them. No other part needs to change.
