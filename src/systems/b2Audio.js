@@ -794,7 +794,7 @@ function kitR5(ctx, dest, stats, now, superDest, design) {
  *  `opts` { ctx, dest, now }: render into another context (an OfflineAudioContext replaying a
  *  recorded event timeline, for the A/B demonstrations); `now()` is that timeline's clock. */
 export function createB2Audio(kind, opts = {}) {
-  let ctx = null, kit = null, bus = null, superBus = null, motorUntil = 0, lastTick = -1, lastDuck = -1, ambT = 0;
+  let ctx = null, kit = null, bus = null, superBus = null, superChain = [], motorUntil = 0, lastTick = -1, lastDuck = -1, ambT = 0;
   const R5 = kind === 'B2HC' || kind === 'B2RD';        // B2-R5: B2 with a new Super discharge
   const B2FAM = kind === 'B2' || kind === 'B2S' || R5;   // the approved B2 behaviour: trim, confirmation, cuts
   const stats = { kind, shots: 0, ticks: 0, ducks: 0, live: false, events: {}, peakVoices: 0, dropped: 0 };
@@ -814,6 +814,7 @@ export function createB2Audio(kind, opts = {}) {
         comp2.threshold.value = -14; comp2.knee.value = 8; comp2.ratio.value = 5; comp2.attack.value = 0.002; comp2.release.value = 0.12;
         superBus = ctx.createGain(); superBus.gain.value = 0.9 * B2S_TRIM;
         superBus.connect(comp2); comp2.connect(d.sfxGain);
+        superChain = [superBus, comp2];
       } else if (R5) {
         // the R5 Super's own bus and compressor (its pumping is part of the blast)
         const comp3 = ctx.createDynamicsCompressor();
@@ -825,6 +826,7 @@ export function createB2Audio(kind, opts = {}) {
         const clip = ctx.createWaveShaper(); clip.curve = R5_CLIP; clip.oversample = '4x';
         superBus = ctx.createGain(); superBus.gain.value = 0.9 * R5_TRIM[kind];
         superBus.connect(comp3); comp3.connect(pre); pre.connect(clip); clip.connect(d.sfxGain);
+        superChain = [superBus, comp3, pre, clip];
       }
       kit = kind === 'A' ? kitA(ctx, bus, stats, now) : kind === 'B2' ? kitB2(ctx, bus, stats, now) : kind === 'B2S' ? kitB2S(ctx, bus, stats, now, superBus) : R5 ? kitR5(ctx, bus, stats, now, superBus, kind === 'B2HC' ? 'HC' : 'RD') : kitB(ctx, bus, stats, now);
     }
@@ -896,6 +898,7 @@ export function createB2Audio(kind, opts = {}) {
       }
       kit.bed?.(now(), { heat: s.heat, firing, ready: s.heat >= 1, suppressed: s.suppressed, dead, sup });
     },
-    destroy() { try { kit?.destroy?.(); } catch (_) { /* */ } try { bus?.disconnect(); } catch (_) { /* */ } kit = null; void motorUntil; },
+    // the Super bus chain (B2S, R5) is disconnected too: it stayed wired after a restart before B2-R5
+    destroy() { try { kit?.destroy?.(); } catch (_) { /* */ } try { bus?.disconnect(); } catch (_) { /* */ } for (const n of superChain) { try { n.disconnect(); } catch (_) { /* */ } } stats.superChainCut = superChain.length; superChain = []; kit = null; void motorUntil; },
   };
 }

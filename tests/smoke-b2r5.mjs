@@ -289,7 +289,9 @@ if (on(4)) {
       out.refull = settle(400);
       // facings (the side frame flipped for W)
       out.facings = {};
-      for (const [nm, a] of [['S', Math.PI / 2], ['N', -Math.PI / 2], ['E', 0], ['W', Math.PI]]) { P.facing = a; const k = gs.keys, dir = Math.round(((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) / (Math.PI / 2)) % 4; k.D.isDown = dir === 0; k.S.isDown = dir === 1; k.A.isDown = dir === 2; k.W.isDown = dir === 3; window.__adv(3); k.D.isDown = k.S.isDown = k.A.isDown = k.W.isDown = false; window.__adv(6); out.facings[nm] = { ring1: sk().r5?.ring1 ?? 0, visible: !!A()?.visible, flip: P.flipX, frame: P.frame.name }; }
+      for (const [nm, a] of [['S', Math.PI / 2], ['N', -Math.PI / 2], ['E', 0], ['W', Math.PI]]) { P.facing = a; const k = gs.keys, dir = Math.round(((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) / (Math.PI / 2)) % 4; k.D.isDown = dir === 0; k.S.isDown = dir === 1; k.A.isDown = dir === 2; k.W.isDown = dir === 3; window.__adv(3); k.D.isDown = k.S.isDown = k.A.isDown = k.W.isDown = false; window.__adv(6); out.facings[nm] = { ring1: sk().r5?.ring1 ?? 0, visible: !!A()?.visible, flip: P.flipX, frame: P.frame.name, aura: A()?.depth ?? null, weapon: P.weaponSprite?.depth ?? null, hero: P.depth }; }
+      // fading in after a spell at 0: no jump on the first frame back
+      P.shieldHp = 0; window.__adv(60); P.shieldHp = 400; window.__adv(1); out.fadeIn1 = lvl(); window.__adv(1); out.fadeIn2 = lvl();
       // a hit at full: knocked out, then back
       P.shieldHp = 400; window.__adv(40); P.damage(20, 0); window.__adv(1); out.hit = { level: lvl(), shield: P.shieldHp }; window.__adv(40); out.afterHit = { level: lvl(), shield: P.shieldHp };
       // the break: none
@@ -307,6 +309,8 @@ if (on(4)) {
   const V = on4.values;
   check('only at full: settled at 400 the aura is up (level 1); at 300, 200, 100 and 0 it is gone (level 0, not drawn)', V[400].level === 1 && V[400].visible && [300, 200, 100, 0].every((k) => V[k].level === 0 && !V[k].visible) && on4.refull.level === 1, JSON.stringify(V));
   check('all four facings at full draw the aura (the side frame flipped for W)', ['S', 'N', 'E', 'W'].every((k) => on4.facings[k].visible && on4.facings[k].ring1 > 6) && on4.facings.W.flip !== on4.facings.E.flip, JSON.stringify(on4.facings));
+  check('the aura is below the hero AND below the rifle on every facing (Player draws the rifle at depth - 1 facing north)', ['S', 'N', 'E', 'W'].every((k) => { const f = on4.facings[k]; return f.aura != null && f.aura < f.hero && (f.weapon == null || f.aura < f.weapon); }), JSON.stringify(Object.fromEntries(Object.entries(on4.facings).map(([k, f]) => [k, { aura: f.aura, weapon: f.weapon, hero: f.hero }]))));
+  check('after a spell at 0 the aura fades in from nothing (no jump on the first frame back)', on4.fadeIn1 != null && on4.fadeIn1 < 0.15 && on4.fadeIn2 > on4.fadeIn1, JSON.stringify({ first: on4.fadeIn1, second: on4.fadeIn2 }));
   check('a hit at full knocks the aura out at once and it returns; the break shows none', on4.hit.level === 0 && on4.hit.shield < 400 && on4.afterHit.level > 0 && on4.brk.level === 0 && !on4.brk.visible, JSON.stringify({ hit: on4.hit, afterHit: on4.afterHit, brk: on4.brk }));
   const R = on4.r5;
   check('behind the hero (depth below the sprite), never on a sprite cell, motes from a pool of at most four, redrawn at most every 40 ms', on4.depth.aura < on4.depth.hero && R.inside === 0 && R.motes > 3 && R.motesPeak <= 4 && R.draws <= Math.ceil(R.frames * 1.01) + 1, JSON.stringify({ depth: on4.depth, inside: R.inside, motes: R.motes, motesPeak: R.motesPeak, draws: R.draws, frames: R.frames, ring1: R.ring1, ring2: R.ring2 }));
@@ -329,7 +333,7 @@ if (on(4)) {
   const fc = await fightHash(M.CTRL.flags), fa = await fightHash(M.C.flags);
   const d = firstDiff(fc.hs, fa.hs);
   check('a rendered fight (MIXED s6, god mode off, the shield topped to 400 every 120 ticks on both sides, two Supers, a Broken Wings chain, moving): every object on screen other than the aura identical to the R4 control at every rendered tick (the aura covers, moves and recolours nothing)', d < 0 && fa.hs.length === 600 && fa.aura > 0, d < 0 ? `600 ticks; aura shown on ${fa.aura} ticks` : `first different tick ${d}`);
-  check('the aura in sync with the hero at every render (position, scale, alpha incl. a bush, depth below the sprite)', fa.r5.sync.checks > 50 && fa.r5.sync.bad === 0 && fa.sync.bad === 0, JSON.stringify({ aura: fa.r5.sync, shield: fa.sync }));
+  check('the aura in sync with the hero at every render (position, scale, alpha incl. a bush, depth below the sprite and the rifle)', fa.r5.sync.checks > 50 && fa.r5.sync.bad === 0 && fa.sync.bad === 0, JSON.stringify({ aura: fa.r5.sync, shield: fa.sync }));
   check('cost: the skin\'s per-frame update with the aura stays bounded (under 1.5 ms mean in this software-rendered harness) and the display list does not grow', fa.upd < 1.5 && fa.objs === fc.objs + 1, `update ${fc.upd.toFixed(3)} ms (R4) vs ${fa.upd.toFixed(3)} ms (aura) per frame; display objects ${fc.objs} vs ${fa.objs}; wall time ${fc.ms.toFixed(0)} vs ${fa.ms.toFixed(0)} ms for 600 rendered ticks; aura draws ${fa.r5.draws}`);
 }
 
@@ -373,6 +377,12 @@ if (on(5)) {
   });
   await p.close();
   check('one aura object per run across restarts, none after quitting to the title', r.counts.every((c) => c === 1) && r.title === 0, JSON.stringify(r));
+  for (const k of ['B2S', 'B2HC', 'B2RD']) {
+    const q = await boot(join(R4, `b2a=${k}`), { audio: true }); await prep(q);
+    const z = await q.evaluate(() => { const gs = window.__gs, v = gs._b2.voice; window.__stage(); window.__ring(2, 260, 0, 0.5); window.__super(); window.__adv(90); const built = !!v.stats.super; gs.scene.stop('HUD'); gs.scene.start('Title'); window.__adv(5); return { built, cut: v.stats.superChainCut ?? null }; });
+    await q.close();
+    check(`${k}: quitting to the title disconnects the Super bus chain (live audio, the kit built)`, z.built && z.cut === (k === 'B2S' ? 2 : 4), JSON.stringify(z));
+  }
 }
 
 // ── 6. THE SHIPPED LINKS ─────────────────────────────────────────────────

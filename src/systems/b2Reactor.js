@@ -288,7 +288,7 @@ export const R4_SHIELD = {
  *  edge. Only in the top quarter (shield above 300); a hit knocks it out briefly; none at 0 or on a
  *  break. Deterministic (a hash of game time, no Math.random); redrawn at most every stepMs. */
 export const R5_AURA = { ring1: [150, 235, 255], ring2: [100, 185, 255], a1: 0.58, a2: 0.26, breathMs: 2400, breath: 0.25, shimmerMs: 700, sparse: 0.5, topW: 1, footW: 0.15,
-  fadeInMs: 320, fadeOutMs: 140, hitOffMs: 220, stepMs: 40, motes: 4, moteEveryMs: 420, moteLifeMs: 900, moteRise: [10, 16], moteA: 0.95, topFrac: 0.45 };
+  fadeInMs: 320, fadeOutMs: 140, hitOffMs: 220, stepMs: 40, motes: 4, moteEveryMs: 420, moteLifeMs: 900, moteRise: [10, 16], moteA: 0.95, topFrac: 0.45, depthBelow: 1.05 };
 const hash3 = (a, b, c) => { let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(c | 0, 1274126177)) >>> 0; h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 export const R3_CHOKE = { strainMs: 900, strainOnMs: 90 };
 /** B2-R4 timings: the wind-up hold's last-resort exit, the discharge's drawn frames, and how long
@@ -1074,7 +1074,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
     const tb = clock - shBreakAt, breaking = alive && tb >= 0 && tb < SH.breakMs[3];
     const show = alive && p.visible !== false && p.alpha > 0 && (hp > 0 || breaking);
     const R = show ? rimsOf(p) : null;
-    if (!R) { shG.setVisible(false); shDrawn = null; if (AURA) { auG.setVisible(false); auLevel = 0; auMotes.length = 0; } return; }
+    if (!R) { shG.setVisible(false); shDrawn = null; if (AURA) { auG.setVisible(false); auLevel = 0; auClock = -1; auMotes.length = 0; } return; }   // auClock: no jump when it returns
     // the lit edge row, easing down from the helmet after a gain
     const tf = (clock - shFillAt) / SH.fillMs;
     const edge = tf < 1 ? Math.round(shFillFrom + (shEdge - shFillFrom) * Math.max(0, tf)) : shEdge;
@@ -1178,7 +1178,8 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
       }
       S5.ring1 = n1; S5.ring2 = n2; S5.frames++;
     }
-    auG.setPosition(p.x, p.y).setScale(Math.abs(p.scaleX), p.scaleY).setRotation(p.rotation).setAlpha(p.alpha).setDepth(p.depth - 0.01).setVisible(true);
+    // below the hero AND below the rifle, which Player draws at depth - 1 when facing north
+    auG.setPosition(p.x, p.y).setScale(Math.abs(p.scaleX), p.scaleY).setRotation(p.rotation).setAlpha(p.alpha).setDepth(p.depth - R5_AURA.depthBelow).setVisible(true);
   }
   // R4: the brighter armour edge (see R4_SHIELD). Same overlay, same rules for what is lit.
   function drawShieldR4(R, p, flip, edge, quarters, hit, brk, dox, doy, g) {
@@ -1226,7 +1227,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   }
   function syncShield() {
     // what the overlay shows, read back against the sprite at render time
-    if (AURA && auG.visible) { const P = scene.player, S5 = stats.r5.sync; S5.checks++; if (!P || auG.x !== P.x || auG.y !== P.y || auG.scaleY !== P.scaleY || auG.alpha !== P.alpha || auG.depth >= P.depth) S5.bad++; }
+    if (AURA && auG.visible) { const P = scene.player, S5 = stats.r5.sync; S5.checks++; if (!P || auG.x !== P.x || auG.y !== P.y || auG.scaleY !== P.scaleY || auG.alpha !== P.alpha || auG.depth >= P.depth - 1) S5.bad++; }
     if (!IS3 || !shG.visible || !shDrawn) return;
     const P = scene.player, S = stats.r3.shield.sync;
     S.checks++;
