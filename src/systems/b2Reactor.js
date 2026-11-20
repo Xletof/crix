@@ -282,6 +282,14 @@ export const R4_SHIELD = {
   glintMs: 1300, glintRows: 2, glintLift: 0.6, hitMs: [50, 140], breakMs: [45, 95, 145, 195],
   shards: 12, shardD: [0, 6, 14, 22], shardA: [0, 1, 0.7, 0.35],
 };
+/** B2-R5 (`&b2aura=1`, level 4): the enchanted aura at full shield. Behind the hero, only on the cells
+ *  just outside the silhouette (a first ring and a sparse, irregular second one), strongest at the
+ *  head and shoulders, breathing slowly with a per-cell shimmer; a few tiny motes rise from the upper
+ *  edge. Only in the top quarter (shield above 300); a hit knocks it out briefly; none at 0 or on a
+ *  break. Deterministic (a hash of game time, no Math.random); redrawn at most every stepMs. */
+export const R5_AURA = { ring1: [120, 225, 255], ring2: [96, 176, 255], a1: 0.36, a2: 0.15, breathMs: 2400, breath: 0.25, shimmerMs: 700, sparse: 0.5, topW: 1, footW: 0.3,
+  fadeInMs: 320, fadeOutMs: 140, hitOffMs: 220, stepMs: 40, motes: 4, moteEveryMs: 560, moteLifeMs: 900, moteRise: [10, 16], moteA: 0.75, topFrac: 0.45 };
+const hash3 = (a, b, c) => { let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(c | 0, 1274126177)) >>> 0; h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 export const R3_CHOKE = { strainMs: 900, strainOnMs: 90 };
 /** B2-R4 timings: the wind-up hold's last-resort exit, the discharge's drawn frames, and how long
  *  after the blast they may still be drawn (two frames at 30 fps; a rifle hidden by the blade at the
@@ -402,6 +410,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   // wind-up until the Super really leaves (no empty frames before the blast) and shows a short
   // discharge, the Super's muzzle discharge in the reactor's reds, and a brighter armour shield.
   const IS4 = IS3 && !!opts.r4;
+  const AURA = IS4 && !!opts.aura;
   const tex = buildAtlas(scene, K), KEY = tex.key;
   if (IS2) buildR2Atlas(scene);
   const has = (f) => !!tex.frames[f];
@@ -418,6 +427,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   };
   if (IS2) stats.name = IS4 ? 'reactor4' : IS3 ? 'reactor3' : 'reactor2';
   if (IS4) stats.r4 = { held: 0, discharge: 0, disLapsed: 0, fireball: { pops: 0, swapped: 0, images: 0, graphics: 0 } };
+  if (AURA) { stats.name = 'reactor4+aura'; stats.r5 = { aura: true, draws: 0, frames: 0, ring1: 0, ring2: 0, level: 0, levelMax: 0, byQuarter: [0, 0, 0, 0, 0], motes: 0, motesPeak: 0, hitOffs: 0, sync: { checks: 0, bad: 0 }, inside: 0 }; }
   if (IS3) { buildR3Gun(scene); stats.r3 = { choked: 0, strain: 0, shield: { drawn: 0, frames: 0, rims: 0, bands: [0, 0, 0, 0, 0], hits: 0, sided: 0, breaks: 0, shards: 0, fills: 0, glints: 0, ringsHidden: 0, sync: { checks: 0, bad: 0 }, alpha: null } }; }
   const suppressedNow = () => (scene.player?._suppressedMs || 0) > 0;
   const pools = {}, pool = [];
@@ -962,6 +972,8 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   // point flashes the whole edge and throws a few shards. The shipped cyan absorb ring is hidden.
   const SH = R3_SHIELD;
   const shG = IS3 ? scene.add.graphics().setVisible(false) : null;
+  const auG = AURA ? scene.add.graphics().setName('b2r5-aura').setVisible(false) : null;   // R5: behind the hero
+  let auLevel = 0, auClock = -1, auKey = '', auSpawnAt = 0, auSpawnN = 0; const auMotes = [];
   const rimCache = new Map();
   let sheet = null, shKey = '', shDrawn = null, shGlintRow = -99;
   let shLast = 0, shEdge = 0, shFillFrom = 0, shFillAt = -1e9, shHitAt = -1e9, shHitSide = null, shBreakAt = -1e9, shBreakFrame = null, shGlintAt = 0;
@@ -1016,6 +1028,17 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
         const seen = new Set(); out.key = [];
         for (const [x, y] of out.px) for (const [dx, dy] of N4) { const X = x + dx, Y = y + dy, k = Y * W + X; if (outline(X, Y) && !seen.has(k)) { seen.add(k); out.key.push([X, Y]); } }
       }
+      if (AURA) {
+        // R5: the outside cells touching the silhouette (ring 1, one cell beyond the frame allowed) and the
+        // outside cells touching those (ring 2); never a cell of the sprite, never an enclosed hole
+        const sil = (x, y) => { const i = ix(x, y); return i >= 0 && cell[i] !== 0; };
+        const isOut = (x, y) => x < 0 || y < 0 || x >= W || y >= H || ext[y * W + x] === 1;
+        const k2 = (x, y) => (y + 1) * (W + 2) + (x + 1);
+        const r1 = new Set(); out.halo1 = []; out.halo2 = []; out.haloTop = [];
+        for (let y = -1; y <= H; y++) for (let x = -1; x <= W; x++) if (isOut(x, y) && N4.some(([dx, dy]) => sil(x + dx, y + dy))) { r1.add(k2(x, y)); out.halo1.push([x, y]); if (y < H * R5_AURA.topFrac) out.haloTop.push([x, y]); }
+        for (let y = -1; y <= H; y++) for (let x = -1; x <= W; x++) if (isOut(x, y) && !r1.has(k2(x, y)) && !sil(x, y) && N4.some(([dx, dy]) => r1.has(k2(x + dx, y + dy)))) out.halo2.push([x, y]);
+        out.silAt = sil;
+      }
     } catch (_) { out = null; }
     rimCache.set(key, out);
     if (out) { stats.r3.shield.frames++; stats.r3.shield.rims = Math.max(stats.r3.shield.rims, out.px.length); }
@@ -1051,7 +1074,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
     const tb = clock - shBreakAt, breaking = alive && tb >= 0 && tb < SH.breakMs[3];
     const show = alive && p.visible !== false && p.alpha > 0 && (hp > 0 || breaking);
     const R = show ? rimsOf(p) : null;
-    if (!R) { shG.setVisible(false); shDrawn = null; return; }
+    if (!R) { shG.setVisible(false); shDrawn = null; if (AURA) { auG.setVisible(false); auLevel = 0; auMotes.length = 0; } return; }
     // the lit edge row, easing down from the helmet after a gain
     const tf = (clock - shFillAt) / SH.fillMs;
     const edge = tf < 1 ? Math.round(shFillFrom + (shEdge - shFillFrom) * Math.max(0, tf)) : shEdge;
@@ -1103,6 +1126,59 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
     S.bands[quarters]++;
     S.alpha = p.alpha;
     shG.setPosition(p.x, p.y).setScale(Math.abs(p.scaleX), p.scaleY).setRotation(p.rotation).setAlpha(p.alpha).setDepth(p.depth + 0.01).setVisible(true);
+    if (AURA) updateAura(p, R, hp, quarters, flip, dox, doy, g);
+  }
+  // R5: the enchanted aura at full shield (see R5_AURA)
+  function updateAura(p, R, hp, quarters, flip, dox, doy, g) {
+    const A = R5_AURA, S5 = stats.r5;
+    const dt = auClock < 0 ? 0 : Math.max(0, clock - auClock); auClock = clock;
+    const hitOff = clock - shHitAt >= 0 && clock - shHitAt < A.hitOffMs;
+    if (hitOff && auLevel > 0.5) S5.hitOffs++;
+    const want = hp > 0 && quarters === 4 && !hitOff ? 1 : 0;
+    auLevel = want ? Math.min(1, auLevel + dt / A.fadeInMs) : Math.max(0, auLevel - dt / A.fadeOutMs);
+    if (hitOff) auLevel = 0;
+    S5.level = auLevel; S5.levelMax = Math.max(S5.levelMax, auLevel);
+    if (auLevel > 0.01) S5.byQuarter[quarters]++;
+    // motes: a fixed pool, spawned on a game-time schedule from the upper edge
+    for (let i = auMotes.length - 1; i >= 0; i--) if (clock - auMotes[i].born >= A.moteLifeMs) auMotes.splice(i, 1);
+    if (auLevel > 0.5 && clock - auSpawnAt >= A.moteEveryMs && R.haloTop?.length) {
+      auSpawnAt = clock; auSpawnN++;
+      if (auMotes.length < A.motes) {
+        const c = R.haloTop[Math.floor(hash3(auSpawnN, 11, 5) * R.haloTop.length)];
+        auMotes.push({ born: clock, x: c[0], y: c[1], rise: A.moteRise[0] + (A.moteRise[1] - A.moteRise[0]) * hash3(auSpawnN, 3, 9), dx: (hash3(auSpawnN, 7, 2) - 0.5) * 4 });
+        S5.motes++; S5.motesPeak = Math.max(S5.motesPeak, auMotes.length);
+      }
+    }
+    if (auLevel <= 0.001) { auG.setVisible(false); return; }
+    const step = Math.floor(clock / A.stepMs), key = `${p.texture.key}/${p.frame.name}|${flip}|${step}|${Math.round(auLevel * 20)}`;
+    if (key !== auKey) {
+      auKey = key; S5.draws++;
+      auG.clear();
+      const lx = (x) => (flip ? dox - (x + 1) * g : x * g - dox), ly = (y) => y * g - doy;
+      const t = step * A.stepMs, breath = 1 - A.breath + A.breath * Math.sin((2 * Math.PI * t) / A.breathMs);
+      const wy = (y) => A.footW + (A.topW - A.footW) * (1 - Math.max(0, Math.min(1, y / R.H)));
+      const shim = (x, y) => 0.7 + 0.3 * Math.sin(2 * Math.PI * (t / A.shimmerMs + hash3(x + 50, y + 50, 7)));
+      let n1 = 0, n2 = 0;
+      for (const [x, y] of R.halo1) {
+        const a = A.a1 * wy(y) * (0.6 + 0.4 * hash3(x + 50, y + 50, 1)) * breath * shim(x, y) * auLevel;
+        if (a < 0.02) continue;
+        auG.fillStyle(hexOf(A.ring1), a); auG.fillRect(lx(x), ly(y), g, g); n1++;
+        if (R.silAt(x, y)) S5.inside++;
+      }
+      for (const [x, y] of R.halo2) {
+        if (hash3(x + 50, y + 50, 3) < A.sparse) continue;               // irregular: about half the second ring
+        const a = A.a2 * wy(y) * breath * shim(x, y) * auLevel;
+        if (a < 0.02) continue;
+        auG.fillStyle(hexOf(A.ring2), a); auG.fillRect(lx(x), ly(y), g, g); n2++;
+      }
+      for (const m of auMotes) {
+        const u = (clock - m.born) / A.moteLifeMs, a = A.moteA * (1 - u) * auLevel;
+        if (a < 0.02) continue;
+        auG.fillStyle(hexOf(toward(A.ring1, 0.5)), a); auG.fillRect(lx(m.x) + g / 4 + (flip ? -m.dx : m.dx) * u, ly(m.y) - m.rise * u, g / 2, g / 2);
+      }
+      S5.ring1 = n1; S5.ring2 = n2; S5.frames++;
+    }
+    auG.setPosition(p.x, p.y).setScale(Math.abs(p.scaleX), p.scaleY).setRotation(p.rotation).setAlpha(p.alpha).setDepth(p.depth - 0.01).setVisible(true);
   }
   // R4: the brighter armour edge (see R4_SHIELD). Same overlay, same rules for what is lit.
   function drawShieldR4(R, p, flip, edge, quarters, hit, brk, dox, doy, g) {
@@ -1150,6 +1226,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
   }
   function syncShield() {
     // what the overlay shows, read back against the sprite at render time
+    if (AURA && auG.visible) { const P = scene.player, S5 = stats.r5.sync; S5.checks++; if (!P || auG.x !== P.x || auG.y !== P.y || auG.scaleY !== P.scaleY || auG.alpha !== P.alpha || auG.depth >= P.depth) S5.bad++; }
     if (!IS3 || !shG.visible || !shDrawn) return;
     const P = scene.player, S = stats.r3.shield.sync;
     S.checks++;
@@ -1183,7 +1260,7 @@ export function createReactorSkin(scene, api, K, h, opts = {}) {
       scene.events.off('player-dead', onDied);
       scene.events.off('enemy-hit', onHit);
       try { showPellets(); } catch (_) { /* scene going down */ }
-      for (const o of [gun, heat, swirl, dim, shG, ...pool, ...comps, ...Object.values(pools).flat(), ...arcs, ...plates]) { try { o?.destroy(); } catch (_) { /* */ } }
+      for (const o of [gun, heat, swirl, dim, shG, auG, ...pool, ...comps, ...Object.values(pools).flat(), ...arcs, ...plates]) { try { o?.destroy(); } catch (_) { /* */ } }
       for (const L of [...links.values(), mzLink]) { try { L?.rib.destroy(); L?.glow?.destroy(); } catch (_) { /* */ } }
       for (const d of dissolves) { try { d.img.destroy(); } catch (_) { /* */ } }
       links.clear(); chain.length = 0; dissolves.length = 0;
