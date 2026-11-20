@@ -588,7 +588,9 @@ function kitB2S(ctx, dest, stats, now, superDest) {
 // bus), their own bus and compressor, B2's voice cap, the cuts on pause, death and restart.
 // THE AUTHOR CANNOT LISTEN: designed from principles, checked by measurement; the HUMAN decides.
 /** In-game Super bus levels, set so each candidate's Super window matches B2S's loudness. */
-export const R5_TRIM = { B2HC: 1.25, B2RD: 0.4 };
+export const R5_TRIM = { B2HC: 1.3, B2RD: 0.53 };
+/** The R5 Super bus soft clipper: input u in [-1, 1] stands for x = 2u; out = 0.94 tanh(x / 0.94). */
+export const R5_CLIP = (() => { const n = 2048, c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = 2 * ((i / (n - 1)) * 2 - 1); c[i] = 0.94 * Math.tanh(x / 0.94); } return c; })();
 export const R5_SUPER = { zips: 5, zipGapS: 0.009, impactGapS: 0.05, impactMax: 3, impactLagS: 0.15, windowS: 1.2 };
 function crackleBuffer(ctx, seed, secs = 0.8) {
   // a sparse impulse train, densest at the start: each impulse a 1-3 sample spike of random sign
@@ -617,7 +619,7 @@ function kitR5(ctx, dest, stats, now, superDest, design) {
   const blastBus = ctx.createGain(); blastBus.gain.value = 1; blastBus.connect(superDest);
   const conv = ctx.createConvolver(); conv.normalize = true; conv.buffer = roomIR(ctx, HC ? 0xc4a7b00e : 0xde7b00e, HC ? 0.7 : 1.1, HC ? 0.11 : 0.19);
   const wetLp = ctx.createBiquadFilter(); wetLp.type = 'lowpass'; wetLp.frequency.value = HC ? 2600 : 3600; wetLp.Q.value = 0.6;
-  const wet = ctx.createGain(); wet.gain.value = HC ? 0.42 : 0.5;
+  const wet = ctx.createGain(); wet.gain.value = HC ? 0.42 : 0.38;
   blastBus.connect(conv); conv.connect(wetLp); wetLp.connect(wet); wet.connect(tailBus);
   const sv = voices(ctx, blastBus, stats, now, ends);
   sv.drives.brutal = driveCurve(22);
@@ -673,18 +675,18 @@ function kitR5(ctx, dest, stats, now, superDest, design) {
     st.blasts++;
     if (HC) {
       // ATTACK: the crack, broadband and instant
-      sv.noise(t, { f: 4200, type: 'highpass', q: 0.7, dur: 0.006, gain: 0.5, drive: 'hard' });
-      sv.noise(t, { f: 1900, q: 0.8, dur: 0.018, gain: 0.48, drive: 'brutal' });
+      sv.noise(t, { f: 4200, type: 'highpass', q: 0.7, dur: 0.006, gain: 0.45, drive: 'hard' });
+      sv.noise(t, { f: 1900, q: 0.8, dur: 0.018, gain: 0.5, drive: 'brutal' });
       sv.osc(t, { type: 'square', f: 1400, f2: 900, dur: 0.003, gain: 0.22 });
-      sv.noise(t + 0.002, { f: 3500, q: 0.6, dur: 0.035, gain: 0.3, drive: 'hard' });          // the KRA grain
+      sv.noise(t + 0.002, { f: 3500, q: 0.6, dur: 0.035, gain: 0.36, drive: 'hard' });         // the KRA grain
       // BODY: a driven thump (its harmonics carry 150-600 Hz) and a roaring low-mid burst
-      sv.osc(t, { type: 'sine', f: 210, f2: 88, dur: 0.09, gain: 0.75, drive: 'brutal' });
-      sv.osc(t, { type: 'triangle', f: 132, f2: 80, dur: 0.18, gain: 0.3, lp: 1100, drive: 'hard' });
+      sv.osc(t, { type: 'sine', f: 210, f2: 88, dur: 0.09, gain: 0.66, drive: 'brutal' });
+      sv.osc(t, { type: 'triangle', f: 132, f2: 80, dur: 0.18, gain: 0.25, lp: 1100, drive: 'hard' });
       sv.osc(t, { type: 'sine', f: 72, f2: 56, dur: 0.12, gain: 0.16 });                      // a little real low end
-      sv.noise(t, { f: 1250, f2: 200, type: 'lowpass', q: 1.1, dur: 0.42, gain: 0.66, drive: 'brutal' }); // the THOOOM roar
+      sv.noise(t, { f: 1250, f2: 200, type: 'lowpass', q: 1.1, dur: 0.42, gain: 0.5, drive: 'brutal' });  // the THOOOM roar
       sv.noise(t + 0.01, { f: 170, q: 2.5, dur: 0.4, gain: 0.3, drive: 'hard' });
       sv.noise(t, { f: 520, q: 0.9, dur: 0.14, gain: 0.42, drive: 'hard' });
-      sv.noise(t, { f: 300, q: 1.2, dur: 0.18, gain: 0.3, drive: 'hard' });
+      sv.noise(t, { f: 300, q: 1.2, dur: 0.18, gain: 0.24, drive: 'hard' });
       // PRESSURE: the reactor dumping (a driven band falling fast)
       sv.noise(t + 0.004, { f: 2200, f2: 420, q: 1.4, dur: 0.09, gain: 0.18, drive: 'hard' });
       // TAIL: a compact, gritty rattle and a few sparks, clear by ~0.4 s
@@ -696,15 +698,18 @@ function kitR5(ctx, dest, stats, now, superDest, design) {
       tv.noise(t + 0.05, { f: 1720, q: 6, dur: 0.05, gain: 0.045 });
     } else {
       // DETONATION: as hard as HC's crack, a lower, shorter thump
-      sv.noise(t, { f: 2600, q: 0.7, dur: 0.012, gain: 0.55, drive: 'brutal' });
-      sv.noise(t, { f: 5200, type: 'highpass', q: 0.7, dur: 0.005, gain: 0.32, drive: 'hard' });
+      sv.noise(t, { f: 2600, q: 0.7, dur: 0.018, gain: 0.75, drive: 'brutal' });
+      sv.noise(t + 0.002, { f: 2000, q: 0.7, dur: 0.03, gain: 0.32, drive: 'hard' });          // its own grain, lower than HC's
+      sv.noise(t, { f: 5200, type: 'highpass', q: 0.7, dur: 0.005, gain: 0.4, drive: 'hard' });
       sv.osc(t, { type: 'square', f: 900, f2: 320, dur: 0.012, gain: 0.2 });
-      sv.osc(t, { type: 'sine', f: 190, f2: 92, dur: 0.08, gain: 0.75, drive: 'brutal' });
-      sv.noise(t, { f: 1200, f2: 280, type: 'lowpass', q: 1.0, dur: 0.16, gain: 0.66, drive: 'brutal' });   // the initial blast leads
-      sv.noise(t, { f: 420, q: 0.9, dur: 0.1, gain: 0.4, drive: 'hard' });
+      // (an envelope falls to -80 dB over `dur`, so a voice is heard for roughly its first quarter)
+      sv.osc(t, { type: 'sine', f: 190, f2: 92, dur: 0.18, gain: 0.85, drive: 'brutal' });
+      sv.noise(t, { f: 1200, f2: 260, type: 'lowpass', q: 1.0, dur: 0.42, gain: 0.55, drive: 'brutal' });   // the initial blast leads
+      sv.noise(t, { f: 420, q: 0.9, dur: 0.25, gain: 0.4, drive: 'hard' });
+      sv.noise(t, { f: 260, q: 1.0, dur: 0.14, gain: 0.35, drive: 'hard' });                    // a low-mid slam on the onset
       // IMPLOSION: the pressure collapses inward (a swell rising in level and pitch, cut dead)...
-      sv.noise(t + 0.07, { f: 300, f2: 2600, q: 1.3, a: 0.15, dur: 0.012, gain: 0.3, drive: 'hard' });
-      sv.osc(t + 0.07, { type: 'sine', f: 90, f2: 240, a: 0.15, dur: 0.01, gain: 0.26, drive: 'hard' });
+      sv.noise(t + 0.07, { f: 300, f2: 2600, q: 1.3, a: 0.15, dur: 0.012, gain: 0.13, drive: 'hard' });
+      sv.osc(t + 0.07, { type: 'sine', f: 90, f2: 240, a: 0.15, dur: 0.01, gain: 0.15, drive: 'hard' });
       // ...and lands on a second, collapsing thump
       const c = t + 0.232;
       sv.noise(c, { f: 3200, q: 0.8, dur: 0.008, gain: 0.34, drive: 'hard' });
@@ -713,12 +718,12 @@ function kitR5(ctx, dest, stats, now, superDest, design) {
       sv.noise(c, { f: 1300, f2: 260, type: 'lowpass', q: 1.1, dur: 0.3, gain: 0.32, drive: 'brutal' });
       sv.noise(c, { f: 460, q: 0.9, dur: 0.16, gain: 0.2, drive: 'hard' });
       // FRACTURE: a coarse electrical crackle under all of it
-      crackle(blastBus, t + 0.008, { f: 3000, q: 0.9, dur: 0.62, gain: 0.3 });
-      crackle(blastBus, t + 0.008, { f: 760, q: 1.1, dur: 0.4, gain: 0.2, drive: 'brutal' });
+      crackle(blastBus, t + 0.008, { f: 3000, q: 0.9, dur: 0.62, gain: 0.18 });
+      crackle(blastBus, t + 0.008, { f: 760, q: 1.1, dur: 0.4, gain: 0.12, drive: 'brutal' });
       // DECAY: longer, controlled: a low rumble and the crackle thinning out (~0.8 s)
       st.tails++; open(tailBus, t);
       tv.noise(c + 0.03, { f: 720, f2: 200, type: 'lowpass', q: 0.9, a: 0.03, dur: 0.6, gain: 0.2, drive: 'soft' });
-      crackle(tailBus, c + 0.1, { f: 2200, q: 1.4, dur: 0.5, gain: 0.12 });
+      crackle(tailBus, c + 0.04, { f: 2200, q: 1.4, dur: 0.6, gain: 0.22 });           // the fracture keeps crackling after the collapse
       let u = c + 0.05;
       for (let i = 0; i < 6 && u < t + 0.85; i++) { tv.noise(u, { f: 1800 + 2600 * rnd(), q: 4, dur: 0.012, gain: 0.085 * (1 - i / 7), drive: 'hard' }); u += 0.05 + 0.08 * rnd() * (1 + i * 0.3); }
     }
@@ -810,11 +815,16 @@ export function createB2Audio(kind, opts = {}) {
         superBus = ctx.createGain(); superBus.gain.value = 0.9 * B2S_TRIM;
         superBus.connect(comp2); comp2.connect(d.sfxGain);
       } else if (R5) {
-        // the R5 Super's own bus and a harder, faster compressor (its pumping is part of the blast)
+        // the R5 Super's own bus and compressor (its pumping is part of the blast)
         const comp3 = ctx.createDynamicsCompressor();
-        comp3.threshold.value = -16; comp3.knee.value = 4; comp3.ratio.value = 8; comp3.attack.value = 0.0015; comp3.release.value = 0.09;
+        // a slower attack lets the crack through before the body is compressed (punch), then the body pumps
+        comp3.threshold.value = -14; comp3.knee.value = 4; comp3.ratio.value = 6; comp3.attack.value = 0.008; comp3.release.value = 0.12;
+        // then a soft clipper: the crack overshoots inside comp3's attack; a tanh curve (slope 1 at low
+        // levels, ceiling 0.91 at +6 dB over) rounds those peaks off instantly, with a little grit
+        const pre = ctx.createGain(); pre.gain.value = 0.5;
+        const clip = ctx.createWaveShaper(); clip.curve = R5_CLIP; clip.oversample = '4x';
         superBus = ctx.createGain(); superBus.gain.value = 0.9 * R5_TRIM[kind];
-        superBus.connect(comp3); comp3.connect(d.sfxGain);
+        superBus.connect(comp3); comp3.connect(pre); pre.connect(clip); clip.connect(d.sfxGain);
       }
       kit = kind === 'A' ? kitA(ctx, bus, stats, now) : kind === 'B2' ? kitB2(ctx, bus, stats, now) : kind === 'B2S' ? kitB2S(ctx, bus, stats, now, superBus) : R5 ? kitR5(ctx, bus, stats, now, superBus, kind === 'B2HC' ? 'HC' : 'RD') : kitB(ctx, bus, stats, now);
     }
