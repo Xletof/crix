@@ -460,7 +460,23 @@ command, fix the line.*
   - **B2-R5 (2026-11-20), opt-in: `&b2a=B2HC` (Heavy Cannon) or `&b2a=B2RD`
     (Reactor Detonation) Super sound, and `&b2aura=1` (enchanted full-shield
     aura, with `&b2r=4` only). Over B2-R4; B2S and the R4 shield are the
-    controls. NOT approved, NOT a default.**
+    controls. NOT a default.**
+    - **HUMAN verdict (2026-11-20):**
+      - **The enchanted shield (`&b2aura=1`) is HUMAN-PASS — APPROVED /
+        FROZEN 🔒** ("likes it a lot"). Keep its implementation, look,
+        intensity, behaviour and rendering exactly as at `d3ecad6`
+        (`src/systems/b2Reactor.js`, `R5_AURA`): no more glow, runes or
+        particles. Still opt-in, not a default.
+      - **Heavy Cannon: rejected as final** — "like a heavy door shutting, or a
+        shotgun recorded with a microphone inside a fully sound-insulated
+        room": an impact, but acoustically dead, enclosed and one-dimensional;
+        no air, room, bass, echo or energy release.
+      - **Reactor Detonation: rejected as final** — more electrical, but heard
+        as two separate sounds ("WWWUUUOOPPPA" electric + "BUUSH" shotgun),
+        not one weapon firing.
+      - Final R5 baseline: `FRIX` `d3ecad6`, Pages #313; run-all 48/52 with
+        champion-placement, vanguard-front, captain-closeout and nemesis
+        classified as not caused by R5. That led to B2-R6 below.
     - **Found:** B2S still played B2's E6 pip falling an octave, falling saws
       and B2's falling-saw cooldown, which explains the verdict. R5's kits play
       none of these, and the rig checks the source.
@@ -495,7 +511,7 @@ command, fix the line.*
         - vanguard-front passes standalone;
         - `docs/evidence/b2-r5/run-all-reruns/`.
       - Deployed: `FRIX` at `1a88281`, Pages #312.
-    - `docs/evidence/b2-r5/README.md`. Awaiting the HUMAN handset verdict.
+    - `docs/evidence/b2-r5/README.md`.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -525,7 +541,7 @@ command, fix the line.*
   `&b2a=A|B`); its playtest led to B2-R3 (`&b2r=3`, audio `&b2a=B2`), and the
   HUMAN's R3 verdict to the finishing pass B2-R4 (`&b2r=4`, audio `&b2a=B2S`,
   `&b2iso=1`; played, best so far), and that to B2-R5 (`&b2a=B2HC|B2RD`,
-  `&b2aura=1`), which awaits the HUMAN verdict (`docs/evidence/b2-r5/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
+  `&b2aura=1`; the aura HUMAN-APPROVED / FROZEN, both Super sounds rejected; `docs/evidence/b2-r5/README.md`), and that to B2-R6 (Reactor Thunder Super sound). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
 

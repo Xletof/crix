@@ -60,7 +60,8 @@ gates below still apply.
   their outputs as comparison flags), the P1 combat polish (`&polish=p1`,
   opt-in over V2C) and the P2-A3 weapon presentation (`&fxPilot=p2a3`, opt-in
   over P1, sharp STANDARD discharge; `p2a` / `p2a2` / `muzzle=current` are
-  comparison flags). None of these is the default: R1 is. Reopen a
+  comparison flags), and the B2-R5 enchanted shield aura (`&b2aura=1`, opt-in
+  over `&b2r=4`; 2026-11-20). None of these is the default: R1 is. Reopen a
   frozen system's behaviour or tuning only on an explicit human instruction
   naming it. Notes about a frozen system explain it; they don't invite changes
   to it.
