@@ -41,7 +41,7 @@
 //  No `Math.random` anywhere in B2 code.
 import Phaser from 'phaser';
 import { PLAYER } from '../config.js';
-import { getB2Variant, getB2Knobs, isB2Range, isB2Candidate, isB2Temper, isB2Reactor, getB2Audio, isB2AudioIso } from './debug.js';
+import { getB2Variant, getB2Knobs, isB2Range, isB2Candidate, isB2Temper, isB2Reactor, getB2Audio, isB2AudioIso, isB2Aura } from './debug.js';
 import { mulberry32 } from './rng.js';
 import { SFX, duckMusic } from './FX.js';
 import { BulletGroup } from '../entities/Bullet.js';
@@ -177,6 +177,7 @@ export function installB2(scene) {
   api.temper = isB2Temper();          // read by b2Feel at install (systems/b2Temper.js)
   stats.temper = api.temper;
   api.reactor = isB2Reactor();       // systems/b2Reactor.js; wins over temper
+  api.aura = isB2Aura();             // B2-R5 enchanted full-shield aura (level 4 only)
   stats.reactor = api.reactor;
   const feel = installB2Feel(scene, api, K, voice);
   stats.feel = feel?.stats || null;
@@ -577,7 +578,7 @@ export function installB2(scene) {
     wrap(SFX, 'shootSuper', () => function () { stats.audio = (stats.audio || 0) + 1; return undefined; });
     // B2S: a Super pellet's hit is the kit's impact, not the game's generic hit beep (which
     // played once per pellet hit under every other kit)
-    if (audioKind === 'B2S') wrap(SFX, 'hit', (prev) => function (...a) { if (scene._dmgSrc === 'super') { stats.superBeeps = (stats.superBeeps || 0) + 1; return undefined; } return prev.apply(this, a); });
+    if (audioKind === 'B2S' || audioKind === 'B2HC' || audioKind === 'B2RD') wrap(SFX, 'hit', (prev) => function (...a) { if (scene._dmgSrc === 'super') { stats.superBeeps = (stats.superBeeps || 0) + 1; return undefined; } return prev.apply(this, a); });
   }
 
   // ── THE FRAME ───────────────────────────────────────────────────────────

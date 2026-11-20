@@ -26,7 +26,7 @@
 // `Math.random` when audio is live; the ones this replaces are not called.
 // POLYPHONY. One-shot voices are counted and capped (VOICE_CAP); the beds are
 // single persistent nodes.
-import { __fxDebug, duckMusic } from './FX.js';
+import { __fxDebug, duckMusic, duckSfx } from './FX.js';
 import { mulberry32 } from './rng.js';
 
 const VOICE_CAP = 48;               // live one-shot source nodes per kit
@@ -563,12 +563,234 @@ function kitB2S(ctx, dest, stats, now, superDest) {
   };
 }
 
+// ── B2-R5: A NEW SUPER DISCHARGE (`&b2a=B2HC|B2RD`, HUMAN direction 2026-11-20) ───────────
+// The HUMAN rejected B2S's Super as "the old Super sound with slightly more thickness" and asked
+// for an exaggerated, stylized heavy blast: a violent, instant KRA—THOOOM, weapon first. These are
+// new voices, not a remaster: none of B2/B2S's discharge layers (the E6 pip falling an octave,
+// the detuned saws falling over half a second, B2's falling-saw cooldown) is played. B2's approved
+// cues (rifle, charge, ready confirmation, locks) are B2's own methods, unchanged; B2's charge bed
+// still swells into the wind-up and stops at the blast exactly as before.
+//
+//  HC  HEAVY CANNON. A frighteningly fast crack (broadband, 3-18 ms), a huge saturated low-mid
+//      body (a driven pitch-dropping thump plus a roaring low-passed noise burst, 150-900 Hz where
+//      laptop and phone speakers still play it), a short reactor "dump" (drive + its own pumping
+//      compressor), then a compact gritty tail (a rattling low noise and a few sparks, ~0.35 s)
+//      and a quiet two-step breech action. Weapon first, reactor second.
+//  RD  REACTOR DETONATION. An equally hard detonation, then an audible pressure collapse: a swell
+//      sucked upward (rising noise band and a rising sub tone, cut dead) that lands on a second,
+//      collapsing thump; a coarse electrical fracture (a sparse impulse crackle) under all of it,
+//      and a longer but controlled decay (~0.8 s). A reactor discharged through a cannon.
+//
+// Both: triggered by the committed blast (`player-super-blast`, as B2S), a short pre-blast in the
+// game's own 70 ms wind-up (cut by the blast), five projectile zips kept far below the blast, at
+// most three impacts (same-tick hits merge, 50 ms apart) that thump rather than beep, a brief
+// music dip and a brief dip of the other game sounds (the B2 kit and the Super are not on that
+// bus), their own bus and compressor, B2's voice cap, the cuts on pause, death and restart.
+// THE AUTHOR CANNOT LISTEN: designed from principles, checked by measurement; the HUMAN decides.
+/** In-game Super bus levels, set so each candidate's Super window matches B2S's loudness. */
+export const R5_TRIM = { B2HC: 1.25, B2RD: 0.4 };
+export const R5_SUPER = { zips: 5, zipGapS: 0.009, impactGapS: 0.05, impactMax: 3, impactLagS: 0.15, windowS: 1.2 };
+function crackleBuffer(ctx, seed, secs = 0.8) {
+  // a sparse impulse train, densest at the start: each impulse a 1-3 sample spike of random sign
+  const n = Math.floor(ctx.sampleRate * secs), b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0), r = mulberry32(seed);
+  let i = 0;
+  while (i < n) {
+    const u = i / n, amp = (0.35 + 0.65 * r()) * (1 - 0.7 * u), w = 1 + Math.floor(r() * 3), sg = r() < 0.5 ? -1 : 1;
+    for (let k = 0; k < w && i + k < n; k++) d[i + k] = sg * amp * (1 - k / (w + 1));
+    i += Math.floor(ctx.sampleRate * (0.0012 + 0.016 * u * u + 0.004 * r()));
+  }
+  return b;
+}
+function roomIR(ctx, seed, secs, tau) {
+  // a dark synthetic room: four early slapbacks, then diffuse noise decaying with time constant tau
+  const n = Math.floor(ctx.sampleRate * secs), b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0), r = mulberry32(seed);
+  for (let i = 0; i < n; i++) { const t = i / ctx.sampleRate; d[i] = (r() * 2 - 1) * Math.exp(-t / tau) * (1 - Math.exp(-t / 0.004)) * 0.5; }
+  for (const [ts, a] of [[0.007, 0.6], [0.013, 0.45], [0.021, 0.35], [0.034, 0.25]]) d[Math.floor(ts * ctx.sampleRate)] += a;
+  return b;
+}
+function kitR5(ctx, dest, stats, now, superDest, design) {
+  const base = kitB2(ctx, dest, stats, now);
+  const ends = base._v.ends;
+  const HC = design === 'HC';
+  const tailBus = ctx.createGain(); tailBus.gain.value = 1; tailBus.connect(superDest);
+  // the blast bus: dry to the Super bus, and a send into a short dark room on the (cuttable) tail bus
+  const blastBus = ctx.createGain(); blastBus.gain.value = 1; blastBus.connect(superDest);
+  const conv = ctx.createConvolver(); conv.normalize = true; conv.buffer = roomIR(ctx, HC ? 0xc4a7b00e : 0xde7b00e, HC ? 0.7 : 1.1, HC ? 0.11 : 0.19);
+  const wetLp = ctx.createBiquadFilter(); wetLp.type = 'lowpass'; wetLp.frequency.value = HC ? 2600 : 3600; wetLp.Q.value = 0.6;
+  const wet = ctx.createGain(); wet.gain.value = HC ? 0.42 : 0.5;
+  blastBus.connect(conv); conv.connect(wetLp); wetLp.connect(wet); wet.connect(tailBus);
+  const sv = voices(ctx, blastBus, stats, now, ends);
+  sv.drives.brutal = driveCurve(22);
+  const preBus = ctx.createGain(); preBus.gain.value = 1; preBus.connect(superDest);
+  const pv = voices(ctx, preBus, stats, now, ends);
+  const tv = voices(ctx, tailBus, stats, now, ends);
+  tv.drives.brutal = sv.drives.brutal;
+  const rnd = mulberry32(HC ? 0xb2c4a770 : 0xb2de7011);
+  const crk = crackleBuffer(ctx, HC ? 0xc4ac1e01 : 0xde7c4ac1);
+  const noiseBuf = noiseBuffer(ctx, HC ? 0xc4a7ab1e : 0xde70ab1e, 0.6);
+  const S = R5_SUPER;
+  const st = (stats.super = { design, windups: 0, releases: 0, blasts: 0, zips: 0, impacts: 0, merged: 0, late: 0, capped: 0, tails: 0, breech: 0, cuts: 0, deathCuts: 0, minGap: Infinity, maxLag: 0 });
+  let preOn = false, relT = -1, impN = 0, lastImpT = -1, lastHitCall = -1;
+  const cut = (bus, t) => { bus.gain.cancelScheduledValues(t); bus.gain.setValueAtTime(bus.gain.value > 0.001 ? 1 : 0.0001, t); bus.gain.linearRampToValueAtTime(0.0001, t + 0.006); };
+  const open = (bus, t) => { bus.gain.cancelScheduledValues(t); bus.gain.setValueAtTime(1, t); };
+  const count = (end) => { ends.push(end); stats.peakVoices = Math.max(stats.peakVoices, ends.length); };
+  // the crackle: the impulse buffer through a band, driven
+  const crackle = (bus, t, { f, q = 0.9, dur, gain, drive = 'hard', a = 0.002 }) => {
+    if (ends.length >= VOICE_CAP) { stats.dropped++; return; }
+    const s = ctx.createBufferSource(); s.buffer = crk;
+    const fl = ctx.createBiquadFilter(); fl.type = 'bandpass'; fl.frequency.value = f; fl.Q.value = q;
+    const w = sv.shape(fl, drive); s.connect(fl);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(gain, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + dur);
+    w.connect(g); g.connect(bus); s.start(t); s.stop(t + a + dur + 0.02); count(t + a + dur + 0.02);
+  };
+  // the rattle: low noise chopped by a square LFO (mechanical, gritty), falling
+  const rattle = (bus, t, { f, f2, hz, dur, gain }) => {
+    if (ends.length + 2 > VOICE_CAP) { stats.dropped++; return; }
+    const n = ctx.createBufferSource(); n.buffer = noiseBuf; n.loop = true;
+    const fl = ctx.createBiquadFilter(); fl.type = 'lowpass'; fl.Q.value = 1.2; fl.frequency.setValueAtTime(f, t); fl.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    const chop = ctx.createGain(); chop.gain.value = 0.55;
+    const lfo = ctx.createOscillator(); lfo.type = 'square'; lfo.frequency.setValueAtTime(hz, t); lfo.frequency.linearRampToValueAtTime(hz * 0.6, t + dur);
+    const lg = ctx.createGain(); lg.gain.value = 0.45; lfo.connect(lg); lg.connect(chop.gain);
+    const w = sv.shape(fl, 'hard'); n.connect(fl); w.connect(chop);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(gain, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    chop.connect(g); g.connect(bus);
+    n.start(t); lfo.start(t); n.stop(t + dur + 0.02); lfo.stop(t + dur + 0.02); count(t + dur + 0.02); count(t + dur + 0.02);
+  };
+  // ── the pre-blast, inside the game's 70 ms wind-up (cut by the blast) ──
+  const preblast = (t) => {
+    if (HC) {
+      pv.noise(t, { f: 2600, q: 2.2, dur: 0.008, gain: 0.14, drive: 'hard' });                 // the breech locks
+      pv.osc(t + 0.004, { type: 'square', f: 240, f2: 180, dur: 0.012, gain: 0.08, lp: 900 });
+      pv.noise(t + 0.01, { f: 380, type: 'lowpass', q: 0.8, a: 0.055, dur: 0.01, gain: 0.07 });  // a short inhale
+    } else {
+      pv.noise(t, { f: 500, f2: 2400, q: 3, a: 0.062, dur: 0.01, gain: 0.1, drive: 'soft' });   // pressure building
+      pv.osc(t, { type: 'sine', f: 70, f2: 118, a: 0.062, dur: 0.01, gain: 0.14, drive: 'soft' });
+      crackle(preBus, t + 0.02, { f: 3600, q: 1.2, dur: 0.05, gain: 0.05 });
+    }
+  };
+  // ── the blast ──
+  const blast = (t) => {
+    st.blasts++;
+    if (HC) {
+      // ATTACK: the crack, broadband and instant
+      sv.noise(t, { f: 4200, type: 'highpass', q: 0.7, dur: 0.006, gain: 0.5, drive: 'hard' });
+      sv.noise(t, { f: 1900, q: 0.8, dur: 0.018, gain: 0.48, drive: 'brutal' });
+      sv.osc(t, { type: 'square', f: 1400, f2: 900, dur: 0.003, gain: 0.22 });
+      sv.noise(t + 0.002, { f: 3500, q: 0.6, dur: 0.035, gain: 0.3, drive: 'hard' });          // the KRA grain
+      // BODY: a driven thump (its harmonics carry 150-600 Hz) and a roaring low-mid burst
+      sv.osc(t, { type: 'sine', f: 210, f2: 88, dur: 0.09, gain: 0.75, drive: 'brutal' });
+      sv.osc(t, { type: 'triangle', f: 132, f2: 80, dur: 0.18, gain: 0.3, lp: 1100, drive: 'hard' });
+      sv.osc(t, { type: 'sine', f: 72, f2: 56, dur: 0.12, gain: 0.16 });                      // a little real low end
+      sv.noise(t, { f: 1250, f2: 200, type: 'lowpass', q: 1.1, dur: 0.42, gain: 0.66, drive: 'brutal' }); // the THOOOM roar
+      sv.noise(t + 0.01, { f: 170, q: 2.5, dur: 0.4, gain: 0.3, drive: 'hard' });
+      sv.noise(t, { f: 520, q: 0.9, dur: 0.14, gain: 0.42, drive: 'hard' });
+      sv.noise(t, { f: 300, q: 1.2, dur: 0.18, gain: 0.3, drive: 'hard' });
+      // PRESSURE: the reactor dumping (a driven band falling fast)
+      sv.noise(t + 0.004, { f: 2200, f2: 420, q: 1.4, dur: 0.09, gain: 0.18, drive: 'hard' });
+      // TAIL: a compact, gritty rattle and a few sparks, clear by ~0.4 s
+      st.tails++; open(tailBus, t);
+      rattle(tailBus, t + 0.05, { f: 760, f2: 170, hz: 38, dur: 0.34, gain: 0.24 });
+      let u = t + 0.06;
+      for (let i = 0; i < 5 && u < t + 0.32; i++) { tv.noise(u, { f: 2400 + 1800 * rnd(), q: 3.5, dur: 0.01, gain: 0.08 * (1 - i / 6), drive: 'hard' }); u += 0.035 + 0.05 * rnd(); }
+      tv.noise(t + 0.05, { f: 1150, q: 6, dur: 0.06, gain: 0.06 });
+      tv.noise(t + 0.05, { f: 1720, q: 6, dur: 0.05, gain: 0.045 });
+    } else {
+      // DETONATION: as hard as HC's crack, a lower, shorter thump
+      sv.noise(t, { f: 2600, q: 0.7, dur: 0.012, gain: 0.55, drive: 'brutal' });
+      sv.noise(t, { f: 5200, type: 'highpass', q: 0.7, dur: 0.005, gain: 0.32, drive: 'hard' });
+      sv.osc(t, { type: 'square', f: 900, f2: 320, dur: 0.012, gain: 0.2 });
+      sv.osc(t, { type: 'sine', f: 190, f2: 92, dur: 0.07, gain: 0.7, drive: 'brutal' });
+      sv.noise(t, { f: 760, f2: 300, type: 'lowpass', q: 1.0, dur: 0.09, gain: 0.55, drive: 'brutal' });
+      // IMPLOSION: the pressure collapses inward (a swell rising in level and pitch, cut dead)...
+      sv.noise(t + 0.07, { f: 300, f2: 2600, q: 1.3, a: 0.15, dur: 0.012, gain: 0.3, drive: 'hard' });
+      sv.osc(t + 0.07, { type: 'sine', f: 90, f2: 240, a: 0.15, dur: 0.01, gain: 0.26, drive: 'hard' });
+      // ...and lands on a second, collapsing thump
+      const c = t + 0.232;
+      sv.noise(c, { f: 3200, q: 0.8, dur: 0.008, gain: 0.34, drive: 'hard' });
+      sv.osc(c, { type: 'sine', f: 230, f2: 86, dur: 0.12, gain: 0.75, drive: 'brutal' });
+      sv.osc(c, { type: 'sine', f: 80, f2: 60, dur: 0.15, gain: 0.18 });
+      sv.noise(c, { f: 1300, f2: 260, type: 'lowpass', q: 1.1, dur: 0.3, gain: 0.58, drive: 'brutal' });
+      sv.noise(c, { f: 460, q: 0.9, dur: 0.16, gain: 0.34, drive: 'hard' });
+      // FRACTURE: a coarse electrical crackle under all of it
+      crackle(blastBus, t + 0.008, { f: 3000, q: 0.9, dur: 0.62, gain: 0.3 });
+      crackle(blastBus, t + 0.008, { f: 760, q: 1.1, dur: 0.4, gain: 0.2, drive: 'brutal' });
+      // DECAY: longer, controlled: a low rumble and the crackle thinning out (~0.8 s)
+      st.tails++; open(tailBus, t);
+      tv.noise(c + 0.03, { f: 720, f2: 200, type: 'lowpass', q: 0.9, a: 0.03, dur: 0.6, gain: 0.2, drive: 'soft' });
+      crackle(tailBus, c + 0.1, { f: 2200, q: 1.4, dur: 0.5, gain: 0.12 });
+      let u = c + 0.05;
+      for (let i = 0; i < 6 && u < t + 0.85; i++) { tv.noise(u, { f: 1800 + 2600 * rnd(), q: 4, dur: 0.012, gain: 0.085 * (1 - i / 7), drive: 'hard' }); u += 0.05 + 0.08 * rnd() * (1 + i * 0.3); }
+    }
+    // the five projectiles: supporting, far below the blast
+    for (let i = 0; i < S.zips; i++) {
+      const z = t + 0.014 + i * S.zipGapS;
+      if (HC) sv.noise(z, { f: 1500 - i * 60, f2: 520, type: 'lowpass', q: 1.2, dur: 0.05, gain: 0.032 });
+      else sv.noise(z, { f: 3000 - i * 120, f2: 900, q: 3, dur: 0.05, gain: 0.03 });
+      st.zips++;
+    }
+  };
+  const impact = (t, k, w) => {
+    if (HC) {
+      sv.osc(t, { type: 'sine', f: 150, f2: 72, dur: 0.07, gain: 0.22 * w, drive: 'hard' });
+      sv.noise(t, { f: 820, f2: 240, type: 'lowpass', q: 1.0, dur: 0.07, gain: 0.18 * w, drive: 'soft' });
+    } else {
+      sv.osc(t, { type: 'sine', f: 170, f2: 76, dur: 0.07, gain: 0.2 * w, drive: 'hard' });
+      sv.noise(t, { f: 700, f2: 260, type: 'lowpass', q: 1.0, dur: 0.06, gain: 0.16 * w, drive: 'soft' });
+      crackle(blastBus, t, { f: 2600, q: 1.6, dur: 0.05, gain: 0.1 * w });
+    }
+  };
+  return {
+    ...base,
+    windup(t) { st.windups++; base.windupBed(t); open(preBus, t); preOn = true; preblast(t); },
+    release(t) {
+      st.releases++;
+      base.releaseBed(t);
+      if (preOn) { cut(preBus, t); preOn = false; st.cuts++; }
+      relT = t; impN = 0; lastImpT = -1; lastHitCall = -1;
+      blast(t);
+    },
+    /** createB2Audio schedules the kit's cooldown 0.32 s after the release: HC's breech action
+     *  (two quiet mechanical steps); RD's decay is already running. B2's falling-saw cooldown is
+     *  not played. */
+    cooldown(t) {
+      if (!HC) return;
+      st.breech++;
+      tv.noise(t, { f: 2800, q: 1.6, dur: 0.007, gain: 0.1, drive: 'hard' });
+      tv.osc(t + 0.003, { type: 'square', f: 300, f2: 220, dur: 0.01, gain: 0.05, lp: 1200 });
+      tv.noise(t + 0.11, { f: 2100, q: 1.8, dur: 0.008, gain: 0.09, drive: 'hard' });
+      tv.osc(t + 0.113, { type: 'square', f: 230, f2: 170, dur: 0.012, gain: 0.05, lp: 900 });
+    },
+    /** One Super pellet hit an enemy: same-tick hits merge, the rest queue 50 ms apart, at most three. */
+    superHit(t) {
+      if (relT < 0 || t - relT > S.windowS) relT = t;
+      if (lastHitCall >= 0 && Math.abs(t - lastHitCall) < 0.008) { st.merged++; return; }
+      lastHitCall = t;
+      if (impN >= S.impactMax) { st.capped++; return; }
+      const at = Math.max(t, lastImpT < 0 ? t : lastImpT + S.impactGapS);
+      if (at - t > S.impactLagS) { st.late++; return; }
+      impact(at, impN, impN === 0 ? 1 : 0.5 - 0.1 * impN);   // the first lands with the blast; the rest stay well under it
+      if (lastImpT >= 0) st.minGap = Math.min(st.minGap, +(at - lastImpT).toFixed(4));
+      st.maxLag = Math.max(st.maxLag, +(at - t).toFixed(4));
+      lastImpT = at; impN++; st.impacts++;
+    },
+    silence(t) {
+      base.silence(t);
+      if (preOn) { cut(preBus, t); preOn = false; st.cuts++; }
+      cut(tailBus, t);
+    },
+    /** The hero died: the pre-blast and the tail stop with it. */
+    cutSuper(t) { if (preOn) { cut(preBus, t); preOn = false; } cut(tailBus, t); st.deathCuts++; },
+    destroy() { base.destroy(); for (const g of [preBus, tailBus, blastBus, conv, wetLp, wet]) { try { g.disconnect(); } catch (_) { /* */ } } },
+  };
+}
+
 /** Same interface as `createB2Voice`, plus the R2 events. `kind`: 'A' | 'B'.
  *  `opts` { ctx, dest, now }: render into another context (an OfflineAudioContext replaying a
  *  recorded event timeline, for the A/B demonstrations); `now()` is that timeline's clock. */
 export function createB2Audio(kind, opts = {}) {
   let ctx = null, kit = null, bus = null, superBus = null, motorUntil = 0, lastTick = -1, lastDuck = -1, ambT = 0;
-  const B2FAM = kind === 'B2' || kind === 'B2S';       // the approved B2 behaviour: trim, confirmation, cuts
+  const R5 = kind === 'B2HC' || kind === 'B2RD';        // B2-R5: B2 with a new Super discharge
+  const B2FAM = kind === 'B2' || kind === 'B2S' || R5;   // the approved B2 behaviour: trim, confirmation, cuts
   const stats = { kind, shots: 0, ticks: 0, ducks: 0, live: false, events: {}, peakVoices: 0, dropped: 0 };
   const ev = (k) => { stats.events[k] = (stats.events[k] || 0) + 1; };
   const ready = () => {
@@ -586,8 +808,14 @@ export function createB2Audio(kind, opts = {}) {
         comp2.threshold.value = -14; comp2.knee.value = 8; comp2.ratio.value = 5; comp2.attack.value = 0.002; comp2.release.value = 0.12;
         superBus = ctx.createGain(); superBus.gain.value = 0.9 * B2S_TRIM;
         superBus.connect(comp2); comp2.connect(d.sfxGain);
+      } else if (R5) {
+        // the R5 Super's own bus and a harder, faster compressor (its pumping is part of the blast)
+        const comp3 = ctx.createDynamicsCompressor();
+        comp3.threshold.value = -16; comp3.knee.value = 4; comp3.ratio.value = 8; comp3.attack.value = 0.0015; comp3.release.value = 0.09;
+        superBus = ctx.createGain(); superBus.gain.value = 0.9 * R5_TRIM[kind];
+        superBus.connect(comp3); comp3.connect(d.sfxGain);
       }
-      kit = kind === 'A' ? kitA(ctx, bus, stats, now) : kind === 'B2' ? kitB2(ctx, bus, stats, now) : kind === 'B2S' ? kitB2S(ctx, bus, stats, now, superBus) : kitB(ctx, bus, stats, now);
+      kit = kind === 'A' ? kitA(ctx, bus, stats, now) : kind === 'B2' ? kitB2(ctx, bus, stats, now) : kind === 'B2S' ? kitB2S(ctx, bus, stats, now, superBus) : R5 ? kitR5(ctx, bus, stats, now, superBus, kind === 'B2HC' ? 'HC' : 'RD') : kitB(ctx, bus, stats, now);
     }
     stats.live = opts.now ? true : ctx.state === 'running';
     return stats.live;
@@ -619,11 +847,16 @@ export function createB2Audio(kind, opts = {}) {
     duck() { if (!ready() || now() - lastDuck < 0.18) return; lastDuck = now(); stats.ducks++; if (!opts.ctx) duckMusic(0.32, 340); },
     // R2 events
     windup() { ev('windup'); if (!ready()) return; const t = at(); if (kit.cutConfirm) { kit.cutConfirm(t); stats.cuts++; } kit.holdBed?.(t, t + 0.7); kit.windup(t); },
-    release() { ev('release'); if (!ready()) return; const t = at(); kit.release(t); kit.cooldown(t + 0.32); if (!opts.ctx) duckMusic(0.45, 500); },
+    release() {
+      ev('release'); if (!ready()) return; const t = at(); kit.release(t); kit.cooldown(t + 0.32);
+      // R5: a deeper, shorter music dip and a brief dip of the other game sounds (the B2 kit and the
+      // Super bus feed sfxGain directly, so neither is ducked); B2 / B2S keep their 0.45 / 500 ms
+      if (!opts.ctx) { if (R5) { duckMusic(0.6, 380); duckSfx(0.35, 240); stats.sfxDucks = (stats.sfxDucks || 0) + 1; } else duckMusic(0.45, 500); }
+    },
     superHit() {
       ev('superHit');
       if (!ready()) return;
-      if (kind === 'B2S') { kit.superHit(at()); return; }   // B2S merges, spaces and caps its own impacts
+      if (kind === 'B2S' || R5) { kit.superHit(at()); return; }   // B2S / R5 merge, space and cap their own impacts
       if (now() - lastTick < 0.03) return; lastTick = now(); kit.superHit(at());
     },
     /** The scene paused (or the hero died): the beds go silent until the next update. */
