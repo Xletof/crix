@@ -1,0 +1,61 @@
+  ok    the six step effect methods were found to read
+  ok    no step effect fills a circle at the boots — the droplet is gone, not dimmed
+  ok    no ellipse or arc primitive anywhere in the step
+  ok    no radial particle fan and no jittered `_bolt` squiggle anywhere in the step
+  ok    no step code touches the threat ring — the v5 ring overlay is deleted, not disabled
+  ok    the only threat-ring writes in the Captain are the constructor's stock halo
+  ok    no step effect draws a line of any width — no crescent, no scribble, no hairline
+  ok    the v3 dashed body streaks are still gone
+  ok    the only drawn geometry in the step is the boot jet — everything else is his own silhouette
+  ok    the suit answers twice as his own contour — trailing at the plant, leading at the catch
+  ok    the catch counter-thrusts FORWARD along the travel — nothing is put on the floor
+  ok    the push-off thrusts BACK down the travel
+  ok    the four converging diagonal brackets are still gone
+  ok    the trace is taken from the travel branch, at most three samples per step — none at the push-off
+  ok    a trace never moves and never grows once taken
+  ok    the step is painted from its own cobalt palette, never the near-cyan `def.color`
+  ok    nothing of the player dash implementation is used
+  ok    the echo is not painted in the player dash's cyan
+  ok    the travelling packets ride `this.radius` itself — the one moving thing on the edge cannot misreport it
+  ok    the intent sign is a painted texture like the four reactions
+  ok    and it is its own FORM — five glyphs, five distinct sets of pixels
+  ok    it carries enough ink to read at 1x rather than being a few stray pixels
+  ok    every opaque pixel of all five glyphs is one of the three declared ICE punctuation colours
+  ok    no punctuation colour anywhere on his body sheets, his rifle or the grenade device — the register stays above the head
+  ok    and no Captain or Arc Grenade FX source names a punctuation colour — step, field, core and armour stay cobalt
+  ok    the intent sign is raised on a real, AI-driven grenade commitment
+  ok    and it exists in NO other state — it is not a status icon
+  ok    it is up for the whole commitment, not a flash inside it
+  ok    it is gone the moment the device is a real object in the world — the promise is kept, not described
+  ok    it never entered the punctuation queue, which would have delayed it past its own moment
+  ok    it TRACKS the head — move the body 70px and the sign holds the same offset
+  ok    an interrupted wind-up takes the promise down with it, by the sign asking its own question
+  ok    and a dead Captain makes no promises
+  ok    the device is three authored frames, not two
+  ok    a real thrown device flies inert and arms — land, blip and pause are sub-frame and proved on its own clock below
+  ok    the live field is powered by an ARMED device
+  ok    a real step at 60fps draws every beat — plant contour, release jets, trace, catch contour, counter-thrust
+  ok    the stock threat ring is never hidden, redrawn or deformed by the step
+  ok    exactly three traces per step, never more than three at once, none moving or growing
+  ok    every trace stands on a position the body really occupied — sampled, never placed
+  ok    the traces run along the travel in order, oldest faintest
+  ok    the catch belongs to the body — oldest trace gone as it lands, at most one left 60ms in, none after the step
+  ok    the catch contour is gone on the frame the step ends — it never outlines the next pose
+  ok    a Captain killed mid-travel with three traces up leaves no trace image behind
+  ok    after the step no step FX is left, and his body and speed are untouched
+  ok    the staged field reached its live phase
+  ok    the gameplay radius is the authored one — this pass moved no number
+  ok    a fraction inside is dangerous, the edge is dangerous, a fraction outside is safe — unchanged
+  ok    shutdown steps back DOWN the device's own ladder — armed, charging, inert — rather than fading out
+  ok    the device speaks twice: inert on landing, BLIP to charging, SILENT again, BLIP to armed, and holds
+  ok    and not one instant of the activation makes the centre dangerous — `contains` still waits for the field
+  ok    the source life creates no objects per frame — a destroyed grenade takes exactly its five Graphics and its device
+  ok    the source core is drawing at every sampled instant of the live field — alive between ticks, not only on them
+  FAIL  a damage tick makes the source react — and the tick itself is exactly the authored damage on the authored cadence — {"hitT":170,"removed":0,"cool":420}
+  ok    after `fieldMs` the device is SPENT: not live, `contains` false, and a player standing on it takes nothing
+  ok    the power-down is drawn on the device alone — no ring survives the danger
+  ok    it powers down for `spentMs` and is then gone — a visible shutdown, then a clean removal
+  ok    durability is 3400 + 1900 = 5300 with armourTake 0.85 and armourSpill 0.55 — untouched
+  ok    the step is 200px / 90 / 215 / 120 / 2800 — untouched
+  ok    the Arc Grenade's radius, timings, damage, tick, drag and cooldown are untouched
+FAIL: 1 of 60 checks failed: a damage tick makes the source react — and the tick itself is exactly the authored damage on the authored cadence

@@ -279,6 +279,12 @@ All runs below are on the final code (`894b209`), standalone and sequential. The
     37/37;
   - smoke-b2c 46/46, smoke-b2 88/88, smoke-b1 71/71, smoke-b0 46/46 (these four with `--old`);
   - P2-A3 scope 4/4; controls pass; restart 16/16.
+- **run-all 47/52, NOT green, and no new failure** (`run-all.txt`, `run-all-reruns/README.md`):
+  - `champion-placement` (7/60), `vanguard-front` (1/30) and `captain-closeout` (1/60) fail standalone
+    on this build and on `d3ecad6` on the same checks: inherited;
+  - `boss-moves` (1/18) and `pathing` (a sampler artefact by its own message) pass standalone;
+  - `nemesis`, intermittent in the R5 baseline, passed;
+  - none of these suites installs B2, so R6's code does not run in them.
 - **Production bundle** (`vite build`, `vite preview`): no page errors on the four links or the
   no-flag link. On the R6 link the built worker chunk is fetched (HTTP 200), starts, delivers and is
   closed.
@@ -294,4 +300,39 @@ All runs below are on the final code (`894b209`), standalone and sequential. The
 
 ## Recommendation (critical)
 
-See the section at the end, written after the final runs.
+**Play link 2 (R6 + shield) against link 1 (Heavy Cannon + shield) back to back. Treat R6 as a better
+candidate than either R5 sound, not as a finished one.** The author has not heard it.
+
+**What R6 changes, by measurement:**
+- Both R5 verdicts had measurable causes, and R6 removes them: there is energy after the hit, every
+  band rings, there is no second event, no tonal sweep, and no compressor flattening the blast.
+- The rush crosses the blast, so the electrical part and the physical part are one event, not two.
+- It is matched in loudness, so any "bigger" the HUMAN hears does not come from more volume.
+
+**What may still fail, most likely first:**
+1. **The first hit.** At matched loudness, R6's crack stands 3.7 dB less proud of its loudness than
+   Heavy Cannon's in isolation (1.6 dB in the fight): the body, rush and room carry loudness a short slam
+   does not. If the KRA feels soft,
+   the levers are `THUNDER.mix.crack` / `grit` (more KRA) against `body` / `late` (less sustain). That
+   costs size, the trade-off already measured: +1.5 dB of punch cost 4.6 points of late energy.
+2. **The rush is short before the blast.** The game gives about 117 ms between the committed cast and
+   the blast, and lengthening it would change the Super's timing (out of scope). The "WWWHHOOOSH" is
+   mostly heard through and after the KRA. If the energy release does not register, the lever is
+   `THUNDER.mix.pre` / `post` (rush level). The real fix would be a longer committed wind-up, which is a
+   gameplay change and the HUMAN's call.
+3. **Synthesis may still sound synthetic.** Every layer is original DSP: Friedlander pulses, noise,
+   resonators, a delay-network room. No recorded impact or licensed texture was available here. If it
+   reads as artificial, the most promising next step is a recorded or licensed physical transient in
+   place of the KRA micro-pulses. The renderer can take a sample in that slot with no other change, but
+   the file must be supplied or a source host allowed.
+4. **The room may read as "reverb added".** It is fed by the whole event and pre-delayed. If it sounds
+   like a wash, the levers are `THUNDER.room` (`rtMid` / `rtLow`) and `mix.late` / `er`. If the room is
+   not noticed at all, raise `mix.late`.
+5. **Small speakers.** Simulated phone and laptop bands put it level with Heavy Cannon, but a filter is
+   not a handset. The handset decides.
+
+**Levers:** all the settings are data in `src/systems/b2Thunder.js` (`THUNDER.mix`, `THUNDER.room`).
+The level is `R6_TRIM` in `b2Audio.js`. A change re-renders the event; the tests check its structure
+again.
+
+**Not approved, not frozen, not a default.** The approved R5 shield is untouched.

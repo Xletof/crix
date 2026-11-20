@@ -512,6 +512,65 @@ command, fix the line.*
         - `docs/evidence/b2-r5/run-all-reruns/`.
       - Deployed: `FRIX` at `1a88281`, Pages #312.
     - `docs/evidence/b2-r5/README.md`.
+  - **B2-R6 (2026-11-20), opt-in: `&b2a=B2RT` (Reactor Thunder Super sound),
+    over B2-R4 and compatible with the approved `&b2aura=1`. R5 Heavy Cannon
+    (`&b2a=B2HC&b2aura=1`) is the audio control; B2S the legacy reference. NOT
+    approved, NOT frozen, NOT a default.**
+    - **Calibrated first:**
+      - On R5's own renders, Heavy Cannon keeps 0.6% of its energy after
+        300 ms ("dead"). Reactor Detonation has a second onset at 0.0 dB,
+        242 ms after the blast, following a 14-semitone rising sweep ("two
+        sounds").
+      - R5's Super bus compressor added +6.2 dB of makeup gain and 6 ms of
+        latency. It lifted Heavy Cannon's body 6–9 dB against its peak, and the
+        crest factor fell 4.6 dB.
+      - Voice-kit envelopes are heard for about a quarter of their length.
+      - The game's committed wind-up is 117 ms at 60 fps (the 70 ms delayed
+        call runs under the cast's slow-mo).
+    - **The sound:** one event rendered once per sample rate
+      (`systems/b2Thunder.js`, pure and seeded, in a module worker,
+      `b2ThunderWorker.js`). `kitR6` keeps only the timing-dependent parts live.
+      - An energy-release rush starts on the committed cast, holds until the
+        real blast and hands over to the rush inside the event (16 ms, equal
+        power).
+      - KRA: Friedlander pressure micro-pulses, a dense rasp, barrel modes.
+        THOOOM: a pressure punch, a low body whose pitch settles and holds, and
+        a saturated low-mid body.
+      - Room: diffused early reflections at 17–104 ms, a modulated 8-line delay
+        network, low room modes.
+      - No bus compressor or clipper. B2's charge bed hands over (fades)
+        instead of swelling.
+      - Original synthesis only: the network reaches only package registries,
+        so no licensed recorded material was available.
+    - **Measured (browser path):**
+      - Max momentary loudness matched to Heavy Cannon within 0.2 LU
+        (`R6_TRIM` 0.74).
+      - About 4.6× Heavy Cannon's energy after 150 ms; no second onset; no sweep.
+      - The null of the browser path against the render sits at B2's idle
+        floor.
+      - Phone band 0.6 LU under Heavy Cannon.
+      - **The first hit is less prominent than Heavy Cannon's at matched
+        loudness** (punch +4.9 dB vs +8.6). NOT LISTENED TO by the author.
+      - Voices in a dense swarm: 28 of 48 against Heavy Cannon's saturated 48.
+    - **The approved shield is untouched:** `b2Reactor.js` is byte-identical,
+      and every object on screen, the aura's draw commands included, is
+      identical per tick to the Heavy Cannon link and to `d3ecad6`.
+    - **Proof:**
+      - `tests/smoke-b2r6.mjs` 54/54.
+      - Against `d3ecad6`: smoke-b2r5 63/63, smoke-b2r4 97/97, smoke-b2r3
+        81/81, smoke-b2r2 62/62, smoke-b2r 38/38, smoke-b2t 37/37, smoke-b2c
+        46/46, smoke-b2 88/88, smoke-b1 71/71, smoke-b0 46/46; P2-A3 scope 4/4;
+        controls and restart pass; the production bundle shows no page errors
+        on the four links, and the worker chunk loads.
+      - run-all 47/52, none new:
+        - champion-placement, vanguard-front and captain-closeout fail on
+          `d3ecad6` too, on the same checks;
+        - boss-moves passes standalone; pathing's sampler artefact passes
+          standalone;
+        - nemesis passed this time;
+        - `docs/evidence/b2-r6/run-all-reruns/`.
+      - Deployed: [DEPLOY].
+    - `docs/evidence/b2-r6/README.md`. Awaiting the HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -541,7 +600,7 @@ command, fix the line.*
   `&b2a=A|B`); its playtest led to B2-R3 (`&b2r=3`, audio `&b2a=B2`), and the
   HUMAN's R3 verdict to the finishing pass B2-R4 (`&b2r=4`, audio `&b2a=B2S`,
   `&b2iso=1`; played, best so far), and that to B2-R5 (`&b2a=B2HC|B2RD`,
-  `&b2aura=1`; the aura HUMAN-APPROVED / FROZEN, both Super sounds rejected; `docs/evidence/b2-r5/README.md`), and that to B2-R6 (Reactor Thunder Super sound). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
+  `&b2aura=1`; the aura HUMAN-APPROVED / FROZEN, both Super sounds rejected; `docs/evidence/b2-r5/README.md`), and that to B2-R6 (`&b2a=B2RT`, Reactor Thunder Super sound), which awaits the HUMAN verdict (`docs/evidence/b2-r6/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
 

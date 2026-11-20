@@ -1,0 +1,5 @@
+room=hangar  cohort=5  measured=3  never-arrived=2  dropped-non-alive=0  window=4.8s
+  efficiency  mean 0.83 (min 0.76)  worst 0.75 (reported, too noisy to gate)
+  reversals   max  0                     (max 6)
+  funnelling  0% of 2 crossings through one 160px band  (max 75%)
+PASS (diagnostic): mean efficiency 0.83, 0 max reversals, 0% funnel

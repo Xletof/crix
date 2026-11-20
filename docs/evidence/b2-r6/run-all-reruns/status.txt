@@ -1,0 +1,10 @@
+head boss-moves exit 0 67s PASS: 18 checks — Vader performs his own moves, and his copies bite
+head champion-placement exit 1 464s FAIL: 7 of 60 checks failed: EXACTLY ONE Captain token, in his authored lead slot; every other event is the SAME event, in the same order — no hidden reroll; 
+head vanguard-front exit 1 142s FAIL: 1 of 30 checks failed: the opening lanes SEPARATE the pair at the close hold (vs the same pair unlaned)
+head captain-closeout exit 1 119s FAIL: 1 of 60 checks failed: a damage tick makes the source react — and the tick itself is exactly the authored damage on the authored cadence
+head pathing exit 0 14s 
+head DONE
+old champion-placement exit 1 440s FAIL: 7 of 60 checks failed: EXACTLY ONE Captain token, in his authored lead slot; every other event is the SAME event, in the same order — no hidden reroll; 
+old vanguard-front exit 1 143s FAIL: 1 of 30 checks failed: the opening lanes SEPARATE the pair at the close hold (vs the same pair unlaned)
+old captain-closeout exit 1 113s FAIL: 1 of 60 checks failed: a damage tick makes the source react — and the tick itself is exactly the authored damage on the authored cadence
+old DONE
