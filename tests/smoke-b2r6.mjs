@@ -266,7 +266,9 @@ if (on(3)) {
     out.floor = diff(b2a.d, b2b.d);
     out.noSuper = diff((await render(mod, 'B2RT', false)).d, b2a.d);
     const ws = await render(mod, 'B2RT', true); out.withSuper = { peak: ws.peak, voices: ws.stats.peakVoices, dropped: ws.stats.dropped, sup: ws.stats.super };
-    if (oldMod) { out.old = {}; for (const k of ['B2', 'B2S', 'B2HC', 'B2RD']) out.old[k] = diff((await render(mod, k, true)).d, (await render(oldMod, k, true)).d); }
+    // each kit against d3ecad6, and against itself on this build (its own run-to-run noise: the R5 graphs jitter more than B2's)
+    const at = (x, y) => { let mm = 0, mi = 0; for (let i = 0; i < x.length; i++) { const v = Math.abs(x[i] - y[i]); if (v > mm) { mm = v; mi = i; } } return +(mi / SR).toFixed(3); };
+    if (oldMod) { out.old = {}; out.self = {}; out.oldSelf = {}; out.at = {}; for (const k of ['B2', 'B2S', 'B2HC', 'B2RD']) { const a1 = await render(mod, k, true), o1 = await render(oldMod, k, true), o2 = await render(oldMod, k, true); out.old[k] = diff(a1.d, o1.d); out.at[k] = at(a1.d, o1.d); out.self[k] = diff(a1.d, (await render(mod, k, true)).d); out.oldSelf[k] = diff(o1.d, o2.d); } }
     // the Super alone (no rifle, no charge bed): wind-up at 0.5 s, the blast `gap` ticks later (or never), optional cuts
     const lone = async (kind, gapTicks, o = {}) => {
       const ctx = new OfflineAudioContext(2, SR * 3, SR), dest = ctx.createGain(); dest.connect(ctx.destination);
@@ -291,7 +293,7 @@ if (on(3)) {
     const ref = await lone('B2RT', 7);
     out.ref = { at250: +ref.rms(ref.r + 0.25, ref.r + 0.3).toFixed(1), at500: +ref.rms(ref.r + 0.5, ref.r + 0.55).toFixed(1) };
     const pw = await lone('B2RT', null, { pauseAt: 33 }); out.pauseWind = { after: +pw.rms(33 / 60 + 0.02 + 0.06, 33 / 60 + 0.4).toFixed(1), cuts: pw.stats.cuts, blasts: pw.stats.blasts };
-    const idle = await lone('B2RT', null, { pauseAt: 31 }); out.floor = +idle.rms(1.5, 2.5).toFixed(1);   // B2's idle beds (gain 1e-4) are the floor
+    const idle = await lone('B2RT', null, { pauseAt: 31 }); out.idleFloor = +idle.rms(1.5, 2.5).toFixed(1);   // B2's idle beds (gain 1e-4) are the floor
     const pb = await lone('B2RT', 7, { pauseAt: 49 }); out.pauseBlast = { after: +pb.rms(49 / 60 + 0.02 + 0.06, 49 / 60 + 0.6).toFixed(1), before: +pb.rms(49 / 60 - 0.04, 49 / 60).toFixed(1), cuts: pb.stats.cuts };
     const db = await lone('B2RT', 7, { dieAt: 49 }); out.deathBlast = { after: +db.rms(49 / 60 + 0.02 + 0.09, 49 / 60 + 0.6).toFixed(1), deathCuts: db.stats.deathCuts };
     const dw = await lone('B2RT', null, { dieAt: 33 }); out.deathWind = { after: +dw.rms(33 / 60 + 0.02 + 0.09, 33 / 60 + 0.5).toFixed(1), deathCuts: dw.stats.deathCuts };
@@ -320,14 +322,14 @@ if (on(3)) {
   await p.close();
   const tol = Math.max(1e-6, ren.floor * 4);
   check('B2RT keeps B2\'s approved cues: rendered without a Super (rifle, charge, ready confirmation, locks), = B2 within the renderer\'s own run-to-run noise', ren.noSuper <= tol, JSON.stringify({ diff: ren.noSuper, floor: ren.floor }));
-  check('B2, B2S, B2HC and B2RD (the controls and the rejected R5 kits) are d3ecad6\'s exactly: with a Super, = its b2Audio.js within the renderer\'s noise', old != null && ren.old && Object.values(ren.old).every((v) => v <= tol), JSON.stringify({ old: ren.old, floor: ren.floor }));
+  check('B2, B2S, B2HC and B2RD (the controls and the rejected R5 kits) are d3ecad6\'s exactly: with a Super, = its b2Audio.js within each kit\'s own run-to-run noise on this build', old != null && ren.old && Object.keys(ren.old).every((k) => ren.old[k] <= Math.max(1e-6, 4 * ren.self[k], 4 * ren.oldSelf[k], tol)), JSON.stringify({ old: ren.old, at: ren.at, self: ren.self, oldSelf: ren.oldSelf, floor: ren.floor }));
   const S = ren.withSuper.sup;
   check('B2RT structure in context: one wind-up, one blast that took over the rush, the crowd\'s hits merged per tick, at most three impacts 50 ms apart within 150 ms; no clipping, nothing dropped, voices under the cap', S.windups === 1 && S.releases === 1 && S.blasts === 1 && S.handovers === 1 && S.impacts >= 1 && S.impacts <= 3 && S.merged >= 8 && (S.impacts < 2 || S.minGap >= 0.0499) && S.maxLag <= 0.15 && ren.withSuper.peak < 0.95 && ren.withSuper.dropped === 0 && ren.withSuper.voices < 48, JSON.stringify(ren.withSuper));
   check('the seam: with the blast 5, 7 or 15 ticks after the wind-up (83 / 117 / 250 ms; 117 is the game at 60 fps), the 10 ms level never dips more than 3 dB from 20 ms before the blast to 30 ms after it, and the blast lands above the rush', Object.values(ren.seams).every((s) => s.dip > -3 && s.after > 3 && s.hand === 1), JSON.stringify(ren.seams));
-  const Q = ren.floor + 3;   // "silent": within 3 dB of the kit's idle floor (B2's beds at gain 1e-4, about -80 dBFS)
-  check('unreleased (the hero died in the wind-up window and no blast came): the rush plays, then ends by itself (back to the idle floor from 0.5 s)', ren.never.early > -45 && ren.never.late < Q, JSON.stringify({ ...ren.never, floor: ren.floor }));
-  check('a pause in the wind-up fades the rush within 60 ms; a pause 0.2 s after the blast fades the event within 60 ms (it is still loud there otherwise)', ren.pauseWind.after < Q && ren.pauseWind.cuts >= 1 && ren.pauseBlast.after < Q && ren.pauseBlast.before > -40 && ren.pauseBlast.cuts >= 1 && ren.ref.at250 > -50, JSON.stringify({ pauseWind: ren.pauseWind, pauseBlast: ren.pauseBlast, ref: ren.ref, floor: ren.floor }));
-  check('death fades the event within 90 ms (after the blast) and the rush (in the wind-up)', ren.deathBlast.after < Q && ren.deathBlast.deathCuts >= 1 && ren.deathWind.after < Q && ren.deathWind.deathCuts >= 1, JSON.stringify({ deathBlast: ren.deathBlast, deathWind: ren.deathWind, floor: ren.floor }));
+  const Q = ren.idleFloor + 3;   // "silent": within 3 dB of the kit's idle floor (B2's beds at gain 1e-4, about -80 dBFS)
+  check('unreleased (the hero died in the wind-up window and no blast came): the rush plays, then ends by itself (back to the idle floor from 0.5 s)', ren.never.early > -45 && ren.never.late < Q, JSON.stringify({ ...ren.never, idleFloor: ren.idleFloor }));
+  check('a pause in the wind-up fades the rush within 60 ms; a pause 0.2 s after the blast fades the event within 60 ms (it is still loud there otherwise)', ren.pauseWind.after < Q && ren.pauseWind.cuts >= 1 && ren.pauseBlast.after < Q && ren.pauseBlast.before > -40 && ren.pauseBlast.cuts >= 1 && ren.ref.at250 > -50, JSON.stringify({ pauseWind: ren.pauseWind, pauseBlast: ren.pauseBlast, ref: ren.ref, idleFloor: ren.idleFloor }));
+  check('death fades the event within 90 ms (after the blast) and the rush (in the wind-up)', ren.deathBlast.after < Q && ren.deathBlast.deathCuts >= 1 && ren.deathWind.after < Q && ren.deathWind.deathCuts >= 1, JSON.stringify({ deathBlast: ren.deathBlast, deathWind: ren.deathWind, idleFloor: ren.idleFloor }));
   const bf = ren.bufs;
   check('the rendered buffers: deterministic (two renders identical), finite at 44.1 and 48 kHz, peak at the ceiling (the limiter takes under 1.5 dB), the rush ends in silence, the event ends at zero', bf.same && bf.fin44 && bf.fin48 && bf.peak44 <= bf.ceiling + 1e-6 && bf.peak48 <= bf.ceiling + 1e-6 && bf.gr44 < 1.5 && bf.gr48 < 1.5 && bf.preTail < 1e-6 && bf.blastLast < 1e-6, JSON.stringify(bf));
   check('no falling glide in the event (the legacy signature): the dominant low peak never falls more than 3 semitones over 0.1 s or longer; the same detector flags B2S (the A/B)', ren.glide.RT.semis <= 3 && ren.glide.S.semis > 3, JSON.stringify(ren.glide));
@@ -426,9 +428,9 @@ if (on(6)) {
     check(`link ${k} (${c.label}): telemetry on with its label, Super sound ${c.kind}, aura ${c.aura ? 'on' : 'off'}, F-release targeting`, r.b0 && r.label === c.label && r.kind === c.kind && r.aura === c.aura && r.cand, JSON.stringify(r));
   }
   const o = { supers: [300, 700, 1100, 1400], melee: [500, 525, 550] };
-  const a = await runFight(join(B, 'b0=B2B'), Q_MIXED, o), b = await runFight(join(M.RT.flags, 'b2c=1', 'b0=R6AURT'), Q_MIXED, o);
+  const a = await runFight(join(B, 'b2c=1', 'b0=B2B'), Q_MIXED, o), b = await runFight(join(M.RT.flags, 'b2c=1', 'b0=R6AURT'), Q_MIXED, o);   // both with the shipped F-release targeting
   const d = firstDiff(a.hashes, b.hashes);
-  check('links B2B and RT (R6AURT) as shipped: the same fight tick for tick', d < 0 && b.m.label === 'R6AURT', d < 0 ? `${b.shots} rounds, ${b.supers} Supers` : `first divergent tick ${d}`);
+  check('links B2B and RT (R6AURT), both with &b2c=1 as shipped: the same fight tick for tick', d < 0 && b.m.label === 'R6AURT', d < 0 ? `${b.shots} rounds, ${b.supers} Supers` : `first divergent tick ${d}`);
 }
 
 // ── 7. AUDIO-RNG ISOLATION ───────────────────────────────────────────────
@@ -450,17 +452,36 @@ if (on(7)) {
 }
 
 // ── 8. DENSE FIGHTS ──────────────────────────────────────────────────────
+// Voices are counted against the audio clock. In this harness the game is stepped far from real time
+// while a live AudioContext runs in real time, so live-context voice counts measure the harness, not
+// the game (both kits hit the cap there). Here the game's context is an OfflineAudioContext whose
+// clock IS the stepped game clock (the capture rig's method; it is never rendered): the counts are
+// what the game schedules.
+const bootVirtual = async (flags, o = {}) => {
+  const ctx = await browser.newContext({ viewport: { width: 720, height: 1280 } });
+  await ctx.addInitScript(() => {
+    const RealOAC = window.OfflineAudioContext;
+    window.AudioContext = window.webkitAudioContext = function () {
+      const c = new RealOAC(2, 44100 * 60, 44100); let t0 = null;
+      Object.defineProperty(c, 'currentTime', { get: () => { const t = window.__t; if (typeof t !== 'number') return 0; if (t0 == null) t0 = t; return (t - t0) / 1000; } });
+      Object.defineProperty(c, 'state', { get: () => 'running' });
+      c.resume = () => Promise.resolve(); c.suspend = () => Promise.resolve(); c.close = () => Promise.resolve();
+      return c;
+    };
+  });
+  const p = await boot(flags, { ...o, ctx, audio: true }); return { p, ctx };
+};
 if (on(8)) {
-  console.log('\n== 8. dense fights: voices');
+  console.log('\n== 8. dense fights: voices on the game clock');
   const res = {};
-  for (const k of ['RT', 'HC']) {
-    const p = await boot(join(M[k].flags, 'b2c=1'), { q: Q_SWARM, god: true, audio: true }); await waitRender(p);
+  for (const k of ['RT', 'HC', 'S']) {
+    const { p, ctx } = await bootVirtual(join(M[k].flags, 'b2c=1'), { q: Q_SWARM, god: true }); await waitRender(p);
     res[k] = await p.evaluate((x) => { const r = window.__trace(x); const v = window.__gs._b2.voice.stats; return { supers: r.supers, shots: r.shots, kills: r.kills, peak: v.peakVoices, dropped: v.dropped, sup: v.super }; }, { seed: 9071, ticks: 1500, seg: FIGHT_SEG, hold: [[20, 1480]], superTaps: [200, 450, 700, 950, 1200], melee: [600, 625] });
-    await p.close();
+    await ctx.close();
   }
-  const R = res.RT;
-  check('SWARM TIDE, the rifle held for 1460 ticks, five Supers into the crowd, live audio: B2RT never reaches the voice cap, drops nothing, and every blast played its event (blasts = casts)', R.peak < 48 && R.dropped === 0 && R.sup.blasts === R.supers && R.supers === 5, `B2RT peak ${R.peak}/48, dropped ${R.dropped}, ${R.sup.blasts} events, ${R.sup.impacts} impacts (${R.sup.merged} merged, ${R.sup.capped} capped) | B2HC peak ${res.HC.peak}/48, dropped ${res.HC.dropped}`);
-  check('B2RT peaks no higher than B2HC in the same fight (the event is 1-3 sources against Heavy Cannon\'s ~30 voices)', R.peak <= res.HC.peak, `B2RT ${R.peak} vs B2HC ${res.HC.peak}`);
+  const R = res.RT, H = res.HC;
+  check('SWARM TIDE on the game clock, the rifle held for 1460 ticks, five Supers into the crowd: B2RT drops nothing and every blast played its event (blasts = casts = 5)', R.dropped === 0 && R.sup.blasts === R.supers && R.supers === 5, `B2RT peak ${R.peak}/48, dropped ${R.dropped}, ${R.sup.blasts} events, ${R.sup.impacts} impacts (${R.sup.merged} merged, ${R.sup.capped} capped) | B2HC peak ${H.peak}/48, dropped ${H.dropped} | B2S peak ${res.S.peak}/48, dropped ${res.S.dropped}`);
+  check('B2RT peaks below B2HC in the same fight (the event is 1-3 sources against Heavy Cannon\'s ~30 voices) and under the cap', R.peak < H.peak && R.peak < 48, `B2RT ${R.peak} vs B2HC ${H.peak} (B2S ${res.S.peak})`);
 }
 
 // ── 9. COST ──────────────────────────────────────────────────────────────
@@ -478,7 +499,7 @@ if (on(9)) {
     return { render: { ...s() }, frames: st.length, median: st[st.length >> 1], p95: st[Math.floor(st.length * 0.95)], max: st[st.length - 1] };
   });
   await ctx.close();
-  check('without a Worker: the per-frame job finishes in about a second of frames with no on-the-spot render (cost reported; this harness is software-rendered and slower than a phone\'s JIT is not guaranteed)', /job/.test(j.render.mode) && j.render.sync === 0 && j.frames > 40, JSON.stringify(j));
+  check('without a Worker: the per-frame job (one block per frame) completes with no on-the-spot render; per-frame main-thread cost reported (this software-rendered harness; the first blocks run before the JIT optimizes)', /job/.test(j.render.mode) && j.render.sync === 0 && j.render.steps >= 58, JSON.stringify(j));
   // the audio update per frame, B2RT vs B2HC, in the same fight
   const upd = {};
   for (const k of ['RT', 'HC']) {

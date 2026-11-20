@@ -47,8 +47,8 @@ export const THUNDER = {
   mix: {
     pre: 0.3,           // the rush, at its plateau (after its drive)
     post: 0.42,         // the rush inside the blast
-    crack: 0.62, grit: 0.34, modes: 0.08,
-    punch: 0.9, low: 0.55, rumble: 0.35, lowmid: 0.9, body: 0.62,
+    crack: 0.62, grit: 0.55, modes: 0.08,
+    punch: 0.9, low: 0.55, rumble: 0.35, lowmid: 0.9, body: 0.66,
     zips: 0.05,
     er: 0.6, late: 1.35, bloom: 0.08,
     out: 0.58,          // before the limiter (it should only touch the very first crack)
@@ -153,7 +153,7 @@ function makeBlast(sr, stems) {
   const CK = [[0, 0.75, 1], [0.0016, 0.5, 0.62], [0.0031, 0.45, -0.5], [0.0049, 0.6, 0.44], [0.0072, 0.4, -0.36], [0.0101, 0.55, 0.3], [0.0139, 0.35, -0.22], [0.019, 0.5, 0.17], [0.026, 0.4, 0.12]];
   const ckT = Float64Array.from(CK, (c) => c[0]), ckS = Float64Array.from(CK, (c) => c[1] / 1000), ckA = Float64Array.from(CK, (c) => c[2]);
   const ckHp = mk('hp', 700, 0.7, sr), ckPk = mk('pk', 2600, 0.9, sr, 4);
-  const gritHp = mk('hp', 900, 0.7, sr), gritPk = mk('pk', 2400, 1.0, sr, 5);
+  const gritHp = mk('hp', 600, 0.7, sr), gritPk = mk('pk', 1900, 0.9, sr, 5);
   const MD = [[1180, 0.04, 1], [1730, 0.03, 0.8], [2410, 0.022, 0.7], [3370, 0.015, 0.55], [4620, 0.01, 0.4]];
   const modes = MD.map(([f, tau]) => reso(f, tau, sr)), modeG = Float64Array.from(MD, ([f, , g]) => g * (1 - Math.exp((-TAU * f) / sr)));
   const punchLp = mk('lp', 520, 0.7, sr);
@@ -178,15 +178,15 @@ function makeBlast(sr, stems) {
   const apIn = [[4.7, 0.7], [3.6, 0.7], [12.7, 0.62], [9.3, 0.62]].map(([ms, g]) => ({ buf: new Float32Array(Math.round((ms / 1000) * sr)), g }));
   const roomModes = RM.modes.map(([f, tau]) => reso(f, tau, sr)), roomG = Float64Array.from(RM.modes, ([f, , g]) => g * (1 - Math.exp((-TAU * f) / sr)));
   const lateHp = mk('hp', 70, 0.7, sr), lateHpR = mk('hp', 70, 0.7, sr), fdnHp = mk('hp', 110, 0.7, sr);
-  const dcL = mk('hp', 22, 0.7, sr), dcR = mk('hp', 22, 0.7, sr);
+  const dcL = mk('hp', 22, 0.7, sr), dcR = mk('hp', 22, 0.7, sr), sdc = Array.from({ length: 8 }, () => mk('hp', 22, 0.7, sr));
   const xf = Math.round(T.xfadeS * sr);
   const v = new Float64Array(8), yo = new Float64Array(8);
   // envelopes as recurrences: e(t) = exp(-t / tau)
   const dk = (tau) => Math.exp(-1 / (tau * sr));
-  const k9 = dk(0.009), k25 = dk(0.025), k4 = dk(0.004), k90 = dk(0.09), k220 = dk(0.22), k35 = dk(0.035), k100 = dk(0.11), k300 = dk(0.3), k120 = dk(0.25);
-  const E = new Float64Array([1, 1, 1, 1, 1, 1, 1, 1, 1, 0]), EW = new Int32Array(1);   // envelopes, the low phase; the ER write index
+  const k14 = dk(0.014), k35g = dk(0.035), k7 = dk(0.007), k16 = dk(0.016), k9 = dk(0.009), k25 = dk(0.025), k4 = dk(0.004), k90 = dk(0.09), k220 = dk(0.22), k35 = dk(0.035), k100 = dk(0.11), k300 = dk(0.3), k120 = dk(0.25);
+  const E = new Float64Array([1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1]), EW = new Int32Array(1);   // envelopes, the low phase; the ER write index
   function run(i0, i1) {
-    let e9 = E[0], e25 = E[1], e4 = E[2], e90 = E[3], e220 = E[4], e35 = E[5], e100 = E[6], e300 = E[7], e120 = E[8], lowPh = E[9], ew = EW[0];
+    let e9 = E[0], e25 = E[1], e4 = E[2], e90 = E[3], e220 = E[4], e35 = E[5], e100 = E[6], e300 = E[7], e120 = E[8], lowPh = E[9], e14 = E[10], e35g = E[11], e7 = E[12], e16 = E[13], ew = EW[0];
     for (let i = i0; i < i1; i++) {
       const t = i / sr;
       // A: the rush, continuing through the blast (faded in over the hand-over)
@@ -196,7 +196,7 @@ function makeBlast(sr, stems) {
       if (t < 0.045) for (let c = 0; c < 9; c++) { const u = t - ckT[c]; if (u >= 0 && u < 0.012) ck += ckA[c] * friedlander(u, ckS[c], 1.6); }
       if (t < 0.06) ck = th(2.5 * bqRun(ckPk, bqRun(ckHp, ck))) * X.crack;   // (filters idle afterwards: no denormal tails)
       if (t < 0.12) {
-        const ge = t < 0.0002 ? t / 0.0002 : e9 + 0.25 * e25;
+        const ge = t < 0.0002 ? t / 0.0002 : e14 + 0.35 * e35g;   // the KRA's rasp lasts ~30 ms
         grit = th(3 * bqRun(gritPk, bqRun(gritHp, (r() * 2 - 1) * ge))) * X.grit * Math.min(1, ge * 1.3);
         for (let m = 0; m < 5; m++) md += resoRun(modes[m], ck * 0.4) * modeG[m];
         md *= X.modes;
@@ -205,10 +205,10 @@ function makeBlast(sr, stems) {
       const punch = t < 0.12 ? bqRun(punchLp, friedlander(t, 0.0065, 1.3, 0.0003)) * X.punch : 0;
       lowPh += (54 + 22 * e35) / sr; if (lowPh >= 1) lowPh -= 1;
       // (driven hard only while loud: the decay below the knee stays linear, so it can breathe)
-      const lowEnv = (1 - e4) * (0.7 * e90 + 0.3 * e220);
+      const lowEnv = (1 - e7) * (0.7 * e90 + 0.3 * e220);
       const lowRaw = (Math.sin(TAU * lowPh) * X.low + bqRun(rumLp, r() * 2 - 1) * 2.2 * X.rumble) * lowEnv;
       if ((i & 15) === 0) bqSet(lmLp, 'lp', 280 + (1800 - 280) * e120, 0.8, sr);
-      const lmEnv = (1 - e9) * (0.72 * e100 + 0.28 * e300);
+      const lmEnv = (1 - e16) * (0.72 * e100 + 0.28 * e300);   // swells after the crack: KRA, then THOOOM
       const nz = r() * 2 - 1, lm = (bqRun(lmLp, nz) * 1.1 + bqRun(lmBp, nz) * 1.9 + bqRun(lmBp2, nz) * 1.2) * lmEnv * X.lowmid;
       // asymmetric drive: odd and even harmonics of the low end land at 100-500 Hz, where small speakers play
       const lowIn = 1.6 * (punch + lowRaw);
@@ -257,16 +257,16 @@ function makeBlast(sr, stems) {
       const roomL = el * X.er + lateL * X.late + bl, roomR = er * X.er + lateR * X.late + bl;
       const outL = (ra + dry + body + zl + roomL) * X.out, outR = (ra + dry + body + zr + roomR) * X.out;
       L[i] = bqRun(dcL, outL); R[i] = bqRun(dcR, outR);
-      if (st) {
+      if (st) {   // (each through its own copy of the composite's DC blocker: the stems sum to the composite)
         const o = X.out;
-        st.energy[0][i] = ra * o; st.energy[1][i] = ra * o; st.dry[0][i] = (dry + zl) * o; st.dry[1][i] = (dry + zr) * o;
-        st.body[0][i] = body * o; st.body[1][i] = body * o; st.room[0][i] = roomL * o; st.room[1][i] = roomR * o;
+        st.energy[0][i] = bqRun(sdc[0], ra * o); st.energy[1][i] = bqRun(sdc[1], ra * o); st.dry[0][i] = bqRun(sdc[2], (dry + zl) * o); st.dry[1][i] = bqRun(sdc[3], (dry + zr) * o);
+        st.body[0][i] = bqRun(sdc[4], body * o); st.body[1][i] = bqRun(sdc[5], body * o); st.room[0][i] = bqRun(sdc[6], roomL * o); st.room[1][i] = bqRun(sdc[7], roomR * o);
       }
       const ar = Math.abs(ra), ad = Math.abs(dry), ab = Math.abs(body), am = Math.abs(roomL) > Math.abs(roomR) ? Math.abs(roomL) : Math.abs(roomR), as = Math.abs(L[i]) > Math.abs(R[i]) ? Math.abs(L[i]) : Math.abs(R[i]);
       if (ar > PK[0]) PK[0] = ar; if (ad > PK[1]) PK[1] = ad; if (ab > PK[2]) PK[2] = ab; if (am > PK[3]) PK[3] = am; if (as > PK[4]) PK[4] = as;
-      e9 *= k9; e25 *= k25; e4 *= k4; e90 *= k90; e220 *= k220; e35 *= k35; e100 *= k100; e300 *= k300; e120 *= k120;
+      e9 *= k9; e25 *= k25; e4 *= k4; e90 *= k90; e220 *= k220; e35 *= k35; e100 *= k100; e300 *= k300; e120 *= k120; e14 *= k14; e35g *= k35g; e7 *= k7; e16 *= k16;
     }
-    E[0] = e9; E[1] = e25; E[2] = e4; E[3] = e90; E[4] = e220; E[5] = e35; E[6] = e100; E[7] = e300; E[8] = e120; E[9] = lowPh; EW[0] = ew;
+    E[0] = e9; E[1] = e25; E[2] = e4; E[3] = e90; E[4] = e220; E[5] = e35; E[6] = e100; E[7] = e300; E[8] = e120; E[9] = lowPh; E[10] = e14; E[11] = e35g; E[12] = e7; E[13] = e16; EW[0] = ew;
   }
   const peaks = () => ({ energy: PK[0], dry: PK[1], body: PK[2], room: PK[3], sum: PK[4] });
   return { n, L, R, st, peaks, run };

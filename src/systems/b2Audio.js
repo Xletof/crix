@@ -818,7 +818,7 @@ function kitR5(ctx, dest, stats, now, superDest, design) {
 // Voices: the event is 1-3 buffer sources (counted in the kit's voice count, never refused).
 // THE AUTHOR CANNOT LISTEN: designed from principles and checked by measurement; the HUMAN decides.
 /** In-game Super bus level (B2RT); see docs/evidence/b2-r6/README.md for how it was set. */
-export const R6_TRIM = 0.76;   // max momentary loudness of the Super window = B2HC's in the same capture (docs/evidence/b2-r6)
+export const R6_TRIM = 0.71;   // max momentary loudness of the Super window = B2HC's in the same capture (docs/evidence/b2-r6)
 export const R6_SUPER = { impactGapS: 0.05, impactMax: 3, impactLagS: 0.15, windowS: 1.2, impactGain: [0.5, 0.3, 0.24], bedHandS: 0.06, pauseCutS: 0.05, deathCutS: 0.08 };
 // The rendered buffers, once per sample rate for the page (the AudioContext outlives restarts):
 // a module worker renders them; without one (or if it fails) a job renders one block per frame;
