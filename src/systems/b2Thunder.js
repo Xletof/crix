@@ -47,11 +47,11 @@ export const THUNDER = {
   mix: {
     pre: 0.3,           // the rush, at its plateau (after its drive)
     post: 0.42,         // the rush inside the blast
-    crack: 0.62, grit: 0.55, modes: 0.08,
+    crack: 0.8, grit: 0.9, modes: 0.08,   // a dense KRA: its first 5 ms carry the hit (punch +1.5 dB over the first cut)
     punch: 0.9, low: 0.55, rumble: 0.35, lowmid: 0.9, body: 0.66,
     zips: 0.05,
     er: 0.6, late: 1.35, bloom: 0.08,
-    out: 0.58,          // before the limiter (it should only touch the very first crack)
+    out: 0.44,          // before the limiter (it should only touch the very first crack: under 1 dB)
     send: { dry: 0.75, body: 0.5, rush: 0.55, zips: 0.3 },
   },
   room: {

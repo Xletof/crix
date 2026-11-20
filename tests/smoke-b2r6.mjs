@@ -401,7 +401,7 @@ if (on(5)) {
     proto.createBufferSource = function (...a) { created++; return cbs.apply(this, a); };
     const one = () => {
       const v = gs._b2.voice; window.__stage(); window.__ring(3, 240, -0.4, 0.4);
-      const c0 = created; window.__super(); window.__adv(3);
+      const c0 = created; window.__super(); window.__adv(14);   // the blast lands ~7 ticks after the cast (the shipped 70 ms wind-up under its slow-mo)
       const during = v.liveSuper();
       window.__adv(150);
       const s = v.stats.super; return { kind: v.kind, wind: s.windups, blasts: s.blasts, hand: s.handovers, impacts: s.impacts, sources: created - c0, during, render: { ...s.render } };

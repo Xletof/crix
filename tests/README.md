@@ -2450,6 +2450,61 @@ Evidence in `docs/evidence/b1-combat-experiments/`.
   loop) on the same clock. Set the clock's origin before the first gesture
   creates the context.
 
+## The B2-R6 rig (`&b2a=B2RT`, Reactor Thunder)
+
+- `smoke-b2r6.mjs [--only=3,8] --old=http://localhost:5174/` (standalone, :5173
+  plus the `d3ecad6` build on :5174 for §4; Chromium with
+  `--autoplay-policy=no-user-gesture-required`). The brief's four conditions are
+  in `M` (`HC` = R5 Heavy Cannon + aura, `RT` = R6 + aura, `RTN` = R6 alone,
+  `S` = R4 B2S). Sections:
+  - §0 flags (every older audio flag still selectable);
+  - §1 gameplay parity of `RT` / `RTN` / `HC` against B2-B;
+  - §2 in the game, with live audio: the wind-up sound only on the committed cast
+    (none during a held-F aim, a cancelled hold, a suppressed press or release),
+    one event per blast, the rush handed over each time;
+  - §3 offline renders through `createB2Audio` (approved cues; B2 / B2S / B2HC /
+    B2RD against `git show d3ecad6:src/systems/b2Audio.js`; the structure; the seam
+    at 83 / 117 / 250 ms; unreleased; pause and death fades; the buffers; no legacy
+    layer; no falling glide, A/B'd on B2S);
+  - §4 the approved shield (`b2Reactor.js` byte-identical; every object on screen,
+    the aura's draw commands included, identical per tick to the HC link and to
+    `d3ecad6`);
+  - §5 restarts (no duplicated Super; the render reused; the Super bus cut);
+  - §6 links; §7 isolation with the worker and with the per-frame job; §8 voices
+    in a dense fight; §9 cost; §10 scope.
+- **The Super is rendered once, not voiced.** `systems/b2Thunder.js` is a pure,
+  seeded function of the sample rate (it runs in Node: render it there to iterate,
+  `renderThunder(sr, { stems: true })`). The kit plays buffers. Never add a
+  `Math.random`, a timer or a browser API to it; §3 checks the source.
+- **A module worker renders it; three paths give the same result.** The worker
+  (normal), a per-frame job when there is no `Worker` (one block per frame from
+  `kit.bed`), and an on-the-spot render if a Super comes first. The capture rig's
+  stepped clock usually reaches the first cast before the worker answers, so its
+  captures use the on-the-spot render (same buffers; the stats say
+  `worker+sync`). Tests that need the worker path wait for it in real time
+  (`waitRender`).
+- **Count voices on the game clock, not a live context.** The harness steps the
+  game far from real time while a live `AudioContext` runs in real time, so
+  live-context voice counts measure the harness: both B2HC and B2RT hit the cap
+  there. §8 replaces the game's context with an `OfflineAudioContext` whose
+  `currentTime` is the stepped clock (the capture rig's method, never rendered).
+- **"Silent" means B2's idle floor.** B2's beds ramp to a gain of 1e-4, not 0, so
+  a kit with nothing playing sits near −83 dBFS in a render. Cut / fade checks
+  compare against that floor (+3 dB), not against −90.
+- **Do not reuse a key in a returned results object.** §3 once overwrote the
+  renderer's noise floor with the idle floor (`out.floor`), which turned the
+  identity tolerance into 1e-6 flat.
+- **Offline render jitter is per graph.** The R5 graphs (compressor, convolver,
+  4x waveshaper) jitter more than B2's; one §3 run measured B2HC 1.1e-6 from
+  `d3ecad6` (twice in that page, not in isolation or in later runs, where it was
+  2.4e-7 like its own run-to-run spread). §3 now measures each kit against itself
+  on both builds and uses that spread.
+- **A delay read at `-1e-17` wraps to the buffer length.** `rp += N` on a tiny
+  negative read position rounds to exactly `N`; the first renderer read past the
+  end at 48 kHz (NaN). Wrap the integer index too.
+- **IIR filters fed zeros decay into denormals.** That doubled the late blocks'
+  cost; filters whose part of the event is over are not run.
+
 ## The B2-R5 rig (`&b2a=B2HC|B2RD`, `&b2aura=1`)
 
 - `smoke-b2r5.mjs [--only=2,4]` (standalone, :5173; Chromium with

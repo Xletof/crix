@@ -413,6 +413,24 @@ Traps found building it:
   up — the saber hum was inaudible on mobile for exactly this reason. Measure the
   bands (`tests/smoke-hum.mjs`) before reaching for the volume.
 
+- **The master compressor sits on everything** (`FX.js initAudio`: threshold
+  −10 dBFS at the master input, knee 20, ratio 12, 3 ms attack, 250 ms
+  release). With the default sliders (SFX 0.6 × master 0.5), a source feeding
+  `sfxGain` reaches its threshold at about 1.0. A sound meant to keep its own
+  dynamics stays under that when alone. It is shared with the R1 default:
+  don't retune it for one candidate.
+
+- **A Web Audio `DynamicsCompressorNode` adds makeup gain and 6 ms of
+  latency** (Chrome; measured: +6.2 dB with threshold −14, ratio 6). B2-R5's
+  Super bus compressor lifted Heavy Cannon's body 6–9 dB against its own peak
+  and took 4.6 dB off its crest factor. That is part of why it read as a dense,
+  dead thud (`docs/evidence/b2-r6/audio/r5-chain-analysis.txt`).
+
+- **A voice-kit envelope is heard for a quarter of its `dur`.** The B2 kits'
+  exponential ramps reach −80 dB at `dur`, so nothing in them rings: a room,
+  a long decay or a rush that crosses an event needs rendered audio (B2-R6
+  `systems/b2Thunder.js`, rendered once per sample rate in a module worker).
+
 ### Nemesis
 
 - **A nemesis bomber must never run the stock contact path.** `EnemyBomber._detonate()`
