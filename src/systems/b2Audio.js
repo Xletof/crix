@@ -699,18 +699,19 @@ function kitR5(ctx, dest, stats, now, superDest, design) {
       sv.noise(t, { f: 2600, q: 0.7, dur: 0.012, gain: 0.55, drive: 'brutal' });
       sv.noise(t, { f: 5200, type: 'highpass', q: 0.7, dur: 0.005, gain: 0.32, drive: 'hard' });
       sv.osc(t, { type: 'square', f: 900, f2: 320, dur: 0.012, gain: 0.2 });
-      sv.osc(t, { type: 'sine', f: 190, f2: 92, dur: 0.07, gain: 0.7, drive: 'brutal' });
-      sv.noise(t, { f: 760, f2: 300, type: 'lowpass', q: 1.0, dur: 0.09, gain: 0.55, drive: 'brutal' });
+      sv.osc(t, { type: 'sine', f: 190, f2: 92, dur: 0.08, gain: 0.75, drive: 'brutal' });
+      sv.noise(t, { f: 1200, f2: 280, type: 'lowpass', q: 1.0, dur: 0.16, gain: 0.66, drive: 'brutal' });   // the initial blast leads
+      sv.noise(t, { f: 420, q: 0.9, dur: 0.1, gain: 0.4, drive: 'hard' });
       // IMPLOSION: the pressure collapses inward (a swell rising in level and pitch, cut dead)...
       sv.noise(t + 0.07, { f: 300, f2: 2600, q: 1.3, a: 0.15, dur: 0.012, gain: 0.3, drive: 'hard' });
       sv.osc(t + 0.07, { type: 'sine', f: 90, f2: 240, a: 0.15, dur: 0.01, gain: 0.26, drive: 'hard' });
       // ...and lands on a second, collapsing thump
       const c = t + 0.232;
       sv.noise(c, { f: 3200, q: 0.8, dur: 0.008, gain: 0.34, drive: 'hard' });
-      sv.osc(c, { type: 'sine', f: 230, f2: 86, dur: 0.12, gain: 0.75, drive: 'brutal' });
-      sv.osc(c, { type: 'sine', f: 80, f2: 60, dur: 0.15, gain: 0.18 });
-      sv.noise(c, { f: 1300, f2: 260, type: 'lowpass', q: 1.1, dur: 0.3, gain: 0.58, drive: 'brutal' });
-      sv.noise(c, { f: 460, q: 0.9, dur: 0.16, gain: 0.34, drive: 'hard' });
+      sv.osc(c, { type: 'sine', f: 230, f2: 86, dur: 0.12, gain: 0.42, drive: 'brutal' });                  // the collapse follows, ~2-3 dB under
+      sv.osc(c, { type: 'sine', f: 80, f2: 60, dur: 0.15, gain: 0.14 });
+      sv.noise(c, { f: 1300, f2: 260, type: 'lowpass', q: 1.1, dur: 0.3, gain: 0.32, drive: 'brutal' });
+      sv.noise(c, { f: 460, q: 0.9, dur: 0.16, gain: 0.2, drive: 'hard' });
       // FRACTURE: a coarse electrical crackle under all of it
       crackle(blastBus, t + 0.008, { f: 3000, q: 0.9, dur: 0.62, gain: 0.3 });
       crackle(blastBus, t + 0.008, { f: 760, q: 1.1, dur: 0.4, gain: 0.2, drive: 'brutal' });
