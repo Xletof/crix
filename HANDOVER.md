@@ -456,7 +456,37 @@ command, fix the line.*
         - readability failed 1 run in 4 on each build;
         - `docs/evidence/b2-r4/run-all-reruns/`.
       - Deployed: `FRIX` at `7367198`, Pages #309.
-    - `docs/evidence/b2-r4/README.md`. Awaiting the HUMAN handset verdict.
+    - `docs/evidence/b2-r4/README.md`. Played by the HUMAN (2026-11-20): the best combat run and presentation so far; the B2S Super sound rejected ("the old Super sound with slightly more thickness"); a more enchanted full shield requested. That led to B2-R5 below.
+  - **B2-R5 (2026-11-20), opt-in: `&b2a=B2HC` (Heavy Cannon) or `&b2a=B2RD`
+    (Reactor Detonation) Super sound, and `&b2aura=1` (enchanted full-shield
+    aura, with `&b2r=4` only). Over B2-R4; B2S and the R4 shield are the
+    controls. NOT approved, NOT a default.**
+    - **Found:** B2S still played B2's E6 pip falling an octave, falling saws
+      and B2's falling-saw cooldown, which explains the verdict. R5's kits play
+      none of these, and the rig checks the source.
+    - **The sounds:**
+      - Heavy Cannon: a crack plus KRA grain, a driven low-mid thump and a
+        ~0.4 s roar, a dark room, a compact rattle, a breech.
+      - Reactor Detonation: a detonation, a pressure collapse onto a second
+        thump under the first, an impulse crackle and a ~0.8 s decay.
+      - Both: an 8 ms-attack compressor and a tanh soft clipper, a deeper music
+        dip and a brief dip of the other game sounds.
+      - In game: loudness matched to B2S within 0.7 LU (by choice; `R5_TRIM` is
+        the lever). Phone-band energy +2.0 to +3.1 LU. True peak unchanged.
+      - **Not punchier at the onset:** isolated, Heavy Cannon equals B2S and
+        Reactor Detonation is 2.4 dB lower. The two kits converged spectrally
+        and differ in time structure. NOT LISTENED TO by the author.
+    - **The aura:** behind the hero and the rifle, outside the silhouette only,
+      irregular, head and shoulders weighted, breathing, up to four motes. Only
+      above 300 shield; a hit knocks it out. Deterministic; one Graphics object.
+    - **Fixed in review:** the aura drew over the north-facing rifle, the aura
+      popped in after a spell at 0 shield, a fade flicker, and the Super bus
+      chain (B2S too) left wired after a restart.
+    - **Proof:**
+      - `tests/smoke-b2r5.mjs` SMOKE_B2R5.
+      - COVERING_R5.
+      - RUN_ALL_R5.
+    - `docs/evidence/b2-r5/README.md`. Awaiting the HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,
   readability). None is caused by the rollout: each was re-run standalone as
@@ -485,7 +515,8 @@ command, fix the line.*
   (`&b2r=1`, pixels only); its playtest led to B2-R2 (`&b2r=2`, audio
   `&b2a=A|B`); its playtest led to B2-R3 (`&b2r=3`, audio `&b2a=B2`), and the
   HUMAN's R3 verdict to the finishing pass B2-R4 (`&b2r=4`, audio `&b2a=B2S`,
-  `&b2iso=1`), which awaits the HUMAN verdict (`docs/evidence/b2-r4/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
+  `&b2iso=1`; played, best so far), and that to B2-R5 (`&b2a=B2HC|B2RD`,
+  `&b2aura=1`), which awaits the HUMAN verdict (`docs/evidence/b2-r5/README.md`). The latest closure is `docs/handover/CRIX-SESSION-HANDOVER-2026-11-09.md`. `docs/handover/CRIX-SESSION-HANDOVER-2026-11-02.md` holds the approval ledger
   (§3), the Marksman and Bulwark histories (§4–§5), the source map (§6), the
   evidence index (§8) and bootstrap prompts — open the section a task needs.
 

@@ -142,6 +142,7 @@ The first version barely read at phone size (`after/aura-native-phone-frame-r4-l
 | `films/super-isolated-{control-B2S, A-heavy-cannon, B-reactor-detonation}-music-muted.mp4` | the same hold-F cast and a suppressed hold, with the game's audio |
 | `films/fight-full-mix-{control-B2S, A-heavy-cannon, B-reactor-detonation}.mp4` | the same seeded fight with music, rifle, charge, the ready cue and the Super |
 | `films/shield-r4-vs-r5-aura-60fps.mp4` | full shield, hits, draining, the break and shards, the refill, a bush; R4 and R5 side by side |
+| `films/aura-fight-sustained-r4-vs-r5-aura-60fps.mp4` | the key aura question. A SWARM TIDE fight with the shield topped to 400 every 150 ticks (full on 591 of 720 ticks), moving through every facing, firing, a held-F Super and a Broken Wings chain; R4 (B2S) against R5 aura + Heavy Cannon. At this film's half scale the aura is hard to make out; at native phone resolution it is visible (`after/aura-native-phone-frame-r4-left-r5-right-3x.png`). It is close to the edge of what reads in play. |
 | `films/crowd-shield-r4-vs-r5-aura-60fps.mp4` | a SWARM TIDE crowd, R4 (B2S) against R5 aura + Heavy Cannon |
 | `audio/*.flac` | loudness-matched trios, one common loudness per trio, every export ≤ −1.0 dBTP, re-measured after export (`audio/matched-trios.md`) |
 | `after/waveform-spectrogram-super-{isolated,in-fight}-B2S-HC-RD.png` | waveforms and spectrograms from the in-game captures |
