@@ -569,7 +569,7 @@ command, fix the line.*
           standalone;
         - nemesis passed this time;
         - `docs/evidence/b2-r6/run-all-reruns/`.
-      - Deployed: [DEPLOY].
+      - Deployed: `FRIX` at `6bcc4fc`, Pages #314 (then this record).
     - `docs/evidence/b2-r6/README.md`. Awaiting the HUMAN handset verdict.
 - **The full suite is NOT green:** `run-all` **46/52 under the R1 default**
   (camera, champion-placement, vanguard-screen, vanguard-reinforce, deflect,

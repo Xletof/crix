@@ -21,6 +21,8 @@ measurement. The numbers say what the sound is made of. They do not say whether 
 
 ## Playtest links
 
+Deployed: `FRIX` at `6bcc4fc` (Pages run #314), then a docs-only record.
+
 All four links share `https://xletof.github.io/crix/?visualPilot=v2c&polish=p1&fxPilot=p2a3&b2=B&b2r=4&b2iso=1&b2c=1&`
 and then add:
 
